@@ -3,6 +3,7 @@ import { loadEventState } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { EventSetupClient } from "@/components/EventSetupClient";
+import { COURSES } from "@/lib/courses";
 
 export default async function EventPage() {
   await requireScreen("event");
@@ -28,6 +29,7 @@ export default async function EventPage() {
           playerCountMode: e.playerCountMode, manualPlayerCount: e.manualPlayerCount,
         }}
         playersCount={state.confirmed.length}
+        courses={COURSES.map((c) => ({ name: c.name, city: c.city, address: c.address }))}
       />
     </>
   );

@@ -15,16 +15,82 @@ interface EventForm {
   manualPlayerCount: number;
 }
 
-export function EventSetupClient({ initial, playersCount }: { initial: EventForm; playersCount: number }) {
+interface CourseOption {
+  name: string;
+  city: string;
+  address: string;
+}
+
+export function EventSetupClient({
+  initial,
+  playersCount,
+  courses,
+}: {
+  initial: EventForm;
+  playersCount: number;
+  courses: CourseOption[];
+}) {
   const [f, setF] = useState<EventForm>(initial);
   const [manualTarget, setManualTarget] = useState(initial.manualPlayerCount);
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
 
+  // Course selector: a preset name, "__other" (manual entry), or "" (none yet).
+  const presetNames = new Set(courses.map((c) => c.name));
+  const initialSelect = initial.course === "" ? "" : presetNames.has(initial.course) ? initial.course : "__other";
+  const [courseSelect, setCourseSelect] = useState(initialSelect);
+  const [zip, setZip] = useState("");
+  const [zipMsg, setZipMsg] = useState("Enter a US zip to fill in the city/state.");
+
   const set = <K extends keyof EventForm>(k: K, v: EventForm[K]) => setF((prev) => ({ ...prev, [k]: v }));
+
+  const onSelectCourse = (val: string) => {
+    setCourseSelect(val);
+    if (val === "") {
+      setF((prev) => ({ ...prev, course: "", city: "", address: "" }));
+    } else if (val === "__other") {
+      setF((prev) => ({ ...prev, course: "" }));
+    } else {
+      const c = courses.find((x) => x.name === val);
+      if (c) setF((prev) => ({ ...prev, course: c.name, city: c.city, address: c.address }));
+    }
+  };
+
+  const lookupZip = async () => {
+    const z = zip.trim();
+    if (!/^\d{5}$/.test(z)) {
+      if (z) setZipMsg("Enter a 5-digit US zip code.");
+      return;
+    }
+    setZipMsg("Looking up…");
+    try {
+      const res = await fetch(`https://api.zippopotam.us/us/${z}`);
+      if (!res.ok) {
+        setZipMsg("Zip not found — enter the city/address manually.");
+        return;
+      }
+      const data = (await res.json()) as {
+        places?: Array<{ "place name": string; "state abbreviation": string }>;
+      };
+      const place = data.places?.[0];
+      if (place) {
+        const city = place["place name"];
+        const state = place["state abbreviation"];
+        setF((prev) => ({
+          ...prev,
+          city,
+          address: prev.address.trim() ? prev.address : `${city}, ${state} ${z}`,
+        }));
+        setZipMsg(`Found ${city}, ${state}. Add the street address if needed.`);
+      }
+    } catch {
+      setZipMsg("Lookup unavailable — enter the city/address manually.");
+    }
+  };
 
   const summary = [
     { k: "Format", v: f.format === "stroke" ? "Stroke play" : "Match play" },
+    { k: "Course", v: f.course || "—" },
     { k: "Capacity", v: `${f.capacity} players` },
     { k: "Confirmed", v: `${playersCount}` },
     { k: "Player count", v: f.playerCountMode === "manual" ? "Manual target" : "From registrations" },
@@ -44,11 +110,44 @@ export function EventSetupClient({ initial, playersCount }: { initial: EventForm
             </div>
           </div>
         </div>
-        <div className="field"><label>Golf course</label><input className="input" value={f.course} onChange={(e) => set("course", e.target.value)} /></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
-          <div className="field"><label>City</label><input className="input" value={f.city} onChange={(e) => set("city", e.target.value)} /></div>
-          <div className="field"><label>Address</label><input className="input" value={f.address} onChange={(e) => set("address", e.target.value)} /></div>
+
+        <div className="field">
+          <label>Golf course</label>
+          <select className="input" value={courseSelect} onChange={(e) => onSelectCourse(e.target.value)}>
+            <option value="">— Select a course —</option>
+            {courses.map((c) => (
+              <option key={c.name} value={c.name}>{c.name}</option>
+            ))}
+            <option value="__other">Other (enter manually)</option>
+          </select>
         </div>
+
+        {courseSelect === "__other" && (
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+            <div className="field">
+              <label>Course name</label>
+              <input className="input" value={f.course} onChange={(e) => set("course", e.target.value)} placeholder="e.g. Maketewah Country Club" />
+            </div>
+            <div className="field">
+              <label>Zip code</label>
+              <input
+                className="input"
+                value={zip}
+                onChange={(e) => setZip(e.target.value)}
+                onBlur={lookupZip}
+                placeholder="45202"
+                inputMode="numeric"
+              />
+            </div>
+            <p className="text-muted" style={{ fontSize: 12, margin: "-6px 0 0", gridColumn: "1 / -1" }}>{zipMsg}</p>
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
+          <div className="field"><label>City</label><input className="input" value={f.city} onChange={(e) => set("city", e.target.value)} placeholder="City" /></div>
+          <div className="field"><label>Address</label><input className="input" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, city, state zip" /></div>
+        </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div className="field"><label>Registration deadline</label><input className="input" value={f.regDeadline} onChange={(e) => set("regDeadline", e.target.value)} /></div>
           <div className="field"><label>Field capacity</label><input className="input" type="number" value={f.capacity} onChange={(e) => set("capacity", parseInt(e.target.value, 10) || 0)} /></div>
