@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Fairway — Tournament Console",
-  description: "Run the whole golf event from one console: groups, qualification, brackets and live standings.",
+  title: "Flights — Golf Tournament Console",
+  description: "Run the whole golf event from one console: flights, qualification, brackets and live standings.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

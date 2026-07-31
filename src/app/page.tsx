@@ -54,7 +54,7 @@ export default async function LoginPage() {
             fontSize: 19,
           }}
         >
-          <Logo size={24} /> Fairway
+          <Logo size={24} /> Flights
         </div>
         <div>
           <div className="page-kicker">Tournament Operations</div>

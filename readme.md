@@ -1,4 +1,7 @@
-# Fairway — Golf Tournament Organizer
+# Flights — Golf Tournament Organizer
+
+**flights.golf**
+
 
 Production build of the golf tournament management console described in
 [`design_handoff_golf_tournament_console/`](./design_handoff_golf_tournament_console).

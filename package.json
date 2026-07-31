@@ -2,7 +2,7 @@
   "name": "golf-tournament-organizer",
   "version": "0.1.0",
   "private": true,
-  "description": "Fairway — golf tournament management console (production build from the design handoff).",
+  "description": "Flights — golf tournament management console (production build from the design handoff).",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

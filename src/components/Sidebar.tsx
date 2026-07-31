@@ -45,7 +45,7 @@ export function Sidebar({ sections, name, role, viewRole, initials }: Props) {
           fontSize: 16,
         }}
       >
-        <Logo size={21} /> Fairway
+        <Logo size={21} /> Flights
       </div>
 
       {sections.map((sec) => (
