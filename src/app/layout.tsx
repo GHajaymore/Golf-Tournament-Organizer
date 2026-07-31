@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Nocturne Golf — Tournament Console",
+  title: "Fairway — Tournament Console",
   description: "Run the whole golf event from one console: groups, qualification, brackets and live standings.",
 };
 

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { LoginPanel } from "@/components/LoginPanel";
+import { Logo } from "@/components/Logo";
 
 export default async function LoginPage() {
   const session = await getSession();
@@ -53,8 +54,7 @@ export default async function LoginPage() {
             fontSize: 19,
           }}
         >
-          <i className="ph-fill ph-golf" style={{ color: "var(--color-accent)", fontSize: 24 }} />{" "}
-          Nocturne Golf
+          <Logo size={24} /> Fairway
         </div>
         <div>
           <div className="page-kicker">Tournament Operations</div>

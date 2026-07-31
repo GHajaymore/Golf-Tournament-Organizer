@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useTransition } from "react";
 import type { NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
+import { Logo } from "@/components/Logo";
 
 interface Props {
   sections: NavSection[];
@@ -44,8 +45,7 @@ export function Sidebar({ sections, name, role, viewRole, initials }: Props) {
           fontSize: 16,
         }}
       >
-        <i className="ph-fill ph-golf" style={{ color: "var(--color-accent)", fontSize: 21 }} />{" "}
-        Nocturne Golf
+        <Logo size={21} /> Fairway
       </div>
 
       {sections.map((sec) => (

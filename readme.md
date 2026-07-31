@@ -1,4 +1,4 @@
-# Nocturne Golf — Tournament Organizer
+# Fairway — Golf Tournament Organizer
 
 Production build of the golf tournament management console described in
 [`design_handoff_golf_tournament_console/`](./design_handoff_golf_tournament_console).

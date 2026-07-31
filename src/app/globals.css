@@ -1,5 +1,37 @@
 @import "./nocturne.css";
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Brand theme override — warm orange accent on the dark ground.
+   Overrides the design-system accent ramp (loaded above) in one place so the
+   change is traceable and revertible. Ground/neutrals are kept; a complementary
+   teal secondary (accent-2) gives the A/B match-play colors real separation.
+   Ramps follow the original's perceptual lightness cadence.
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  --color-accent: #f2872e; /* warm orange */
+  --color-accent-2: #2fb3a0; /* complementary teal */
+
+  --color-accent-100: #fef3ea;
+  --color-accent-200: #fde0cb;
+  --color-accent-300: #fac6a1;
+  --color-accent-400: #f6a566;
+  --color-accent-500: #f2872e;
+  --color-accent-600: #d06f23;
+  --color-accent-700: #a5561b;
+  --color-accent-800: #6c3c18;
+  --color-accent-900: #38230f;
+
+  --color-accent-2-100: #e9faf6;
+  --color-accent-2-200: #c6f1e9;
+  --color-accent-2-300: #95e4d6;
+  --color-accent-2-400: #57cdb9;
+  --color-accent-2-500: #2fb3a0;
+  --color-accent-2-600: #259080;
+  --color-accent-2-700: #1e6f62;
+  --color-accent-2-800: #18463f;
+  --color-accent-2-900: #122d29;
+}
+
 /* App-shell layout on top of the Nocturne design system. */
 html,
 body {
