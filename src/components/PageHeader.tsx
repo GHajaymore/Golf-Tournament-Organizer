@@ -17,6 +17,7 @@ export function PageHeader({
         justifyContent: "space-between",
         gap: 16,
         marginBottom: 20,
+        flexWrap: "wrap",
       }}
     >
       <div>

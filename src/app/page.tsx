@@ -27,6 +27,7 @@ export default async function LoginPage() {
 
   return (
     <div
+      className="login-grid"
       style={{
         minHeight: "100vh",
         display: "grid",
@@ -37,6 +38,7 @@ export default async function LoginPage() {
       }}
     >
       <div
+        className="login-pitch"
         style={{
           display: "flex",
           flexDirection: "column",

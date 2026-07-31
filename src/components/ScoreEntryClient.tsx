@@ -144,7 +144,7 @@ export function ScoreEntryClient({ matches }: { matches: EntryMatch[] }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16, alignItems: "start" }}>
-        <div className="card elev-sm" style={{ gap: 6, maxHeight: "74vh", overflow: "auto" }}>
+        <div className="card elev-sm entry-matchlist" style={{ gap: 6, maxHeight: "74vh", overflow: "auto" }}>
           <span className="card-kicker">Round-robin matches</span>
           {matches.map((m) => {
             const st = statusOf(holesById[m.id] ?? m.holes);
@@ -238,7 +238,7 @@ export function ScoreEntryClient({ matches }: { matches: EntryMatch[] }) {
                   {firstName(active.bName)}
                 </span>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: 6 }}>
+              <div className="keep-grid" style={{ display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: 6 }}>
                 {holes.map((h, i) => (
                   <div
                     key={i}

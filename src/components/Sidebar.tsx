@@ -20,6 +20,7 @@ export function Sidebar({ sections, name, role, viewRole, initials }: Props) {
 
   return (
     <aside
+      className="app-sidebar"
       style={{
         width: 250,
         flex: "none",

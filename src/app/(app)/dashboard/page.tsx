@@ -24,6 +24,7 @@ export default async function DashboardPage() {
           justifyContent: "space-between",
           gap: 16,
           marginBottom: 20,
+          flexWrap: "wrap",
         }}
       >
         <div>
@@ -56,6 +57,7 @@ export default async function DashboardPage() {
             <span className="card-title">Live leaderboard</span>
             <span className="text-muted" style={{ fontSize: 12 }}>Overall · all groups</span>
           </div>
+          <div className="table-scroll">
           <table className="table">
             <thead>
               <tr>
@@ -96,6 +98,7 @@ export default async function DashboardPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

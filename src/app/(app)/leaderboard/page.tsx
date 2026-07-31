@@ -32,6 +32,7 @@ export default async function LeaderboardPage() {
       </div>
 
       <div className="card elev-sm">
+        <div className="table-scroll">
         <table className="table">
           <thead>
             <tr>
@@ -86,6 +87,7 @@ export default async function LeaderboardPage() {
             })}
           </tbody>
         </table>
+        </div>
         <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
           Columns: P played, W won, ½ halved, L lost. Advancing rows reflect the current Top{" "}
           {event.qualifyPerGroup}/group cutoff and update live as scores are entered.
