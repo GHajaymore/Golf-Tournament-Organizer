@@ -1,0 +1,125 @@
+"use client";
+import { useState, useTransition } from "react";
+import { saveScoring } from "@/app/actions/tournament";
+import { pts } from "@/lib/format";
+import type { TiebreakerKey } from "@/lib/domain";
+
+const TB_LABELS: Record<TiebreakerKey, string> = {
+  "head-to-head": "Head-to-head result",
+  "holes-won-ratio": "Holes-won ratio",
+  "fewest-holes-lost": "Fewest holes lost",
+  "lower-handicap": "Lower handicap",
+};
+
+interface Values {
+  winPts: number;
+  tiePts: number;
+  lossPts: number;
+  holeRatioPts: number;
+  bonusPts: number;
+}
+
+const FIELDS: Array<{ key: keyof Values; label: string; hint: string; step: number }> = [
+  { key: "winPts", label: "Win", hint: "Points for winning a match", step: 0.5 },
+  { key: "tiePts", label: "Halve", hint: "Points for a halved match", step: 0.5 },
+  { key: "lossPts", label: "Loss", hint: "Points for losing a match", step: 0.5 },
+  { key: "holeRatioPts", label: "Hole-win ratio", hint: "Points per net hole won", step: 0.1 },
+  { key: "bonusPts", label: "Bonus", hint: "Flat bonus per player", step: 0.5 },
+];
+
+export function ScoringClient({
+  initial,
+  tiebreakers,
+}: {
+  initial: Values;
+  tiebreakers: TiebreakerKey[];
+}) {
+  const [values, setValues] = useState<Values>(initial);
+  const [pending, startTransition] = useTransition();
+
+  const save = (next: Values) => {
+    setValues(next);
+    startTransition(() => saveScoring(next));
+  };
+
+  const onChange = (key: keyof Values, raw: string) => {
+    const n = parseFloat(raw);
+    save({ ...values, [key]: Number.isFinite(n) ? n : 0 });
+  };
+
+  // Worked example: 2 wins, 1 halve, 12 net holes won.
+  const exampleW = 2, exampleT = 1, exampleH = 12;
+  const total =
+    exampleW * values.winPts + exampleT * values.tiePts + exampleH * values.holeRatioPts + values.bonusPts;
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
+      <div className="card elev-sm" style={{ gap: 14 }}>
+        <span className="card-title" style={{ fontSize: 15 }}>Points {pending && <span className="text-muted" style={{ fontSize: 12 }}>· saving…</span>}</span>
+        {FIELDS.map((f) => (
+          <div key={f.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>{f.label}</div>
+              <div className="text-muted" style={{ fontSize: 12 }}>{f.hint}</div>
+            </div>
+            <input
+              className="input"
+              type="number"
+              step={f.step}
+              style={{ width: 90, textAlign: "right" }}
+              value={values[f.key]}
+              onChange={(e) => onChange(f.key, e.target.value)}
+            />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="card elev-sm">
+          <span className="card-title" style={{ fontSize: 15 }}>Tiebreakers</span>
+          <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>Applied in order when points are level.</p>
+          {tiebreakers.map((t, i) => (
+            <div
+              key={t}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                fontSize: 13,
+                padding: "7px 10px",
+                background: "var(--color-bg)",
+                borderRadius: 6,
+                marginBottom: 5,
+              }}
+            >
+              <span
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: "50%",
+                  background: "var(--color-accent-800)",
+                  color: "var(--color-accent-100)",
+                  display: "grid",
+                  placeItems: "center",
+                  fontSize: 11,
+                }}
+              >
+                {i + 1}
+              </span>
+              <span style={{ flex: 1 }}>{TB_LABELS[t]}</span>
+              <i className="ph ph-dots-six-vertical text-muted" title="Reordering ships in a future release" />
+            </div>
+          ))}
+        </div>
+        <div className="card elev-sm">
+          <span className="card-kicker">Worked example</span>
+          <p className="card-body" style={{ fontSize: 13 }}>
+            A player with {exampleW} wins, {exampleT} halve and {exampleH} net holes won scores{" "}
+            {exampleW}×{pts(values.winPts)} + {exampleT}×{pts(values.tiePts)} + {exampleH}×
+            {pts(values.holeRatioPts)}
+            {values.bonusPts ? ` + ${pts(values.bonusPts)} bonus` : ""} = <strong>{pts(total)} pts</strong>.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
