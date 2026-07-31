@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { setStageDeadline, setStageCarry } from "@/app/actions/tournament";
+import { setStageDeadline, setStageCarry, setStageScoringBasis, addStage, removeStage } from "@/app/actions/tournament";
 
 export interface StageView {
   id: string;
@@ -8,6 +8,7 @@ export interface StageView {
   type: string;
   description: string;
   deadline: string;
+  scoringBasis: string;
   carryEnabled: boolean;
   carryPct: number;
 }
@@ -19,22 +20,28 @@ const ICONS: Record<string, string> = {
   "Bracket Stage": "ph ph-tree-structure",
 };
 
-function StageCard({ stage }: { stage: StageView }) {
+const STAGE_TYPES = ["Round Robin", "Single Match Stage", "Qualification Stage", "Bracket Stage"];
+
+function StageCard({ stage, isFirst }: { stage: StageView; isFirst: boolean }) {
   const [deadline, setDeadline] = useState(stage.deadline);
+  const [basis, setBasis] = useState(stage.scoringBasis);
   const [enabled, setEnabled] = useState(stage.carryEnabled);
   const [pct, setPct] = useState(stage.carryPct);
-  const [, startTransition] = useTransition();
-  const isFirst = stage.position === 0;
+  const [pending, startTransition] = useTransition();
 
   const commitCarry = (nextEnabled: boolean, nextPct: number) => {
     setEnabled(nextEnabled);
     setPct(nextPct);
     startTransition(() => setStageCarry(stage.id, nextEnabled, nextPct));
   };
+  const commitBasis = (next: string) => {
+    setBasis(next);
+    startTransition(() => setStageScoringBasis(stage.id, next));
+  };
 
   return (
     <>
-      <div className="card elev-sm" style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+      <div className="card elev-sm" style={{ flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <div
           style={{
             width: 44,
@@ -49,8 +56,8 @@ function StageCard({ stage }: { stage: StageView }) {
         >
           <i className={ICONS[stage.type] ?? "ph ph-stack"} style={{ fontSize: 22 }} />
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
               Stage {stage.position + 1} · {stage.type}
             </span>
@@ -58,7 +65,20 @@ function StageCard({ stage }: { stage: StageView }) {
           </div>
           <div className="text-muted" style={{ fontSize: 13, marginTop: 2 }}>{stage.description}</div>
         </div>
-        <div className="field" style={{ width: 200 }}>
+        <div className="field" style={{ width: 150 }}>
+          <label>Scoring</label>
+          <div className="seg" style={{ width: "100%" }}>
+            <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+              <input type="radio" name={`basis-${stage.id}`} checked={basis === "gross"} disabled={pending} onChange={() => commitBasis("gross")} />
+              Gross
+            </label>
+            <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+              <input type="radio" name={`basis-${stage.id}`} checked={basis === "net"} disabled={pending} onChange={() => commitBasis("net")} />
+              Net
+            </label>
+          </div>
+        </div>
+        <div className="field" style={{ width: 180 }}>
           <label>Completion deadline</label>
           <input
             className="input"
@@ -67,6 +87,15 @@ function StageCard({ stage }: { stage: StageView }) {
             onBlur={() => startTransition(() => setStageDeadline(stage.id, deadline))}
           />
         </div>
+        <button
+          type="button"
+          className="btn btn-icon"
+          title="Remove stage"
+          disabled={pending}
+          onClick={() => startTransition(() => removeStage(stage.id))}
+        >
+          <i className="ph ph-trash" />
+        </button>
       </div>
       {!isFirst && (
         <>
@@ -79,10 +108,11 @@ function StageCard({ stage }: { stage: StageView }) {
               display: "flex",
               alignItems: "center",
               gap: 16,
+              flexWrap: "wrap",
               background: "var(--color-bg)",
             }}
           >
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
               <input type="checkbox" checked={enabled} onChange={(e) => commitCarry(e.target.checked, pct)} /> Carry forward
               points from previous stage
             </label>
@@ -94,7 +124,7 @@ function StageCard({ stage }: { stage: StageView }) {
               value={pct}
               disabled={!enabled}
               onChange={(e) => commitCarry(enabled, parseInt(e.target.value, 10))}
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 120 }}
             />
             <span className="tag tag-accent" style={{ minWidth: 48, textAlign: "center" }}>{pct}%</span>
           </div>
@@ -110,11 +140,41 @@ function StageCard({ stage }: { stage: StageView }) {
 }
 
 export function StagesClient({ stages }: { stages: StageView[] }) {
+  const [newType, setNewType] = useState(STAGE_TYPES[0]);
+  const [pending, startTransition] = useTransition();
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {stages.map((s) => (
-        <StageCard key={s.id} stage={s} />
+      {stages.map((s, i) => (
+        <StageCard key={s.id} stage={s} isFirst={i === 0} />
       ))}
+      {stages.length === 0 && (
+        <div className="card elev-sm">
+          <span className="text-muted" style={{ fontSize: 13 }}>
+            No stages yet — add your first stage below (start with a Round Robin).
+          </span>
+        </div>
+      )}
+
+      <div className="card elev-sm" style={{ flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span className="card-title" style={{ fontSize: 15 }}>Add a stage</span>
+        <select className="input" style={{ width: "auto", minWidth: 190 }} value={newType} onChange={(e) => setNewType(e.target.value)}>
+          {STAGE_TYPES.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={pending}
+          onClick={() => startTransition(() => addStage(newType))}
+        >
+          <i className="ph ph-plus" /> Add stage
+        </button>
+        <span className="text-muted" style={{ fontSize: 12 }}>
+          Sequence any number of stages: round robin → single match → qualification → bracket.
+        </span>
+      </div>
     </div>
   );
 }

@@ -34,3 +34,6 @@ yarn-error.log*
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# build info
+tsconfig.tsbuildinfo

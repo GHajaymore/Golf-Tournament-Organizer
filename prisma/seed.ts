@@ -105,36 +105,16 @@ async function main() {
     });
   }
 
-  // Stages: Round Robin -> Single Match -> Qualification -> Bracket.
+  // Start with a single Round Robin stage; the organizer adds further stages
+  // (single match, qualification, bracket…) in the stage builder as needed.
   const rrStage = await prisma.stage.create({
     data: {
-      eventId: event.id, position: 0, type: "Round Robin",
+      eventId: event.id,
+      position: 0,
+      type: "Round Robin",
       description: "Every player meets every other in their group over 3 rounds.",
       deadline: "May 14, 6:00 PM",
-    },
-  });
-  await prisma.stage.create({
-    data: {
-      eventId: event.id, position: 1, type: "Single Match Stage",
-      description: "Optional seeding match before the cut.",
-      deadline: "May 15, 10:00 AM",
-      carryForwardEnabled: true, carryForwardPct: 50,
-    },
-  });
-  await prisma.stage.create({
-    data: {
-      eventId: event.id, position: 2, type: "Qualification Stage",
-      description: "Top 2 per group advance to the brackets.",
-      deadline: "May 15, 2:00 PM",
-      carryForwardEnabled: false, carryForwardPct: 0,
-    },
-  });
-  await prisma.stage.create({
-    data: {
-      eventId: event.id, position: 3, type: "Bracket Stage",
-      description: "Winners and Consolation single-elimination brackets to a champion.",
-      deadline: "May 16, 4:00 PM",
-      carryForwardEnabled: false, carryForwardPct: 0,
+      scoringBasis: "gross",
     },
   });
 

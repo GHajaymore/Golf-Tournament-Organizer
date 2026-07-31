@@ -242,6 +242,53 @@ export async function setStageCarry(stageId: string, enabled: boolean, pct: numb
   refresh();
 }
 
+export async function setStageScoringBasis(stageId: string, basis: string) {
+  const eventId = await requireAdminEvent();
+  await prisma.stage.updateMany({
+    where: { id: stageId, eventId },
+    data: { scoringBasis: basis === "net" ? "net" : "gross" },
+  });
+  refresh();
+}
+
+const STAGE_TYPES = [
+  "Round Robin",
+  "Single Match Stage",
+  "Qualification Stage",
+  "Bracket Stage",
+] as const;
+
+const STAGE_DESCRIPTIONS: Record<string, string> = {
+  "Round Robin": "Every player meets every other in their group.",
+  "Single Match Stage": "A single seeding or play-in match.",
+  "Qualification Stage": "Cut the field — top players per group advance.",
+  "Bracket Stage": "Single-elimination bracket to a champion.",
+};
+
+export async function addStage(type: string) {
+  const eventId = await requireAdminEvent();
+  const stageType = (STAGE_TYPES as readonly string[]).includes(type) ? type : "Round Robin";
+  const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
+  const position = (agg._max.position ?? -1) + 1;
+  await prisma.stage.create({
+    data: {
+      eventId,
+      position,
+      type: stageType,
+      description: STAGE_DESCRIPTIONS[stageType] ?? "",
+      deadline: "",
+      scoringBasis: "gross",
+    },
+  });
+  refresh();
+}
+
+export async function removeStage(stageId: string) {
+  const eventId = await requireAdminEvent();
+  await prisma.stage.deleteMany({ where: { id: stageId, eventId } });
+  refresh();
+}
+
 /* ── Match score entry ────────────────────────────────────────────────── */
 
 export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {

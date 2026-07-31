@@ -17,20 +17,19 @@ export default async function StagesPage() {
     type: s.type,
     description: s.description,
     deadline: s.deadline,
+    scoringBasis: s.scoringBasis,
     carryEnabled: s.carryForwardEnabled,
     carryPct: s.carryForwardPct,
   }));
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <div className="page-kicker">Competition</div>
-          <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Stage builder</h2>
-          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            Sequence the tournament. Each stage feeds the next.
-          </p>
-        </div>
+      <div style={{ marginBottom: 20 }}>
+        <div className="page-kicker">Competition</div>
+        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Stage builder</h2>
+        <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
+          Sequence the tournament — add as many stages as you need, each feeding the next.
+        </p>
       </div>
       <StagesClient stages={stages} />
     </>
