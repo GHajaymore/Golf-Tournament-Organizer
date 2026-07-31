@@ -1,0 +1,141 @@
+// Prisma schema for the Golf Tournament Organizer.
+// SQLite for local/dev; swap `provider` to "postgresql" for production — the
+// app code goes through the repository in src/lib/db, so no query changes needed.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id              String   @id @default(cuid())
+  name            String
+  dates           String
+  format          String   @default("match") // match | stroke
+  course          String
+  city            String
+  address         String
+  regDeadline     String
+  capacity        Int      @default(32)
+  playerCountMode String   @default("registration") // registration | manual
+  manualPlayerCount Int    @default(32)
+
+  // Formation + qualification config
+  formationRule   String   @default("balanced") // balanced | handicap | seeding | manual
+  qualifyPerGroup Int      @default(2)
+
+  // Scoring rules (round-robin stages)
+  winPts        Float  @default(3)
+  tiePts        Float  @default(1)
+  lossPts       Float  @default(0)
+  holeRatioPts  Float  @default(0.5)
+  bonusPts      Float  @default(0)
+  tiebreakers   String @default("[\"head-to-head\",\"holes-won-ratio\",\"fewest-holes-lost\",\"lower-handicap\"]")
+
+  inviteMessage String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts       Account[]
+  players        Player[]
+  groups         Group[]
+  stages         Stage[]
+  matches        Match[]
+  bracketWinners BracketWinner[]
+}
+
+model Account {
+  id      String @id @default(cuid())
+  eventId String
+  name    String
+  email   String
+  role    String @default("player") // admin | player
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, email])
+  @@index([eventId])
+}
+
+model Player {
+  id       String @id @default(cuid())
+  eventId  String
+  name     String
+  handicap Float  @default(0)
+  seed     Int
+  status   String @default("confirmed") // confirmed | waitlisted
+  groupId  String?
+
+  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([groupId])
+}
+
+model Group {
+  id       String @id @default(cuid())
+  eventId  String
+  name     String
+  position Int
+
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  players Player[]
+  matches Match[]
+
+  @@index([eventId])
+}
+
+model Stage {
+  id                  String  @id @default(cuid())
+  eventId             String
+  position            Int
+  type                String // Round Robin | Qualification Stage | Single Match Stage | Bracket Stage
+  description         String  @default("")
+  deadline            String  @default("")
+  carryForwardEnabled Boolean @default(false)
+  carryForwardPct     Int     @default(0)
+
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  matches Match[]
+
+  @@index([eventId])
+}
+
+model Match {
+  id        String @id @default(cuid())
+  eventId   String
+  stageId   String
+  groupId   String
+  round     Int
+  playerAId String
+  playerBId String
+  // JSON array of 'A' | 'B' | 'H' | null, one per hole.
+  holes     String @default("[]")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([stageId])
+  @@index([groupId])
+}
+
+model BracketWinner {
+  id       String @id @default(cuid())
+  eventId  String
+  // Key: "{winners|consolation}-{roundIndex}-{matchIndex}"
+  key      String
+  winnerId String
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, key])
+  @@index([eventId])
+}
