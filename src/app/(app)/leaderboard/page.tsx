@@ -33,7 +33,7 @@ export default async function LeaderboardPage() {
 
       <div className="card elev-sm">
         <div className="table-scroll">
-        <table className="table">
+        <table className="table lb-table">
           <thead>
             <tr>
               <th style={{ width: 40 }}>#</th>

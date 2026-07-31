@@ -33,6 +33,9 @@
 }
 
 /* App-shell layout on top of the Nocturne design system. */
+html {
+  scroll-behavior: smooth;
+}
 html,
 body {
   margin: 0;
@@ -175,6 +178,11 @@ body {
   .seg-opt {
     padding: 9px 12px;
   }
+  /* Leaderboard: drop the per-result columns on phones, keep the essentials. */
+  .lb-table th:nth-child(n + 4):nth-child(-n + 7),
+  .lb-table td:nth-child(n + 4):nth-child(-n + 7) {
+    display: none;
+  }
 }
 
 @media (min-width: 901px) {
@@ -257,4 +265,33 @@ body {
   flex-direction: column;
   gap: 2px;
   box-shadow: var(--shadow-lg);
+  animation: drawer-in 0.22s ease-out;
+}
+.m-drawer-backdrop {
+  animation: fade-in 0.2s ease-out;
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-drawer,
+  .m-drawer-backdrop {
+    animation: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
 }

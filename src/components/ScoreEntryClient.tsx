@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState, useRef, useTransition } from "react";
+import Link from "next/link";
 import { resolveMatch, parseResultTranscript, type HoleResult } from "@/lib/domain";
 import { firstName } from "@/lib/format";
 import { saveMatchHoles, applyMatchResult, clearMatch } from "@/app/actions/tournament";
@@ -35,7 +36,18 @@ export function ScoreEntryClient({ matches }: { matches: EntryMatch[] }) {
   const [listening, setListening] = useState(false);
   const [listenHint, setListenHint] = useState("Tap the mic and say e.g. “Sam wins 3 and 2”.");
   const recognitionRef = useRef<unknown>(null);
+  const entryRef = useRef<HTMLDivElement>(null);
   const [, startTransition] = useTransition();
+
+  // On phones, jump to the entry panel when a match is picked from the list.
+  const openMatch = (id: string) => {
+    setSelectedId(id);
+    if (typeof window !== "undefined" && window.innerWidth <= 820) {
+      requestAnimationFrame(() =>
+        entryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+    }
+  };
 
   const active = matches.find((m) => m.id === selectedId);
   const holes = active ? holesById[active.id] ?? active.holes : [];
@@ -153,7 +165,7 @@ export function ScoreEntryClient({ matches }: { matches: EntryMatch[] }) {
               <button
                 key={m.id}
                 type="button"
-                onClick={() => setSelectedId(m.id)}
+                onClick={() => openMatch(m.id)}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -189,7 +201,7 @@ export function ScoreEntryClient({ matches }: { matches: EntryMatch[] }) {
           })}
         </div>
 
-        <div className="card elev-sm">
+        <div className="card elev-sm" ref={entryRef} style={{ scrollMarginTop: 60 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
             <div>
               <div className="text-muted" style={{ fontSize: 12 }}>
@@ -347,6 +359,9 @@ export function ScoreEntryClient({ matches }: { matches: EntryMatch[] }) {
               <button type="button" className="btn btn-secondary" onClick={doClear}>
                 Clear
               </button>
+              <Link className="btn btn-primary" href="/leaderboard">
+                <i className="ph ph-ranking" /> Leaderboard
+              </Link>
             </div>
           </div>
         </div>
