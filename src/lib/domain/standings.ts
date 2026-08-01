@@ -118,6 +118,13 @@ function tiebreakerCompare(
   switch (key) {
     case "head-to-head":
       return headToHead(pa.id, pb.id, matches);
+    case "most-wins":
+      return sb.wins - sa.wins; // more wins ranks first
+    case "win-percentage": {
+      const wa = sa.played > 0 ? sa.wins / sa.played : 0;
+      const wb = sb.played > 0 ? sb.wins / sb.played : 0;
+      return wb - wa; // higher win% ranks first
+    }
     case "holes-won-ratio": {
       const da = sa.holesWon - sa.holesLost;
       const db = sb.holesWon - sb.holesLost;

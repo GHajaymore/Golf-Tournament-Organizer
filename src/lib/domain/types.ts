@@ -24,9 +24,29 @@ export type BracketKind = "winners" | "consolation";
 /** Ordered tiebreaker keys, applied after points when standings are level. */
 export type TiebreakerKey =
   | "head-to-head"
+  | "most-wins"
+  | "win-percentage"
   | "holes-won-ratio"
   | "fewest-holes-lost"
   | "lower-handicap";
+
+export const TIEBREAKER_KEYS: TiebreakerKey[] = [
+  "head-to-head",
+  "most-wins",
+  "win-percentage",
+  "holes-won-ratio",
+  "fewest-holes-lost",
+  "lower-handicap",
+];
+
+export const TIEBREAKER_LABELS: Record<TiebreakerKey, string> = {
+  "head-to-head": "Head-to-head result",
+  "most-wins": "Most match wins",
+  "win-percentage": "Winning percentage",
+  "holes-won-ratio": "Hole differential (won − lost)",
+  "fewest-holes-lost": "Fewest holes lost",
+  "lower-handicap": "Lower handicap",
+};
 
 export interface Player {
   id: string;

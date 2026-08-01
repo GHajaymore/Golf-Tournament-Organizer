@@ -80,6 +80,7 @@ export interface EventState {
   overall: RankedPlayer[];
   groupStandings: GroupStanding[];
   advancingCount: number;
+  advancingIds: Set<string>;
   overallCutoff: number | null;
   brackets: { winners: BracketView; consolation: BracketView };
   qualifiers: Player[];
@@ -116,20 +117,24 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     return { group: g, ranked, cutoff: groupCutoff(ranked, event.qualifyPerGroup) };
   });
 
-  const advancingCount = groupStandings.reduce(
-    (acc, gs) => acc + Math.min(event.qualifyPerGroup, gs.ranked.length),
-    0,
-  );
+  // Qualification: top N per flight, or top N overall.
+  const qualifierIds =
+    event.qualifyMode === "overall"
+      ? new Set(overall.slice(0, event.qualifyOverall).map((rp) => rp.player.id))
+      : new Set(
+          groupStandings.flatMap((gs) =>
+            gs.ranked.slice(0, event.qualifyPerGroup).map((rp) => rp.player.id),
+          ),
+        );
 
-  // Overall cutoff line ~ the lowest total among all advancing players.
-  const advancingTotals = groupStandings
-    .flatMap((gs) => gs.ranked.slice(0, event.qualifyPerGroup))
+  const advancingIds = qualifierIds;
+  const advancingCount = qualifierIds.size;
+  const qualifiers = overall.filter((rp) => qualifierIds.has(rp.player.id)).map((rp) => rp.player);
+
+  const advTotals = overall
+    .filter((rp) => qualifierIds.has(rp.player.id))
     .map((rp) => rp.stats.totalPoints);
-  const overallCutoff = advancingTotals.length ? Math.min(...advancingTotals) : null;
-
-  // Bracket seeding from qualifiers.
-  const groupsRanked = groupStandings.map((gs) => gs.ranked);
-  const qualifiers = pickQualifiers(groupsRanked, event.qualifyPerGroup, overall);
+  const overallCutoff = advTotals.length ? Math.min(...advTotals) : null;
   const { winners, consolation } = splitBrackets(qualifiers);
   const winnersMap: Record<string, string> = {};
   for (const bw of bracketWinners) winnersMap[bw.key] = bw.winnerId;
@@ -154,6 +159,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     overall,
     groupStandings,
     advancingCount,
+    advancingIds,
     overallCutoff,
     brackets,
     qualifiers,

@@ -16,6 +16,8 @@ export default async function StagesPage() {
     position: s.position,
     type: s.type,
     description: s.description,
+    format: s.format,
+    holes: s.holes,
     deadline: s.deadline,
     scoringBasis: s.scoringBasis,
     carryEnabled: s.carryForwardEnabled,

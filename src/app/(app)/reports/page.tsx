@@ -15,11 +15,7 @@ export default async function ReportsPage() {
   if (!state) redirect("/");
 
   const groupById = new Map(state.groups.map((g) => [g.id, g.name]));
-  const advancingIds = new Set(
-    state.groupStandings.flatMap((gs) =>
-      gs.ranked.slice(0, state.event.qualifyPerGroup).map((r) => r.player.id),
-    ),
-  );
+  const advancingIds = state.advancingIds;
   const progress = matchProgress(state);
 
   const rows: SnapshotRow[] = state.overall.map((r) => ({

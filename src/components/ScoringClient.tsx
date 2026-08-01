@@ -1,15 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
-import { saveScoring } from "@/app/actions/tournament";
+import { saveScoring, saveTiebreakers } from "@/app/actions/tournament";
 import { pts } from "@/lib/format";
-import type { TiebreakerKey } from "@/lib/domain";
-
-const TB_LABELS: Record<TiebreakerKey, string> = {
-  "head-to-head": "Head-to-head result",
-  "holes-won-ratio": "Holes-won ratio",
-  "fewest-holes-lost": "Fewest holes lost",
-  "lower-handicap": "Lower handicap",
-};
+import { TIEBREAKER_LABELS, type TiebreakerKey } from "@/lib/domain";
 
 interface Values {
   winPts: number;
@@ -35,7 +28,17 @@ export function ScoringClient({
   tiebreakers: TiebreakerKey[];
 }) {
   const [values, setValues] = useState<Values>(initial);
+  const [order, setOrder] = useState<TiebreakerKey[]>(tiebreakers);
   const [pending, startTransition] = useTransition();
+
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= order.length) return;
+    const next = [...order];
+    [next[i], next[j]] = [next[j], next[i]];
+    setOrder(next);
+    startTransition(() => saveTiebreakers(next));
+  };
 
   const save = (next: Values) => {
     setValues(next);
@@ -76,8 +79,8 @@ export function ScoringClient({
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div className="card elev-sm">
           <span className="card-title" style={{ fontSize: 15 }}>Tiebreakers</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>Applied in order when points are level.</p>
-          {tiebreakers.map((t, i) => (
+          <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>Applied in order when points are level. Reorder with the arrows.</p>
+          {order.map((t, i) => (
             <div
               key={t}
               style={{
@@ -85,7 +88,7 @@ export function ScoringClient({
                 alignItems: "center",
                 gap: 10,
                 fontSize: 13,
-                padding: "7px 10px",
+                padding: "6px 10px",
                 background: "var(--color-bg)",
                 borderRadius: 6,
                 marginBottom: 5,
@@ -105,8 +108,13 @@ export function ScoringClient({
               >
                 {i + 1}
               </span>
-              <span style={{ flex: 1 }}>{TB_LABELS[t]}</span>
-              <i className="ph ph-dots-six-vertical text-muted" title="Reordering ships in a future release" />
+              <span style={{ flex: 1 }}>{TIEBREAKER_LABELS[t]}</span>
+              <button type="button" className="btn btn-icon" disabled={pending || i === 0} onClick={() => move(i, -1)} title="Move up" style={{ width: 28, height: 28 }}>
+                <i className="ph ph-caret-up" />
+              </button>
+              <button type="button" className="btn btn-icon" disabled={pending || i === order.length - 1} onClick={() => move(i, 1)} title="Move down" style={{ width: 28, height: 28 }}>
+                <i className="ph ph-caret-down" />
+              </button>
             </div>
           ))}
         </div>

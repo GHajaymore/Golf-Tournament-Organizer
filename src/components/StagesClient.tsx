@@ -1,12 +1,23 @@
 "use client";
 import { useState, useTransition } from "react";
-import { setStageDeadline, setStageCarry, setStageScoringBasis, addStage, removeStage } from "@/app/actions/tournament";
+import {
+  setStageDeadline,
+  setStageCarry,
+  setStageScoringBasis,
+  setStageFormat,
+  setStageHoles,
+  addStage,
+  removeStage,
+} from "@/app/actions/tournament";
+import { GOLF_FORMATS } from "@/lib/formats";
 
 export interface StageView {
   id: string;
   position: number;
   type: string;
   description: string;
+  format: string;
+  holes: number;
   deadline: string;
   scoringBasis: string;
   carryEnabled: boolean;
@@ -39,9 +50,21 @@ function StageCard({
 }) {
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
+  const [format, setFormat] = useState(stage.format);
+  const [holes, setHoles] = useState(stage.holes);
   const [enabled, setEnabled] = useState(stage.carryEnabled);
   const [pct, setPct] = useState(stage.carryPct);
   const [pending, startTransition] = useTransition();
+
+  const commitFormat = (v: string) => {
+    setFormat(v);
+    startTransition(() => setStageFormat(stage.id, v));
+  };
+  const commitHoles = (v: number) => {
+    setHoles(v);
+    startTransition(() => setStageHoles(stage.id, v));
+  };
+  const activeFormat = GOLF_FORMATS.find((f) => f.name === format);
 
   // Round Robin description is derived (no hard-coded round count).
   const description =
@@ -84,6 +107,30 @@ function StageCard({
             <span className="tag tag-neutral">{isFirst ? "Active" : "Upcoming"}</span>
           </div>
           <div className="text-muted" style={{ fontSize: 13, marginTop: 2 }}>{description}</div>
+          {activeFormat && (
+            <div className="text-muted" style={{ fontSize: 12, marginTop: 2, opacity: 0.85 }}>
+              <b style={{ color: "var(--color-accent-300)" }}>{activeFormat.name}</b> — {activeFormat.desc}
+            </div>
+          )}
+        </div>
+        <div className="field" style={{ width: 200 }}>
+          <label>Format</label>
+          <select className="input" value={format} disabled={pending} onChange={(e) => commitFormat(e.target.value)}>
+            {GOLF_FORMATS.map((f) => (
+              <option key={f.name} value={f.name}>{f.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="field" style={{ width: 110 }}>
+          <label>Holes</label>
+          <div className="seg" style={{ width: "100%" }}>
+            <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+              <input type="radio" name={`holes-${stage.id}`} checked={holes === 18} disabled={pending} onChange={() => commitHoles(18)} />18
+            </label>
+            <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+              <input type="radio" name={`holes-${stage.id}`} checked={holes === 9} disabled={pending} onChange={() => commitHoles(9)} />9
+            </label>
+          </div>
         </div>
         <div className="field" style={{ width: 190 }}>
           <label>Result calculation</label>

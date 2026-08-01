@@ -3,10 +3,8 @@ import { pts, diff } from "@/lib/format";
 
 export default async function LeaderboardPage() {
   const { state } = await requireState();
-  const { overall, groups, groupStandings, event } = state;
-  const advancingIds = new Set(
-    groupStandings.flatMap((gs) => gs.ranked.slice(0, event.qualifyPerGroup).map((r) => r.player.id)),
-  );
+  const { overall, groups, event } = state;
+  const advancingIds = state.advancingIds;
   const groupById = new Map(groups.map((g) => [g.id, g]));
 
   return (

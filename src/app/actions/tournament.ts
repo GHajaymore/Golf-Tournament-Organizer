@@ -3,8 +3,9 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { regenerateGroupsAndSchedule } from "@/lib/services/regroup";
-import { marginToHoles } from "@/lib/domain";
+import { marginToHoles, TIEBREAKER_KEYS } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
+import { FORMAT_NAMES } from "@/lib/formats";
 
 async function requireEvent(): Promise<string> {
   const session = await getSession();
@@ -284,6 +285,46 @@ export async function setStageScoringBasis(stageId: string, basis: string) {
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { scoringBasis: value },
+  });
+  refresh();
+}
+
+export async function setStageFormat(stageId: string, format: string) {
+  const eventId = await requireStaffEvent();
+  const value = FORMAT_NAMES.includes(format) ? format : "Match Play";
+  await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { format: value } });
+  refresh();
+}
+
+export async function setStageHoles(stageId: string, holes: number) {
+  const eventId = await requireStaffEvent();
+  await prisma.stage.updateMany({
+    where: { id: stageId, eventId },
+    data: { holes: holes === 9 ? 9 : 18 },
+  });
+  refresh();
+}
+
+/* ── Tiebreakers & qualification ──────────────────────────────────────── */
+
+export async function saveTiebreakers(order: string[]) {
+  const eventId = await requireStaffEvent();
+  const valid = order.filter((k) => (TIEBREAKER_KEYS as string[]).includes(k));
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { tiebreakers: JSON.stringify(valid.length ? valid : TIEBREAKER_KEYS) },
+  });
+  refresh();
+}
+
+export async function setQualifyMode(mode: string, overall: number) {
+  const eventId = await requireStaffEvent();
+  await prisma.event.update({
+    where: { id: eventId },
+    data: {
+      qualifyMode: mode === "overall" ? "overall" : "perFlight",
+      qualifyOverall: Math.max(1, Math.round(overall)),
+    },
   });
   refresh();
 }

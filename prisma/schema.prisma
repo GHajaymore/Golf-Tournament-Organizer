@@ -29,6 +29,8 @@ model Event {
   flightMode      String   @default("auto")     // auto | count | perFlight
   flightValue     Int      @default(0)
   qualifyPerGroup Int      @default(2)
+  qualifyMode     String   @default("perFlight") // perFlight | overall
+  qualifyOverall  Int      @default(16)
 
   // Scoring rules (round-robin stages)
   winPts        Float  @default(3)
@@ -104,8 +106,10 @@ model Stage {
   position            Int
   type                String // Round Robin | Qualification Stage | Single Match Stage | Bracket Stage
   description         String  @default("")
+  format              String  @default("Match Play") // golf format (see src/lib/formats.ts)
+  holes               Int     @default(18)           // 9 | 18
   deadline            String  @default("")
-  scoringBasis        String  @default("gross") // gross | net (handicap-adjusted)
+  scoringBasis        String  @default("gross") // gross | net | both
   carryForwardEnabled Boolean @default(false)
   carryForwardPct     Int     @default(0)
 

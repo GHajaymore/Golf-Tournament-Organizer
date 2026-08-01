@@ -28,9 +28,7 @@ export default async function DashboardPage() {
   const quickActions = QUICK_ACTIONS.filter((a) => (isStaff ? true : !a.staff));
 
   const top = overall.slice(0, 8);
-  const advancingIds = new Set(
-    groupStandings.flatMap((gs) => gs.ranked.slice(0, event.qualifyPerGroup).map((r) => r.player.id)),
-  );
+  const advancingIds = state.advancingIds;
 
   return (
     <>
