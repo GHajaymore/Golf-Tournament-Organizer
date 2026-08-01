@@ -40,6 +40,11 @@ model Event {
 
   inviteMessage String @default("")
 
+  // Lifecycle
+  status         String    @default("draft") // draft | registration | ready | live | completed
+  configUnlocked Boolean   @default(false)    // organizer override to edit after launch
+  launchedAt     DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

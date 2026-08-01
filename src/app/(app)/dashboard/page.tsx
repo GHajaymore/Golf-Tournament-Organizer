@@ -1,14 +1,31 @@
 import Link from "next/link";
 import { requireState } from "@/lib/page-helpers";
 import { StatCard } from "@/components/PageHeader";
+import { LifecycleBar } from "@/components/LifecycleBar";
 import { matchProgress } from "@/lib/services/tournament";
 import { pts, record, diff, shortName } from "@/lib/format";
 
+const QUICK_ACTIONS = [
+  { label: "Players", href: "/registration", icon: "ph ph-user-plus", staff: true },
+  { label: "Flights", href: "/grouping", icon: "ph ph-squares-four", staff: true },
+  { label: "Rounds", href: "/stages", icon: "ph ph-stack", staff: true },
+  { label: "Match Points", href: "/scoring", icon: "ph ph-sliders", staff: true },
+  { label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered", staff: true },
+  { label: "Scorecards", href: "/scorecard", icon: "ph ph-cards", staff: true },
+  { label: "Enter results", href: "/entry", icon: "ph ph-pencil-simple", staff: false },
+  { label: "Leaderboard", href: "/leaderboard", icon: "ph ph-ranking", staff: false },
+  { label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", staff: true },
+  { label: "Reports", href: "/reports", icon: "ph ph-export", staff: true },
+];
+
 export default async function DashboardPage() {
-  const { state } = await requireState();
+  const { session, state } = await requireState();
   const { event, overall, groupStandings, advancingCount, overallCutoff, brackets } = state;
   const progress = matchProgress(state);
   const currentStage = state.stages[0];
+  const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+  const isAdmin = session.viewRole === "admin";
+  const quickActions = QUICK_ACTIONS.filter((a) => (isStaff ? true : !a.staff));
 
   const top = overall.slice(0, 8);
   const advancingIds = new Set(
@@ -43,6 +60,50 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      <LifecycleBar
+        status={event.status}
+        isAdmin={isAdmin}
+        configUnlocked={event.configUnlocked}
+        summary={{
+          name: event.name,
+          dates: event.dates,
+          course: event.course,
+          format: event.format,
+          players: state.confirmed.length,
+          flights: state.groups.length,
+          rounds: state.stages.length,
+        }}
+      />
+
+      {isStaff && (
+        <div className="card elev-sm" style={{ marginBottom: 16 }}>
+          <span className="card-kicker">Quick actions</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginTop: 6 }}>
+            {quickActions.map((a) => (
+              <Link
+                key={a.href}
+                href={a.href}
+                className="link-reset"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "12px 6px",
+                  border: "1px solid var(--color-divider)",
+                  borderRadius: "var(--radius-md)",
+                  fontSize: 12,
+                  textAlign: "center",
+                }}
+              >
+                <i className={a.icon} style={{ fontSize: 20, color: "var(--color-accent)" }} />
+                {a.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <StatCard label="Players" value={state.confirmed.length} sub={`${state.groups.length} flights`} icon="ph ph-users-three" />

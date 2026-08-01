@@ -9,6 +9,12 @@ interface AccountRow {
   role: string;
 }
 
+const ROLE_OPTS = [
+  { v: "admin", l: "Organizer" },
+  { v: "assistant", l: "Assistant" },
+  { v: "player", l: "Player" },
+];
+
 export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -19,58 +25,56 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
     <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm">
         <span className="card-title" style={{ fontSize: 15 }}>Accounts</span>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th style={{ width: 200 }}>Role</th>
-              <th style={{ width: 60 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {accounts.map((a) => (
-              <tr key={a.id}>
-                <td style={{ fontWeight: 500 }}>{a.name}</td>
-                <td className="text-muted">{a.email}</td>
-                <td>
-                  <div className="seg">
-                    <label className="seg-opt">
-                      <input
-                        type="radio"
-                        name={`role-${a.id}`}
-                        checked={a.role === "admin"}
-                        disabled={pending}
-                        onChange={() => startTransition(() => setAccountRole(a.id, "admin"))}
-                      />
-                      Organizer
-                    </label>
-                    <label className="seg-opt">
-                      <input
-                        type="radio"
-                        name={`role-${a.id}`}
-                        checked={a.role !== "admin"}
-                        disabled={pending}
-                        onChange={() => startTransition(() => setAccountRole(a.id, "player"))}
-                      />
-                      Player
-                    </label>
-                  </div>
-                </td>
-                <td style={{ textAlign: "right" }}>
-                  <button
-                    type="button"
-                    className="btn btn-icon"
-                    disabled={pending}
-                    onClick={() => startTransition(() => removeAccount(a.id))}
-                  >
-                    <i className="ph ph-x" />
-                  </button>
-                </td>
+        <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
+          <b>Organizer</b> — full control. <b>Assistant</b> — operational tasks (players, flights, rounds,
+          scores), but not event setup, access, or deletion. <b>Player</b> — schedule, scores, leaderboard.
+        </p>
+        <div className="table-scroll">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th style={{ width: 260 }}>Role</th>
+                <th style={{ width: 60 }} />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {accounts.map((a) => (
+                <tr key={a.id}>
+                  <td style={{ fontWeight: 500 }}>{a.name}</td>
+                  <td className="text-muted">{a.email}</td>
+                  <td>
+                    <div className="seg">
+                      {ROLE_OPTS.map((o) => (
+                        <label className="seg-opt" key={o.v}>
+                          <input
+                            type="radio"
+                            name={`role-${a.id}`}
+                            checked={a.role === o.v}
+                            disabled={pending}
+                            onChange={() => startTransition(() => setAccountRole(a.id, o.v))}
+                          />
+                          {o.l}
+                        </label>
+                      ))}
+                    </div>
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <button
+                      type="button"
+                      className="btn btn-icon"
+                      disabled={pending}
+                      onClick={() => startTransition(() => removeAccount(a.id))}
+                    >
+                      <i className="ph ph-x" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       <div className="card elev-sm" style={{ gap: 12 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Add account</span>
@@ -79,12 +83,12 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
         <div className="field">
           <label>Role</label>
           <div className="seg">
-            <label className="seg-opt">
-              <input type="radio" name="newrole" checked={role === "admin"} onChange={() => setRole("admin")} /> Organizer
-            </label>
-            <label className="seg-opt">
-              <input type="radio" name="newrole" checked={role === "player"} onChange={() => setRole("player")} /> Player
-            </label>
+            {ROLE_OPTS.map((o) => (
+              <label className="seg-opt" key={o.v}>
+                <input type="radio" name="newrole" checked={role === o.v} onChange={() => setRole(o.v)} />
+                {o.l}
+              </label>
+            ))}
           </div>
         </div>
         <button

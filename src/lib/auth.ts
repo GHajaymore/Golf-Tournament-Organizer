@@ -31,15 +31,17 @@ function verify(signed: string | undefined): string | null {
   return value;
 }
 
+export type Role = "admin" | "assistant" | "player";
+
 export interface Session {
   accountId: string;
   eventId: string;
   name: string;
   email: string;
   /** The account's real role. */
-  role: "admin" | "player";
+  role: Role;
   /** Effective role after an optional admin "preview as player" toggle. */
-  viewRole: "admin" | "player";
+  viewRole: Role;
 }
 
 export async function createSession(accountId: string): Promise<void> {
@@ -71,9 +73,10 @@ export async function getSession(): Promise<Session | null> {
   if (!accountId) return null;
   const account = await prisma.account.findUnique({ where: { id: accountId } });
   if (!account) return null;
-  const role = account.role === "admin" ? "admin" : "player";
+  const role: Role =
+    account.role === "admin" ? "admin" : account.role === "assistant" ? "assistant" : "player";
   const previewing = jar.get(PREVIEW_COOKIE)?.value === "1";
-  const viewRole = role === "admin" && previewing ? "player" : role;
+  const viewRole: Role = role === "admin" && previewing ? "player" : role;
   return {
     accountId: account.id,
     eventId: account.eventId,
@@ -86,3 +89,6 @@ export async function getSession(): Promise<Session | null> {
 
 /** Screens organizers can access; players are limited to these three. */
 export const PLAYER_SCREENS = new Set(["dashboard", "leaderboard", "entry"]);
+
+/** Critical screens only the primary Organizer (admin) can open. */
+export const ADMIN_ONLY_SCREENS = new Set(["event", "access"]);

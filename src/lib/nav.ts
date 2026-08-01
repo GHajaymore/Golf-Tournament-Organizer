@@ -3,8 +3,10 @@ export interface NavItem {
   label: string;
   href: string;
   icon: string;
-  /** true = visible to players; otherwise organizer-only. */
+  /** true = visible to players; otherwise staff-only. */
   player?: boolean;
+  /** true = only the primary Organizer (admin), hidden from assistants. */
+  adminOnly?: boolean;
 }
 
 export interface NavSection {
@@ -23,11 +25,11 @@ export const NAV: NavSection[] = [
   {
     label: "Setup",
     items: [
-      { key: "event", label: "Event setup", href: "/event", icon: "ph ph-gear-six" },
+      { key: "event", label: "Event setup", href: "/event", icon: "ph ph-gear-six", adminOnly: true },
       { key: "registration", label: "Registration", href: "/registration", icon: "ph ph-user-plus" },
       { key: "roster", label: "Player roster", href: "/roster", icon: "ph ph-users-three" },
       { key: "grouping", label: "Flights", href: "/grouping", icon: "ph ph-squares-four" },
-      { key: "access", label: "Access control", href: "/access", icon: "ph ph-shield-check" },
+      { key: "access", label: "Access control", href: "/access", icon: "ph ph-shield-check", adminOnly: true },
     ],
   },
   {
@@ -52,8 +54,14 @@ export const NAV: NavSection[] = [
   },
 ];
 
-export function navForRole(viewRole: "admin" | "player"): NavSection[] {
+export function navForRole(viewRole: "admin" | "assistant" | "player"): NavSection[] {
   if (viewRole === "admin") return NAV;
+  if (viewRole === "assistant") {
+    // Assistant Organizer: everything operational, minus critical/admin-only screens.
+    return NAV.map((s) => ({ ...s, items: s.items.filter((i) => !i.adminOnly) })).filter(
+      (s) => s.items.length > 0,
+    );
+  }
   return NAV.map((s) => ({ ...s, items: s.items.filter((i) => i.player) })).filter(
     (s) => s.items.length > 0,
   );

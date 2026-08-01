@@ -6,11 +6,15 @@ import type { NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { Logo } from "./Logo";
 
+type Role = "admin" | "assistant" | "player";
+
+const roleLabel = (r: Role) => (r === "admin" ? "Organizer" : r === "assistant" ? "Assistant" : "Player");
+
 interface Props {
   sections: NavSection[];
   name: string;
-  role: "admin" | "player";
-  viewRole: "admin" | "player";
+  role: Role;
+  viewRole: Role;
   initials: string;
 }
 
@@ -122,7 +126,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials }: Props
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13 }}>{name}</div>
-                  <div className="text-muted" style={{ fontSize: 11 }}>{viewRole === "admin" ? "Organizer" : "Player"}</div>
+                  <div className="text-muted" style={{ fontSize: 11 }}>{roleLabel(viewRole)}</div>
                 </div>
                 <button type="button" className="btn btn-icon" title="Sign out" onClick={() => startTransition(() => signOutAction())}>
                   <i className="ph ph-sign-out" />

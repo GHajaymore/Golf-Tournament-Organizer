@@ -6,11 +6,15 @@ import type { NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { Logo } from "@/components/Logo";
 
+type Role = "admin" | "assistant" | "player";
+
+const roleLabel = (r: Role) => (r === "admin" ? "Organizer" : r === "assistant" ? "Assistant" : "Player");
+
 interface Props {
   sections: NavSection[];
   name: string;
-  role: "admin" | "player";
-  viewRole: "admin" | "player";
+  role: Role;
+  viewRole: Role;
   initials: string;
 }
 
@@ -140,7 +144,7 @@ export function Sidebar({ sections, name, role, viewRole, initials }: Props) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13 }}>{name}</div>
             <div className="text-muted" style={{ fontSize: 11 }}>
-              {viewRole === "admin" ? "Organizer" : "Player"}
+              {roleLabel(viewRole)}
             </div>
           </div>
           <button

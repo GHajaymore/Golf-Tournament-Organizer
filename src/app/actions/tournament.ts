@@ -12,11 +12,33 @@ async function requireEvent(): Promise<string> {
   return session.eventId;
 }
 
+/** Primary Organizer only (admin) — critical config and access control. */
 async function requireAdminEvent(): Promise<string> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   if (session.role !== "admin") throw new Error("Organizer access required");
   return session.eventId;
+}
+
+/** Organizer or Assistant Organizer — operational tasks. */
+async function requireStaffEvent(): Promise<string> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  if (session.role !== "admin" && session.role !== "assistant") {
+    throw new Error("Organizer access required");
+  }
+  return session.eventId;
+}
+
+/** Block structural changes once the tournament is live/completed, unless unlocked. */
+async function assertUnlocked(eventId: string): Promise<void> {
+  const e = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { status: true, configUnlocked: true },
+  });
+  if (e && (e.status === "live" || e.status === "completed") && !e.configUnlocked) {
+    throw new Error("Configuration is locked. Unlock the tournament to make structural changes.");
+  }
 }
 
 function refresh() {
@@ -26,7 +48,7 @@ function refresh() {
 /* ── Registration ─────────────────────────────────────────────────────── */
 
 export async function addSignup(name: string, handicap: number) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
   const clean = name.trim();
   if (!clean) return;
   const event = await prisma.event.findUnique({ where: { id: eventId } });
@@ -47,7 +69,7 @@ export async function addSignup(name: string, handicap: number) {
 }
 
 export async function removeSignup(playerId: string) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player || player.eventId !== eventId) return;
   await prisma.player.delete({ where: { id: playerId } });
@@ -63,7 +85,7 @@ export async function removeSignup(playerId: string) {
 }
 
 export async function importCsvSignups(csv: string) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return;
   const rows = csv
@@ -98,7 +120,7 @@ export async function importCsvSignups(csv: string) {
 }
 
 export async function setInviteMessage(message: string) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
   await prisma.event.update({ where: { id: eventId }, data: { inviteMessage: message } });
   refresh();
 }
@@ -117,6 +139,7 @@ export async function saveEvent(data: {
   playerCountMode: string;
 }) {
   const eventId = await requireAdminEvent();
+  await assertUnlocked(eventId);
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -135,7 +158,8 @@ export async function saveEvent(data: {
 }
 
 export async function applyManualCount(target: number) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   const t = Math.max(0, Math.round(target));
   const confirmed = await prisma.player.findMany({
     where: { eventId, status: "confirmed" },
@@ -188,7 +212,8 @@ const FORMATION_RULES = ["balanced", "handicap", "seeding", "random", "manual"];
 const FLIGHT_MODES = ["auto", "count", "perFlight"];
 
 export async function regenGroups(rule: FormationRule, mode = "auto", value = 0) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -210,7 +235,7 @@ export async function saveScoring(data: {
   holeRatioPts: number;
   bonusPts: number;
 }) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -225,7 +250,7 @@ export async function saveScoring(data: {
 }
 
 export async function setQualifyPerGroup(n: number) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
   await prisma.event.update({
     where: { id: eventId },
     data: { qualifyPerGroup: Math.min(3, Math.max(1, Math.round(n))) },
@@ -236,13 +261,13 @@ export async function setQualifyPerGroup(n: number) {
 /* ── Stages ───────────────────────────────────────────────────────────── */
 
 export async function setStageDeadline(stageId: string, deadline: string) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline } });
   refresh();
 }
 
 export async function setStageCarry(stageId: string, enabled: boolean, pct: number) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: {
@@ -254,7 +279,7 @@ export async function setStageCarry(stageId: string, enabled: boolean, pct: numb
 }
 
 export async function setStageScoringBasis(stageId: string, basis: string) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
   const value = ["gross", "net", "both"].includes(basis) ? basis : "gross";
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
@@ -278,7 +303,8 @@ const STAGE_DESCRIPTIONS: Record<string, string> = {
 };
 
 export async function addStage(type: string) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   const stageType = (STAGE_TYPES as readonly string[]).includes(type) ? type : "Round Robin";
   const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
   const position = (agg._max.position ?? -1) + 1;
@@ -296,7 +322,8 @@ export async function addStage(type: string) {
 }
 
 export async function removeStage(stageId: string) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   await prisma.stage.deleteMany({ where: { id: stageId, eventId } });
   refresh();
 }
@@ -337,7 +364,7 @@ export async function clearMatch(matchId: string) {
 /* ── Bracket ──────────────────────────────────────────────────────────── */
 
 export async function setBracketWinner(key: string, winnerId: string) {
-  const eventId = await requireAdminEvent();
+  const eventId = await requireStaffEvent();
   const existing = await prisma.bracketWinner.findFirst({ where: { eventId, key } });
   if (existing?.winnerId === winnerId) {
     // Toggle off if the same slot is clicked again.
@@ -359,17 +386,20 @@ export async function addAccount(name: string, email: string, role: string) {
   if (!clean || !cleanEmail) return;
   await prisma.account.upsert({
     where: { eventId_email: { eventId, email: cleanEmail } },
-    update: { name: clean, role: role === "admin" ? "admin" : "player" },
-    create: { eventId, name: clean, email: cleanEmail, role: role === "admin" ? "admin" : "player" },
+    update: { name: clean, role: cleanRole(role) },
+    create: { eventId, name: clean, email: cleanEmail, role: cleanRole(role) },
   });
   refresh();
 }
+
+const ACCOUNT_ROLES = ["admin", "assistant", "player"];
+const cleanRole = (role: string) => (ACCOUNT_ROLES.includes(role) ? role : "player");
 
 export async function setAccountRole(accountId: string, role: string) {
   const eventId = await requireAdminEvent();
   await prisma.account.updateMany({
     where: { id: accountId, eventId },
-    data: { role: role === "admin" ? "admin" : "player" },
+    data: { role: cleanRole(role) },
   });
   refresh();
 }
@@ -377,5 +407,37 @@ export async function setAccountRole(accountId: string, role: string) {
 export async function removeAccount(accountId: string) {
   const eventId = await requireAdminEvent();
   await prisma.account.deleteMany({ where: { id: accountId, eventId } });
+  refresh();
+}
+
+/* ── Lifecycle ────────────────────────────────────────────────────────── */
+
+const STATUS_FLOW = ["draft", "registration", "ready", "live", "completed"];
+
+export async function setEventStatus(status: string) {
+  const eventId = await requireAdminEvent();
+  const s = STATUS_FLOW.includes(status) ? status : "draft";
+  await prisma.event.update({ where: { id: eventId }, data: { status: s } });
+  refresh();
+}
+
+export async function launchTournament() {
+  const eventId = await requireAdminEvent();
+  // On launch, every non-staff account receives the Player role. Once registration
+  // collects player emails (Phase 4), this also provisions their logins.
+  await prisma.account.updateMany({
+    where: { eventId, role: { notIn: ["admin", "assistant"] } },
+    data: { role: "player" },
+  });
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { status: "live", launchedAt: new Date(), configUnlocked: false },
+  });
+  refresh();
+}
+
+export async function setConfigUnlocked(unlocked: boolean) {
+  const eventId = await requireAdminEvent();
+  await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: unlocked } });
   refresh();
 }
