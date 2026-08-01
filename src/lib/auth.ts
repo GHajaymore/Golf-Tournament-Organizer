@@ -11,6 +11,7 @@ import { prisma } from "./db";
 
 const COOKIE = "ng_session";
 const PREVIEW_COOKIE = "ng_preview_player";
+const ACTIVE_COOKIE = "ng_active_event";
 const SECRET = process.env.AUTH_SECRET ?? "dev-secret";
 
 function sign(value: string): string {
@@ -53,12 +54,25 @@ export async function createSession(accountId: string): Promise<void> {
     maxAge: 60 * 60 * 24 * 7,
   });
   jar.delete(PREVIEW_COOKIE);
+  jar.delete(ACTIVE_COOKIE);
 }
 
 export async function destroySession(): Promise<void> {
   const jar = await cookies();
   jar.delete(COOKIE);
   jar.delete(PREVIEW_COOKIE);
+  jar.delete(ACTIVE_COOKIE);
+}
+
+/** Switch which tournament the organizer is managing (their events only). */
+export async function setActiveEvent(eventId: string): Promise<void> {
+  const jar = await cookies();
+  jar.set(ACTIVE_COOKIE, sign(eventId), {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  });
 }
 
 export async function setPreviewPlayer(on: boolean): Promise<void> {
@@ -73,15 +87,27 @@ export async function getSession(): Promise<Session | null> {
   if (!accountId) return null;
   const account = await prisma.account.findUnique({ where: { id: accountId } });
   if (!account) return null;
+
+  // Resolve the active event. Organizers can switch between events they belong
+  // to (matched by email); the account for that event carries the effective role.
+  let effective = account;
+  const activeEventId = verify(jar.get(ACTIVE_COOKIE)?.value);
+  if (activeEventId && activeEventId !== account.eventId) {
+    const match = await prisma.account.findFirst({
+      where: { eventId: activeEventId, email: account.email },
+    });
+    if (match) effective = match;
+  }
+
   const role: Role =
-    account.role === "admin" ? "admin" : account.role === "assistant" ? "assistant" : "player";
+    effective.role === "admin" ? "admin" : effective.role === "assistant" ? "assistant" : "player";
   const previewing = jar.get(PREVIEW_COOKIE)?.value === "1";
   const viewRole: Role = role === "admin" && previewing ? "player" : role;
   return {
-    accountId: account.id,
-    eventId: account.eventId,
-    name: account.name,
-    email: account.email,
+    accountId: effective.id,
+    eventId: effective.eventId,
+    name: effective.name,
+    email: effective.email,
     role,
     viewRole,
   };

@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, setActiveEvent } from "@/lib/auth";
 import { regenerateGroupsAndSchedule } from "@/lib/services/regroup";
 import { marginToHoles, resolveMatch, TIEBREAKER_KEYS } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
@@ -537,6 +537,53 @@ export async function setAccountRole(accountId: string, role: string) {
 export async function removeAccount(accountId: string) {
   const eventId = await requireAdminEvent();
   await prisma.account.deleteMany({ where: { id: accountId, eventId } });
+  refresh();
+}
+
+/* ── Multiple tournaments ─────────────────────────────────────────────── */
+
+/** Switch which tournament the organizer is managing (events they belong to). */
+export async function switchEvent(eventId: string) {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  const acct = await prisma.account.findFirst({ where: { eventId, email: session.email } });
+  if (!acct) throw new Error("You don't have access to that tournament");
+  await setActiveEvent(eventId);
+  refresh();
+}
+
+/** Create a fresh tournament (owned by the current organizer) and switch to it. */
+export async function createEvent(name: string) {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  const clean = name.trim() || "New Tournament";
+  const event = await prisma.event.create({
+    data: {
+      name: clean,
+      dates: "",
+      course: "",
+      city: "",
+      address: "",
+      regDeadline: "",
+      capacity: 0, // open field by default
+      status: "draft",
+    },
+  });
+  await prisma.stage.create({
+    data: {
+      eventId: event.id,
+      position: 0,
+      type: "Round Robin",
+      description: "",
+      format: "Match Play",
+      holes: 18,
+      scoringBasis: "gross",
+    },
+  });
+  await prisma.account.create({
+    data: { eventId: event.id, name: session.name, email: session.email, role: "admin" },
+  });
+  await setActiveEvent(event.id);
   refresh();
 }
 
