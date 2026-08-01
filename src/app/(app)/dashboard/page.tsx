@@ -11,6 +11,7 @@ const QUICK_ACTIONS = [
   { label: "Rounds", href: "/stages", icon: "ph ph-stack", staff: true },
   { label: "Match Points", href: "/scoring", icon: "ph ph-sliders", staff: true },
   { label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered", staff: true },
+  { label: "Foursomes", href: "/foursomes", icon: "ph ph-users-four", staff: true },
   { label: "Scorecards", href: "/scorecard", icon: "ph ph-cards", staff: true },
   { label: "Enter results", href: "/entry", icon: "ph ph-pencil-simple", staff: false },
   { label: "Leaderboard", href: "/leaderboard", icon: "ph ph-ranking", staff: false },

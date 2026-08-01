@@ -44,6 +44,7 @@ export const NAV: NavSection[] = [
   {
     label: "Scoring",
     items: [
+      { key: "foursomes", label: "Foursome maker", href: "/foursomes", icon: "ph ph-users-four" },
       { key: "scorecard", label: "Scorecard generator", href: "/scorecard", icon: "ph ph-cards" },
       { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple", player: true },
     ],

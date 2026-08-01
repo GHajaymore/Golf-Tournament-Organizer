@@ -1,4 +1,5 @@
 import { requireState } from "@/lib/page-helpers";
+import { computeHighlights } from "@/lib/services/tournament";
 import { pts, diff } from "@/lib/format";
 
 export default async function LeaderboardPage() {
@@ -6,6 +7,7 @@ export default async function LeaderboardPage() {
   const { overall, groups, event } = state;
   const advancingIds = state.advancingIds;
   const groupById = new Map(groups.map((g) => [g.id, g]));
+  const highlights = computeHighlights(state);
 
   return (
     <>
@@ -28,6 +30,23 @@ export default async function LeaderboardPage() {
           <i className="ph-fill ph-circle" style={{ fontSize: 8, marginRight: 5 }} /> Updating live
         </span>
       </div>
+
+      {highlights.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <span className="card-kicker" style={{ display: "block", marginBottom: 8 }}>Tournament highlights</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
+            {highlights.map((h, i) => (
+              <div key={i} className="card elev-sm" style={{ gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>{h.icon}</span>
+                  <span className="card-kicker">{h.title}</span>
+                </div>
+                <div style={{ fontSize: 13 }}>{h.text}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card elev-sm">
         <div className="table-scroll">

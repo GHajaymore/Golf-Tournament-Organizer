@@ -208,6 +208,58 @@ export function matchProgress(state: EventState): { done: number; total: number;
   return { done, total, pct };
 }
 
+export interface Highlight {
+  icon: string;
+  title: string;
+  text: string;
+}
+
+/** Data-driven "Tournament Highlights" for the live leaderboard. */
+export function computeHighlights(state: EventState): Highlight[] {
+  const out: Highlight[] = [];
+  const fmt = (n: number) => (Math.round(n * 100) / 100).toString();
+
+  const leader = state.overall[0];
+  if (leader && leader.stats.played > 0) {
+    out.push({ icon: "🏆", title: "Leader", text: `${leader.player.name} leads on ${fmt(leader.stats.totalPoints)} pts.` });
+  }
+
+  // Longest current win streak across the field.
+  let best = { name: "", n: 0 };
+  for (const rp of state.overall) {
+    const ms = state.domainMatches
+      .filter((m) => m.playerAId === rp.player.id || m.playerBId === rp.player.id)
+      .sort((a, b) => a.round - b.round);
+    let streak = 0;
+    for (const m of ms) {
+      const r = resolveMatch(m.holes);
+      if (!r.complete) continue;
+      const isA = m.playerAId === rp.player.id;
+      const won = (r.winner === "A" && isA) || (r.winner === "B" && !isA);
+      streak = won ? streak + 1 : 0;
+    }
+    if (streak > best.n) best = { name: rp.player.name, n: streak };
+  }
+  if (best.n >= 2) {
+    out.push({ icon: "🔥", title: "Hot streak", text: `${best.name} has won ${best.n} matches in a row.` });
+  }
+
+  // Qualification bubble.
+  const advancing = state.overall.filter((rp) => state.advancingIds.has(rp.player.id));
+  const nonAdvancing = state.overall.filter((rp) => !state.advancingIds.has(rp.player.id));
+  const lastIn = advancing[advancing.length - 1];
+  const firstOut = nonAdvancing[0];
+  if (lastIn) {
+    out.push({ icon: "🎯", title: "Qualification watch", text: `${lastIn.player.name} holds the final qualifying spot on ${fmt(lastIn.stats.totalPoints)} pts.` });
+  }
+  if (firstOut && lastIn) {
+    const gap = lastIn.stats.totalPoints - firstOut.stats.totalPoints;
+    out.push({ icon: "🚨", title: "Bubble watch", text: `${firstOut.player.name} is ${fmt(gap)} pts outside qualification.` });
+  }
+
+  return out;
+}
+
 export function expectedRrTotal(state: EventState): number {
   return state.groups.reduce((acc, g) => {
     const n = state.confirmed.filter((p) => p.groupId === g.id).length;
