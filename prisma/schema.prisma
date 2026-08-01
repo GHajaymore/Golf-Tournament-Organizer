@@ -56,6 +56,8 @@ model Event {
   stages         Stage[]
   matches        Match[]
   bracketWinners BracketWinner[]
+  commentary     Commentary[]
+  scorecards     Scorecard[]
 }
 
 model Account {
@@ -172,9 +174,38 @@ model BracketWinner {
   // Key: "{winners|consolation}-{roundIndex}-{matchIndex}"
   key      String
   winnerId String
+  result   String @default("") // recorded match result, e.g. "3&2"
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, key])
+  @@index([eventId])
+}
+
+model Commentary {
+  id        String   @id @default(cuid())
+  eventId   String
+  author    String   @default("")
+  text      String
+  source    String   @default("organizer") // organizer | ai
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+/** Individual stroke-play scorecard for a player in a round. */
+model Scorecard {
+  id       String @id @default(cuid())
+  eventId  String
+  stageId  String
+  playerId String
+  // JSON array of per-hole gross strokes (number | null), one per hole.
+  strokes  String @default("[]")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, playerId])
   @@index([eventId])
 }

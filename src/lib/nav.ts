@@ -38,7 +38,7 @@ export const NAV: NavSection[] = [
       { key: "stages", label: "Round builder", href: "/stages", icon: "ph ph-stack" },
       { key: "scoring", label: "Match Points", href: "/scoring", icon: "ph ph-sliders" },
       { key: "qualification", label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered" },
-      { key: "bracket", label: "Bracket manager", href: "/bracket", icon: "ph ph-tree-structure" },
+      { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", player: true },
     ],
   },
   {

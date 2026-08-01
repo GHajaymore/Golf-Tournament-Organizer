@@ -88,7 +88,7 @@ export async function getSession(): Promise<Session | null> {
 }
 
 /** Screens organizers can access; players are limited to these three. */
-export const PLAYER_SCREENS = new Set(["dashboard", "leaderboard", "entry"]);
+export const PLAYER_SCREENS = new Set(["dashboard", "leaderboard", "entry", "bracket"]);
 
 /** Critical screens only the primary Organizer (admin) can open. */
 export const ADMIN_ONLY_SCREENS = new Set(["event", "access"]);

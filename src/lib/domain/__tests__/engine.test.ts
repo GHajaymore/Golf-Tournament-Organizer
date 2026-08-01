@@ -14,6 +14,8 @@ import {
   pickQualifiers,
   splitBrackets,
   carriedInto,
+  computeStrokeCard,
+  toParText,
   DEFAULT_SCORING,
   type HoleResult,
   type Player,
@@ -247,6 +249,29 @@ describe("round robin schedule", () => {
   it("handles odd counts with a bye", () => {
     const sched = roundRobinSchedule(["a", "b", "c"]);
     expect(sched.length).toBe(roundRobinMatchCount(3)); // 3
+  });
+});
+
+describe("stroke play", () => {
+  it("computes gross/net/to-par and nines", () => {
+    const pars = [4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 4, 5, 4, 3, 4, 5]; // par 72
+    const strokes = [4, 5, 3, 5, 4, 4, 3, 6, 4, 4, 4, 3, 5, 5, 4, 3, 4, 5]; // gross 75
+    const card = computeStrokeCard(strokes, pars, 8);
+    expect(card.gross).toBe(75);
+    expect(card.toPar).toBe(3);
+    expect(card.net).toBe(67); // 75 - 8
+    expect(card.front + card.back).toBe(75);
+    expect(card.played).toBe(18);
+  });
+  it("handles partial rounds and formats to-par", () => {
+    const pars = [4, 4, 3, 5];
+    const card = computeStrokeCard([4, 4, null, null], pars, 0);
+    expect(card.gross).toBe(8);
+    expect(card.played).toBe(2);
+    expect(card.toPar).toBe(0);
+    expect(toParText(0)).toBe("E");
+    expect(toParText(3)).toBe("+3");
+    expect(toParText(-2)).toBe("-2");
   });
 });
 

@@ -437,6 +437,18 @@ export async function clearMatch(matchId: string) {
   refresh();
 }
 
+/* ── Stroke play ──────────────────────────────────────────────────────── */
+
+export async function saveScorecard(stageId: string, playerId: string, strokes: (number | null)[]) {
+  const eventId = await requireEvent();
+  await prisma.scorecard.upsert({
+    where: { stageId_playerId: { stageId, playerId } },
+    update: { strokes: JSON.stringify(strokes) },
+    create: { eventId, stageId, playerId, strokes: JSON.stringify(strokes) },
+  });
+  refresh();
+}
+
 /* ── Score confirmation ───────────────────────────────────────────────── */
 
 export async function confirmMatch(matchId: string) {
@@ -483,6 +495,15 @@ export async function setBracketWinner(key: string, winnerId: string) {
   } else {
     await prisma.bracketWinner.create({ data: { eventId, key, winnerId } });
   }
+  refresh();
+}
+
+export async function setBracketResult(key: string, result: string) {
+  const eventId = await requireStaffEvent();
+  await prisma.bracketWinner.updateMany({
+    where: { eventId, key },
+    data: { result: result.slice(0, 12) },
+  });
   refresh();
 }
 

@@ -1,9 +1,17 @@
 "use client";
 import { useState, useTransition } from "react";
-import { setBracketWinner } from "@/app/actions/tournament";
+import { setBracketWinner, setBracketResult } from "@/app/actions/tournament";
 import type { BracketView } from "@/lib/domain";
 
-function BracketBoard({ view }: { view: BracketView }) {
+function BracketBoard({
+  view,
+  results,
+  readOnly,
+}: {
+  view: BracketView;
+  results: Record<string, string>;
+  readOnly: boolean;
+}) {
   const [pending, startTransition] = useTransition();
 
   const slotButton = (
@@ -12,7 +20,7 @@ function BracketBoard({ view }: { view: BracketView }) {
     winnerId: string | null,
   ) => {
     const isWinner = winnerId !== null && slot.playerId === winnerId;
-    const clickable = slot.playerId !== null;
+    const clickable = !readOnly && slot.playerId !== null;
     return (
       <button
         type="button"
@@ -43,18 +51,29 @@ function BracketBoard({ view }: { view: BracketView }) {
     <div className="card elev-sm" style={{ overflowX: "auto" }}>
       <div style={{ display: "flex", gap: 26, minWidth: 640 }}>
         {view.rounds.map((rd) => (
-          <div
-            key={rd.roundIndex}
-            style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-around", gap: 14, minWidth: 180 }}
-          >
+          <div key={rd.roundIndex} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-around", gap: 14, minWidth: 190 }}>
             <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)", textAlign: "center" }}>
               {rd.label}
             </div>
             {rd.matches.map((m) => (
-              <div key={m.key} style={{ border: "1px solid var(--color-divider)", borderRadius: 8, overflow: "hidden" }}>
-                {slotButton(m.key, m.a, m.winnerId)}
-                <div style={{ height: 1, background: "var(--color-divider)" }} />
-                {slotButton(m.key, m.b, m.winnerId)}
+              <div key={m.key}>
+                <div style={{ border: "1px solid var(--color-divider)", borderRadius: 8, overflow: "hidden" }}>
+                  {slotButton(m.key, m.a, m.winnerId)}
+                  <div style={{ height: 1, background: "var(--color-divider)" }} />
+                  {slotButton(m.key, m.b, m.winnerId)}
+                </div>
+                {m.winnerId && !readOnly && (
+                  <input
+                    className="input"
+                    defaultValue={results[m.key] ?? ""}
+                    placeholder="Result e.g. 3&2"
+                    onBlur={(e) => startTransition(() => setBracketResult(m.key, e.target.value))}
+                    style={{ marginTop: 4, fontSize: 11, minHeight: 26, padding: "2px 8px" }}
+                  />
+                )}
+                {m.winnerId && readOnly && results[m.key] && (
+                  <div className="text-muted" style={{ fontSize: 11, textAlign: "center", marginTop: 3 }}>{results[m.key]}</div>
+                )}
               </div>
             ))}
           </div>
@@ -62,25 +81,35 @@ function BracketBoard({ view }: { view: BracketView }) {
         <div style={{ flex: "none", width: 150, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 6, textAlign: "center" }}>
           <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)" }}>Champion</div>
           <i className="ph-fill ph-trophy" style={{ fontSize: 30, color: "var(--color-accent)" }} />
-          <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>
-            {view.champion?.name ?? "TBD"}
-          </div>
+          <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>{view.champion?.name ?? "TBD"}</div>
         </div>
       </div>
     </div>
   );
 }
 
-export function BracketClient({ winners, consolation }: { winners: BracketView; consolation: BracketView }) {
+export function BracketClient({
+  winners,
+  consolation,
+  results = {},
+  readOnly = false,
+}: {
+  winners: BracketView;
+  consolation: BracketView;
+  results?: Record<string, string>;
+  readOnly?: boolean;
+}) {
   const [tab, setTab] = useState<"winners" | "consolation">("winners");
   return (
     <>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
           <div className="page-kicker">Bracket</div>
-          <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Bracket manager</h2>
+          <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>{readOnly ? "Live bracket" : "Bracket manager"}</h2>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            Seeded from qualification. Click a name to advance the winner (click again to undo).
+            {readOnly
+              ? "Seeded from qualification. Winners advance automatically as results come in."
+              : "Seeded from qualification. Click a name to advance the winner (results auto-advance the next round)."}
           </p>
         </div>
         <div className="seg">
@@ -94,7 +123,7 @@ export function BracketClient({ winners, consolation }: { winners: BracketView; 
           </label>
         </div>
       </div>
-      <BracketBoard view={tab === "winners" ? winners : consolation} />
+      <BracketBoard view={tab === "winners" ? winners : consolation} results={results} readOnly={readOnly} />
     </>
   );
 }

@@ -1,13 +1,36 @@
 import { requireState } from "@/lib/page-helpers";
 import { computeHighlights } from "@/lib/services/tournament";
+import { prisma } from "@/lib/db";
+import { CommentaryPanel } from "@/components/CommentaryPanel";
 import { pts, diff } from "@/lib/format";
 
+function ago(d: Date): string {
+  const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
 export default async function LeaderboardPage() {
-  const { state } = await requireState();
+  const { session, state } = await requireState();
   const { overall, groups, event } = state;
   const advancingIds = state.advancingIds;
   const groupById = new Map(groups.map((g) => [g.id, g]));
   const highlights = computeHighlights(state);
+  const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+  const commentary = await prisma.commentary.findMany({
+    where: { eventId: session.eventId },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
+  const commentaryItems = commentary.map((c) => ({
+    id: c.id,
+    author: c.author,
+    text: c.text,
+    source: c.source,
+    when: ago(c.createdAt),
+  }));
 
   return (
     <>
@@ -114,6 +137,10 @@ export default async function LeaderboardPage() {
           Columns: P played, W won, ½ halved, L lost. Advancing rows reflect the current Top{" "}
           {event.qualifyPerGroup}/flight cutoff and update live as scores are entered.
         </p>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <CommentaryPanel items={commentaryItems} canPost={isStaff} />
       </div>
     </>
   );
