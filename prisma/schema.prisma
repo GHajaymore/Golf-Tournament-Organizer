@@ -140,6 +140,11 @@ model Match {
   // JSON array of 'A' | 'B' | 'H' | null, one per hole.
   holes     String @default("[]")
 
+  // Score confirmation (two-player workflow)
+  scoreStatus   String    @default("pending") // pending | confirmed | disputed
+  scoredAt      DateTime?
+  confirmedById String?
+
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -147,6 +152,18 @@ model Match {
   @@index([eventId])
   @@index([stageId])
   @@index([groupId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  eventId   String
+  matchId   String?
+  actor     String   @default("")
+  action    String
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
 }
 
 model BracketWinner {

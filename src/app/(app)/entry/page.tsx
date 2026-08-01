@@ -1,16 +1,15 @@
 import { requireScreen } from "@/lib/page-helpers";
-import { loadEventState } from "@/lib/services/tournament";
+import { loadEventState, effectiveScoreStatus } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient";
 import type { HoleResult } from "@/lib/domain";
 
 export default async function EntryPage() {
-  await requireScreen("entry");
-  const session = await getSession();
-  if (!session) redirect("/");
+  const session = await requireScreen("entry");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
+  const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
 
   const nameById = new Map(state.players.map((p) => [p.id, p.name]));
   const groupById = new Map(state.groups.map((g) => [g.id, g.position]));
@@ -33,8 +32,9 @@ export default async function EntryPage() {
         groupName: `Flight ${(groupById.get(m.groupId) ?? 0) + 1}`,
         round: m.round,
         holes,
+        status: effectiveScoreStatus(m),
       };
     });
 
-  return <ScoreEntryClient matches={matches} />;
+  return <ScoreEntryClient matches={matches} isStaff={isStaff} />;
 }

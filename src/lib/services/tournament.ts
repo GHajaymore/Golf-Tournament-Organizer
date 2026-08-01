@@ -7,6 +7,7 @@ import {
   pickQualifiers,
   splitBrackets,
   roundRobinMatchCount,
+  resolveMatch,
   type Player,
   type Match as DomainMatch,
   type ScoringRules,
@@ -17,6 +18,19 @@ import {
 import type { Event, Player as DbPlayer, Group as DbGroup, Stage as DbStage, Match as DbMatch } from "@prisma/client";
 
 export type HoleResultArr = DomainMatch["holes"];
+
+const AUTO_CONFIRM_MS = 24 * 60 * 60 * 1000;
+export type ScoreStatus = "pending" | "confirmed" | "disputed" | "auto-confirmed";
+
+/** Effective confirmation status, applying the lazy 24h auto-confirm. */
+export function effectiveScoreStatus(m: { scoreStatus: string; scoredAt: Date | null }): ScoreStatus {
+  if (m.scoreStatus === "confirmed") return "confirmed";
+  if (m.scoreStatus === "disputed") return "disputed";
+  if (m.scoreStatus === "pending" && m.scoredAt && Date.now() - new Date(m.scoredAt).getTime() > AUTO_CONFIRM_MS) {
+    return "auto-confirmed";
+  }
+  return "pending";
+}
 
 function scoringFrom(event: Event): ScoringRules {
   let tiebreakers: TiebreakerKey[];
@@ -81,6 +95,7 @@ export interface EventState {
   groupStandings: GroupStanding[];
   advancingCount: number;
   advancingIds: Set<string>;
+  pendingConfirmations: number;
   overallCutoff: number | null;
   brackets: { winners: BracketView; consolation: BracketView };
   qualifiers: Player[];
@@ -129,6 +144,17 @@ export async function loadEventState(eventId: string): Promise<EventState | null
 
   const advancingIds = qualifierIds;
   const advancingCount = qualifierIds.size;
+
+  // Completed matches still awaiting the other player's confirmation (not auto-confirmed).
+  const pendingConfirmations = rrMatches.filter((m) => {
+    let holes: HoleResultArr;
+    try {
+      holes = JSON.parse(m.holes) as HoleResultArr;
+    } catch {
+      return false;
+    }
+    return resolveMatch(holes).complete && effectiveScoreStatus(m) === "pending";
+  }).length;
   const qualifiers = overall.filter((rp) => qualifierIds.has(rp.player.id)).map((rp) => rp.player);
 
   const advTotals = overall
@@ -160,6 +186,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     groupStandings,
     advancingCount,
     advancingIds,
+    pendingConfirmations,
     overallCutoff,
     brackets,
     qualifiers,

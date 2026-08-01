@@ -103,6 +103,18 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {isStaff && state.pendingConfirmations > 0 && (
+        <div className="card elev-sm" style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16, borderLeft: "3px solid var(--color-accent)" }}>
+          <i className="ph ph-seal-warning" style={{ color: "var(--color-accent)", fontSize: 20 }} />
+          <span style={{ fontSize: 13 }}>
+            <b>{state.pendingConfirmations}</b> {state.pendingConfirmations === 1 ? "score is" : "scores are"} pending player confirmation (auto-confirm after 24h).
+          </span>
+          <Link className="btn btn-ghost" href="/entry" style={{ marginLeft: "auto" }}>
+            Review <i className="ph ph-arrow-right" />
+          </Link>
+        </div>
+      )}
+
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <StatCard label="Players" value={state.confirmed.length} sub={`${state.groups.length} flights`} icon="ph ph-users-three" />
         <StatCard label="Matches complete" value={`${progress.done}/${progress.total}`} sub={`${progress.pct}% of round robin`} icon="ph ph-check-circle" />

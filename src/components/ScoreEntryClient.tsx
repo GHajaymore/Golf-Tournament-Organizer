@@ -3,7 +3,7 @@ import { useMemo, useState, useRef, useTransition } from "react";
 import Link from "next/link";
 import { resolveMatch, parseResultTranscript, type HoleResult } from "@/lib/domain";
 import { firstName } from "@/lib/format";
-import { saveMatchHoles, applyMatchResult, clearMatch } from "@/app/actions/tournament";
+import { saveMatchHoles, applyMatchResult, clearMatch, confirmMatch, disputeMatch, reopenMatch } from "@/app/actions/tournament";
 
 export interface EntryMatch {
   id: string;
@@ -14,7 +14,15 @@ export interface EntryMatch {
   groupName: string;
   round: number;
   holes: HoleResult[];
+  status: string;
 }
+
+const CONFIRM_META: Record<string, { label: string; tag: string }> = {
+  pending: { label: "Pending confirmation", tag: "tag-neutral" },
+  confirmed: { label: "Confirmed", tag: "tag-accent-2" },
+  "auto-confirmed": { label: "Auto-confirmed (24h)", tag: "tag-accent-2" },
+  disputed: { label: "Disputed", tag: "tag-accent" },
+};
 
 type Winner = "A" | "B" | "H";
 
@@ -25,9 +33,12 @@ function statusOf(holes: HoleResult[]): { tag: string; tagClass: string } {
   return { tag: "Pending", tagClass: "tag-neutral" };
 }
 
-export function ScoreEntryClient({ matches }: { matches: EntryMatch[] }) {
+export function ScoreEntryClient({ matches, isStaff = false }: { matches: EntryMatch[]; isStaff?: boolean }) {
   const [holesById, setHolesById] = useState<Record<string, HoleResult[]>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.holes])),
+  );
+  const [statusById, setStatusById] = useState<Record<string, string>>(() =>
+    Object.fromEntries(matches.map((m) => [m.id, m.status])),
   );
   const [selectedId, setSelectedId] = useState<string>(matches[0]?.id ?? "");
   const [mode, setMode] = useState<"holes" | "result">("holes");
@@ -52,6 +63,7 @@ export function ScoreEntryClient({ matches }: { matches: EntryMatch[] }) {
   const active = matches.find((m) => m.id === selectedId);
   const holes = active ? holesById[active.id] ?? active.holes : [];
   const resolution = useMemo(() => resolveMatch(holes), [holes]);
+  const activeStatus = active ? statusById[active.id] ?? active.status : "pending";
 
   if (!active) {
     return (
@@ -66,9 +78,27 @@ export function ScoreEntryClient({ matches }: { matches: EntryMatch[] }) {
 
   const persist = (id: string, next: HoleResult[]) => {
     setHolesById((prev) => ({ ...prev, [id]: next }));
+    setStatusById((prev) => ({ ...prev, [id]: "pending" }));
     startTransition(() => {
       void saveMatchHoles(id, next);
     });
+  };
+
+  const setStatus = (id: string, s: string) => setStatusById((prev) => ({ ...prev, [id]: s }));
+  const doConfirm = () => {
+    if (!active) return;
+    setStatus(active.id, "confirmed");
+    startTransition(() => void confirmMatch(active.id));
+  };
+  const doDispute = () => {
+    if (!active) return;
+    setStatus(active.id, "disputed");
+    startTransition(() => void disputeMatch(active.id));
+  };
+  const doReopen = () => {
+    if (!active) return;
+    setStatus(active.id, "pending");
+    startTransition(() => void reopenMatch(active.id));
   };
 
   const setHole = (index: number, value: "A" | "B" | "H") => {
@@ -339,6 +369,46 @@ export function ScoreEntryClient({ matches }: { matches: EntryMatch[] }) {
               <button type="button" className="btn btn-primary btn-block" onClick={doApplyResult}>
                 <i className="ph ph-check" /> Apply result
               </button>
+            </div>
+          )}
+
+          {resolution.complete && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 8,
+                marginTop: 12,
+                padding: "10px 12px",
+                background: "var(--color-bg)",
+                borderRadius: "var(--radius-md)",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                <i className="ph ph-seal-check" style={{ color: "var(--color-accent)" }} />
+                <span className={`tag ${CONFIRM_META[activeStatus]?.tag ?? "tag-neutral"}`}>
+                  {CONFIRM_META[activeStatus]?.label ?? activeStatus}
+                </span>
+              </span>
+              <div style={{ display: "flex", gap: 8 }}>
+                {activeStatus !== "confirmed" && activeStatus !== "auto-confirmed" && (
+                  <>
+                    <button type="button" className="btn btn-secondary" onClick={doDispute}>
+                      <i className="ph ph-warning" /> Dispute
+                    </button>
+                    <button type="button" className="btn btn-primary" onClick={doConfirm}>
+                      <i className="ph ph-check" /> Confirm result
+                    </button>
+                  </>
+                )}
+                {isStaff && (
+                  <button type="button" className="btn btn-secondary" onClick={doReopen}>
+                    <i className="ph ph-lock-key-open" /> Reopen
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

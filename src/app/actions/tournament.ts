@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { regenerateGroupsAndSchedule } from "@/lib/services/regroup";
-import { marginToHoles, TIEBREAKER_KEYS } from "@/lib/domain";
+import { marginToHoles, resolveMatch, TIEBREAKER_KEYS } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { FORMAT_NAMES } from "@/lib/formats";
 
@@ -389,11 +389,25 @@ export async function removeStage(stageId: string) {
 
 /* ── Match score entry ────────────────────────────────────────────────── */
 
+async function logAudit(eventId: string, matchId: string | null, action: string, detail: string) {
+  const session = await getSession();
+  await prisma.auditLog.create({
+    data: { eventId, matchId, actor: session?.name ?? "system", action, detail },
+  });
+}
+
 export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   const eventId = await requireEvent();
+  const complete = resolveMatch(holes).complete;
+  // Any score edit resets the two-player confirmation to pending.
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
-    data: { holes: JSON.stringify(holes) },
+    data: {
+      holes: JSON.stringify(holes),
+      scoreStatus: "pending",
+      scoredAt: complete ? new Date() : null,
+      confirmedById: null,
+    },
   });
   refresh();
 }
@@ -407,7 +421,10 @@ export async function applyMatchResult(
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
   const holes = marginToHoles(winner, margin, 18);
-  await prisma.match.update({ where: { id: matchId }, data: { holes: JSON.stringify(holes) } });
+  await prisma.match.update({
+    where: { id: matchId },
+    data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },
+  });
   refresh();
 }
 
@@ -415,8 +432,41 @@ export async function clearMatch(matchId: string) {
   const eventId = await requireEvent();
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
-    data: { holes: JSON.stringify(new Array(18).fill(null)) },
+    data: { holes: JSON.stringify(new Array(18).fill(null)), scoreStatus: "pending", scoredAt: null, confirmedById: null },
   });
+  refresh();
+}
+
+/* ── Score confirmation ───────────────────────────────────────────────── */
+
+export async function confirmMatch(matchId: string) {
+  const eventId = await requireEvent();
+  const session = await getSession();
+  await prisma.match.updateMany({
+    where: { id: matchId, eventId },
+    data: { scoreStatus: "confirmed", confirmedById: session?.accountId ?? null },
+  });
+  refresh();
+}
+
+export async function disputeMatch(matchId: string) {
+  const eventId = await requireEvent();
+  await prisma.match.updateMany({
+    where: { id: matchId, eventId },
+    data: { scoreStatus: "disputed" },
+  });
+  await logAudit(eventId, matchId, "dispute", "Result disputed");
+  refresh();
+}
+
+/** Organizer override: reopen a match for re-scoring; logged to the audit trail. */
+export async function reopenMatch(matchId: string) {
+  const eventId = await requireStaffEvent();
+  await prisma.match.updateMany({
+    where: { id: matchId, eventId },
+    data: { scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },
+  });
+  await logAudit(eventId, matchId, "reopen", "Organizer reopened the scorecard");
   refresh();
 }
 
