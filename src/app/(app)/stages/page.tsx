@@ -22,16 +22,22 @@ export default async function StagesPage() {
     carryPct: s.carryForwardPct,
   }));
 
+  // Matches per player in a round robin = (largest flight size − 1).
+  const flightSizes = state.groups.map(
+    (g) => state.confirmed.filter((p) => p.groupId === g.id).length,
+  );
+  const rrMatchesPerPlayer = Math.max(0, (flightSizes.length ? Math.max(...flightSizes) : 0) - 1);
+
   return (
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Competition</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Stage builder</h2>
+        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Round builder</h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Sequence the tournament — add as many stages as you need, each feeding the next.
+          Sequence the tournament — add as many rounds as you need, each feeding the next.
         </p>
       </div>
-      <StagesClient stages={stages} />
+      <StagesClient stages={stages} rrMatchesPerPlayer={rrMatchesPerPlayer} />
     </>
   );
 }

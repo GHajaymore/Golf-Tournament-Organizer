@@ -17,7 +17,7 @@ export type StageType =
   | "Single Match Stage"
   | "Bracket Stage";
 
-export type FormationRule = "balanced" | "handicap" | "seeding" | "manual";
+export type FormationRule = "balanced" | "handicap" | "seeding" | "random" | "manual";
 
 export type BracketKind = "winners" | "consolation";
 

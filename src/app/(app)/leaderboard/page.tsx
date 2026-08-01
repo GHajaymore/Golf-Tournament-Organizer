@@ -38,7 +38,7 @@ export default async function LeaderboardPage() {
             <tr>
               <th style={{ width: 40 }}>#</th>
               <th>Player</th>
-              <th>Group</th>
+              <th>Flight</th>
               <th style={{ textAlign: "center" }}>P</th>
               <th style={{ textAlign: "center" }}>W</th>
               <th style={{ textAlign: "center" }}>½</th>
@@ -66,7 +66,12 @@ export default async function LeaderboardPage() {
                       </span>
                     )}
                   </td>
-                  <td className="text-muted">{groupById.get(r.player.groupId ?? "")?.name ?? "—"}</td>
+                  <td className="text-muted">
+                    {(() => {
+                      const g = groupById.get(r.player.groupId ?? "");
+                      return g ? `Flight ${g.position + 1}` : "—";
+                    })()}
+                  </td>
                   <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{r.stats.played}</td>
                   <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{r.stats.wins}</td>
                   <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{r.stats.ties}</td>
@@ -90,7 +95,7 @@ export default async function LeaderboardPage() {
         </div>
         <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
           Columns: P played, W won, ½ halved, L lost. Advancing rows reflect the current Top{" "}
-          {event.qualifyPerGroup}/group cutoff and update live as scores are entered.
+          {event.qualifyPerGroup}/flight cutoff and update live as scores are entered.
         </p>
       </div>
     </>

@@ -7,7 +7,7 @@ import {
   computeStandings,
   groupCutoff,
   formGroups,
-  groupCountFor,
+  flightCountFor,
   roundRobinSchedule,
   roundRobinMatchCount,
   buildBracket,
@@ -168,26 +168,64 @@ describe("carry-forward", () => {
   });
 });
 
-describe("grouping", () => {
-  it("group count is max(2, round(n/4))", () => {
-    expect(groupCountFor(32)).toBe(8);
-    expect(groupCountFor(4)).toBe(1 === 1 ? 2 : 2); // max(2, 1) = 2
-    expect(groupCountFor(10)).toBe(3); // round(2.5)=3 (banker? JS rounds .5 up)
+describe("flight formation", () => {
+  const field = (n: number) =>
+    Array.from({ length: n }, (_, i) => player(`p${i}`, `P${i}`, (i * 1.7) % 20, i + 1));
+
+  it("flight count: auto ~ n/4, honoring count / perFlight config", () => {
+    expect(flightCountFor(32)).toBe(8);
+    expect(flightCountFor(4)).toBe(2); // max(2, round(1))
+    expect(flightCountFor(30, { mode: "count", value: 6 })).toBe(6);
+    expect(flightCountFor(30, { mode: "perFlight", value: 5 })).toBe(6); // ceil(30/5)
+    expect(flightCountFor(30, { mode: "perFlight", value: 4 })).toBe(8); // ceil(30/4)
   });
 
-  it("snake-drafts by handicap into balanced groups", () => {
-    const players = Array.from({ length: 8 }, (_, i) =>
-      player(`p${i}`, `P${i}`, i + 1, i + 1),
-    );
-    const groups = formGroups(players, "handicap");
-    expect(groups.length).toBe(2);
-    // 8 players, 2 groups: snake gives group A the 1st,4th,5th,8th lowest hcp.
-    const a = groups[0].playerIds;
-    const b = groups[1].playerIds;
-    expect(a.length).toBe(4);
-    expect(b.length).toBe(4);
-    // Every player assigned exactly once.
-    expect(new Set([...a, ...b]).size).toBe(8);
+  it("every rule partitions the field evenly with no duplicates", () => {
+    for (const rule of ["balanced", "handicap", "seeding", "random", "manual"] as const) {
+      const groups = formGroups(field(32), rule);
+      const ids = groups.flatMap((g) => g.playerIds);
+      expect(ids.length).toBe(32);
+      expect(new Set(ids).size).toBe(32);
+      expect(groups.every((g) => g.playerIds.length === 4)).toBe(true);
+    }
+  });
+
+  it("handicap and seeding differ when the two orderings diverge", () => {
+    // handicap order and seed order are genuinely different permutations.
+    const players = [
+      player("p0", "P0", 5, 1),
+      player("p1", "P1", 2, 2),
+      player("p2", "P2", 8, 3),
+      player("p3", "P3", 1, 4),
+      player("p4", "P4", 7, 5),
+      player("p5", "P5", 3, 6),
+      player("p6", "P6", 9, 7),
+      player("p7", "P7", 4, 8),
+    ];
+    const byHcp = formGroups(players, "handicap")[0].playerIds.slice().sort();
+    const bySeed = formGroups(players, "seeding")[0].playerIds.slice().sort();
+    expect(byHcp).not.toEqual(bySeed);
+  });
+
+  it("balanced honors a fixed flight count with even sizes", () => {
+    const groups = formGroups(field(16), "balanced", { mode: "count", value: 4 });
+    expect(groups.length).toBe(4);
+    expect(groups.every((g) => g.playerIds.length === 4)).toBe(true);
+  });
+
+  it("random is deterministic under a fixed rng and varies across seeds", () => {
+    const seeded = (seed: number) => {
+      let s = seed;
+      return () => {
+        s = (s * 1103515245 + 12345) & 0x7fffffff;
+        return s / 0x7fffffff;
+      };
+    };
+    const a = formGroups(field(16), "random", { mode: "auto" }, undefined, seeded(1));
+    const a2 = formGroups(field(16), "random", { mode: "auto" }, undefined, seeded(1));
+    const b = formGroups(field(16), "random", { mode: "auto" }, undefined, seeded(2));
+    expect(a.map((g) => g.playerIds)).toEqual(a2.map((g) => g.playerIds));
+    expect(a.map((g) => g.playerIds)).not.toEqual(b.map((g) => g.playerIds));
   });
 
   it("manual keeps roster order", () => {

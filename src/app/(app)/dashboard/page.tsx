@@ -45,9 +45,9 @@ export default async function DashboardPage() {
       </div>
 
       <div className="stat-grid" style={{ marginBottom: 16 }}>
-        <StatCard label="Players" value={state.confirmed.length} sub={`${state.groups.length} groups`} icon="ph ph-users-three" />
+        <StatCard label="Players" value={state.confirmed.length} sub={`${state.groups.length} flights`} icon="ph ph-users-three" />
         <StatCard label="Matches complete" value={`${progress.done}/${progress.total}`} sub={`${progress.pct}% of round robin`} icon="ph ph-check-circle" />
-        <StatCard label="Current stage" value={currentStage?.type ?? "—"} sub={currentStage?.deadline ?? ""} icon="ph ph-arrows-clockwise" />
+        <StatCard label="Current round" value={currentStage?.type ?? "—"} sub={currentStage?.deadline ?? ""} icon="ph ph-arrows-clockwise" />
         <StatCard label="Advancing" value={advancingCount} sub={`of ${state.confirmed.length} players`} icon="ph ph-flag-checkered" />
       </div>
 
@@ -63,7 +63,7 @@ export default async function DashboardPage() {
               <tr>
                 <th style={{ width: 36 }}>#</th>
                 <th>Player</th>
-                <th>Grp</th>
+                <th>Fl</th>
                 <th>Rec</th>
                 <th style={{ textAlign: "right" }}>Holes ±</th>
                 <th style={{ textAlign: "right" }}>Pts</th>
@@ -87,7 +87,7 @@ export default async function DashboardPage() {
                       </span>
                     </td>
                     <td style={{ fontWeight: 500 }}>{r.player.name}</td>
-                    <td className="text-muted">{g?.name ?? "—"}</td>
+                    <td className="text-muted">{g ? g.position + 1 : "—"}</td>
                     <td className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{record(r.stats)}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{diff(r.stats)}</td>
                     <td style={{ textAlign: "right", fontWeight: 600, color: "var(--color-accent-200)", fontVariantNumeric: "tabular-nums" }}>
@@ -103,7 +103,7 @@ export default async function DashboardPage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="card elev-sm">
-            <span className="card-title">Current stage</span>
+            <span className="card-title">Current round</span>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
               <div
                 style={{
@@ -151,7 +151,7 @@ export default async function DashboardPage() {
           <div className="card elev-sm">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span className="card-title">Qualification cutoff</span>
-              <span className="tag tag-accent">Top {event.qualifyPerGroup}/group</span>
+              <span className="tag tag-accent">Top {event.qualifyPerGroup}/flight</span>
             </div>
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 22, marginTop: 2 }}>
               {advancingCount} <span className="text-muted" style={{ fontSize: 14 }}>of {state.confirmed.length} advancing</span>
@@ -165,13 +165,13 @@ export default async function DashboardPage() {
 
       <div className="card elev-sm" style={{ marginTop: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span className="card-title">Group standings</span>
+          <span className="card-title">Flight standings</span>
           <span className="text-muted" style={{ fontSize: 12 }}>Advancing rows highlighted</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginTop: 6 }}>
-          {groupStandings.map((gs) => (
+          {groupStandings.map((gs, gi) => (
             <div key={gs.group.id}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Group {gs.group.name}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Flight {gi + 1}</div>
               {gs.ranked.map((r) => {
                 const advancing = advancingIds.has(r.player.id);
                 return (

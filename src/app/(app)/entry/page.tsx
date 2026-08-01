@@ -13,7 +13,7 @@ export default async function EntryPage() {
   if (!state) redirect("/");
 
   const nameById = new Map(state.players.map((p) => [p.id, p.name]));
-  const groupById = new Map(state.groups.map((g) => [g.id, g.name]));
+  const groupById = new Map(state.groups.map((g) => [g.id, g.position]));
 
   const matches: EntryMatch[] = [...state.rrMatches]
     .sort((a, b) => a.round - b.round)
@@ -30,7 +30,7 @@ export default async function EntryPage() {
         bId: m.playerBId,
         aName: nameById.get(m.playerAId) ?? "—",
         bName: nameById.get(m.playerBId) ?? "—",
-        groupName: `Group ${groupById.get(m.groupId) ?? "—"}`,
+        groupName: `Flight ${(groupById.get(m.groupId) ?? 0) + 1}`,
         round: m.round,
         holes,
       };

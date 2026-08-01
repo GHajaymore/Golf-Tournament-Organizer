@@ -24,8 +24,10 @@ model Event {
   playerCountMode String   @default("registration") // registration | manual
   manualPlayerCount Int    @default(32)
 
-  // Formation + qualification config
-  formationRule   String   @default("balanced") // balanced | handicap | seeding | manual
+  // Flight formation + qualification config
+  formationRule   String   @default("balanced") // balanced | handicap | seeding | random | manual
+  flightMode      String   @default("auto")     // auto | count | perFlight
+  flightValue     Int      @default(0)
   qualifyPerGroup Int      @default(2)
 
   // Scoring rules (round-robin stages)

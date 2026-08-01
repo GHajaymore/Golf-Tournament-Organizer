@@ -14,10 +14,10 @@ export default async function ScoringPage() {
   return (
     <>
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Setup</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Scoring rules</h2>
+        <div className="page-kicker">Competition</div>
+        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Match Points &amp; Standings</h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Points awarded in round-robin stages. Standings recalculate instantly.
+          Points awarded in round-robin rounds, and the tiebreakers that settle level standings. Recalculates instantly.
         </p>
       </div>
       <ScoringClient

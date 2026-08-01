@@ -22,12 +22,32 @@ const ICONS: Record<string, string> = {
 
 const STAGE_TYPES = ["Round Robin", "Single Match Stage", "Qualification Stage", "Bracket Stage"];
 
-function StageCard({ stage, isFirst }: { stage: StageView; isFirst: boolean }) {
+const BASIS_OPTIONS: Array<{ key: string; label: string }> = [
+  { key: "gross", label: "Gross" },
+  { key: "net", label: "Net" },
+  { key: "both", label: "Both" },
+];
+
+function StageCard({
+  stage,
+  isFirst,
+  rrMatchesPerPlayer,
+}: {
+  stage: StageView;
+  isFirst: boolean;
+  rrMatchesPerPlayer: number;
+}) {
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
   const [enabled, setEnabled] = useState(stage.carryEnabled);
   const [pct, setPct] = useState(stage.carryPct);
   const [pending, startTransition] = useTransition();
+
+  // Round Robin description is derived (no hard-coded round count).
+  const description =
+    stage.type === "Round Robin"
+      ? `Players compete against everyone in their flight — ${rrMatchesPerPlayer} ${rrMatchesPerPlayer === 1 ? "match" : "matches"} each.`
+      : stage.description;
 
   const commitCarry = (nextEnabled: boolean, nextPct: number) => {
     setEnabled(nextEnabled);
@@ -59,23 +79,21 @@ function StageCard({ stage, isFirst }: { stage: StageView; isFirst: boolean }) {
         <div style={{ flex: 1, minWidth: 160 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
-              Stage {stage.position + 1} · {stage.type}
+              Round {stage.position + 1} · {stage.type}
             </span>
             <span className="tag tag-neutral">{isFirst ? "Active" : "Upcoming"}</span>
           </div>
-          <div className="text-muted" style={{ fontSize: 13, marginTop: 2 }}>{stage.description}</div>
+          <div className="text-muted" style={{ fontSize: 13, marginTop: 2 }}>{description}</div>
         </div>
-        <div className="field" style={{ width: 150 }}>
-          <label>Scoring</label>
+        <div className="field" style={{ width: 190 }}>
+          <label>Result calculation</label>
           <div className="seg" style={{ width: "100%" }}>
-            <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-              <input type="radio" name={`basis-${stage.id}`} checked={basis === "gross"} disabled={pending} onChange={() => commitBasis("gross")} />
-              Gross
-            </label>
-            <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-              <input type="radio" name={`basis-${stage.id}`} checked={basis === "net"} disabled={pending} onChange={() => commitBasis("net")} />
-              Net
-            </label>
+            {BASIS_OPTIONS.map((o) => (
+              <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                <input type="radio" name={`basis-${stage.id}`} checked={basis === o.key} disabled={pending} onChange={() => commitBasis(o.key)} />
+                {o.label}
+              </label>
+            ))}
           </div>
         </div>
         <div className="field" style={{ width: 180 }}>
@@ -139,25 +157,31 @@ function StageCard({ stage, isFirst }: { stage: StageView; isFirst: boolean }) {
   );
 }
 
-export function StagesClient({ stages }: { stages: StageView[] }) {
+export function StagesClient({
+  stages,
+  rrMatchesPerPlayer,
+}: {
+  stages: StageView[];
+  rrMatchesPerPlayer: number;
+}) {
   const [newType, setNewType] = useState(STAGE_TYPES[0]);
   const [pending, startTransition] = useTransition();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {stages.map((s, i) => (
-        <StageCard key={s.id} stage={s} isFirst={i === 0} />
+        <StageCard key={s.id} stage={s} isFirst={i === 0} rrMatchesPerPlayer={rrMatchesPerPlayer} />
       ))}
       {stages.length === 0 && (
         <div className="card elev-sm">
           <span className="text-muted" style={{ fontSize: 13 }}>
-            No stages yet — add your first stage below (start with a Round Robin).
+            No rounds yet — add your first round below (start with a Round Robin).
           </span>
         </div>
       )}
 
       <div className="card elev-sm" style={{ flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <span className="card-title" style={{ fontSize: 15 }}>Add a stage</span>
+        <span className="card-title" style={{ fontSize: 15 }}>Add a round</span>
         <select className="input" style={{ width: "auto", minWidth: 190 }} value={newType} onChange={(e) => setNewType(e.target.value)}>
           {STAGE_TYPES.map((t) => (
             <option key={t} value={t}>{t}</option>
@@ -169,10 +193,10 @@ export function StagesClient({ stages }: { stages: StageView[] }) {
           disabled={pending}
           onClick={() => startTransition(() => addStage(newType))}
         >
-          <i className="ph ph-plus" /> Add stage
+          <i className="ph ph-plus" /> Add round
         </button>
         <span className="text-muted" style={{ fontSize: 12 }}>
-          Sequence any number of stages: round robin → single match → qualification → bracket.
+          Sequence any number of rounds: round robin → single match → qualification → bracket.
         </span>
       </div>
     </div>

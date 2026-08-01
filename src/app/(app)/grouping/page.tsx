@@ -12,37 +12,45 @@ export default async function GroupingPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
 
-  const playerById = new Map(state.confirmed.map((p) => [p.id, p]));
-  const cards = state.groups.map((g) => {
+  const cards = state.groups.map((g, i) => {
     const players = state.confirmed.filter((p) => p.groupId === g.id).sort((a, b) => a.handicap - b.handicap);
     const avg =
       players.length === 0
         ? 0
         : Math.round((players.reduce((s, p) => s + p.handicap, 0) / players.length) * 10) / 10;
-    return { id: g.id, name: g.name, avg, players };
+    return { id: g.id, label: `Flight ${i + 1}`, avg, players };
   });
+
+  const mode = (["auto", "count", "perFlight"].includes(state.event.flightMode)
+    ? state.event.flightMode
+    : "auto") as "auto" | "count" | "perFlight";
 
   return (
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Setup</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Grouping rules</h2>
+        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Flights</h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Auto-form groups by a rule, then regenerate whenever the roster changes.
+          Divide the field into flights. Pick a formation rule, preview the result, then generate.
         </p>
       </div>
 
       <GroupingControls
+        players={state.confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }))}
         currentRule={state.event.formationRule as FormationRule}
-        groupCount={state.groups.length}
-        playerCount={state.confirmed.length}
+        currentMode={mode}
+        currentValue={state.event.flightValue}
       />
 
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <span className="card-title" style={{ fontSize: 15 }}>Current flights</span>
+        <span className="text-muted" style={{ fontSize: 12 }}>Active in the tournament</span>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
         {cards.map((g) => (
           <div key={g.id} className="card elev-sm" style={{ gap: 6 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontWeight: 600, fontSize: 14 }}>Group {g.name}</span>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{g.label}</span>
               <span className="text-muted" style={{ fontSize: 11 }}>avg hcp {g.avg}</span>
             </div>
             {g.players.map((pl) => (
@@ -67,7 +75,7 @@ export default async function GroupingPage() {
           </div>
         ))}
         {cards.length === 0 && (
-          <div className="text-muted" style={{ fontSize: 13 }}>No groups yet — choose a rule and generate.</div>
+          <div className="text-muted" style={{ fontSize: 13 }}>No flights yet — choose a rule and generate.</div>
         )}
       </div>
     </>

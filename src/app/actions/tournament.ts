@@ -184,9 +184,20 @@ export async function applyManualCount(target: number) {
 
 /* ── Grouping ─────────────────────────────────────────────────────────── */
 
-export async function regenGroups(rule: FormationRule) {
+const FORMATION_RULES = ["balanced", "handicap", "seeding", "random", "manual"];
+const FLIGHT_MODES = ["auto", "count", "perFlight"];
+
+export async function regenGroups(rule: FormationRule, mode = "auto", value = 0) {
   const eventId = await requireAdminEvent();
-  await regenerateGroupsAndSchedule(eventId, rule);
+  await prisma.event.update({
+    where: { id: eventId },
+    data: {
+      formationRule: FORMATION_RULES.includes(rule) ? rule : "balanced",
+      flightMode: FLIGHT_MODES.includes(mode) ? mode : "auto",
+      flightValue: Math.max(0, Math.round(value)),
+    },
+  });
+  await regenerateGroupsAndSchedule(eventId);
   refresh();
 }
 
@@ -244,9 +255,10 @@ export async function setStageCarry(stageId: string, enabled: boolean, pct: numb
 
 export async function setStageScoringBasis(stageId: string, basis: string) {
   const eventId = await requireAdminEvent();
+  const value = ["gross", "net", "both"].includes(basis) ? basis : "gross";
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
-    data: { scoringBasis: basis === "net" ? "net" : "gross" },
+    data: { scoringBasis: value },
   });
   refresh();
 }

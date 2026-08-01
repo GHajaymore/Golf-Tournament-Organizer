@@ -6,7 +6,7 @@ export function QualControl({ value }: { value: number }) {
   const [pending, startTransition] = useTransition();
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-      <span className="text-muted" style={{ fontSize: 12 }}>Advance per group</span>
+      <span className="text-muted" style={{ fontSize: 12 }}>Advance per flight</span>
       <div className="seg">
         {[1, 2, 3].map((n) => (
           <label className="seg-opt" key={n}>

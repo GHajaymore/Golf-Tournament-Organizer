@@ -49,9 +49,9 @@ export default async function QualificationPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
-        {groupStandings.map((gs) => (
+        {groupStandings.map((gs, gi) => (
           <div key={gs.group.id} className="card elev-sm">
-            <span style={{ fontWeight: 600, fontSize: 14 }}>Group {gs.group.name}</span>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>Flight {gi + 1}</span>
             <table className="table" style={{ fontSize: 13 }}>
               <tbody>
                 {gs.ranked.map((r) => {

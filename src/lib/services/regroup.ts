@@ -1,24 +1,29 @@
 import "server-only";
 import { prisma } from "../db";
 import { formGroups, roundRobinSchedule } from "../domain";
-import type { FormationRule, Player as DomainPlayer } from "../domain";
+import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../domain";
 
 /**
- * Re-form groups for an event from its confirmed players using the given rule,
- * then regenerate the round-robin schedule (empty matches) for stage 0.
+ * Re-form flights for an event from its confirmed players using the stored rule
+ * and flight configuration, then regenerate the round-robin schedule (empty
+ * matches) for the round-robin round.
  *
- * This is the intended-destructive "Generate groups" action: it discards any
+ * This is the intended-destructive "Generate flights" action: it discards any
  * existing round-robin matches (and their scores), since roster/rule changes
  * invalidate the schedule. In production this would be guarded once live scores
- * exist (see handoff README); the UI surfaces that clearly.
+ * exist (see handoff README); the UI previews the result before committing.
  */
-export async function regenerateGroupsAndSchedule(
-  eventId: string,
-  rule?: FormationRule,
-): Promise<void> {
+export async function regenerateGroupsAndSchedule(eventId: string): Promise<void> {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return;
-  const formationRule = (rule ?? (event.formationRule as FormationRule)) as FormationRule;
+
+  const formationRule = event.formationRule as FormationRule;
+  const config: FlightConfig = {
+    mode: (["auto", "count", "perFlight"].includes(event.flightMode)
+      ? event.flightMode
+      : "auto") as FlightConfig["mode"],
+    value: event.flightValue > 0 ? event.flightValue : undefined,
+  };
 
   const confirmed = await prisma.player.findMany({
     where: { eventId, status: "confirmed" },
@@ -31,7 +36,7 @@ export async function regenerateGroupsAndSchedule(
     handicap: p.handicap,
     seed: p.seed,
   }));
-  const groups = formGroups(domainPlayers, formationRule);
+  const groups = formGroups(domainPlayers, formationRule, config);
 
   const rrStage = await prisma.stage.findFirst({
     where: { eventId, type: "Round Robin" },
@@ -39,8 +44,6 @@ export async function regenerateGroupsAndSchedule(
   });
 
   await prisma.$transaction(async (tx) => {
-    if (rule) await tx.event.update({ where: { id: eventId }, data: { formationRule } });
-    // Clear old round-robin matches and groups.
     if (rrStage) await tx.match.deleteMany({ where: { eventId, stageId: rrStage.id } });
     await tx.player.updateMany({ where: { eventId }, data: { groupId: null } });
     await tx.group.deleteMany({ where: { eventId } });
@@ -60,7 +63,6 @@ export async function regenerateGroupsAndSchedule(
       }
     }
 
-    // Fresh round-robin schedule with empty holes.
     if (rrStage) {
       for (const g of groups) {
         const dbGroupId = groupIdByEngineId.get(g.id)!;
