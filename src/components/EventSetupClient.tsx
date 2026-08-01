@@ -91,7 +91,7 @@ export function EventSetupClient({
   const summary = [
     { k: "Format", v: f.format === "stroke" ? "Stroke play" : "Match play" },
     { k: "Course", v: f.course || "—" },
-    { k: "Capacity", v: `${f.capacity} players` },
+    { k: "Capacity", v: f.capacity > 0 ? `${f.capacity} players` : "Open / unlimited" },
     { k: "Confirmed", v: `${playersCount}` },
     { k: "Player count", v: f.playerCountMode === "manual" ? "Manual target" : "From registrations" },
   ];
@@ -150,7 +150,18 @@ export function EventSetupClient({
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div className="field"><label>Registration deadline</label><input className="input" value={f.regDeadline} onChange={(e) => set("regDeadline", e.target.value)} /></div>
-          <div className="field"><label>Field capacity</label><input className="input" type="number" value={f.capacity} onChange={(e) => set("capacity", parseInt(e.target.value, 10) || 0)} /></div>
+          <div className="field">
+            <label>Field capacity</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div className="seg">
+                <label className="seg-opt"><input type="radio" name="capmode" checked={f.capacity > 0} onChange={() => set("capacity", f.capacity > 0 ? f.capacity : 32)} />Fixed</label>
+                <label className="seg-opt"><input type="radio" name="capmode" checked={f.capacity <= 0} onChange={() => set("capacity", 0)} />Open</label>
+              </div>
+              {f.capacity > 0 && (
+                <input className="input" type="number" value={f.capacity} onChange={(e) => set("capacity", parseInt(e.target.value, 10) || 0)} style={{ width: 90 }} />
+              )}
+            </div>
+          </div>
         </div>
         <div className="field">
           <label>Player count</label>

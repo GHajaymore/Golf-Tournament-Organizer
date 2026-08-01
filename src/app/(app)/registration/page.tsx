@@ -22,8 +22,8 @@ export default async function RegistrationPage() {
         course: state.event.course,
         city: state.event.city,
       }}
-      confirmed={state.confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }))}
-      waitlist={state.waitlist.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }))}
+      confirmed={state.confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed, email: p.email, phone: p.phone }))}
+      waitlist={state.waitlist.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed, email: p.email, phone: p.phone }))}
     />
   );
 }

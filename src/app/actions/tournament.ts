@@ -48,22 +48,40 @@ function refresh() {
 
 /* ── Registration ─────────────────────────────────────────────────────── */
 
-export async function addSignup(name: string, handicap: number) {
+export interface SignupInput {
+  name: string;
+  handicap: number;
+  email?: string;
+  phone?: string;
+  ghin?: string;
+  homeClub?: string;
+  handicapSource?: string;
+}
+
+export async function addSignup(input: SignupInput) {
   const eventId = await requireStaffEvent();
-  const clean = name.trim();
+  const clean = input.name.trim();
   if (!clean) return;
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return;
   const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   const maxSeed = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
-  const status = confirmedCount < event.capacity ? "confirmed" : "waitlisted";
+  const unlimited = event.capacity <= 0; // 0 = open / unlimited field
+  const status = unlimited || confirmedCount < event.capacity ? "confirmed" : "waitlisted";
   await prisma.player.create({
     data: {
       eventId,
       name: clean,
-      handicap: Number.isFinite(handicap) ? handicap : 0,
+      handicap: Number.isFinite(input.handicap) ? input.handicap : 0,
       seed: (maxSeed._max.seed ?? 0) + 1,
       status,
+      email: (input.email ?? "").trim(),
+      phone: (input.phone ?? "").trim(),
+      ghin: (input.ghin ?? "").trim(),
+      homeClub: (input.homeClub ?? "").trim(),
+      handicapSource: ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
+        ? input.handicapSource!
+        : "manual",
     },
   });
   refresh();

@@ -40,6 +40,7 @@ export default async function RosterPage() {
               <tr>
                 <th style={{ width: 44 }}>Seed</th>
                 <th>Player</th>
+                <th>Contact</th>
                 <th style={{ textAlign: "right" }}>Handicap</th>
                 <th>Flight</th>
                 <th>Status</th>
@@ -54,6 +55,7 @@ export default async function RosterPage() {
                   <tr key={p.id}>
                     <td style={{ fontVariantNumeric: "tabular-nums", color: "var(--color-neutral-400)" }}>{p.seed}</td>
                     <td style={{ fontWeight: 500 }}>{p.name}</td>
+                    <td className="text-muted" style={{ fontSize: 12 }}>{p.email || p.phone || "—"}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{p.handicap}</td>
                     <td className="text-muted">{g ? `Flight ${g.position + 1}` : "—"}</td>
                     <td>

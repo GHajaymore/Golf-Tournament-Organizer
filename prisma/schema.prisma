@@ -77,7 +77,17 @@ model Player {
   name     String
   handicap Float  @default(0)
   seed     Int
-  status   String @default("confirmed") // confirmed | waitlisted
+  status   String @default("confirmed") // confirmed | waitlisted | withdrawn
+
+  // Registration details
+  email          String @default("")
+  phone          String @default("")
+  ghin           String @default("")
+  homeClub       String @default("")
+  gender         String @default("")
+  preferredTee   String @default("")
+  handicapSource String @default("manual") // ghin | manual | none
+
   groupId  String?
 
   event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)

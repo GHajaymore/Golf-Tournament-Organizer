@@ -7,6 +7,8 @@ interface Signup {
   name: string;
   handicap: number;
   seed: number;
+  email?: string;
+  phone?: string;
 }
 interface EventInfo {
   name: string;
@@ -29,20 +31,40 @@ export function RegistrationClient({
 }) {
   const [name, setName] = useState("");
   const [handicap, setHandicap] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [ghin, setGhin] = useState("");
+  const [homeClub, setHomeClub] = useState("");
+  const [hSource, setHSource] = useState("manual");
   const [invite, setInvite] = useState(event.inviteMessage);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
 
-  const spotsLeft = Math.max(0, event.capacity - confirmed.length);
-  const status = spotsLeft === 0 ? "Full — waitlist active" : "Open";
+  const unlimited = event.capacity <= 0;
+  const spotsLeft = unlimited ? Infinity : Math.max(0, event.capacity - confirmed.length);
+  const status = unlimited ? "Open · unlimited" : spotsLeft === 0 ? "Full — waitlist active" : "Open";
 
   const submitAdd = () => {
     if (!name.trim()) return;
     const h = parseFloat(handicap);
-    startTransition(() => addSignup(name, Number.isFinite(h) ? h : 0));
+    startTransition(() =>
+      addSignup({
+        name,
+        handicap: Number.isFinite(h) ? h : 0,
+        email,
+        phone,
+        ghin,
+        homeClub,
+        handicapSource: hSource,
+      }),
+    );
     setName("");
     setHandicap("");
+    setEmail("");
+    setPhone("");
+    setGhin("");
+    setHomeClub("");
   };
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,58 +75,69 @@ export function RegistrationClient({
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  const sendWhatsApp = () => {
-    window.open(`https://wa.me/?text=${encodeURIComponent(invite)}`, "_blank", "noopener");
+  const registrationLink = typeof window !== "undefined" ? window.location.origin : "";
+  const fullMessage = `${invite}${registrationLink ? `\n\nSign up: ${registrationLink}` : ""}`;
+
+  const sendWhatsApp = () => window.open(`https://wa.me/?text=${encodeURIComponent(fullMessage)}`, "_blank", "noopener");
+  const sendSms = () => {
+    window.location.href = `sms:?&body=${encodeURIComponent(fullMessage)}`;
   };
-  const copyInvite = async () => {
+  const copy = async (text: string, tag: string) => {
     try {
-      await navigator.clipboard.writeText(invite);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
+      await navigator.clipboard.writeText(text);
+      setCopied(tag);
+      setTimeout(() => setCopied(""), 1600);
     } catch {
-      setCopied(false);
+      setCopied("");
+    }
+  };
+  const shareNative = async () => {
+    const nav = navigator as Navigator & { share?: (d: { text: string; title?: string }) => Promise<void> };
+    if (nav.share) {
+      try {
+        await nav.share({ title: event.name, text: fullMessage });
+      } catch {
+        /* cancelled */
+      }
+    } else {
+      copy(fullMessage, "share");
     }
   };
 
   const table = (rows: Signup[], title: string) => (
     <div className="card elev-sm">
       <span className="card-title" style={{ fontSize: 15 }}>{title} ({rows.length})</span>
-      <table className="table" style={{ fontSize: 13 }}>
-        <thead>
-          <tr>
-            <th style={{ width: 36 }}>#</th>
-            <th>Player</th>
-            <th style={{ textAlign: "right" }}>Handicap</th>
-            <th style={{ width: 60 }} />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((p) => (
-            <tr key={p.id}>
-              <td className="text-muted">{p.seed}</td>
-              <td style={{ fontWeight: 500 }}>{p.name}</td>
-              <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{p.handicap}</td>
-              <td style={{ textAlign: "right" }}>
-                <button
-                  type="button"
-                  className="btn btn-icon"
-                  disabled={pending}
-                  onClick={() => startTransition(() => removeSignup(p.id))}
-                >
-                  <i className="ph ph-x" />
-                </button>
-              </td>
-            </tr>
-          ))}
-          {rows.length === 0 && (
+      <div className="table-scroll">
+        <table className="table" style={{ fontSize: 13 }}>
+          <thead>
             <tr>
-              <td colSpan={4} className="text-muted" style={{ padding: "10px 6px" }}>
-                None yet.
-              </td>
+              <th style={{ width: 36 }}>#</th>
+              <th>Player</th>
+              <th>Contact</th>
+              <th style={{ textAlign: "right" }}>Hcp</th>
+              <th style={{ width: 44 }} />
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((p) => (
+              <tr key={p.id}>
+                <td className="text-muted">{p.seed}</td>
+                <td style={{ fontWeight: 500 }}>{p.name}</td>
+                <td className="text-muted" style={{ fontSize: 12 }}>{p.email || p.phone || "—"}</td>
+                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{p.handicap}</td>
+                <td style={{ textAlign: "right" }}>
+                  <button type="button" className="btn btn-icon" disabled={pending} onClick={() => startTransition(() => removeSignup(p.id))}>
+                    <i className="ph ph-x" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={5} className="text-muted" style={{ padding: "10px 6px" }}>None yet.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 
@@ -114,7 +147,7 @@ export function RegistrationClient({
         <div className="page-kicker">Setup</div>
         <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Registration</h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Open sign-up for this pilot. Confirmed players fill up to capacity in seed order; overflow waitlists.
+          Collect the details you need to run the event. Confirmed players fill up to capacity; overflow waitlists.
         </p>
       </div>
 
@@ -122,7 +155,7 @@ export function RegistrationClient({
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Confirmed</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{confirmed.length}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>of {event.capacity} capacity</div>
+          <div className="text-muted" style={{ fontSize: 12 }}>{unlimited ? "unlimited field" : `of ${event.capacity} capacity`}</div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Waitlisted</span>
@@ -131,64 +164,63 @@ export function RegistrationClient({
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Registration closes</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{event.regDeadline}</div>
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{event.regDeadline || "—"}</div>
           <div className="text-muted" style={{ fontSize: 12 }}>groups lock after this date</div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Status</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, color: "var(--color-accent-200)" }}>{status}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>spots remaining: {spotsLeft}</div>
+          <div className="text-muted" style={{ fontSize: 12 }}>spots remaining: {unlimited ? "∞" : spotsLeft}</div>
         </div>
       </div>
 
       <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>
-        <span className="card-title" style={{ fontSize: 15 }}>Invite players to sign up</span>
+        <span className="card-title" style={{ fontSize: 15 }}>Invite players</span>
         <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0" }}>
-          Broadcast the sign-up message to your player group (e.g. a WhatsApp group) or copy it into any channel.
+          Share the sign-up message and link. (Direct sending to a WhatsApp group needs the WhatsApp Business API —
+          for now this opens a share sheet you confirm.)
         </p>
         <div className="field">
           <label>Message</label>
-          <textarea
-            className="input"
-            rows={3}
-            value={invite}
-            onChange={(e) => setInvite(e.target.value)}
-            onBlur={() => startTransition(() => setInviteMessage(invite))}
-            style={{ resize: "vertical", fontFamily: "inherit" }}
-          />
+          <textarea className="input" rows={3} value={invite} onChange={(e) => setInvite(e.target.value)} onBlur={() => startTransition(() => setInviteMessage(invite))} style={{ resize: "vertical", fontFamily: "inherit" }} />
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" className="btn btn-primary" onClick={sendWhatsApp}>
-            <i className="ph-fill ph-whatsapp-logo" /> Send via WhatsApp
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={copyInvite}>
-            <i className="ph ph-copy" /> {copied ? "Copied" : "Copy message"}
-          </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" className="btn btn-primary" onClick={sendWhatsApp}><i className="ph-fill ph-whatsapp-logo" /> WhatsApp</button>
+          <button type="button" className="btn btn-secondary" onClick={sendSms}><i className="ph ph-chat-text" /> SMS / Text</button>
+          <button type="button" className="btn btn-secondary" onClick={shareNative}><i className="ph ph-share-network" /> {copied === "share" ? "Copied" : "Share…"}</button>
+          <button type="button" className="btn btn-secondary" onClick={() => copy(fullMessage, "msg")}><i className="ph ph-copy" /> {copied === "msg" ? "Copied" : "Copy message"}</button>
+          <button type="button" className="btn btn-secondary" onClick={() => copy(registrationLink, "link")}><i className="ph ph-link" /> {copied === "link" ? "Copied" : "Copy link"}</button>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16, alignItems: "start" }}>
-        <div className="card elev-sm" style={{ gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16, alignItems: "start" }}>
+        <div className="card elev-sm" style={{ gap: 10 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Add a signup</span>
-          <div className="field">
-            <label>Player name</label>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" />
+          <div className="field"><label>Player name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div className="field"><label>Email</label><input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" /></div>
+            <div className="field"><label>Phone</label><input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1…" /></div>
           </div>
           <div className="field">
-            <label>Handicap</label>
-            <input
-              className="input"
-              type="number"
-              value={handicap}
-              onChange={(e) => setHandicap(e.target.value)}
-              placeholder="12.0"
-            />
+            <label>Handicap source</label>
+            <div className="seg" style={{ width: "100%" }}>
+              {[["ghin", "GHIN"], ["manual", "Manual"], ["none", "None"]].map(([v, l]) => (
+                <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
+                  <input type="radio" name="hsrc" checked={hSource === v} onChange={() => setHSource(v)} />{l}
+                </label>
+              ))}
+            </div>
           </div>
-          <button type="button" className="btn btn-primary btn-block" disabled={pending} onClick={submitAdd}>
-            <i className="ph ph-plus" /> Add to field
-          </button>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <div className="field"><label>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input className="input" type="number" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.0" disabled={hSource === "none"} /></div>
+            <div className="field"><label>GHIN #</label><input className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
+          </div>
+          <div className="field"><label>Home club</label><input className="input" value={homeClub} onChange={(e) => setHomeClub(e.target.value)} placeholder="Optional" /></div>
+          <button type="button" className="btn btn-primary btn-block" disabled={pending} onClick={submitAdd}><i className="ph ph-plus" /> Add to field</button>
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-            Auto-confirms while under capacity; overflow goes to the waitlist.
+            {hSource === "ghin"
+              ? "GHIN lookup is stubbed — enter the index manually for now; live GHIN integration slots in here."
+              : "Auto-confirms while under capacity; overflow goes to the waitlist."}
           </p>
           <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
             <label className="btn btn-secondary btn-block" style={{ cursor: "pointer", justifyContent: "center" }}>
