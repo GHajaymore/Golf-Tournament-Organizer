@@ -24,6 +24,10 @@ export default async function DashboardPage() {
   const { event, overall, groupStandings, advancingCount, overallCutoff, brackets } = state;
   const progress = matchProgress(state);
   const currentStage = state.stages[0];
+  const currentRoundDesc =
+    currentStage?.type === "Round Robin"
+      ? "Every player meets everyone in their flight."
+      : currentStage?.description ?? "";
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
   const isAdmin = session.viewRole === "admin";
   const quickActions = QUICK_ACTIONS.filter((a) => (isStaff ? true : !a.staff));
@@ -188,7 +192,7 @@ export default async function DashboardPage() {
               </div>
               <div>
                 <div style={{ fontWeight: 500 }}>{currentStage?.type ?? "—"}</div>
-                <div className="text-muted" style={{ fontSize: 12 }}>{currentStage?.description}</div>
+                <div className="text-muted" style={{ fontSize: 12 }}>{currentRoundDesc}</div>
               </div>
             </div>
             <div style={{ marginTop: 12, height: 8, borderRadius: 6, background: "var(--color-neutral-800)", overflow: "hidden" }}>

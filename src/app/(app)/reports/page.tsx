@@ -14,7 +14,7 @@ export default async function ReportsPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
 
-  const groupById = new Map(state.groups.map((g) => [g.id, g.name]));
+  const groupById = new Map(state.groups.map((g, i) => [g.id, `Flight ${i + 1}`]));
   const advancingIds = state.advancingIds;
   const progress = matchProgress(state);
 
@@ -43,7 +43,7 @@ export default async function ReportsPage() {
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <StatCard label="Players" value={state.confirmed.length} icon="ph ph-users-three" />
         <StatCard label="Matches complete" value={`${progress.done}/${progress.total}`} icon="ph ph-check-circle" />
-        <StatCard label="Groups" value={state.groups.length} icon="ph ph-squares-four" />
+        <StatCard label="Flights" value={state.groups.length} icon="ph ph-squares-four" />
         <StatCard label="Advancing" value={state.advancingCount} icon="ph ph-flag-checkered" />
       </div>
       <ReportsClient rows={rows} eventName={state.event.name} />

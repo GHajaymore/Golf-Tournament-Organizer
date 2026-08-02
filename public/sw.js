@@ -23,6 +23,9 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  // Never cache Next.js build chunks / server-action payloads — always go to the
+  // network so a rebuild can't be shadowed by a stale cached chunk.
+  if (url.pathname.startsWith("/_next/")) return;
 
   if (req.mode === "navigate") {
     event.respondWith(fetch(req).catch(() => caches.match(req)));

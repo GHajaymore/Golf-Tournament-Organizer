@@ -30,7 +30,7 @@ export function ReportsClient({ rows, eventName }: { rows: SnapshotRow[]; eventN
 
   const fullStandings = () => {
     download(`${eventName}-standings.csv`, [
-      ["Rank", "Player", "Group", "Played", "Wins", "Halved", "Losses", "Holes+/-", "Points", "Status"],
+      ["Rank", "Player", "Flight", "Played", "Wins", "Halved", "Losses", "Holes+/-", "Points", "Status"],
       ...rows.map((r) => [
         String(r.rank), r.name, r.group, String(r.played), String(r.wins), String(r.ties),
         String(r.losses), String(r.diff), r.points, r.advancing ? "Advancing" : "Eliminated",
@@ -38,8 +38,8 @@ export function ReportsClient({ rows, eventName }: { rows: SnapshotRow[]; eventN
     ]);
   };
   const groupResults = () => {
-    download(`${eventName}-group-results.csv`, [
-      ["Group", "Rank", "Player", "Points", "Status"],
+    download(`${eventName}-flight-results.csv`, [
+      ["Flight", "Rank", "Player", "Points", "Status"],
       ...[...rows]
         .sort((a, b) => a.group.localeCompare(b.group) || a.rank - b.rank)
         .map((r) => [r.group, String(r.rank), r.name, r.points, r.advancing ? "Advancing" : "Eliminated"]),
@@ -49,7 +49,7 @@ export function ReportsClient({ rows, eventName }: { rows: SnapshotRow[]; eventN
 
   const exports = [
     { label: "Full standings", desc: "Every player, ranked, with record and points.", icon: "ph ph-table", action: fullStandings, kind: "csv" },
-    { label: "Group results", desc: "Per-group finishing order and advancing status.", icon: "ph ph-squares-four", action: groupResults, kind: "csv" },
+    { label: "Flight results", desc: "Per-flight finishing order and advancing status.", icon: "ph ph-squares-four", action: groupResults, kind: "csv" },
     { label: "Bracket sheet", desc: "Winners & Consolation bracket as a printable sheet.", icon: "ph ph-tree-structure", action: () => pdfStub("Bracket sheet"), kind: "pdf" },
     { label: "Scorecards", desc: "Match-play scorecards for the field.", icon: "ph ph-cards", action: () => pdfStub("Scorecards"), kind: "pdf" },
   ];
@@ -84,7 +84,7 @@ export function ReportsClient({ rows, eventName }: { rows: SnapshotRow[]; eventN
             <tr>
               <th style={{ width: 36 }}>#</th>
               <th>Player</th>
-              <th>Grp</th>
+              <th>Flight</th>
               <th>Status</th>
               <th style={{ textAlign: "right" }}>Pts</th>
             </tr>
