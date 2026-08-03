@@ -259,13 +259,17 @@ function StageCard({
   const badges: string[] = [];
   if (basis !== "gross") badges.push(basis === "net" ? "Net scoring" : "Gross + net");
   if (deadline) badges.push(`Due ${deadline}`);
-  if (nextStage?.carryEnabled) badges.push(`Carries ${nextStage.carryPct}% into Round ${nextStage.position + 1}`);
-  if (nextStage?.cutEnabled) {
-    const cut = nextStage.cutMode === "percent" ? `top ${nextStage.cutPercent}%` : `top ${nextStage.cutCount}`;
-    badges.push(`Cuts to ${cut} before Round ${nextStage.position + 1}`);
-  }
   if (stage.type === "Qualification Stage") {
     badges.push(qual.mode === "overall" ? `Top ${qual.overall} overall` : `Top ${qual.perFlight} per flight`);
+  }
+
+  // Round-to-round transition status — always visible (not tucked behind
+  // Customize) since it's easy to miss otherwise, especially before anything's
+  // configured and there's no badge to hint it exists.
+  const transitionParts: string[] = [];
+  if (nextStage?.carryEnabled) transitionParts.push(`carries ${nextStage.carryPct}%`);
+  if (nextStage?.cutEnabled) {
+    transitionParts.push(nextStage.cutMode === "percent" ? `cuts to top ${nextStage.cutPercent}%` : `cuts to top ${nextStage.cutCount}`);
   }
 
   return (
@@ -344,6 +348,38 @@ function StageCard({
               <b style={{ color: "var(--color-accent-300)" }}>{activeFormat.name}</b> — {activeFormat.desc}
             </p>
           )}
+        </div>
+      )}
+
+      {showTransition && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            fontSize: 12,
+            padding: "8px 10px",
+            borderRadius: "var(--radius-md)",
+            background: "var(--color-bg)",
+          }}
+        >
+          <i className="ph ph-arrow-bend-down-right" style={{ color: "var(--color-neutral-500)" }} />
+          {nextStage ? (
+            <span className="text-muted" style={{ flex: 1 }}>
+              Into Round {nextStage.position + 1}:{" "}
+              {transitionParts.length ? transitionParts.join(" · ") : "no carry-forward or cut set"}
+            </span>
+          ) : (
+            <span className="text-muted" style={{ flex: 1 }}>No round after this one yet — no carry-forward or cut to configure.</span>
+          )}
+          <button
+            type="button"
+            onClick={() => setCustomizeOpen(true)}
+            style={{ background: "none", border: "none", color: "var(--color-accent-300)", cursor: "pointer", fontSize: 12, padding: 0, textDecoration: "underline" }}
+          >
+            Configure
+          </button>
         </div>
       )}
 
