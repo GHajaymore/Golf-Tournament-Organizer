@@ -75,10 +75,14 @@ export async function setActiveEvent(eventId: string): Promise<void> {
   });
 }
 
-export async function setPreviewPlayer(on: boolean): Promise<void> {
+/** Admin-only preview of another role's view: "assistant" | "player" (anything else clears it). */
+export async function setPreviewRole(previewRole: string): Promise<void> {
   const jar = await cookies();
-  if (on) jar.set(PREVIEW_COOKIE, "1", { httpOnly: true, sameSite: "lax", path: "/" });
-  else jar.delete(PREVIEW_COOKIE);
+  if (previewRole === "assistant" || previewRole === "player") {
+    jar.set(PREVIEW_COOKIE, previewRole, { httpOnly: true, sameSite: "lax", path: "/" });
+  } else {
+    jar.delete(PREVIEW_COOKIE);
+  }
 }
 
 export async function getSession(): Promise<Session | null> {
@@ -101,8 +105,9 @@ export async function getSession(): Promise<Session | null> {
 
   const role: Role =
     effective.role === "admin" ? "admin" : effective.role === "assistant" ? "assistant" : "player";
-  const previewing = jar.get(PREVIEW_COOKIE)?.value === "1";
-  const viewRole: Role = role === "admin" && previewing ? "player" : role;
+  const preview = jar.get(PREVIEW_COOKIE)?.value;
+  const viewRole: Role =
+    role === "admin" && (preview === "assistant" || preview === "player") ? (preview as Role) : role;
   return {
     accountId: effective.id,
     eventId: effective.eventId,

@@ -101,28 +101,17 @@ export function Sidebar({ sections, name, role, viewRole, initials }: Props) {
             >
               Viewing as
             </div>
-            <div className="seg" style={{ width: "100%" }}>
-              <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-                <input
-                  type="radio"
-                  name="roleview"
-                  checked={viewRole === "admin"}
-                  disabled={pending}
-                  onChange={() => startTransition(() => setPreviewAction(false))}
-                />
-                Organizer
-              </label>
-              <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-                <input
-                  type="radio"
-                  name="roleview"
-                  checked={viewRole === "player"}
-                  disabled={pending}
-                  onChange={() => startTransition(() => setPreviewAction(true))}
-                />
-                Player
-              </label>
-            </div>
+            <select
+              className="input"
+              value={viewRole}
+              disabled={pending}
+              onChange={(e) => startTransition(() => setPreviewAction(e.target.value))}
+              style={{ width: "100%", padding: "6px 8px" }}
+            >
+              <option value="admin">Organizer</option>
+              <option value="assistant">Assistant</option>
+              <option value="player">Player</option>
+            </select>
           </div>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

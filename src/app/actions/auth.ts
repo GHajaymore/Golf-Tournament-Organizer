@@ -1,7 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createSession, destroySession, setPreviewPlayer } from "@/lib/auth";
+import { createSession, destroySession, setPreviewRole } from "@/lib/auth";
 
 export async function signInAction(accountId: string) {
   await createSession(accountId);
@@ -13,7 +13,7 @@ export async function signOutAction() {
   redirect("/");
 }
 
-export async function setPreviewAction(previewPlayer: boolean) {
-  await setPreviewPlayer(previewPlayer);
+export async function setPreviewAction(previewRole: string) {
+  await setPreviewRole(previewRole);
   revalidatePath("/", "layout");
 }

@@ -108,16 +108,17 @@ export function MobileTabBar({ sections, name, role, viewRole, initials }: Props
                   <div className="text-muted" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 5 }}>
                     Viewing as
                   </div>
-                  <div className="seg" style={{ width: "100%" }}>
-                    <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-                      <input type="radio" name="mroleview" checked={viewRole === "admin"} disabled={pending} onChange={() => startTransition(() => setPreviewAction(false))} />
-                      Organizer
-                    </label>
-                    <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-                      <input type="radio" name="mroleview" checked={viewRole === "player"} disabled={pending} onChange={() => startTransition(() => setPreviewAction(true))} />
-                      Player
-                    </label>
-                  </div>
+                  <select
+                    className="input"
+                    value={viewRole}
+                    disabled={pending}
+                    onChange={(e) => startTransition(() => setPreviewAction(e.target.value))}
+                    style={{ width: "100%" }}
+                  >
+                    <option value="admin">Organizer</option>
+                    <option value="assistant">Assistant</option>
+                    <option value="player">Player</option>
+                  </select>
                 </div>
               )}
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
