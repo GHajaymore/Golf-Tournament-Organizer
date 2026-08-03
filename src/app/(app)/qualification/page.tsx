@@ -1,14 +1,11 @@
+import Link from "next/link";
 import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState } from "@/lib/services/tournament";
-import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { QualControl } from "@/components/QualControl";
 import { pts, shortName } from "@/lib/format";
 
 export default async function QualificationPage() {
-  await requireScreen("qualification");
-  const session = await getSession();
-  if (!session) redirect("/");
+  const session = await requireScreen("qualification");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
 
@@ -23,13 +20,20 @@ export default async function QualificationPage() {
     <>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div className="page-kicker">Qualification</div>
+          <div className="page-kicker">Manage</div>
           <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Qualification</h2>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             Advance the top players from each flight, or the top players overall. The preview shows exactly who qualifies.
           </p>
         </div>
-        <QualControl mode={event.qualifyMode} perFlight={event.qualifyPerGroup} overall={event.qualifyOverall} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span className="tag tag-accent">
+            {event.qualifyMode === "overall" ? `Top ${event.qualifyOverall} overall` : `Top ${event.qualifyPerGroup}/flight`}
+          </span>
+          <Link className="btn btn-secondary" href="/stages">
+            <i className="ph ph-sliders" /> Configure in Rounds &amp; format
+          </Link>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>

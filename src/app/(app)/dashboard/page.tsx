@@ -10,7 +10,6 @@ const QUICK_ACTIONS = [
   { label: "Players", href: "/registration", icon: "ph ph-user-plus", staff: true },
   { label: "Flights", href: "/grouping", icon: "ph ph-squares-four", staff: true },
   { label: "Rounds", href: "/stages", icon: "ph ph-stack", staff: true },
-  { label: "Match Points", href: "/scoring", icon: "ph ph-sliders", staff: true },
   { label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered", staff: true },
   { label: "Foursomes", href: "/foursomes", icon: "ph ph-users-four", staff: true },
   { label: "Scorecards", href: "/scorecard", icon: "ph ph-cards", staff: true },

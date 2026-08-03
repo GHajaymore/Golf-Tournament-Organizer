@@ -10,6 +10,9 @@ import {
   removeStage,
 } from "@/app/actions/tournament";
 import { GOLF_FORMATS } from "@/lib/formats";
+import { ScoringClient } from "./ScoringClient";
+import { QualControl } from "./QualControl";
+import type { TiebreakerKey } from "@/lib/domain";
 
 export interface StageView {
   id: string;
@@ -22,6 +25,20 @@ export interface StageView {
   scoringBasis: string;
   carryEnabled: boolean;
   carryPct: number;
+}
+
+export interface ScoringValues {
+  winPts: number;
+  tiePts: number;
+  lossPts: number;
+  holeRatioPts: number;
+  bonusPts: number;
+}
+
+export interface QualValues {
+  mode: string;
+  perFlight: number;
+  overall: number;
 }
 
 const ICONS: Record<string, string> = {
@@ -43,10 +60,16 @@ function StageCard({
   stage,
   isFirst,
   rrMatchesPerPlayer,
+  scoring,
+  tiebreakers,
+  qual,
 }: {
   stage: StageView;
   isFirst: boolean;
   rrMatchesPerPlayer: number;
+  scoring: ScoringValues;
+  tiebreakers: TiebreakerKey[];
+  qual: QualValues;
 }) {
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
@@ -54,6 +77,7 @@ function StageCard({
   const [holes, setHoles] = useState(stage.holes);
   const [enabled, setEnabled] = useState(stage.carryEnabled);
   const [pct, setPct] = useState(stage.carryPct);
+  const [configOpen, setConfigOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const commitFormat = (v: string) => {
@@ -162,6 +186,56 @@ function StageCard({
           <i className="ph ph-trash" />
         </button>
       </div>
+      {(stage.type === "Round Robin" || stage.type === "Qualification Stage") && (
+        <div style={{ marginTop: -4 }}>
+          <button
+            type="button"
+            onClick={() => setConfigOpen((o) => !o)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "var(--color-accent-300)",
+              cursor: "pointer",
+              fontSize: 13,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 2px",
+            }}
+          >
+            <i className={configOpen ? "ph ph-caret-down" : "ph ph-caret-right"} />
+            {stage.type === "Round Robin" ? (
+              <>
+                <i className="ph ph-sliders" /> Match Points &amp; tiebreakers
+              </>
+            ) : (
+              <>
+                <i className="ph ph-flag-checkered" /> Qualification cut
+              </>
+            )}
+          </button>
+          {configOpen && (
+            <div style={{ padding: "10px 4px 4px" }}>
+              {stage.type === "Round Robin" ? (
+                <>
+                  <p className="text-muted" style={{ fontSize: 12, margin: "0 0 10px" }}>
+                    Points for match results in round-robin play, and the tiebreakers that settle level
+                    standings. Shared by all round-robin rounds.
+                  </p>
+                  <ScoringClient initial={scoring} tiebreakers={tiebreakers} />
+                </>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+                    How many players advance from this cut — top N per flight, or top N overall.
+                  </p>
+                  <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {!isFirst && (
         <>
           <div
@@ -207,9 +281,15 @@ function StageCard({
 export function StagesClient({
   stages,
   rrMatchesPerPlayer,
+  scoring,
+  tiebreakers,
+  qual,
 }: {
   stages: StageView[];
   rrMatchesPerPlayer: number;
+  scoring: ScoringValues;
+  tiebreakers: TiebreakerKey[];
+  qual: QualValues;
 }) {
   const [newType, setNewType] = useState(STAGE_TYPES[0]);
   const [pending, startTransition] = useTransition();
@@ -217,7 +297,15 @@ export function StagesClient({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {stages.map((s, i) => (
-        <StageCard key={s.id} stage={s} isFirst={i === 0} rrMatchesPerPlayer={rrMatchesPerPlayer} />
+        <StageCard
+          key={s.id}
+          stage={s}
+          isFirst={i === 0}
+          rrMatchesPerPlayer={rrMatchesPerPlayer}
+          scoring={scoring}
+          tiebreakers={tiebreakers}
+          qual={qual}
+        />
       ))}
       {stages.length === 0 && (
         <div className="card elev-sm">

@@ -39,7 +39,23 @@ export default async function StagesPage() {
         </p>
       </div>
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
-      <StagesClient stages={stages} rrMatchesPerPlayer={rrMatchesPerPlayer} />
+      <StagesClient
+        stages={stages}
+        rrMatchesPerPlayer={rrMatchesPerPlayer}
+        scoring={{
+          winPts: state.scoring.winPts,
+          tiePts: state.scoring.tiePts,
+          lossPts: state.scoring.lossPts,
+          holeRatioPts: state.scoring.holeRatioPts,
+          bonusPts: state.scoring.bonusPts,
+        }}
+        tiebreakers={state.scoring.tiebreakers}
+        qual={{
+          mode: state.event.qualifyMode,
+          perFlight: state.event.qualifyPerGroup,
+          overall: state.event.qualifyOverall,
+        }}
+      />
     </>
   );
 }

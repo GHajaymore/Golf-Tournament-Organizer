@@ -34,7 +34,6 @@ export const NAV: NavSection[] = [
       { key: "roster", label: "Player roster", href: "/roster", icon: "ph ph-users-three" },
       { key: "grouping", label: "Flights & divisions", href: "/grouping", icon: "ph ph-squares-four" },
       { key: "stages", label: "Rounds & format", href: "/stages", icon: "ph ph-stack" },
-      { key: "scoring", label: "Match Points", href: "/scoring", icon: "ph ph-sliders" },
       { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check", adminOnly: true },
     ],
   },
