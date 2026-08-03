@@ -2,7 +2,7 @@
 import { useState, useTransition } from "react";
 import { saveScoring, saveTiebreakers } from "@/app/actions/tournament";
 import { pts } from "@/lib/format";
-import { TIEBREAKER_LABELS, type TiebreakerKey } from "@/lib/domain";
+import { TIEBREAKER_LABELS, TIEBREAKER_KEYS, type TiebreakerKey } from "@/lib/domain";
 
 interface Values {
   winPts: number;
@@ -39,6 +39,14 @@ export function ScoringClient({
     setOrder(next);
     startTransition(() => saveTiebreakers(next));
   };
+
+  const toggle = (key: TiebreakerKey, on: boolean) => {
+    const next = on ? [...order, key] : order.filter((k) => k !== key);
+    setOrder(next);
+    startTransition(() => saveTiebreakers(next));
+  };
+
+  const available = TIEBREAKER_KEYS.filter((k) => !order.includes(k));
 
   const save = (next: Values) => {
     setValues(next);
@@ -79,7 +87,9 @@ export function ScoringClient({
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div className="card elev-sm">
           <span className="card-title" style={{ fontSize: 15 }}>Tiebreakers</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>Applied in order when points are level. Reorder with the arrows.</p>
+          <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
+            Switch on the ones you want, applied in order when points are level. Reorder the active ones with the arrows.
+          </p>
           {order.map((t, i) => (
             <div
               key={t}
@@ -94,6 +104,9 @@ export function ScoringClient({
                 marginBottom: 5,
               }}
             >
+              <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
+                <input type="checkbox" checked disabled={pending} onChange={() => toggle(t, false)} />
+              </label>
               <span
                 style={{
                   width: 20,
@@ -104,6 +117,7 @@ export function ScoringClient({
                   display: "grid",
                   placeItems: "center",
                   fontSize: 11,
+                  flex: "none",
                 }}
               >
                 {i + 1}
@@ -117,6 +131,37 @@ export function ScoringClient({
               </button>
             </div>
           ))}
+          {order.length === 0 && (
+            <p className="text-muted" style={{ fontSize: 12, margin: "4px 0" }}>
+              None active — level standings fall back to seed order.
+            </p>
+          )}
+          {available.length > 0 && (
+            <>
+              <div className="text-muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", margin: "8px 0 4px" }}>
+                Available
+              </div>
+              {available.map((t) => (
+                <label
+                  key={t}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    fontSize: 13,
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    marginBottom: 5,
+                    cursor: "pointer",
+                    color: "var(--color-neutral-400)",
+                  }}
+                >
+                  <input type="checkbox" checked={false} disabled={pending} onChange={() => toggle(t, true)} />
+                  {TIEBREAKER_LABELS[t]}
+                </label>
+              ))}
+            </>
+          )}
         </div>
         <div className="card elev-sm">
           <span className="card-kicker">Worked example</span>

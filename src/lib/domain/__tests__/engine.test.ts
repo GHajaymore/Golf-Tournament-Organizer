@@ -160,6 +160,39 @@ describe("standings", () => {
   });
 });
 
+describe("toughest-N tiebreakers", () => {
+  // Stroke index by position: hole index 0 = SI 1 (hardest), index 10 = SI 11 (mid-pack) —
+  // toughest-3 covers indexes 0,1,2, so only the hole-0 result feeds it here.
+  const strokeIndex = Array.from({ length: 18 }, (_, i) => i + 1);
+
+  // X wins the toughest hole and loses an easy one; Y does the opposite. Both matches
+  // are otherwise all-halved, so both players end up level on points, W/L/T, and
+  // overall hole differential — only the toughest-3 comparison tells them apart. Y is
+  // seeded ahead of X, so the seed fallback would rank Y first if toughest-3 didn't fire.
+  const holesX: HoleResult[] = new Array(18).fill("H");
+  holesX[0] = "A";
+  holesX[10] = "B";
+  const holesY: HoleResult[] = new Array(18).fill("H");
+  holesY[0] = "B";
+  holesY[10] = "A";
+  const players = [player("x", "X", 10, 2), player("y", "Y", 10, 1)];
+  const matches = [
+    { id: "m1", stageId: "s", groupId: "g", round: 1, playerAId: "x", playerBId: "o1", holes: holesX },
+    { id: "m2", stageId: "s", groupId: "g", round: 1, playerAId: "y", playerBId: "o2", holes: holesY },
+  ];
+  const scoring = { ...DEFAULT_SCORING, tiebreakers: ["toughest-3" as const] };
+
+  it("ranks whoever won the toughest holes first, when stroke index is known", () => {
+    const ranked = computeStandings(players, matches, scoring, {}, strokeIndex);
+    expect(ranked[0].player.id).toBe("x");
+  });
+
+  it("falls through to seed order when stroke index is unknown", () => {
+    const ranked = computeStandings(players, matches, scoring);
+    expect(ranked[0].player.id).toBe("y");
+  });
+});
+
 describe("carry-forward", () => {
   it("carries a percentage of previous totals", () => {
     const carried = carriedInto({ p1: 10, p2: 6 }, true, 50);

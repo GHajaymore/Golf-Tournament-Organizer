@@ -139,6 +139,8 @@ export function chainRoundStandings(
   matches: DbMatch[],
   domainPlayers: Player[],
   scoring: ScoringRules,
+  /** Stroke index per hole (1 = hardest), for the "toughest N holes" tiebreakers. */
+  holeDifficulty?: number[],
 ): RankedPlayer[][] {
   let carried: Record<string, number> = {};
   const perStage: RankedPlayer[][] = [];
@@ -146,7 +148,7 @@ export function chainRoundStandings(
     const stage = rrStages[i];
     const stageMatches = matches.filter((m) => m.stageId === stage.id).map(toDomainMatch);
     const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
-    const overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn);
+    const overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty);
     perStage.push(overall);
     const next = rrStages[i + 1];
     carried = next?.carryForwardEnabled
@@ -181,6 +183,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // standings; a single Round Robin stage behaves exactly as before.
   const rrStages = roundRobinStages(stages);
   const domainPlayers = confirmed.map(toDomainPlayer);
+  const course = findCourse(event.course);
+  const holeDifficulty = course.strokeIndex;
 
   let carried: Record<string, number> = {};
   let overall: RankedPlayer[] = computeStandings(domainPlayers, [], scoring);
@@ -196,10 +200,10 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     const stageMatches = matches.filter((m) => m.stageId === stage.id).map(toDomainMatch);
     const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
 
-    overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn);
+    overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty);
     groupStandings = groups.map((g) => {
       const gp = confirmed.filter((p) => p.groupId === g.id).map(toDomainPlayer);
-      const ranked = computeStandings(gp, stageMatches, scoring, carryIn);
+      const ranked = computeStandings(gp, stageMatches, scoring, carryIn, holeDifficulty);
       return { group: g, ranked, cutoff: groupCutoff(ranked, event.qualifyPerGroup) };
     });
     activeDomainMatches = stageMatches;
@@ -216,7 +220,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
 
   // Stroke-play standings (from submitted scorecards), used when the event format is stroke.
   const isStroke = event.format === "stroke";
-  const pars = findCourse(event.course).pars;
+  const pars = course.pars;
   const strokeAgg = new Map<string, { gross: number; thru: number; parThru: number }>();
   for (const sc of scorecards) {
     let strokes: (number | null)[];

@@ -67,9 +67,143 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <span className="card-kicker" style={{ display: "block" }}>{children}</span>;
 }
 
+/**
+ * Configures what happens between this round and the next one — carry-forward
+ * and the cut line — right from the round you're currently looking at. Keyed
+ * by the next stage's id (or "none") so its local state re-syncs whenever a
+ * round gets added/removed instead of going stale.
+ */
+function NextRoundTransition({
+  nextStage,
+  confirmedCount,
+}: {
+  nextStage: StageView | undefined;
+  confirmedCount: number;
+}) {
+  const [carryEnabled, setCarryEnabled] = useState(nextStage?.carryEnabled ?? false);
+  const [carryPct, setCarryPct] = useState(nextStage?.carryPct ?? 0);
+  const [pending, startTransition] = useTransition();
+  const [genPending, startGenTransition] = useTransition();
+
+  if (!nextStage) {
+    return (
+      <div
+        style={{
+          padding: "12px 16px",
+          border: "1px dashed var(--color-divider)",
+          borderRadius: "var(--radius-md)",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <p className="text-muted" style={{ fontSize: 12, margin: 0, flex: 1, minWidth: 200 }}>
+          Add another round to configure carry-forward or a cut line before it begins.
+        </p>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={pending}
+          onClick={() => startTransition(() => addStage("Round Robin"))}
+        >
+          <i className="ph ph-plus" /> Add next round
+        </button>
+      </div>
+    );
+  }
+
+  const commitCarry = (nextEnabled: boolean, nextPct: number) => {
+    setCarryEnabled(nextEnabled);
+    setCarryPct(nextPct);
+    startTransition(() => setStageCarry(nextStage.id, nextEnabled, nextPct));
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div
+        style={{
+          padding: "12px 16px",
+          border: "1px solid var(--color-divider)",
+          borderRadius: "var(--radius-md)",
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          flexWrap: "wrap",
+          background: "var(--color-bg)",
+        }}
+      >
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+          <input type="checkbox" checked={carryEnabled} onChange={(e) => commitCarry(e.target.checked, carryPct)} />
+          Carry forward points into Round {nextStage.position + 1}
+        </label>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={carryPct}
+          disabled={!carryEnabled}
+          onChange={(e) => commitCarry(carryEnabled, parseInt(e.target.value, 10))}
+          style={{ flex: 1, minWidth: 120 }}
+        />
+        <span className="tag tag-accent" style={{ minWidth: 48, textAlign: "center" }}>{carryPct}%</span>
+      </div>
+      <p className="text-muted" style={{ fontSize: 12, margin: "0 0 0 2px" }}>
+        {carryEnabled
+          ? `At ${carryPct}%, a player on 12 pts here starts Round ${nextStage.position + 1} with ${(12 * carryPct) / 100} pts.`
+          : `Disabled — every player starts Round ${nextStage.position + 1} at zero.`}
+      </p>
+
+      <div
+        style={{
+          padding: "12px 16px",
+          border: "1px solid var(--color-divider)",
+          borderRadius: "var(--radius-md)",
+          background: "var(--color-bg)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        <CutControl
+          stageId={nextStage.id}
+          enabled={nextStage.cutEnabled}
+          mode={nextStage.cutMode}
+          count={nextStage.cutCount}
+          percent={nextStage.cutPercent}
+          confirmedCount={confirmedCount}
+        />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={genPending}
+            onClick={() => startGenTransition(() => generateNextRound(nextStage.id))}
+          >
+            <i className="ph ph-arrows-clockwise" /> {nextStage.matchCount > 0 ? "Regenerate" : "Generate"} Round {nextStage.position + 1} pairings
+          </button>
+          <span className="text-muted" style={{ fontSize: 12 }}>
+            {nextStage.cutEnabled
+              ? "Builds Round " + (nextStage.position + 1) + "'s matches from this round's current standings — run it once this round is complete."
+              : "Builds Round " + (nextStage.position + 1) + "'s matches for the full field, from the current flights."}
+            {nextStage.matchCount > 0 && " Re-running replaces that round's matches."}
+          </span>
+        </div>
+        {nextStage.matchCount === 0 && (
+          <span className="tag tag-neutral" style={{ alignSelf: "flex-start" }}>
+            <i className="ph ph-clock" /> Round {nextStage.position + 1} not generated yet
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StageCard({
   stage,
   isFirst,
+  nextStage,
   rrMatchesPerPlayer,
   scoring,
   tiebreakers,
@@ -78,6 +212,7 @@ function StageCard({
 }: {
   stage: StageView;
   isFirst: boolean;
+  nextStage: StageView | undefined;
   rrMatchesPerPlayer: number;
   scoring: ScoringValues;
   tiebreakers: TiebreakerKey[];
@@ -88,12 +223,9 @@ function StageCard({
   const [basis, setBasis] = useState(stage.scoringBasis);
   const [format, setFormat] = useState(stage.format);
   const [holes, setHoles] = useState(stage.holes);
-  const [carryEnabled, setCarryEnabled] = useState(stage.carryEnabled);
-  const [carryPct, setCarryPct] = useState(stage.carryPct);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formatInfoOpen, setFormatInfoOpen] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [genPending, startGenTransition] = useTransition();
 
   const commitFormat = (v: string) => {
     setFormat(v);
@@ -102,11 +234,6 @@ function StageCard({
   const commitHoles = (v: number) => {
     setHoles(v);
     startTransition(() => setStageHoles(stage.id, v));
-  };
-  const commitCarry = (nextEnabled: boolean, nextPct: number) => {
-    setCarryEnabled(nextEnabled);
-    setCarryPct(nextPct);
-    startTransition(() => setStageCarry(stage.id, nextEnabled, nextPct));
   };
   const commitBasis = (next: string) => {
     setBasis(next);
@@ -124,17 +251,18 @@ function StageCard({
       ? `Players compete against everyone in their flight — ${rrMatchesPerPlayer} ${rrMatchesPerPlayer === 1 ? "match" : "matches"} each.`
       : stage.description;
 
-  const showCutBlock = !isFirst && stage.type === "Round Robin";
-  const notGenerated = showCutBlock && stage.matchCount === 0;
+  const showTransition = stage.type === "Round Robin";
+  const notGenerated = !isFirst && stage.type === "Round Robin" && stage.matchCount === 0;
 
   // Summary of anything non-default, shown when the customize panel is collapsed
   // so nothing is hidden — just tucked away until you need to change it.
   const badges: string[] = [];
   if (basis !== "gross") badges.push(basis === "net" ? "Net scoring" : "Gross + net");
   if (deadline) badges.push(`Due ${deadline}`);
-  if (!isFirst && carryEnabled) badges.push(`Carries ${carryPct}%`);
-  if (showCutBlock && stage.cutEnabled) {
-    badges.push(stage.cutMode === "percent" ? `Cuts to top ${stage.cutPercent}%` : `Cuts to top ${stage.cutCount}`);
+  if (nextStage?.carryEnabled) badges.push(`Carries ${nextStage.carryPct}% into Round ${nextStage.position + 1}`);
+  if (nextStage?.cutEnabled) {
+    const cut = nextStage.cutMode === "percent" ? `top ${nextStage.cutPercent}%` : `top ${nextStage.cutCount}`;
+    badges.push(`Cuts to ${cut} before Round ${nextStage.position + 1}`);
   }
   if (stage.type === "Qualification Stage") {
     badges.push(qual.mode === "overall" ? `Top ${qual.overall} overall` : `Top ${qual.perFlight} per flight`);
@@ -274,11 +402,20 @@ function StageCard({
             {stage.type === "Round Robin" && (
               <div>
                 <SectionLabel>Match Points &amp; tiebreakers</SectionLabel>
-                <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 10px" }}>
-                  Points for match results in round-robin play, and the tiebreakers that settle level
-                  standings. Shared by all round-robin rounds.
-                </p>
-                <ScoringClient initial={scoring} tiebreakers={tiebreakers} />
+                {format === "Match Play" ? (
+                  <>
+                    <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 10px" }}>
+                      Points for match results in round-robin play, and the tiebreakers that settle level
+                      standings. Shared by all round-robin rounds scored as Match Play.
+                    </p>
+                    <ScoringClient initial={scoring} tiebreakers={tiebreakers} />
+                  </>
+                ) : (
+                  <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+                    This round is scored as Stroke Play — ties break by lowest net, then lowest gross.
+                    Match Points &amp; tiebreakers only apply to Match Play rounds.
+                  </p>
+                )}
               </div>
             )}
 
@@ -292,86 +429,13 @@ function StageCard({
               </div>
             )}
 
-            {!isFirst && (
+            {showTransition && (
               <div>
-                <SectionLabel>Carry forward points</SectionLabel>
-                <div
-                  style={{
-                    marginTop: 6,
-                    padding: "12px 16px",
-                    border: "1px solid var(--color-divider)",
-                    borderRadius: "var(--radius-md)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 16,
-                    flexWrap: "wrap",
-                    background: "var(--color-bg)",
-                  }}
-                >
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-                    <input type="checkbox" checked={carryEnabled} onChange={(e) => commitCarry(e.target.checked, carryPct)} />
-                    Carry forward points from the previous stage
-                  </label>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={5}
-                    value={carryPct}
-                    disabled={!carryEnabled}
-                    onChange={(e) => commitCarry(carryEnabled, parseInt(e.target.value, 10))}
-                    style={{ flex: 1, minWidth: 120 }}
-                  />
-                  <span className="tag tag-accent" style={{ minWidth: 48, textAlign: "center" }}>{carryPct}%</span>
-                </div>
-                <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0 2px" }}>
-                  {carryEnabled
-                    ? `At ${carryPct}%, a player on 12 pts from the previous stage starts this stage with ${(12 * carryPct) / 100} pts.`
-                    : "Disabled — every player starts this stage at zero."}
+                <SectionLabel>Before the next round</SectionLabel>
+                <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
+                  Carry points forward and/or cut the field before it moves on from this round.
                 </p>
-              </div>
-            )}
-
-            {showCutBlock && (
-              <div>
-                <SectionLabel>Field cut entering this round</SectionLabel>
-                <div
-                  style={{
-                    marginTop: 6,
-                    padding: "12px 16px",
-                    border: "1px solid var(--color-divider)",
-                    borderRadius: "var(--radius-md)",
-                    background: "var(--color-bg)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 10,
-                  }}
-                >
-                  <CutControl
-                    stageId={stage.id}
-                    enabled={stage.cutEnabled}
-                    mode={stage.cutMode}
-                    count={stage.cutCount}
-                    percent={stage.cutPercent}
-                    confirmedCount={confirmedCount}
-                  />
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={genPending}
-                      onClick={() => startGenTransition(() => generateNextRound(stage.id))}
-                    >
-                      <i className="ph ph-arrows-clockwise" /> {stage.matchCount > 0 ? "Regenerate" : "Generate"} Round {stage.position + 1} pairings
-                    </button>
-                    <span className="text-muted" style={{ fontSize: 12 }}>
-                      {stage.cutEnabled
-                        ? "Builds this round's matches from the previous round's current standings — run it once that round is complete."
-                        : "Builds this round's matches for the full field, from the previous round's flights."}
-                      {stage.matchCount > 0 && " Re-running replaces this round's matches."}
-                    </span>
-                  </div>
-                </div>
+                <NextRoundTransition key={nextStage?.id ?? "none"} nextStage={nextStage} confirmedCount={confirmedCount} />
               </div>
             )}
           </div>
@@ -399,20 +463,27 @@ export function StagesClient({
   const [newType, setNewType] = useState(STAGE_TYPES[0]);
   const [pending, startTransition] = useTransition();
 
+  const rrStages = stages.filter((s) => s.type === "Round Robin");
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {stages.map((s, i) => (
-        <StageCard
-          key={s.id}
-          stage={s}
-          isFirst={i === 0}
-          rrMatchesPerPlayer={rrMatchesPerPlayer}
-          scoring={scoring}
-          tiebreakers={tiebreakers}
-          qual={qual}
-          confirmedCount={confirmedCount}
-        />
-      ))}
+      {stages.map((s, i) => {
+        const rrIdx = rrStages.findIndex((r) => r.id === s.id);
+        const nextStage = rrIdx >= 0 ? rrStages[rrIdx + 1] : undefined;
+        return (
+          <StageCard
+            key={s.id}
+            stage={s}
+            isFirst={i === 0}
+            nextStage={nextStage}
+            rrMatchesPerPlayer={rrMatchesPerPlayer}
+            scoring={scoring}
+            tiebreakers={tiebreakers}
+            qual={qual}
+            confirmedCount={confirmedCount}
+          />
+        );
+      })}
       {stages.length === 0 && (
         <div className="card elev-sm">
           <span className="text-muted" style={{ fontSize: 13 }}>

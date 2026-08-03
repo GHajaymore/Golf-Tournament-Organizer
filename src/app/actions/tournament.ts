@@ -8,6 +8,7 @@ import { roundRobinStages, chainRoundStandings, scoringFrom } from "@/lib/servic
 import { marginToHoles, resolveMatch, roundRobinSchedule, TIEBREAKER_KEYS } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { FORMAT_NAMES } from "@/lib/formats";
+import { findCourse } from "@/lib/courses";
 
 async function requireEvent(): Promise<string> {
   const session = await getSession();
@@ -279,7 +280,8 @@ export async function generateNextRound(stageId: string) {
 
   const domainPlayers = confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }));
   const scoring = scoringFrom(event);
-  const chain = chainRoundStandings(rrStages.slice(0, idx + 1), allMatches, domainPlayers, scoring);
+  const holeDifficulty = findCourse(event.course).strokeIndex;
+  const chain = chainRoundStandings(rrStages.slice(0, idx + 1), allMatches, domainPlayers, scoring, holeDifficulty);
   const priorStanding = chain[idx - 1];
 
   let survivorIds: Set<string>;

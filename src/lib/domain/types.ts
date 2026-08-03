@@ -21,14 +21,17 @@ export type FormationRule = "balanced" | "handicap" | "seeding" | "random" | "ma
 
 export type BracketKind = "winners" | "consolation";
 
-/** Ordered tiebreaker keys, applied after points when standings are level. */
+/** Ordered tiebreaker keys, applied after points when standings are level.
+ *  Match-play only — stroke play breaks ties by low net, then low gross. */
 export type TiebreakerKey =
   | "head-to-head"
   | "most-wins"
   | "win-percentage"
   | "holes-won-ratio"
   | "fewest-holes-lost"
-  | "lower-handicap";
+  | "lower-handicap"
+  | "toughest-6"
+  | "toughest-3";
 
 export const TIEBREAKER_KEYS: TiebreakerKey[] = [
   "head-to-head",
@@ -36,6 +39,8 @@ export const TIEBREAKER_KEYS: TiebreakerKey[] = [
   "win-percentage",
   "holes-won-ratio",
   "fewest-holes-lost",
+  "toughest-6",
+  "toughest-3",
   "lower-handicap",
 ];
 
@@ -45,6 +50,8 @@ export const TIEBREAKER_LABELS: Record<TiebreakerKey, string> = {
   "win-percentage": "Winning percentage",
   "holes-won-ratio": "Hole differential (won − lost)",
   "fewest-holes-lost": "Fewest holes lost",
+  "toughest-6": "Toughest 6 holes (by stroke index)",
+  "toughest-3": "Toughest 3 holes (by stroke index)",
   "lower-handicap": "Lower handicap",
 };
 

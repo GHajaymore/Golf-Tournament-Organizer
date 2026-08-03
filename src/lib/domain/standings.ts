@@ -107,6 +107,34 @@ function headToHead(aId: string, bId: string, matches: Match[]): number {
   return 0;
 }
 
+/** Indexes (0-based) of the `n` hardest holes, by ascending stroke index (1 = hardest). */
+function toughestHoleIndexes(strokeIndex: number[], n: number): Set<number> {
+  return new Set(
+    strokeIndex
+      .map((si, i) => ({ si, i }))
+      .sort((a, b) => a.si - b.si)
+      .slice(0, n)
+      .map((x) => x.i),
+  );
+}
+
+/** A player's (holes won − holes lost) restricted to a set of hole indexes, across all their matches. */
+function holesDiffOn(playerId: string, matches: Match[], holeIdxs: Set<number>): number {
+  let diff = 0;
+  for (const m of matches) {
+    const isA = m.playerAId === playerId;
+    const isB = m.playerBId === playerId;
+    if (!isA && !isB) continue;
+    for (const idx of holeIdxs) {
+      const h = m.holes[idx];
+      if (h === null || h === "H") continue;
+      const won = (h === "A" && isA) || (h === "B" && isB);
+      diff += won ? 1 : -1;
+    }
+  }
+  return diff;
+}
+
 function tiebreakerCompare(
   key: TiebreakerKey,
   pa: Player,
@@ -114,6 +142,7 @@ function tiebreakerCompare(
   sa: PlayerStats,
   sb: PlayerStats,
   matches: Match[],
+  holeDifficulty?: number[],
 ): number {
   switch (key) {
     case "head-to-head":
@@ -132,6 +161,16 @@ function tiebreakerCompare(
     }
     case "fewest-holes-lost":
       return sa.holesLost - sb.holesLost; // fewer lost ranks first
+    case "toughest-6":
+    case "toughest-3": {
+      // No course/stroke-index data available — skip to the next tiebreaker.
+      if (!holeDifficulty || holeDifficulty.length === 0) return 0;
+      const n = key === "toughest-6" ? 6 : 3;
+      const idxs = toughestHoleIndexes(holeDifficulty, n);
+      const da = holesDiffOn(pa.id, matches, idxs);
+      const db = holesDiffOn(pb.id, matches, idxs);
+      return db - da; // better record on the toughest holes ranks first
+    }
     case "lower-handicap":
       return pa.handicap - pb.handicap; // lower handicap ranks first
     default:
@@ -148,6 +187,8 @@ export function rankPlayers(
   stats: Map<string, PlayerStats>,
   scoring: ScoringRules,
   matches: Match[],
+  /** Stroke index per hole (1 = hardest), for the "toughest N holes" tiebreakers. Omit if unknown. */
+  holeDifficulty?: number[],
 ): RankedPlayer[] {
   const chain = scoring.tiebreakers?.length
     ? scoring.tiebreakers
@@ -158,7 +199,7 @@ export function rankPlayers(
     const sb = stats.get(pb.id)!;
     if (sb.totalPoints !== sa.totalPoints) return sb.totalPoints - sa.totalPoints;
     for (const key of chain) {
-      const c = tiebreakerCompare(key, pa, pb, sa, sb, matches);
+      const c = tiebreakerCompare(key, pa, pb, sa, sb, matches, holeDifficulty);
       if (c !== 0) return c;
     }
     return pa.seed - pb.seed;
@@ -177,9 +218,10 @@ export function computeStandings(
   matches: Match[],
   scoring: ScoringRules,
   carriedPoints: Record<string, number> = {},
+  holeDifficulty?: number[],
 ): RankedPlayer[] {
   const stats = aggregateStats(players, matches, scoring, carriedPoints);
-  return rankPlayers(players, stats, scoring, matches);
+  return rankPlayers(players, stats, scoring, matches, holeDifficulty);
 }
 
 /**
