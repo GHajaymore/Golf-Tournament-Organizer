@@ -358,7 +358,7 @@ const STAGE_TYPES = [
 const STAGE_DESCRIPTIONS: Record<string, string> = {
   "Round Robin": "Every player meets every other in their group.",
   "Single Match Stage": "A single seeding or play-in match.",
-  "Qualification Stage": "Cut the field — top players per group advance.",
+  "Qualification Stage": "Cut the field — top players per flight advance.",
   "Bracket Stage": "Single-elimination bracket to a champion.",
 };
 

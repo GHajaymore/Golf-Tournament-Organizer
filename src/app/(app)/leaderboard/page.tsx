@@ -46,7 +46,7 @@ export default async function LeaderboardPage() {
           <div className="page-kicker">Live</div>
           <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h2>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            Overall standings across all groups · points breakdown.
+            Overall standings across all flights · points breakdown.
           </p>
         </div>
         <span className="tag tag-accent">

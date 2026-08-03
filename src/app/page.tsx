@@ -64,12 +64,12 @@ export default async function LoginPage() {
             Run the whole event from one console.
           </h1>
           <p className="text-muted" style={{ fontSize: 15, maxWidth: "44ch", marginTop: 16 }}>
-            Round-robin groups, qualification, brackets, match-play scorecards and live
+            Round-robin flights, qualification, brackets, match-play scorecards and live
             standings — automated, with manual override wherever you need it.
           </p>
         </div>
         <div className="text-muted" style={{ fontSize: 12 }}>
-          Pilot build · v1.0 · Ridgeline National
+          Flights · Tournament operations console
         </div>
       </div>
       <div

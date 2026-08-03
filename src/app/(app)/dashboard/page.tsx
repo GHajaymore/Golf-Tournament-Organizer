@@ -13,8 +13,6 @@ const QUICK_ACTIONS = [
   { label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered", staff: true },
   { label: "Foursomes", href: "/foursomes", icon: "ph ph-users-four", staff: true },
   { label: "Scorecards", href: "/scorecard", icon: "ph ph-cards", staff: true },
-  { label: "Enter results", href: "/entry", icon: "ph ph-pencil-simple", staff: false },
-  { label: "Leaderboard", href: "/leaderboard", icon: "ph ph-ranking", staff: false },
   { label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", staff: true },
   { label: "Reports", href: "/reports", icon: "ph ph-export", staff: true },
 ];
@@ -108,22 +106,10 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {isStaff && state.pendingConfirmations > 0 && (
-        <div className="card elev-sm" style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16, borderLeft: "3px solid var(--color-accent)" }}>
-          <i className="ph ph-seal-warning" style={{ color: "var(--color-accent)", fontSize: 20 }} />
-          <span style={{ fontSize: 13 }}>
-            <b>{state.pendingConfirmations}</b> {state.pendingConfirmations === 1 ? "score is" : "scores are"} pending player confirmation (auto-confirm after 24h).
-          </span>
-          <Link className="btn btn-ghost" href="/entry" style={{ marginLeft: "auto" }}>
-            Review <i className="ph ph-arrow-right" />
-          </Link>
-        </div>
-      )}
-
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <StatCard label="Players" value={state.confirmed.length} sub={`${state.groups.length} flights`} icon="ph ph-users-three" />
         <StatCard label="Matches complete" value={`${progress.done}/${progress.total}`} sub={`${progress.pct}% of round robin`} icon="ph ph-check-circle" />
-        <StatCard label="Current round" value={currentStage?.type ?? "—"} sub={currentStage?.deadline ?? ""} icon="ph ph-arrows-clockwise" />
+        <StatCard label="Awaiting review" value={state.pendingConfirmations} sub={state.pendingConfirmations === 1 ? "score to confirm" : "scores to confirm"} icon="ph ph-seal-check" />
         <StatCard label="Advancing" value={advancingCount} sub={`of ${state.confirmed.length} players`} icon="ph ph-flag-checkered" />
       </div>
 
@@ -131,7 +117,7 @@ export default async function DashboardPage() {
         <div className="card elev-sm">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
             <span className="card-title">Live leaderboard</span>
-            <span className="text-muted" style={{ fontSize: 12 }}>Overall · all groups</span>
+            <span className="text-muted" style={{ fontSize: 12 }}>Overall · all flights</span>
           </div>
           <div className="table-scroll">
           <table className="table">
