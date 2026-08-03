@@ -64,6 +64,7 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
     }
 
     if (rrStage) {
+      const emptyHoles = JSON.stringify(new Array(rrStage.holes === 9 ? 9 : 18).fill(null));
       for (const g of groups) {
         const dbGroupId = groupIdByEngineId.get(g.id)!;
         const schedule = roundRobinSchedule(g.playerIds);
@@ -76,7 +77,7 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
               round: pairing.round,
               playerAId: pairing.aId,
               playerBId: pairing.bId,
-              holes: JSON.stringify(new Array(18).fill(null)),
+              holes: emptyHoles,
             },
           });
         }

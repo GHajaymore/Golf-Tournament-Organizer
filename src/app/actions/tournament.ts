@@ -425,6 +425,16 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   refresh();
 }
 
+/** Existing hole count for a match, from its stored holes array (18 or 9 depending on the round). */
+function matchHoleCount(holesJson: string): number {
+  try {
+    const parsed = JSON.parse(holesJson) as unknown[];
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed.length : 18;
+  } catch {
+    return 18;
+  }
+}
+
 export async function applyMatchResult(
   matchId: string,
   winner: "A" | "B" | "H",
@@ -433,7 +443,7 @@ export async function applyMatchResult(
   const eventId = await requireEvent();
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
-  const holes = marginToHoles(winner, margin, 18);
+  const holes = marginToHoles(winner, margin, matchHoleCount(match.holes));
   await prisma.match.update({
     where: { id: matchId },
     data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },
@@ -443,9 +453,12 @@ export async function applyMatchResult(
 
 export async function clearMatch(matchId: string) {
   const eventId = await requireEvent();
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
+  if (!match || match.eventId !== eventId) return;
+  const empty = new Array(matchHoleCount(match.holes)).fill(null);
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
-    data: { holes: JSON.stringify(new Array(18).fill(null)), scoreStatus: "pending", scoredAt: null, confirmedById: null },
+    data: { holes: JSON.stringify(empty), scoreStatus: "pending", scoredAt: null, confirmedById: null },
   });
   refresh();
 }

@@ -108,17 +108,18 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
   };
 
   const doApplyResult = () => {
+    const totalHoles = holes.length || 18;
     startTransition(() => {
       void applyMatchResult(active.id, winner, margin);
     });
     // Reflect locally via the pure margin conversion for instant feedback.
     import("@/lib/domain").then(({ marginToHoles }) => {
-      setHolesById((prev) => ({ ...prev, [active.id]: marginToHoles(winner, margin, 18) }));
+      setHolesById((prev) => ({ ...prev, [active.id]: marginToHoles(winner, margin, totalHoles) }));
     });
   };
 
   const doClear = () => {
-    const empty = new Array(18).fill(null) as HoleResult[];
+    const empty = new Array(holes.length || 18).fill(null) as HoleResult[];
     setHolesById((prev) => ({ ...prev, [active.id]: empty }));
     startTransition(() => {
       void clearMatch(active.id);
