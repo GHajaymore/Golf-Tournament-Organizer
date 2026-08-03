@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
 import { toParText } from "@/lib/domain";
 
@@ -23,7 +23,7 @@ export function ReportsClient({
   isStroke: boolean;
   eventName: string;
 }) {
-  const [note, setNote] = useState("");
+  const router = useRouter();
   const status = (r: StandingRow) => (r.advancing ? "Advancing" : "Eliminated");
 
   const fullStandings = () => {
@@ -49,13 +49,11 @@ export function ReportsClient({
     ]);
   };
 
-  const pdfStub = (kind: string) => setNote(`${kind} PDF export is stubbed in this build — wire up a server-side PDF renderer to enable it.`);
-
   const exports = [
     { label: "Full standings", desc: "Every player, ranked, with results and status.", icon: "ph ph-table", action: fullStandings, kind: "csv" },
     { label: "Flight results", desc: "Per-flight finishing order and advancing status.", icon: "ph ph-squares-four", action: groupResults, kind: "csv" },
-    { label: "Bracket sheet", desc: "Winners & Consolation bracket as a printable sheet.", icon: "ph ph-tree-structure", action: () => pdfStub("Bracket sheet"), kind: "pdf" },
-    { label: "Scorecards", desc: "Scorecards for the field.", icon: "ph ph-cards", action: () => pdfStub("Scorecards"), kind: "pdf" },
+    { label: "Bracket sheet", desc: "Open the bracket, then print to PDF.", icon: "ph ph-tree-structure", action: () => router.push("/bracket"), kind: "open" },
+    { label: "Scorecards", desc: "Open printable scorecards for the field.", icon: "ph ph-cards", action: () => router.push("/scorecard"), kind: "open" },
   ];
 
   return (
@@ -70,11 +68,13 @@ export function ReportsClient({
               <div className="text-muted" style={{ fontSize: 12 }}>{e.desc}</div>
             </div>
             <button type="button" className={`btn ${e.kind === "csv" ? "btn-primary" : "btn-secondary"}`} onClick={e.action}>
-              {e.kind === "csv" ? "Export CSV" : "PDF"}
+              {e.kind === "csv" ? "Export CSV" : "Open"}
             </button>
           </div>
         ))}
-        {note && <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{note}</p>}
+        <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
+          Use your browser&rsquo;s Print → &ldquo;Save as PDF&rdquo; on any printable view (chrome is hidden in print).
+        </p>
       </div>
       <div className="card elev-sm">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>

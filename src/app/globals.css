@@ -295,3 +295,27 @@ body {
     scroll-behavior: auto;
   }
 }
+
+/* ── Print: hide app chrome, show only page content; support printable cards ── */
+@media print {
+  .app-sidebar,
+  .m-topbar,
+  .m-tabbar,
+  .m-drawer,
+  .no-print {
+    display: none !important;
+  }
+  .app-main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  .print-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #999 !important;
+  }
+  .print-card + .print-card {
+    page-break-before: always;
+  }
+}

@@ -1,133 +1,189 @@
 "use client";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { CoursePreset } from "@/lib/courses";
 
-export function ScorecardClient({ courses }: { courses: CoursePreset[] }) {
-  const router = useRouter();
-  const [courseName, setCourseName] = useState(courses[0]?.name ?? "");
+export interface CardFlight {
+  label: string;
+  players: Array<{ name: string; handicap: number }>;
+}
+
+export function ScorecardClient({
+  courses,
+  flights,
+  eventName,
+  eventDates,
+  defaultCourse,
+  isStroke,
+}: {
+  courses: CoursePreset[];
+  flights: CardFlight[];
+  eventName: string;
+  eventDates: string;
+  defaultCourse: string;
+  isStroke: boolean;
+}) {
+  const [courseName, setCourseName] = useState(
+    courses.find((c) => c.name === defaultCourse)?.name ?? courses[0]?.name ?? "",
+  );
   const course = courses.find((c) => c.name === courseName) ?? courses[0];
-  const [city, setCity] = useState(course?.city ?? "");
-  const [address, setAddress] = useState(course?.address ?? "");
   const [holes, setHoles] = useState<18 | 9>(18);
   const [nine, setNine] = useState<"front" | "back">("front");
+  const [scope, setScope] = useState<"flight" | "field">("flight");
 
-  const applyPreset = (name: string) => {
-    const c = courses.find((x) => x.name === name);
-    setCourseName(name);
-    if (c) {
-      setCity(c.city);
-      setAddress(c.address);
-    }
-  };
-
-  const preview = useMemo(() => {
-    if (!course) return { cells: [] as { num: number; par: number; yards: number }[], par: 0, yards: 0, label: "" };
+  const holeCells = useMemo(() => {
+    if (!course) return [] as { num: number; par: number; yards: number }[];
     let idxs: number[];
-    let label: string;
-    if (holes === 18) {
-      idxs = Array.from({ length: 18 }, (_, i) => i);
-      label = "18 holes";
-    } else if (nine === "front") {
-      idxs = Array.from({ length: 9 }, (_, i) => i);
-      label = "Front nine";
-    } else {
-      idxs = Array.from({ length: 9 }, (_, i) => i + 9);
-      label = "Back nine";
-    }
-    const cells = idxs.map((i) => ({ num: i + 1, par: course.pars[i], yards: course.yards[i] }));
-    return {
-      cells,
-      par: cells.reduce((s, c) => s + c.par, 0),
-      yards: cells.reduce((s, c) => s + c.yards, 0),
-      label,
-    };
+    if (holes === 18) idxs = Array.from({ length: 18 }, (_, i) => i);
+    else if (nine === "front") idxs = Array.from({ length: 9 }, (_, i) => i);
+    else idxs = Array.from({ length: 9 }, (_, i) => i + 9);
+    return idxs.map((i) => ({ num: i + 1, par: course.pars[i], yards: course.yards[i] }));
   }, [course, holes, nine]);
 
+  const totalPar = holeCells.reduce((s, c) => s + c.par, 0);
+  const lengthLabel = holes === 18 ? "18 holes" : nine === "front" ? "Front nine" : "Back nine";
+
+  // One card per flight, or a single card for the whole field.
+  const cards: CardFlight[] =
+    scope === "field"
+      ? [{ label: "Full field", players: flights.flatMap((f) => f.players) }]
+      : flights;
+
+  const scoreLabel = isStroke ? "Strokes" : "Result";
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16, alignItems: "start" }}>
-      <div className="card elev-sm" style={{ gap: 14 }}>
-        <div className="field">
-          <label>Course</label>
-          <select className="input" value={courseName} onChange={(e) => applyPreset(e.target.value)}>
-            {courses.map((c) => (
-              <option key={c.name} value={c.name}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="field"><label>City</label><input className="input" value={city} onChange={(e) => setCity(e.target.value)} /></div>
-        <div className="field">
-          <label>Address <span className="text-muted">· auto-populated</span></label>
-          <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} />
-        </div>
-        <div className="field">
-          <label>Match length</label>
-          <div className="seg">
-            <label className="seg-opt"><input type="radio" name="hlen" checked={holes === 18} onChange={() => setHoles(18)} />18 holes</label>
-            <label className="seg-opt"><input type="radio" name="hlen" checked={holes === 9} onChange={() => setHoles(9)} />9 holes</label>
+    <>
+      <div className="card elev-sm no-print" style={{ marginBottom: 16, gap: 14 }}>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div className="field" style={{ width: 240 }}>
+            <label>Course</label>
+            <select className="input" value={courseName} onChange={(e) => setCourseName(e.target.value)}>
+              {courses.map((c) => (
+                <option key={c.name} value={c.name}>{c.name}</option>
+              ))}
+            </select>
           </div>
-        </div>
-        {holes === 9 && (
-          <div className="field">
-            <label>Nine</label>
-            <div className="seg">
-              <label className="seg-opt"><input type="radio" name="nine" checked={nine === "front"} onChange={() => setNine("front")} />Front nine</label>
-              <label className="seg-opt"><input type="radio" name="nine" checked={nine === "back"} onChange={() => setNine("back")} />Back nine</label>
+          <div className="field" style={{ width: 200 }}>
+            <label>Length</label>
+            <div className="seg" style={{ width: "100%" }}>
+              <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                <input type="radio" name="hlen" checked={holes === 18} onChange={() => setHoles(18)} />18
+              </label>
+              <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                <input type="radio" name="hlen" checked={holes === 9} onChange={() => setHoles(9)} />9
+              </label>
             </div>
           </div>
-        )}
-        <button type="button" className="btn btn-primary btn-block" onClick={() => router.push("/entry")}>
-          <i className="ph ph-cards" /> Generate &amp; open score entry
-        </button>
-      </div>
-      <div className="card elev-sm">
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 17 }}>{course?.name}</div>
-            <div className="text-muted" style={{ fontSize: 12 }}>{address}</div>
+          {holes === 9 && (
+            <div className="field" style={{ width: 200 }}>
+              <label>Nine</label>
+              <div className="seg" style={{ width: "100%" }}>
+                <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                  <input type="radio" name="nine" checked={nine === "front"} onChange={() => setNine("front")} />Front
+                </label>
+                <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                  <input type="radio" name="nine" checked={nine === "back"} onChange={() => setNine("back")} />Back
+                </label>
+              </div>
+            </div>
+          )}
+          <div className="field" style={{ width: 220 }}>
+            <label>One card per</label>
+            <div className="seg" style={{ width: "100%" }}>
+              <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                <input type="radio" name="scope" checked={scope === "flight"} onChange={() => setScope("flight")} />Flight
+              </label>
+              <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                <input type="radio" name="scope" checked={scope === "field"} onChange={() => setScope("field")} />Field
+              </label>
+            </div>
           </div>
-          <span className="tag tag-outline">{preview.label}</span>
+          <div style={{ flex: 1 }} />
+          <button type="button" className="btn btn-primary" onClick={() => window.print()}>
+            <i className="ph ph-printer" /> Print {cards.length} card{cards.length === 1 ? "" : "s"}
+          </button>
         </div>
-        <div style={{ overflowX: "auto", marginTop: 12 }}>
-          <table className="table" style={{ fontSize: 12, minWidth: 520 }}>
-            <thead>
-              <tr>
-                <th>Hole</th>
-                {preview.cells.map((h) => (
-                  <th key={h.num} style={{ textAlign: "center" }}>{h.num}</th>
-                ))}
-                <th style={{ textAlign: "center" }}>Tot</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="text-muted">Par</td>
-                {preview.cells.map((h) => (
-                  <td key={h.num} style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{h.par}</td>
-                ))}
-                <td style={{ textAlign: "center", fontWeight: 600 }}>{preview.par}</td>
-              </tr>
-              <tr>
-                <td className="text-muted">Yards</td>
-                {preview.cells.map((h) => (
-                  <td key={h.num} style={{ textAlign: "center", fontVariantNumeric: "tabular-nums", color: "var(--color-neutral-400)" }}>{h.yards}</td>
-                ))}
-                <td style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{preview.yards}</td>
-              </tr>
-              <tr>
-                <td style={{ fontWeight: 500 }}>Result</td>
-                {preview.cells.map((h) => (
-                  <td key={h.num} style={{ textAlign: "center", color: "var(--color-neutral-600)" }}>·</td>
-                ))}
-                <td />
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
-          Match-play scorecard — each hole is scored win / halve / loss during entry.
+        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          {isStroke ? "Stroke-play" : "Match-play"} scorecards for the current field on {course?.name}. Each card
+          prints on its own page.
         </p>
       </div>
-    </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {cards.map((card) => (
+          <div key={card.label} className="card elev-sm print-card">
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+              <div>
+                <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 17 }}>
+                  {eventName} — {card.label}
+                </div>
+                <div className="text-muted" style={{ fontSize: 12 }}>
+                  {course?.name}{eventDates ? ` · ${eventDates}` : ""}
+                </div>
+              </div>
+              <span className="tag tag-outline">{lengthLabel} · par {totalPar}</span>
+            </div>
+            <div style={{ overflowX: "auto", marginTop: 12 }}>
+              <table className="table" style={{ fontSize: 12, minWidth: 560 }}>
+                <thead>
+                  <tr>
+                    <th style={{ minWidth: 130 }}>Hole</th>
+                    {holeCells.map((h) => (
+                      <th key={h.num} style={{ textAlign: "center" }}>{h.num}</th>
+                    ))}
+                    <th style={{ textAlign: "center" }}>Tot</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="text-muted">Par</td>
+                    {holeCells.map((h) => (
+                      <td key={h.num} style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{h.par}</td>
+                    ))}
+                    <td style={{ textAlign: "center", fontWeight: 600 }}>{totalPar}</td>
+                  </tr>
+                  <tr>
+                    <td className="text-muted">Yards</td>
+                    {holeCells.map((h) => (
+                      <td key={h.num} style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{h.yards}</td>
+                    ))}
+                    <td style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>
+                      {holeCells.reduce((s, c) => s + c.yards, 0)}
+                    </td>
+                  </tr>
+                  {card.players.map((p) => (
+                    <tr key={p.name}>
+                      <td style={{ fontWeight: 500 }}>
+                        {p.name} <span className="text-muted" style={{ fontSize: 11 }}>(hcp {p.handicap})</span>
+                      </td>
+                      {holeCells.map((h) => (
+                        <td key={h.num} style={{ textAlign: "center", color: "var(--color-neutral-600)" }}>·</td>
+                      ))}
+                      <td />
+                    </tr>
+                  ))}
+                  {card.players.length === 0 && (
+                    <tr>
+                      <td colSpan={holeCells.length + 2} className="text-muted" style={{ padding: 10 }}>
+                        No players in this flight yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
+              {scoreLabel} column filled during play; enter results in Score entry.
+            </p>
+          </div>
+        ))}
+        {cards.length === 0 && (
+          <div className="card elev-sm">
+            <span className="text-muted" style={{ fontSize: 13 }}>
+              No flights yet — generate flights first, then print scorecards.
+            </span>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
