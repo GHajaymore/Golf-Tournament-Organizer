@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { EventSetupClient } from "@/components/EventSetupClient";
 import { EventSwitcher } from "@/components/EventSwitcher";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { SetupChecklist, type ChecklistItem } from "@/components/SetupChecklist";
 import { COURSES } from "@/lib/courses";
 
 export default async function EventPage() {
@@ -32,6 +33,47 @@ export default async function EventPage() {
     hasAccess: ev.accounts.length > 0,
   }));
 
+  const hasSchedule = state.matches.length > 0;
+  const checklist: ChecklistItem[] = [
+    {
+      label: "Registration & field",
+      detail:
+        state.confirmed.length > 0
+          ? `${state.confirmed.length} confirmed${state.waitlist.length ? ` · ${state.waitlist.length} waitlisted` : ""}`
+          : "No players yet — open registration and add the field.",
+      done: state.confirmed.length > 0,
+      href: "/registration",
+    },
+    {
+      label: "Rounds & format",
+      detail:
+        state.stages.length > 0
+          ? `${state.stages.length} round${state.stages.length === 1 ? "" : "s"} configured`
+          : "No rounds yet — sequence the tournament.",
+      done: state.stages.length > 0,
+      href: "/stages",
+    },
+    {
+      label: "Flights & divisions",
+      detail:
+        state.groups.length > 0
+          ? `${state.groups.length} flights · ${hasSchedule ? "schedule generated" : "schedule not generated yet"}`
+          : "No flights yet — generate them from the confirmed field.",
+      done: state.groups.length > 0 && hasSchedule,
+      href: "/grouping",
+    },
+    {
+      label: "Access & staff",
+      detail:
+        state.accounts.length > 1
+          ? `${state.accounts.length - 1} additional staff account${state.accounts.length - 1 === 1 ? "" : "s"}`
+          : "Just you so far — invite assistants if you need help running it.",
+      done: state.accounts.length > 1,
+      href: "/access",
+      optional: true,
+    },
+  ];
+
   return (
     <>
       <div style={{ marginBottom: 20 }}>
@@ -46,8 +88,8 @@ export default async function EventPage() {
 
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
 
-      <div style={{ marginBottom: 12 }}>
-        <span className="card-kicker">Editing · {e.name || "Untitled tournament"}</span>
+      <div style={{ marginBottom: 16 }}>
+        <SetupChecklist items={checklist} />
       </div>
 
       <EventSetupClient

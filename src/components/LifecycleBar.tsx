@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { setEventStatus, launchTournament, setConfigUnlocked } from "@/app/actions/tournament";
+import { STATUS_META } from "@/lib/format";
 
 export interface LifecycleSummary {
   name: string;
@@ -11,14 +12,6 @@ export interface LifecycleSummary {
   flights: number;
   rounds: number;
 }
-
-const STATUS_META: Record<string, { label: string; tag: string }> = {
-  draft: { label: "Draft", tag: "tag-neutral" },
-  registration: { label: "Registration open", tag: "tag-accent" },
-  ready: { label: "Ready to launch", tag: "tag-accent" },
-  live: { label: "Live", tag: "tag-accent-2" },
-  completed: { label: "Completed", tag: "tag-neutral" },
-};
 
 export function LifecycleBar({
   status,
