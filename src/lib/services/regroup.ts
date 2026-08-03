@@ -6,9 +6,11 @@ import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../dom
 /**
  * Re-form flights for an event from its confirmed players using the stored rule
  * and flight configuration, then regenerate the round-robin schedule (empty
- * matches) for every Round Robin stage — a tournament can sequence more than
- * one (e.g. a qualifying round followed by a scored round), and each gets its
- * own full round-robin among the same flights.
+ * matches) for every Round Robin stage that doesn't have a cut line — a
+ * tournament can sequence more than one round, and each gets its own full
+ * round-robin among the same flights. Stages with a cut line are left empty
+ * here; they're built by generateNextRound once the previous round's results
+ * decide who advances.
  *
  * This is the intended-destructive "Generate flights" action: it discards any
  * existing round-robin matches (and their scores), since roster/rule changes
@@ -68,6 +70,9 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
     }
 
     for (const rrStage of rrStages) {
+      // Cut-gated stages are built separately (generateNextRound), once the
+      // preceding round's real results decide who's still in the field.
+      if (rrStage.cutEnabled) continue;
       const emptyHoles = JSON.stringify(new Array(rrStage.holes === 9 ? 9 : 18).fill(null));
       for (const g of groups) {
         const dbGroupId = groupIdByEngineId.get(g.id)!;

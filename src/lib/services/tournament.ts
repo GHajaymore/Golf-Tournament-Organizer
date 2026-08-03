@@ -36,7 +36,7 @@ export function effectiveScoreStatus(m: { scoreStatus: string; scoredAt: Date | 
   return "pending";
 }
 
-function scoringFrom(event: Event): ScoringRules {
+export function scoringFrom(event: Event): ScoringRules {
   let tiebreakers: TiebreakerKey[];
   try {
     tiebreakers = JSON.parse(event.tiebreakers) as TiebreakerKey[];
@@ -121,6 +121,41 @@ export interface EventState {
   qualifiers: Player[];
 }
 
+/** Every stage of type "Round Robin", in play order. */
+export function roundRobinStages(stages: DbStage[]): DbStage[] {
+  return stages.filter((s) => s.type === "Round Robin");
+}
+
+/**
+ * Chain standings through a sequence of Round Robin stages: each stage scores
+ * only its own matches, carrying the previous stage's totalPoints forward
+ * (scaled by that stage's carry %) when carryForwardEnabled. Returns one
+ * ranking per stage, in order — the same math loadEventState uses for the
+ * tournament's final standings, reused here so a cut line entering a later
+ * stage reads the identical ranking the leaderboard shows.
+ */
+export function chainRoundStandings(
+  rrStages: DbStage[],
+  matches: DbMatch[],
+  domainPlayers: Player[],
+  scoring: ScoringRules,
+): RankedPlayer[][] {
+  let carried: Record<string, number> = {};
+  const perStage: RankedPlayer[][] = [];
+  for (let i = 0; i < rrStages.length; i += 1) {
+    const stage = rrStages[i];
+    const stageMatches = matches.filter((m) => m.stageId === stage.id).map(toDomainMatch);
+    const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
+    const overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn);
+    perStage.push(overall);
+    const next = rrStages[i + 1];
+    carried = next?.carryForwardEnabled
+      ? Object.fromEntries(overall.map((rp) => [rp.player.id, rp.stats.totalPoints * (next.carryForwardPct / 100)]))
+      : {};
+  }
+  return perStage;
+}
+
 export async function loadEventState(eventId: string): Promise<EventState | null> {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return null;
@@ -144,7 +179,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // feeds its totalPoints (scaled by that stage's carry %) in as the next
   // stage's starting points. The final stage's numbers are the tournament's
   // standings; a single Round Robin stage behaves exactly as before.
-  const rrStages = stages.filter((s) => s.type === "Round Robin");
+  const rrStages = roundRobinStages(stages);
   const domainPlayers = confirmed.map(toDomainPlayer);
 
   let carried: Record<string, number> = {};

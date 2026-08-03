@@ -21,6 +21,11 @@ export default async function StagesPage() {
     scoringBasis: s.scoringBasis,
     carryEnabled: s.carryForwardEnabled,
     carryPct: s.carryForwardPct,
+    cutEnabled: s.cutEnabled,
+    cutMode: s.cutMode,
+    cutCount: s.cutCount,
+    cutPercent: s.cutPercent,
+    matchCount: state.matches.filter((m) => m.stageId === s.id).length,
   }));
 
   // Matches per player in a round robin = (largest flight size − 1).
@@ -55,6 +60,7 @@ export default async function StagesPage() {
           perFlight: state.event.qualifyPerGroup,
           overall: state.event.qualifyOverall,
         }}
+        confirmedCount={state.confirmed.length}
       />
     </>
   );

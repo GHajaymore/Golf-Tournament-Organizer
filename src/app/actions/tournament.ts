@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule } from "@/lib/services/regroup";
-import { marginToHoles, resolveMatch, TIEBREAKER_KEYS } from "@/lib/domain";
+import { roundRobinStages, chainRoundStandings, scoringFrom } from "@/lib/services/tournament";
+import { marginToHoles, resolveMatch, roundRobinSchedule, TIEBREAKER_KEYS } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { FORMAT_NAMES } from "@/lib/formats";
 
@@ -249,6 +250,77 @@ export async function regenGroups(rule: FormationRule, mode = "auto", value = 0)
   refresh();
 }
 
+/**
+ * Build the schedule for a single Round Robin stage that has a cut line
+ * entering it — separate from the global "Generate flights" reset because it
+ * depends on the PREVIOUS round's real results, which only exist once that
+ * round has been played. Only that stage's matches are touched; every other
+ * round's data and scores are left alone.
+ */
+export async function generateNextRound(stageId: string) {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+
+  const stage = await prisma.stage.findUnique({ where: { id: stageId } });
+  if (!stage || stage.eventId !== eventId || stage.type !== "Round Robin") return;
+
+  const [event, allStages, confirmed, allMatches, groups] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId } }),
+    prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
+    prisma.player.findMany({ where: { eventId, status: "confirmed" }, orderBy: { seed: "asc" } }),
+    prisma.match.findMany({ where: { eventId } }),
+    prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
+  ]);
+  if (!event) return;
+
+  const rrStages = roundRobinStages(allStages);
+  const idx = rrStages.findIndex((s) => s.id === stageId);
+  if (idx <= 0) return; // first Round Robin stage has no predecessor to cut from — use Generate flights instead
+
+  const domainPlayers = confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }));
+  const scoring = scoringFrom(event);
+  const chain = chainRoundStandings(rrStages.slice(0, idx + 1), allMatches, domainPlayers, scoring);
+  const priorStanding = chain[idx - 1];
+
+  let survivorIds: Set<string>;
+  if (stage.cutEnabled) {
+    const n =
+      stage.cutMode === "percent"
+        ? Math.max(1, Math.ceil((confirmed.length * stage.cutPercent) / 100))
+        : Math.max(1, Math.min(stage.cutCount, confirmed.length));
+    survivorIds = new Set(priorStanding.slice(0, n).map((rp) => rp.player.id));
+  } else {
+    survivorIds = new Set(confirmed.map((p) => p.id));
+  }
+
+  const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.match.deleteMany({ where: { eventId, stageId: stage.id } });
+    for (const g of groups) {
+      const groupPlayerIds = confirmed
+        .filter((p) => p.groupId === g.id && survivorIds.has(p.id))
+        .map((p) => p.id);
+      const schedule = roundRobinSchedule(groupPlayerIds);
+      for (const pairing of schedule) {
+        await tx.match.create({
+          data: {
+            eventId,
+            stageId: stage.id,
+            groupId: g.id,
+            round: pairing.round,
+            playerAId: pairing.aId,
+            playerBId: pairing.bId,
+            holes: emptyHoles,
+          },
+        });
+      }
+    }
+  });
+
+  refresh();
+}
+
 /* ── Scoring rules ────────────────────────────────────────────────────── */
 
 export async function saveScoring(data: {
@@ -300,6 +372,21 @@ export async function setStageCarry(stageId: string, enabled: boolean, pct: numb
     data: {
       carryForwardEnabled: enabled,
       carryForwardPct: Math.min(100, Math.max(0, Math.round(pct / 5) * 5)),
+    },
+  });
+  refresh();
+}
+
+export async function setStageCut(stageId: string, enabled: boolean, mode: string, count: number, percent: number) {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  await prisma.stage.updateMany({
+    where: { id: stageId, eventId },
+    data: {
+      cutEnabled: enabled,
+      cutMode: mode === "percent" ? "percent" : "count",
+      cutCount: Math.max(1, Math.round(count)),
+      cutPercent: Math.min(100, Math.max(1, Math.round(percent))),
     },
   });
   refresh();

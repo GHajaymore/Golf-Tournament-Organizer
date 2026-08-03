@@ -8,10 +8,12 @@ import {
   setStageHoles,
   addStage,
   removeStage,
+  generateNextRound,
 } from "@/app/actions/tournament";
 import { GOLF_FORMATS, SCORED_FORMAT_NAMES } from "@/lib/formats";
 import { ScoringClient } from "./ScoringClient";
 import { QualControl } from "./QualControl";
+import { CutControl } from "./CutControl";
 import type { TiebreakerKey } from "@/lib/domain";
 
 export interface StageView {
@@ -25,6 +27,11 @@ export interface StageView {
   scoringBasis: string;
   carryEnabled: boolean;
   carryPct: number;
+  cutEnabled: boolean;
+  cutMode: string;
+  cutCount: number;
+  cutPercent: number;
+  matchCount: number;
 }
 
 export interface ScoringValues {
@@ -63,6 +70,7 @@ function StageCard({
   scoring,
   tiebreakers,
   qual,
+  confirmedCount,
 }: {
   stage: StageView;
   isFirst: boolean;
@@ -70,6 +78,7 @@ function StageCard({
   scoring: ScoringValues;
   tiebreakers: TiebreakerKey[];
   qual: QualValues;
+  confirmedCount: number;
 }) {
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
@@ -79,6 +88,7 @@ function StageCard({
   const [pct, setPct] = useState(stage.carryPct);
   const [configOpen, setConfigOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [genPending, startGenTransition] = useTransition();
 
   const commitFormat = (v: string) => {
     setFormat(v);
@@ -275,6 +285,50 @@ function StageCard({
               ? `At ${pct}%, a player on 12 pts from the previous stage starts this stage with ${(12 * pct) / 100} pts.`
               : "Disabled — every player starts this stage at zero."}
           </p>
+
+          {stage.type === "Round Robin" && (
+            <div
+              style={{
+                padding: "12px 16px",
+                border: "1px solid var(--color-divider)",
+                borderRadius: "var(--radius-md)",
+                background: "var(--color-bg)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+              }}
+            >
+              <CutControl
+                stageId={stage.id}
+                enabled={stage.cutEnabled}
+                mode={stage.cutMode}
+                count={stage.cutCount}
+                percent={stage.cutPercent}
+                confirmedCount={confirmedCount}
+              />
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={genPending}
+                  onClick={() => startGenTransition(() => generateNextRound(stage.id))}
+                >
+                  <i className="ph ph-arrows-clockwise" /> {stage.matchCount > 0 ? "Regenerate" : "Generate"} Round {stage.position + 1} pairings
+                </button>
+                <span className="text-muted" style={{ fontSize: 12 }}>
+                  {stage.cutEnabled
+                    ? "Builds this round's matches from the previous round's current standings — run it once that round is complete."
+                    : "Builds this round's matches for the full field, from the previous round's flights."}
+                  {stage.matchCount > 0 && " Re-running replaces this round's matches."}
+                </span>
+              </div>
+              {stage.matchCount === 0 && (
+                <span className="tag tag-neutral" style={{ alignSelf: "flex-start" }}>
+                  <i className="ph ph-clock" /> Not generated yet
+                </span>
+              )}
+            </div>
+          )}
         </>
       )}
     </>
@@ -287,12 +341,14 @@ export function StagesClient({
   scoring,
   tiebreakers,
   qual,
+  confirmedCount,
 }: {
   stages: StageView[];
   rrMatchesPerPlayer: number;
   scoring: ScoringValues;
   tiebreakers: TiebreakerKey[];
   qual: QualValues;
+  confirmedCount: number;
 }) {
   const [newType, setNewType] = useState(STAGE_TYPES[0]);
   const [pending, startTransition] = useTransition();
@@ -308,6 +364,7 @@ export function StagesClient({
           scoring={scoring}
           tiebreakers={tiebreakers}
           qual={qual}
+          confirmedCount={confirmedCount}
         />
       ))}
       {stages.length === 0 && (
