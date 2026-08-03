@@ -58,6 +58,8 @@ model Event {
   bracketWinners BracketWinner[]
   commentary     Commentary[]
   scorecards     Scorecard[]
+  prizes         Prize[]
+  announcements  Announcement[]
 }
 
 model Account {
@@ -188,6 +190,35 @@ model Commentary {
   author    String   @default("")
   text      String
   source    String   @default("organizer") // organizer | ai
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+/** A prize / payout line — flight winner, skin, closest-to-pin, etc. */
+model Prize {
+  id       String  @id @default(cuid())
+  eventId  String
+  position Int     @default(0)
+  category String // e.g. "Flight 1 — Winner", "Skins", "Closest to Pin (Hole 7)"
+  detail   String  @default("")
+  amount   Float   @default(0)
+  winnerId String? // optional Player id once awarded
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+/** An announcement pushed to players (schedule change, notice, results). */
+model Announcement {
+  id        String   @id @default(cuid())
+  eventId   String
+  title     String
+  body      String   @default("")
+  pinned    Boolean  @default(false)
   createdAt DateTime @default(now())
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)

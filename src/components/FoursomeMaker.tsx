@@ -12,10 +12,25 @@ const ALGORITHMS: Array<{ key: FormationRule; label: string; icon: string; desc:
 const avg = (nums: number[]) =>
   nums.length ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10 : 0;
 
+/** Add `mins` to an "HH:MM" clock time, returning "H:MM AM/PM". */
+function addMinutes(clock: string, mins: number): string {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(clock.trim());
+  const base = m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : 8 * 60;
+  const t = ((base + mins) % (24 * 60) + 24 * 60) % (24 * 60);
+  let h = Math.floor(t / 60);
+  const mm = String(t % 60).padStart(2, "0");
+  const ap = h < 12 ? "AM" : "PM";
+  h = h % 12 || 12;
+  return `${h}:${mm} ${ap}`;
+}
+
 export function FoursomeMaker({ players }: { players: Player[] }) {
   const [algo, setAlgo] = useState<FormationRule>("random");
   const [size, setSize] = useState(4);
   const [seed, setSeed] = useState(1);
+  const [startType, setStartType] = useState<"tee" | "shotgun">("tee");
+  const [firstTee, setFirstTee] = useState("08:00");
+  const [interval, setInterval] = useState(10);
 
   const byId = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
   const rng = useMemo(() => {
@@ -70,6 +85,34 @@ export function FoursomeMaker({ players }: { players: Player[] }) {
               ))}
             </div>
           </div>
+          <div className="field" style={{ width: 190 }}>
+            <label>Start type</label>
+            <div className="seg" style={{ width: "100%" }}>
+              <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                <input type="radio" name="fsstart" checked={startType === "tee"} onChange={() => setStartType("tee")} /> Tee times
+              </label>
+              <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                <input type="radio" name="fsstart" checked={startType === "shotgun"} onChange={() => setStartType("shotgun")} /> Shotgun
+              </label>
+            </div>
+          </div>
+          <div className="field" style={{ width: 120 }}>
+            <label>First tee</label>
+            <input className="input" type="time" value={firstTee} onChange={(e) => setFirstTee(e.target.value)} />
+          </div>
+          {startType === "tee" && (
+            <div className="field" style={{ width: 130 }}>
+              <label>Interval (min)</label>
+              <input
+                className="input"
+                type="number"
+                min={1}
+                max={30}
+                value={interval}
+                onChange={(e) => setInterval(Math.max(1, parseInt(e.target.value, 10) || 10))}
+              />
+            </div>
+          )}
           <div style={{ flex: 1 }} />
           <span className="text-muted" style={{ fontSize: 12 }}>{groups.length} groups · {summary}</span>
           {algo === "random" && (
@@ -91,6 +134,12 @@ export function FoursomeMaker({ players }: { players: Player[] }) {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontWeight: 600, fontSize: 14 }}>Group {i + 1}</span>
                 <span className="text-muted" style={{ fontSize: 11 }}>avg {avg(gp.map((p) => p.handicap))}</span>
+              </div>
+              <div className="tag tag-accent" style={{ alignSelf: "flex-start", fontSize: 11 }}>
+                <i className="ph ph-clock" style={{ marginRight: 4 }} />
+                {startType === "shotgun"
+                  ? `Hole ${(i % 18) + 1}${i >= 18 ? "B" : ""} · ${addMinutes(firstTee, 0)}`
+                  : `Tee 1 · ${addMinutes(firstTee, i * interval)}`}
               </div>
               {gp.map((p) => (
                 <div key={p.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "3px 0", borderBottom: "1px solid var(--color-divider)" }}>

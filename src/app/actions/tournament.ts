@@ -663,3 +663,71 @@ export async function setConfigUnlocked(unlocked: boolean) {
   await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: unlocked } });
   refresh();
 }
+
+/* ── Prizes & payouts ─────────────────────────────────────────────────── */
+
+export async function addPrize(category: string, amount: number, detail = "") {
+  const eventId = await requireStaffEvent();
+  const clean = category.trim();
+  if (!clean) return;
+  const agg = await prisma.prize.aggregate({ where: { eventId }, _max: { position: true } });
+  await prisma.prize.create({
+    data: {
+      eventId,
+      category: clean,
+      detail: detail.trim(),
+      amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
+      position: (agg._max.position ?? 0) + 1,
+    },
+  });
+  refresh();
+}
+
+export async function updatePrize(prizeId: string, data: { category?: string; detail?: string; amount?: number }) {
+  const eventId = await requireStaffEvent();
+  const patch: { category?: string; detail?: string; amount?: number } = {};
+  if (data.category !== undefined) patch.category = data.category.trim();
+  if (data.detail !== undefined) patch.detail = data.detail.trim();
+  if (data.amount !== undefined) patch.amount = Number.isFinite(data.amount) && data.amount > 0 ? data.amount : 0;
+  await prisma.prize.updateMany({ where: { id: prizeId, eventId }, data: patch });
+  refresh();
+}
+
+export async function setPrizeWinner(prizeId: string, winnerId: string) {
+  const eventId = await requireStaffEvent();
+  await prisma.prize.updateMany({
+    where: { id: prizeId, eventId },
+    data: { winnerId: winnerId || null },
+  });
+  refresh();
+}
+
+export async function removePrize(prizeId: string) {
+  const eventId = await requireStaffEvent();
+  await prisma.prize.deleteMany({ where: { id: prizeId, eventId } });
+  refresh();
+}
+
+/* ── Announcements (player communications) ────────────────────────────── */
+
+export async function addAnnouncement(title: string, body: string, pinned = false) {
+  const eventId = await requireStaffEvent();
+  const clean = title.trim();
+  if (!clean) return;
+  await prisma.announcement.create({
+    data: { eventId, title: clean, body: body.trim(), pinned },
+  });
+  refresh();
+}
+
+export async function toggleAnnouncementPin(announcementId: string, pinned: boolean) {
+  const eventId = await requireStaffEvent();
+  await prisma.announcement.updateMany({ where: { id: announcementId, eventId }, data: { pinned } });
+  refresh();
+}
+
+export async function removeAnnouncement(announcementId: string) {
+  const eventId = await requireStaffEvent();
+  await prisma.announcement.deleteMany({ where: { id: announcementId, eventId } });
+  refresh();
+}

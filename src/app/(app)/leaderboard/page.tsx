@@ -2,7 +2,7 @@ import { requireState } from "@/lib/page-helpers";
 import { computeHighlights, standingRows } from "@/lib/services/tournament";
 import { prisma } from "@/lib/db";
 import { CommentaryPanel } from "@/components/CommentaryPanel";
-import { LeaderboardTable } from "@/components/LeaderboardTable";
+import { LeaderboardBoard } from "@/components/LeaderboardBoard";
 
 function ago(d: Date): string {
   const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
@@ -73,7 +73,7 @@ export default async function LeaderboardPage() {
       )}
 
       <div className="card elev-sm">
-        <LeaderboardTable isStroke={state.isStroke} rows={rows} />
+        <LeaderboardBoard isStroke={state.isStroke} rows={rows} />
         <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
           {state.isStroke
             ? "Net = gross minus course handicap; To-par is versus the holes played. Advancing rows reflect the qualification cutoff."

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireState } from "@/lib/page-helpers";
+import { prisma } from "@/lib/db";
 import { StatCard } from "@/components/PageHeader";
 import { LifecycleBar } from "@/components/LifecycleBar";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
@@ -34,6 +35,12 @@ export default async function DashboardPage() {
   const rows = standingRows(state).slice(0, 8);
   const advancingIds = state.advancingIds;
   const cardsIn = state.strokeStandings.filter((s) => s.thru > 0).length;
+
+  const announcements = await prisma.announcement.findMany({
+    where: { eventId: session.eventId },
+    orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
+    take: 3,
+  });
 
   return (
     <>
@@ -78,6 +85,29 @@ export default async function DashboardPage() {
           rounds: state.stages.length,
         }}
       />
+
+      {announcements.length > 0 && (
+        <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+          {announcements.map((a) => (
+            <div
+              key={a.id}
+              className="card elev-sm"
+              style={{ gap: 4, borderColor: a.pinned ? "var(--color-accent-700)" : undefined }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <i className="ph ph-megaphone" style={{ color: "var(--color-accent-300)" }} />
+                {a.pinned && (
+                  <span className="tag tag-accent"><i className="ph ph-push-pin" /> Pinned</span>
+                )}
+                <span style={{ fontWeight: 600, fontSize: 14 }}>{a.title}</span>
+              </div>
+              {a.body && (
+                <p className="text-muted" style={{ fontSize: 13, margin: 0, whiteSpace: "pre-wrap" }}>{a.body}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {isStaff && (
         <div className="card elev-sm" style={{ marginBottom: 16 }}>

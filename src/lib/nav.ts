@@ -46,11 +46,15 @@ export const NAV: NavSection[] = [
       { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple", player: true },
       { key: "qualification", label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered" },
       { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", player: true },
+      { key: "announcements", label: "Announcements", href: "/announcements", icon: "ph ph-megaphone" },
     ],
   },
   {
     label: "Results",
-    items: [{ key: "reports", label: "Reports & export", href: "/reports", icon: "ph ph-export" }],
+    items: [
+      { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-trophy" },
+      { key: "reports", label: "Reports & export", href: "/reports", icon: "ph ph-export" },
+    ],
   },
 ];
 
