@@ -1,8 +1,8 @@
 import { requireState } from "@/lib/page-helpers";
-import { computeHighlights } from "@/lib/services/tournament";
+import { computeHighlights, standingRows } from "@/lib/services/tournament";
 import { prisma } from "@/lib/db";
 import { CommentaryPanel } from "@/components/CommentaryPanel";
-import { pts, diff } from "@/lib/format";
+import { LeaderboardTable } from "@/components/LeaderboardTable";
 
 function ago(d: Date): string {
   const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
@@ -14,9 +14,8 @@ function ago(d: Date): string {
 
 export default async function LeaderboardPage() {
   const { session, state } = await requireState();
-  const { overall, groups, event } = state;
-  const advancingIds = state.advancingIds;
-  const groupById = new Map(groups.map((g) => [g.id, g]));
+  const { event } = state;
+  const rows = standingRows(state);
   const highlights = computeHighlights(state);
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
   const commentary = await prisma.commentary.findMany({
@@ -46,7 +45,9 @@ export default async function LeaderboardPage() {
           <div className="page-kicker">Live</div>
           <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h2>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            Overall standings across all flights · points breakdown.
+            {state.isStroke
+              ? "Overall standings across all flights · stroke play (gross / net / to-par)."
+              : "Overall standings across all flights · match points breakdown."}
           </p>
         </div>
         <span className="tag tag-accent">
@@ -72,70 +73,11 @@ export default async function LeaderboardPage() {
       )}
 
       <div className="card elev-sm">
-        <div className="table-scroll">
-        <table className="table lb-table">
-          <thead>
-            <tr>
-              <th style={{ width: 40 }}>#</th>
-              <th>Player</th>
-              <th>Flight</th>
-              <th style={{ textAlign: "center" }}>P</th>
-              <th style={{ textAlign: "center" }}>W</th>
-              <th style={{ textAlign: "center" }}>½</th>
-              <th style={{ textAlign: "center" }}>L</th>
-              <th style={{ textAlign: "right" }}>Holes ±</th>
-              <th style={{ textAlign: "right" }}>Pts</th>
-            </tr>
-          </thead>
-          <tbody>
-            {overall.map((r) => {
-              const advancing = advancingIds.has(r.player.id);
-              return (
-                <tr
-                  key={r.player.id}
-                  style={advancing ? { background: "var(--color-accent-900)" } : undefined}
-                >
-                  <td style={{ fontVariantNumeric: "tabular-nums", color: "var(--color-neutral-400)" }}>
-                    {r.rank}
-                  </td>
-                  <td style={{ fontWeight: 500 }}>
-                    {r.player.name}
-                    {advancing && (
-                      <span className="tag tag-accent" style={{ marginLeft: 8, fontSize: 10 }}>
-                        Advancing
-                      </span>
-                    )}
-                  </td>
-                  <td className="text-muted">
-                    {(() => {
-                      const g = groupById.get(r.player.groupId ?? "");
-                      return g ? `Flight ${g.position + 1}` : "—";
-                    })()}
-                  </td>
-                  <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{r.stats.played}</td>
-                  <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{r.stats.wins}</td>
-                  <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{r.stats.ties}</td>
-                  <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{r.stats.losses}</td>
-                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{diff(r.stats)}</td>
-                  <td
-                    style={{
-                      textAlign: "right",
-                      fontWeight: 600,
-                      color: "var(--color-accent-200)",
-                      fontVariantNumeric: "tabular-nums",
-                    }}
-                  >
-                    {pts(r.stats.totalPoints)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        </div>
+        <LeaderboardTable isStroke={state.isStroke} rows={rows} />
         <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
-          Columns: P played, W won, ½ halved, L lost. Advancing rows reflect the current Top{" "}
-          {event.qualifyPerGroup}/flight cutoff and update live as scores are entered.
+          {state.isStroke
+            ? "Net = gross minus course handicap; To-par is versus the holes played. Advancing rows reflect the qualification cutoff."
+            : "Columns: P played, W won, ½ halved, L lost. Advancing rows reflect the current qualification cutoff and update live as scores are entered."}
         </p>
       </div>
 

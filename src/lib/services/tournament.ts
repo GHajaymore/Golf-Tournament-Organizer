@@ -1,5 +1,9 @@
 import "server-only";
 import { prisma } from "../db";
+import { computeStrokeCard } from "../domain";
+import { findCourse } from "../courses";
+import { pts as fmtPts, record as fmtRecord, diff as fmtDiff } from "../format";
+import type { StandingRow } from "@/components/LeaderboardTable";
 import {
   computeStandings,
   groupCutoff,
@@ -77,6 +81,15 @@ export interface GroupStanding {
   cutoff: number | null;
 }
 
+export interface StrokeStanding {
+  player: DbPlayer;
+  gross: number;
+  net: number;
+  toPar: number;
+  thru: number;
+  rank: number;
+}
+
 export interface EventState {
   event: Event;
   scoring: ScoringRules;
@@ -93,6 +106,8 @@ export interface EventState {
   domainMatches: DomainMatch[];
   overall: RankedPlayer[];
   groupStandings: GroupStanding[];
+  isStroke: boolean;
+  strokeStandings: StrokeStanding[];
   advancingCount: number;
   advancingIds: Set<string>;
   pendingConfirmations: number;
@@ -105,13 +120,14 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return null;
 
-  const [accounts, players, groups, stages, matches, bracketWinners] = await Promise.all([
+  const [accounts, players, groups, stages, matches, bracketWinners, scorecards] = await Promise.all([
     prisma.account.findMany({ where: { eventId }, orderBy: { name: "asc" } }),
     prisma.player.findMany({ where: { eventId }, orderBy: { seed: "asc" } }),
     prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
     prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
     prisma.match.findMany({ where: { eventId } }),
     prisma.bracketWinner.findMany({ where: { eventId } }),
+    prisma.scorecard.findMany({ where: { eventId } }),
   ]);
 
   const scoring = scoringFrom(event);
@@ -132,15 +148,60 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     return { group: g, ranked, cutoff: groupCutoff(ranked, event.qualifyPerGroup) };
   });
 
-  // Qualification: top N per flight, or top N overall.
-  const qualifierIds =
-    event.qualifyMode === "overall"
-      ? new Set(overall.slice(0, event.qualifyOverall).map((rp) => rp.player.id))
-      : new Set(
-          groupStandings.flatMap((gs) =>
-            gs.ranked.slice(0, event.qualifyPerGroup).map((rp) => rp.player.id),
-          ),
-        );
+  // Stroke-play standings (from submitted scorecards), used when the event format is stroke.
+  const isStroke = event.format === "stroke";
+  const pars = findCourse(event.course).pars;
+  const strokeAgg = new Map<string, { gross: number; thru: number; parThru: number }>();
+  for (const sc of scorecards) {
+    let strokes: (number | null)[];
+    try {
+      strokes = JSON.parse(sc.strokes) as (number | null)[];
+    } catch {
+      continue;
+    }
+    const a = strokeAgg.get(sc.playerId) ?? { gross: 0, thru: 0, parThru: 0 };
+    strokes.forEach((s, i) => {
+      if (typeof s === "number" && s > 0) {
+        a.gross += s;
+        a.thru += 1;
+        a.parThru += pars[i] ?? 0;
+      }
+    });
+    strokeAgg.set(sc.playerId, a);
+  }
+  const strokeStandings: StrokeStanding[] = confirmed
+    .map((p) => {
+      const a = strokeAgg.get(p.id) ?? { gross: 0, thru: 0, parThru: 0 };
+      return { player: p, gross: a.gross, net: a.gross - Math.round(p.handicap), toPar: a.gross - a.parThru, thru: a.thru, rank: 0 };
+    })
+    .sort((x, y) => (y.thru > 0 ? 1 : 0) - (x.thru > 0 ? 1 : 0) || x.net - y.net || x.gross - y.gross)
+    .map((s, i) => ({ ...s, rank: i + 1 }));
+
+  // Qualification: format-aware — top N by net (stroke) or points (match), per flight or overall.
+  let qualifierIds: Set<string>;
+  if (isStroke) {
+    const scored = strokeStandings.filter((s) => s.thru > 0);
+    if (event.qualifyMode === "overall") {
+      qualifierIds = new Set(scored.slice(0, event.qualifyOverall).map((s) => s.player.id));
+    } else {
+      qualifierIds = new Set<string>();
+      for (const g of groups) {
+        scored
+          .filter((s) => s.player.groupId === g.id)
+          .slice(0, event.qualifyPerGroup)
+          .forEach((s) => qualifierIds.add(s.player.id));
+      }
+    }
+  } else {
+    qualifierIds =
+      event.qualifyMode === "overall"
+        ? new Set(overall.slice(0, event.qualifyOverall).map((rp) => rp.player.id))
+        : new Set(
+            groupStandings.flatMap((gs) =>
+              gs.ranked.slice(0, event.qualifyPerGroup).map((rp) => rp.player.id),
+            ),
+          );
+  }
 
   const advancingIds = qualifierIds;
   const advancingCount = qualifierIds.size;
@@ -155,7 +216,9 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     }
     return resolveMatch(holes).complete && effectiveScoreStatus(m) === "pending";
   }).length;
-  const qualifiers = overall.filter((rp) => qualifierIds.has(rp.player.id)).map((rp) => rp.player);
+  const qualifiers = isStroke
+    ? strokeStandings.filter((s) => qualifierIds.has(s.player.id)).map((s) => toDomainPlayer(s.player))
+    : overall.filter((rp) => qualifierIds.has(rp.player.id)).map((rp) => rp.player);
 
   const advTotals = overall
     .filter((rp) => qualifierIds.has(rp.player.id))
@@ -184,6 +247,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     domainMatches,
     overall,
     groupStandings,
+    isStroke,
+    strokeStandings,
     advancingCount,
     advancingIds,
     pendingConfirmations,
@@ -208,6 +273,55 @@ export function matchProgress(state: EventState): { done: number; total: number;
   return { done, total, pct };
 }
 
+/** Build format-aware standings rows for the leaderboard/dashboard tables. */
+export function standingRows(state: EventState): StandingRow[] {
+  const flightByPlayer = new Map(
+    state.groups.flatMap((g, i) =>
+      state.confirmed.filter((p) => p.groupId === g.id).map((p) => [p.id, `Flight ${i + 1}`] as const),
+    ),
+  );
+  const flight = (id: string) => flightByPlayer.get(id) ?? "—";
+
+  if (state.isStroke) {
+    return state.strokeStandings.map((s) => ({
+      id: s.player.id,
+      rank: s.rank,
+      name: s.player.name,
+      flight: flight(s.player.id),
+      advancing: state.advancingIds.has(s.player.id),
+      record: "",
+      diff: "",
+      pts: "",
+      played: 0,
+      wins: 0,
+      ties: 0,
+      losses: 0,
+      gross: s.gross,
+      net: s.net,
+      toPar: s.toPar,
+      thru: s.thru,
+    }));
+  }
+  return state.overall.map((r) => ({
+    id: r.player.id,
+    rank: r.rank,
+    name: r.player.name,
+    flight: flight(r.player.id),
+    advancing: state.advancingIds.has(r.player.id),
+    record: fmtRecord(r.stats),
+    diff: fmtDiff(r.stats),
+    pts: fmtPts(r.stats.totalPoints),
+    played: r.stats.played,
+    wins: r.stats.wins,
+    ties: r.stats.ties,
+    losses: r.stats.losses,
+    gross: 0,
+    net: 0,
+    toPar: 0,
+    thru: 0,
+  }));
+}
+
 export interface Highlight {
   icon: string;
   title: string;
@@ -218,6 +332,21 @@ export interface Highlight {
 export function computeHighlights(state: EventState): Highlight[] {
   const out: Highlight[] = [];
   const fmt = (n: number) => (Math.round(n * 100) / 100).toString();
+
+  if (state.isStroke) {
+    const scored = state.strokeStandings.filter((s) => s.thru > 0);
+    if (!scored.length) return out;
+    const lead = scored[0];
+    const par = lead.toPar === 0 ? "level par" : lead.toPar > 0 ? `+${lead.toPar}` : `${lead.toPar}`;
+    out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads at ${par} (net ${lead.net}).` });
+    const advancing = scored.filter((s) => state.advancingIds.has(s.player.id));
+    const nonAdv = scored.filter((s) => !state.advancingIds.has(s.player.id));
+    const lastIn = advancing[advancing.length - 1];
+    const firstOut = nonAdv[0];
+    if (lastIn) out.push({ icon: "🎯", title: "Qualification watch", text: `${lastIn.player.name} holds the final qualifying spot at net ${lastIn.net}.` });
+    if (firstOut && lastIn) out.push({ icon: "🚨", title: "Bubble watch", text: `${firstOut.player.name} is ${firstOut.net - lastIn.net} shots outside qualification.` });
+    return out;
+  }
 
   const leader = state.overall[0];
   if (leader && leader.stats.played > 0) {

@@ -15,12 +15,14 @@ export function EntryModes({
   matches,
   isStaff,
   stroke,
+  defaultMode = "match",
 }: {
   matches: EntryMatch[];
   isStaff: boolean;
   stroke: StrokeData;
+  defaultMode?: "match" | "stroke";
 }) {
-  const [mode, setMode] = useState<"match" | "stroke">("match");
+  const [mode, setMode] = useState<"match" | "stroke">(defaultMode);
 
   return (
     <>

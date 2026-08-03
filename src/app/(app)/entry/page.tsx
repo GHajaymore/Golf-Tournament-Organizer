@@ -62,5 +62,12 @@ export default async function EntryPage() {
     cardsByPlayer,
   };
 
-  return <EntryModes matches={matches} isStaff={isStaff} stroke={stroke} />;
+  return (
+    <EntryModes
+      matches={matches}
+      isStaff={isStaff}
+      stroke={stroke}
+      defaultMode={state.event.format === "stroke" ? "stroke" : "match"}
+    />
+  );
 }

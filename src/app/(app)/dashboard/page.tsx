@@ -2,8 +2,9 @@ import Link from "next/link";
 import { requireState } from "@/lib/page-helpers";
 import { StatCard } from "@/components/PageHeader";
 import { LifecycleBar } from "@/components/LifecycleBar";
-import { matchProgress } from "@/lib/services/tournament";
-import { pts, record, diff, shortName } from "@/lib/format";
+import { LeaderboardTable } from "@/components/LeaderboardTable";
+import { matchProgress, standingRows } from "@/lib/services/tournament";
+import { pts, shortName } from "@/lib/format";
 
 const QUICK_ACTIONS = [
   { label: "Players", href: "/registration", icon: "ph ph-user-plus", staff: true },
@@ -30,8 +31,10 @@ export default async function DashboardPage() {
   const isAdmin = session.viewRole === "admin";
   const quickActions = QUICK_ACTIONS.filter((a) => (isStaff ? true : !a.staff));
 
-  const top = overall.slice(0, 8);
+  const isStroke = state.isStroke;
+  const rows = standingRows(state).slice(0, 8);
   const advancingIds = state.advancingIds;
+  const cardsIn = state.strokeStandings.filter((s) => s.thru > 0).length;
 
   return (
     <>
@@ -108,7 +111,11 @@ export default async function DashboardPage() {
 
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <StatCard label="Players" value={state.confirmed.length} sub={`${state.groups.length} flights`} icon="ph ph-users-three" />
-        <StatCard label="Matches complete" value={`${progress.done}/${progress.total}`} sub={`${progress.pct}% of round robin`} icon="ph ph-check-circle" />
+        {isStroke ? (
+          <StatCard label="Cards in" value={`${cardsIn}/${state.confirmed.length}`} sub={`${state.confirmed.length ? Math.round((cardsIn / state.confirmed.length) * 100) : 0}% submitted`} icon="ph ph-cards" />
+        ) : (
+          <StatCard label="Matches complete" value={`${progress.done}/${progress.total}`} sub={`${progress.pct}% of round robin`} icon="ph ph-check-circle" />
+        )}
         <StatCard label="Awaiting review" value={state.pendingConfirmations} sub={state.pendingConfirmations === 1 ? "score to confirm" : "scores to confirm"} icon="ph ph-seal-check" />
         <StatCard label="Advancing" value={advancingCount} sub={`of ${state.confirmed.length} players`} icon="ph ph-flag-checkered" />
       </div>
@@ -119,48 +126,7 @@ export default async function DashboardPage() {
             <span className="card-title">Live leaderboard</span>
             <span className="text-muted" style={{ fontSize: 12 }}>Overall · all flights</span>
           </div>
-          <div className="table-scroll">
-          <table className="table">
-            <thead>
-              <tr>
-                <th style={{ width: 36 }}>#</th>
-                <th>Player</th>
-                <th>Fl</th>
-                <th>Rec</th>
-                <th style={{ textAlign: "right" }}>Holes ±</th>
-                <th style={{ textAlign: "right" }}>Pts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {top.map((r) => {
-                const g = state.groups.find((x) => x.id === r.player.groupId);
-                const isTop = r.rank <= 3;
-                return (
-                  <tr key={r.player.id}>
-                    <td>
-                      <span
-                        className="rank-badge"
-                        style={{
-                          background: isTop ? "var(--color-accent-800)" : "transparent",
-                          color: isTop ? "var(--color-accent-100)" : "var(--color-neutral-400)",
-                        }}
-                      >
-                        {r.rank}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 500 }}>{r.player.name}</td>
-                    <td className="text-muted">{g ? g.position + 1 : "—"}</td>
-                    <td className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{record(r.stats)}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{diff(r.stats)}</td>
-                    <td style={{ textAlign: "right", fontWeight: 600, color: "var(--color-accent-200)", fontVariantNumeric: "tabular-nums" }}>
-                      {pts(r.stats.totalPoints)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          </div>
+          <LeaderboardTable isStroke={isStroke} rows={rows} compact />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -182,10 +148,10 @@ export default async function DashboardPage() {
               </div>
             </div>
             <div style={{ marginTop: 12, height: 8, borderRadius: 6, background: "var(--color-neutral-800)", overflow: "hidden" }}>
-              <div style={{ height: "100%", background: "var(--color-accent)", width: `${progress.pct}%` }} />
+              <div style={{ height: "100%", background: "var(--color-accent)", width: `${isStroke ? (state.confirmed.length ? Math.round((cardsIn / state.confirmed.length) * 100) : 0) : progress.pct}%` }} />
             </div>
             <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
-              {progress.done}/{progress.total} matches complete
+              {isStroke ? `${cardsIn}/${state.confirmed.length} scorecards in` : `${progress.done}/${progress.total} matches complete`}
             </div>
           </div>
 
