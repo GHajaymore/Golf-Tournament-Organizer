@@ -1,7 +1,8 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession, setActiveEvent } from "@/lib/auth";
+import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule } from "@/lib/services/regroup";
 import { marginToHoles, resolveMatch, TIEBREAKER_KEYS } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
@@ -585,6 +586,38 @@ export async function createEvent(name: string) {
   });
   await setActiveEvent(event.id);
   refresh();
+}
+
+/** Delete a tournament (primary Organizer only). Re-anchors the session so the
+ *  organizer isn't stranded, then lands on a surviving tournament. */
+export async function deleteEvent(eventId: string) {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  const acct = await prisma.account.findFirst({
+    where: { eventId, email: session.email, role: "admin" },
+  });
+  if (!acct) throw new Error("Only the organizer can delete a tournament");
+
+  await prisma.event.delete({ where: { id: eventId } }); // cascades to all children
+
+  // Anchor to the current event if it survived, else any remaining event of theirs.
+  const current = await prisma.account.findFirst({
+    where: { email: session.email, eventId: session.eventId },
+  });
+  const anchor =
+    current ??
+    (await prisma.account.findFirst({
+      where: { email: session.email },
+      orderBy: { event: { createdAt: "desc" } },
+    }));
+
+  if (!anchor) {
+    await destroySession();
+    redirect("/");
+  }
+  await createSession(anchor.id);
+  await setActiveEvent(anchor.eventId);
+  redirect("/dashboard");
 }
 
 /* ── Lifecycle ────────────────────────────────────────────────────────── */

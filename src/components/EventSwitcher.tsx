@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { switchEvent, createEvent } from "@/app/actions/tournament";
+import { switchEvent, createEvent, deleteEvent } from "@/app/actions/tournament";
 
 export interface EventRow {
   id: string;
@@ -23,6 +23,7 @@ const STATUS: Record<string, { label: string; tag: string }> = {
 
 export function EventSwitcher({ events }: { events: EventRow[] }) {
   const [name, setName] = useState("");
+  const [confirmingId, setConfirmingId] = useState("");
   const [pending, startTransition] = useTransition();
 
   return (
@@ -56,15 +57,36 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
                   <td className="text-muted">{e.course || "—"}</td>
                   <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{e.players}</td>
                   <td style={{ textAlign: "right" }}>
-                    {e.isActive ? (
-                      <span className="tag tag-outline">Managing</span>
-                    ) : e.hasAccess ? (
-                      <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => startTransition(() => switchEvent(e.id))}>
-                        Manage
-                      </button>
-                    ) : (
-                      <span className="text-muted" style={{ fontSize: 12 }}>No access</span>
-                    )}
+                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
+                      {confirmingId === e.id ? (
+                        <>
+                          <span className="text-muted" style={{ fontSize: 12 }}>Delete?</span>
+                          <button type="button" className="btn btn-icon" title="Confirm delete" disabled={pending} style={{ color: "var(--color-accent)" }} onClick={() => startTransition(() => deleteEvent(e.id))}>
+                            <i className="ph ph-check" />
+                          </button>
+                          <button type="button" className="btn btn-icon" title="Cancel" onClick={() => setConfirmingId("")}>
+                            <i className="ph ph-x" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {e.isActive ? (
+                            <span className="tag tag-outline">Managing</span>
+                          ) : e.hasAccess ? (
+                            <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => startTransition(() => switchEvent(e.id))}>
+                              Manage
+                            </button>
+                          ) : (
+                            <span className="text-muted" style={{ fontSize: 12 }}>No access</span>
+                          )}
+                          {e.hasAccess && (
+                            <button type="button" className="btn btn-icon" title="Delete tournament" disabled={pending} onClick={() => setConfirmingId(e.id)}>
+                              <i className="ph ph-trash" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
