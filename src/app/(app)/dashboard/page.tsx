@@ -12,7 +12,7 @@ const QUICK_ACTIONS = [
   { label: "Flights", href: "/grouping", icon: "ph ph-squares-four", staff: true },
   { label: "Rounds", href: "/stages", icon: "ph ph-stack", staff: true },
   { label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered", staff: true },
-  { label: "Foursomes", href: "/foursomes", icon: "ph ph-users-four", staff: true },
+  { label: "Tee sheet", href: "/foursomes", icon: "ph ph-users-four", staff: true },
   { label: "Scorecards", href: "/scorecard", icon: "ph ph-cards", staff: true },
   { label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", staff: true },
   { label: "Reports", href: "/reports", icon: "ph ph-export", staff: true },
