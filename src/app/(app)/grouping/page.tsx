@@ -1,16 +1,15 @@
-import { requireScreen } from "@/lib/page-helpers";
+import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState } from "@/lib/services/tournament";
-import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { GroupingControls } from "@/components/GroupingControls";
+import { SetupLockBanner } from "@/components/SetupLockBanner";
 import type { FormationRule } from "@/lib/domain";
 
 export default async function GroupingPage() {
-  await requireScreen("grouping");
-  const session = await getSession();
-  if (!session) redirect("/");
+  const session = await requireScreen("grouping");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
+  const locked = isSetupLocked(state.event);
 
   const cards = state.groups.map((g, i) => {
     const players = state.confirmed.filter((p) => p.groupId === g.id).sort((a, b) => a.handicap - b.handicap);
@@ -28,12 +27,14 @@ export default async function GroupingPage() {
   return (
     <>
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Setup</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Flights</h2>
+        <div className="page-kicker">Set up</div>
+        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Flights &amp; divisions</h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Divide the field into flights. Pick a formation rule, preview the result, then generate.
         </p>
       </div>
+
+      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
 
       <GroupingControls
         players={state.confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }))}

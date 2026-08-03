@@ -1,18 +1,19 @@
-import { requireScreen } from "@/lib/page-helpers";
+import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState } from "@/lib/services/tournament";
-import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { RegistrationClient } from "@/components/RegistrationClient";
+import { SetupLockBanner } from "@/components/SetupLockBanner";
 
 export default async function RegistrationPage() {
-  await requireScreen("registration");
-  const session = await getSession();
-  if (!session) redirect("/");
+  const session = await requireScreen("registration");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
+  const locked = isSetupLocked(state.event);
 
   return (
-    <RegistrationClient
+    <>
+      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
+      <RegistrationClient
       event={{
         name: state.event.name,
         capacity: state.event.capacity,
@@ -24,6 +25,7 @@ export default async function RegistrationPage() {
       }}
       confirmed={state.confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed, email: p.email, phone: p.phone }))}
       waitlist={state.waitlist.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed, email: p.email, phone: p.phone }))}
-    />
+      />
+    </>
   );
 }

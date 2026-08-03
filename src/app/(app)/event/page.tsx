@@ -1,10 +1,10 @@
-import { requireScreen } from "@/lib/page-helpers";
+import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState } from "@/lib/services/tournament";
-import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { EventSetupClient } from "@/components/EventSetupClient";
 import { EventSwitcher } from "@/components/EventSwitcher";
+import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { COURSES } from "@/lib/courses";
 
 export default async function EventPage() {
@@ -12,6 +12,7 @@ export default async function EventPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const e = state.event;
+  const locked = isSetupLocked(state.event);
 
   const allEvents = await prisma.event.findMany({
     orderBy: { createdAt: "desc" },
@@ -34,7 +35,7 @@ export default async function EventPage() {
   return (
     <>
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Setup</div>
+        <div className="page-kicker">Set up</div>
         <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Event setup</h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Manage your tournaments, or configure the one you're running.
@@ -42,6 +43,8 @@ export default async function EventPage() {
       </div>
 
       <EventSwitcher events={eventRows} />
+
+      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
 
       <div style={{ marginBottom: 12 }}>
         <span className="card-kicker">Editing · {e.name || "Untitled tournament"}</span>

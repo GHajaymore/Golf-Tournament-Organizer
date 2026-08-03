@@ -1,15 +1,14 @@
-import { requireScreen } from "@/lib/page-helpers";
+import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState } from "@/lib/services/tournament";
-import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { StagesClient } from "@/components/StagesClient";
+import { SetupLockBanner } from "@/components/SetupLockBanner";
 
 export default async function StagesPage() {
-  await requireScreen("stages");
-  const session = await getSession();
-  if (!session) redirect("/");
+  const session = await requireScreen("stages");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
+  const locked = isSetupLocked(state.event);
 
   const stages = state.stages.map((s) => ({
     id: s.id,
@@ -33,12 +32,13 @@ export default async function StagesPage() {
   return (
     <>
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Competition</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Round builder</h2>
+        <div className="page-kicker">Set up</div>
+        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Rounds &amp; format</h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Sequence the tournament — add as many rounds as you need, each feeding the next.
         </p>
       </div>
+      <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
       <StagesClient stages={stages} rrMatchesPerPlayer={rrMatchesPerPlayer} />
     </>
   );

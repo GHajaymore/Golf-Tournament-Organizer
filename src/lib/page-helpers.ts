@@ -25,6 +25,11 @@ export async function requireState(): Promise<{ session: Session; state: EventSt
   return { session, state };
 }
 
+/** Setup config is frozen once the event is live/completed, unless the organizer unlocked it. */
+export function isSetupLocked(event: { status: string; configUnlocked: boolean }): boolean {
+  return (event.status === "live" || event.status === "completed") && !event.configUnlocked;
+}
+
 export function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";

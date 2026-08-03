@@ -61,6 +61,7 @@ export interface SignupInput {
 
 export async function addSignup(input: SignupInput) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   const clean = input.name.trim();
   if (!clean) return;
   const event = await prisma.event.findUnique({ where: { id: eventId } });
@@ -90,6 +91,7 @@ export async function addSignup(input: SignupInput) {
 
 export async function removeSignup(playerId: string) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player || player.eventId !== eventId) return;
   await prisma.player.delete({ where: { id: playerId } });
@@ -106,6 +108,7 @@ export async function removeSignup(playerId: string) {
 
 export async function importCsvSignups(csv: string) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return;
   const rows = csv
@@ -256,6 +259,7 @@ export async function saveScoring(data: {
   bonusPts: number;
 }) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -271,6 +275,7 @@ export async function saveScoring(data: {
 
 export async function setQualifyPerGroup(n: number) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   await prisma.event.update({
     where: { id: eventId },
     data: { qualifyPerGroup: Math.min(3, Math.max(1, Math.round(n))) },
@@ -282,12 +287,14 @@ export async function setQualifyPerGroup(n: number) {
 
 export async function setStageDeadline(stageId: string, deadline: string) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline } });
   refresh();
 }
 
 export async function setStageCarry(stageId: string, enabled: boolean, pct: number) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: {
@@ -300,6 +307,7 @@ export async function setStageCarry(stageId: string, enabled: boolean, pct: numb
 
 export async function setStageScoringBasis(stageId: string, basis: string) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   const value = ["gross", "net", "both"].includes(basis) ? basis : "gross";
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
@@ -310,6 +318,7 @@ export async function setStageScoringBasis(stageId: string, basis: string) {
 
 export async function setStageFormat(stageId: string, format: string) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   const value = FORMAT_NAMES.includes(format) ? format : "Match Play";
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { format: value } });
   refresh();
@@ -317,6 +326,7 @@ export async function setStageFormat(stageId: string, format: string) {
 
 export async function setStageHoles(stageId: string, holes: number) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { holes: holes === 9 ? 9 : 18 },
@@ -328,6 +338,7 @@ export async function setStageHoles(stageId: string, holes: number) {
 
 export async function saveTiebreakers(order: string[]) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   const valid = order.filter((k) => (TIEBREAKER_KEYS as string[]).includes(k));
   await prisma.event.update({
     where: { id: eventId },
@@ -338,6 +349,7 @@ export async function saveTiebreakers(order: string[]) {
 
 export async function setQualifyMode(mode: string, overall: number) {
   const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
   await prisma.event.update({
     where: { id: eventId },
     data: {

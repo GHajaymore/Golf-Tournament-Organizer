@@ -14,6 +14,9 @@ export interface NavSection {
   items: NavItem[];
 }
 
+// Navigation follows the real event lifecycle an organizer works through:
+// Overview (monitor) → Set up (define the event, locked once live) →
+// Manage (run the live competition) → Results (publish & export).
 export const NAV: NavSection[] = [
   {
     label: "Overview",
@@ -23,35 +26,32 @@ export const NAV: NavSection[] = [
     ],
   },
   {
-    label: "Setup",
+    // Everything that defines the tournament. Locks when the event goes live.
+    label: "Set up",
     items: [
       { key: "event", label: "Event setup", href: "/event", icon: "ph ph-gear-six", adminOnly: true },
       { key: "registration", label: "Registration", href: "/registration", icon: "ph ph-user-plus" },
       { key: "roster", label: "Player roster", href: "/roster", icon: "ph ph-users-three" },
-      { key: "grouping", label: "Flights", href: "/grouping", icon: "ph ph-squares-four" },
-      { key: "access", label: "Access control", href: "/access", icon: "ph ph-shield-check", adminOnly: true },
+      { key: "grouping", label: "Flights & divisions", href: "/grouping", icon: "ph ph-squares-four" },
+      { key: "stages", label: "Rounds & format", href: "/stages", icon: "ph ph-stack" },
+      { key: "scoring", label: "Match Points", href: "/scoring", icon: "ph ph-sliders" },
+      { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check", adminOnly: true },
     ],
   },
   {
-    label: "Competition",
+    // Running the live competition — always available once play begins.
+    label: "Manage",
     items: [
-      { key: "stages", label: "Round builder", href: "/stages", icon: "ph ph-stack" },
-      { key: "scoring", label: "Match Points", href: "/scoring", icon: "ph ph-sliders" },
+      { key: "foursomes", label: "Tee sheet & pairings", href: "/foursomes", icon: "ph ph-users-four" },
+      { key: "scorecard", label: "Scorecards", href: "/scorecard", icon: "ph ph-cards" },
+      { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple", player: true },
       { key: "qualification", label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered" },
       { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", player: true },
     ],
   },
   {
-    label: "Scoring",
-    items: [
-      { key: "foursomes", label: "Foursome maker", href: "/foursomes", icon: "ph ph-users-four" },
-      { key: "scorecard", label: "Scorecard generator", href: "/scorecard", icon: "ph ph-cards" },
-      { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple", player: true },
-    ],
-  },
-  {
-    label: "Reports",
-    items: [{ key: "reports", label: "Reports / Export", href: "/reports", icon: "ph ph-export" }],
+    label: "Results",
+    items: [{ key: "reports", label: "Reports & export", href: "/reports", icon: "ph ph-export" }],
   },
 ];
 
