@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useTransition } from "react";
 import { addSignup, removeSignup, importCsvSignups, setInviteMessage } from "@/app/actions/tournament";
+import { SetupLockBanner } from "./SetupLockBanner";
 
 interface Signup {
   id: string;
@@ -9,6 +10,7 @@ interface Signup {
   seed: number;
   email?: string;
   phone?: string;
+  flight?: string;
 }
 interface EventInfo {
   name: string;
@@ -24,10 +26,14 @@ export function RegistrationClient({
   event,
   confirmed,
   waitlist,
+  locked,
+  isAdmin,
 }: {
   event: EventInfo;
   confirmed: Signup[];
   waitlist: Signup[];
+  locked: boolean;
+  isAdmin: boolean;
 }) {
   const [name, setName] = useState("");
   const [handicap, setHandicap] = useState("");
@@ -104,7 +110,7 @@ export function RegistrationClient({
     }
   };
 
-  const table = (rows: Signup[], title: string) => (
+  const table = (rows: Signup[], title: string, showFlight: boolean) => (
     <div className="card elev-sm">
       <span className="card-title" style={{ fontSize: 15 }}>{title} ({rows.length})</span>
       <div className="table-scroll">
@@ -115,6 +121,7 @@ export function RegistrationClient({
               <th>Player</th>
               <th>Contact</th>
               <th style={{ textAlign: "right" }}>Hcp</th>
+              {showFlight && <th>Flight</th>}
               <th style={{ width: 44 }} />
             </tr>
           </thead>
@@ -125,15 +132,16 @@ export function RegistrationClient({
                 <td style={{ fontWeight: 500 }}>{p.name}</td>
                 <td className="text-muted" style={{ fontSize: 12 }}>{p.email || p.phone || "—"}</td>
                 <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{p.handicap}</td>
+                {showFlight && <td className="text-muted">{p.flight || "—"}</td>}
                 <td style={{ textAlign: "right" }}>
-                  <button type="button" className="btn btn-icon" disabled={pending} onClick={() => startTransition(() => removeSignup(p.id))}>
+                  <button type="button" className="btn btn-icon" disabled={pending || locked} onClick={() => startTransition(() => removeSignup(p.id))}>
                     <i className="ph ph-x" />
                   </button>
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={5} className="text-muted" style={{ padding: "10px 6px" }}>None yet.</td></tr>
+              <tr><td colSpan={showFlight ? 6 : 5} className="text-muted" style={{ padding: "10px 6px" }}>None yet.</td></tr>
             )}
           </tbody>
         </table>
@@ -144,12 +152,14 @@ export function RegistrationClient({
   return (
     <>
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Setup</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Registration</h2>
+        <div className="page-kicker">Set up</div>
+        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Registration &amp; field</h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Collect the details you need to run the event. Confirmed players fill up to capacity; overflow waitlists.
         </p>
       </div>
+
+      <SetupLockBanner locked={locked} isAdmin={isAdmin} />
 
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <div className="card elev-sm" style={{ gap: 2 }}>
@@ -231,8 +241,8 @@ export function RegistrationClient({
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {table(confirmed, "Confirmed field")}
-          {table(waitlist, "Waitlist")}
+          {table(confirmed, "Confirmed field", true)}
+          {table(waitlist, "Waitlist", false)}
         </div>
       </div>
     </>

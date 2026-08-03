@@ -1,18 +1,7 @@
 "use client";
 import { useState } from "react";
-
-export interface SnapshotRow {
-  rank: number;
-  name: string;
-  group: string;
-  played: number;
-  wins: number;
-  ties: number;
-  losses: number;
-  diff: number;
-  points: string;
-  advancing: boolean;
-}
+import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
+import { toParText } from "@/lib/domain";
 
 function download(filename: string, rows: string[][]) {
   const csv = rows.map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(",")).join("\n");
@@ -25,33 +14,48 @@ function download(filename: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
-export function ReportsClient({ rows, eventName }: { rows: SnapshotRow[]; eventName: string }) {
+export function ReportsClient({
+  rows,
+  isStroke,
+  eventName,
+}: {
+  rows: StandingRow[];
+  isStroke: boolean;
+  eventName: string;
+}) {
   const [note, setNote] = useState("");
+  const status = (r: StandingRow) => (r.advancing ? "Advancing" : "Eliminated");
 
   const fullStandings = () => {
-    download(`${eventName}-standings.csv`, [
-      ["Rank", "Player", "Flight", "Played", "Wins", "Halved", "Losses", "Holes+/-", "Points", "Status"],
-      ...rows.map((r) => [
-        String(r.rank), r.name, r.group, String(r.played), String(r.wins), String(r.ties),
-        String(r.losses), String(r.diff), r.points, r.advancing ? "Advancing" : "Eliminated",
-      ]),
-    ]);
+    const header = isStroke
+      ? ["Rank", "Player", "Flight", "Thru", "Gross", "Net", "To par", "Status"]
+      : ["Rank", "Player", "Flight", "Played", "Wins", "Halved", "Losses", "Holes+/-", "Points", "Status"];
+    const body = rows.map((r) =>
+      isStroke
+        ? [String(r.rank), r.name, r.flight, String(r.thru), String(r.gross), String(r.net), toParText(r.toPar), status(r)]
+        : [String(r.rank), r.name, r.flight, String(r.played), String(r.wins), String(r.ties), String(r.losses), r.diff, r.pts, status(r)],
+    );
+    download(`${eventName}-standings.csv`, [header, ...body]);
   };
+
   const groupResults = () => {
+    const scoreCol = isStroke ? "Net" : "Points";
+    const scoreVal = (r: StandingRow) => (isStroke ? String(r.net) : r.pts);
     download(`${eventName}-flight-results.csv`, [
-      ["Flight", "Rank", "Player", "Points", "Status"],
+      ["Flight", "Rank", "Player", scoreCol, "Status"],
       ...[...rows]
-        .sort((a, b) => a.group.localeCompare(b.group) || a.rank - b.rank)
-        .map((r) => [r.group, String(r.rank), r.name, r.points, r.advancing ? "Advancing" : "Eliminated"]),
+        .sort((a, b) => a.flight.localeCompare(b.flight) || a.rank - b.rank)
+        .map((r) => [r.flight, String(r.rank), r.name, scoreVal(r), status(r)]),
     ]);
   };
+
   const pdfStub = (kind: string) => setNote(`${kind} PDF export is stubbed in this build — wire up a server-side PDF renderer to enable it.`);
 
   const exports = [
-    { label: "Full standings", desc: "Every player, ranked, with record and points.", icon: "ph ph-table", action: fullStandings, kind: "csv" },
+    { label: "Full standings", desc: "Every player, ranked, with results and status.", icon: "ph ph-table", action: fullStandings, kind: "csv" },
     { label: "Flight results", desc: "Per-flight finishing order and advancing status.", icon: "ph ph-squares-four", action: groupResults, kind: "csv" },
     { label: "Bracket sheet", desc: "Winners & Consolation bracket as a printable sheet.", icon: "ph ph-tree-structure", action: () => pdfStub("Bracket sheet"), kind: "pdf" },
-    { label: "Scorecards", desc: "Match-play scorecards for the field.", icon: "ph ph-cards", action: () => pdfStub("Scorecards"), kind: "pdf" },
+    { label: "Scorecards", desc: "Scorecards for the field.", icon: "ph ph-cards", action: () => pdfStub("Scorecards"), kind: "pdf" },
   ];
 
   return (
@@ -73,34 +77,13 @@ export function ReportsClient({ rows, eventName }: { rows: SnapshotRow[]; eventN
         {note && <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{note}</p>}
       </div>
       <div className="card elev-sm">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Final standings snapshot</span>
           <button type="button" className="btn btn-secondary" onClick={() => window.print()}>
             <i className="ph ph-printer" /> Print
           </button>
         </div>
-        <table className="table" style={{ fontSize: 13 }}>
-          <thead>
-            <tr>
-              <th style={{ width: 36 }}>#</th>
-              <th>Player</th>
-              <th>Flight</th>
-              <th>Status</th>
-              <th style={{ textAlign: "right" }}>Pts</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={`${r.rank}-${r.name}`} style={r.advancing ? { background: "var(--color-accent-900)" } : undefined}>
-                <td style={{ color: "var(--color-neutral-500)" }}>{r.rank}</td>
-                <td style={{ fontWeight: 500 }}>{r.name}</td>
-                <td className="text-muted">{r.group}</td>
-                <td><span className={`tag ${r.advancing ? "tag-accent" : "tag-neutral"}`}>{r.advancing ? "Advancing" : "Eliminated"}</span></td>
-                <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{r.points}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <LeaderboardTable isStroke={isStroke} rows={rows} />
       </div>
     </div>
   );

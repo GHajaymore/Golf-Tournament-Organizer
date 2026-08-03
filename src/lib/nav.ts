@@ -30,8 +30,7 @@ export const NAV: NavSection[] = [
     label: "Set up",
     items: [
       { key: "event", label: "Event setup", href: "/event", icon: "ph ph-gear-six", adminOnly: true },
-      { key: "registration", label: "Registration", href: "/registration", icon: "ph ph-user-plus" },
-      { key: "roster", label: "Player roster", href: "/roster", icon: "ph ph-users-three" },
+      { key: "registration", label: "Registration & field", href: "/registration", icon: "ph ph-user-plus" },
       { key: "grouping", label: "Flights & divisions", href: "/grouping", icon: "ph ph-squares-four" },
       { key: "stages", label: "Rounds & format", href: "/stages", icon: "ph ph-stack" },
       { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check", adminOnly: true },

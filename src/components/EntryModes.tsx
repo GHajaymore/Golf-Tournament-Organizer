@@ -27,7 +27,7 @@ export function EntryModes({
   return (
     <>
       <div style={{ marginBottom: 16 }}>
-        <div className="page-kicker">Scoring</div>
+        <div className="page-kicker">Manage</div>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Score entry</h2>
           <div className="seg">

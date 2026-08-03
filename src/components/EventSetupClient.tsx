@@ -238,11 +238,11 @@ export function EventSetupClient({
         <div className="card elev-sm">
           <span className="card-title" style={{ fontSize: 15 }}>Recommended flow</span>
           <ol style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.9, color: "var(--color-text)" }}>
-            <li>Registration → Player roster</li>
-            <li>Flights → Round builder</li>
-            <li>Match Points → Qualification</li>
-            <li>Launch → run rounds & enter scores</li>
-            <li>Brackets → Reports</li>
+            <li>Registration &amp; field → Flights</li>
+            <li>Rounds &amp; format (Match Points, Qualification)</li>
+            <li>Launch → setup locks</li>
+            <li>Tee sheet → run rounds &amp; enter scores</li>
+            <li>Bracket → Prizes &amp; Reports</li>
           </ol>
         </div>
       </div>

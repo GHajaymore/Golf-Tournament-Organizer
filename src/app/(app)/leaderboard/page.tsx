@@ -42,7 +42,7 @@ export default async function LeaderboardPage() {
         }}
       >
         <div>
-          <div className="page-kicker">Live</div>
+          <div className="page-kicker">Overview</div>
           <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h2>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {state.isStroke

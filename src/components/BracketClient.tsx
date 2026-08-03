@@ -104,7 +104,7 @@ export function BracketClient({
     <>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div className="page-kicker">Bracket</div>
+          <div className="page-kicker">Manage</div>
           <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>{readOnly ? "Live bracket" : "Bracket manager"}</h2>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {readOnly
