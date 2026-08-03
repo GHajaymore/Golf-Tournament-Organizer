@@ -167,7 +167,6 @@ function StageCard({
               <span className="tag tag-neutral"><i className="ph ph-clock" /> Not generated yet</span>
             )}
           </div>
-          <div className="text-muted" style={{ fontSize: 13, marginTop: 2 }}>{description}</div>
         </div>
         <div className="field" style={{ width: 200 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -175,7 +174,7 @@ function StageCard({
             <button
               type="button"
               onClick={() => setFormatInfoOpen((o) => !o)}
-              title="What is this format?"
+              title="About this round"
               style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--color-neutral-500)", display: "inline-flex" }}
             >
               <i className="ph ph-info" style={{ fontSize: 13 }} />
@@ -209,10 +208,15 @@ function StageCard({
         </button>
       </div>
 
-      {formatInfoOpen && activeFormat && (
-        <p className="text-muted" style={{ fontSize: 12, margin: "-8px 0 0 60px" }}>
-          <b style={{ color: "var(--color-accent-300)" }}>{activeFormat.name}</b> — {activeFormat.desc}
-        </p>
+      {formatInfoOpen && (
+        <div className="text-muted" style={{ fontSize: 12, margin: "-8px 0 0 60px", display: "flex", flexDirection: "column", gap: 4 }}>
+          <p style={{ margin: 0 }}>{description}</p>
+          {activeFormat && (
+            <p style={{ margin: 0 }}>
+              <b style={{ color: "var(--color-accent-300)" }}>{activeFormat.name}</b> — {activeFormat.desc}
+            </p>
+          )}
+        </div>
       )}
 
       <div>
