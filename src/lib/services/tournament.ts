@@ -100,10 +100,15 @@ export interface EventState {
   groups: DbGroup[];
   stages: DbStage[];
   matches: DbMatch[];
-  /** Round-robin matches (stage 0), the pool standings derive from. */
+  /** Every Round Robin stage, in play order — a tournament can sequence more than one. */
+  rrStages: DbStage[];
+  /** The current/most recent Round Robin round — what score entry and "current round" default to. */
+  activeStage: DbStage | null;
+  /** Matches for the active Round Robin stage only. */
   rrMatches: DbMatch[];
   domainPlayers: Player[];
   domainMatches: DomainMatch[];
+  /** Final standings after the full Round Robin sequence, chaining carried points stage to stage. */
   overall: RankedPlayer[];
   groupStandings: GroupStanding[];
   isStroke: boolean;
@@ -134,19 +139,45 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const confirmed = players.filter((p) => p.status === "confirmed");
   const waitlist = players.filter((p) => p.status === "waitlisted");
 
-  // Standings derive from the round-robin stage (position 0) match pool.
-  const rrStage = stages.find((s) => s.type === "Round Robin") ?? stages[0];
-  const rrMatches = matches.filter((m) => rrStage && m.stageId === rrStage.id);
-  const domainMatches = rrMatches.map(toDomainMatch);
+  // Standings chain through every Round Robin stage in order: each stage scores
+  // its own matches, and — when the next stage has "carry forward" enabled —
+  // feeds its totalPoints (scaled by that stage's carry %) in as the next
+  // stage's starting points. The final stage's numbers are the tournament's
+  // standings; a single Round Robin stage behaves exactly as before.
+  const rrStages = stages.filter((s) => s.type === "Round Robin");
   const domainPlayers = confirmed.map(toDomainPlayer);
 
-  const overall = computeStandings(domainPlayers, domainMatches, scoring);
-
-  const groupStandings: GroupStanding[] = groups.map((g) => {
+  let carried: Record<string, number> = {};
+  let overall: RankedPlayer[] = computeStandings(domainPlayers, [], scoring);
+  let groupStandings: GroupStanding[] = groups.map((g) => {
     const gp = confirmed.filter((p) => p.groupId === g.id).map(toDomainPlayer);
-    const ranked = computeStandings(gp, domainMatches, scoring);
+    const ranked = computeStandings(gp, [], scoring);
     return { group: g, ranked, cutoff: groupCutoff(ranked, event.qualifyPerGroup) };
   });
+  let activeDomainMatches: DomainMatch[] = [];
+
+  for (let i = 0; i < rrStages.length; i += 1) {
+    const stage = rrStages[i];
+    const stageMatches = matches.filter((m) => m.stageId === stage.id).map(toDomainMatch);
+    const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
+
+    overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn);
+    groupStandings = groups.map((g) => {
+      const gp = confirmed.filter((p) => p.groupId === g.id).map(toDomainPlayer);
+      const ranked = computeStandings(gp, stageMatches, scoring, carryIn);
+      return { group: g, ranked, cutoff: groupCutoff(ranked, event.qualifyPerGroup) };
+    });
+    activeDomainMatches = stageMatches;
+
+    const next = rrStages[i + 1];
+    carried = next?.carryForwardEnabled
+      ? Object.fromEntries(overall.map((rp) => [rp.player.id, rp.stats.totalPoints * (next.carryForwardPct / 100)]))
+      : {};
+  }
+
+  const activeStage = rrStages[rrStages.length - 1] ?? null;
+  const rrMatches = activeStage ? matches.filter((m) => m.stageId === activeStage.id) : [];
+  const domainMatches = activeDomainMatches;
 
   // Stroke-play standings (from submitted scorecards), used when the event format is stroke.
   const isStroke = event.format === "stroke";
@@ -242,6 +273,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     groups,
     stages,
     matches,
+    rrStages,
+    activeStage,
     rrMatches,
     domainPlayers,
     domainMatches,

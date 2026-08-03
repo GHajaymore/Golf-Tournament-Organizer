@@ -32,3 +32,12 @@ export const FORMAT_NAMES = GOLF_FORMATS.map((f) => f.name);
 export function findFormat(name: string): GolfFormat {
   return GOLF_FORMATS.find((f) => f.name === name) ?? GOLF_FORMATS[0];
 }
+
+/**
+ * Formats with a real scoring engine behind them today — everything else in
+ * the catalog above is a label only (no dedicated entry UI or standings math),
+ * so the round-format picker only offers these. `findFormat`/`FORMAT_NAMES`
+ * still resolve the full catalog so a round set to one of the other formats
+ * before this restriction (e.g. imported data) still displays correctly.
+ */
+export const SCORED_FORMAT_NAMES = ["Match Play", "Stroke Play"];

@@ -22,7 +22,11 @@ export default async function DashboardPage() {
   const { session, state } = await requireState();
   const { event, overall, groupStandings, advancingCount, overallCutoff, brackets } = state;
   const progress = matchProgress(state);
-  const currentStage = state.stages[0];
+  const currentStage = state.activeStage ?? state.stages[0];
+  const currentRoundLabel =
+    state.rrStages.length > 1 && currentStage
+      ? `Round ${state.rrStages.findIndex((s) => s.id === currentStage.id) + 1} · ${currentStage.type}`
+      : currentStage?.type ?? "—";
   const currentRoundDesc =
     currentStage?.type === "Round Robin"
       ? "Every player meets everyone in their flight."
@@ -172,7 +176,7 @@ export default async function DashboardPage() {
                 <i className="ph ph-arrows-clockwise" style={{ fontSize: 20 }} />
               </div>
               <div>
-                <div style={{ fontWeight: 500 }}>{currentStage?.type ?? "—"}</div>
+                <div style={{ fontWeight: 500 }}>{currentRoundLabel}</div>
                 <div className="text-muted" style={{ fontSize: 12 }}>{currentRoundDesc}</div>
               </div>
             </div>

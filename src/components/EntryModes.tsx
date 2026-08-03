@@ -3,26 +3,35 @@ import { useState } from "react";
 import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient";
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
 
-interface StrokeData {
-  players: Array<{ id: string; name: string; handicap: number }>;
-  pars: number[];
-  holes: number;
+export interface EntryRound {
   stageId: string;
-  cardsByPlayer: Record<string, (number | null)[]>;
+  label: string;
+  matches: EntryMatch[];
+  stroke: {
+    holes: number;
+    stageId: string;
+    cardsByPlayer: Record<string, (number | null)[]>;
+  };
 }
 
 export function EntryModes({
-  matches,
+  rounds,
+  activeIndex,
+  players,
+  pars,
   isStaff,
-  stroke,
   defaultMode = "match",
 }: {
-  matches: EntryMatch[];
+  rounds: EntryRound[];
+  activeIndex: number;
+  players: Array<{ id: string; name: string; handicap: number }>;
+  pars: number[];
   isStaff: boolean;
-  stroke: StrokeData;
   defaultMode?: "match" | "stroke";
 }) {
   const [mode, setMode] = useState<"match" | "stroke">(defaultMode);
+  const [roundIdx, setRoundIdx] = useState(activeIndex);
+  const round = rounds[roundIdx] ?? rounds[0];
 
   return (
     <>
@@ -30,28 +39,43 @@ export function EntryModes({
         <div className="page-kicker">Manage</div>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Score entry</h2>
-          <div className="seg">
-            <label className="seg-opt">
-              <input type="radio" name="entrytop" checked={mode === "match"} onChange={() => setMode("match")} />
-              Match play
-            </label>
-            <label className="seg-opt">
-              <input type="radio" name="entrytop" checked={mode === "stroke"} onChange={() => setMode("stroke")} />
-              Stroke play
-            </label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {rounds.length > 1 && (
+              <select
+                className="input"
+                style={{ width: "auto" }}
+                value={roundIdx}
+                onChange={(e) => setRoundIdx(parseInt(e.target.value, 10))}
+              >
+                {rounds.map((r, i) => (
+                  <option key={r.stageId} value={i}>{r.label}</option>
+                ))}
+              </select>
+            )}
+            <div className="seg">
+              <label className="seg-opt">
+                <input type="radio" name="entrytop" checked={mode === "match"} onChange={() => setMode("match")} />
+                Match play
+              </label>
+              <label className="seg-opt">
+                <input type="radio" name="entrytop" checked={mode === "stroke"} onChange={() => setMode("stroke")} />
+                Stroke play
+              </label>
+            </div>
           </div>
         </div>
       </div>
 
       {mode === "match" ? (
-        <ScoreEntryClient matches={matches} isStaff={isStaff} hideHeader />
+        <ScoreEntryClient key={round.stageId} matches={round.matches} isStaff={isStaff} hideHeader />
       ) : (
         <StrokePlayEntry
-          players={stroke.players}
-          pars={stroke.pars}
-          holes={stroke.holes}
-          stageId={stroke.stageId}
-          cardsByPlayer={stroke.cardsByPlayer}
+          key={round.stageId}
+          players={players}
+          pars={pars}
+          holes={round.stroke.holes}
+          stageId={round.stroke.stageId}
+          cardsByPlayer={round.stroke.cardsByPlayer}
         />
       )}
     </>

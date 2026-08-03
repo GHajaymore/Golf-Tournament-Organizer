@@ -6,7 +6,9 @@ import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../dom
 /**
  * Re-form flights for an event from its confirmed players using the stored rule
  * and flight configuration, then regenerate the round-robin schedule (empty
- * matches) for the round-robin round.
+ * matches) for every Round Robin stage — a tournament can sequence more than
+ * one (e.g. a qualifying round followed by a scored round), and each gets its
+ * own full round-robin among the same flights.
  *
  * This is the intended-destructive "Generate flights" action: it discards any
  * existing round-robin matches (and their scores), since roster/rule changes
@@ -38,13 +40,15 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
   }));
   const groups = formGroups(domainPlayers, formationRule, config);
 
-  const rrStage = await prisma.stage.findFirst({
+  const rrStages = await prisma.stage.findMany({
     where: { eventId, type: "Round Robin" },
     orderBy: { position: "asc" },
   });
 
   await prisma.$transaction(async (tx) => {
-    if (rrStage) await tx.match.deleteMany({ where: { eventId, stageId: rrStage.id } });
+    if (rrStages.length) {
+      await tx.match.deleteMany({ where: { eventId, stageId: { in: rrStages.map((s) => s.id) } } });
+    }
     await tx.player.updateMany({ where: { eventId }, data: { groupId: null } });
     await tx.group.deleteMany({ where: { eventId } });
 
@@ -63,7 +67,7 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
       }
     }
 
-    if (rrStage) {
+    for (const rrStage of rrStages) {
       const emptyHoles = JSON.stringify(new Array(rrStage.holes === 9 ? 9 : 18).fill(null));
       for (const g of groups) {
         const dbGroupId = groupIdByEngineId.get(g.id)!;

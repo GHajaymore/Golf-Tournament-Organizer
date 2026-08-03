@@ -9,7 +9,7 @@ import {
   addStage,
   removeStage,
 } from "@/app/actions/tournament";
-import { GOLF_FORMATS } from "@/lib/formats";
+import { GOLF_FORMATS, SCORED_FORMAT_NAMES } from "@/lib/formats";
 import { ScoringClient } from "./ScoringClient";
 import { QualControl } from "./QualControl";
 import type { TiebreakerKey } from "@/lib/domain";
@@ -89,6 +89,9 @@ function StageCard({
     startTransition(() => setStageHoles(stage.id, v));
   };
   const activeFormat = GOLF_FORMATS.find((f) => f.name === format);
+  // Only formats with a real scoring engine are selectable; a round already set
+  // to a legacy label (e.g. from before this restriction) still shows it.
+  const formatOptions = SCORED_FORMAT_NAMES.includes(format) ? SCORED_FORMAT_NAMES : [format, ...SCORED_FORMAT_NAMES];
 
   // Round Robin description is derived (no hard-coded round count).
   const description =
@@ -140,8 +143,8 @@ function StageCard({
         <div className="field" style={{ width: 200 }}>
           <label>Format</label>
           <select className="input" value={format} disabled={pending} onChange={(e) => commitFormat(e.target.value)}>
-            {GOLF_FORMATS.map((f) => (
-              <option key={f.name} value={f.name}>{f.name}</option>
+            {formatOptions.map((name) => (
+              <option key={name} value={name}>{name}</option>
             ))}
           </select>
         </div>
