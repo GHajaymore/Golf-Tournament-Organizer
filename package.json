@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Flights — golf tournament management console (production build from the design handoff).",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -18,10 +19,45 @@
     "db:studio": "prisma studio",
     "cap:sync": "cap sync",
     "cap:open:ios": "cap open ios",
-    "cap:open:android": "cap open android"
+    "cap:open:android": "cap open android",
+    "electron:dev": "electron .",
+    "electron:build": "next build && node electron/prepare-standalone.js && electron-builder"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "build": {
+    "appId": "com.flights.tournament",
+    "productName": "Flights",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/main.js",
+      "electron/preload.js",
+      "package.json",
+      "!electron/prepare-standalone.js"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "standalone",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/icon-512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/icon-512.png",
+      "category": "public.app-category.sports"
+    }
   },
   "dependencies": {
     "@prisma/client": "^6.3.1",
@@ -38,6 +74,8 @@
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
     "prisma": "^6.3.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
