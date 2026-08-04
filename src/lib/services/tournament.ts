@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { computeStrokeCard, holeStrokesReceived } from "../domain";
+import { computeStrokeCard, holeStrokesReceived, stablefordPointsForHole } from "../domain";
 import { findCourse } from "../courses";
 import { pts as fmtPts, record as fmtRecord, diff as fmtDiff } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
@@ -86,6 +86,7 @@ export interface StrokeStanding {
   gross: number;
   net: number;
   toPar: number;
+  points: number;
   thru: number;
   rank: number;
 }
@@ -222,7 +223,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const isStroke = event.format === "stroke";
   const pars = course.pars;
   const handicapById = new Map(players.map((p) => [p.id, p.handicap]));
-  const strokeAgg = new Map<string, { gross: number; thru: number; parThru: number; strokesReceived: number }>();
+  const strokeAgg = new Map<string, { gross: number; thru: number; parThru: number; strokesReceived: number; points: number }>();
   for (const sc of scorecards) {
     let strokes: (number | null)[];
     try {
@@ -231,7 +232,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       continue;
     }
     const handicap = handicapById.get(sc.playerId) ?? 0;
-    const a = strokeAgg.get(sc.playerId) ?? { gross: 0, thru: 0, parThru: 0, strokesReceived: 0 };
+    const a = strokeAgg.get(sc.playerId) ?? { gross: 0, thru: 0, parThru: 0, strokesReceived: 0, points: 0 };
     strokes.forEach((s, i) => {
       if (typeof s === "number" && s > 0) {
         a.gross += s;
@@ -240,17 +241,26 @@ export async function loadEventState(eventId: string): Promise<EventState | null
         // Strokes are allocated per hole actually played (not the full
         // handicap against a partial gross), so "net" is accurate thru any
         // number of holes, not just once the round is complete.
-        a.strokesReceived += holeStrokesReceived(handicap, holeDifficulty[i] ?? 18);
+        const holeStrokes = holeStrokesReceived(handicap, holeDifficulty[i] ?? 18);
+        a.strokesReceived += holeStrokes;
+        a.points += stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes);
       }
     });
     strokeAgg.set(sc.playerId, a);
   }
+  // Stableford ranks by points descending (higher is better); every other
+  // basis ranks by net strokes ascending (lower is better).
+  const stableford = activeStage?.scoringBasis === "stableford";
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
-      const a = strokeAgg.get(p.id) ?? { gross: 0, thru: 0, parThru: 0, strokesReceived: 0 };
-      return { player: p, gross: a.gross, net: a.gross - Math.round(a.strokesReceived), toPar: a.gross - a.parThru, thru: a.thru, rank: 0 };
+      const a = strokeAgg.get(p.id) ?? { gross: 0, thru: 0, parThru: 0, strokesReceived: 0, points: 0 };
+      return { player: p, gross: a.gross, net: a.gross - Math.round(a.strokesReceived), toPar: a.gross - a.parThru, points: a.points, thru: a.thru, rank: 0 };
     })
-    .sort((x, y) => (y.thru > 0 ? 1 : 0) - (x.thru > 0 ? 1 : 0) || x.net - y.net || x.gross - y.gross)
+    .sort((x, y) => {
+      const started = (y.thru > 0 ? 1 : 0) - (x.thru > 0 ? 1 : 0);
+      if (started !== 0) return started;
+      return stableford ? y.points - x.points : x.net - y.net || x.gross - y.gross;
+    })
     .map((s, i) => ({ ...s, rank: i + 1 }));
 
   // Qualification: format-aware — top N by net (stroke) or points (match), per flight or overall.
@@ -377,6 +387,7 @@ export function standingRows(state: EventState): StandingRow[] {
       gross: s.gross,
       net: s.net,
       toPar: s.toPar,
+      points: s.points,
       thru: s.thru,
     }));
   }
@@ -396,6 +407,7 @@ export function standingRows(state: EventState): StandingRow[] {
     gross: 0,
     net: 0,
     toPar: 0,
+    points: 0,
     thru: 0,
   }));
 }
@@ -414,15 +426,36 @@ export function computeHighlights(state: EventState): Highlight[] {
   if (state.isStroke) {
     const scored = state.strokeStandings.filter((s) => s.thru > 0);
     if (!scored.length) return out;
+    const stableford = state.activeStage?.scoringBasis === "stableford";
     const lead = scored[0];
-    const par = lead.toPar === 0 ? "level par" : lead.toPar > 0 ? `+${lead.toPar}` : `${lead.toPar}`;
-    out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads at ${par} (net ${lead.net}).` });
+    if (stableford) {
+      out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads on ${lead.points} Stableford pts.` });
+    } else {
+      const par = lead.toPar === 0 ? "level par" : lead.toPar > 0 ? `+${lead.toPar}` : `${lead.toPar}`;
+      out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads at ${par} (net ${lead.net}).` });
+    }
     const advancing = scored.filter((s) => state.advancingIds.has(s.player.id));
     const nonAdv = scored.filter((s) => !state.advancingIds.has(s.player.id));
     const lastIn = advancing[advancing.length - 1];
     const firstOut = nonAdv[0];
-    if (lastIn) out.push({ icon: "🎯", title: "Qualification watch", text: `${lastIn.player.name} holds the final qualifying spot at net ${lastIn.net}.` });
-    if (firstOut && lastIn) out.push({ icon: "🚨", title: "Bubble watch", text: `${firstOut.player.name} is ${firstOut.net - lastIn.net} shots outside qualification.` });
+    if (lastIn) {
+      out.push({
+        icon: "🎯",
+        title: "Qualification watch",
+        text: stableford
+          ? `${lastIn.player.name} holds the final qualifying spot at ${lastIn.points} pts.`
+          : `${lastIn.player.name} holds the final qualifying spot at net ${lastIn.net}.`,
+      });
+    }
+    if (firstOut && lastIn) {
+      out.push({
+        icon: "🚨",
+        title: "Bubble watch",
+        text: stableford
+          ? `${firstOut.player.name} is ${lastIn.points - firstOut.points} points outside qualification.`
+          : `${firstOut.player.name} is ${firstOut.net - lastIn.net} shots outside qualification.`,
+      });
+    }
     return out;
   }
 

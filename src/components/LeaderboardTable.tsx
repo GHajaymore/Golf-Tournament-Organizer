@@ -18,16 +18,19 @@ export interface StandingRow {
   gross: number;
   net: number;
   toPar: number;
+  points: number;
   thru: number;
 }
 
 /** Renders the standings for either format. `compact` = the dashboard preview. */
 export function LeaderboardTable({
   isStroke,
+  isStableford = false,
   rows,
   compact = false,
 }: {
   isStroke: boolean;
+  isStableford?: boolean;
   rows: StandingRow[];
   compact?: boolean;
 }) {
@@ -46,8 +49,8 @@ export function LeaderboardTable({
               <th>Flight</th>
               {!compact && <th style={{ textAlign: "center" }}>Thru</th>}
               {!compact && <th style={{ textAlign: "right" }}>Gross</th>}
-              <th style={{ textAlign: "right" }}>Net</th>
-              <th style={{ textAlign: "right" }}>To&nbsp;par</th>
+              {!isStableford && <th style={{ textAlign: "right" }}>Net</th>}
+              <th style={{ textAlign: "right" }}>{isStableford ? "Pts" : "To par"}</th>
             </tr>
           </thead>
           <tbody>
@@ -58,9 +61,9 @@ export function LeaderboardTable({
                 <td className="text-muted">{r.flight}</td>
                 {!compact && <td style={{ textAlign: "center", ...num }}>{r.thru > 0 ? r.thru : "—"}</td>}
                 {!compact && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.gross : "—"}</td>}
-                <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.net : "—"}</td>
+                {!isStableford && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.net : "—"}</td>}
                 <td style={{ textAlign: "right", fontWeight: 600, color: "var(--color-accent-200)", ...num }}>
-                  {r.thru > 0 ? toParText(r.toPar) : "—"}
+                  {r.thru > 0 ? (isStableford ? r.points : toParText(r.toPar)) : "—"}
                 </td>
               </tr>
             ))}

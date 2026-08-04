@@ -16,6 +16,7 @@ import {
   carriedInto,
   computeStrokeCard,
   holeStrokesReceived,
+  stablefordPointsForHole,
   toParText,
   DEFAULT_SCORING,
   type HoleResult,
@@ -322,6 +323,24 @@ describe("stroke play", () => {
     const card = computeStrokeCard([5, 5, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], pars, 9, strokeIndex);
     expect(card.gross).toBe(10);
     expect(card.net).toBe(8); // 10 - 2 strokes received on the 2 holes played, NOT 10 - 9
+  });
+
+  it("scores Stableford points per hole (2 for net par, floored at 0)", () => {
+    expect(stablefordPointsForHole(4, 4, 0)).toBe(2); // net par
+    expect(stablefordPointsForHole(3, 4, 0)).toBe(3); // net birdie
+    expect(stablefordPointsForHole(2, 4, 0)).toBe(4); // net eagle
+    expect(stablefordPointsForHole(5, 4, 0)).toBe(1); // net bogey
+    expect(stablefordPointsForHole(6, 4, 0)).toBe(0); // net double bogey
+    expect(stablefordPointsForHole(8, 4, 0)).toBe(0); // way worse — still floors at 0, not negative
+    expect(stablefordPointsForHole(5, 4, 1)).toBe(2); // a stroke turns a gross bogey into a net par
+  });
+
+  it("totals Stableford points on the card", () => {
+    const pars = [4, 4];
+    const strokeIndex = [1, 2];
+    // Scratch player (handicap 0): net par + net birdie = 2 + 3 = 5 points.
+    const card = computeStrokeCard([4, 3], pars, 0, strokeIndex);
+    expect(card.points).toBe(5);
   });
 });
 

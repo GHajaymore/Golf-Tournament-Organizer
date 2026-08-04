@@ -33,7 +33,7 @@ export default async function ReportsPage() {
         <StatCard label="Flights" value={state.groups.length} icon="ph ph-squares-four" />
         <StatCard label="Advancing" value={state.advancingCount} icon="ph ph-flag-checkered" />
       </div>
-      <ReportsClient rows={rows} isStroke={isStroke} eventName={state.event.name} />
+      <ReportsClient rows={rows} isStroke={isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} eventName={state.event.name} />
     </>
   );
 }

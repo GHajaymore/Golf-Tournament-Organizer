@@ -7,7 +7,7 @@ import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
  * into per-flight boards (re-ranked within each flight) — the flight-based view
  * organizers want for stroke play, and handy for match play too.
  */
-export function LeaderboardBoard({ isStroke, rows }: { isStroke: boolean; rows: StandingRow[] }) {
+export function LeaderboardBoard({ isStroke, isStableford = false, rows }: { isStroke: boolean; isStableford?: boolean; rows: StandingRow[] }) {
   const [view, setView] = useState<"overall" | "flight">("overall");
 
   const flights = [...new Set(rows.map((r) => r.flight))].sort((a, b) => {
@@ -30,7 +30,7 @@ export function LeaderboardBoard({ isStroke, rows }: { isStroke: boolean; rows: 
       </div>
 
       {view === "overall" ? (
-        <LeaderboardTable isStroke={isStroke} rows={rows} />
+        <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {flights.map((f) => {
@@ -38,7 +38,7 @@ export function LeaderboardBoard({ isStroke, rows }: { isStroke: boolean; rows: 
             return (
               <div key={f}>
                 <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{f}</div>
-                <LeaderboardTable isStroke={isStroke} rows={fr} />
+                <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={fr} />
               </div>
             );
           })}

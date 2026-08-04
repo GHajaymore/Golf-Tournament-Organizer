@@ -46,7 +46,9 @@ export default async function LeaderboardPage() {
           <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h2>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {state.isStroke
-              ? "Overall standings across all flights · stroke play (gross / net / to-par)."
+              ? state.activeStage?.scoringBasis === "stableford"
+                ? "Overall standings across all flights · Stableford points (higher is better)."
+                : "Overall standings across all flights · stroke play (gross / net / to-par)."
               : "Overall standings across all flights · match points breakdown."}
           </p>
         </div>
@@ -73,10 +75,12 @@ export default async function LeaderboardPage() {
       )}
 
       <div className="card elev-sm">
-        <LeaderboardBoard isStroke={state.isStroke} rows={rows} />
+        <LeaderboardBoard isStroke={state.isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} rows={rows} />
         <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
           {state.isStroke
-            ? "Net = gross minus course handicap; To-par is versus the holes played. Advancing rows reflect the qualification cutoff."
+            ? state.activeStage?.scoringBasis === "stableford"
+              ? "Points are Stableford: 2 for a net par, +1 per stroke better, -1 per stroke worse, floored at 0. Advancing rows reflect the qualification cutoff."
+              : "Net = gross minus handicap strokes received on the holes played; To-par is versus the holes played. Advancing rows reflect the qualification cutoff."
             : "Columns: P played, W won, ½ halved, L lost. Advancing rows reflect the current qualification cutoff and update live as scores are entered."}
         </p>
       </div>

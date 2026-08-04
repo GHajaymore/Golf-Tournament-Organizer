@@ -9,6 +9,8 @@ export interface StrokeCard {
   net: number;
   /** Gross minus par of holes played (e.g. -2, +3, 0 = level). */
   toPar: number;
+  /** Stableford points earned on the holes played so far (higher is better). */
+  points: number;
 }
 
 /**
@@ -19,6 +21,17 @@ export interface StrokeCard {
 export function holeStrokesReceived(courseHandicap: number, strokeIndex: number): number {
   const h = Math.round(courseHandicap);
   return Math.floor(h / 18) + (strokeIndex <= h % 18 ? 1 : 0);
+}
+
+/**
+ * Standard Stableford points for one hole: 2 for a net par, +1 per stroke
+ * better (birdie 3, eagle 4, ...), -1 per stroke worse, floored at 0 for a
+ * net double-bogey or worse (a hole that bad simply scores nothing, rather
+ * than going negative).
+ */
+export function stablefordPointsForHole(grossOnHole: number, par: number, strokesOnHole: number): number {
+  const net = grossOnHole - strokesOnHole;
+  return Math.max(0, 2 - (net - par));
 }
 
 export function computeStrokeCard(
@@ -33,6 +46,7 @@ export function computeStrokeCard(
   let played = 0;
   let parPlayed = 0;
   let strokesReceived = 0;
+  let points = 0;
   for (let i = 0; i < strokes.length; i += 1) {
     const s = strokes[i];
     if (s == null || !Number.isFinite(s)) continue;
@@ -44,7 +58,9 @@ export function computeStrokeCard(
     // Allocate strokes per hole actually played, so net is accurate mid-round
     // (not the full handicap subtracted against a partial gross). Falls back
     // to a flat full-handicap split if course stroke-index data is unknown.
-    strokesReceived += strokeIndex ? holeStrokesReceived(handicap, strokeIndex[i] ?? 18) : Math.round(handicap) / strokes.length;
+    const holeStrokes = strokeIndex ? holeStrokesReceived(handicap, strokeIndex[i] ?? 18) : Math.round(handicap) / strokes.length;
+    strokesReceived += holeStrokes;
+    points += stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes);
   }
   return {
     gross,
@@ -53,6 +69,7 @@ export function computeStrokeCard(
     played,
     net: gross - Math.round(strokesReceived),
     toPar: gross - parPlayed,
+    points,
   };
 }
 

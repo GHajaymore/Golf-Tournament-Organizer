@@ -61,6 +61,7 @@ const BASIS_OPTIONS: Array<{ key: string; label: string }> = [
   { key: "gross", label: "Gross" },
   { key: "net", label: "Net" },
   { key: "both", label: "Both" },
+  { key: "stableford", label: "Stableford" },
 ];
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -262,7 +263,9 @@ function StageCard({
   }
   const summaryParts: string[] = [];
   if (deadline) summaryParts.push(`Due ${deadline}`);
-  if (basis !== "gross") summaryParts.push(basis === "net" ? "Net scoring" : "Gross + net");
+  if (basis !== "gross") {
+    summaryParts.push(basis === "net" ? "Net scoring" : basis === "stableford" ? "Stableford" : "Gross + net");
+  }
   if (stage.type === "Qualification Stage") {
     summaryParts.push(qual.mode === "overall" ? `Top ${qual.overall} overall` : `Top ${qual.perFlight} per flight`);
   }
@@ -387,7 +390,7 @@ function StageCard({
         {customizeOpen && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-              <div className="field" style={{ width: 220 }}>
+              <div className="field" style={{ width: 320 }}>
                 <label>Result calculation</label>
                 <div className="seg" style={{ width: "100%" }}>
                   {BASIS_OPTIONS.map((o) => (

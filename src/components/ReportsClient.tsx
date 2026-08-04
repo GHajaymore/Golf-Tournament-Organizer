@@ -17,10 +17,12 @@ function download(filename: string, rows: string[][]) {
 export function ReportsClient({
   rows,
   isStroke,
+  isStableford = false,
   eventName,
 }: {
   rows: StandingRow[];
   isStroke: boolean;
+  isStableford?: boolean;
   eventName: string;
 }) {
   const router = useRouter();
@@ -28,19 +30,23 @@ export function ReportsClient({
 
   const fullStandings = () => {
     const header = isStroke
-      ? ["Rank", "Player", "Flight", "Thru", "Gross", "Net", "To par", "Status"]
+      ? isStableford
+        ? ["Rank", "Player", "Flight", "Thru", "Gross", "Points", "Status"]
+        : ["Rank", "Player", "Flight", "Thru", "Gross", "Net", "To par", "Status"]
       : ["Rank", "Player", "Flight", "Played", "Wins", "Halved", "Losses", "Holes+/-", "Points", "Status"];
     const body = rows.map((r) =>
       isStroke
-        ? [String(r.rank), r.name, r.flight, String(r.thru), String(r.gross), String(r.net), toParText(r.toPar), status(r)]
+        ? isStableford
+          ? [String(r.rank), r.name, r.flight, String(r.thru), String(r.gross), String(r.points), status(r)]
+          : [String(r.rank), r.name, r.flight, String(r.thru), String(r.gross), String(r.net), toParText(r.toPar), status(r)]
         : [String(r.rank), r.name, r.flight, String(r.played), String(r.wins), String(r.ties), String(r.losses), r.diff, r.pts, status(r)],
     );
     download(`${eventName}-standings.csv`, [header, ...body]);
   };
 
   const groupResults = () => {
-    const scoreCol = isStroke ? "Net" : "Points";
-    const scoreVal = (r: StandingRow) => (isStroke ? String(r.net) : r.pts);
+    const scoreCol = isStroke ? (isStableford ? "Points" : "Net") : "Points";
+    const scoreVal = (r: StandingRow) => (isStroke ? String(isStableford ? r.points : r.net) : r.pts);
     download(`${eventName}-flight-results.csv`, [
       ["Flight", "Rank", "Player", scoreCol, "Status"],
       ...[...rows]
@@ -83,7 +89,7 @@ export function ReportsClient({
             <i className="ph ph-printer" /> Print
           </button>
         </div>
-        <LeaderboardTable isStroke={isStroke} rows={rows} />
+        <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} />
       </div>
     </div>
   );

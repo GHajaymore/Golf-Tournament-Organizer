@@ -397,7 +397,7 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
 export async function setStageScoringBasis(stageId: string, basis: string) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
-  const value = ["gross", "net", "both"].includes(basis) ? basis : "gross";
+  const value = ["gross", "net", "both", "stableford"].includes(basis) ? basis : "gross";
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { scoringBasis: value },

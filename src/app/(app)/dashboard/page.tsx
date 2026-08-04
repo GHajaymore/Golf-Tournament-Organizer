@@ -159,7 +159,7 @@ export default async function DashboardPage() {
             <span className="card-title">Live leaderboard</span>
             <span className="text-muted" style={{ fontSize: 12 }}>Overall · all flights</span>
           </div>
-          <LeaderboardTable isStroke={isStroke} rows={rows} compact />
+          <LeaderboardTable isStroke={isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} rows={rows} compact />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
