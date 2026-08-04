@@ -1,12 +1,13 @@
 "use client";
 import { useState, useRef, useTransition } from "react";
-import { addSignup, removeSignup, importCsvSignups, setInviteMessage } from "@/app/actions/tournament";
+import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SetupLockBanner } from "./SetupLockBanner";
 
 interface Signup {
   id: string;
   name: string;
   handicap: number;
+  handicapType?: string;
   seed: number;
   email?: string;
   phone?: string;
@@ -44,12 +45,39 @@ export function RegistrationClient({
   const [hSource, setHSource] = useState("manual");
   const [invite, setInvite] = useState(event.inviteMessage);
   const [copied, setCopied] = useState("");
+  const [newHandicapType, setNewHandicapType] = useState("18");
+  const [importResult, setImportResult] = useState<CsvImportResult | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
 
   const unlimited = event.capacity <= 0;
   const spotsLeft = unlimited ? Infinity : Math.max(0, event.capacity - confirmed.length);
   const status = unlimited ? "Open · unlimited" : spotsLeft === 0 ? "Full — waitlist active" : "Open";
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleSelectAll = (rows: Signup[]) =>
+    setSelected((prev) => {
+      const allSelected = rows.every((r) => prev.has(r.id));
+      const next = new Set(prev);
+      for (const r of rows) {
+        if (allSelected) next.delete(r.id);
+        else next.add(r.id);
+      }
+      return next;
+    });
+  const deleteSelected = () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    startTransition(() => removeSignups(ids));
+    setSelected(new Set());
+  };
 
   const submitAdd = () => {
     if (!name.trim()) return;
@@ -63,6 +91,7 @@ export function RegistrationClient({
         ghin,
         homeClub,
         handicapSource: hSource,
+        handicapType: newHandicapType,
       }),
     );
     setName("");
@@ -77,7 +106,11 @@ export function RegistrationClient({
     const file = e.target.files?.[0];
     if (!file) return;
     const text = await file.text();
-    startTransition(() => importCsvSignups(text));
+    setImportResult(null);
+    startTransition(async () => {
+      const result = await importCsvSignups(text);
+      setImportResult(result);
+    });
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -110,44 +143,87 @@ export function RegistrationClient({
     }
   };
 
-  const table = (rows: Signup[], title: string, showFlight: boolean) => (
-    <div className="card elev-sm">
-      <span className="card-title" style={{ fontSize: 15 }}>{title} ({rows.length})</span>
-      <div className="table-scroll">
-        <table className="table" style={{ fontSize: 13 }}>
-          <thead>
-            <tr>
-              <th style={{ width: 36 }}>#</th>
-              <th>Player</th>
-              <th>Contact</th>
-              <th style={{ textAlign: "right" }}>Hcp</th>
-              {showFlight && <th>Flight</th>}
-              <th style={{ width: 44 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((p) => (
-              <tr key={p.id}>
-                <td className="text-muted">{p.seed}</td>
-                <td style={{ fontWeight: 500 }}>{p.name}</td>
-                <td className="text-muted" style={{ fontSize: 12 }}>{p.email || p.phone || "—"}</td>
-                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{p.handicap}</td>
-                {showFlight && <td className="text-muted">{p.flight || "—"}</td>}
-                <td style={{ textAlign: "right" }}>
-                  <button type="button" className="btn btn-icon" disabled={pending || locked} onClick={() => startTransition(() => removeSignup(p.id))}>
-                    <i className="ph ph-x" />
-                  </button>
-                </td>
+  const table = (rows: Signup[], title: string, showFlight: boolean) => {
+    const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
+    const anySelected = rows.some((r) => selected.has(r.id));
+    return (
+      <div className="card elev-sm">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span className="card-title" style={{ fontSize: 15 }}>{title} ({rows.length})</span>
+          {anySelected && (
+            <button type="button" className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} disabled={pending || locked} onClick={deleteSelected}>
+              <i className="ph ph-trash" /> Delete {[...selected].filter((id) => rows.some((r) => r.id === id)).length} selected
+            </button>
+          )}
+        </div>
+        <div className="table-scroll">
+          <table className="table" style={{ fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th style={{ width: 26 }}>
+                  <input type="checkbox" checked={allSelected} disabled={rows.length === 0} onChange={() => toggleSelectAll(rows)} />
+                </th>
+                <th style={{ width: 32 }}>#</th>
+                <th>Player</th>
+                <th style={{ width: 96, textAlign: "right" }}>Hcp</th>
+                <th>Contact</th>
+                {showFlight && <th>Flight</th>}
+                <th style={{ width: 44 }} />
               </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={showFlight ? 6 : 5} className="text-muted" style={{ padding: "10px 6px" }}>None yet.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((p, i) => (
+                <tr key={p.id}>
+                  <td><input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} /></td>
+                  <td className="text-muted">{i + 1}</td>
+                  <td style={{ fontWeight: 500 }}>{p.name}</td>
+                  <td style={{ textAlign: "right" }}>
+                    <div style={{ display: "flex", gap: 3, justifyContent: "flex-end", alignItems: "center" }}>
+                      <input
+                        className="input"
+                        type="number"
+                        step="0.1"
+                        defaultValue={p.handicap}
+                        disabled={pending || locked}
+                        style={{ width: 52, padding: "3px 4px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                        onBlur={(e) => {
+                          const v = parseFloat(e.target.value);
+                          if (Number.isFinite(v) && v !== p.handicap) startTransition(() => updateSignup(p.id, { handicap: v }));
+                        }}
+                      />
+                      <select
+                        className="input"
+                        value={p.handicapType === "9" ? "9" : "18"}
+                        disabled={pending || locked}
+                        style={{ width: 46, padding: "3px 2px", fontSize: 11 }}
+                        onChange={(e) => startTransition(() => updateSignup(p.id, { handicapType: e.target.value }))}
+                        title="Whether this handicap index is a 9-hole or 18-hole index"
+                      >
+                        <option value="18">18h</option>
+                        <option value="9">9h</option>
+                      </select>
+                    </div>
+                  </td>
+                  <td className="text-muted" style={{ fontSize: 12 }}>
+                    {p.phone && p.email ? `${p.phone} · ${p.email}` : p.phone || p.email || "—"}
+                  </td>
+                  {showFlight && <td className="text-muted">{p.flight || "—"}</td>}
+                  <td style={{ textAlign: "right" }}>
+                    <button type="button" className="btn btn-icon" disabled={pending || locked} onClick={() => startTransition(() => removeSignup(p.id))}>
+                      <i className="ph ph-x" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr><td colSpan={showFlight ? 7 : 6} className="text-muted" style={{ padding: "10px 6px" }}>None yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <>
@@ -225,6 +301,16 @@ export function RegistrationClient({
             <div className="field"><label>{hSource === "ghin" ? "Handicap index" : "Handicap"}</label><input className="input" type="number" value={handicap} onChange={(e) => setHandicap(e.target.value)} placeholder="12.0" disabled={hSource === "none"} /></div>
             <div className="field"><label>GHIN #</label><input className="input" value={ghin} onChange={(e) => setGhin(e.target.value)} placeholder="0000000" disabled={hSource !== "ghin"} /></div>
           </div>
+          <div className="field">
+            <label>Handicap is a…</label>
+            <div className="seg" style={{ width: "100%" }}>
+              {[["18", "18-hole index"], ["9", "9-hole index"]].map(([v, l]) => (
+                <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
+                  <input type="radio" name="hctype" checked={newHandicapType === v} onChange={() => setNewHandicapType(v)} disabled={hSource === "none"} />{l}
+                </label>
+              ))}
+            </div>
+          </div>
           <div className="field"><label>Home club</label><input className="input" value={homeClub} onChange={(e) => setHomeClub(e.target.value)} placeholder="Optional" /></div>
           <button type="button" className="btn btn-primary btn-block" disabled={pending} onClick={submitAdd}><i className="ph ph-plus" /> Add to field</button>
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
@@ -237,7 +323,23 @@ export function RegistrationClient({
               <i className="ph ph-upload-simple" /> Import CSV
               <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} style={{ display: "none" }} />
             </label>
-            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>Columns: name, handicap</p>
+            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+              First row must be a header. Recognized columns: name (required), handicap, email, phone, handicap type
+              (9/18). Duplicate names or emails are skipped automatically.
+            </p>
+            {importResult && (
+              importResult.error ? (
+                <p style={{ fontSize: 12, margin: "8px 0 0", color: "var(--color-danger, #e0665a)" }}>
+                  <i className="ph ph-warning-circle" /> {importResult.error}
+                </p>
+              ) : (
+                <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+                  <i className="ph ph-check-circle" style={{ color: "var(--color-accent-2-300)" }} /> Imported {importResult.imported}
+                  {importResult.skippedDuplicates > 0 ? `, skipped ${importResult.skippedDuplicates} duplicate${importResult.skippedDuplicates === 1 ? "" : "s"}` : ""}
+                  {importResult.skippedInvalid > 0 ? `, skipped ${importResult.skippedInvalid} invalid row${importResult.skippedInvalid === 1 ? "" : "s"}` : ""}.
+                </p>
+              )
+            )}
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

@@ -91,6 +91,7 @@ model Player {
   gender         String @default("")
   preferredTee   String @default("")
   handicapSource String @default("manual") // ghin | manual | none
+  handicapType   String @default("18") // 9 | 18 — which index this handicap number represents
 
   groupId  String?
 

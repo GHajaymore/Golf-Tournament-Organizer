@@ -48,14 +48,10 @@ export interface QualValues {
   overall: number;
 }
 
-const ICONS: Record<string, string> = {
-  "Round Robin": "ph ph-arrows-clockwise",
-  "Qualification Stage": "ph ph-flag-checkered",
-  "Single Match Stage": "ph ph-sword",
-  "Bracket Stage": "ph ph-tree-structure",
-};
-
 const STAGE_TYPES = ["Round Robin", "Single Match Stage", "Qualification Stage", "Bracket Stage"];
+
+/** Rotating per-round accent so a page of several round cards reads as distinct at a glance. */
+const ROUND_PALETTE = ["var(--color-accent)", "var(--color-accent-2)", "var(--color-accent-400)", "var(--color-accent-2-400)"];
 
 const BASIS_OPTIONS: Array<{ key: string; label: string }> = [
   { key: "gross", label: "Gross" },
@@ -112,18 +108,7 @@ function NextRoundTransition({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div
-        style={{
-          padding: "12px 16px",
-          border: "1px solid var(--color-divider)",
-          borderRadius: "var(--radius-md)",
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          flexWrap: "wrap",
-          background: "var(--color-bg)",
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
           <input type="checkbox" checked={carryEnabled} onChange={(e) => commitCarry(e.target.checked, carryPct)} />
           Carry forward points into {roundLabel}
@@ -143,20 +128,10 @@ function NextRoundTransition({
       <p className="text-muted" style={{ fontSize: 12, margin: "0 0 0 2px" }}>
         {carryEnabled
           ? `At ${carryPct}%, a player on 12 pts here starts ${roundLabel} with ${(12 * carryPct) / 100} pts.`
-          : `Disabled — every player starts ${roundLabel} at zero.`}
+          : `Off — ${roundLabel} starts scoring from zero; no points carry over from this round.`}
       </p>
 
-      <div
-        style={{
-          padding: "12px 16px",
-          border: "1px solid var(--color-divider)",
-          borderRadius: "var(--radius-md)",
-          background: "var(--color-bg)",
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-        }}
-      >
+      <div style={{ borderTop: "1px solid var(--color-divider)", margin: "4px 0", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
         <CutControl
           formId={stageId}
           getStageId={ensureNextStageId}
@@ -278,8 +253,14 @@ function StageCard({
   }
   const summaryLine = summaryParts.length ? summaryParts.join(" · ") : "Standard settings";
 
+  // A rotating accent per round so a page of several rounds is scannable at a
+  // glance instead of every card reading identically — the round number does
+  // the differentiating (not the type icon, which repeats for every
+  // Round Robin stage anyway).
+  const roundColor = ROUND_PALETTE[stage.position % ROUND_PALETTE.length];
+
   return (
-    <div className="card elev-sm" style={{ gap: 14 }}>
+    <div className="card elev-sm" style={{ gap: 14, borderLeft: `3px solid ${roundColor}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <div
           style={{
@@ -289,11 +270,15 @@ function StageCard({
             borderRadius: 10,
             display: "grid",
             placeItems: "center",
-            background: "var(--color-accent-900)",
-            color: "var(--color-accent-200)",
+            background: `color-mix(in srgb, ${roundColor} 18%, transparent)`,
+            color: roundColor,
+            fontFamily: "var(--font-heading)",
+            fontWeight: 700,
+            fontSize: 19,
           }}
+          title={stage.type}
         >
-          <i className={ICONS[stage.type] ?? "ph ph-stack"} style={{ fontSize: 22 }} />
+          {stage.position + 1}
         </div>
         <div style={{ flex: 1, minWidth: 160 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -373,9 +358,10 @@ function StageCard({
             padding: "10px 14px",
             cursor: "pointer",
             textAlign: "left",
+            color: "var(--color-text)",
           }}
         >
-          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 500, flex: "none" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 500, flex: "none", color: "var(--color-text)" }}>
             <i className={customizeOpen ? "ph ph-caret-down" : "ph ph-caret-right"} style={{ color: "var(--color-accent-300)" }} />
             <i className="ph ph-sliders" style={{ color: "var(--color-accent-300)" }} />
             Customize this round

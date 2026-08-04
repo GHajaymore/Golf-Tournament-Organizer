@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { LoginPanel } from "@/components/LoginPanel";
 import { Logo } from "@/components/Logo";
@@ -27,26 +26,15 @@ const FEATURES: Array<{ icon: string; title: string; text: string }> = [
   },
 ];
 
+const STEPS: Array<{ n: string; title: string; text: string }> = [
+  { n: "01", title: "Set up", text: "Field, flights, format and rounds — configured once, editable anytime before you lock it in." },
+  { n: "02", title: "Play", text: "Score from a phone at the tee, live for every device watching — desktop, mobile, or the field." },
+  { n: "03", title: "Results", text: "Standings, brackets and payouts resolve themselves as scores land — no spreadsheet reconciliation." },
+];
+
 export default async function LoginPage() {
   const session = await getSession();
   if (session) redirect("/dashboard");
-
-  const events = await prisma.event.findMany({
-    orderBy: { createdAt: "asc" },
-    include: {
-      accounts: { orderBy: { name: "asc" } },
-      _count: { select: { players: true } },
-    },
-  });
-
-  const eventCards = events.map((e) => ({
-    id: e.id,
-    name: e.name,
-    meta: `${e.dates} · ${e.course}, ${e.city} · ${e._count.players} players`,
-    status: e._count.players >= e.capacity ? "Full" : "Open",
-    tagClass: e._count.players >= e.capacity ? "tag-neutral" : "tag-accent",
-    accounts: e.accounts.map((a) => ({ id: a.id, name: a.name, role: a.role })),
-  }));
 
   return (
     <div
@@ -170,6 +158,21 @@ export default async function LoginPage() {
               </div>
             ))}
           </div>
+
+          <div style={{ display: "flex", gap: 22, marginTop: 26, maxWidth: 540, flexWrap: "wrap" }}>
+            {STEPS.map((s) => (
+              <div key={s.n} style={{ flex: "1 1 140px", minWidth: 140 }}>
+                <span
+                  className="brand-mark"
+                  style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 20, letterSpacing: "-0.02em" }}
+                >
+                  {s.n}
+                </span>
+                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>{s.title}</div>
+                <div className="text-muted" style={{ fontSize: 12, marginTop: 2, lineHeight: 1.5 }}>{s.text}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div
@@ -200,7 +203,7 @@ export default async function LoginPage() {
           background: "color-mix(in srgb, var(--color-surface) 55%, transparent)",
         }}
       >
-        <LoginPanel events={eventCards} />
+        <LoginPanel />
       </div>
     </div>
   );

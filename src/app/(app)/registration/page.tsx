@@ -30,12 +30,13 @@ export default async function RegistrationPage() {
         id: p.id,
         name: p.name,
         handicap: p.handicap,
+        handicapType: p.handicapType,
         seed: p.seed,
         email: p.email,
         phone: p.phone,
         flight: flightByPlayer.get(p.id),
       }))}
-      waitlist={state.waitlist.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed, email: p.email, phone: p.phone }))}
+      waitlist={state.waitlist.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, seed: p.seed, email: p.email, phone: p.phone }))}
       locked={locked}
       isAdmin={session.viewRole === "admin"}
     />

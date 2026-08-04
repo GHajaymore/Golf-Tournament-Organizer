@@ -21,6 +21,32 @@ interface CourseOption {
   address: string;
 }
 
+const fmtDate = (iso: string): string => {
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
+
+/** "May 14–16, 2026" (same month), "May 30 – Jun 2, 2026" (crosses month), "Dec 30, 2026 – Jan 2, 2027" (crosses year). */
+const fmtRange = (startIso: string, endIso: string): string => {
+  const start = new Date(`${startIso}T00:00:00`);
+  const end = new Date(`${endIso}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
+  if (startIso === endIso) return fmtDate(startIso);
+  const sameYear = start.getFullYear() === end.getFullYear();
+  const sameMonth = sameYear && start.getMonth() === end.getMonth();
+  if (sameMonth) {
+    const month = start.toLocaleDateString("en-US", { month: "short" });
+    return `${month} ${start.getDate()}–${end.getDate()}, ${end.getFullYear()}`;
+  }
+  if (sameYear) {
+    const startPart = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const endPart = end.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return `${startPart} – ${endPart}, ${end.getFullYear()}`;
+  }
+  return `${fmtDate(startIso)} – ${fmtDate(endIso)}`;
+};
+
 export function EventSetupClient({
   initial,
   playersCount,
@@ -33,7 +59,11 @@ export function EventSetupClient({
   const [f, setF] = useState<EventForm>(initial);
   const [manualTarget, setManualTarget] = useState(initial.manualPlayerCount);
   const [pending, startTransition] = useTransition();
-  const [saved, setSaved] = useState(false);
+  // The button reflects real dirty state against the last-saved snapshot,
+  // not a timed flash — it only reads "Save event" when something has
+  // actually changed since the last save (or since load).
+  const [savedSnapshot, setSavedSnapshot] = useState<EventForm>(initial);
+  const isDirty = JSON.stringify(f) !== JSON.stringify(savedSnapshot);
 
   // Course selector: a preset name, "__other" (manual entry), or "" (none yet).
   const presetNames = new Set(courses.map((c) => c.name));
@@ -43,6 +73,31 @@ export function EventSetupClient({
   const [zipMsg, setZipMsg] = useState("Enter a US zip to fill in the city/state.");
 
   const set = <K extends keyof EventForm>(k: K, v: EventForm[K]) => setF((prev) => ({ ...prev, [k]: v }));
+
+  // Calendar pickers write ISO dates here and derive the display strings
+  // stored on the event (f.dates / f.regDeadline) — the existing free-text
+  // value stays untouched until the organizer actually sets a date via the
+  // picker, since the stored string can't be reliably reverse-parsed.
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [deadlineDate, setDeadlineDate] = useState("");
+
+  const onStartDate = (v: string) => {
+    setStartDate(v);
+    const end = endDate || v;
+    if (!endDate) setEndDate(v);
+    if (v) set("dates", fmtRange(v, end));
+  };
+  const onEndDate = (v: string) => {
+    setEndDate(v);
+    const start = startDate || v;
+    if (!startDate) setStartDate(v);
+    if (v) set("dates", fmtRange(start, v));
+  };
+  const onDeadlineDate = (v: string) => {
+    setDeadlineDate(v);
+    if (v) set("regDeadline", fmtDate(v));
+  };
 
   const onSelectCourse = (val: string) => {
     setCourseSelect(val);
@@ -88,6 +143,49 @@ export function EventSetupClient({
     }
   };
 
+  const [locating, setLocating] = useState(false);
+  const useMyLocation = () => {
+    if (!("geolocation" in navigator)) {
+      setZipMsg("Location isn't available in this browser — enter a zip instead.");
+      return;
+    }
+    setLocating(true);
+    setZipMsg("Finding your location…");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch(
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
+          );
+          const data = (await res.json()) as { city?: string; locality?: string; principalSubdivisionCode?: string; postcode?: string };
+          const city = data.city || data.locality || "";
+          const state = (data.principalSubdivisionCode || "").split("-").pop() || "";
+          if (city) {
+            setF((prev) => ({
+              ...prev,
+              city,
+              address: prev.address.trim() ? prev.address : `${city}, ${state}`.trim(),
+            }));
+            setZipMsg(`Found ${city}${state ? `, ${state}` : ""}. Add the street address if needed.`);
+            if (data.postcode) setZip(data.postcode);
+          } else {
+            setZipMsg("Couldn't determine your city — enter it manually.");
+          }
+        } catch {
+          setZipMsg("Location lookup failed — enter the city/address manually.");
+        } finally {
+          setLocating(false);
+        }
+      },
+      () => {
+        setZipMsg("Location access denied — enter a zip instead.");
+        setLocating(false);
+      },
+      { timeout: 8000 },
+    );
+  };
+
   const summary = [
     { k: "Format", v: f.format === "stroke" ? "Stroke play" : "Match play" },
     { k: "Course", v: f.course || "—" },
@@ -114,7 +212,15 @@ export function EventSetupClient({
           />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div className="field"><label>Dates</label><input className="input" value={f.dates} onChange={(e) => set("dates", e.target.value)} placeholder="e.g. May 14–16, 2026" /></div>
+          <div className="field">
+            <label>Tournament dates</label>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input className="input" type="date" value={startDate} onChange={(e) => onStartDate(e.target.value)} style={{ flex: 1 }} />
+              <span className="text-muted">–</span>
+              <input className="input" type="date" value={endDate} min={startDate || undefined} onChange={(e) => onEndDate(e.target.value)} style={{ flex: 1 }} />
+            </div>
+            {f.dates && <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>{f.dates}</p>}
+          </div>
           <div className="field">
             <label>Format</label>
             <div className="seg">
@@ -144,14 +250,26 @@ export function EventSetupClient({
             </div>
             <div className="field">
               <label>Zip code</label>
-              <input
-                className="input"
-                value={zip}
-                onChange={(e) => setZip(e.target.value)}
-                onBlur={lookupZip}
-                placeholder="45202"
-                inputMode="numeric"
-              />
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  className="input"
+                  value={zip}
+                  onChange={(e) => setZip(e.target.value)}
+                  onBlur={lookupZip}
+                  placeholder="45202"
+                  inputMode="numeric"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-icon"
+                  disabled={locating}
+                  onClick={useMyLocation}
+                  title="Use my current location"
+                >
+                  <i className={locating ? "ph ph-spinner-gap" : "ph ph-navigation-arrow"} />
+                </button>
+              </div>
             </div>
             <p className="text-muted" style={{ fontSize: 12, margin: "-6px 0 0", gridColumn: "1 / -1" }}>{zipMsg}</p>
           </div>
@@ -164,7 +282,11 @@ export function EventSetupClient({
 
         <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Registration &amp; field</span>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div className="field"><label>Registration deadline</label><input className="input" value={f.regDeadline} onChange={(e) => set("regDeadline", e.target.value)} placeholder="e.g. May 7, 2026" /></div>
+          <div className="field">
+            <label>Registration deadline</label>
+            <input className="input" type="date" value={deadlineDate} max={startDate || undefined} onChange={(e) => onDeadlineDate(e.target.value)} />
+            {f.regDeadline && <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>{f.regDeadline}</p>}
+          </div>
           <div className="field">
             <label>Field capacity</label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -209,7 +331,7 @@ export function EventSetupClient({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending}
+            disabled={pending || !isDirty}
             onClick={() => {
               startTransition(() =>
                 saveEvent({
@@ -217,11 +339,10 @@ export function EventSetupClient({
                   address: f.address, regDeadline: f.regDeadline, capacity: f.capacity, playerCountMode: f.playerCountMode,
                 }),
               );
-              setSaved(true);
-              setTimeout(() => setSaved(false), 1600);
+              setSavedSnapshot(f);
             }}
           >
-            <i className="ph ph-check" /> {saved ? "Saved" : "Save event"}
+            <i className="ph ph-check" /> {isDirty ? "Save event" : "Saved"}
           </button>
         </div>
       </div>

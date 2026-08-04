@@ -59,6 +59,7 @@ export interface SignupInput {
   ghin?: string;
   homeClub?: string;
   handicapSource?: string;
+  handicapType?: string;
 }
 
 export async function addSignup(input: SignupInput) {
@@ -86,8 +87,34 @@ export async function addSignup(input: SignupInput) {
       handicapSource: ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
         ? input.handicapSource!
         : "manual",
+      handicapType: input.handicapType === "9" ? "9" : "18",
     },
   });
+  refresh();
+}
+
+export interface SignupPatch {
+  name?: string;
+  handicap?: number;
+  handicapType?: string;
+  email?: string;
+  phone?: string;
+}
+
+/** Edit an existing player's details in place — e.g. correcting a handicap after import. */
+export async function updateSignup(playerId: string, patch: SignupPatch) {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  const player = await prisma.player.findUnique({ where: { id: playerId } });
+  if (!player || player.eventId !== eventId) return;
+  const data: Record<string, string | number> = {};
+  if (patch.name !== undefined && patch.name.trim()) data.name = patch.name.trim();
+  if (patch.handicap !== undefined && Number.isFinite(patch.handicap)) data.handicap = patch.handicap;
+  if (patch.handicapType !== undefined) data.handicapType = patch.handicapType === "9" ? "9" : "18";
+  if (patch.email !== undefined) data.email = patch.email.trim();
+  if (patch.phone !== undefined) data.phone = patch.phone.trim();
+  if (Object.keys(data).length === 0) return;
+  await prisma.player.update({ where: { id: playerId }, data });
   refresh();
 }
 
@@ -108,28 +135,122 @@ export async function removeSignup(playerId: string) {
   refresh();
 }
 
-export async function importCsvSignups(csv: string) {
+/** Bulk delete — e.g. clearing a list before re-uploading a corrected CSV. */
+export async function removeSignups(playerIds: string[]) {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  for (const id of playerIds) {
+    await removeSignup(id);
+  }
+}
+
+const CSV_COLUMN_ALIASES: Record<string, string[]> = {
+  name: ["name", "player", "player name", "full name"],
+  handicap: ["handicap", "hcp", "handicap index", "index"],
+  email: ["email", "e-mail", "email address"],
+  phone: ["phone", "phone number", "mobile", "cell"],
+  handicapType: ["handicap type", "9/18", "hcp type"],
+};
+
+function matchColumn(header: string): string | null {
+  const h = header.trim().toLowerCase();
+  for (const [field, aliases] of Object.entries(CSV_COLUMN_ALIASES)) {
+    if (aliases.includes(h)) return field;
+  }
+  return null;
+}
+
+/** Simple CSV line split — handles quoted fields containing commas. */
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"' && line[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else if (c === '"') {
+        inQuotes = false;
+      } else {
+        cur += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ",") {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += c;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+export interface CsvImportResult {
+  imported: number;
+  skippedDuplicates: number;
+  skippedInvalid: number;
+  error?: string;
+}
+
+export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) return;
-  const rows = csv
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l) => l.split(","))
-    .filter((cols) => cols.length >= 2);
+  if (!event) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "Event not found." };
+
+  const lines = csv.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) {
+    return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "The file is empty." };
+  }
+
+  const headerCols = splitCsvLine(lines[0]).map(matchColumn);
+  const nameIdx = headerCols.indexOf("name");
+  if (nameIdx === -1) {
+    return {
+      imported: 0,
+      skippedDuplicates: 0,
+      skippedInvalid: 0,
+      error: 'Couldn\'t find a "name" column in the header row. Expected a header like: name, handicap, email, phone.',
+    };
+  }
+  const hcpIdx = headerCols.indexOf("handicap");
+  const emailIdx = headerCols.indexOf("email");
+  const phoneIdx = headerCols.indexOf("phone");
+  const hcpTypeIdx = headerCols.indexOf("handicapType");
+
+  const existing = await prisma.player.findMany({ where: { eventId }, select: { name: true, email: true } });
+  const seenNames = new Set(existing.map((p) => p.name.trim().toLowerCase()));
+  const seenEmails = new Set(existing.map((p) => p.email.trim().toLowerCase()).filter(Boolean));
 
   let confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
+  const unlimited = event.capacity <= 0;
   const agg = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
   let seed = (agg._max.seed ?? 0) + 1;
 
-  for (const [rawName, rawHcp] of rows) {
-    const name = rawName.trim();
-    const handicap = parseFloat(rawHcp);
-    // Skip a header row like "name,handicap".
-    if (!name || /^name$/i.test(name)) continue;
-    const status = confirmedCount < event.capacity ? "confirmed" : "waitlisted";
+  let imported = 0;
+  let skippedDuplicates = 0;
+  let skippedInvalid = 0;
+
+  for (const line of lines.slice(1)) {
+    const cols = splitCsvLine(line);
+    const name = (cols[nameIdx] ?? "").trim();
+    if (!name) {
+      skippedInvalid += 1;
+      continue;
+    }
+    const email = emailIdx >= 0 ? (cols[emailIdx] ?? "").trim() : "";
+    const nameKey = name.toLowerCase();
+    const emailKey = email.toLowerCase();
+    if (seenNames.has(nameKey) || (emailKey && seenEmails.has(emailKey))) {
+      skippedDuplicates += 1;
+      continue;
+    }
+    const handicap = hcpIdx >= 0 ? parseFloat(cols[hcpIdx] ?? "") : 0;
+    const status = unlimited || confirmedCount < event.capacity ? "confirmed" : "waitlisted";
     if (status === "confirmed") confirmedCount += 1;
     await prisma.player.create({
       data: {
@@ -138,10 +259,18 @@ export async function importCsvSignups(csv: string) {
         handicap: Number.isFinite(handicap) ? handicap : 0,
         seed: seed++,
         status,
+        email,
+        phone: phoneIdx >= 0 ? (cols[phoneIdx] ?? "").trim() : "",
+        handicapType: hcpTypeIdx >= 0 && (cols[hcpTypeIdx] ?? "").trim() === "9" ? "9" : "18",
       },
     });
+    seenNames.add(nameKey);
+    if (emailKey) seenEmails.add(emailKey);
+    imported += 1;
   }
+
   refresh();
+  return { imported, skippedDuplicates, skippedInvalid };
 }
 
 export async function setInviteMessage(message: string) {
