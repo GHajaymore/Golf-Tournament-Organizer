@@ -3,14 +3,18 @@ import { useState, useTransition } from "react";
 import { setStageCut } from "@/app/actions/tournament";
 
 export function CutControl({
-  stageId,
+  formId,
+  getStageId,
   enabled,
   mode,
   count,
   percent,
   confirmedCount,
 }: {
-  stageId: string;
+  /** Stable id for radio/name grouping — doesn't need to be a real stage id yet. */
+  formId: string;
+  /** Resolves the stage to write to, creating it first if it doesn't exist yet. */
+  getStageId: () => Promise<string>;
   enabled: boolean;
   mode: string;
   count: number;
@@ -28,7 +32,10 @@ export function CutControl({
     setM(nextMode);
     setN(nextN);
     setPct(nextPct);
-    startTransition(() => setStageCut(stageId, nextOn, nextMode, nextN, nextPct));
+    startTransition(async () => {
+      const stageId = await getStageId();
+      await setStageCut(stageId, nextOn, nextMode, nextN, nextPct);
+    });
   };
 
   const survivors =
@@ -48,7 +55,7 @@ export function CutControl({
             <label className="seg-opt">
               <input
                 type="radio"
-                name={`cutmode-${stageId}`}
+                name={`cutmode-${formId}`}
                 checked={m === "count"}
                 disabled={pending}
                 onChange={() => commit(on, "count", n, pct)}
@@ -58,7 +65,7 @@ export function CutControl({
             <label className="seg-opt">
               <input
                 type="radio"
-                name={`cutmode-${stageId}`}
+                name={`cutmode-${formId}`}
                 checked={m === "percent"}
                 disabled={pending}
                 onChange={() => commit(on, "percent", n, pct)}

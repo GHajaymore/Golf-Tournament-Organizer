@@ -69,14 +69,19 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 /**
  * Configures what happens between this round and the next one — carry-forward
- * and the cut line — right from the round you're currently looking at. Keyed
- * by the next stage's id (or "none") so its local state re-syncs whenever a
- * round gets added/removed instead of going stale.
+ * and the cut line — right from the round you're currently looking at. Both
+ * controls are always live: if the next round doesn't exist yet, touching
+ * either one creates it automatically (via ensureNextStageId) instead of
+ * requiring a separate "Add round" step first. Keyed by the next stage's id
+ * (or "none") so its local state re-syncs whenever a round gets added/removed.
  */
 function NextRoundTransition({
+  stageId,
   nextStage,
   confirmedCount,
 }: {
+  /** The current round's id — where a newly-created next round gets appended after. */
+  stageId: string;
   nextStage: StageView | undefined;
   confirmedCount: number;
 }) {
@@ -85,39 +90,24 @@ function NextRoundTransition({
   const [pending, startTransition] = useTransition();
   const [genPending, startGenTransition] = useTransition();
 
-  if (!nextStage) {
-    return (
-      <div
-        style={{
-          padding: "12px 16px",
-          border: "1px dashed var(--color-divider)",
-          borderRadius: "var(--radius-md)",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <p className="text-muted" style={{ fontSize: 12, margin: 0, flex: 1, minWidth: 200 }}>
-          Add another round to configure carry-forward or a cut line before it begins.
-        </p>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          disabled={pending}
-          onClick={() => startTransition(() => addStage("Round Robin"))}
-        >
-          <i className="ph ph-plus" /> Add next round
-        </button>
-      </div>
-    );
-  }
+  // Resolves to the real next-round id, creating a Round Robin round first if
+  // one doesn't exist yet — so the cut/carry controls work immediately.
+  const ensureNextStageId = async (): Promise<string> => {
+    if (nextStage) return nextStage.id;
+    const id = await addStage("Round Robin");
+    return id ?? stageId;
+  };
 
   const commitCarry = (nextEnabled: boolean, nextPct: number) => {
     setCarryEnabled(nextEnabled);
     setCarryPct(nextPct);
-    startTransition(() => setStageCarry(nextStage.id, nextEnabled, nextPct));
+    startTransition(async () => {
+      const id = await ensureNextStageId();
+      await setStageCarry(id, nextEnabled, nextPct);
+    });
   };
+
+  const roundLabel = nextStage ? `Round ${nextStage.position + 1}` : "the next round";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -135,7 +125,7 @@ function NextRoundTransition({
       >
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
           <input type="checkbox" checked={carryEnabled} onChange={(e) => commitCarry(e.target.checked, carryPct)} />
-          Carry forward points into Round {nextStage.position + 1}
+          Carry forward points into {roundLabel}
         </label>
         <input
           type="range"
@@ -151,8 +141,8 @@ function NextRoundTransition({
       </div>
       <p className="text-muted" style={{ fontSize: 12, margin: "0 0 0 2px" }}>
         {carryEnabled
-          ? `At ${carryPct}%, a player on 12 pts here starts Round ${nextStage.position + 1} with ${(12 * carryPct) / 100} pts.`
-          : `Disabled — every player starts Round ${nextStage.position + 1} at zero.`}
+          ? `At ${carryPct}%, a player on 12 pts here starts ${roundLabel} with ${(12 * carryPct) / 100} pts.`
+          : `Disabled — every player starts ${roundLabel} at zero.`}
       </p>
 
       <div
@@ -167,11 +157,12 @@ function NextRoundTransition({
         }}
       >
         <CutControl
-          stageId={nextStage.id}
-          enabled={nextStage.cutEnabled}
-          mode={nextStage.cutMode}
-          count={nextStage.cutCount}
-          percent={nextStage.cutPercent}
+          formId={stageId}
+          getStageId={ensureNextStageId}
+          enabled={nextStage?.cutEnabled ?? false}
+          mode={nextStage?.cutMode ?? "count"}
+          count={nextStage?.cutCount ?? 16}
+          percent={nextStage?.cutPercent ?? 50}
           confirmedCount={confirmedCount}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -179,20 +170,25 @@ function NextRoundTransition({
             type="button"
             className="btn btn-secondary"
             disabled={genPending}
-            onClick={() => startGenTransition(() => generateNextRound(nextStage.id))}
+            onClick={() =>
+              startGenTransition(async () => {
+                const id = await ensureNextStageId();
+                await generateNextRound(id);
+              })
+            }
           >
-            <i className="ph ph-arrows-clockwise" /> {nextStage.matchCount > 0 ? "Regenerate" : "Generate"} Round {nextStage.position + 1} pairings
+            <i className="ph ph-arrows-clockwise" /> {nextStage?.matchCount ? "Regenerate" : "Generate"} {roundLabel} pairings
           </button>
           <span className="text-muted" style={{ fontSize: 12 }}>
-            {nextStage.cutEnabled
-              ? "Builds Round " + (nextStage.position + 1) + "'s matches from this round's current standings — run it once this round is complete."
-              : "Builds Round " + (nextStage.position + 1) + "'s matches for the full field, from the current flights."}
-            {nextStage.matchCount > 0 && " Re-running replaces that round's matches."}
+            {nextStage?.cutEnabled
+              ? `Builds ${roundLabel}'s matches from this round's current standings — run it once this round is complete.`
+              : `Builds ${roundLabel}'s matches for the full field, from the current flights.`}
+            {!!nextStage?.matchCount && " Re-running replaces that round's matches."}
           </span>
         </div>
-        {nextStage.matchCount === 0 && (
+        {nextStage && nextStage.matchCount === 0 && (
           <span className="tag tag-neutral" style={{ alignSelf: "flex-start" }}>
-            <i className="ph ph-clock" /> Round {nextStage.position + 1} not generated yet
+            <i className="ph ph-clock" /> {roundLabel} not generated yet
           </span>
         )}
       </div>
@@ -448,7 +444,7 @@ function StageCard({
                 <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
                   Carry points forward and/or cut the field before it moves on from this round.
                 </p>
-                <NextRoundTransition key={nextStage?.id ?? "none"} nextStage={nextStage} confirmedCount={confirmedCount} />
+                <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} confirmedCount={confirmedCount} />
               </div>
             )}
           </div>
@@ -516,7 +512,7 @@ export function StagesClient({
           type="button"
           className="btn btn-primary"
           disabled={pending}
-          onClick={() => startTransition(() => addStage(newType))}
+          onClick={() => startTransition(async () => { await addStage(newType); })}
         >
           <i className="ph ph-plus" /> Add round
         </button>

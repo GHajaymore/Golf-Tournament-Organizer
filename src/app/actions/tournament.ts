@@ -463,13 +463,14 @@ const STAGE_DESCRIPTIONS: Record<string, string> = {
   "Bracket Stage": "Single-elimination bracket to a champion.",
 };
 
-export async function addStage(type: string) {
+/** Returns the new stage's id so callers can act on it immediately (e.g. set a cut line before the page revalidates). */
+export async function addStage(type: string): Promise<string | undefined> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   const stageType = (STAGE_TYPES as readonly string[]).includes(type) ? type : "Round Robin";
   const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
   const position = (agg._max.position ?? -1) + 1;
-  await prisma.stage.create({
+  const created = await prisma.stage.create({
     data: {
       eventId,
       position,
@@ -480,6 +481,7 @@ export async function addStage(type: string) {
     },
   });
   refresh();
+  return created.id;
 }
 
 export async function removeStage(stageId: string) {
