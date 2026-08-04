@@ -5,6 +5,7 @@ import { setStageCut } from "@/app/actions/tournament";
 export function CutControl({
   formId,
   getStageId,
+  roundLabel,
   enabled,
   mode,
   count,
@@ -15,6 +16,8 @@ export function CutControl({
   formId: string;
   /** Resolves the stage to write to, creating it first if it doesn't exist yet. */
   getStageId: () => Promise<string>;
+  /** e.g. "Round 2" once it exists, or "the next round" before it's created. */
+  roundLabel: string;
   enabled: boolean;
   mode: string;
   count: number;
@@ -47,7 +50,7 @@ export function CutControl({
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
         <input type="checkbox" checked={on} disabled={pending} onChange={(e) => commit(e.target.checked, m, n, pct)} />
-        Cut the field entering this round
+        Cut the field for {roundLabel}
       </label>
       {on && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -98,7 +101,7 @@ export function CutControl({
             />
           )}
           <span className="text-muted" style={{ fontSize: 12 }}>
-            {survivors} of {confirmedCount} advance into this round.
+            {survivors} of {confirmedCount} advance into {roundLabel}.
           </span>
         </div>
       )}

@@ -159,6 +159,7 @@ function NextRoundTransition({
         <CutControl
           formId={stageId}
           getStageId={ensureNextStageId}
+          roundLabel={roundLabel}
           enabled={nextStage?.cutEnabled ?? false}
           mode={nextStage?.cutMode ?? "count"}
           count={nextStage?.cutCount ?? 16}
