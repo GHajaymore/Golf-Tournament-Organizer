@@ -166,7 +166,8 @@ export function RegistrationClient({
                 <th style={{ width: 32 }}>#</th>
                 <th>Player</th>
                 <th style={{ width: 96, textAlign: "right" }}>Hcp</th>
-                <th>Contact</th>
+                <th>Email</th>
+                <th>Phone</th>
                 {showFlight && <th>Flight</th>}
                 <th style={{ width: 44 }} />
               </tr>
@@ -204,9 +205,8 @@ export function RegistrationClient({
                       </select>
                     </div>
                   </td>
-                  <td className="text-muted" style={{ fontSize: 12 }}>
-                    {p.phone && p.email ? `${p.phone} · ${p.email}` : p.phone || p.email || "—"}
-                  </td>
+                  <td className="text-muted" style={{ fontSize: 12 }}>{p.email || "—"}</td>
+                  <td className="text-muted" style={{ fontSize: 12 }}>{p.phone || "—"}</td>
                   {showFlight && <td className="text-muted">{p.flight || "—"}</td>}
                   <td style={{ textAlign: "right" }}>
                     <button type="button" className="btn btn-icon" disabled={pending || locked} onClick={() => startTransition(() => removeSignup(p.id))}>
@@ -216,7 +216,7 @@ export function RegistrationClient({
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={showFlight ? 7 : 6} className="text-muted" style={{ padding: "10px 6px" }}>None yet.</td></tr>
+                <tr><td colSpan={showFlight ? 8 : 7} className="text-muted" style={{ padding: "10px 6px" }}>None yet.</td></tr>
               )}
             </tbody>
           </table>
