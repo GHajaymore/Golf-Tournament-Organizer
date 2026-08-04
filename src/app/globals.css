@@ -112,6 +112,11 @@ a.card:hover, button.card:hover,
 /* App-shell layout on top of the Nocturne design system. */
 html {
   scroll-behavior: smooth;
+  /* Tells the browser to render native form-control chrome (the date-input
+     calendar icon, in particular) using a dark-appropriate palette instead
+     of assuming a light page — without this the calendar icon renders
+     near-black and disappears against the dark theme. */
+  color-scheme: dark;
 }
 html,
 body {
