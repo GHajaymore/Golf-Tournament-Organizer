@@ -254,23 +254,29 @@ function StageCard({
   const showTransition = stage.type === "Round Robin";
   const notGenerated = !isFirst && stage.type === "Round Robin" && stage.matchCount === 0;
 
-  // Summary of anything non-default, shown when the customize panel is collapsed
-  // so nothing is hidden — just tucked away until you need to change it.
-  const badges: string[] = [];
-  if (basis !== "gross") badges.push(basis === "net" ? "Net scoring" : "Gross + net");
-  if (deadline) badges.push(`Due ${deadline}`);
-  if (stage.type === "Qualification Stage") {
-    badges.push(qual.mode === "overall" ? `Top ${qual.overall} overall` : `Top ${qual.perFlight} per flight`);
-  }
-
-  // Round-to-round transition status — always visible (not tucked behind
-  // Customize) since it's easy to miss otherwise, especially before anything's
-  // configured and there's no badge to hint it exists.
+  // One rich, always-legible summary line for the collapsed toggle — covers
+  // every setting on this card (including what happens into the next round),
+  // so there's a single place to both see and change everything, and nothing
+  // is invisible just because it hasn't been customized yet.
   const transitionParts: string[] = [];
   if (nextStage?.carryEnabled) transitionParts.push(`carries ${nextStage.carryPct}%`);
   if (nextStage?.cutEnabled) {
     transitionParts.push(nextStage.cutMode === "percent" ? `cuts to top ${nextStage.cutPercent}%` : `cuts to top ${nextStage.cutCount}`);
   }
+  const summaryParts: string[] = [];
+  if (deadline) summaryParts.push(`Due ${deadline}`);
+  if (basis !== "gross") summaryParts.push(basis === "net" ? "Net scoring" : "Gross + net");
+  if (stage.type === "Qualification Stage") {
+    summaryParts.push(qual.mode === "overall" ? `Top ${qual.overall} overall` : `Top ${qual.perFlight} per flight`);
+  }
+  if (showTransition) {
+    summaryParts.push(
+      nextStage
+        ? `Into Round ${nextStage.position + 1}: ${transitionParts.length ? transitionParts.join(" · ") : "no cut or carry-forward"}`
+        : "No round after this yet",
+    );
+  }
+  const summaryLine = summaryParts.length ? summaryParts.join(" · ") : "Standard settings";
 
   return (
     <div className="card elev-sm" style={{ gap: 14 }}>
@@ -351,64 +357,35 @@ function StageCard({
         </div>
       )}
 
-      {showTransition && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            flexWrap: "wrap",
-            fontSize: 12,
-            padding: "8px 10px",
-            borderRadius: "var(--radius-md)",
-            background: "var(--color-bg)",
-          }}
-        >
-          <i className="ph ph-arrow-bend-down-right" style={{ color: "var(--color-neutral-500)" }} />
-          {nextStage ? (
-            <span className="text-muted" style={{ flex: 1 }}>
-              Into Round {nextStage.position + 1}:{" "}
-              {transitionParts.length ? transitionParts.join(" · ") : "no carry-forward or cut set"}
-            </span>
-          ) : (
-            <span className="text-muted" style={{ flex: 1 }}>No round after this one yet — no carry-forward or cut to configure.</span>
-          )}
-          <button
-            type="button"
-            onClick={() => setCustomizeOpen(true)}
-            style={{ background: "none", border: "none", color: "var(--color-accent-300)", cursor: "pointer", fontSize: 12, padding: 0, textDecoration: "underline" }}
-          >
-            Configure
-          </button>
-        </div>
-      )}
-
       <div>
         <button
           type="button"
           onClick={() => setCustomizeOpen((o) => !o)}
           style={{
-            background: "none",
-            border: "none",
-            color: "var(--color-accent-300)",
-            cursor: "pointer",
-            fontSize: 13,
-            display: "inline-flex",
+            width: "100%",
+            display: "flex",
             alignItems: "center",
-            gap: 6,
-            padding: "2px",
+            justifyContent: "space-between",
+            gap: 12,
+            background: "var(--color-bg)",
+            border: "1px solid var(--color-divider)",
+            borderRadius: "var(--radius-md)",
+            padding: "10px 14px",
+            cursor: "pointer",
+            textAlign: "left",
           }}
         >
-          <i className={customizeOpen ? "ph ph-caret-down" : "ph ph-caret-right"} />
-          <i className="ph ph-sliders" /> Customize this round
+          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 500, flex: "none" }}>
+            <i className={customizeOpen ? "ph ph-caret-down" : "ph ph-caret-right"} style={{ color: "var(--color-accent-300)" }} />
+            <i className="ph ph-sliders" style={{ color: "var(--color-accent-300)" }} />
+            Customize this round
+          </span>
+          {!customizeOpen && (
+            <span className="text-muted" style={{ fontSize: 12, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {summaryLine}
+            </span>
+          )}
         </button>
-        {!customizeOpen && badges.length > 0 && (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
-            {badges.map((b) => (
-              <span key={b} className="tag tag-outline" style={{ fontSize: 11 }}>{b}</span>
-            ))}
-          </div>
-        )}
 
         {customizeOpen && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
