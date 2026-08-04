@@ -12,7 +12,12 @@ required.
 ## Running it
 
 1. Install [Android Studio](https://developer.android.com/studio) if it
-   isn't already on this machine (it bundles the Android SDK).
+   isn't already on this machine (it bundles the Android SDK, and its own
+   bundled JDK — no separate JDK install needed if you're building through
+   the IDE). Building from the command line instead (`gradlew`) needs
+   **JDK 21+** on `JAVA_HOME` — this project's Capacitor Android library
+   requires source/target compatibility 21; JDK 17 fails with `invalid
+   source release: 21`.
 2. Confirm `capacitor.config.ts`'s `server.url` points at a server your
    emulator/device can reach — the LAN address `next dev` prints under
    `Network:` (e.g. `http://192.168.x.x:3000`) works for the Android
