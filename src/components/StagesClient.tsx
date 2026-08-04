@@ -408,6 +408,26 @@ function StageCard({
               </div>
             </div>
 
+            {showTransition && (
+              <div>
+                <SectionLabel>Cut line &amp; carry-forward — before the next round</SectionLabel>
+                <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
+                  Carry points forward and/or cut the field before it moves on from this round.
+                </p>
+                <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} confirmedCount={confirmedCount} />
+              </div>
+            )}
+
+            {stage.type === "Qualification Stage" && (
+              <div>
+                <SectionLabel>Qualification cut</SectionLabel>
+                <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
+                  How many players advance from this cut — top N per flight, or top N overall.
+                </p>
+                <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} />
+              </div>
+            )}
+
             {stage.type === "Round Robin" && (
               <div>
                 <SectionLabel>Match Points &amp; tiebreakers</SectionLabel>
@@ -425,26 +445,6 @@ function StageCard({
                     Match Points &amp; tiebreakers only apply to Match Play rounds.
                   </p>
                 )}
-              </div>
-            )}
-
-            {stage.type === "Qualification Stage" && (
-              <div>
-                <SectionLabel>Qualification cut</SectionLabel>
-                <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
-                  How many players advance from this cut — top N per flight, or top N overall.
-                </p>
-                <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} />
-              </div>
-            )}
-
-            {showTransition && (
-              <div>
-                <SectionLabel>Before the next round</SectionLabel>
-                <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
-                  Carry points forward and/or cut the field before it moves on from this round.
-                </p>
-                <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} confirmedCount={confirmedCount} />
               </div>
             )}
           </div>
