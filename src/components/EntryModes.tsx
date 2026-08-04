@@ -19,6 +19,7 @@ export function EntryModes({
   activeIndex,
   players,
   pars,
+  strokeIndex,
   isStaff,
   defaultMode = "match",
 }: {
@@ -26,6 +27,7 @@ export function EntryModes({
   activeIndex: number;
   players: Array<{ id: string; name: string; handicap: number }>;
   pars: number[];
+  strokeIndex: number[];
   isStaff: boolean;
   defaultMode?: "match" | "stroke";
 }) {
@@ -73,6 +75,7 @@ export function EntryModes({
           key={round.stageId}
           players={players}
           pars={pars}
+          strokeIndex={strokeIndex}
           holes={round.stroke.holes}
           stageId={round.stroke.stageId}
           cardsByPlayer={round.stroke.cardsByPlayer}

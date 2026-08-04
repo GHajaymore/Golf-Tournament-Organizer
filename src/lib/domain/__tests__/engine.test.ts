@@ -15,6 +15,7 @@ import {
   splitBrackets,
   carriedInto,
   computeStrokeCard,
+  holeStrokesReceived,
   toParText,
   DEFAULT_SCORING,
   type HoleResult,
@@ -305,6 +306,22 @@ describe("stroke play", () => {
     expect(toParText(0)).toBe("E");
     expect(toParText(3)).toBe("+3");
     expect(toParText(-2)).toBe("-2");
+  });
+
+  it("allocates handicap strokes per hole (1/18 + extra on the hardest holes)", () => {
+    expect(holeStrokesReceived(10, 1)).toBe(1); // in the hardest-10 holes
+    expect(holeStrokesReceived(10, 15)).toBe(0); // not in the hardest-10
+    expect(holeStrokesReceived(20, 1)).toBe(2); // 1 flat + 1 extra (hardest 2 holes)
+    expect(holeStrokesReceived(20, 5)).toBe(1); // 1 flat only
+  });
+
+  it("prorates net to holes actually played instead of the full handicap", () => {
+    const pars = [4, 4];
+    const strokeIndex = [1, 2, ...Array.from({ length: 16 }, (_, i) => i + 3)]; // 18 holes, SI 1 & 2 first
+    // Handicap 9 on the two hardest holes: each gets exactly 1 stroke (floor(9/18)=0, remainder 9 covers SI 1 & 2).
+    const card = computeStrokeCard([5, 5, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], pars, 9, strokeIndex);
+    expect(card.gross).toBe(10);
+    expect(card.net).toBe(8); // 10 - 2 strokes received on the 2 holes played, NOT 10 - 9
   });
 });
 

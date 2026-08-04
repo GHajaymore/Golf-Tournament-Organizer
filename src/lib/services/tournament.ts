@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { computeStrokeCard } from "../domain";
+import { computeStrokeCard, holeStrokesReceived } from "../domain";
 import { findCourse } from "../courses";
 import { pts as fmtPts, record as fmtRecord, diff as fmtDiff } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
@@ -221,7 +221,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // Stroke-play standings (from submitted scorecards), used when the event format is stroke.
   const isStroke = event.format === "stroke";
   const pars = course.pars;
-  const strokeAgg = new Map<string, { gross: number; thru: number; parThru: number }>();
+  const handicapById = new Map(players.map((p) => [p.id, p.handicap]));
+  const strokeAgg = new Map<string, { gross: number; thru: number; parThru: number; strokesReceived: number }>();
   for (const sc of scorecards) {
     let strokes: (number | null)[];
     try {
@@ -229,20 +230,25 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     } catch {
       continue;
     }
-    const a = strokeAgg.get(sc.playerId) ?? { gross: 0, thru: 0, parThru: 0 };
+    const handicap = handicapById.get(sc.playerId) ?? 0;
+    const a = strokeAgg.get(sc.playerId) ?? { gross: 0, thru: 0, parThru: 0, strokesReceived: 0 };
     strokes.forEach((s, i) => {
       if (typeof s === "number" && s > 0) {
         a.gross += s;
         a.thru += 1;
         a.parThru += pars[i] ?? 0;
+        // Strokes are allocated per hole actually played (not the full
+        // handicap against a partial gross), so "net" is accurate thru any
+        // number of holes, not just once the round is complete.
+        a.strokesReceived += holeStrokesReceived(handicap, holeDifficulty[i] ?? 18);
       }
     });
     strokeAgg.set(sc.playerId, a);
   }
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
-      const a = strokeAgg.get(p.id) ?? { gross: 0, thru: 0, parThru: 0 };
-      return { player: p, gross: a.gross, net: a.gross - Math.round(p.handicap), toPar: a.gross - a.parThru, thru: a.thru, rank: 0 };
+      const a = strokeAgg.get(p.id) ?? { gross: 0, thru: 0, parThru: 0, strokesReceived: 0 };
+      return { player: p, gross: a.gross, net: a.gross - Math.round(a.strokesReceived), toPar: a.gross - a.parThru, thru: a.thru, rank: 0 };
     })
     .sort((x, y) => (y.thru > 0 ? 1 : 0) - (x.thru > 0 ? 1 : 0) || x.net - y.net || x.gross - y.gross)
     .map((s, i) => ({ ...s, rank: i + 1 }));

@@ -14,7 +14,9 @@ export default async function EntryPage() {
 
   const nameById = new Map(state.players.map((p) => [p.id, p.name]));
   const groupById = new Map(state.groups.map((g) => [g.id, g.position]));
-  const pars = findCourse(state.event.course).pars;
+  const course = findCourse(state.event.course);
+  const pars = course.pars;
+  const strokeIndex = course.strokeIndex;
 
   // A tournament can sequence more than one Round Robin round; build entry data
   // for each so staff/players can switch between them (e.g. fix Round 1 while
@@ -75,6 +77,7 @@ export default async function EntryPage() {
       activeIndex={activeIndex}
       players={state.confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap }))}
       pars={pars}
+      strokeIndex={strokeIndex}
       isStaff={isStaff}
       defaultMode={state.event.format === "stroke" ? "stroke" : "match"}
     />

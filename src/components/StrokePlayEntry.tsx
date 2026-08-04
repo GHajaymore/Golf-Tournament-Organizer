@@ -12,12 +12,14 @@ interface StrokePlayer {
 export function StrokePlayEntry({
   players,
   pars,
+  strokeIndex,
   holes,
   stageId,
   cardsByPlayer,
 }: {
   players: StrokePlayer[];
   pars: number[];
+  strokeIndex: number[];
   holes: number;
   stageId: string;
   cardsByPlayer: Record<string, (number | null)[]>;
@@ -33,8 +35,8 @@ export function StrokePlayEntry({
   const player = players.find((p) => p.id === playerId);
   const strokes = cards[playerId] ?? new Array(holes).fill(null);
   const card = useMemo(
-    () => computeStrokeCard(strokes, pars, player?.handicap ?? 0),
-    [strokes, pars, player],
+    () => computeStrokeCard(strokes, pars, player?.handicap ?? 0, strokeIndex),
+    [strokes, pars, strokeIndex, player],
   );
   const parTotal = pars.slice(0, holes).reduce((a, b) => a + b, 0);
 
