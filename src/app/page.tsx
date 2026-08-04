@@ -72,36 +72,51 @@ export default async function LoginPage() {
           gap: 28,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div
             style={{
-              width: 44,
-              height: 44,
+              width: 48,
+              height: 48,
               display: "grid",
               placeItems: "center",
-              borderRadius: 12,
+              borderRadius: 13,
               background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
               boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent)",
             }}
           >
-            <Logo size={26} style={{ color: "var(--color-accent)" }} />
+            <Logo size={28} style={{ color: "var(--color-accent)" }} />
           </div>
-          <span
-            className="brand-mark"
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontWeight: 700,
-              fontSize: 28,
-              letterSpacing: "-0.01em",
-            }}
-          >
-            Flights
-          </span>
+          <div>
+            <span
+              className="brand-mark"
+              style={{
+                fontFamily: "var(--font-heading)",
+                fontWeight: 700,
+                fontSize: 30,
+                letterSpacing: "-0.01em",
+                lineHeight: 1,
+                display: "block",
+              }}
+            >
+              Flights
+            </span>
+            <span
+              className="text-muted"
+              style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 500 }}
+            >
+              Tournament Operations Console
+            </span>
+          </div>
         </div>
 
         <div>
-          <div className="page-kicker">Tournament Operations</div>
-          <h1 style={{ fontSize: 50, lineHeight: 1.04, margin: "16px 0 0", maxWidth: "13ch" }}>
+          <span
+            className="tag tag-outline"
+            style={{ fontSize: 11, color: "var(--color-accent-200)", borderColor: "color-mix(in srgb, var(--color-accent) 40%, transparent)" }}
+          >
+            For club, member-guest &amp; member-member organizers
+          </span>
+          <h1 style={{ fontSize: 50, lineHeight: 1.04, margin: "18px 0 0", maxWidth: "14ch" }}>
             Run the whole event from one console.
           </h1>
           <p className="text-muted" style={{ fontSize: 16, maxWidth: "46ch", marginTop: 18 }}>
@@ -115,12 +130,23 @@ export default async function LoginPage() {
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(2, 1fr)",
-              gap: 16,
-              maxWidth: 520,
+              gap: 12,
+              maxWidth: 540,
             }}
           >
             {FEATURES.map((f) => (
-              <div key={f.title} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <div
+                key={f.title}
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid var(--color-divider)",
+                  background: "color-mix(in srgb, var(--color-surface) 40%, transparent)",
+                }}
+              >
                 <div
                   style={{
                     width: 32,
@@ -146,9 +172,22 @@ export default async function LoginPage() {
           </div>
         </div>
 
-        <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="tag tag-outline" style={{ fontSize: 10 }}>Flights</span>
-          Tournament operations console
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingTop: 18,
+            borderTop: "1px solid var(--color-divider)",
+          }}
+        >
+          <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <Logo size={13} style={{ color: "var(--color-accent)" }} />
+            &copy; {new Date().getFullYear()} Flights
+          </div>
+          <div className="text-muted" style={{ fontSize: 12 }}>
+            Built for the modern clubhouse
+          </div>
         </div>
       </div>
       <div

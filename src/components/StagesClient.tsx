@@ -445,7 +445,8 @@ function StageCard({
                   </>
                 ) : (
                   <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
-                    This round is scored as Stroke Play — ties break by lowest net, then lowest gross.
+                    This round is scored as Stroke Play — ties break by{" "}
+                    {basis === "stableford" ? "highest Stableford points" : "lowest net, then lowest gross"}.
                     Match Points &amp; tiebreakers only apply to Match Play rounds.
                   </p>
                 )}
