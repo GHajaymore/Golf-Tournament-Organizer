@@ -44,13 +44,27 @@ export function Sidebar({ sections, name, role, viewRole, initials }: Props) {
           display: "flex",
           alignItems: "center",
           gap: 9,
-          padding: "6px 8px 12px",
+          padding: "6px 8px 14px",
           fontFamily: "var(--font-heading)",
-          fontWeight: 500,
-          fontSize: 16,
+          fontWeight: 700,
+          fontSize: 18,
+          letterSpacing: "-0.01em",
         }}
       >
-        <Logo size={21} /> Flights
+        <div
+          style={{
+            width: 30,
+            height: 30,
+            flex: "none",
+            display: "grid",
+            placeItems: "center",
+            borderRadius: 8,
+            background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
+          }}
+        >
+          <Logo size={17} style={{ color: "var(--color-accent)" }} />
+        </div>
+        <span className="brand-mark">Flights</span>
       </div>
 
       {sections.map((sec) => (

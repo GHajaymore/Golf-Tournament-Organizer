@@ -4,6 +4,29 @@ import { getSession } from "@/lib/auth";
 import { LoginPanel } from "@/components/LoginPanel";
 import { Logo } from "@/components/Logo";
 
+const FEATURES: Array<{ icon: string; title: string; text: string }> = [
+  {
+    icon: "ph ph-arrows-clockwise",
+    title: "Match play & stroke play",
+    text: "Round-robin flights, gross/net/both scoring, and a real Stableford option — all in one console.",
+  },
+  {
+    icon: "ph ph-flag-checkered",
+    title: "Multi-round cuts",
+    text: "Sequence any number of rounds, cut the field by a real count or percent, and carry points forward.",
+  },
+  {
+    icon: "ph ph-tree-structure",
+    title: "Automatic brackets",
+    text: "Qualifiers seed straight into winners & consolation brackets — no re-entry, no spreadsheets.",
+  },
+  {
+    icon: "ph ph-ranking",
+    title: "Live leaderboards",
+    text: "Standings, tiebreakers down to the toughest holes, and highlights update the moment a score lands.",
+  },
+];
+
 export default async function LoginPage() {
   const session = await getSession();
   if (session) redirect("/dashboard");
@@ -31,9 +54,11 @@ export default async function LoginPage() {
       style={{
         minHeight: "100vh",
         display: "grid",
-        gridTemplateColumns: "1fr 1fr",
+        gridTemplateColumns: "1.15fr 1fr",
         background:
-          "radial-gradient(1000px 600px at 80% -120px, var(--color-accent-900), transparent 60%), var(--color-bg)",
+          "radial-gradient(1100px 650px at 85% -140px, var(--color-accent-900), transparent 62%), " +
+          "radial-gradient(900px 500px at -10% 110%, var(--color-accent-2-900), transparent 55%), " +
+          "var(--color-bg)",
         color: "var(--color-text)",
       }}
     >
@@ -44,32 +69,86 @@ export default async function LoginPage() {
           flexDirection: "column",
           justifyContent: "space-between",
           padding: "48px 56px",
+          gap: 28,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            fontFamily: "var(--font-heading)",
-            fontWeight: 500,
-            fontSize: 19,
-          }}
-        >
-          <Logo size={24} /> Flights
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 12,
+              background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
+              boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent)",
+            }}
+          >
+            <Logo size={26} style={{ color: "var(--color-accent)" }} />
+          </div>
+          <span
+            className="brand-mark"
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontWeight: 700,
+              fontSize: 28,
+              letterSpacing: "-0.01em",
+            }}
+          >
+            Flights
+          </span>
         </div>
+
         <div>
           <div className="page-kicker">Tournament Operations</div>
-          <h1 style={{ fontSize: 44, lineHeight: 1.08, margin: "14px 0 0", maxWidth: "12ch" }}>
+          <h1 style={{ fontSize: 50, lineHeight: 1.04, margin: "16px 0 0", maxWidth: "13ch" }}>
             Run the whole event from one console.
           </h1>
-          <p className="text-muted" style={{ fontSize: 15, maxWidth: "44ch", marginTop: 16 }}>
-            Round-robin flights, qualification, brackets, match-play scorecards and live
-            standings — automated, with manual override wherever you need it.
+          <p className="text-muted" style={{ fontSize: 16, maxWidth: "46ch", marginTop: 18 }}>
+            Round-robin flights, qualification cuts, brackets, match-play scorecards and live
+            standings — automated end to end, with a manual override wherever you need one.
           </p>
+
+          <div className="flight-rule" style={{ maxWidth: 420 }} />
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: 16,
+              maxWidth: 520,
+            }}
+          >
+            {FEATURES.map((f) => (
+              <div key={f.title} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    flex: "none",
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 9,
+                    background: "var(--color-accent-900)",
+                    color: "var(--color-accent-300)",
+                  }}
+                >
+                  <i className={f.icon} style={{ fontSize: 16 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{f.title}</div>
+                  <div className="text-muted" style={{ fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>
+                    {f.text}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="text-muted" style={{ fontSize: 12 }}>
-          Flights · Tournament operations console
+
+        <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="tag tag-outline" style={{ fontSize: 10 }}>Flights</span>
+          Tournament operations console
         </div>
       </div>
       <div
@@ -79,6 +158,7 @@ export default async function LoginPage() {
           justifyContent: "center",
           padding: 40,
           borderLeft: "1px solid var(--color-divider)",
+          background: "color-mix(in srgb, var(--color-surface) 55%, transparent)",
         }}
       >
         <LoginPanel events={eventCards} />

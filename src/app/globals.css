@@ -1,15 +1,24 @@
 @import "./nocturne.css";
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Brand theme override — warm orange accent on the dark ground.
-   Overrides the design-system accent ramp (loaded above) in one place so the
-   change is traceable and revertible. Ground/neutrals are kept; a complementary
-   teal secondary (accent-2) gives the A/B match-play colors real separation.
-   Ramps follow the original's perceptual lightness cadence.
+   Brand theme — "Fairway": warm orange + true fairway green on a warm dark
+   ground, evoking a clubhouse at dusk rather than a generic tech-blue
+   dashboard. Overrides the design-system's foundation ramp (loaded above) in
+   one place so the change is traceable and revertible. Ramps follow the
+   original's perceptual lightness cadence; neutrals keep their values but
+   lean warm instead of blue.
+
+   NOTE: doubled to `:root:root` deliberately — Next.js's CSS chunk bundler
+   does not preserve `@import`-first cascade order (the imported
+   nocturne.css rules land AFTER this file's own rules in the compiled
+   stylesheet), so a plain `:root` block here loses to nocturne.css's
+   tokens despite appearing later in source. The doubled selector raises
+   specificity so this override wins regardless of bundler ordering.
    ────────────────────────────────────────────────────────────────────────── */
-:root {
+:root:root {
   --color-accent: #f2872e; /* warm orange */
-  --color-accent-2: #2fb3a0; /* complementary teal */
+  --color-accent-2: #3c8361; /* fairway green */
 
   --color-accent-100: #fef3ea;
   --color-accent-200: #fde0cb;
@@ -21,15 +30,83 @@
   --color-accent-800: #6c3c18;
   --color-accent-900: #38230f;
 
-  --color-accent-2-100: #e9faf6;
-  --color-accent-2-200: #c6f1e9;
-  --color-accent-2-300: #95e4d6;
-  --color-accent-2-400: #57cdb9;
-  --color-accent-2-500: #2fb3a0;
-  --color-accent-2-600: #259080;
-  --color-accent-2-700: #1e6f62;
-  --color-accent-2-800: #18463f;
-  --color-accent-2-900: #122d29;
+  --color-accent-2-100: #e7f5ec;
+  --color-accent-2-200: #c3e6d0;
+  --color-accent-2-300: #93d0ac;
+  --color-accent-2-400: #5fb484;
+  --color-accent-2-500: #3c8361;
+  --color-accent-2-600: #2e6a4c;
+  --color-accent-2-700: #23503a;
+  --color-accent-2-800: #173627;
+  --color-accent-2-900: #0d2016;
+
+  /* Ground: same lightness steps as the foundation, hue nudged warm (off
+     blue-black toward a neutral charcoal with a whisper of green) so the
+     whole app reads "clubhouse at night" rather than "generic dashboard." */
+  --color-bg: #16181a;
+  --color-surface: #21231f;
+  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  /* A distinct display face for headings, tournament names and big scores —
+     a soft-optical serif with real character, paired with Inter for dense
+     tables and UI chrome where plain legibility matters more than voice. */
+  --font-heading: "Fraunces", "Iowan Old Style", ui-serif, serif;
+  --font-heading-weight: 600;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Signature flourishes — small, reusable motifs that make the Fairway theme
+   feel crafted rather than a palette swap. Kept to a handful of classes so
+   they layer cleanly over the existing component system.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Cards lift and pick up a hairline gold edge on hover — a small tactile cue
+   that most of the console's surfaces are interactive without being loud. */
+.card.elev-sm, .card.elev-md, .card.elev-lg {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+a.card:hover, button.card:hover,
+.card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md), 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+/* Primary buttons get a soft trophy-gold sheen instead of a flat fill. */
+.btn-primary {
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary:hover {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--color-accent) 20%, transparent),
+    color-mix(in srgb, var(--color-accent) 10%, transparent));
+}
+
+/* Flight-path divider — the logo's dashed trajectory, stretched into a
+   section rule. Used on the marketing page and anywhere a plain <hr> feels
+   too generic for a moment that deserves the brand mark. */
+.flight-rule {
+  height: 10px;
+  margin: var(--space-6) 0;
+  background-image: radial-gradient(circle, var(--color-accent) 1.4px, transparent 1.6px);
+  background-size: 14px 10px;
+  background-position: center;
+  background-repeat: repeat-x;
+  opacity: 0.55;
+  mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+}
+
+/* Wordmark — a brushed-gold gradient foil instead of flat text, so "Flights"
+   reads as a crafted mark wherever it appears (sidebar, mobile bar, landing). */
+.brand-mark {
+  background: linear-gradient(115deg,
+    var(--color-accent-200) 0%,
+    var(--color-accent) 45%,
+    var(--color-accent-600) 75%,
+    var(--color-accent-300) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* App-shell layout on top of the Nocturne design system. */
