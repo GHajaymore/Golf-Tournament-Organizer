@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Flights</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #16181a; }
+  .loading {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 500 15px -apple-system, system-ui, sans-serif;
+    color: #b2b6ca;
+  }
+</style>
+</head>
+<body>
+  <!--
+    This file is never actually shown in normal operation: capacitor.config.ts
+    points the WebView straight at the live Next.js server (server.url), since
+    Flights is a full-stack app (server actions, Prisma/SQLite, cookie auth)
+    that cannot run as a static offline bundle. Capacitor still requires a
+    webDir to exist on disk, and this page is the one-frame fallback it would
+    show if the app ever launched with no server URL configured at all.
+  -->
+  <div class="loading">Loading Flights…</div>
+</body>
+</html>
