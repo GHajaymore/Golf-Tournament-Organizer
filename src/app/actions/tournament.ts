@@ -62,13 +62,52 @@ export interface SignupInput {
   handicapType?: string;
 }
 
-export async function addSignup(input: SignupInput) {
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Access is email-based (see signInByEmail in actions/auth.ts): whoever
+ * matches an Account's email for this event can sign in as that role. A
+ * registered player's email is therefore how they get in, not just a
+ * contact detail — so registering them also grants their sign-in access
+ * directly, instead of requiring a separate manual step on Access & staff.
+ * Never downgrades an existing admin/assistant Account (e.g. an organizer
+ * who's also playing in their own event) — only sets role "player" when
+ * creating a brand new Account for that email.
+ */
+async function syncPlayerAccount(eventId: string, name: string, email: string): Promise<void> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) return;
+  await prisma.account.upsert({
+    where: { eventId_email: { eventId, email: cleanEmail } },
+    update: { name },
+    create: { eventId, name, email: cleanEmail, role: "player" },
+  });
+}
+
+/** Revoke sign-in access granted via syncPlayerAccount — only removes a
+ *  "player" role Account, never an admin/assistant one that happens to
+ *  share the same email. */
+async function revokePlayerAccount(eventId: string, email: string): Promise<void> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) return;
+  await prisma.account.deleteMany({ where: { eventId, email: cleanEmail, role: "player" } });
+}
+
+export interface SignupResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   const clean = input.name.trim();
-  if (!clean) return;
+  if (!clean) return { ok: false, error: "Enter a player name." };
+  const cleanEmail = (input.email ?? "").trim().toLowerCase();
+  if (!cleanEmail) return { ok: false, error: "Email is required — it's how this player signs in." };
+  if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
   const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) return;
+  if (!event) return { ok: false, error: "Event not found." };
   const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   const maxSeed = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
   const unlimited = event.capacity <= 0; // 0 = open / unlimited field
@@ -80,7 +119,7 @@ export async function addSignup(input: SignupInput) {
       handicap: Number.isFinite(input.handicap) ? input.handicap : 0,
       seed: (maxSeed._max.seed ?? 0) + 1,
       status,
-      email: (input.email ?? "").trim(),
+      email: cleanEmail,
       phone: (input.phone ?? "").trim(),
       ghin: (input.ghin ?? "").trim(),
       homeClub: (input.homeClub ?? "").trim(),
@@ -90,7 +129,9 @@ export async function addSignup(input: SignupInput) {
       handicapType: input.handicapType === "9" ? "9" : "18",
     },
   });
+  await syncPlayerAccount(eventId, clean, cleanEmail);
   refresh();
+  return { ok: true };
 }
 
 export interface SignupPatch {
@@ -102,20 +143,35 @@ export interface SignupPatch {
 }
 
 /** Edit an existing player's details in place — e.g. correcting a handicap after import. */
-export async function updateSignup(playerId: string, patch: SignupPatch) {
+export async function updateSignup(playerId: string, patch: SignupPatch): Promise<SignupResult> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   const player = await prisma.player.findUnique({ where: { id: playerId } });
-  if (!player || player.eventId !== eventId) return;
+  if (!player || player.eventId !== eventId) return { ok: false, error: "Player not found." };
   const data: Record<string, string | number> = {};
   if (patch.name !== undefined && patch.name.trim()) data.name = patch.name.trim();
   if (patch.handicap !== undefined && Number.isFinite(patch.handicap)) data.handicap = patch.handicap;
   if (patch.handicapType !== undefined) data.handicapType = patch.handicapType === "9" ? "9" : "18";
-  if (patch.email !== undefined) data.email = patch.email.trim();
+  const oldEmail = player.email.trim().toLowerCase();
+  let emailChanged = false;
+  if (patch.email !== undefined) {
+    const cleanEmail = patch.email.trim().toLowerCase();
+    if (cleanEmail && !EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+    data.email = cleanEmail;
+    emailChanged = cleanEmail !== oldEmail;
+  }
   if (patch.phone !== undefined) data.phone = patch.phone.trim();
-  if (Object.keys(data).length === 0) return;
+  if (Object.keys(data).length === 0) return { ok: true };
   await prisma.player.update({ where: { id: playerId }, data });
+  if (emailChanged) {
+    const newEmail = data.email as string;
+    // The player's old email, if any, no longer belongs to them — revoke the
+    // access it granted before (re-)syncing whatever the new one grants.
+    if (oldEmail) await revokePlayerAccount(eventId, oldEmail);
+    if (newEmail) await syncPlayerAccount(eventId, (data.name as string) ?? player.name, newEmail);
+  }
   refresh();
+  return { ok: true };
 }
 
 export async function removeSignup(playerId: string) {
@@ -124,6 +180,7 @@ export async function removeSignup(playerId: string) {
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player || player.eventId !== eventId) return;
   await prisma.player.delete({ where: { id: playerId } });
+  if (player.email.trim()) await revokePlayerAccount(eventId, player.email);
   // Promote the earliest waitlisted signup if a confirmed spot opened.
   if (player.status === "confirmed") {
     const next = await prisma.player.findFirst({
@@ -219,6 +276,14 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   }
   const hcpIdx = headerCols.indexOf("handicap");
   const emailIdx = headerCols.indexOf("email");
+  if (emailIdx === -1) {
+    return {
+      imported: 0,
+      skippedDuplicates: 0,
+      skippedInvalid: 0,
+      error: 'Couldn\'t find an "email" column in the header row — email is required so each player can sign in.',
+    };
+  }
   const phoneIdx = headerCols.indexOf("phone");
   const hcpTypeIdx = headerCols.indexOf("handicapType");
 
@@ -242,10 +307,14 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
       skippedInvalid += 1;
       continue;
     }
-    const email = emailIdx >= 0 ? (cols[emailIdx] ?? "").trim() : "";
-    const nameKey = name.toLowerCase();
+    const email = (cols[emailIdx] ?? "").trim();
     const emailKey = email.toLowerCase();
-    if (seenNames.has(nameKey) || (emailKey && seenEmails.has(emailKey))) {
+    if (!emailKey || !EMAIL_RE.test(emailKey)) {
+      skippedInvalid += 1;
+      continue;
+    }
+    const nameKey = name.toLowerCase();
+    if (seenNames.has(nameKey) || seenEmails.has(emailKey)) {
       skippedDuplicates += 1;
       continue;
     }
@@ -259,13 +328,14 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         handicap: Number.isFinite(handicap) ? handicap : 0,
         seed: seed++,
         status,
-        email,
+        email: emailKey,
         phone: phoneIdx >= 0 ? (cols[phoneIdx] ?? "").trim() : "",
         handicapType: hcpTypeIdx >= 0 && (cols[hcpTypeIdx] ?? "").trim() === "9" ? "9" : "18",
       },
     });
+    await syncPlayerAccount(eventId, name, emailKey);
     seenNames.add(nameKey);
-    if (emailKey) seenEmails.add(emailKey);
+    seenEmails.add(emailKey);
     imported += 1;
   }
 

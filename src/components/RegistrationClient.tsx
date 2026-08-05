@@ -47,6 +47,13 @@ export function RegistrationClient({
   const [copied, setCopied] = useState("");
   const [newHandicapType, setNewHandicapType] = useState("18");
   const [importResult, setImportResult] = useState<CsvImportResult | null>(null);
+  const [addError, setAddError] = useState("");
+  const [rowError, setRowError] = useState("");
+  const commitUpdate = (playerId: string, patch: Parameters<typeof updateSignup>[1]) =>
+    startTransition(async () => {
+      const result = await updateSignup(playerId, patch);
+      setRowError(result.ok ? "" : result.error ?? "Couldn't save that change.");
+    });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
@@ -54,6 +61,7 @@ export function RegistrationClient({
   const unlimited = event.capacity <= 0;
   const spotsLeft = unlimited ? Infinity : Math.max(0, event.capacity - confirmed.length);
   const status = unlimited ? "Open · unlimited" : spotsLeft === 0 ? "Full — waitlist active" : "Open";
+  const missingEmailCount = [...confirmed, ...waitlist].filter((p) => !p.email?.trim()).length;
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -80,10 +88,14 @@ export function RegistrationClient({
   };
 
   const submitAdd = () => {
-    if (!name.trim()) return;
+    if (!name.trim() || !email.trim()) {
+      setAddError(!name.trim() ? "Enter a player name." : "Email is required — it's how this player signs in.");
+      return;
+    }
     const h = parseFloat(handicap);
-    startTransition(() =>
-      addSignup({
+    setAddError("");
+    startTransition(async () => {
+      const result = await addSignup({
         name,
         handicap: Number.isFinite(h) ? h : 0,
         email,
@@ -92,14 +104,18 @@ export function RegistrationClient({
         homeClub,
         handicapSource: hSource,
         handicapType: newHandicapType,
-      }),
-    );
-    setName("");
-    setHandicap("");
-    setEmail("");
-    setPhone("");
-    setGhin("");
-    setHomeClub("");
+      });
+      if (!result.ok) {
+        setAddError(result.error ?? "Couldn't add that signup.");
+        return;
+      }
+      setName("");
+      setHandicap("");
+      setEmail("");
+      setPhone("");
+      setGhin("");
+      setHomeClub("");
+    });
   };
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -189,7 +205,7 @@ export function RegistrationClient({
                         style={{ width: 52, padding: "3px 4px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
                         onBlur={(e) => {
                           const v = parseFloat(e.target.value);
-                          if (Number.isFinite(v) && v !== p.handicap) startTransition(() => updateSignup(p.id, { handicap: v }));
+                          if (Number.isFinite(v) && v !== p.handicap) commitUpdate(p.id, { handicap: v });
                         }}
                       />
                       <select
@@ -197,7 +213,7 @@ export function RegistrationClient({
                         value={p.handicapType === "9" ? "9" : "18"}
                         disabled={pending || locked}
                         style={{ width: 46, padding: "3px 2px", fontSize: 11 }}
-                        onChange={(e) => startTransition(() => updateSignup(p.id, { handicapType: e.target.value }))}
+                        onChange={(e) => commitUpdate(p.id, { handicapType: e.target.value })}
                         title="Whether this handicap index is a 9-hole or 18-hole index"
                       >
                         <option value="18">18h</option>
@@ -205,7 +221,26 @@ export function RegistrationClient({
                       </select>
                     </div>
                   </td>
-                  <td className="text-muted" style={{ fontSize: 12 }}>{p.email || "—"}</td>
+                  <td style={{ fontSize: 12 }}>
+                    <input
+                      className="input"
+                      type="email"
+                      defaultValue={p.email ?? ""}
+                      disabled={pending || locked}
+                      placeholder="Required for sign-in"
+                      style={{
+                        padding: "3px 6px",
+                        fontSize: 12,
+                        width: 150,
+                        borderColor: p.email ? undefined : "var(--color-accent)",
+                      }}
+                      title={p.email ? undefined : "No email on file — this player can't sign in until one is added."}
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        if (v !== (p.email ?? "")) commitUpdate(p.id, { email: v });
+                      }}
+                    />
+                  </td>
                   <td className="text-muted" style={{ fontSize: 12 }}>{p.phone || "—"}</td>
                   {showFlight && <td className="text-muted">{p.flight || "—"}</td>}
                   <td style={{ textAlign: "right" }}>
@@ -236,6 +271,16 @@ export function RegistrationClient({
       </div>
 
       <SetupLockBanner locked={locked} isAdmin={isAdmin} />
+
+      {missingEmailCount > 0 && (
+        <div className="card elev-sm" style={{ marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 10, borderColor: "var(--color-accent)" }}>
+          <i className="ph ph-warning-circle" style={{ color: "var(--color-accent)", fontSize: 18 }} />
+          <span style={{ fontSize: 13 }}>
+            {missingEmailCount} player{missingEmailCount === 1 ? "" : "s"} {missingEmailCount === 1 ? "has" : "have"} no email on file — access is email-based, so
+            {missingEmailCount === 1 ? " they" : " they"} can&rsquo;t sign in until one&rsquo;s added below.
+          </span>
+        </div>
+      )}
 
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <div className="card elev-sm" style={{ gap: 2 }}>
@@ -284,7 +329,10 @@ export function RegistrationClient({
           <span className="card-title" style={{ fontSize: 15 }}>Add a signup</span>
           <div className="field"><label>Player name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div className="field"><label>Email</label><input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" /></div>
+            <div className="field">
+              <label>Email <span style={{ color: "var(--color-accent-300)" }}>· required, grants sign-in</span></label>
+              <input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" style={!email.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
+            </div>
             <div className="field"><label>Phone</label><input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1…" /></div>
           </div>
           <div className="field">
@@ -312,7 +360,12 @@ export function RegistrationClient({
             </div>
           </div>
           <div className="field"><label>Home club</label><input className="input" value={homeClub} onChange={(e) => setHomeClub(e.target.value)} placeholder="Optional" /></div>
-          <button type="button" className="btn btn-primary btn-block" disabled={pending} onClick={submitAdd}><i className="ph ph-plus" /> Add to field</button>
+          <button type="button" className="btn btn-primary btn-block" disabled={pending || !name.trim() || !email.trim()} onClick={submitAdd}><i className="ph ph-plus" /> Add to field</button>
+          {addError && (
+            <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger, #e0665a)" }}>
+              <i className="ph ph-warning-circle" /> {addError}
+            </p>
+          )}
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
             {hSource === "ghin"
               ? "GHIN lookup is stubbed — enter the index manually for now; live GHIN integration slots in here."
@@ -324,8 +377,9 @@ export function RegistrationClient({
               <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} style={{ display: "none" }} />
             </label>
             <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
-              First row must be a header. Recognized columns: name (required), handicap, email, phone, handicap type
-              (9/18). Duplicate names or emails are skipped automatically.
+              First row must be a header. Recognized columns: name and email (both required — email is how each
+              player signs in), handicap, phone, handicap type (9/18). Rows missing either, or duplicating a name or
+              email already in the field, are skipped automatically.
             </p>
             {importResult && (
               importResult.error ? (
@@ -343,6 +397,11 @@ export function RegistrationClient({
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {rowError && (
+            <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger, #e0665a)" }}>
+              <i className="ph ph-warning-circle" /> {rowError}
+            </p>
+          )}
           {table(confirmed, "Confirmed field", true)}
           {table(waitlist, "Waitlist", false)}
         </div>
