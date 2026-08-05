@@ -7,34 +7,34 @@ import { BrandMark } from "@/components/BrandMark";
 const FEATURES: Array<{ icon: string; title: string; text: string; accent: "accent" | "accent-2" }> = [
   {
     icon: "ph ph-arrows-clockwise",
-    title: "One console, every format",
-    text: "Match play, stroke play and Stableford in the same event, on the same leaderboard — not three different tools stitched together.",
+    title: "Every format, one leaderboard",
+    text: "Match play, stroke play and Stableford run within a single event and resolve to a single set of standings.",
     accent: "accent",
   },
   {
     icon: "ph ph-flag-checkered",
-    title: "Rounds that actually chain",
-    text: "Cut lines and carry-forward points connect round to round automatically — most tools treat each round as its own island.",
+    title: "Rounds that carry forward",
+    text: "Cut lines and carry-forward points are applied automatically as each round closes, so the next round begins from the correct field and score.",
     accent: "accent-2",
   },
   {
     icon: "ph ph-tree-structure",
-    title: "Brackets that seed themselves",
-    text: "Qualifiers flow straight from live standings into winners & consolation brackets — no re-typing a draw by hand.",
+    title: "Automatic bracket seeding",
+    text: "Qualifiers advance from live standings into winners and consolation brackets, seeded and updated without manual entry.",
     accent: "accent-2",
   },
   {
     icon: "ph ph-ranking",
-    title: "Tiebreakers with real math",
-    text: "Toughest-hole tiebreakers use actual stroke-index data from the course, not a coin flip or a random draw.",
+    title: "Rules-based tiebreakers",
+    text: "Ties are settled against the course's own stroke-index data using the tiebreaker sequence you configure.",
     accent: "accent",
   },
 ];
 
 const STEPS: Array<{ n: string; title: string; text: string }> = [
-  { n: "01", title: "Set up", text: "Field, flights, format and rounds — configured once, editable anytime before you lock it in." },
-  { n: "02", title: "Play", text: "Score from a phone at the tee, live for every device watching — desktop, mobile, or the field." },
-  { n: "03", title: "Results", text: "Standings, brackets and payouts resolve themselves as scores land — no spreadsheet reconciliation." },
+  { n: "01", title: "Set up", text: "Define the field, flights, format and rounds. Everything stays editable until you lock the event." },
+  { n: "02", title: "Play", text: "Enter scores from any phone at the tee. Updates appear immediately on every connected device." },
+  { n: "03", title: "Results", text: "Standings, brackets and payouts are calculated as scores arrive — no manual reconciliation." },
 ];
 
 export default async function LoginPage() {
@@ -107,11 +107,11 @@ export default async function LoginPage() {
             For club, member-guest &amp; member-member organizers
           </span>
           <h1 style={{ fontSize: 50, lineHeight: 1.04, margin: "18px 0 0", maxWidth: "14ch" }}>
-            Run the whole event from one console.
+            Tournament operations, start to finish.
           </h1>
           <p className="text-muted" style={{ fontSize: 16, maxWidth: "46ch", marginTop: 18 }}>
-            Round-robin flights, qualification cuts, brackets, match-play scorecards and live
-            standings — automated end to end, with a manual override wherever you need one.
+            Registration, flights, qualification, brackets, scoring and live standings — managed
+            from one console, with full manual control at every stage.
           </p>
 
           <div className="flight-rule" style={{ maxWidth: 420 }} />
@@ -120,7 +120,7 @@ export default async function LoginPage() {
             className="text-muted"
             style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500, marginBottom: 10 }}
           >
-            What's different
+            Capabilities
           </div>
           <div
             style={{
