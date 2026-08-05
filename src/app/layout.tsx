@@ -3,12 +3,12 @@ import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
-  title: "Flights — Golf Tournament Console",
+  title: "TourneyHQ — Golf Tournament Console",
   description: "Run the whole golf event from one console: flights, qualification, brackets and live standings.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Flights",
+    title: "TourneyHQ",
     statusBarStyle: "black-translucent",
   },
   icons: {

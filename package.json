@@ -2,7 +2,7 @@
   "name": "golf-tournament-organizer",
   "version": "0.1.0",
   "private": true,
-  "description": "Flights — golf tournament management console (production build from the design handoff).",
+  "description": "TourneyHQ — golf tournament management console (production build from the design handoff).",
   "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
@@ -28,7 +28,7 @@
   },
   "build": {
     "appId": "com.flights.tournament",
-    "productName": "Flights",
+    "productName": "TourneyHQ",
     "directories": {
       "output": "release"
     },

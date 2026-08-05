@@ -1,8 +1,8 @@
-# Flights — iOS shell
+# TourneyHQ — iOS shell
 
 This is a Capacitor-generated Xcode project. It's a thin native WebView that
-loads the live Flights server (see `capacitor.config.ts` at the repo root) —
-there's no offline/static build here, since Flights relies on server actions,
+loads the live TourneyHQ server (see `capacitor.config.ts` at the repo root) —
+there's no offline/static build here, since TourneyHQ relies on server actions,
 Prisma/SQLite and cookie auth that can't run inside a static bundle.
 
 ## Running it (requires a Mac with Xcode — cannot be done from Windows)
@@ -25,7 +25,7 @@ Prisma/SQLite and cookie auth that can't run inside a static bundle.
    ID / team (you mentioned you already have an Apple Developer account) and
    pick a signing team.
 6. Choose a Simulator (or your plugged-in iPhone) as the run destination and
-   hit Run. That's a real native app window running Flights.
+   hit Run. That's a real native app window running TourneyHQ.
 
 ## Distributing to the App Store later
 

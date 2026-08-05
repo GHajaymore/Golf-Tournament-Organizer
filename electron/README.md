@@ -1,4 +1,4 @@
-# Flights — desktop app (Electron)
+# TourneyHQ — desktop app (Electron)
 
 Unlike the mobile shells, the desktop app bundles and runs the actual
 Next.js server locally — full server actions, your real SQLite database,
@@ -41,7 +41,7 @@ standalone mode leaves out (`electron/prepare-standalone.js`), then runs
 
 On first launch of a packaged build, the app copies the bundled starter
 database into the OS user-data folder (`app.getPath("userData")`, e.g.
-`%APPDATA%/Flights` on Windows) and points `DATABASE_URL` there — so
+`%APPDATA%/TourneyHQ` on Windows) and points `DATABASE_URL` there — so
 tournament data lives outside the installed app and survives updates or
 reinstalls, and isn't shared with the dev database you test against day to
 day.

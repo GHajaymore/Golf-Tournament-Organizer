@@ -96,7 +96,7 @@ a.card:hover, button.card:hover,
   mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
 }
 
-/* Wordmark — a brushed-gold gradient foil instead of flat text, so "Flights"
+/* Wordmark — a brushed gradient foil instead of flat text, so "Tourney"
    reads as a crafted mark wherever it appears (sidebar, mobile bar, landing). */
 .brand-mark {
   background: linear-gradient(115deg,
@@ -107,6 +107,27 @@ a.card:hover, button.card:hover,
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* "HQ" badge chip that pairs with .brand-mark to complete the "FlightHQ"
+   lockup — a crisp solid tag deliberately contrasting the gradient-foil
+   serif of the "Flight" half, so the mark reads as two considered parts
+   rather than one flat rename. Sized in em so it scales with its parent
+   font-size wherever the lockup is dropped (12px footer credit through
+   30px hero). */
+.brand-hq {
+  display: inline-block;
+  font-family: var(--font-body, sans-serif);
+  font-size: 0.42em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-bg);
+  background: var(--color-accent);
+  padding: 0.22em 0.4em;
+  border-radius: 0.35em;
+  vertical-align: 0.62em;
+  margin-left: 0.2em;
+  line-height: 1;
 }
 
 /* App-shell layout on top of the Nocturne design system. */

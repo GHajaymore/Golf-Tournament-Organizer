@@ -48,7 +48,7 @@ export function LoginPanel() {
         {pending ? "Signing in…" : "Continue"} <i className="ph ph-arrow-right" />
       </button>
       <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-        New to Flights? Ask the organizer running your event to add your email under Access &amp; staff — you'll be
+        New to TourneyHQ? Ask the organizer running your event to add your email under Access &amp; staff — you'll be
         able to sign in the moment they do.
       </p>
     </div>

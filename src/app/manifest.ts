@@ -2,13 +2,13 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Flights — Golf Tournament Console",
-    short_name: "Flights",
+    name: "TourneyHQ — Golf Tournament Console",
+    short_name: "TourneyHQ",
     description: "Enter scores, track the live leaderboard, and run golf tournaments.",
     start_url: "/",
     display: "standalone",
-    background_color: "#161826",
-    theme_color: "#161826",
+    background_color: "#16181a",
+    theme_color: "#16181a",
     orientation: "portrait",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

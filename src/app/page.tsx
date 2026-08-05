@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { LoginPanel } from "@/components/LoginPanel";
 import { Logo } from "@/components/Logo";
+import { BrandMark } from "@/components/BrandMark";
 
 const FEATURES: Array<{ icon: string; title: string; text: string }> = [
   {
@@ -75,8 +76,7 @@ export default async function LoginPage() {
             <Logo size={28} style={{ color: "var(--color-accent)" }} />
           </div>
           <div>
-            <span
-              className="brand-mark"
+            <BrandMark
               style={{
                 fontFamily: "var(--font-heading)",
                 fontWeight: 700,
@@ -85,14 +85,12 @@ export default async function LoginPage() {
                 lineHeight: 1,
                 display: "block",
               }}
-            >
-              Flights
-            </span>
+            />
             <span
               className="text-muted"
               style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 500 }}
             >
-              Tournament Operations Console
+              From tee to trophy
             </span>
           </div>
         </div>
@@ -186,7 +184,7 @@ export default async function LoginPage() {
         >
           <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
             <Logo size={13} style={{ color: "var(--color-accent)" }} />
-            &copy; {new Date().getFullYear()} Flights
+            &copy; {new Date().getFullYear()} TourneyHQ
           </div>
           <div className="text-muted" style={{ fontSize: 12 }}>
             Built for the modern clubhouse

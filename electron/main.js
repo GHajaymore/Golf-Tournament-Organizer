@@ -66,7 +66,7 @@ async function startServerIfNeeded() {
     const alreadyUp = await portIsOpen(DEV_PORT);
     if (!alreadyUp) {
       console.warn(
-        `[Flights] Nothing is answering on http://localhost:${DEV_PORT} yet.\n` +
+        `[TourneyHQ] Nothing is answering on http://localhost:${DEV_PORT} yet.\n` +
           `Run "npm run dev" in another terminal first, then relaunch electron:dev.`
       );
     }
@@ -87,7 +87,7 @@ async function startServerIfNeeded() {
     stdio: "inherit",
   });
   serverProcess.on("exit", (code) => {
-    if (code !== 0 && code !== null) console.error(`Flights server exited with code ${code}`);
+    if (code !== 0 && code !== null) console.error(`TourneyHQ server exited with code ${code}`);
   });
   return PACKAGED_PORT;
 }
@@ -99,7 +99,7 @@ async function createWindow(port) {
     minWidth: 1024,
     minHeight: 700,
     backgroundColor: "#16181a",
-    title: "Flights",
+    title: "TourneyHQ",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

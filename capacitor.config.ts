@@ -1,6 +1,6 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-// Flights is a full-stack Next.js app (server actions, Prisma/SQLite,
+// TourneyHQ is a full-stack Next.js app (server actions, Prisma/SQLite,
 // cookie-based auth) — it can't run as a static offline bundle inside the
 // native shell. Instead the WebView loads the live server directly, the
 // same pattern used by most hybrid apps backed by a real server.
@@ -14,7 +14,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // `cleartext`.
 const config: CapacitorConfig = {
   appId: "com.flights.tournament",
-  appName: "Flights",
+  appName: "TourneyHQ",
   webDir: "ios-shell-web",
   server: {
     url: "http://192.168.86.26:3000",

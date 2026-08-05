@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import type { NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { Logo } from "@/components/Logo";
+import { BrandMark } from "@/components/BrandMark";
 
 type Role = "admin" | "assistant" | "player";
 
@@ -64,7 +65,7 @@ export function Sidebar({ sections, name, role, viewRole, initials }: Props) {
         >
           <Logo size={17} style={{ color: "var(--color-accent)" }} />
         </div>
-        <span className="brand-mark">Flights</span>
+        <BrandMark />
       </div>
 
       {sections.map((sec) => (

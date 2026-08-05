@@ -1,8 +1,8 @@
-# Flights — Android shell
+# TourneyHQ — Android shell
 
 Same architecture as the iOS shell (`../ios/README.md`): a thin native
 WebView pointed at the live server via `capacitor.config.ts`'s `server.url`
-— no offline bundle, since Flights needs its Next.js server (server
+— no offline bundle, since TourneyHQ needs its Next.js server (server
 actions, Prisma/SQLite, cookie auth) running.
 
 Unlike iOS, this one **can be built and run directly from this Windows
@@ -26,7 +26,7 @@ required.
    project, then `npm run cap:open:android` — this opens the project in
    Android Studio.
 4. Pick an emulator (or a plugged-in device with USB debugging on) and hit
-   Run. That's a real native Android app running Flights.
+   Run. That's a real native Android app running TourneyHQ.
 
 `android:usesCleartextTraffic="true"` is set in `AndroidManifest.xml` to
 allow the local `http://` dev server — narrow that (or drop it entirely)
