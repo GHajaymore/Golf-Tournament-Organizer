@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { EntryModes, type EntryRound } from "@/components/EntryModes";
 import { CourseSetupPrompt } from "@/components/CourseSetupPrompt";
 import { prisma } from "@/lib/db";
-import { resolveCourse, hasCourseData } from "@/lib/courses";
+import { resolveCourse, hasCourseData, needsCourseData } from "@/lib/courses";
 import type { HoleResult } from "@/lib/domain";
 
 export default async function EntryPage() {
@@ -19,17 +19,32 @@ export default async function EntryPage() {
   const settings = settingsOf(state.event);
   if (!canEnterScores(settings, session.viewRole)) redirect("/dashboard");
 
-  if (!hasCourseData(state.event)) {
+  // Only demand a course when the scoring actually uses one. A community
+  // match-play league has no fixed venue — opponents play wherever suits them
+  // before the deadline — and gross match play needs no par or stroke index to
+  // record who won a hole.
+  const scoringNeedsCourse = needsCourseData(
+    (state.rrStages.length ? state.rrStages : state.stages).map((s) => ({
+      format: s.format,
+      scoringBasis: s.scoringBasis,
+    })),
+  );
+  const courseKnown = hasCourseData(state.event);
+  if (scoringNeedsCourse && !courseKnown) {
     return <CourseSetupPrompt eventCourse={state.event.course} eventCity={state.event.city} isStaff={isStaff} />;
   }
 
   const nameById = new Map(state.players.map((p) => [p.id, p.name]));
   const handicapById = new Map(state.players.map((p) => [p.id, p.handicap]));
   const groupById = new Map(state.groups.map((g) => [g.id, g.position]));
+  // resolveCourse falls back to a demo preset so scoring never crashes. That
+  // fallback must not be *shown*: printing one course's par and stroke index
+  // over a match played somewhere else is worse than showing nothing. With no
+  // real course, the card renders hole numbers only.
   const course = resolveCourse(state.event);
-  const pars = course.pars;
-  const yards = course.yards;
-  const strokeIndex = course.strokeIndex;
+  const pars = courseKnown ? course.pars : [];
+  const yards = courseKnown ? course.yards : [];
+  const strokeIndex = courseKnown ? course.strokeIndex : [];
 
   // A tournament can sequence more than one Round Robin round; build entry data
   // for each so staff/players can switch between them (e.g. fix Round 1 while
@@ -115,6 +130,7 @@ export default async function EntryPage() {
       strokeIndex={strokeIndex}
       isStaff={isStaff}
       defaultMode={state.event.format === "stroke" ? "stroke" : "match"}
+      courseKnown={courseKnown}
     />
   );
 }

@@ -24,6 +24,7 @@ export function EntryModes({
   strokeIndex,
   isStaff,
   defaultMode = "match",
+  courseKnown = true,
 }: {
   rounds: EntryRound[];
   activeIndex: number;
@@ -33,6 +34,8 @@ export function EntryModes({
   strokeIndex: number[];
   isStaff: boolean;
   defaultMode?: "match" | "stroke";
+  /** Whether real par/stroke-index data backs this event. */
+  courseKnown?: boolean;
 }) {
   const [mode, setMode] = useState<"match" | "stroke">(defaultMode);
   const [roundIdx, setRoundIdx] = useState(activeIndex);
@@ -81,6 +84,7 @@ export function EntryModes({
           yards={yards}
           strokeIndex={strokeIndex}
           netMode={round.netMode}
+          courseKnown={courseKnown}
         />
       ) : (
         <StrokePlayEntry

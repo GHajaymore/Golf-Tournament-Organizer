@@ -41,6 +41,7 @@ export default async function GroupingPage() {
         currentRule={state.event.formationRule as FormationRule}
         currentMode={mode}
         currentValue={state.event.flightValue}
+        locked={locked}
       />
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>

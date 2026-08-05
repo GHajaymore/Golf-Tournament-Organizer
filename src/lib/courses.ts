@@ -81,6 +81,40 @@ export function hasCourseData(event: Pick<EventCourseFields, "course" | "customP
   return !!(parseHoleArray(event.customPars) && parseHoleArray(event.customYards) && parseHoleArray(event.customStrokeIndex));
 }
 
+/** The parts of a round that decide whether course data is required. */
+export interface ScoringShape {
+  /** Golf format for the round — see src/lib/formats.ts. */
+  format: string;
+  /** gross | net | both | stableford */
+  scoringBasis: string;
+}
+
+/**
+ * Whether this tournament's scoring actually needs par and stroke index.
+ *
+ * Not every tournament is played somewhere. Community and society match-play
+ * leagues run over a season with no fixed venue at all: opponents arrange
+ * their own match, at whatever course suits them, any time before the
+ * deadline. Demanding a course from those organizers is asking for something
+ * that will never exist.
+ *
+ * What the maths genuinely requires:
+ *   - **Gross match play** — nothing. "Who won this hole" needs no par,
+ *     no yardage and no stroke index.
+ *   - **Net match play** — stroke index, to allocate handicap strokes.
+ *   - **Stroke play and Stableford** — par, for scores against it.
+ *
+ * So the requirement follows the scoring, not the calendar.
+ */
+export function needsCourseData(stages: ScoringShape[]): boolean {
+  if (stages.length === 0) return false;
+  return stages.some((s) => {
+    const matchPlay = /match play/i.test(s.format);
+    if (!matchPlay) return true; // stroke play, Stableford, points formats need par
+    return s.scoringBasis !== "gross"; // net/both match play needs stroke index
+  });
+}
+
 /**
  * Resolve the real course backing this event — a known preset, or the
  * organizer's saved custom course. Falls back to the default demo preset

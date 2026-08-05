@@ -46,11 +46,28 @@ const CONFIRM_META: Record<string, { label: string; tag: string }> = {
 
 type Winner = "A" | "B" | "H";
 
-function statusOf(holes: HoleResult[]): { tag: string; tagClass: string } {
+/**
+ * The badge on a match in the list.
+ *
+ * Takes the confirmation status as well as the holes, because play being
+ * finished and the result being signed off are different things. Calling a
+ * complete-but-unapproved match "Final" hides exactly the results an organizer
+ * still has to review — and those are the ones they opened this screen for.
+ *
+ * "Not started" rather than "Pending" for an empty card, since "Pending
+ * confirmation" already means something else on this same screen.
+ */
+function statusOf(holes: HoleResult[], confirmStatus: string): { tag: string; tagClass: string } {
   const r = resolveMatch(holes);
-  if (r.complete) return { tag: "Final", tagClass: "tag-accent-2" };
+  if (r.complete) {
+    if (confirmStatus === "disputed") return { tag: "Disputed", tagClass: "tag-accent" };
+    if (confirmStatus === "confirmed" || confirmStatus === "auto-confirmed") {
+      return { tag: "Final", tagClass: "tag-accent-2" };
+    }
+    return { tag: "Awaiting approval", tagClass: "tag-neutral" };
+  }
   if (holes.some((h) => h !== null)) return { tag: "Live", tagClass: "tag-accent" };
-  return { tag: "Pending", tagClass: "tag-neutral" };
+  return { tag: "Not started", tagClass: "tag-neutral" };
 }
 
 function sum(arr: number[], from: number, to: number): number {
@@ -67,6 +84,7 @@ export function ScoreEntryClient({
   yards = [],
   strokeIndex = [],
   netMode = false,
+  courseKnown = true,
 }: {
   matches: EntryMatch[];
   isStaff?: boolean;
@@ -75,6 +93,9 @@ export function ScoreEntryClient({
   yards?: number[];
   strokeIndex?: number[];
   netMode?: boolean;
+  /** Whether real par/stroke-index data backs this event. False for a league
+   *  with no fixed venue, where scorecard entry can't be offered yet. */
+  courseKnown?: boolean;
 }) {
   const [holesById, setHolesById] = useState<Record<string, HoleResult[]>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.holes])),
@@ -314,7 +335,7 @@ export function ScoreEntryClient({
         <div className="card elev-sm entry-matchlist" style={{ gap: 6, maxHeight: "74vh", overflow: "auto" }}>
           <span className="card-kicker">Round-robin matches</span>
           {matches.map((m) => {
-            const st = statusOf(holesById[m.id] ?? m.holes);
+            const st = statusOf(holesById[m.id] ?? m.holes, statusById[m.id] ?? m.status);
             const selected = m.id === selectedId;
             return (
               <button
@@ -386,8 +407,27 @@ export function ScoreEntryClient({
                 <input type="radio" name="entrymode" checked={mode === "result"} onChange={() => setMode("result")} />
                 Match result
               </label>
-              <label className="seg-opt">
-                <input type="radio" name="entrymode" checked={mode === "handicap"} onChange={() => setMode("handicap")} />
+              {/* Strokes are meaningless without the card they were played
+                  on — par for context, stroke index for net allowances. A
+                  league with no fixed venue can still record who won each
+                  hole, but it cannot take a scorecard until the course for
+                  that match is known. */}
+              <label
+                className="seg-opt"
+                title={
+                  courseKnown
+                    ? undefined
+                    : "Set the course for this match before entering a scorecard — strokes need its par and stroke index."
+                }
+                style={courseKnown ? undefined : { opacity: 0.45 }}
+              >
+                <input
+                  type="radio"
+                  name="entrymode"
+                  checked={mode === "handicap"}
+                  disabled={!courseKnown}
+                  onChange={() => setMode("handicap")}
+                />
                 Scorecard
               </label>
             </div>

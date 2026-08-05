@@ -53,11 +53,15 @@ export function GroupingControls({
   currentRule,
   currentMode,
   currentValue,
+  locked = false,
 }: {
   players: Player[];
   currentRule: FormationRule;
   currentMode: "auto" | "count" | "perFlight";
   currentValue: number;
+  /** Setup is frozen (live/completed and not unlocked). The action refuses
+   *  anyway; disabling here stops that refusal reaching the user as a crash. */
+  locked?: boolean;
 }) {
   const [rule, setRule] = useState<FormationRule>(currentRule);
   const [mode, setMode] = useState<"auto" | "count" | "perFlight">(currentMode);
@@ -131,7 +135,8 @@ export function GroupingControls({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending || players.length === 0}
+            disabled={pending || players.length === 0 || locked}
+            title={locked ? "Configuration is locked. Unlock the tournament to regenerate flights." : undefined}
             onClick={() =>
               startTransition(async () => {
                 const res = await regenGroups(rule, mode, value);
