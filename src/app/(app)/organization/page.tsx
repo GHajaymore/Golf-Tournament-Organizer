@@ -2,6 +2,8 @@ import { requireScreen } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { OrganizationClient } from "@/components/OrganizationClient";
+import { OrganizationAccess } from "@/components/OrganizationAccess";
+import { organizationAccessReport } from "@/lib/services/access";
 
 export default async function OrganizationPage() {
   const session = await requireScreen("organization");
@@ -35,16 +37,23 @@ export default async function OrganizationPage() {
     membership?.role === "admin" ||
     (session.role === "admin" && !membership);
 
+  const report = await organizationAccessReport(org.id);
+
   return (
-    <OrganizationClient
-      name={org.name}
-      shortName={org.shortName}
-      logoUrl={org.logoUrl}
-      kind={org.kind}
-      plan={org.subscription?.plan ?? "free"}
-      eventCount={org._count.events}
-      memberCount={org._count.members}
-      canEdit={canEdit}
-    />
+    <>
+      <OrganizationClient
+        name={org.name}
+        shortName={org.shortName}
+        logoUrl={org.logoUrl}
+        kind={org.kind}
+        plan={org.subscription?.plan ?? "free"}
+        eventCount={org._count.events}
+        memberCount={org._count.members}
+        canEdit={canEdit}
+      />
+      <div style={{ marginTop: 16 }}>
+        <OrganizationAccess report={report} canEdit={canEdit} />
+      </div>
+    </>
   );
 }

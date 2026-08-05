@@ -58,6 +58,91 @@ function logoUrlProblem(url: string): string | null {
   return null;
 }
 
+const ORG_ROLES = ["owner", "admin", "member"] as const;
+const cleanOrgRole = (r: string) => (ORG_ROLES.includes(r as (typeof ORG_ROLES)[number]) ? r : "member");
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** True once the organization has an owner other than this member — the same
+ *  guard the per-event access screen uses, applied one level up. Losing the
+ *  last owner would strand the tenant and its billing. */
+async function hasOtherOwner(organizationId: string, memberId: string): Promise<boolean> {
+  return (
+    (await prisma.organizationMember.count({
+      where: { organizationId, role: "owner", id: { not: memberId } },
+    })) > 0
+  );
+}
+
+/**
+ * Add someone to the organization's staff.
+ *
+ * Staff only — players are never organization members, so a club's seat count
+ * can't grow with the size of its fields. A User row is created if this email
+ * has never signed in; they claim it with a password on first login.
+ */
+export async function addOrganizationMember(email: string, name: string, role: string): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can manage staff." };
+
+  const cleanEmail = email.trim().toLowerCase();
+  if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+
+  const user = await prisma.user.upsert({
+    where: { email: cleanEmail },
+    update: name.trim() ? { name: name.trim() } : {},
+    create: { email: cleanEmail, name: name.trim() },
+  });
+
+  await prisma.organizationMember.upsert({
+    where: { organizationId_userId: { organizationId: org.organizationId, userId: user.id } },
+    update: { role: cleanOrgRole(role) },
+    create: { organizationId: org.organizationId, userId: user.id, role: cleanOrgRole(role) },
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function setOrganizationMemberRole(memberId: string, role: string): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can manage staff." };
+
+  const member = await prisma.organizationMember.findFirst({
+    where: { id: memberId, organizationId: org.organizationId },
+  });
+  if (!member) return { ok: false, error: "Staff member not found." };
+
+  const next = cleanOrgRole(role);
+  if (member.role === "owner" && next !== "owner" && !(await hasOtherOwner(org.organizationId, memberId))) {
+    return { ok: false, error: "This is the only owner — make someone else an owner first." };
+  }
+
+  await prisma.organizationMember.update({ where: { id: memberId }, data: { role: next } });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+export async function removeOrganizationMember(memberId: string): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can manage staff." };
+
+  const member = await prisma.organizationMember.findFirst({
+    where: { id: memberId, organizationId: org.organizationId },
+  });
+  if (!member) return { ok: false, error: "Staff member not found." };
+
+  if (member.role === "owner" && !(await hasOtherOwner(org.organizationId, memberId))) {
+    return { ok: false, error: "This is the only owner — make someone else an owner before removing them." };
+  }
+
+  await prisma.organizationMember.delete({ where: { id: memberId } });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function saveOrganizationBranding(
   name: string,
   shortName: string,

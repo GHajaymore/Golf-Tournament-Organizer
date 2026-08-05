@@ -5,6 +5,7 @@ import { EventContextBar } from "@/components/EventContextBar";
 import { navForRole } from "@/lib/nav";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
+import { brandForEvent } from "@/lib/services/organization";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -12,20 +13,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const initials = initialsOf(session.name);
   const event = await prisma.event.findUnique({
     where: { id: session.eventId },
-    select: {
-      name: true,
-      dates: true,
-      course: true,
-      city: true,
-      status: true,
-      // Club branding replaces the TourneyHQ mark in the sidebar for every
-      // tournament this organization runs.
-      organization: { select: { name: true, shortName: true, logoUrl: true } },
-    },
+    select: { name: true, dates: true, course: true, city: true, status: true },
   });
-  const brand = event?.organization
-    ? { name: event.organization.shortName || event.organization.name, logoUrl: event.organization.logoUrl }
-    : null;
+  // Club branding replaces the TourneyHQ mark in the sidebar for every
+  // tournament this organization runs (with attribution kept on free plans).
+  const brand = session.eventId ? await brandForEvent(session.eventId) : null;
 
   return (
     <div

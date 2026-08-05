@@ -35,6 +35,18 @@ export interface Plan {
      *  explicit and stays that way if someone adds a tier later. */
     playersPerEvent: null;
   };
+  features: {
+    /**
+     * Whether the club's branding fully replaces TourneyHQ's.
+     *
+     * Off, a club logo still shows everywhere, with a small "Powered by
+     * TourneyHQ" line kept alongside it. That attribution is the distribution
+     * channel: players see it in a member-guest and go on to run their own
+     * event. Removing it is the kind of thing clubs pay for, which is why it
+     * sits on the paid tier rather than being given away.
+     */
+    whiteLabel: boolean;
+  };
 }
 
 export const PLANS: Record<PlanKey, Plan> = {
@@ -48,6 +60,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       staffSeats: 1,
       playersPerEvent: null,
     },
+    features: { whiteLabel: false },
   },
   club: {
     key: "club",
@@ -59,6 +72,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       staffSeats: 10,
       playersPerEvent: null,
     },
+    features: { whiteLabel: true },
   },
 };
 

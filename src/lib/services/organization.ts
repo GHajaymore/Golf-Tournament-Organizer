@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { DEFAULT_PLAN } from "../plans";
+import { DEFAULT_PLAN, planFor } from "../plans";
 
 /**
  * Resolve the organization a new tournament should belong to for this person,
@@ -43,6 +43,10 @@ export async function organizationForNewEvent(email: string, displayName: string
 export interface EventBrand {
   name: string;
   logoUrl: string;
+  /** Whether to keep a "Powered by TourneyHQ" line alongside the club's mark.
+   *  True on plans without white-labelling — that attribution is how other
+   *  organizers discover the product. */
+  showAttribution: boolean;
 }
 
 /**
@@ -55,13 +59,26 @@ export interface EventBrand {
 export async function brandForEvent(eventId: string): Promise<EventBrand | null> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { organization: { select: { name: true, shortName: true, logoUrl: true } } },
+    select: {
+      organization: {
+        select: {
+          name: true,
+          shortName: true,
+          logoUrl: true,
+          subscription: { select: { plan: true } },
+        },
+      },
+    },
   });
   const org = event?.organization;
   if (!org) return null;
   const name = org.shortName || org.name;
   if (!name && !org.logoUrl) return null;
-  return { name, logoUrl: org.logoUrl };
+  return {
+    name,
+    logoUrl: org.logoUrl,
+    showAttribution: !planFor(org.subscription?.plan).features.whiteLabel,
+  };
 }
 
 /** The organizations a person owns, administers, or is staff in. */

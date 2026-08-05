@@ -4,6 +4,8 @@ import { BrandMark } from "./BrandMark";
 export interface Brand {
   name: string;
   logoUrl: string;
+  /** Keep a small TourneyHQ credit beside the club's mark (non-white-label plans). */
+  showAttribution?: boolean;
 }
 
 /**
@@ -52,17 +54,27 @@ export function OrgBrand({ brand, size = 22 }: { brand?: Brand | null; size?: nu
           {brand.name.trim().charAt(0).toUpperCase()}
         </span>
       )}
-      <span
-        style={{
-          fontFamily: "var(--font-heading)",
-          fontWeight: 600,
-          letterSpacing: "-0.01em",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {brand.name}
+      <span style={{ minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+        <span
+          style={{
+            fontFamily: "var(--font-heading)",
+            fontWeight: 600,
+            letterSpacing: "-0.01em",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {brand.name}
+        </span>
+        {brand.showAttribution && (
+          <span
+            className="text-muted"
+            style={{ fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 500 }}
+          >
+            Powered by TourneyHQ
+          </span>
+        )}
       </span>
     </>
   );

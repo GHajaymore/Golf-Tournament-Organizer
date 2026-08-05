@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
 import { enterTournament, signOutAction } from "@/app/actions/auth";
 import { prisma } from "@/lib/db";
+import { accessibleEvents } from "@/lib/services/access";
 import { ROLE_LABEL } from "@/lib/roles";
 import { Logo } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
@@ -14,11 +15,24 @@ export default async function ChooseTournamentPage({
 }) {
   const session = await requireSession();
   const { stay } = await searchParams;
-  const accounts = await prisma.account.findMany({
-    where: { email: session.email },
-    include: { event: { include: { _count: { select: { players: true } } } } },
-    orderBy: { event: { createdAt: "desc" } },
+
+  // Includes tournaments reached through organization membership, not just
+  // those with an explicit per-event account — otherwise a club admin can't
+  // see events their colleagues created.
+  const access = await accessibleEvents(session.email);
+  const events = await prisma.event.findMany({
+    where: { id: { in: access.map((a) => a.eventId) } },
+    include: { _count: { select: { players: true } }, organization: { select: { name: true, kind: true } } },
+    orderBy: { createdAt: "desc" },
   });
+  const roleByEvent = new Map(access.map((a) => [a.eventId, a]));
+  const accounts = events.map((event) => ({
+    id: event.id,
+    eventId: event.id,
+    role: roleByEvent.get(event.id)?.role ?? "player",
+    source: roleByEvent.get(event.id)?.source ?? "event",
+    event,
+  }));
 
   // With exactly one tournament there's nothing to choose between, so don't
   // make people click through a list of one — the common case for players.
@@ -105,9 +119,16 @@ export default async function ChooseTournamentPage({
                   <div className="text-muted" style={{ fontSize: 12, marginTop: 3 }}>
                     {a.event.dates || "No dates set"}
                     {a.event.course ? ` · ${a.event.course}` : ""} · {a.event._count.players} players
+                    {a.event.organization?.kind === "club" ? ` · ${a.event.organization.name}` : ""}
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "none" }}>
+                  {/* Makes inherited access legible: "why can I see this?" */}
+                  {a.source === "organization" && (
+                    <span className="tag tag-neutral" title="Access inherited from your organization role">
+                      <i className="ph ph-buildings" /> via club
+                    </span>
+                  )}
                   <span className={`tag ${a.role === "admin" ? "tag-accent" : "tag-neutral"}`}>{ROLE_LABEL[a.role] ?? a.role}</span>
                   <i className="ph ph-arrow-right" style={{ color: "var(--color-accent-300)" }} />
                 </div>

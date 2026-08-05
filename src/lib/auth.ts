@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual, scryptSync, randomBytes } from "node:crypto";
 import { prisma } from "./db";
+import { accessibleEvents, effectiveAccess } from "./services/access";
 
 // Lightweight signed-cookie sessions plus scrypt password hashing (both
 // Node built-ins, no external auth provider). Swap this module for
@@ -125,38 +126,38 @@ export async function getSession(): Promise<Session | null> {
   // cookie if it's set, otherwise their most recently created one. Someone who
   // has signed up but has no tournaments yet gets a valid session with no
   // event; the app shell sends them to /choose to create or pick one.
-  let account = null;
-  const activeEventId = verify(jar.get(ACTIVE_COOKIE)?.value);
-  if (activeEventId) {
-    account = await prisma.account.findFirst({
-      where: { eventId: activeEventId, email: user.email },
-    });
-  }
-  if (!account) {
-    const accounts = await prisma.account.findMany({
-      where: { email: user.email },
-      include: { event: { select: { createdAt: true } } },
-    });
-    accounts.sort((a, b) => b.event.createdAt.getTime() - a.event.createdAt.getTime());
-    account = accounts[0] ?? null;
+  //
+  // Access covers both explicit per-event roles and roles inherited from
+  // organization membership, so a club admin reaches events their colleagues
+  // created without being added to each one by hand.
+  const accessible = await accessibleEvents(user.email);
+  if (accessible.length === 0) {
+    return { accountId: "", eventId: "", name: user.name, email: user.email, role: "player", viewRole: "player" };
   }
 
-  const role: Role = !account
-    ? "player"
-    : account.role === "admin"
-      ? "admin"
-      : account.role === "assistant"
-        ? "assistant"
-        : "player";
+  const activeEventId = verify(jar.get(ACTIVE_COOKIE)?.value);
+  let current = activeEventId ? accessible.find((a) => a.eventId === activeEventId) : undefined;
+
+  if (!current) {
+    const events = await prisma.event.findMany({
+      where: { id: { in: accessible.map((a) => a.eventId) } },
+      select: { id: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+    const newest = events[0];
+    current = accessible.find((a) => a.eventId === newest?.id) ?? accessible[0];
+  }
+
+  const access = await effectiveAccess(user.email, current.eventId);
+  const role: Role = access?.role ?? current.role;
   const preview = jar.get(PREVIEW_COOKIE)?.value;
   const viewRole: Role =
     role === "admin" && (preview === "assistant" || preview === "player") ? (preview as Role) : role;
 
   return {
-    accountId: account?.id ?? "",
-    // Empty when this person has no tournaments yet.
-    eventId: account?.eventId ?? "",
-    name: account?.name || user.name,
+    accountId: access?.accountId ?? "",
+    eventId: current.eventId,
+    name: access?.name || user.name,
     email: user.email,
     role,
     viewRole,
