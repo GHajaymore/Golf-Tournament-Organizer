@@ -41,6 +41,9 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   // Organization settings sit above any one event; a finer check inside the
   // screen limits editing to organization owners/admins.
   organization: ["admin"],
+  // The club roster spans every event, but assistants fill fields from it, so
+  // it follows registration's access rather than organization's.
+  roster: ["admin", "assistant"],
   registration: ["admin", "assistant"],
   stages: ["admin", "assistant"],
   grouping: ["admin", "assistant"],

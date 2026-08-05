@@ -1,4 +1,5 @@
 import { canAccessScreen, type Role } from "./roles";
+import { canSeeLeaderboard, canEnterScores, type TournamentSettings } from "./tournament-settings";
 
 export interface NavItem {
   key: string;
@@ -13,14 +14,24 @@ export interface NavSection {
 }
 
 // Navigation follows the real event lifecycle an organizer works through:
-// Overview (monitor) → Set up (define the event, locked once live) →
-// Manage (run the live competition) → Results (publish & export).
+// Overview (monitor) → Club (the standing roster and identity, which outlive
+// any one event) → Set up (define the event, locks once live) → Manage (run
+// the live competition) → Results (publish & export).
 export const NAV: NavSection[] = [
   {
     label: "Overview",
     items: [
       { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: "ph ph-squares-four" },
       { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking" },
+    ],
+  },
+  {
+    // Club-level, shared by every tournament this organization runs — as
+    // opposed to "Set up", which only describes the event currently open.
+    label: "Club",
+    items: [
+      { key: "roster", label: "Members", href: "/roster", icon: "ph ph-address-book" },
+      { key: "organization", label: "Organization", href: "/organization", icon: "ph ph-buildings" },
     ],
   },
   {
@@ -32,7 +43,6 @@ export const NAV: NavSection[] = [
       { key: "stages", label: "Rounds & format", href: "/stages", icon: "ph ph-stack" },
       { key: "grouping", label: "Flights & divisions", href: "/grouping", icon: "ph ph-squares-four" },
       { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check" },
-      { key: "organization", label: "Organization", href: "/organization", icon: "ph ph-buildings" },
     ],
   },
   {
@@ -59,9 +69,24 @@ export const NAV: NavSection[] = [
 /**
  * The sidebar for a role, derived from the same access map the server-side
  * guards use — so what's shown and what's reachable can't disagree.
+ *
+ * `settings` narrows it further for screens the tournament itself governs: a
+ * player in a blind event has no leaderboard link, and one in an
+ * organizer-scored event has no score entry link. Without this the sidebar
+ * would offer doors that bounce you straight back to the dashboard.
  */
-export function navForRole(viewRole: Role): NavSection[] {
-  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => canAccessScreen(viewRole, i.key)) })).filter(
+export function navForRole(viewRole: Role, settings?: TournamentSettings): NavSection[] {
+  const allowed = (key: string): boolean => {
+    if (!canAccessScreen(viewRole, key)) return false;
+    if (!settings) return true;
+    // The bracket is seeded from live standings, so showing it in a blind
+    // event would give away the order the leaderboard is hiding.
+    if (key === "leaderboard" || key === "bracket") return canSeeLeaderboard(settings, viewRole);
+    if (key === "entry") return canEnterScores(settings, viewRole);
+    return true;
+  };
+
+  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => allowed(i.key)) })).filter(
     (s) => s.items.length > 0,
   );
 }

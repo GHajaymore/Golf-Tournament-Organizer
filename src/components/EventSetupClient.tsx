@@ -58,6 +58,8 @@ export function EventSetupClient({
 }) {
   const [f, setF] = useState<EventForm>(initial);
   const [manualTarget, setManualTarget] = useState(initial.manualPlayerCount);
+  /** Scored matches a resize would destroy, once the action refuses. */
+  const [resizeScored, setResizeScored] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
   // The button reflects real dirty state against the last-saved snapshot,
   // not a timed flash — it only reads "Save event" when something has
@@ -314,10 +316,61 @@ export function EventSetupClient({
                 <label>Target player count</label>
                 <input className="input" type="number" value={manualTarget} onChange={(e) => setManualTarget(parseInt(e.target.value, 10) || 0)} />
               </div>
-              <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => startTransition(() => applyManualCount(manualTarget))}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    const res = await applyManualCount(manualTarget);
+                    if (res.needsConfirm) setResizeScored(res.scoredMatches ?? 0);
+                  })
+                }
+              >
                 Apply
               </button>
             </div>
+            {resizeScored !== null && (
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--color-danger, #e0665a)",
+                  background: "color-mix(in srgb, var(--color-danger, #e0665a) 10%, transparent)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                <div style={{ fontSize: 13 }}>
+                  <b>
+                    <i className="ph ph-warning" /> This will delete {resizeScored} scored match
+                    {resizeScored === 1 ? "" : "es"}.
+                  </b>
+                  <div className="text-muted" style={{ marginTop: 4 }}>
+                    Resizing the field rebuilds the round-robin schedule, discarding results already entered.
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={pending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        await applyManualCount(manualTarget, true);
+                        setResizeScored(null);
+                      })
+                    }
+                  >
+                    Delete and resize
+                  </button>
+                  <button type="button" className="btn" disabled={pending} onClick={() => setResizeScored(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
             <p className="text-muted" style={{ fontSize: 12, margin: "-6px 0 0" }}>
               Pads with waitlist/placeholder entries or trims the roster to this exact count, then regroups.
             </p>

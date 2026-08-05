@@ -17,6 +17,37 @@ import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../dom
  * invalidate the schedule. In production this would be guarded once live scores
  * exist (see handoff README); the UI previews the result before committing.
  */
+/**
+ * How many Round Robin matches already have a hole result recorded.
+ *
+ * Regenerating flights deletes and rebuilds every Round Robin match, so this
+ * is the number that says whether doing so destroys real results. It counts
+ * scored matches rather than reading `Event.status`, because status is a label
+ * an organizer sets by hand — a tournament can be 83% played and still say
+ * "draft" if nobody pressed Launch. Actual scores can't be forgotten about.
+ */
+export async function scoredMatchCount(eventId: string): Promise<number> {
+  const rrStages = await prisma.stage.findMany({
+    where: { eventId, type: "Round Robin" },
+    select: { id: true },
+  });
+  if (!rrStages.length) return 0;
+
+  const matches = await prisma.match.findMany({
+    where: { eventId, stageId: { in: rrStages.map((s) => s.id) } },
+    select: { holes: true },
+  });
+
+  return matches.filter((m) => {
+    try {
+      const holes = JSON.parse(m.holes) as unknown[];
+      return Array.isArray(holes) && holes.some((h) => h !== null);
+    } catch {
+      return false;
+    }
+  }).length;
+}
+
 export async function regenerateGroupsAndSchedule(eventId: string): Promise<void> {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return;

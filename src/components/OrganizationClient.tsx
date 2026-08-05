@@ -18,6 +18,8 @@ export function OrganizationClient(props: Props) {
   const [shortName, setShortName] = useState(props.shortName);
   const [logoUrl, setLogoUrl] = useState(props.logoUrl);
   const [error, setError] = useState("");
+  /** Saved, but the logo couldn't be reached from our server. */
+  const [warning, setWarning] = useState("");
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -25,6 +27,7 @@ export function OrganizationClient(props: Props) {
 
   const save = () => {
     setError("");
+    setWarning("");
     setSaved(false);
     startTransition(async () => {
       const result = await saveOrganizationBranding(name, shortName, logoUrl);
@@ -32,6 +35,7 @@ export function OrganizationClient(props: Props) {
         setError(result.error ?? "Couldn't save.");
         return;
       }
+      setWarning(result.warning ?? "");
       setSaved(true);
     });
   };
@@ -123,6 +127,20 @@ export function OrganizationClient(props: Props) {
           {error && (
             <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger, #e0665a)" }}>
               <i className="ph ph-warning-circle" /> {error}
+            </p>
+          )}
+
+          {warning && (
+            <p
+              style={{
+                fontSize: 13,
+                margin: 0,
+                padding: "9px 11px",
+                borderRadius: "var(--radius-md)",
+                background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
+              }}
+            >
+              <i className="ph ph-warning" /> {warning}
             </p>
           )}
 

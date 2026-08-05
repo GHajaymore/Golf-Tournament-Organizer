@@ -6,15 +6,17 @@ import { navForRole } from "@/lib/nav";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { brandForEvent } from "@/lib/services/organization";
+import { settingsOf } from "@/lib/services/tournament";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
-  const sections = navForRole(session.viewRole);
   const initials = initialsOf(session.name);
   const event = await prisma.event.findUnique({
     where: { id: session.eventId },
-    select: { name: true, dates: true, course: true, city: true, status: true },
   });
+  // Screens the tournament governs (leaderboard, score entry) are filtered out
+  // of the sidebar here rather than shown and then bounced.
+  const sections = navForRole(session.viewRole, event ? settingsOf(event) : undefined);
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;

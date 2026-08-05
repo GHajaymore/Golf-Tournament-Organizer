@@ -63,6 +63,8 @@ export function GroupingControls({
   const [mode, setMode] = useState<"auto" | "count" | "perFlight">(currentMode);
   const [value, setValue] = useState<number>(currentValue || (currentMode === "perFlight" ? 4 : 8));
   const [pending, startTransition] = useTransition();
+  /** Number of scored matches a regenerate would destroy, once refused. */
+  const [confirmScored, setConfirmScored] = useState<number | null>(null);
 
   const config = { mode, value: value || undefined };
   const flightCount = flightCountFor(players.length, config);
@@ -130,12 +132,62 @@ export function GroupingControls({
             type="button"
             className="btn btn-primary"
             disabled={pending || players.length === 0}
-            onClick={() => startTransition(() => regenGroups(rule, mode, value))}
+            onClick={() =>
+              startTransition(async () => {
+                const res = await regenGroups(rule, mode, value);
+                // Refused because rebuilding would throw away real results —
+                // surface what's at stake instead of failing silently.
+                if (res.needsConfirm) setConfirmScored(res.scoredMatches ?? 0);
+              })
+            }
           >
             <i className="ph ph-shuffle" /> {pending ? "Generating…" : "Generate flights"}
           </button>
         </div>
       </div>
+
+      {confirmScored !== null && (
+        <div
+          style={{
+            padding: "12px 14px",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--color-danger, #e0665a)",
+            background: "color-mix(in srgb, var(--color-danger, #e0665a) 10%, transparent)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <div style={{ fontSize: 13 }}>
+            <b>
+              <i className="ph ph-warning" /> This will delete {confirmScored} scored match
+              {confirmScored === 1 ? "" : "es"}.
+            </b>
+            <div className="text-muted" style={{ marginTop: 4 }}>
+              Regenerating flights rebuilds the whole round-robin schedule, so results already entered for
+              this round are discarded and can&rsquo;t be recovered.
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  await regenGroups(rule, mode, value, true);
+                  setConfirmScored(null);
+                })
+              }
+            >
+              Delete {confirmScored} match{confirmScored === 1 ? "" : "es"} and regenerate
+            </button>
+            <button type="button" className="btn" disabled={pending} onClick={() => setConfirmScored(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>

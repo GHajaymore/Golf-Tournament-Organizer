@@ -2,10 +2,14 @@
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { checkLogoUrl } from "@/lib/services/logo-check";
 
 export interface OrgResult {
   ok: boolean;
   error?: string;
+  /** Saved, but something about it is worth telling the organizer — currently
+   *  only used when a logo URL couldn't be reached from our server. */
+  warning?: string;
 }
 
 /**
@@ -42,20 +46,6 @@ async function currentOrganization() {
       // their own tenant — otherwise they'd be locked out of their own club.
       (session.role === "admin" && !membership),
   };
-}
-
-/** Only allow logos over https from a real host — a data: or javascript: URL
- *  here would be rendered into every page header. */
-function logoUrlProblem(url: string): string | null {
-  if (!url) return null;
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return "Enter a full image URL, starting with https://";
-  }
-  if (parsed.protocol !== "https:") return "Logo URL must start with https://";
-  return null;
 }
 
 const ORG_ROLES = ["owner", "admin", "member"] as const;
@@ -156,8 +146,19 @@ export async function saveOrganizationBranding(
   if (!cleanName) return { ok: false, error: "Enter an organization name." };
 
   const cleanLogo = logoUrl.trim();
-  const logoProblem = logoUrlProblem(cleanLogo);
-  if (logoProblem) return { ok: false, error: logoProblem };
+
+  // Only hit the network when the URL actually changed — renaming the club
+  // shouldn't cost an outbound request.
+  let warning: string | undefined;
+  const current = await prisma.organization.findUnique({
+    where: { id: org.organizationId },
+    select: { logoUrl: true },
+  });
+  if (cleanLogo !== current?.logoUrl) {
+    const check = await checkLogoUrl(cleanLogo);
+    if (!check.ok) return { ok: false, error: check.error };
+    warning = check.warning;
+  }
 
   await prisma.organization.update({
     where: { id: org.organizationId },
@@ -165,5 +166,5 @@ export async function saveOrganizationBranding(
   });
 
   revalidatePath("/", "layout");
-  return { ok: true };
+  return { ok: true, warning };
 }

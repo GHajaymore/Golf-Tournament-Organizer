@@ -2,6 +2,8 @@
 import { useState, useRef, useTransition } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SetupLockBanner } from "./SetupLockBanner";
+import { RosterPicker } from "./RosterPicker";
+import type { RosterCandidate } from "@/lib/services/roster";
 
 interface Signup {
   id: string;
@@ -31,12 +33,15 @@ export function RegistrationClient({
   waitlist,
   locked,
   isAdmin,
+  roster,
 }: {
   event: EventInfo;
   confirmed: Signup[];
   waitlist: Signup[];
   locked: boolean;
   isAdmin: boolean;
+  /** The club's members, for filling the field without retyping anyone. */
+  roster: RosterCandidate[];
 }) {
   const [name, setName] = useState("");
   const [handicap, setHandicap] = useState("");
@@ -330,8 +335,13 @@ export function RegistrationClient({
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16, alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <RosterPicker candidates={roster} eventName={event.name} locked={locked} />
         <div className="card elev-sm" style={{ gap: 10 }}>
-          <span className="card-title" style={{ fontSize: 15 }}>Add a signup</span>
+          <span className="card-title" style={{ fontSize: 15 }}>Add someone new</span>
+          <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0" }}>
+            Anyone added here joins the club roster too, so you only enter their details once.
+          </p>
           <div className="field"><label>Player name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <div className="field">
@@ -400,6 +410,7 @@ export function RegistrationClient({
               )
             )}
           </div>
+        </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {rowError && (

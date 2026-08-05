@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "../db";
 import { DEFAULT_PLAN, planFor } from "../plans";
+import { cleanSettings } from "../tournament-settings";
+import { generateShareToken } from "../codes";
 
 /**
  * Resolve the organization a new tournament should belong to for this person,
@@ -38,6 +40,40 @@ export async function organizationForNewEvent(email: string, displayName: string
     },
   });
   return org.id;
+}
+
+/**
+ * The settings a new tournament starts with: the owning organization's house
+ * defaults, plus a fresh share token.
+ *
+ * Returned as a flat object to spread into `event.create`. Copying rather than
+ * pointing at the organization is the whole design — a club that changes its
+ * house default next month must not silently rewrite the rules of an event
+ * already being played.
+ */
+export async function settingsForNewEvent(organizationId: string) {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      defaultLeaderboardVisibility: true,
+      defaultScoreEntryBy: true,
+      defaultScoreEntryWindow: true,
+      defaultVoiceEntry: true,
+      defaultPlayerAccess: true,
+      defaultScoreApproval: true,
+    },
+  });
+
+  const settings = cleanSettings({
+    leaderboardVisibility: org?.defaultLeaderboardVisibility,
+    scoreEntryBy: org?.defaultScoreEntryBy,
+    scoreEntryWindow: org?.defaultScoreEntryWindow,
+    voiceEntry: org?.defaultVoiceEntry,
+    playerAccess: org?.defaultPlayerAccess,
+    scoreApproval: org?.defaultScoreApproval,
+  });
+
+  return { ...settings, shareToken: generateShareToken() };
 }
 
 export interface EventBrand {

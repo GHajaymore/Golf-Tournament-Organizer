@@ -20,20 +20,42 @@ import {
   type TiebreakerKey,
 } from "../domain";
 import type { Event, Player as DbPlayer, Group as DbGroup, Stage as DbStage, Match as DbMatch } from "@prisma/client";
+import { cleanSettings, allowsAutoConfirm, type TournamentSettings } from "../tournament-settings";
 
 export type HoleResultArr = DomainMatch["holes"];
 
 const AUTO_CONFIRM_MS = 24 * 60 * 60 * 1000;
 export type ScoreStatus = "pending" | "confirmed" | "disputed" | "auto-confirmed";
 
-/** Effective confirmation status, applying the lazy 24h auto-confirm. */
-export function effectiveScoreStatus(m: { scoreStatus: string; scoredAt: Date | null }): ScoreStatus {
+/**
+ * Effective confirmation status.
+ *
+ * `allowAutoConfirm` comes from the tournament's score-approval setting. When
+ * an organizer signs off cards, a pending result stays pending however long it
+ * sits — silently locking a score nobody reviewed is precisely what that
+ * setting exists to prevent. Callers that genuinely have no settings to hand
+ * default to false, so the safe reading is the one you get by forgetting.
+ */
+export function effectiveScoreStatus(
+  m: { scoreStatus: string; scoredAt: Date | null },
+  allowAutoConfirm = false,
+): ScoreStatus {
   if (m.scoreStatus === "confirmed") return "confirmed";
   if (m.scoreStatus === "disputed") return "disputed";
-  if (m.scoreStatus === "pending" && m.scoredAt && Date.now() - new Date(m.scoredAt).getTime() > AUTO_CONFIRM_MS) {
+  if (
+    allowAutoConfirm &&
+    m.scoreStatus === "pending" &&
+    m.scoredAt &&
+    Date.now() - new Date(m.scoredAt).getTime() > AUTO_CONFIRM_MS
+  ) {
     return "auto-confirmed";
   }
   return "pending";
+}
+
+/** Read a tournament's settings off an Event row already in hand. */
+export function settingsOf(event: Event): TournamentSettings {
+  return cleanSettings(event);
 }
 
 export function scoringFrom(event: Event): ScoringRules {
@@ -292,7 +314,9 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const advancingIds = qualifierIds;
   const advancingCount = qualifierIds.size;
 
-  // Completed matches still awaiting the other player's confirmation (not auto-confirmed).
+  // Completed matches still awaiting sign-off. Under staff approval nothing
+  // auto-confirms, so this is the organizer's review queue.
+  const autoConfirm = allowsAutoConfirm(settingsOf(event));
   const pendingConfirmations = rrMatches.filter((m) => {
     let holes: HoleResultArr;
     try {
@@ -300,7 +324,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     } catch {
       return false;
     }
-    return resolveMatch(holes).complete && effectiveScoreStatus(m) === "pending";
+    return resolveMatch(holes).complete && effectiveScoreStatus(m, autoConfirm) === "pending";
   }).length;
   const qualifiers = isStroke
     ? strokeStandings.filter((s) => qualifierIds.has(s.player.id)).map((s) => toDomainPlayer(s.player))

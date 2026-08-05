@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { OrganizationClient } from "@/components/OrganizationClient";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { organizationAccessReport } from "@/lib/services/access";
+import { PlaySettings } from "@/components/PlaySettings";
+import { cleanSettings } from "@/lib/tournament-settings";
 
 export default async function OrganizationPage() {
   const session = await requireScreen("organization");
@@ -51,6 +53,21 @@ export default async function OrganizationPage() {
         memberCount={org._count.members}
         canEdit={canEdit}
       />
+      <div style={{ marginTop: 16 }}>
+        <PlaySettings
+          mode="organization"
+          settings={cleanSettings({
+            leaderboardVisibility: org.defaultLeaderboardVisibility,
+            scoreEntryBy: org.defaultScoreEntryBy,
+            scoreEntryWindow: org.defaultScoreEntryWindow,
+            voiceEntry: org.defaultVoiceEntry,
+            playerAccess: org.defaultPlayerAccess,
+            scoreApproval: org.defaultScoreApproval,
+          })}
+          canEdit={canEdit}
+        />
+      </div>
+
       <div style={{ marginTop: 16 }}>
         <OrganizationAccess report={report} canEdit={canEdit} />
       </div>

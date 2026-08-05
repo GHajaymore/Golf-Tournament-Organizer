@@ -1,5 +1,6 @@
 import { requireScreen } from "@/lib/page-helpers";
-import { loadEventState, effectiveScoreStatus } from "@/lib/services/tournament";
+import { loadEventState, effectiveScoreStatus, settingsOf } from "@/lib/services/tournament";
+import { canEnterScores, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { redirect } from "next/navigation";
 import { EntryModes, type EntryRound } from "@/components/EntryModes";
 import { CourseSetupPrompt } from "@/components/CourseSetupPrompt";
@@ -12,6 +13,11 @@ export default async function EntryPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+
+  // The tournament decides whether players report their own scores. The save
+  // actions enforce this too — this only keeps the screen honest.
+  const settings = settingsOf(state.event);
+  if (!canEnterScores(settings, session.viewRole)) redirect("/dashboard");
 
   if (!hasCourseData(state.event)) {
     return <CourseSetupPrompt eventCourse={state.event.course} eventCity={state.event.city} isStaff={isStaff} />;
@@ -78,7 +84,7 @@ export default async function EntryPage() {
             groupName: `Flight ${(groupById.get(m.groupId) ?? 0) + 1}`,
             round: m.round,
             holes,
-            status: effectiveScoreStatus(m),
+            status: effectiveScoreStatus(m, allowsAutoConfirm(settings)),
             aStrokes: matchStrokesByKey[`${m.id}:A`] ?? new Array(holeCount).fill(null),
             bStrokes: matchStrokesByKey[`${m.id}:B`] ?? new Array(holeCount).fill(null),
           };

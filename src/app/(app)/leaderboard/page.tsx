@@ -1,5 +1,7 @@
 import { requireState } from "@/lib/page-helpers";
-import { computeHighlights, standingRows } from "@/lib/services/tournament";
+import { computeHighlights, standingRows, settingsOf } from "@/lib/services/tournament";
+import { canSeeLeaderboard } from "@/lib/tournament-settings";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { CommentaryPanel } from "@/components/CommentaryPanel";
 import { LeaderboardBoard } from "@/components/LeaderboardBoard";
@@ -15,6 +17,9 @@ function ago(d: Date): string {
 export default async function LeaderboardPage() {
   const { session, state } = await requireState();
   const { event } = state;
+
+  // A blind event hides standings from players until the organizer publishes.
+  if (!canSeeLeaderboard(settingsOf(event), session.viewRole)) redirect("/dashboard");
   const rows = standingRows(state);
   const highlights = computeHighlights(state);
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";

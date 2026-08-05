@@ -68,9 +68,16 @@ export function OrgBrand({ brand, size = 22 }: { brand?: Brand | null; size?: nu
           {brand.name}
         </span>
         {brand.showAttribution && (
+          // Mixed case and in the accent colour: this is the line that turns a
+          // player at someone else's member-guest into the next organizer, so
+          // it should read as a product name rather than as small print.
           <span
-            className="text-muted"
-            style={{ fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 500 }}
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.01em",
+              fontWeight: 500,
+              color: "var(--color-accent)",
+            }}
           >
             Powered by TourneyHQ
           </span>

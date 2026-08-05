@@ -254,6 +254,21 @@ export function LoginPanel() {
           {pending ? "Creating account…" : "Create account"}
         </button>
       )}
+
+      {/* Players in a code-access tournament have no account at all — this is
+          their whole way in, so it can't be buried. */}
+      <div
+        style={{
+          borderTop: "1px solid var(--color-divider)",
+          marginTop: 4,
+          paddingTop: 12,
+          textAlign: "center",
+        }}
+      >
+        <a href="/play" style={{ fontSize: 13, color: "var(--color-accent)" }}>
+          Playing today? Enter your round code →
+        </a>
+      </div>
     </>,
   );
 }

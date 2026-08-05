@@ -1,0 +1,337 @@
+"use client";
+import { useEffect, useState, useTransition } from "react";
+import {
+  saveTournamentSettings,
+  saveOrganizationDefaults,
+  regenerateRoundCode,
+} from "@/app/actions/settings";
+import {
+  LEADERBOARD_VISIBILITY,
+  LEADERBOARD_VISIBILITY_LABEL,
+  LEADERBOARD_VISIBILITY_HELP,
+  SCORE_ENTRY_BY,
+  SCORE_ENTRY_BY_LABEL,
+  SCORE_ENTRY_WINDOW,
+  SCORE_ENTRY_WINDOW_LABEL,
+  SCORE_APPROVAL,
+  SCORE_APPROVAL_LABEL,
+  SCORE_APPROVAL_HELP,
+  PLAYER_ACCESS,
+  PLAYER_ACCESS_LABEL,
+  usesAccessCodes,
+  type TournamentSettings,
+} from "@/lib/tournament-settings";
+import { formatAccessCode } from "@/lib/code-format";
+
+export interface RoundCode {
+  stageId: string;
+  label: string;
+  code: string;
+}
+
+interface Props {
+  mode: "tournament" | "organization";
+  settings: TournamentSettings;
+  canEdit: boolean;
+  /** Tournament mode only — one row per round, for showing Round Codes. */
+  rounds?: RoundCode[];
+  /** Tournament mode only — the public leaderboard token. */
+  shareToken?: string;
+}
+
+/** Radio group. Each option carries its own explanation, because these
+ *  choices change what players can see and do — not somewhere to be terse. */
+function Choice<T extends string>({
+  label,
+  hint,
+  value,
+  options,
+  labels,
+  help,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: T;
+  options: readonly T[];
+  labels: Record<T, string>;
+  help?: Record<T, string>;
+  disabled: boolean;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="field">
+      <label>
+        {label} {hint && <span className="text-muted">· {hint}</span>}
+      </label>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 2 }}>
+        {options.map((opt) => (
+          <label
+            key={opt}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 8,
+              fontSize: 13,
+              cursor: disabled ? "default" : "pointer",
+              opacity: disabled ? 0.6 : 1,
+            }}
+          >
+            <input
+              type="radio"
+              checked={value === opt}
+              disabled={disabled}
+              onChange={() => onChange(opt)}
+              style={{ marginTop: 2 }}
+            />
+            <span>
+              {labels[opt]}
+              {help?.[opt] && (
+                <span className="text-muted" style={{ display: "block", fontSize: 12 }}>
+                  {help[opt]}
+                </span>
+              )}
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken }: Props) {
+  const [form, setForm] = useState<TournamentSettings>(settings);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState("");
+  const [origin, setOrigin] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  // The share link needs the real host, which only the browser knows.
+  useEffect(() => setOrigin(window.location.origin), []);
+
+  const isTournament = mode === "tournament";
+  const dirty = (Object.keys(form) as (keyof TournamentSettings)[]).some((k) => form[k] !== settings[k]);
+
+  const set = <K extends keyof TournamentSettings>(key: K, value: TournamentSettings[K]) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    setSaved(false);
+  };
+
+  const save = () => {
+    setError("");
+    startTransition(async () => {
+      const result = isTournament
+        ? await saveTournamentSettings(form)
+        : await saveOrganizationDefaults(form);
+      if (!result.ok) {
+        setError(result.error ?? "Couldn't save.");
+        return;
+      }
+      setSaved(true);
+    });
+  };
+
+  const copy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(""), 1600);
+    });
+  };
+
+  const shareUrl = shareToken && origin ? `${origin}/live/${shareToken}` : "";
+  const codesOn = usesAccessCodes(form);
+
+  return (
+    <div className="card elev-sm" style={{ gap: 14 }}>
+      <div>
+        <span className="card-title" style={{ fontSize: 15 }}>
+          {isTournament ? "Players & scoring" : "House defaults for new tournaments"}
+        </span>
+        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+          {isTournament
+            ? "How players see standings and report scores in this tournament."
+            : "What a new tournament starts with. Tournaments already created keep their own settings — changing these never rewrites an event in progress."}
+        </p>
+      </div>
+
+      <Choice
+        label="Who can see the leaderboard"
+        value={form.leaderboardVisibility}
+        options={LEADERBOARD_VISIBILITY}
+        labels={LEADERBOARD_VISIBILITY_LABEL}
+        help={LEADERBOARD_VISIBILITY_HELP}
+        disabled={!canEdit || pending}
+        onChange={(v) => set("leaderboardVisibility", v)}
+      />
+
+      {isTournament && form.leaderboardVisibility === "public" && shareUrl && (
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: "var(--radius-md)",
+            background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Public leaderboard link</div>
+            <code style={{ fontSize: 12, wordBreak: "break-all" }}>{shareUrl}</code>
+          </div>
+          <button type="button" className="btn btn-secondary" onClick={() => copy(shareUrl, "share")}>
+            <i className="ph ph-copy" /> {copied === "share" ? "Copied" : "Copy"}
+          </button>
+        </div>
+      )}
+
+      <Choice
+        label="Who enters scores"
+        hint="organizers and assistants can always enter and correct scores"
+        value={form.scoreEntryBy}
+        options={SCORE_ENTRY_BY}
+        labels={SCORE_ENTRY_BY_LABEL}
+        disabled={!canEdit || pending}
+        onChange={(v) => set("scoreEntryBy", v)}
+      />
+
+      {form.scoreEntryBy === "players" && (
+        <>
+          <Choice
+            label="When players may submit"
+            value={form.scoreEntryWindow}
+            options={SCORE_ENTRY_WINDOW}
+            labels={SCORE_ENTRY_WINDOW_LABEL}
+            disabled={!canEdit || pending}
+            onChange={(v) => set("scoreEntryWindow", v)}
+          />
+
+          <Choice
+            label="How players sign in"
+            value={form.playerAccess}
+            options={PLAYER_ACCESS}
+            labels={PLAYER_ACCESS_LABEL}
+            disabled={!canEdit || pending}
+            onChange={(v) => set("playerAccess", v)}
+          />
+
+          <div className="field">
+            <label>Voice entry</label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={form.voiceEntry}
+                disabled={!canEdit || pending}
+                onChange={(e) => set("voiceEntry", e.target.checked)}
+              />
+              Let scores be dictated out loud instead of typed
+            </label>
+          </div>
+        </>
+      )}
+
+      <Choice
+        label="Who signs off a result"
+        value={form.scoreApproval}
+        options={SCORE_APPROVAL}
+        labels={SCORE_APPROVAL_LABEL}
+        help={SCORE_APPROVAL_HELP}
+        disabled={!canEdit || pending}
+        onChange={(v) => set("scoreApproval", v)}
+      />
+
+      {error && (
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger, #e0665a)" }}>
+          <i className="ph ph-warning-circle" /> {error}
+        </p>
+      )}
+
+      {canEdit ? (
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ alignSelf: "flex-start" }}
+          disabled={pending || !dirty}
+          onClick={save}
+        >
+          <i className="ph ph-check" /> {pending ? "Saving…" : saved && !dirty ? "Saved" : "Save settings"}
+        </button>
+      ) : (
+        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          Only the organizer can change these.
+        </p>
+      )}
+
+      {/* ── Round Codes ─────────────────────────────────────────────────── */}
+      {isTournament && codesOn && (
+        <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>
+          <span className="card-title" style={{ fontSize: 14 }}>Round Codes</span>
+          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
+            One code per round. Read it out on the first tee or put it on the tee sheet — players enter it,
+            then pick their own name. Anyone with the code can report a score for that round, so reissue it if
+            it travels beyond the field.
+          </p>
+
+          {rounds.length === 0 ? (
+            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+              Codes appear here once the tournament has rounds. Add them on Rounds &amp; format.
+            </p>
+          ) : (
+            <div className="table-scroll">
+              <table className="table" style={{ fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    <th>Round</th>
+                    <th style={{ width: 150 }}>Code</th>
+                    <th style={{ width: 190 }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rounds.map((r) => (
+                    <tr key={r.stageId}>
+                      <td>{r.label}</td>
+                      <td style={{ fontFamily: "var(--font-mono, monospace)", letterSpacing: "0.06em" }}>
+                        {r.code ? formatAccessCode(r.code) : "—"}
+                      </td>
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        {r.code && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ fontSize: 12, padding: "3px 9px" }}
+                            onClick={() => copy(formatAccessCode(r.code), r.stageId)}
+                          >
+                            <i className="ph ph-copy" /> {copied === r.stageId ? "Copied" : "Copy"}
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ fontSize: 12, padding: "3px 9px", marginLeft: 6 }}
+                            disabled={pending}
+                            onClick={() =>
+                              startTransition(async () => {
+                                const res = await regenerateRoundCode(r.stageId);
+                                if (!res.ok) setError(res.error ?? "Couldn't reissue the code.");
+                              })
+                            }
+                          >
+                            <i className="ph ph-arrows-clockwise" /> Reissue
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

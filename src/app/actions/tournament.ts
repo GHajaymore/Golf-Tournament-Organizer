@@ -3,9 +3,17 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { regenerateGroupsAndSchedule } from "@/lib/services/regroup";
-import { roundRobinStages, chainRoundStandings, scoringFrom } from "@/lib/services/tournament";
-import { organizationForNewEvent } from "@/lib/services/organization";
+import { regenerateGroupsAndSchedule, scoredMatchCount } from "@/lib/services/regroup";
+import { roundRobinStages, chainRoundStandings, scoringFrom, settingsOf } from "@/lib/services/tournament";
+import {
+  canEnterScores,
+  canPlayerSavePartial,
+  type TournamentSettings,
+} from "@/lib/tournament-settings";
+import type { Session } from "@/lib/auth";
+import { organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
+import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
+import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
 import { marginToHoles, resolveMatch, deriveNetHoles, roundRobinSchedule, TIEBREAKER_KEYS } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { FORMAT_NAMES } from "@/lib/formats";
@@ -33,6 +41,25 @@ async function requireStaffEvent(): Promise<string> {
     throw new Error("Organizer access required");
   }
   return session.eventId;
+}
+
+/**
+ * Score entry, gated on the tournament's own rules.
+ *
+ * Staff always pass. A player passes only where the organizer has allowed
+ * self-reporting — and this is the check that matters, because hiding the
+ * entry screen in the sidebar stops nobody from calling the action directly.
+ */
+async function requireScoreEntry(): Promise<{ eventId: string; session: Session; settings: TournamentSettings }> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  const event = await prisma.event.findUnique({ where: { id: session.eventId } });
+  if (!event) throw new Error("Event not found");
+  const settings = settingsOf(event);
+  if (!canEnterScores(settings, session.role)) {
+    throw new Error("Scores for this tournament are entered by the organizer.");
+  }
+  return { eventId: session.eventId, session, settings };
 }
 
 /** Block structural changes once the tournament is live/completed, unless unlocked. */
@@ -65,35 +92,6 @@ export interface SignupInput {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/**
- * Access is email-based (see signInByEmail in actions/auth.ts): whoever
- * matches an Account's email for this event can sign in as that role. A
- * registered player's email is therefore how they get in, not just a
- * contact detail — so registering them also grants their sign-in access
- * directly, instead of requiring a separate manual step on Access & staff.
- * Never downgrades an existing admin/assistant Account (e.g. an organizer
- * who's also playing in their own event) — only sets role "player" when
- * creating a brand new Account for that email.
- */
-async function syncPlayerAccount(eventId: string, name: string, email: string): Promise<void> {
-  const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail) return;
-  await prisma.account.upsert({
-    where: { eventId_email: { eventId, email: cleanEmail } },
-    update: { name },
-    create: { eventId, name, email: cleanEmail, role: "player" },
-  });
-}
-
-/** Revoke sign-in access granted via syncPlayerAccount — only removes a
- *  "player" role Account, never an admin/assistant one that happens to
- *  share the same email. */
-async function revokePlayerAccount(eventId: string, email: string): Promise<void> {
-  const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail) return;
-  await prisma.account.deleteMany({ where: { eventId, email: cleanEmail, role: "player" } });
-}
-
 export interface SignupResult {
   ok: boolean;
   error?: string;
@@ -113,9 +111,13 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const maxSeed = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
   const unlimited = event.capacity <= 0; // 0 = open / unlimited field
   const status = unlimited || confirmedCount < event.capacity ? "confirmed" : "waitlisted";
+  // Entering someone in a tournament is also how they join the club roster —
+  // so the club list is never a separate chore an organizer has to remember.
+  const memberId = await upsertMember(event.organizationId, { ...input, name: clean, email: cleanEmail });
   await prisma.player.create({
     data: {
       eventId,
+      memberId,
       name: clean,
       handicap: Number.isFinite(input.handicap) ? input.handicap : 0,
       seed: (maxSeed._max.seed ?? 0) + 1,
@@ -164,6 +166,28 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   if (patch.phone !== undefined) data.phone = patch.phone.trim();
   if (Object.keys(data).length === 0) return { ok: true };
   await prisma.player.update({ where: { id: playerId }, data });
+
+  // Correcting a detail here corrects it on the roster too — that's the point
+  // of having one record per person. Re-resolving rather than updating the
+  // linked member directly, because a changed email may now identify someone
+  // else on the roster (or nobody, in which case they're added).
+  const organizationId = await organizationIdForEvent(eventId);
+  if (organizationId) {
+    const memberId = await upsertMember(organizationId, {
+      name: (data.name as string) ?? player.name,
+      email: (data.email as string) ?? player.email,
+      phone: (data.phone as string) ?? player.phone,
+      ghin: player.ghin,
+      homeClub: player.homeClub,
+      handicap: (data.handicap as number) ?? player.handicap,
+      handicapType: (data.handicapType as string) ?? player.handicapType,
+      handicapSource: player.handicapSource,
+    });
+    if (memberId && memberId !== player.memberId) {
+      await prisma.player.update({ where: { id: playerId }, data: { memberId } });
+    }
+  }
+
   if (emailChanged) {
     const newEmail = data.email as string;
     // The player's old email, if any, no longer belongs to them — revoke the
@@ -322,16 +346,28 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     const handicap = hcpIdx >= 0 ? parseFloat(cols[hcpIdx] ?? "") : 0;
     const status = unlimited || confirmedCount < event.capacity ? "confirmed" : "waitlisted";
     if (status === "confirmed") confirmedCount += 1;
+    const handicapType = hcpTypeIdx >= 0 && (cols[hcpTypeIdx] ?? "").trim() === "9" ? "9" : "18";
+    const phone = phoneIdx >= 0 ? (cols[phoneIdx] ?? "").trim() : "";
+    // Importing a field also builds the roster: a club that uploads its
+    // spring CSV has its member list from then on, without a second import.
+    const memberId = await upsertMember(event.organizationId, {
+      name,
+      email: emailKey,
+      phone,
+      handicap: Number.isFinite(handicap) ? handicap : 0,
+      handicapType,
+    });
     await prisma.player.create({
       data: {
         eventId,
+        memberId,
         name,
         handicap: Number.isFinite(handicap) ? handicap : 0,
         seed: seed++,
         status,
         email: emailKey,
-        phone: phoneIdx >= 0 ? (cols[phoneIdx] ?? "").trim() : "",
-        handicapType: hcpTypeIdx >= 0 && (cols[hcpTypeIdx] ?? "").trim() === "9" ? "9" : "18",
+        phone,
+        handicapType,
       },
     });
     await syncPlayerAccount(eventId, name, emailKey);
@@ -386,9 +422,17 @@ export async function saveEvent(data: {
   refresh();
 }
 
-export async function applyManualCount(target: number) {
+export async function applyManualCount(target: number, force = false): Promise<RegenResult> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
+
+  // Resizing the field rebuilds the schedule, which discards scored matches
+  // exactly as regenGroups does — same guard, for the same reason.
+  const scored = await scoredMatchCount(eventId);
+  if (scored > 0 && !force) {
+    return { ok: false, needsConfirm: true, scoredMatches: scored };
+  }
+
   const t = Math.max(0, Math.round(target));
   const confirmed = await prisma.player.findMany({
     where: { eventId, status: "confirmed" },
@@ -431,8 +475,12 @@ export async function applyManualCount(target: number) {
     where: { id: eventId },
     data: { playerCountMode: "manual", manualPlayerCount: t },
   });
+  if (scored > 0) {
+    await logAudit(eventId, null, "resize-field", `Resized field to ${t}, discarding ${scored} scored matches`);
+  }
   await regenerateGroupsAndSchedule(eventId);
   refresh();
+  return { ok: true };
 }
 
 /* ── Grouping ─────────────────────────────────────────────────────────── */
@@ -440,9 +488,39 @@ export async function applyManualCount(target: number) {
 const FORMATION_RULES = ["balanced", "handicap", "seeding", "random", "manual"];
 const FLIGHT_MODES = ["auto", "count", "perFlight"];
 
-export async function regenGroups(rule: FormationRule, mode = "auto", value = 0) {
+export interface RegenResult {
+  ok: boolean;
+  /** Set when the call was refused because it would destroy real results.
+   *  Call again with `force` to go ahead anyway. */
+  needsConfirm?: boolean;
+  scoredMatches?: number;
+  error?: string;
+}
+
+/**
+ * Rebuild flights and the round-robin schedule.
+ *
+ * This deletes every Round Robin match and recreates them, so on a tournament
+ * that is part-played it destroys results. `assertUnlocked` does not catch
+ * that: it keys off `Event.status`, which stays "draft" until someone presses
+ * Launch — a tournament can be most of the way played and still be unlocked.
+ *
+ * So the guard is on scored matches, and the organizer has to confirm.
+ */
+export async function regenGroups(
+  rule: FormationRule,
+  mode = "auto",
+  value = 0,
+  force = false,
+): Promise<RegenResult> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
+
+  const scored = await scoredMatchCount(eventId);
+  if (scored > 0 && !force) {
+    return { ok: false, needsConfirm: true, scoredMatches: scored };
+  }
+
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -451,8 +529,12 @@ export async function regenGroups(rule: FormationRule, mode = "auto", value = 0)
       flightValue: Math.max(0, Math.round(value)),
     },
   });
+  if (scored > 0) {
+    await logAudit(eventId, null, "regenerate-flights", `Rebuilt flights, discarding ${scored} scored matches`);
+  }
   await regenerateGroupsAndSchedule(eventId);
   refresh();
+  return { ok: true };
 }
 
 /**
@@ -705,9 +787,16 @@ async function logAudit(eventId: string, matchId: string | null, action: string,
 }
 
 export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
-  const eventId = await requireEvent();
+  const { eventId, session, settings } = await requireScoreEntry();
   const complete = resolveMatch(holes).complete;
-  // Any score edit resets the two-player confirmation to pending.
+  // Where the organizer wants finished cards only, a player can't dribble
+  // holes onto the leaderboard as they play. Staff are never restricted this
+  // way — they enter scores as groups come in.
+  if (session.role === "player" && !complete && !canPlayerSavePartial(settings)) {
+    throw new Error("Enter the full round, then submit it.");
+  }
+  // Any score edit resets confirmation to pending — including an organizer's,
+  // so a correction always goes back through approval.
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
     data: {
@@ -735,7 +824,7 @@ export async function applyMatchResult(
   winner: "A" | "B" | "H",
   margin: string,
 ) {
-  const eventId = await requireEvent();
+  const { eventId } = await requireScoreEntry();
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
   const holes = marginToHoles(winner, margin, matchHoleCount(match.holes));
@@ -747,7 +836,7 @@ export async function applyMatchResult(
 }
 
 export async function clearMatch(matchId: string) {
-  const eventId = await requireEvent();
+  const { eventId } = await requireScoreEntry();
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
   const empty = new Array(matchHoleCount(match.holes)).fill(null);
@@ -791,7 +880,11 @@ export async function saveCustomCourse(
 }
 
 export async function saveScorecard(stageId: string, playerId: string, strokes: (number | null)[]) {
-  const eventId = await requireEvent();
+  const { eventId, session, settings } = await requireScoreEntry();
+  if (session.role === "player" && !canPlayerSavePartial(settings)) {
+    const filled = strokes.filter((s) => typeof s === "number" && s > 0).length;
+    if (filled < strokes.length) throw new Error("Enter the full round, then submit it.");
+  }
   await prisma.scorecard.upsert({
     where: { stageId_playerId: { stageId, playerId } },
     update: { strokes: JSON.stringify(strokes) },
@@ -807,9 +900,13 @@ export async function saveScorecard(stageId: string, playerId: string, strokes: 
  * (standings, leaderboard, bracket) keeps reading Match.holes unchanged.
  */
 export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strokes: (number | null)[]) {
-  const eventId = await requireEvent();
+  const { eventId, session, settings } = await requireScoreEntry();
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
+  if (session.role === "player" && !canPlayerSavePartial(settings)) {
+    const filled = strokes.filter((s) => typeof s === "number" && s > 0).length;
+    if (filled < strokes.length) throw new Error("Enter the full round, then submit it.");
+  }
 
   await prisma.matchScorecard.upsert({
     where: { matchId_slot: { matchId, slot } },
@@ -855,16 +952,58 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
 
 /* ── Score confirmation ───────────────────────────────────────────────── */
 
+/**
+ * Sign off a result.
+ *
+ * Who may do this depends on the tournament's approval setting:
+ *   - `staff`   — organizers and assistants only.
+ *   - `players` — either player *in that match*, or staff.
+ *
+ * Previously this only required a session, so any signed-in participant could
+ * confirm any match in the event, including their own. Both the role and the
+ * caller's presence in the specific match are now checked.
+ */
 export async function confirmMatch(matchId: string) {
-  const eventId = await requireEvent();
   const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  const eventId = session.eventId;
+
+  const [event, match] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId } }),
+    prisma.match.findUnique({ where: { id: matchId } }),
+  ]);
+  if (!event || !match || match.eventId !== eventId) return;
+
+  const settings = settingsOf(event);
+  const isStaff = session.role === "admin" || session.role === "assistant";
+
+  if (!isStaff) {
+    if (settings.scoreApproval === "staff") {
+      throw new Error("An organizer approves scores for this tournament.");
+    }
+    // Player confirmation is peer review, and only of a match they played.
+    const own = await prisma.player.findFirst({
+      where: {
+        eventId,
+        email: session.email,
+        id: { in: [match.playerAId, match.playerBId] },
+      },
+      select: { id: true },
+    });
+    if (!own) throw new Error("You can only confirm a match you played in.");
+  }
+
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
-    data: { scoreStatus: "confirmed", confirmedById: session?.accountId ?? null },
+    data: { scoreStatus: "confirmed", confirmedById: session.accountId || null },
   });
+  await logAudit(eventId, matchId, "confirm", isStaff ? "Approved by organizer" : "Confirmed by player");
   refresh();
 }
 
+/** Flag a result as wrong. Open to anyone in the event — a disputed score
+ *  blocks confirmation rather than changing anything, so the permissive side
+ *  is the safe one here. */
 export async function disputeMatch(matchId: string) {
   const eventId = await requireEvent();
   await prisma.match.updateMany({
@@ -1004,6 +1143,8 @@ export async function createEvent(name: string) {
       regDeadline: "",
       capacity: 0, // open field by default
       status: "draft",
+      // Start from the club's house defaults, then own them outright.
+      ...(await settingsForNewEvent(organizationId)),
     },
   });
   await prisma.stage.create({

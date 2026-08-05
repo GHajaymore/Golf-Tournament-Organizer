@@ -3,6 +3,7 @@ import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { RegistrationClient } from "@/components/RegistrationClient";
 import { brandForEvent } from "@/lib/services/organization";
+import { rosterForEvent } from "@/lib/services/roster";
 
 export default async function RegistrationPage() {
   const session = await requireScreen("registration");
@@ -10,6 +11,7 @@ export default async function RegistrationPage() {
   if (!state) redirect("/");
   const locked = isSetupLocked(state.event);
   const brand = await brandForEvent(session.eventId);
+  const roster = await rosterForEvent(session.eventId);
 
   // Flight label per player, for the confirmed-field table (absorbs the old Roster screen).
   const flightByPlayer = new Map<string, string>();
@@ -42,6 +44,7 @@ export default async function RegistrationPage() {
       waitlist={state.waitlist.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, seed: p.seed, email: p.email, phone: p.phone }))}
       locked={locked}
       isAdmin={session.viewRole === "admin"}
+      roster={roster}
     />
   );
 }

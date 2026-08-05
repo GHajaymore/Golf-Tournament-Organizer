@@ -57,12 +57,72 @@ model Organization {
   /** Optional short name for tight spaces (headers, print). Falls back to `name`. */
   shortName    String @default("")
 
+  // House defaults for new tournaments. Communities often have several
+  // organizers who each run their events differently, so these are only a
+  // starting point — every tournament keeps its own copy and can diverge.
+  defaultLeaderboardVisibility String  @default("participants")
+  defaultScoreEntryBy          String  @default("players")
+  defaultScoreEntryWindow      String  @default("during")
+  defaultVoiceEntry            Boolean @default(true)
+  defaultPlayerAccess          String  @default("email")
+  defaultScoreApproval         String  @default("staff")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   members      OrganizationMember[]
+  roster       Member[]
   events       Event[]
   subscription Subscription?
+}
+
+/**
+ * A person on the club's roster — the primary record of who plays here.
+ *
+ * Tournaments draw from this rather than each event holding its own island of
+ * names. Before this existed, a member who played twelve events was twelve
+ * unrelated rows: no history, no single place to correct a phone number, and
+ * no way to answer "what has this member played?".
+ *
+ * Distinct from OrganizationMember, which is *staff* (who can administer the
+ * club). A Member is a golfer; they need no login and never take a seat.
+ */
+model Member {
+  id             String @id @default(cuid())
+  organizationId String
+
+  name         String
+  email        String @default("")
+  phone        String @default("")
+  ghin         String @default("")
+  homeClub     String @default("")
+  gender       String @default("")
+  preferredTee String @default("")
+  /** Club membership number, where the club uses one. */
+  memberNumber String @default("")
+
+  /**
+   * Current handicap index — the roster's canonical value. Each event entry
+   * keeps its own snapshot (Player.handicap), so correcting an index today
+   * never rewrites the result of a tournament played last season.
+   */
+  handicap       Float  @default(0)
+  handicapType   String @default("18") // 9 | 18
+  handicapSource String @default("manual") // ghin | manual | none
+
+  /** active | inactive — inactive members stay for history but are hidden
+   *  from the default roster view and from "add to tournament". */
+  status String @default("active")
+  notes  String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entries      Player[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
 }
 
 /** Staff membership in an organization. Distinct from per-event Account
@@ -172,6 +232,26 @@ model Event {
 
   inviteMessage String @default("")
 
+  // How players see standings and report scores. Copied from the owning
+  // organization's defaults when the tournament is created, then owned
+  // outright — changing a house default must never alter the rules of an
+  // event already under way. Values and their meanings live in
+  // src/lib/tournament-settings.ts.
+  leaderboardVisibility String  @default("participants") // staff | participants | public
+  scoreEntryBy          String  @default("players")      // staff | players
+  scoreEntryWindow      String  @default("during")       // during | after
+  voiceEntry            Boolean @default(true)
+  playerAccess          String  @default("email")        // email | code | both
+  /** Who locks a result: "staff" holds every submitted card for organizer
+   *  review; "players" keeps the two-player confirmation with a 24h
+   *  auto-confirm. Defaults to staff — auto-confirming an unreviewed score is
+   *  not something an organizer should get without asking for it. */
+  scoreApproval         String  @default("staff")        // staff | players
+  /** Unguessable id for the public read-only leaderboard. Always present, but
+   *  the link only resolves while leaderboardVisibility is "public", so
+   *  publishing and un-publishing is a single toggle and the URL survives it. */
+  shareToken String @unique
+
   // Lifecycle
   status         String    @default("draft") // draft | registration | ready | live | completed
   configUnlocked Boolean   @default(false)    // organizer override to edit after launch
@@ -210,9 +290,21 @@ model Account {
   @@index([eventId])
 }
 
+/**
+ * One person's entry in one tournament.
+ *
+ * The identity lives on Member (the club roster); this is the participation:
+ * seed, status, flight, and a snapshot of the details as they stood for this
+ * event. `handicap` in particular is deliberately a snapshot — correcting a
+ * member's index today must not rewrite a tournament played last season.
+ */
 model Player {
   id       String @id @default(cuid())
   eventId  String
+  /** Roster record this entry belongs to. Optional only so that entries made
+   *  before the roster existed remain valid; every path that creates a player
+   *  now goes through a Member. */
+  memberId String?
   name     String
   handicap Float  @default(0)
   seed     Int
@@ -230,11 +322,15 @@ model Player {
 
   groupId  String?
 
-  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  group  Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  // Removing someone from the roster must not delete tournaments they played
+  // in — the entry stays, detached, preserving the result.
+  member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
 
   @@index([eventId])
   @@index([groupId])
+  @@index([memberId])
 }
 
 model Group {
@@ -272,10 +368,30 @@ model Stage {
   cutCount   Int     @default(16)
   cutPercent Int     @default(50)
 
+  /**
+   * Round Code — the shared code players enter to report scores for this
+   * round, modelled on the GGID golfers already know from Golf Genius.
+   *
+   * Per round rather than per player because distribution is the problem that
+   * decides whether self-scoring gets used at all: one code read out on the
+   * first tee beats forty printed slips. A twelve-round league has twelve
+   * codes, and last week's stops working.
+   *
+   * The trade is real and deliberate: a shared code proves membership of the
+   * round, not identity, so the player picks their own name after entering it.
+   * Empty unless the tournament has code access switched on.
+   */
+  accessCode String @default("")
+
   event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   matches Match[]
 
   @@index([eventId])
+  // Redemption looks a code up on its own, so codes must be unique across
+  // every tournament. Enforced by a *partial* unique index in the migration
+  // (unique where accessCode <> ''), which Prisma's schema language can't
+  // express — a plain @@unique would make the empty default collide for every
+  // round that has no code.
 }
 
 model Match {

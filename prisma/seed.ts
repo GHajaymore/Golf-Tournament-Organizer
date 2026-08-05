@@ -75,6 +75,9 @@ async function main() {
       inviteMessage:
         "You're invited to the Nocturne Cup — May 14–16, 2026 at Ridgeline National, Aspen Falls. " +
         "Match-play, round-robin groups into brackets. 32 spots, reply to claim yours.",
+      // Fixed rather than random so reseeding is deterministic; real
+      // tournaments get one from generateShareToken().
+      shareToken: "SEEDNOCTURNECUPSHARETOKEN",
     },
   });
 

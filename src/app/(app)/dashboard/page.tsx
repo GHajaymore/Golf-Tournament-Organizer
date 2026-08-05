@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { StatCard } from "@/components/PageHeader";
 import { LifecycleBar } from "@/components/LifecycleBar";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
+import { settingsOf } from "@/lib/services/tournament";
+import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
 import { matchProgress, standingRows } from "@/lib/services/tournament";
 import { pts, shortName } from "@/lib/format";
 
@@ -35,7 +37,20 @@ export default async function DashboardPage() {
       : currentStage?.description ?? "";
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
   const isAdmin = session.viewRole === "admin";
-  const quickActions = QUICK_ACTIONS.filter((a) => (isStaff ? true : !a.staff));
+
+  // The dashboard mirrors the leaderboard and links into score entry, so it
+  // has to respect the same settings the dedicated screens do — otherwise a
+  // blind event leaks its standings on the page every player lands on first.
+  const settings = settingsOf(event);
+  const showStandings = canSeeLeaderboard(settings, session.viewRole);
+  const showEntry = canEnterScores(settings, session.viewRole);
+
+  const quickActions = QUICK_ACTIONS.filter((a) => {
+    if (a.staff && !isStaff) return false;
+    if (a.href === "/leaderboard" && !showStandings) return false;
+    if (a.href === "/entry" && !showEntry) return false;
+    return true;
+  });
 
   const isStroke = state.isStroke;
   const rows = standingRows(state).slice(0, 8);
@@ -68,12 +83,16 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <Link className="btn btn-secondary" href="/entry">
-            <i className="ph ph-pencil-simple" /> Enter scores
-          </Link>
-          <Link className="btn btn-primary" href="/leaderboard">
-            <i className="ph ph-ranking" /> Leaderboard
-          </Link>
+          {showEntry && (
+            <Link className="btn btn-secondary" href="/entry">
+              <i className="ph ph-pencil-simple" /> Enter scores
+            </Link>
+          )}
+          {showStandings && (
+            <Link className="btn btn-primary" href="/leaderboard">
+              <i className="ph ph-ranking" /> Leaderboard
+            </Link>
+          )}
         </div>
       </div>
 
@@ -151,17 +170,35 @@ export default async function DashboardPage() {
         ) : (
           <StatCard label="Matches complete" value={`${progress.done}/${progress.total}`} sub={`${progress.pct}% of round robin`} icon="ph ph-check-circle" />
         )}
-        <StatCard label="Awaiting review" value={state.pendingConfirmations} sub={state.pendingConfirmations === 1 ? "score to confirm" : "scores to confirm"} icon="ph ph-seal-check" />
-        <StatCard label="Advancing" value={advancingCount} sub={`of ${state.confirmed.length} players`} icon="ph ph-flag-checkered" />
+        {/* An organizer's review queue, not a player-facing number. */}
+        {isStaff && (
+          <StatCard label="Awaiting review" value={state.pendingConfirmations} sub={state.pendingConfirmations === 1 ? "score to confirm" : "scores to confirm"} icon="ph ph-seal-check" />
+        )}
+        {/* Who's advancing is derived from the standings, so it follows them. */}
+        {showStandings && (
+          <StatCard label="Advancing" value={advancingCount} sub={`of ${state.confirmed.length} players`} icon="ph ph-flag-checkered" />
+        )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 16, alignItems: "start" }}>
         <div className="card elev-sm">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-            <span className="card-title">Live leaderboard</span>
-            <span className="text-muted" style={{ fontSize: 12 }}>Overall · all flights</span>
-          </div>
-          <LeaderboardTable isStroke={isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} rows={rows} compact />
+          {showStandings ? (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+                <span className="card-title">Live leaderboard</span>
+                <span className="text-muted" style={{ fontSize: 12 }}>Overall · all flights</span>
+              </div>
+              <LeaderboardTable isStroke={isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} rows={rows} compact />
+            </>
+          ) : (
+            <>
+              <span className="card-title">Standings</span>
+              <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+                <i className="ph ph-eye-slash" /> The organizer is running this as a blind event — standings are
+                published when the tournament finishes.
+              </p>
+            </>
+          )}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -190,6 +227,7 @@ export default async function DashboardPage() {
             </div>
           </div>
 
+          {showStandings && (
           <div className="card elev-sm">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span className="card-title">Bracket status</span>
@@ -210,22 +248,31 @@ export default async function DashboardPage() {
               Open bracket manager <i className="ph ph-arrow-right" />
             </Link>
           </div>
+          )}
 
-          <div className="card elev-sm">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span className="card-title">Qualification cutoff</span>
-              <span className="tag tag-accent">Top {event.qualifyPerGroup}/flight</span>
+          {/* The cutoff line is a live read on the standings — in a blind
+              event it would give away exactly what the leaderboard hides. */}
+          {showStandings && (
+            <div className="card elev-sm">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span className="card-title">Qualification cutoff</span>
+                <span className="tag tag-accent">Top {event.qualifyPerGroup}/flight</span>
+              </div>
+              <div style={{ fontFamily: "var(--font-heading)", fontSize: 22, marginTop: 2 }}>
+                {advancingCount} <span className="text-muted" style={{ fontSize: 14 }}>of {state.confirmed.length} advancing</span>
+              </div>
+              <div className="text-muted" style={{ fontSize: 12 }}>
+                Cutoff line ≈ {overallCutoff === null ? "—" : pts(overallCutoff)} pts · updates live with scores
+              </div>
             </div>
-            <div style={{ fontFamily: "var(--font-heading)", fontSize: 22, marginTop: 2 }}>
-              {advancingCount} <span className="text-muted" style={{ fontSize: 14 }}>of {state.confirmed.length} advancing</span>
-            </div>
-            <div className="text-muted" style={{ fontSize: 12 }}>
-              Cutoff line ≈ {overallCutoff === null ? "—" : pts(overallCutoff)} pts · updates live with scores
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
+      {/* Flight standings are standings — same rule as the leaderboard card.
+          Not rendered at all rather than hidden with CSS: display:none still
+          ships every name and score in the HTML for anyone reading source. */}
+      {showStandings && (
       <div className="card elev-sm" style={{ marginTop: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span className="card-title">Flight standings</span>
@@ -259,6 +306,7 @@ export default async function DashboardPage() {
           ))}
         </div>
       </div>
+      )}
     </>
   );
 }

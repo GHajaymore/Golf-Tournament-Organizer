@@ -28,12 +28,14 @@ const COOKIE_OPTS = {
   maxAge: 60 * 60 * 24 * 7,
 } as const;
 
-function sign(value: string): string {
+/** Exported so the Round Code play session can sign its own cookie with the
+ *  same secret and scheme, rather than growing a second implementation. */
+export function sign(value: string): string {
   const mac = createHmac("sha256", SECRET).update(value).digest("base64url");
   return `${value}.${mac}`;
 }
 
-function verify(signed: string | undefined): string | null {
+export function verify(signed: string | undefined): string | null {
   if (!signed) return null;
   const idx = signed.lastIndexOf(".");
   if (idx < 0) return null;

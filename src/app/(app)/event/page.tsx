@@ -1,5 +1,6 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
-import { loadEventState } from "@/lib/services/tournament";
+import { loadEventState, settingsOf } from "@/lib/services/tournament";
+import { PlaySettings } from "@/components/PlaySettings";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { EventSetupClient } from "@/components/EventSetupClient";
@@ -102,6 +103,20 @@ export default async function EventPage() {
         playersCount={state.confirmed.length}
         courses={COURSES.map((c) => ({ name: c.name, city: c.city, address: c.address }))}
       />
+
+      <div style={{ marginTop: 16 }}>
+        <PlaySettings
+          mode="tournament"
+          settings={settingsOf(e)}
+          canEdit={session.viewRole === "admin"}
+          shareToken={e.shareToken}
+          rounds={state.stages.map((s, i) => ({
+            stageId: s.id,
+            label: `Round ${i + 1} · ${s.type}`,
+            code: s.accessCode,
+          }))}
+        />
+      </div>
     </>
   );
 }
