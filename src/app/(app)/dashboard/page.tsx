@@ -62,7 +62,7 @@ export default async function DashboardPage() {
           <div className="page-kicker">{event.name}</div>
           <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Tournament dashboard</h2>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            {event.dates} · {event.course}, {event.city}
+            {[event.dates, [event.course, event.city].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || "No dates or venue set yet"}
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
