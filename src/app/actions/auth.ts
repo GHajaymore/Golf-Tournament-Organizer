@@ -1,51 +1,88 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createSession, destroySession, setPreviewRole } from "@/lib/auth";
+import { createSession, destroySession, setPreviewRole, setActiveEvent, getSession, hashPassword, verifyPasswordHash } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-export async function signInAction(accountId: string) {
-  await createSession(accountId);
-  redirect("/dashboard");
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Sign in to whichever of this email's Accounts belongs to the most
+ *  recently created event — the picker at /choose lets them switch from
+ *  there. Returns false if this email has no Account anywhere. */
+async function signInToAnyAccount(email: string): Promise<boolean> {
+  const accounts = await prisma.account.findMany({ where: { email }, include: { event: true } });
+  if (accounts.length === 0) return false;
+  const sorted = accounts.sort((a, b) => b.event.createdAt.getTime() - a.event.createdAt.getTime());
+  await createSession(sorted[0].id);
+  return true;
 }
 
+export type EmailStatus = "signin" | "claim" | "signup";
+
 /**
- * Sign in by email instead of picking a name off a public roster. Looks up
- * every account across every event that matches this email — an organizer
- * (or player) only ever sees tournaments they've actually been added to.
- * SQLite has no case-insensitive `contains`/`equals` filter in Prisma, so the
- * match is done in JS against the (small) account list.
+ * First step of login: figure out which flow this email belongs to,
+ * without revealing anything sensitive. A User with a password set means
+ * a normal password sign-in; an email with Account rows but no password
+ * yet means an organizer pre-provisioned them (via CSV, registration, or
+ * Access & staff) and they need to claim it with a password the first
+ * time; anything else is a brand-new identity.
  */
-export async function signInByEmail(email: string): Promise<{ ok: boolean; error?: string; notFound?: boolean }> {
+export async function checkEmailStatus(email: string): Promise<{ ok: boolean; error?: string; status?: EmailStatus }> {
   const clean = email.trim().toLowerCase();
   if (!clean) return { ok: false, error: "Enter your email." };
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
-    return { ok: false, error: "Enter a valid email address." };
-  }
-  const accounts = await prisma.account.findMany({ include: { event: true } });
-  const matches = accounts
-    .filter((a) => a.email.trim().toLowerCase() === clean)
-    .sort((a, b) => b.event.createdAt.getTime() - a.event.createdAt.getTime());
+  if (!EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
+  const user = await prisma.user.findUnique({ where: { email: clean } });
+  if (user && user.password) return { ok: true, status: "signin" };
+  const hasAccounts = (await prisma.account.count({ where: { email: clean } })) > 0;
+  return { ok: true, status: hasAccounts ? "claim" : "signup" };
+}
 
-  if (matches.length === 0) {
-    return { ok: false, notFound: true, error: "No tournament found for that email yet." };
+export async function signInWithPassword(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  const clean = email.trim().toLowerCase();
+  if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
+  if (!password) return { ok: false, error: "Enter your password." };
+  const user = await prisma.user.findUnique({ where: { email: clean } });
+  if (!user || !user.password || !verifyPasswordHash(password, user.password)) {
+    return { ok: false, error: "Wrong email or password." };
   }
+  const signedIn = await signInToAnyAccount(clean);
+  if (!signedIn) return { ok: false, error: "No tournament access found for this account." };
+  redirect("/choose");
+}
 
-  await createSession(matches[0].id);
-  redirect(matches.length > 1 ? "/event" : "/dashboard");
+/** First-time password for an email an organizer already provisioned. */
+export async function claimPassword(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  const clean = email.trim().toLowerCase();
+  if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
+  if (password.length < 8) return { ok: false, error: "Use at least 8 characters." };
+  const accounts = await prisma.account.findMany({ where: { email: clean } });
+  if (accounts.length === 0) return { ok: false, error: "No tournament access found for this email." };
+  await prisma.user.upsert({
+    where: { email: clean },
+    update: { password: hashPassword(password) },
+    create: { email: clean, name: accounts[0].name, password: hashPassword(password) },
+  });
+  const signedIn = await signInToAnyAccount(clean);
+  if (!signedIn) return { ok: false, error: "Something went wrong." };
+  redirect("/choose");
 }
 
 /**
  * Self-serve signup: someone with no existing Account anywhere creates a
- * brand-new tournament and is signed in as its organizer in one step —
- * the landing-page equivalent of "Create tournament" on the Event Setup
- * screen, but reachable before any session exists.
+ * brand-new tournament (and their password identity) and is signed in as
+ * its organizer in one step — reachable before any session exists.
  */
-export async function startNewTournament(name: string, email: string, tournamentName: string): Promise<{ ok: boolean; error?: string }> {
+export async function startNewTournament(
+  name: string,
+  email: string,
+  tournamentName: string,
+  password: string,
+): Promise<{ ok: boolean; error?: string }> {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanName) return { ok: false, error: "Enter your name." };
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+  if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+  if (password.length < 8) return { ok: false, error: "Use at least 8 characters." };
 
   const event = await prisma.event.create({
     data: {
@@ -73,8 +110,24 @@ export async function startNewTournament(name: string, email: string, tournament
   const account = await prisma.account.create({
     data: { eventId: event.id, name: cleanName, email: cleanEmail, role: "admin" },
   });
+  await prisma.user.upsert({
+    where: { email: cleanEmail },
+    update: { name: cleanName, password: hashPassword(password) },
+    create: { email: cleanEmail, name: cleanName, password: hashPassword(password) },
+  });
   await createSession(account.id);
   redirect("/event");
+}
+
+/** Switch into one of the tournaments this signed-in user has access to
+ *  (picked from /choose) and land on its dashboard. */
+export async function enterTournament(eventId: string): Promise<void> {
+  const session = await getSession();
+  if (!session) redirect("/");
+  const acct = await prisma.account.findFirst({ where: { eventId, email: session.email } });
+  if (!acct) throw new Error("You don't have access to that tournament");
+  await setActiveEvent(eventId);
+  redirect("/dashboard");
 }
 
 export async function signOutAction() {

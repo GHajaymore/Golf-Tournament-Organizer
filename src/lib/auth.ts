@@ -1,13 +1,12 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual, scryptSync, randomBytes } from "node:crypto";
 import { prisma } from "./db";
 
-// Lightweight signed-cookie sessions. The handoff calls for real auth replacing
-// the prototype's "Viewing as" switch; this keeps that contract (role comes from
-// the account, not a client toggle) without an external identity provider — an
-// organizer signs in by choosing their account for the event. Swap this module
-// for Auth.js/OAuth in production without touching callers.
+// Lightweight signed-cookie sessions plus scrypt password hashing (both
+// Node built-ins, no external auth provider). Swap this module for
+// Auth.js/OAuth in production without touching callers — the Session
+// shape and createSession/getSession contract stay the same either way.
 
 const COOKIE = "ng_session";
 const PREVIEW_COOKIE = "ng_preview_player";
@@ -30,6 +29,26 @@ function verify(signed: string | undefined): string | null {
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   return value;
+}
+
+/** scrypt password hash, stored as "salt:hash" (both hex). */
+export function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+export function verifyPasswordHash(password: string, stored: string): boolean {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  const test = scryptSync(password, salt, 64);
+  let real: Buffer;
+  try {
+    real = Buffer.from(hash, "hex");
+  } catch {
+    return false;
+  }
+  return test.length === real.length && timingSafeEqual(test, real);
 }
 
 export type Role = "admin" | "assistant" | "player";

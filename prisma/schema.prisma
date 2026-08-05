@@ -11,6 +11,20 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// A person's login identity — separate from Account, which is their
+// per-event role. One User (one email, one password) can hold an Account
+// on any number of events; password auth checks User, access control
+// checks Account. An empty password means the identity exists (an
+// organizer pre-provisioned this email as a player/staff Account) but
+// hasn't been claimed with a password yet.
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String   @default("")
+  password  String   @default("")
+  createdAt DateTime @default(now())
+}
+
 model Event {
   id              String   @id @default(cuid())
   name            String
