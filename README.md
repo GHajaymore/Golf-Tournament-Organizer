@@ -122,9 +122,15 @@ events; `/choose` lists every event a signed-in email has access to.
   whole `Event`, not per-round or per-match. A month-long round robin played
   across multiple clubs would need that moved onto `Stage` (or `Match`) —
   not yet scoped.
-- **Mobile/desktop builds**: Capacitor (iOS/Android) and Electron scaffolding
-  exist under `ios/`, `android/`, `electron/`; a CI pipeline for TestFlight/App
-  Store submission and a signed desktop download link are still open.
+- **Mobile builds**: Capacitor (iOS/Android) shells live under `ios/`,
+  `android/` — see their READMEs. `.github/workflows/ios-testflight.yml` and
+  `android-release.yml` build and ship to TestFlight/Play Console from
+  GitHub-hosted runners (no local Mac needed); both need App Store
+  Connect/Play Console setup and several secrets first — see the comments at
+  the top of each workflow file. Neither has run against real credentials
+  yet, so expect to iterate once real CI logs are available.
+- **Desktop builds**: Electron scaffolding lives under `electron/`
+  (`npm run electron:build`); a signed download link for it is still open.
 
 See [`design_handoff_golf_tournament_console/README.md`](./design_handoff_golf_tournament_console/README.md)
 for the full domain spec this build implements.

@@ -16,8 +16,26 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Release signing comes entirely from environment variables so nothing
+    // secret is ever committed. CI (see .github/workflows/android-release.yml)
+    // decodes a base64 keystore secret into ANDROID_KEYSTORE_PATH and sets the
+    // matching passwords. Unset locally -> release builds stay unsigned,
+    // exactly as before this config existed.
+    if (System.getenv("ANDROID_KEYSTORE_PATH")) {
+        signingConfigs {
+            release {
+                storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (System.getenv("ANDROID_KEYSTORE_PATH")) {
+                signingConfig = signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

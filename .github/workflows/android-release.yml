@@ -1,0 +1,87 @@
+name: Android — build & upload to Play Console
+
+# Manual trigger only: this can ship to a real Play Console track.
+#
+# Required GitHub secrets (Settings -> Secrets and variables -> Actions):
+#   ANDROID_KEYSTORE_BASE64    - Your upload keystore (.jks/.keystore), base64-encoded
+#                                 (`base64 -i upload-keystore.jks` on macOS/Linux, or
+#                                 `certutil -encode upload-keystore.jks keystore.b64` on Windows)
+#   ANDROID_KEYSTORE_PASSWORD  - Keystore password
+#   ANDROID_KEY_ALIAS          - Key alias inside the keystore
+#   ANDROID_KEY_PASSWORD       - Key password (often the same as the keystore password)
+#   PLAY_SERVICE_ACCOUNT_JSON  - Google Play service-account key JSON (full file contents),
+#                                 only needed for the upload-to-Play-Console step
+#
+# One-time setup on your end before this can fully succeed:
+#   1. Create an app in Google Play Console for com.flights.tournament.
+#   2. Generate an upload keystore if you don't already have one:
+#        keytool -genkeypair -v -keystore upload-keystore.jks -alias upload \
+#          -keyalg RSA -keysize 2048 -validity 10000
+#   3. Play Console -> Setup -> API access -> create a service account with
+#      "Release manager" access, download its JSON key.
+#
+# The build step (assembleRelease/bundleRelease) only needs the keystore
+# secrets and should work as written. The Play Console upload step additionally
+# needs the app to already exist in Play Console with at least one manually
+# uploaded release (Google's API can't create the very first release).
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_play:
+        description: "Upload to Play Console internal testing track"
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/upload-keystore.jks"
+
+      - name: Build signed AAB
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/../upload-keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/upload-keystore.jks"
+          ./gradlew bundleRelease
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-bundle
+          path: android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload to Play Console (internal testing)
+        if: ${{ inputs.upload_to_play }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.flights.tournament
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: internal

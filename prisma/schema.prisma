@@ -1,13 +1,13 @@
 // Prisma schema for the Golf Tournament Organizer.
-// SQLite for local/dev; swap `provider` to "postgresql" for production — the
-// app code goes through the repository in src/lib/db, so no query changes needed.
+// Postgres in every environment (dev + prod) — the app code goes through
+// the repository in src/lib/db, so no query changes needed either way.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

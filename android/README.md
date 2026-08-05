@@ -33,9 +33,11 @@ allow the local `http://` dev server — narrow that (or drop it entirely)
 once there's a real HTTPS deployment to point at, since Google Play flags
 apps that ship with cleartext traffic enabled unnecessarily.
 
-## Distributing to the Play Store later
+## Distributing to the Play Store
 
-Separate, heavier step: a Google Play Developer account ($25 one-time),
-store listing, screenshots, content rating questionnaire, and a production
-HTTPS backend to point `server.url` at. Worth doing once the app itself has
-stabilized.
+`.github/workflows/android-release.yml` builds a signed release bundle
+(and can upload it straight to Play Console) from a GitHub-hosted runner —
+no Android Studio needed once it's configured. It needs a Play Developer
+account ($25 one-time), an app record + store listing, an upload keystore,
+and a Play Console service account, all supplied as GitHub secrets; see the
+comments at the top of that workflow file for the exact list.
