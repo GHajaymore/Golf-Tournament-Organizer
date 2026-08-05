@@ -79,19 +79,45 @@ export async function signInWithPassword(
   redirect("/choose");
 }
 
-/** First-time password for an email an organizer already provisioned. */
+/**
+ * First-time password for an email an organizer already provisioned.
+ *
+ * Only ever sets a password that isn't there yet. This is a server action, so
+ * it is directly callable regardless of what the UI shows — without the
+ * already-claimed check it would set a new password on *any* email holding an
+ * Account row and sign the caller straight in, which is account takeover of
+ * every player and organizer whose address someone knows. `signUp` has always
+ * refused to overwrite an existing password; this is the same rule.
+ */
 export async function claimPassword(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
+
+  const limit = rateLimit(`claim:${clean}`, LOGIN_LIMIT, LOGIN_WINDOW_MS);
+  if (!limit.ok) {
+    return { ok: false, error: `Too many attempts. Try again in ${retryAfterText(limit.retryAfterSeconds)}.` };
+  }
+
   const weak = passwordProblem(password);
   if (weak) return { ok: false, error: weak };
+
   const accounts = await prisma.account.findMany({ where: { email: clean } });
   if (accounts.length === 0) return { ok: false, error: "No tournament access found for this email." };
+
+  const existing = await prisma.user.findUnique({ where: { email: clean } });
+  if (existing?.password) {
+    return {
+      ok: false,
+      error: "This email already has a password. Log in instead, or use Forgot password if you don't have it.",
+    };
+  }
+
   await prisma.user.upsert({
     where: { email: clean },
     update: { password: hashPassword(password) },
     create: { email: clean, name: accounts[0].name, password: hashPassword(password) },
   });
+  clearRateLimit(`claim:${clean}`);
   const signedIn = await startSessionFor(clean);
   if (!signedIn) return { ok: false, error: "Something went wrong." };
   redirect("/choose");
