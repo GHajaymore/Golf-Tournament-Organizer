@@ -16,7 +16,7 @@ export async function signInAction(accountId: string) {
  * SQLite has no case-insensitive `contains`/`equals` filter in Prisma, so the
  * match is done in JS against the (small) account list.
  */
-export async function signInByEmail(email: string): Promise<{ ok: boolean; error?: string }> {
+export async function signInByEmail(email: string): Promise<{ ok: boolean; error?: string; notFound?: boolean }> {
   const clean = email.trim().toLowerCase();
   if (!clean) return { ok: false, error: "Enter your email." };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
@@ -28,14 +28,53 @@ export async function signInByEmail(email: string): Promise<{ ok: boolean; error
     .sort((a, b) => b.event.createdAt.getTime() - a.event.createdAt.getTime());
 
   if (matches.length === 0) {
-    return {
-      ok: false,
-      error: "No account found for that email. Ask your tournament organizer to add you under Access & staff.",
-    };
+    return { ok: false, notFound: true, error: "No tournament found for that email yet." };
   }
 
   await createSession(matches[0].id);
   redirect(matches.length > 1 ? "/event" : "/dashboard");
+}
+
+/**
+ * Self-serve signup: someone with no existing Account anywhere creates a
+ * brand-new tournament and is signed in as its organizer in one step —
+ * the landing-page equivalent of "Create tournament" on the Event Setup
+ * screen, but reachable before any session exists.
+ */
+export async function startNewTournament(name: string, email: string, tournamentName: string): Promise<{ ok: boolean; error?: string }> {
+  const cleanName = name.trim();
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanName) return { ok: false, error: "Enter your name." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+
+  const event = await prisma.event.create({
+    data: {
+      name: tournamentName.trim() || "New Tournament",
+      dates: "",
+      course: "",
+      city: "",
+      address: "",
+      regDeadline: "",
+      capacity: 0,
+      status: "draft",
+    },
+  });
+  await prisma.stage.create({
+    data: {
+      eventId: event.id,
+      position: 0,
+      type: "Round Robin",
+      description: "",
+      format: "Match Play",
+      holes: 18,
+      scoringBasis: "gross",
+    },
+  });
+  const account = await prisma.account.create({
+    data: { eventId: event.id, name: cleanName, email: cleanEmail, role: "admin" },
+  });
+  await createSession(account.id);
+  redirect("/event");
 }
 
 export async function signOutAction() {

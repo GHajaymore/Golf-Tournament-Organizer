@@ -4,26 +4,30 @@ import { LoginPanel } from "@/components/LoginPanel";
 import { Logo } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 
-const FEATURES: Array<{ icon: string; title: string; text: string }> = [
+const FEATURES: Array<{ icon: string; title: string; text: string; accent: "accent" | "accent-2" }> = [
   {
     icon: "ph ph-arrows-clockwise",
-    title: "Match play & stroke play",
-    text: "Round-robin flights, gross/net/both scoring, and a real Stableford option — all in one console.",
+    title: "One console, every format",
+    text: "Match play, stroke play and Stableford in the same event, on the same leaderboard — not three different tools stitched together.",
+    accent: "accent",
   },
   {
     icon: "ph ph-flag-checkered",
-    title: "Multi-round cuts",
-    text: "Sequence any number of rounds, cut the field by a real count or percent, and carry points forward.",
+    title: "Rounds that actually chain",
+    text: "Cut lines and carry-forward points connect round to round automatically — most tools treat each round as its own island.",
+    accent: "accent-2",
   },
   {
     icon: "ph ph-tree-structure",
-    title: "Automatic brackets",
-    text: "Qualifiers seed straight into winners & consolation brackets — no re-entry, no spreadsheets.",
+    title: "Brackets that seed themselves",
+    text: "Qualifiers flow straight from live standings into winners & consolation brackets — no re-typing a draw by hand.",
+    accent: "accent-2",
   },
   {
     icon: "ph ph-ranking",
-    title: "Live leaderboards",
-    text: "Standings, tiebreakers down to the toughest holes, and highlights update the moment a score lands.",
+    title: "Tiebreakers with real math",
+    text: "Toughest-hole tiebreakers use actual stroke-index data from the course, not a coin flip or a random draw.",
+    accent: "accent",
   },
 ];
 
@@ -113,6 +117,12 @@ export default async function LoginPage() {
           <div className="flight-rule" style={{ maxWidth: 420 }} />
 
           <div
+            className="text-muted"
+            style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 500, marginBottom: 10 }}
+          >
+            What's different
+          </div>
+          <div
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(2, 1fr)",
@@ -129,7 +139,7 @@ export default async function LoginPage() {
                   alignItems: "flex-start",
                   padding: 12,
                   borderRadius: 12,
-                  border: "1px solid var(--color-divider)",
+                  border: `1px solid color-mix(in srgb, var(--color-${f.accent}) 22%, var(--color-divider))`,
                   background: "color-mix(in srgb, var(--color-surface) 40%, transparent)",
                 }}
               >
@@ -141,8 +151,8 @@ export default async function LoginPage() {
                     display: "grid",
                     placeItems: "center",
                     borderRadius: 9,
-                    background: "var(--color-accent-900)",
-                    color: "var(--color-accent-300)",
+                    background: `var(--color-${f.accent}-900)`,
+                    color: `var(--color-${f.accent}-300)`,
                   }}
                 >
                   <i className={f.icon} style={{ fontSize: 16 }} />
