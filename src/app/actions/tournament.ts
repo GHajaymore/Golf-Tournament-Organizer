@@ -374,7 +374,11 @@ export async function saveEvent(data: {
       city: data.city,
       address: data.address,
       regDeadline: data.regDeadline,
-      capacity: Math.max(1, Math.round(data.capacity)),
+      // 0 is the deliberate "open / unlimited field" sentinel (see the Fixed/Open
+      // toggle in EventSetupClient) — only clamp upward when the organizer has
+      // actually set a positive fixed capacity, otherwise every save was
+      // silently converting "open" into "capacity 1" the moment anyone hit Save.
+      capacity: data.capacity <= 0 ? 0 : Math.max(1, Math.round(data.capacity)),
       playerCountMode: data.playerCountMode === "manual" ? "manual" : "registration",
     },
   });
