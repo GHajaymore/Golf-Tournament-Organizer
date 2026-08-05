@@ -4,56 +4,78 @@ import { revalidatePath } from "next/cache";
 import { randomBytes, createHash } from "node:crypto";
 import { createSession, destroySession, setPreviewRole, setActiveEvent, getSession, hashPassword, verifyPasswordHash } from "@/lib/auth";
 import { sendPasswordResetEmail } from "@/lib/email";
+import { rateLimit, clearRateLimit, retryAfterText } from "@/lib/rate-limit";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 import { prisma } from "@/lib/db";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 
+function passwordProblem(password: string): string | null {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
+  }
+  return null;
+}
+
+// Password guessing throttle: 5 attempts per email per 15 minutes.
+const LOGIN_LIMIT = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+// Reset requests are cheaper to abuse (they send mail), so cap them too.
+const RESET_LIMIT = 5;
+const RESET_WINDOW_MS = 60 * 60 * 1000;
+
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-/** Sign in to whichever of this email's Accounts belongs to the most
- *  recently created event — the picker at /choose lets them switch from
- *  there. Returns false if this email has no Account anywhere. */
-async function signInToAnyAccount(email: string): Promise<boolean> {
-  const accounts = await prisma.account.findMany({ where: { email }, include: { event: true } });
-  if (accounts.length === 0) return false;
-  const sorted = accounts.sort((a, b) => b.event.createdAt.getTime() - a.event.createdAt.getTime());
-  await createSession(sorted[0].id);
+/**
+ * Start a session for this person. Sessions are anchored to the User, not to
+ * any one tournament, so this succeeds even before they have any — /choose
+ * then lets them create or pick one.
+ */
+async function startSessionFor(email: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return false;
+  await createSession(user.id);
   return true;
 }
 
-export type EmailStatus = "signin" | "claim" | "signup";
-
 /**
- * First step of login: figure out which flow this email belongs to,
- * without revealing anything sensitive. A User with a password set means
- * a normal password sign-in; an email with Account rows but no password
- * yet means an organizer pre-provisioned them (via CSV, registration, or
- * Access & staff) and they need to claim it with a password the first
- * time; anything else is a brand-new identity.
+ * Sign in with email + password.
+ *
+ * `needsClaim` is returned when the email was pre-provisioned by an organizer
+ * (via registration, CSV import, or Access & staff) but has never had a
+ * password set. The UI sends those people to the "set your password" step
+ * rather than showing a misleading "wrong password" error.
  */
-export async function checkEmailStatus(email: string): Promise<{ ok: boolean; error?: string; status?: EmailStatus }> {
-  const clean = email.trim().toLowerCase();
-  if (!clean) return { ok: false, error: "Enter your email." };
-  if (!EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
-  const user = await prisma.user.findUnique({ where: { email: clean } });
-  if (user && user.password) return { ok: true, status: "signin" };
-  const hasAccounts = (await prisma.account.count({ where: { email: clean } })) > 0;
-  return { ok: true, status: hasAccounts ? "claim" : "signup" };
-}
-
-export async function signInWithPassword(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+export async function signInWithPassword(
+  email: string,
+  password: string,
+): Promise<{ ok: boolean; error?: string; needsClaim?: boolean }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
   if (!password) return { ok: false, error: "Enter your password." };
+
+  const limit = rateLimit(`login:${clean}`, LOGIN_LIMIT, LOGIN_WINDOW_MS);
+  if (!limit.ok) {
+    return { ok: false, error: `Too many sign-in attempts. Try again in ${retryAfterText(limit.retryAfterSeconds)}.` };
+  }
+
   const user = await prisma.user.findUnique({ where: { email: clean } });
+
+  // Provisioned but never claimed — route to password setup, not an error.
+  if ((!user || !user.password) && (await prisma.account.count({ where: { email: clean } })) > 0) {
+    return { ok: false, needsClaim: true };
+  }
+
   if (!user || !user.password || !verifyPasswordHash(password, user.password)) {
     return { ok: false, error: "Wrong email or password." };
   }
-  const signedIn = await signInToAnyAccount(clean);
-  if (!signedIn) return { ok: false, error: "No tournament access found for this account." };
+
+  const signedIn = await startSessionFor(clean);
+  if (!signedIn) return { ok: false, error: "Something went wrong." };
+  clearRateLimit(`login:${clean}`);
   redirect("/choose");
 }
 
@@ -61,7 +83,8 @@ export async function signInWithPassword(email: string, password: string): Promi
 export async function claimPassword(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
-  if (password.length < 8) return { ok: false, error: "Use at least 8 characters." };
+  const weak = passwordProblem(password);
+  if (weak) return { ok: false, error: weak };
   const accounts = await prisma.account.findMany({ where: { email: clean } });
   if (accounts.length === 0) return { ok: false, error: "No tournament access found for this email." };
   await prisma.user.upsert({
@@ -69,7 +92,7 @@ export async function claimPassword(email: string, password: string): Promise<{ 
     update: { password: hashPassword(password) },
     create: { email: clean, name: accounts[0].name, password: hashPassword(password) },
   });
-  const signedIn = await signInToAnyAccount(clean);
+  const signedIn = await startSessionFor(clean);
   if (!signedIn) return { ok: false, error: "Something went wrong." };
   redirect("/choose");
 }
@@ -84,6 +107,11 @@ export async function claimPassword(email: string, password: string): Promise<{ 
 export async function requestPasswordReset(email: string): Promise<{ ok: boolean; error?: string }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
+
+  const limit = rateLimit(`reset:${clean}`, RESET_LIMIT, RESET_WINDOW_MS);
+  if (!limit.ok) {
+    return { ok: false, error: `Too many reset requests. Try again in ${retryAfterText(limit.retryAfterSeconds)}.` };
+  }
 
   const user = await prisma.user.findUnique({ where: { email: clean } });
   if (user && user.password) {
@@ -101,7 +129,8 @@ export async function requestPasswordReset(email: string): Promise<{ ok: boolean
 /** Complete a password reset from the emailed link. */
 export async function resetPassword(token: string, password: string): Promise<{ ok: boolean; error?: string }> {
   if (!token) return { ok: false, error: "Missing reset token." };
-  if (password.length < 8) return { ok: false, error: "Use at least 8 characters." };
+  const weak = passwordProblem(password);
+  if (weak) return { ok: false, error: weak };
 
   const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash: hashToken(token) } });
   if (!record || record.usedAt || record.expiresAt < new Date()) {
@@ -111,61 +140,43 @@ export async function resetPassword(token: string, password: string): Promise<{ 
   const user = await prisma.user.update({ where: { id: record.userId }, data: { password: hashPassword(password) } });
   await prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
 
-  const signedIn = await signInToAnyAccount(user.email);
-  if (!signedIn) return { ok: false, error: "Password updated, but no tournament access was found for this account." };
+  const signedIn = await startSessionFor(user.email);
+  if (!signedIn) return { ok: false, error: "Password updated, but sign-in failed. Try logging in." };
   redirect("/choose");
 }
 
 /**
- * Self-serve signup: someone with no existing Account anywhere creates a
- * brand-new tournament (and their password identity) and is signed in as
- * its organizer in one step — reachable before any session exists.
+ * Self-serve sign-up: create the person's login identity, and nothing else.
+ *
+ * Creating an account and creating a tournament are separate acts, so this
+ * creates no Event, Account or Stage — the new user lands on /choose with an
+ * empty list and an explicit "create your first tournament" step.
  */
-export async function startNewTournament(
+export async function signUp(
   name: string,
   email: string,
-  tournamentName: string,
   password: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanName) return { ok: false, error: "Enter your name." };
   if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
-  if (password.length < 8) return { ok: false, error: "Use at least 8 characters." };
+  const weak = passwordProblem(password);
+  if (weak) return { ok: false, error: weak };
 
-  const event = await prisma.event.create({
-    data: {
-      name: tournamentName.trim() || "New Tournament",
-      dates: "",
-      course: "",
-      city: "",
-      address: "",
-      regDeadline: "",
-      capacity: 0,
-      status: "draft",
-    },
-  });
-  await prisma.stage.create({
-    data: {
-      eventId: event.id,
-      position: 0,
-      type: "Round Robin",
-      description: "",
-      format: "Match Play",
-      holes: 18,
-      scoringBasis: "gross",
-    },
-  });
-  const account = await prisma.account.create({
-    data: { eventId: event.id, name: cleanName, email: cleanEmail, role: "admin" },
-  });
-  await prisma.user.upsert({
+  // Don't let sign-up silently overwrite the password of an existing account.
+  const existing = await prisma.user.findUnique({ where: { email: cleanEmail } });
+  if (existing && existing.password) {
+    return { ok: false, error: "An account already exists for this email — log in instead." };
+  }
+
+  const user = await prisma.user.upsert({
     where: { email: cleanEmail },
     update: { name: cleanName, password: hashPassword(password) },
     create: { email: cleanEmail, name: cleanName, password: hashPassword(password) },
   });
-  await createSession(account.id);
-  redirect("/event");
+  await createSession(user.id);
+  redirect("/choose");
 }
 
 /** Switch into one of the tournaments this signed-in user has access to

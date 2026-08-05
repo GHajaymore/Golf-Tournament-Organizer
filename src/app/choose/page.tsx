@@ -3,6 +3,7 @@ import { enterTournament, signOutAction } from "@/app/actions/auth";
 import { prisma } from "@/lib/db";
 import { Logo } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
+import { CreateFirstTournament } from "@/components/CreateFirstTournament";
 
 const ROLE_LABEL: Record<string, string> = { admin: "Organizer", assistant: "Assistant", player: "Player" };
 
@@ -54,10 +55,12 @@ export default async function ChooseTournamentPage() {
         </div>
 
         <div className="page-kicker">Signed in as {session.name}</div>
-        <h1 style={{ fontSize: 32, margin: "8px 0 4px" }}>Which tournament?</h1>
+        <h1 style={{ fontSize: 32, margin: "8px 0 4px" }}>
+          {accounts.length === 0 ? "Welcome to TourneyHQ" : "Which tournament?"}
+        </h1>
         <p className="text-muted" style={{ fontSize: 14, margin: "0 0 28px" }}>
           {accounts.length === 0
-            ? "You don't have access to any tournament yet."
+            ? "Your account is ready. If an organizer has invited you to a tournament, it appears here as soon as they add your email — otherwise create your own below."
             : `You have access to ${accounts.length} tournament${accounts.length === 1 ? "" : "s"}.`}
         </p>
 
@@ -95,6 +98,11 @@ export default async function ChooseTournamentPage() {
             </form>
           ))}
         </div>
+
+        {/* Keyed on the count so the form remounts (and collapses) once the
+            first tournament exists, instead of staying open from its initial
+            "no tournaments yet" state. */}
+        <CreateFirstTournament key={accounts.length} first={accounts.length === 0} />
       </div>
     </div>
   );

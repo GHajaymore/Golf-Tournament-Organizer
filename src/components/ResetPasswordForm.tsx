@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { resetPassword } from "@/app/actions/auth";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const [password, setPassword] = useState("");
@@ -47,7 +48,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="At least 8 characters"
+          placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
           autoFocus
         />
       </div>
@@ -67,7 +68,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           <i className="ph ph-warning-circle" /> {error}
         </p>
       )}
-      <button type="button" className="btn btn-primary btn-block" disabled={pending || password.length < 8} onClick={submit}>
+      <button type="button" className="btn btn-primary btn-block" disabled={pending || password.length < MIN_PASSWORD_LENGTH} onClick={submit}>
         {pending ? "Saving…" : "Set password & sign in"} <i className="ph ph-arrow-right" />
       </button>
     </div>

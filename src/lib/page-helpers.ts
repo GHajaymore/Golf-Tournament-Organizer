@@ -9,9 +9,20 @@ export async function requireSession(): Promise<Session> {
   return session;
 }
 
+/**
+ * A session plus a selected tournament. Someone who has signed up but has no
+ * tournament yet holds a valid session with no event — every screen inside the
+ * app shell needs one, so send them to the picker to create or choose it.
+ */
+export async function requireEventSession(): Promise<Session> {
+  const session = await requireSession();
+  if (!session.eventId) redirect("/choose");
+  return session;
+}
+
 /** Guard a screen key against the current view-role. */
 export async function requireScreen(key: string): Promise<Session> {
-  const session = await requireSession();
+  const session = await requireEventSession();
   const vr = session.viewRole;
   if (vr === "player" && !PLAYER_SCREENS.has(key)) redirect("/dashboard");
   if (vr === "assistant" && ADMIN_ONLY_SCREENS.has(key)) redirect("/dashboard");
@@ -19,9 +30,9 @@ export async function requireScreen(key: string): Promise<Session> {
 }
 
 export async function requireState(): Promise<{ session: Session; state: EventState }> {
-  const session = await requireSession();
+  const session = await requireEventSession();
   const state = await loadEventState(session.eventId);
-  if (!state) redirect("/");
+  if (!state) redirect("/choose");
   return { session, state };
 }
 

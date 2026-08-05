@@ -13,6 +13,20 @@ const PREVIEW_COOKIE = "ng_preview_player";
 const ACTIVE_COOKIE = "ng_active_event";
 const SECRET = process.env.AUTH_SECRET ?? "dev-secret";
 
+// Session cookies must never travel over plain HTTP in production. Local dev
+// runs on http://localhost, where `secure` cookies are rejected, so the flag
+// is conditional rather than hard-coded.
+const SECURE_COOKIES = process.env.NODE_ENV === "production";
+
+/** Shared flags for every cookie this module sets. */
+const COOKIE_OPTS = {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: SECURE_COOKIES,
+  path: "/",
+  maxAge: 60 * 60 * 24 * 7,
+} as const;
+
 function sign(value: string): string {
   const mac = createHmac("sha256", SECRET).update(value).digest("base64url");
   return `${value}.${mac}`;
@@ -64,14 +78,11 @@ export interface Session {
   viewRole: Role;
 }
 
-export async function createSession(accountId: string): Promise<void> {
+/** Start a session for a person. Takes a User id — sessions are not tied to
+ *  any one tournament, so signing up before creating one is possible. */
+export async function createSession(userId: string): Promise<void> {
   const jar = await cookies();
-  jar.set(COOKIE, sign(accountId), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
+  jar.set(COOKIE, sign(userId), COOKIE_OPTS);
   jar.delete(PREVIEW_COOKIE);
   jar.delete(ACTIVE_COOKIE);
 }
@@ -86,19 +97,14 @@ export async function destroySession(): Promise<void> {
 /** Switch which tournament the organizer is managing (their events only). */
 export async function setActiveEvent(eventId: string): Promise<void> {
   const jar = await cookies();
-  jar.set(ACTIVE_COOKIE, sign(eventId), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
+  jar.set(ACTIVE_COOKIE, sign(eventId), COOKIE_OPTS);
 }
 
 /** Admin-only preview of another role's view: "assistant" | "player" (anything else clears it). */
 export async function setPreviewRole(previewRole: string): Promise<void> {
   const jar = await cookies();
   if (previewRole === "assistant" || previewRole === "player") {
-    jar.set(PREVIEW_COOKIE, previewRole, { httpOnly: true, sameSite: "lax", path: "/" });
+    jar.set(PREVIEW_COOKIE, previewRole, { httpOnly: true, sameSite: "lax", secure: SECURE_COOKIES, path: "/" });
   } else {
     jar.delete(PREVIEW_COOKIE);
   }
@@ -106,32 +112,49 @@ export async function setPreviewRole(previewRole: string): Promise<void> {
 
 export async function getSession(): Promise<Session | null> {
   const jar = await cookies();
-  const accountId = verify(jar.get(COOKIE)?.value);
-  if (!accountId) return null;
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
-  if (!account) return null;
+  const userId = verify(jar.get(COOKIE)?.value);
+  if (!userId) return null;
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return null;
 
-  // Resolve the active event. Organizers can switch between events they belong
-  // to (matched by email); the account for that event carries the effective role.
-  let effective = account;
+  // A session belongs to a person, not to a tournament. Which tournament
+  // they're currently working in is resolved separately — from the active-event
+  // cookie if it's set, otherwise their most recently created one. Someone who
+  // has signed up but has no tournaments yet gets a valid session with no
+  // event; the app shell sends them to /choose to create or pick one.
+  let account = null;
   const activeEventId = verify(jar.get(ACTIVE_COOKIE)?.value);
-  if (activeEventId && activeEventId !== account.eventId) {
-    const match = await prisma.account.findFirst({
-      where: { eventId: activeEventId, email: account.email },
+  if (activeEventId) {
+    account = await prisma.account.findFirst({
+      where: { eventId: activeEventId, email: user.email },
     });
-    if (match) effective = match;
+  }
+  if (!account) {
+    const accounts = await prisma.account.findMany({
+      where: { email: user.email },
+      include: { event: { select: { createdAt: true } } },
+    });
+    accounts.sort((a, b) => b.event.createdAt.getTime() - a.event.createdAt.getTime());
+    account = accounts[0] ?? null;
   }
 
-  const role: Role =
-    effective.role === "admin" ? "admin" : effective.role === "assistant" ? "assistant" : "player";
+  const role: Role = !account
+    ? "player"
+    : account.role === "admin"
+      ? "admin"
+      : account.role === "assistant"
+        ? "assistant"
+        : "player";
   const preview = jar.get(PREVIEW_COOKIE)?.value;
   const viewRole: Role =
     role === "admin" && (preview === "assistant" || preview === "player") ? (preview as Role) : role;
+
   return {
-    accountId: effective.id,
-    eventId: effective.eventId,
-    name: effective.name,
-    email: effective.email,
+    accountId: account?.id ?? "",
+    // Empty when this person has no tournaments yet.
+    eventId: account?.eventId ?? "",
+    name: account?.name || user.name,
+    email: user.email,
     role,
     viewRole,
   };

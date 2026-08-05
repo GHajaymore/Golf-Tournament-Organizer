@@ -1,41 +1,62 @@
 "use client";
 import { useState, useTransition } from "react";
-import { checkEmailStatus, signInWithPassword, claimPassword, startNewTournament, requestPasswordReset } from "@/app/actions/auth";
+import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from "@/app/actions/auth";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 
-type Stage = "email" | "signin" | "claim" | "signup" | "forgot" | "forgot-sent";
+/**
+ * Standard two-tab auth: Log in / Sign up.
+ *
+ * Two extra states hang off Log in rather than being tabs of their own,
+ * because you only reach them from a login attempt:
+ *   claim  - the email was invited by an organizer but has no password yet
+ *   forgot - password reset request
+ */
+type Mode = "login" | "signup";
+type Extra = null | "claim" | "forgot" | "forgot-sent";
 
 export function LoginPanel() {
-  const [stage, setStage] = useState<Stage>("email");
+  const [mode, setMode] = useState<Mode>("login");
+  const [extra, setExtra] = useState<Extra>(null);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [tournamentName, setTournamentName] = useState("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
-  const back = () => {
-    setStage("email");
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setExtra(null);
+    setError("");
     setPassword("");
-    setError("");
   };
 
-  const submitEmail = () => {
-    setError("");
-    startTransition(async () => {
-      const result = await checkEmailStatus(email);
-      if (!result.ok) {
-        setError(result.error ?? "Something went wrong.");
-        return;
-      }
-      setStage(result.status ?? "signup");
-    });
-  };
-
-  const submitSignin = () => {
+  const submitLogin = () => {
     setError("");
     startTransition(async () => {
       const result = await signInWithPassword(email, password);
       // A successful sign-in redirect()s server-side and never returns here.
+      if (result.needsClaim) {
+        setExtra("claim");
+        setPassword("");
+        return;
+      }
+      if (!result.ok) setError(result.error ?? "Something went wrong.");
+    });
+  };
+
+  const submitSignup = () => {
+    setError("");
+    startTransition(async () => {
+      const result = await signUp(name, email, password);
+      if (!result.ok) setError(result.error ?? "Something went wrong.");
+    });
+  };
+
+  const submitClaim = () => {
+    setError("");
+    startTransition(async () => {
+      const result = await claimPassword(email, password);
       if (!result.ok) setError(result.error ?? "Something went wrong.");
     });
   };
@@ -48,181 +69,134 @@ export function LoginPanel() {
         setError(result.error ?? "Something went wrong.");
         return;
       }
-      setStage("forgot-sent");
+      setExtra("forgot-sent");
     });
   };
 
-  const submitClaim = () => {
-    setError("");
-    startTransition(async () => {
-      const result = await claimPassword(email, password);
-      if (!result.ok) setError(result.error ?? "Something went wrong.");
-    });
-  };
-
-  const submitSignup = () => {
-    setError("");
-    startTransition(async () => {
-      const result = await startNewTournament(name, email, tournamentName, password);
-      if (!result.ok) setError(result.error ?? "Something went wrong.");
-    });
-  };
-
-  const errorBlock = error && (
+  const errorBlock = error ? (
     <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger, #e0665a)" }}>
       <i className="ph ph-warning-circle" /> {error}
     </p>
+  ) : null;
+
+  const shell = (children: React.ReactNode) => (
+    <div style={{ width: "min(400px, 100%)", display: "flex", flexDirection: "column", gap: 16 }}>{children}</div>
   );
 
-  if (stage === "signin") {
-    return (
-      <div style={{ width: "min(400px, 100%)", display: "flex", flexDirection: "column", gap: 16 }}>
-        <BackButton onClick={back} />
+  /* ── Password reset ──────────────────────────────────────────────── */
+
+  if (extra === "forgot-sent") {
+    return shell(
+      <>
         <div>
-          <h3 style={{ margin: "10px 0 0", fontSize: 22 }}>Welcome back</h3>
-          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-            Signing in as <b>{email}</b>.
+          <h3 style={{ margin: 0, fontSize: 22 }}>Check your email</h3>
+          <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+            If <b>{email}</b> has an account, a reset link is on its way. It expires in 15 minutes.
+          </p>
+        </div>
+        <BackLink onClick={() => { setExtra(null); setError(""); }} label="Back to log in" />
+      </>,
+    );
+  }
+
+  if (extra === "forgot") {
+    return shell(
+      <>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 22 }}>Reset your password</h3>
+          <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+            We'll email a link to set a new password.
           </p>
         </div>
         <div className="field">
-          <label>Password</label>
+          <label>Email</label>
           <input
             className="input"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submitSignin()}
-            placeholder="••••••••"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submitForgot()}
+            placeholder="you@email.com"
             autoFocus
           />
         </div>
         {errorBlock}
-        <button type="button" className="btn btn-primary btn-block" disabled={pending || !password} onClick={submitSignin}>
-          {pending ? "Signing in…" : "Sign in"} <i className="ph ph-arrow-right" />
+        <button type="button" className="btn btn-primary btn-block" disabled={pending || !email.trim()} onClick={submitForgot}>
+          {pending ? "Sending…" : "Send reset link"}
         </button>
-        <button
-          type="button"
-          onClick={() => { setError(""); setStage("forgot"); }}
-          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--color-neutral-500)", fontSize: 12, textAlign: "center" }}
-        >
-          Forgot password?
-        </button>
-      </div>
+        <BackLink onClick={() => { setExtra(null); setError(""); }} label="Back to log in" />
+      </>,
     );
   }
 
-  if (stage === "forgot") {
-    return (
-      <div style={{ width: "min(400px, 100%)", display: "flex", flexDirection: "column", gap: 16 }}>
-        <BackButton onClick={() => { setStage("signin"); setError(""); }} />
-        <div>
-          <h3 style={{ margin: "10px 0 0", fontSize: 22 }}>Reset your password</h3>
-          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-            We'll email <b>{email}</b> a link to set a new password. It expires in 15 minutes.
-          </p>
-        </div>
-        {errorBlock}
-        <button type="button" className="btn btn-primary btn-block" disabled={pending} onClick={submitForgot}>
-          {pending ? "Sending…" : "Send reset link"} <i className="ph ph-arrow-right" />
-        </button>
-      </div>
-    );
-  }
+  /* ── First-time password for an invited account ──────────────────── */
 
-  if (stage === "forgot-sent") {
-    return (
-      <div style={{ width: "min(400px, 100%)", display: "flex", flexDirection: "column", gap: 16 }}>
+  if (extra === "claim") {
+    return shell(
+      <>
         <div>
-          <h3 style={{ margin: "10px 0 0", fontSize: 22 }}>Check your email</h3>
-          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-            If <b>{email}</b> has an account, a reset link is on its way. It expires in 15 minutes — if it doesn't show up, check spam or try again.
-          </p>
-        </div>
-        <BackButton onClick={back} />
-      </div>
-    );
-  }
-
-  if (stage === "claim") {
-    return (
-      <div style={{ width: "min(400px, 100%)", display: "flex", flexDirection: "column", gap: 16 }}>
-        <BackButton onClick={back} />
-        <div>
-          <h3 style={{ margin: "10px 0 0", fontSize: 22 }}>Set your password</h3>
-          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-            <b>{email}</b> has tournament access waiting — set a password to claim it. You'll use this to sign in from now on.
+          <h3 style={{ margin: 0, fontSize: 22 }}>Set your password</h3>
+          <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+            <b>{email}</b> has been invited to a tournament. Choose a password to finish setting up your account.
           </p>
         </div>
         <div className="field">
-          <label>New password</label>
+          <label>Create password</label>
           <input
             className="input"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submitClaim()}
-            placeholder="At least 8 characters"
+            placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
             autoFocus
           />
         </div>
         {errorBlock}
-        <button type="button" className="btn btn-primary btn-block" disabled={pending || password.length < 8} onClick={submitClaim}>
-          {pending ? "Saving…" : "Set password & sign in"} <i className="ph ph-arrow-right" />
+        <button
+          type="button"
+          className="btn btn-primary btn-block"
+          disabled={pending || password.length < MIN_PASSWORD_LENGTH}
+          onClick={submitClaim}
+        >
+          {pending ? "Saving…" : "Set password & continue"}
         </button>
-      </div>
+        <BackLink onClick={() => { setExtra(null); setError(""); setPassword(""); }} label="Back to log in" />
+      </>,
     );
   }
 
-  if (stage === "signup") {
-    return (
-      <div style={{ width: "min(400px, 100%)", display: "flex", flexDirection: "column", gap: 16 }}>
-        <BackButton onClick={back} />
-        <div>
-          <h3 style={{ margin: "10px 0 0", fontSize: 22 }}>Start your tournament</h3>
-          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-            No tournament found for <b>{email}</b> yet — you're a few seconds from running your own.
-          </p>
-        </div>
+  /* ── Log in / Sign up ────────────────────────────────────────────── */
+
+  return shell(
+    <>
+      <div className="seg" style={{ width: "100%" }}>
+        <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+          <input type="radio" name="authmode" checked={mode === "login"} onChange={() => switchMode("login")} />
+          Log in
+        </label>
+        <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+          <input type="radio" name="authmode" checked={mode === "signup"} onChange={() => switchMode("signup")} />
+          Sign up
+        </label>
+      </div>
+
+      <div>
+        <h3 style={{ margin: 0, fontSize: 22 }}>{mode === "login" ? "Welcome back" : "Create your account"}</h3>
+        <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
+          {mode === "login"
+            ? "Log in to reach the tournaments you have access to."
+            : "For organizers running an event, and for players invited to one."}
+        </p>
+      </div>
+
+      {mode === "signup" && (
         <div className="field">
           <label>Your name</label>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" autoFocus />
         </div>
-        <div className="field">
-          <label>Tournament name <span className="text-muted">(you can change this later)</span></label>
-          <input className="input" value={tournamentName} onChange={(e) => setTournamentName(e.target.value)} placeholder="e.g. Club Championship 2026" />
-        </div>
-        <div className="field">
-          <label>Password</label>
-          <input
-            className="input"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="At least 8 characters"
-          />
-        </div>
-        {errorBlock}
-        <button type="button" className="btn btn-primary btn-block" disabled={pending || !name.trim() || password.length < 8} onClick={submitSignup}>
-          {pending ? "Creating…" : "Create my tournament"} <i className="ph ph-arrow-right" />
-        </button>
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-          You'll land straight on setup — field, format and rounds are all still ahead of you.
-        </p>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div style={{ width: "min(400px, 100%)", display: "flex", flexDirection: "column", gap: 16 }}>
-      <div>
-        <div className="text-muted" style={{ fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-          Sign in
-        </div>
-        <h3 style={{ margin: "6px 0 0", fontSize: 22 }}>Enter your email</h3>
-        <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-          We'll take you straight to the tournaments you've been given access to.
-        </p>
-      </div>
       <div className="field">
         <label>Email</label>
         <input
@@ -230,27 +204,72 @@ export function LoginPanel() {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submitEmail()}
           placeholder="you@email.com"
-          autoFocus
+          autoFocus={mode === "login"}
         />
       </div>
+
+      <div className="field">
+        <label>Password</label>
+        <input
+          className="input"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (mode === "login" ? submitLogin() : submitSignup())}
+          placeholder={mode === "login" ? "••••••••" : `At least ${MIN_PASSWORD_LENGTH} characters`}
+        />
+      </div>
+
       {errorBlock}
-      <button type="button" className="btn btn-primary btn-block" disabled={pending || !email.trim()} onClick={submitEmail}>
-        {pending ? "Checking…" : "Continue"} <i className="ph ph-arrow-right" />
-      </button>
-    </div>
+
+      {mode === "login" ? (
+        <>
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            disabled={pending || !email.trim() || !password}
+            onClick={submitLogin}
+          >
+            {pending ? "Logging in…" : "Log in"}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setExtra("forgot"); setError(""); }}
+            style={{
+              background: "none", border: "none", padding: 0, cursor: "pointer",
+              color: "var(--color-neutral-500)", fontSize: 12, textAlign: "center",
+            }}
+          >
+            Forgot password?
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-primary btn-block"
+          disabled={pending || !name.trim() || !email.trim() || password.length < MIN_PASSWORD_LENGTH}
+          onClick={submitSignup}
+        >
+          {pending ? "Creating account…" : "Create account"}
+        </button>
+      )}
+    </>,
   );
 }
 
-function BackButton({ onClick }: { onClick: () => void }) {
+function BackLink({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--color-neutral-500)", fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}
+      style={{
+        background: "none", border: "none", padding: 0, cursor: "pointer",
+        color: "var(--color-neutral-500)", fontSize: 12,
+        display: "flex", alignItems: "center", gap: 4, alignSelf: "center",
+      }}
     >
-      <i className="ph ph-arrow-left" /> Back
+      <i className="ph ph-arrow-left" /> {label}
     </button>
   );
 }
