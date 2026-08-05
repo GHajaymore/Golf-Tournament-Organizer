@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { CoursePreset } from "@/lib/courses";
 
 export interface CardFlight {
@@ -179,7 +180,7 @@ export function ScorecardClient({
         {cards.length === 0 && (
           <div className="card elev-sm">
             <span className="text-muted" style={{ fontSize: 13 }}>
-              No flights yet — generate flights first, then print scorecards.
+              No flights yet — <Link href="/grouping">generate flights</Link> first, then print scorecards.
             </span>
           </div>
         )}

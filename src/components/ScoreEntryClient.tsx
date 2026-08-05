@@ -122,7 +122,11 @@ export function ScoreEntryClient({
       <div className="card elev-sm">
         <span className="card-title">No matches yet</span>
         <p className="text-muted" style={{ fontSize: 13 }}>
-          Generate groups on the Grouping screen to create the round-robin schedule.
+          {isStaff ? (
+            <>Generate flights on the <Link href="/grouping">Flights & divisions</Link> screen to create the round-robin schedule.</>
+          ) : (
+            "The schedule hasn't been generated yet — check back once flights are set."
+          )}
         </p>
       </div>
     );

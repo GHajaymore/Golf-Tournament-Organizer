@@ -15,6 +15,8 @@ const QUICK_ACTIONS = [
   { label: "Tee sheet", href: "/foursomes", icon: "ph ph-users-four", staff: true },
   { label: "Scorecards", href: "/scorecard", icon: "ph ph-cards", staff: true },
   { label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", staff: true },
+  { label: "Announcements", href: "/announcements", icon: "ph ph-megaphone", staff: true },
+  { label: "Prizes", href: "/prizes", icon: "ph ph-trophy", staff: true },
   { label: "Reports", href: "/reports", icon: "ph ph-export", staff: true },
 ];
 

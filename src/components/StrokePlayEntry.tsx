@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { computeStrokeCard, toParText, parseStrokesTranscript } from "@/lib/domain";
 import { saveScorecard } from "@/app/actions/tournament";
 
@@ -104,7 +105,13 @@ export function StrokePlayEntry({
   };
 
   if (!player) {
-    return <div className="card elev-sm"><span className="text-muted" style={{ fontSize: 13 }}>No players yet.</span></div>;
+    return (
+      <div className="card elev-sm">
+        <span className="text-muted" style={{ fontSize: 13 }}>
+          No confirmed players yet — add them on the <Link href="/registration">Registration & field</Link> screen.
+        </span>
+      </div>
+    );
   }
 
   const front = Array.from({ length: Math.min(9, holes) }, (_, i) => i);

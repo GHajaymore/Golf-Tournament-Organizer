@@ -75,7 +75,7 @@ export default async function LeaderboardPage() {
       )}
 
       <div className="card elev-sm">
-        <LeaderboardBoard isStroke={state.isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} rows={rows} />
+        <LeaderboardBoard isStroke={state.isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} rows={rows} isStaff={isStaff} />
         <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
           {state.isStroke
             ? state.activeStage?.scoringBasis === "stableford"
