@@ -1,19 +1,36 @@
+import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
 import { enterTournament, signOutAction } from "@/app/actions/auth";
 import { prisma } from "@/lib/db";
+import { ROLE_LABEL } from "@/lib/roles";
 import { Logo } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
 
-const ROLE_LABEL: Record<string, string> = { admin: "Organizer", assistant: "Assistant", player: "Player" };
-
-export default async function ChooseTournamentPage() {
+export default async function ChooseTournamentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ stay?: string }>;
+}) {
   const session = await requireSession();
+  const { stay } = await searchParams;
   const accounts = await prisma.account.findMany({
     where: { email: session.email },
     include: { event: { include: { _count: { select: { players: true } } } } },
     orderBy: { event: { createdAt: "desc" } },
   });
+
+  // With exactly one tournament there's nothing to choose between, so don't
+  // make people click through a list of one — the common case for players.
+  // `?stay=1` keeps the picker visible for anyone who wants to create another.
+  //
+  // No active-event cookie is set here: cookies can only be written from a
+  // Server Action or Route Handler, not during a render. It isn't needed
+  // either — with a single account, getSession's "most recent tournament"
+  // fallback already resolves to this one.
+  if (accounts.length === 1 && !stay) {
+    redirect("/dashboard");
+  }
 
   return (
     <div

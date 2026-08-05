@@ -1,12 +1,10 @@
+import { canAccessScreen, type Role } from "./roles";
+
 export interface NavItem {
   key: string;
   label: string;
   href: string;
   icon: string;
-  /** true = visible to players; otherwise staff-only. */
-  player?: boolean;
-  /** true = only the primary Organizer (admin), hidden from assistants. */
-  adminOnly?: boolean;
 }
 
 export interface NavSection {
@@ -21,19 +19,19 @@ export const NAV: NavSection[] = [
   {
     label: "Overview",
     items: [
-      { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: "ph ph-squares-four", player: true },
-      { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking", player: true },
+      { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: "ph ph-squares-four" },
+      { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking" },
     ],
   },
   {
     // Everything that defines the tournament. Locks when the event goes live.
     label: "Set up",
     items: [
-      { key: "event", label: "Event setup", href: "/event", icon: "ph ph-gear-six", adminOnly: true },
+      { key: "event", label: "Event setup", href: "/event", icon: "ph ph-gear-six" },
       { key: "registration", label: "Registration & field", href: "/registration", icon: "ph ph-user-plus" },
       { key: "stages", label: "Rounds & format", href: "/stages", icon: "ph ph-stack" },
       { key: "grouping", label: "Flights & divisions", href: "/grouping", icon: "ph ph-squares-four" },
-      { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check", adminOnly: true },
+      { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check" },
     ],
   },
   {
@@ -42,9 +40,9 @@ export const NAV: NavSection[] = [
     items: [
       { key: "foursomes", label: "Tee sheet & pairings", href: "/foursomes", icon: "ph ph-users-four" },
       { key: "scorecard", label: "Scorecards", href: "/scorecard", icon: "ph ph-cards" },
-      { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple", player: true },
+      { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple" },
       { key: "qualification", label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered" },
-      { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", player: true },
+      { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure" },
       { key: "announcements", label: "Announcements", href: "/announcements", icon: "ph ph-megaphone" },
     ],
   },
@@ -57,15 +55,12 @@ export const NAV: NavSection[] = [
   },
 ];
 
-export function navForRole(viewRole: "admin" | "assistant" | "player"): NavSection[] {
-  if (viewRole === "admin") return NAV;
-  if (viewRole === "assistant") {
-    // Assistant Organizer: everything operational, minus critical/admin-only screens.
-    return NAV.map((s) => ({ ...s, items: s.items.filter((i) => !i.adminOnly) })).filter(
-      (s) => s.items.length > 0,
-    );
-  }
-  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => i.player) })).filter(
+/**
+ * The sidebar for a role, derived from the same access map the server-side
+ * guards use — so what's shown and what's reachable can't disagree.
+ */
+export function navForRole(viewRole: Role): NavSection[] {
+  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => canAccessScreen(viewRole, i.key)) })).filter(
     (s) => s.items.length > 0,
   );
 }

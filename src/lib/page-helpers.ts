@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { getSession, PLAYER_SCREENS, ADMIN_ONLY_SCREENS, type Session } from "./auth";
+import { getSession, type Session } from "./auth";
+import { canAccessScreen, landingScreenFor } from "./roles";
 import { loadEventState, type EventState } from "./services/tournament";
 
 export async function requireSession(): Promise<Session> {
@@ -23,9 +24,7 @@ export async function requireEventSession(): Promise<Session> {
 /** Guard a screen key against the current view-role. */
 export async function requireScreen(key: string): Promise<Session> {
   const session = await requireEventSession();
-  const vr = session.viewRole;
-  if (vr === "player" && !PLAYER_SCREENS.has(key)) redirect("/dashboard");
-  if (vr === "assistant" && ADMIN_ONLY_SCREENS.has(key)) redirect("/dashboard");
+  if (!canAccessScreen(session.viewRole, key)) redirect(landingScreenFor(session.viewRole));
   return session;
 }
 

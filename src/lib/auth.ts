@@ -65,7 +65,10 @@ export function verifyPasswordHash(password: string, stored: string): boolean {
   return test.length === real.length && timingSafeEqual(test, real);
 }
 
-export type Role = "admin" | "assistant" | "player";
+// Re-exported so existing callers can keep importing Role from here; the
+// definition lives with the access map in ./roles.
+export type { Role } from "./roles";
+import type { Role } from "./roles";
 
 export interface Session {
   accountId: string;
@@ -160,8 +163,5 @@ export async function getSession(): Promise<Session | null> {
   };
 }
 
-/** Screens organizers can access; players are limited to these three. */
-export const PLAYER_SCREENS = new Set(["dashboard", "leaderboard", "entry", "bracket"]);
-
-/** Critical screens only the primary Organizer (admin) can open. */
-export const ADMIN_ONLY_SCREENS = new Set(["event", "access"]);
+// Screen-level permissions live in ./roles (SCREEN_ACCESS), shared by the
+// sidebar and the server-side guards so the two can't drift apart.
