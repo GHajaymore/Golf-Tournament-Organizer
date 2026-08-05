@@ -120,9 +120,14 @@ export async function requestPasswordReset(email: string): Promise<{ ok: boolean
       data: { userId: user.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
     });
     const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const sent = await sendPasswordResetEmail(clean, `${base}/reset-password?token=${token}`);
-    if (!sent.ok) return { ok: false, error: sent.error };
+    // Result deliberately ignored. Returning a send failure here would make
+    // this an oracle: a registered address would error while an unregistered
+    // one succeeded, which is exactly the enumeration this function is
+    // supposed to prevent. Failures are logged inside sendPasswordResetEmail,
+    // and organizers see mail-configuration problems on Access & staff.
+    await sendPasswordResetEmail(clean, `${base}/reset-password?token=${token}`);
   }
+  // Always the same answer, whether or not the address is registered.
   return { ok: true };
 }
 
