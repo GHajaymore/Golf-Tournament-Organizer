@@ -99,6 +99,7 @@ model Event {
   matchScorecards MatchScorecard[]
   prizes         Prize[]
   announcements  Announcement[]
+  auditLogs      AuditLog[]
 }
 
 model Account {
@@ -216,6 +217,12 @@ model AuditLog {
   action    String
   detail    String   @default("")
   createdAt DateTime @default(now())
+
+  // Cascade like every other per-event table. Without this relation the rows
+  // survived their tournament being deleted, leaving orphaned records that
+  // still named the people involved (`actor`) — deleting a tournament must
+  // purge everything belonging to it.
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
 }
