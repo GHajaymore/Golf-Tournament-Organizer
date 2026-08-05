@@ -1,9 +1,25 @@
 "use client";
 import { useMemo, useState, useRef, useTransition } from "react";
 import Link from "next/link";
-import { resolveMatch, parseResultTranscript, type HoleResult } from "@/lib/domain";
+import {
+  resolveMatch,
+  parseResultTranscript,
+  parseHolesTranscript,
+  parseStrokesTranscript,
+  deriveNetHoles,
+  matchStrokesGiven,
+  type HoleResult,
+} from "@/lib/domain";
 import { firstName } from "@/lib/format";
-import { saveMatchHoles, applyMatchResult, clearMatch, confirmMatch, disputeMatch, reopenMatch } from "@/app/actions/tournament";
+import {
+  saveMatchHoles,
+  applyMatchResult,
+  clearMatch,
+  confirmMatch,
+  disputeMatch,
+  reopenMatch,
+  saveMatchScorecard,
+} from "@/app/actions/tournament";
 
 export interface EntryMatch {
   id: string;
@@ -11,10 +27,14 @@ export interface EntryMatch {
   bId: string;
   aName: string;
   bName: string;
+  aHandicap: number;
+  bHandicap: number;
   groupName: string;
   round: number;
   holes: HoleResult[];
   status: string;
+  aStrokes: (number | null)[];
+  bStrokes: (number | null)[];
 }
 
 const CONFIRM_META: Record<string, { label: string; tag: string }> = {
@@ -33,18 +53,46 @@ function statusOf(holes: HoleResult[]): { tag: string; tagClass: string } {
   return { tag: "Pending", tagClass: "tag-neutral" };
 }
 
-export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false }: { matches: EntryMatch[]; isStaff?: boolean; hideHeader?: boolean }) {
+function sum(arr: number[], from: number, to: number): number {
+  let t = 0;
+  for (let i = from; i < to; i += 1) t += arr[i] ?? 0;
+  return t;
+}
+
+export function ScoreEntryClient({
+  matches,
+  isStaff = false,
+  hideHeader = false,
+  pars = [],
+  yards = [],
+  strokeIndex = [],
+  netMode = false,
+}: {
+  matches: EntryMatch[];
+  isStaff?: boolean;
+  hideHeader?: boolean;
+  pars?: number[];
+  yards?: number[];
+  strokeIndex?: number[];
+  netMode?: boolean;
+}) {
   const [holesById, setHolesById] = useState<Record<string, HoleResult[]>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.holes])),
   );
   const [statusById, setStatusById] = useState<Record<string, string>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.status])),
   );
+  const [aStrokesById, setAStrokesById] = useState<Record<string, (number | null)[]>>(() =>
+    Object.fromEntries(matches.map((m) => [m.id, m.aStrokes])),
+  );
+  const [bStrokesById, setBStrokesById] = useState<Record<string, (number | null)[]>>(() =>
+    Object.fromEntries(matches.map((m) => [m.id, m.bStrokes])),
+  );
   const [selectedId, setSelectedId] = useState<string>(matches[0]?.id ?? "");
-  const [mode, setMode] = useState<"holes" | "result">("holes");
+  const [mode, setMode] = useState<"holes" | "result" | "handicap">("holes");
   const [winner, setWinner] = useState<Winner>("A");
   const [margin, setMargin] = useState("");
-  const [listening, setListening] = useState(false);
+  const [listening, setListening] = useState<string | null>(null);
   const [listenHint, setListenHint] = useState("Tap the mic and say e.g. “Sam wins 3 and 2”.");
   const recognitionRef = useRef<unknown>(null);
   const entryRef = useRef<HTMLDivElement>(null);
@@ -64,6 +112,10 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
   const holes = active ? holesById[active.id] ?? active.holes : [];
   const resolution = useMemo(() => resolveMatch(holes), [holes]);
   const activeStatus = active ? statusById[active.id] ?? active.status : "pending";
+  const totalHoles = holes.length || 18;
+  const isEighteen = totalHoles > 9;
+  const front = Array.from({ length: Math.min(9, totalHoles) }, (_, i) => i);
+  const back = isEighteen ? Array.from({ length: totalHoles - 9 }, (_, i) => i + 9) : [];
 
   if (!active) {
     return (
@@ -75,6 +127,17 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
       </div>
     );
   }
+
+  const aStrokes = aStrokesById[active.id] ?? active.aStrokes;
+  const bStrokes = bStrokesById[active.id] ?? active.bStrokes;
+  // Handicap strokes only apply when this round is scored Net; a Gross round
+  // still gets the same "enter each hole's strokes" card, just decided scratch.
+  const effAHandicap = netMode ? active.aHandicap : 0;
+  const effBHandicap = netMode ? active.bHandicap : 0;
+  const strokesGiven = useMemo(
+    () => matchStrokesGiven(effAHandicap, effBHandicap, strokeIndex.length ? strokeIndex : new Array(totalHoles).fill(18)),
+    [effAHandicap, effBHandicap, strokeIndex, totalHoles],
+  );
 
   const persist = (id: string, next: HoleResult[]) => {
     setHolesById((prev) => ({ ...prev, [id]: next }));
@@ -108,13 +171,12 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
   };
 
   const doApplyResult = () => {
-    const totalHoles = holes.length || 18;
+    const total = holes.length || 18;
     startTransition(() => {
       void applyMatchResult(active.id, winner, margin);
     });
-    // Reflect locally via the pure margin conversion for instant feedback.
     import("@/lib/domain").then(({ marginToHoles }) => {
-      setHolesById((prev) => ({ ...prev, [active.id]: marginToHoles(winner, margin, totalHoles) }));
+      setHolesById((prev) => ({ ...prev, [active.id]: marginToHoles(winner, margin, total) }));
     });
   };
 
@@ -126,17 +188,40 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
     });
   };
 
-  const toggleListen = () => {
+  const applyStrokes = (slot: "A" | "B", next: (number | null)[]) => {
+    const nextA = slot === "A" ? next : aStrokes;
+    const nextB = slot === "B" ? next : bStrokes;
+    setAStrokesById((prev) => ({ ...prev, [active.id]: nextA }));
+    setBStrokesById((prev) => ({ ...prev, [active.id]: nextB }));
+    const derived = deriveNetHoles(nextA, nextB, effAHandicap, effBHandicap, strokeIndex.length ? strokeIndex : new Array(totalHoles).fill(18));
+    setHolesById((prev) => ({ ...prev, [active.id]: derived }));
+    setStatusById((prev) => ({ ...prev, [active.id]: "pending" }));
+    startTransition(() => void saveMatchScorecard(active.id, slot, next));
+  };
+
+  const setStroke = (slot: "A" | "B", i: number, val: string) => {
+    const n = parseInt(val, 10);
+    const value = Number.isFinite(n) && n > 0 ? n : null;
+    const strokes = slot === "A" ? aStrokes : bStrokes;
+    const next = [...strokes];
+    next[i] = value;
+    applyStrokes(slot, next);
+  };
+
+  const startListen = (
+    key: string,
+    onTranscript: (transcript: string) => void,
+  ) => {
     const SpeechRecognition =
       (window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown })
         .SpeechRecognition ||
       (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      setListenHint("Voice entry isn’t supported in this browser — type the result instead.");
+      setListenHint("Voice entry isn’t supported in this browser — type it instead.");
       return;
     }
-    if (listening) {
-      setListening(false);
+    if (listening === key) {
+      setListening(null);
       return;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,23 +230,54 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
     rec.lang = "en-US";
     rec.interimResults = false;
     rec.maxAlternatives = 1;
-    setListening(true);
+    setListening(key);
     setListenHint("Listening…");
     rec.onresult = (e: { results: { 0: { 0: { transcript: string } } } }) => {
-      const transcript = e.results[0][0].transcript;
+      onTranscript(e.results[0][0].transcript);
+      setListening(null);
+    };
+    rec.onerror = () => {
+      setListenHint("Didn’t catch that — try again or type it.");
+      setListening(null);
+    };
+    rec.onend = () => setListening(null);
+    rec.start();
+  };
+
+  const toggleListenResult = () =>
+    startListen("result", (transcript) => {
       const parsed = parseResultTranscript(transcript, firstName(active.aName), firstName(active.bName));
       if (parsed.winner) setWinner(parsed.winner);
       if (parsed.margin) setMargin(parsed.margin);
       setListenHint(`Heard: “${transcript}” — review and Apply.`);
-      setListening(false);
-    };
-    rec.onerror = () => {
-      setListenHint("Didn’t catch that — try again or type it.");
-      setListening(false);
-    };
-    rec.onend = () => setListening(false);
-    rec.start();
-  };
+    });
+
+  const toggleListenHoles = () =>
+    startListen("holes", (transcript) => {
+      const startIndex = Math.max(0, holes.findIndex((h) => h == null));
+      const parsed = parseHolesTranscript(transcript, firstName(active.aName), firstName(active.bName), startIndex, totalHoles);
+      if (parsed.length) {
+        const next = [...holes];
+        parsed.forEach((v, i) => { next[startIndex + i] = v; });
+        persist(active.id, next);
+        setListenHint(`Heard: “${transcript}” — filled ${parsed.length} hole${parsed.length === 1 ? "" : "s"}.`);
+      } else {
+        setListenHint(`Heard: “${transcript}” — say a player's first name or “half” per hole.`);
+      }
+    });
+
+  const toggleListenStrokes = (slot: "A" | "B") =>
+    startListen(`hcp-${slot}`, (transcript) => {
+      const strokes = slot === "A" ? aStrokes : bStrokes;
+      const startIndex = Math.max(0, strokes.findIndex((s) => s == null));
+      const parsed = parseStrokesTranscript(transcript, pars.length ? pars.slice(0, totalHoles) : new Array(totalHoles).fill(4), startIndex);
+      if (parsed.length) {
+        const next = [...strokes];
+        parsed.forEach((v, i) => { next[startIndex + i] = v; });
+        applyStrokes(slot, next);
+      }
+      setListenHint(parsed.length ? `Heard: “${transcript}” — filled ${parsed.length} hole${parsed.length === 1 ? "" : "s"}.` : `Heard: “${transcript}” — didn’t catch any scores.`);
+    });
 
   const holesWonA = holes.filter((h) => h === "A").length;
   const holesWonB = holes.filter((h) => h === "B").length;
@@ -175,6 +291,8 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
         ? "All square"
         : `${resolution.lead > 0 ? firstName(active.aName) : firstName(active.bName)} ${Math.abs(resolution.lead)} up`
       : "Not started";
+
+  const hasCourseData = pars.length > 0;
 
   return (
     <>
@@ -254,7 +372,7 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 0", flexWrap: "wrap" }}>
             <div className="seg">
               <label className="seg-opt">
                 <input type="radio" name="entrymode" checked={mode === "holes"} onChange={() => setMode("holes")} />
@@ -264,12 +382,20 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
                 <input type="radio" name="entrymode" checked={mode === "result"} onChange={() => setMode("result")} />
                 Match result
               </label>
+              <label className="seg-opt">
+                <input type="radio" name="entrymode" checked={mode === "handicap"} onChange={() => setMode("handicap")} />
+                Scorecard
+              </label>
             </div>
+            <span className={`tag ${netMode ? "tag-accent" : "tag-neutral"}`} style={{ fontSize: 11 }}>
+              <i className={netMode ? "ph ph-percent" : "ph ph-flag-checkered"} />{" "}
+              {netMode ? "Net scoring — strokes given by handicap" : "Gross scoring — lowest strokes wins the hole"}
+            </span>
           </div>
 
           {mode === "holes" && (
             <>
-              <div style={{ display: "flex", gap: 12, margin: "12px 0", fontSize: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "12px 0", fontSize: 13, flexWrap: "wrap" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ width: 12, height: 12, borderRadius: 3, background: "var(--color-accent)" }} />
                   {firstName(active.aName)}
@@ -282,49 +408,94 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
                   <span style={{ width: 12, height: 12, borderRadius: 3, background: "var(--color-accent-2-500)" }} />
                   {firstName(active.bName)}
                 </span>
+                <button
+                  type="button"
+                  className="btn btn-icon"
+                  onClick={toggleListenHoles}
+                  title="Dictate hole results"
+                  style={listening === "holes" ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
+                >
+                  <i className={listening === "holes" ? "ph-fill ph-microphone" : "ph ph-microphone"} />
+                </button>
+                <span className="text-muted" style={{ fontSize: 12 }}>{listening === "holes" ? "Listening…" : "Say each hole's winner in order, e.g. “Alex, half, Sam”."}</span>
               </div>
-              <div className="keep-grid" style={{ display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: 6 }}>
-                {holes.map((h, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      border: "1px solid var(--color-divider)",
-                      borderRadius: 6,
-                      overflow: "hidden",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div style={{ fontSize: 10, padding: "2px 0", color: "var(--color-neutral-500)", background: "var(--color-bg)" }}>
-                      {i + 1}
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      <button
-                        type="button"
-                        className="hole-btn"
-                        onClick={() => setHole(i, "A")}
-                        style={h === "A" ? { background: "var(--color-accent)", color: "var(--color-bg)" } : undefined}
-                      >
-                        A
-                      </button>
-                      <button
-                        type="button"
-                        className="hole-btn"
-                        onClick={() => setHole(i, "H")}
-                        style={h === "H" ? { background: "var(--color-neutral-600)", color: "var(--color-neutral-100)" } : undefined}
-                      >
-                        ½
-                      </button>
-                      <button
-                        type="button"
-                        className="hole-btn"
-                        onClick={() => setHole(i, "B")}
-                        style={h === "B" ? { background: "var(--color-accent-2-500)", color: "var(--color-bg)" } : undefined}
-                      >
-                        B
-                      </button>
-                    </div>
-                  </div>
-                ))}
+
+              <div style={{ overflowX: "auto" }}>
+                <table className="table" style={{ fontSize: 11, minWidth: hasCourseData ? (isEighteen ? 920 : 520) : undefined }}>
+                  {hasCourseData && (
+                    <thead>
+                      <tr>
+                        <th>Hole</th>
+                        {front.map((i) => (<th key={i} style={{ textAlign: "center" }}>{i + 1}</th>))}
+                        {isEighteen && <th style={{ textAlign: "center" }}>OUT</th>}
+                        {back.map((i) => (<th key={i} style={{ textAlign: "center" }}>{i + 1}</th>))}
+                        {isEighteen && <th style={{ textAlign: "center" }}>IN</th>}
+                      </tr>
+                    </thead>
+                  )}
+                  <tbody>
+                    {hasCourseData && (
+                      <>
+                        <tr>
+                          <td className="text-muted">Yards</td>
+                          {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{yards[i] ?? "-"}</td>))}
+                          {isEighteen && <td style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{sum(yards, 0, 9)}</td>}
+                          {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{yards[i] ?? "-"}</td>))}
+                          {isEighteen && <td style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{sum(yards, 9, totalHoles)}</td>}
+                        </tr>
+                        <tr>
+                          <td className="text-muted">Par</td>
+                          {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{pars[i] ?? "-"}</td>))}
+                          {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(pars, 0, 9)}</td>}
+                          {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{pars[i] ?? "-"}</td>))}
+                          {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(pars, 9, totalHoles)}</td>}
+                        </tr>
+                        <tr>
+                          <td className="text-muted">S.I.</td>
+                          {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{strokeIndex[i] ?? "-"}</td>))}
+                          {isEighteen && <td />}
+                          {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{strokeIndex[i] ?? "-"}</td>))}
+                          {isEighteen && <td />}
+                        </tr>
+                      </>
+                    )}
+                    <tr>
+                      <td style={{ fontWeight: 500 }}>Result</td>
+                      {[...front, ...back].map((i) => (
+                        <td key={i} style={{ padding: 2 }}>
+                          <div style={{ border: "1px solid var(--color-divider)", borderRadius: 6, overflow: "hidden" }}>
+                            <div style={{ display: "flex", flexDirection: "column" }}>
+                              <button
+                                type="button"
+                                className="hole-btn"
+                                onClick={() => setHole(i, "A")}
+                                style={holes[i] === "A" ? { background: "var(--color-accent)", color: "var(--color-bg)" } : undefined}
+                              >
+                                A
+                              </button>
+                              <button
+                                type="button"
+                                className="hole-btn"
+                                onClick={() => setHole(i, "H")}
+                                style={holes[i] === "H" ? { background: "var(--color-neutral-600)", color: "var(--color-neutral-100)" } : undefined}
+                              >
+                                ½
+                              </button>
+                              <button
+                                type="button"
+                                className="hole-btn"
+                                onClick={() => setHole(i, "B")}
+                                style={holes[i] === "B" ? { background: "var(--color-accent-2-500)", color: "var(--color-bg)" } : undefined}
+                              >
+                                B
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </>
           )}
@@ -360,11 +531,11 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
                   <button
                     type="button"
                     className="btn btn-icon"
-                    onClick={toggleListen}
+                    onClick={toggleListenResult}
                     title="Dictate result"
-                    style={listening ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
+                    style={listening === "result" ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
                   >
-                    <i className={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />
+                    <i className={listening === "result" ? "ph-fill ph-microphone" : "ph ph-microphone"} />
                   </button>
                 </div>
                 <div className="text-muted" style={{ fontSize: 12 }}>{listenHint}</div>
@@ -372,6 +543,110 @@ export function ScoreEntryClient({ matches, isStaff = false, hideHeader = false 
               <button type="button" className="btn btn-primary btn-block" onClick={doApplyResult}>
                 <i className="ph ph-check" /> Apply result
               </button>
+            </div>
+          )}
+
+          {mode === "handicap" && (
+            <div style={{ margin: "12px 0" }}>
+              <p className="text-muted" style={{ fontSize: 12, margin: "0 0 10px" }}>
+                {netMode
+                  ? "Enter each player's gross strokes per hole — the net winner (after handicap strokes, marked •) is worked out automatically."
+                  : "Enter each player's gross strokes per hole — the lower score wins each hole, straight up."}
+              </p>
+              <div style={{ overflowX: "auto" }}>
+                <table className="table" style={{ fontSize: 11, minWidth: isEighteen ? 920 : 520 }}>
+                  <thead>
+                    <tr>
+                      <th>Hole</th>
+                      {front.map((i) => (<th key={i} style={{ textAlign: "center" }}>{i + 1}</th>))}
+                      {isEighteen && <th style={{ textAlign: "center" }}>OUT</th>}
+                      {back.map((i) => (<th key={i} style={{ textAlign: "center" }}>{i + 1}</th>))}
+                      {isEighteen && <th style={{ textAlign: "center" }}>IN</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="text-muted">Par</td>
+                      {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{pars[i] ?? "-"}</td>))}
+                      {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(pars, 0, 9)}</td>}
+                      {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{pars[i] ?? "-"}</td>))}
+                      {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(pars, 9, totalHoles)}</td>}
+                    </tr>
+                    <tr>
+                      <td className="text-muted">S.I.</td>
+                      {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{strokeIndex[i] ?? "-"}</td>))}
+                      {isEighteen && <td />}
+                      {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{strokeIndex[i] ?? "-"}</td>))}
+                      {isEighteen && <td />}
+                    </tr>
+                    {(["A", "B"] as const).map((slot) => {
+                      const strokes = slot === "A" ? aStrokes : bStrokes;
+                      const given = slot === "A" ? strokesGiven.toA : strokesGiven.toB;
+                      const name = slot === "A" ? active.aName : active.bName;
+                      const gross = sum(strokes.filter((s): s is number => s != null), 0, strokes.length);
+                      return (
+                        <tr key={slot}>
+                          <td style={{ fontWeight: 500, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                            {firstName(name)}
+                            <button
+                              type="button"
+                              className="btn btn-icon"
+                              onClick={() => toggleListenStrokes(slot)}
+                              title={`Dictate ${firstName(name)}'s scores`}
+                              style={{ width: 20, height: 20, padding: 0, ...(listening === `hcp-${slot}` ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : {}) }}
+                            >
+                              <i className={listening === `hcp-${slot}` ? "ph-fill ph-microphone" : "ph ph-microphone"} style={{ fontSize: 11 }} />
+                            </button>
+                          </td>
+                          {front.map((i) => (
+                            <td key={i} style={{ textAlign: "center", padding: 2, position: "relative" }}>
+                              <input
+                                className="input"
+                                inputMode="numeric"
+                                value={strokes[i] ?? ""}
+                                onChange={(e) => setStroke(slot, i, e.target.value)}
+                                style={{ width: 30, textAlign: "center", padding: "4px 2px", minHeight: 30 }}
+                              />
+                              {given[i] > 0 && (
+                                <span style={{ position: "absolute", top: 0, right: 2, color: "var(--color-accent)", fontSize: 10 }}>•</span>
+                              )}
+                            </td>
+                          ))}
+                          {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(strokes.slice(0, 9).map((s) => s ?? 0), 0, 9) || "—"}</td>}
+                          {back.map((i) => (
+                            <td key={i} style={{ textAlign: "center", padding: 2, position: "relative" }}>
+                              <input
+                                className="input"
+                                inputMode="numeric"
+                                value={strokes[i] ?? ""}
+                                onChange={(e) => setStroke(slot, i, e.target.value)}
+                                style={{ width: 30, textAlign: "center", padding: "4px 2px", minHeight: 30 }}
+                              />
+                              {given[i] > 0 && (
+                                <span style={{ position: "absolute", top: 0, right: 2, color: "var(--color-accent)", fontSize: 10 }}>•</span>
+                              )}
+                            </td>
+                          ))}
+                          {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(strokes.slice(9, totalHoles).map((s) => s ?? 0), 0, totalHoles - 9) || "—"}</td>}
+                          <td style={{ textAlign: "center", fontWeight: 600 }}>{gross || "—"}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr>
+                      <td className="text-muted">Net result</td>
+                      {[...front, ...back].map((i) => (
+                        <td key={i} style={{ textAlign: "center" }}>
+                          {holes[i] === "A" && <span style={{ color: "var(--color-accent)" }}>A</span>}
+                          {holes[i] === "B" && <span style={{ color: "var(--color-accent-2-500)" }}>B</span>}
+                          {holes[i] === "H" && <span className="text-muted">½</span>}
+                        </td>
+                      ))}
+                      {isEighteen && <><td /><td /></>}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>{listenHint}</p>
             </div>
           )}
 

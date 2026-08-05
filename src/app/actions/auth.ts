@@ -1,10 +1,17 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { randomBytes, createHash } from "node:crypto";
 import { createSession, destroySession, setPreviewRole, setActiveEvent, getSession, hashPassword, verifyPasswordHash } from "@/lib/auth";
+import { sendPasswordResetEmail } from "@/lib/email";
 import { prisma } from "@/lib/db";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 /** Sign in to whichever of this email's Accounts belongs to the most
  *  recently created event — the picker at /choose lets them switch from
@@ -64,6 +71,48 @@ export async function claimPassword(email: string, password: string): Promise<{ 
   });
   const signedIn = await signInToAnyAccount(clean);
   if (!signedIn) return { ok: false, error: "Something went wrong." };
+  redirect("/choose");
+}
+
+/**
+ * Request a password-reset email. Always reports success regardless of
+ * whether the email has an account, so this can't be used to enumerate
+ * registered users. A User that exists but has never claimed a password
+ * (organizer-provisioned only) is directed to sign-in instead — sending a
+ * reset link would let someone hijack an identity nobody has claimed yet.
+ */
+export async function requestPasswordReset(email: string): Promise<{ ok: boolean; error?: string }> {
+  const clean = email.trim().toLowerCase();
+  if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
+
+  const user = await prisma.user.findUnique({ where: { email: clean } });
+  if (user && user.password) {
+    const token = randomBytes(32).toString("hex");
+    await prisma.passwordResetToken.create({
+      data: { userId: user.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
+    });
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const sent = await sendPasswordResetEmail(clean, `${base}/reset-password?token=${token}`);
+    if (!sent.ok) return { ok: false, error: sent.error };
+  }
+  return { ok: true };
+}
+
+/** Complete a password reset from the emailed link. */
+export async function resetPassword(token: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  if (!token) return { ok: false, error: "Missing reset token." };
+  if (password.length < 8) return { ok: false, error: "Use at least 8 characters." };
+
+  const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash: hashToken(token) } });
+  if (!record || record.usedAt || record.expiresAt < new Date()) {
+    return { ok: false, error: "This reset link is invalid or has expired — request a new one." };
+  }
+
+  const user = await prisma.user.update({ where: { id: record.userId }, data: { password: hashPassword(password) } });
+  await prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+
+  const signedIn = await signInToAnyAccount(user.email);
+  if (!signedIn) return { ok: false, error: "Password updated, but no tournament access was found for this account." };
   redirect("/choose");
 }
 

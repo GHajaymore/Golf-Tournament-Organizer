@@ -23,6 +23,24 @@ model User {
   name      String   @default("")
   password  String   @default("")
   createdAt DateTime @default(now())
+
+  resetTokens PasswordResetToken[]
+}
+
+/** A one-time, short-lived "forgot password" link. Only the sha256 of the
+ *  raw token is stored — the raw value lives solely in the emailed URL, so a
+ *  database read alone can never produce a usable reset link. */
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Event {
@@ -33,6 +51,12 @@ model Event {
   course          String
   city            String
   address         String
+  // Set when `course` doesn't match a built-in preset — the organizer's own
+  // hole-by-hole data (JSON number[18] each), entered via the course setup
+  // prompt on Score entry. Empty until saved.
+  customPars        String @default("")
+  customYards       String @default("")
+  customStrokeIndex String @default("")
   regDeadline     String
   capacity        Int      @default(32)
   playerCountMode String   @default("registration") // registration | manual
@@ -72,6 +96,7 @@ model Event {
   bracketWinners BracketWinner[]
   commentary     Commentary[]
   scorecards     Scorecard[]
+  matchScorecards MatchScorecard[]
   prizes         Prize[]
   announcements  Announcement[]
 }
@@ -176,6 +201,7 @@ model Match {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  matchScorecards MatchScorecard[]
 
   @@index([eventId])
   @@index([stageId])
@@ -262,5 +288,28 @@ model Scorecard {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([stageId, playerId])
+  @@index([eventId])
+}
+
+/**
+ * One side's gross-strokes card for a single match-play match (net or gross
+ * "Scorecard" entry mode). Deliberately separate from Scorecard above: that
+ * model is keyed by (stage, player) for standalone Stroke Play rounds, and a
+ * player can also be a match-play participant in the same stage — keying
+ * this one by (match, slot) instead avoids the two features colliding on
+ * the same row.
+ */
+model MatchScorecard {
+  id      String @id @default(cuid())
+  eventId String
+  matchId String
+  slot    String // "A" | "B"
+  // JSON array of per-hole gross strokes (number | null), one per hole.
+  strokes String @default("[]")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, slot])
   @@index([eventId])
 }

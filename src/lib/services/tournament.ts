@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { computeStrokeCard, holeStrokesReceived, stablefordPointsForHole } from "../domain";
-import { findCourse } from "../courses";
+import { resolveCourse } from "../courses";
 import { pts as fmtPts, record as fmtRecord, diff as fmtDiff } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import {
@@ -184,7 +184,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // standings; a single Round Robin stage behaves exactly as before.
   const rrStages = roundRobinStages(stages);
   const domainPlayers = confirmed.map(toDomainPlayer);
-  const course = findCourse(event.course);
+  const course = resolveCourse(event);
   const holeDifficulty = course.strokeIndex;
 
   let carried: Record<string, number> = {};

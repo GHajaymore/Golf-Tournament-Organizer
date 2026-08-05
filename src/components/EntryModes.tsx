@@ -7,6 +7,7 @@ export interface EntryRound {
   stageId: string;
   label: string;
   matches: EntryMatch[];
+  netMode: boolean;
   stroke: {
     holes: number;
     stageId: string;
@@ -19,6 +20,7 @@ export function EntryModes({
   activeIndex,
   players,
   pars,
+  yards,
   strokeIndex,
   isStaff,
   defaultMode = "match",
@@ -27,6 +29,7 @@ export function EntryModes({
   activeIndex: number;
   players: Array<{ id: string; name: string; handicap: number }>;
   pars: number[];
+  yards: number[];
   strokeIndex: number[];
   isStaff: boolean;
   defaultMode?: "match" | "stroke";
@@ -69,12 +72,22 @@ export function EntryModes({
       </div>
 
       {mode === "match" ? (
-        <ScoreEntryClient key={round.stageId} matches={round.matches} isStaff={isStaff} hideHeader />
+        <ScoreEntryClient
+          key={round.stageId}
+          matches={round.matches}
+          isStaff={isStaff}
+          hideHeader
+          pars={pars}
+          yards={yards}
+          strokeIndex={strokeIndex}
+          netMode={round.netMode}
+        />
       ) : (
         <StrokePlayEntry
           key={round.stageId}
           players={players}
           pars={pars}
+          yards={yards}
           strokeIndex={strokeIndex}
           holes={round.stroke.holes}
           stageId={round.stroke.stageId}

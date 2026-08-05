@@ -51,3 +51,51 @@ export const COURSES: CoursePreset[] = [
 export function findCourse(name: string): CoursePreset {
   return COURSES.find((c) => c.name === name) ?? COURSES[0];
 }
+
+/** The subset of Event fields needed to resolve real course data. */
+export interface EventCourseFields {
+  course: string;
+  city: string;
+  customPars: string;
+  customYards: string;
+  customStrokeIndex: string;
+}
+
+function parseHoleArray(json: string): number[] | null {
+  try {
+    const arr = JSON.parse(json);
+    return Array.isArray(arr) && arr.length === 18 && arr.every((n) => typeof n === "number") ? arr : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True once real course data backs this event — either a known preset name,
+ * or a custom course the organizer has saved (pars/yards/stroke index all
+ * present). False for a blank or unrecognized course name, which is when
+ * scoring math would otherwise silently run against fake demo-course data.
+ */
+export function hasCourseData(event: Pick<EventCourseFields, "course" | "customPars" | "customYards" | "customStrokeIndex">): boolean {
+  if (COURSES.some((c) => c.name === event.course)) return true;
+  return !!(parseHoleArray(event.customPars) && parseHoleArray(event.customYards) && parseHoleArray(event.customStrokeIndex));
+}
+
+/**
+ * Resolve the real course backing this event — a known preset, or the
+ * organizer's saved custom course. Falls back to the default demo preset
+ * only as a last resort so existing scoring math never crashes; callers
+ * that need to know whether that fallback is fake data should check
+ * `hasCourseData` first.
+ */
+export function resolveCourse(event: EventCourseFields): CoursePreset {
+  const known = COURSES.find((c) => c.name === event.course);
+  if (known) return known;
+  const pars = parseHoleArray(event.customPars);
+  const yards = parseHoleArray(event.customYards);
+  const strokeIndex = parseHoleArray(event.customStrokeIndex);
+  if (pars && yards && strokeIndex) {
+    return { name: event.course || "Custom course", city: event.city, address: "", pars, yards, strokeIndex };
+  }
+  return COURSES[0];
+}

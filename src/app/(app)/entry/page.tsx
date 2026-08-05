@@ -2,8 +2,9 @@ import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState, effectiveScoreStatus } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { EntryModes, type EntryRound } from "@/components/EntryModes";
+import { CourseSetupPrompt } from "@/components/CourseSetupPrompt";
 import { prisma } from "@/lib/db";
-import { findCourse } from "@/lib/courses";
+import { resolveCourse, hasCourseData } from "@/lib/courses";
 import type { HoleResult } from "@/lib/domain";
 
 export default async function EntryPage() {
@@ -12,10 +13,16 @@ export default async function EntryPage() {
   if (!state) redirect("/");
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
 
+  if (!hasCourseData(state.event)) {
+    return <CourseSetupPrompt eventCourse={state.event.course} eventCity={state.event.city} isStaff={isStaff} />;
+  }
+
   const nameById = new Map(state.players.map((p) => [p.id, p.name]));
+  const handicapById = new Map(state.players.map((p) => [p.id, p.handicap]));
   const groupById = new Map(state.groups.map((g) => [g.id, g.position]));
-  const course = findCourse(state.event.course);
+  const course = resolveCourse(state.event);
   const pars = course.pars;
+  const yards = course.yards;
   const strokeIndex = course.strokeIndex;
 
   // A tournament can sequence more than one Round Robin round; build entry data
@@ -24,28 +31,8 @@ export default async function EntryPage() {
   const rrStages = state.rrStages.length ? state.rrStages : state.stages.slice(0, 1);
   const rounds: EntryRound[] = await Promise.all(
     rrStages.map(async (stage, i) => {
-      const stageMatches = state.matches
-        .filter((m) => m.stageId === stage.id)
-        .sort((a, b) => a.round - b.round)
-        .map((m) => {
-          let holes: HoleResult[];
-          try {
-            holes = JSON.parse(m.holes) as HoleResult[];
-          } catch {
-            holes = new Array(stage.holes === 9 ? 9 : 18).fill(null);
-          }
-          return {
-            id: m.id,
-            aId: m.playerAId,
-            bId: m.playerBId,
-            aName: nameById.get(m.playerAId) ?? "—",
-            bName: nameById.get(m.playerBId) ?? "—",
-            groupName: `Flight ${(groupById.get(m.groupId) ?? 0) + 1}`,
-            round: m.round,
-            holes,
-            status: effectiveScoreStatus(m),
-          };
-        });
+      const holeCount = stage.holes === 9 ? 9 : 18;
+      const netMode = stage.format === "Match Play" && stage.scoringBasis === "net";
 
       const cards = await prisma.scorecard.findMany({ where: { eventId: session.eventId, stageId: stage.id } });
       const cardsByPlayer: Record<string, (number | null)[]> = {};
@@ -57,11 +44,52 @@ export default async function EntryPage() {
         }
       }
 
+      const stageMatchIds = state.matches.filter((m) => m.stageId === stage.id).map((m) => m.id);
+      const matchCards = stageMatchIds.length
+        ? await prisma.matchScorecard.findMany({ where: { eventId: session.eventId, matchId: { in: stageMatchIds } } })
+        : [];
+      const matchStrokesByKey: Record<string, (number | null)[]> = {};
+      for (const c of matchCards) {
+        try {
+          matchStrokesByKey[`${c.matchId}:${c.slot}`] = JSON.parse(c.strokes) as (number | null)[];
+        } catch {
+          matchStrokesByKey[`${c.matchId}:${c.slot}`] = [];
+        }
+      }
+
+      const stageMatches = state.matches
+        .filter((m) => m.stageId === stage.id)
+        .sort((a, b) => a.round - b.round)
+        .map((m) => {
+          let holes: HoleResult[];
+          try {
+            holes = JSON.parse(m.holes) as HoleResult[];
+          } catch {
+            holes = new Array(holeCount).fill(null);
+          }
+          return {
+            id: m.id,
+            aId: m.playerAId,
+            bId: m.playerBId,
+            aName: nameById.get(m.playerAId) ?? "—",
+            bName: nameById.get(m.playerBId) ?? "—",
+            aHandicap: handicapById.get(m.playerAId) ?? 0,
+            bHandicap: handicapById.get(m.playerBId) ?? 0,
+            groupName: `Flight ${(groupById.get(m.groupId) ?? 0) + 1}`,
+            round: m.round,
+            holes,
+            status: effectiveScoreStatus(m),
+            aStrokes: matchStrokesByKey[`${m.id}:A`] ?? new Array(holeCount).fill(null),
+            bStrokes: matchStrokesByKey[`${m.id}:B`] ?? new Array(holeCount).fill(null),
+          };
+        });
+
       return {
         stageId: stage.id,
         label: `Round ${i + 1}`,
         matches: stageMatches,
-        stroke: { holes: stage.holes === 9 ? 9 : 18, stageId: stage.id, cardsByPlayer },
+        netMode,
+        stroke: { holes: holeCount, stageId: stage.id, cardsByPlayer },
       };
     }),
   );
@@ -77,6 +105,7 @@ export default async function EntryPage() {
       activeIndex={activeIndex}
       players={state.confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap }))}
       pars={pars}
+      yards={yards}
       strokeIndex={strokeIndex}
       isStaff={isStaff}
       defaultMode={state.event.format === "stroke" ? "stroke" : "match"}

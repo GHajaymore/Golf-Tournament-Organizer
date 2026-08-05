@@ -1,8 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
-import { checkEmailStatus, signInWithPassword, claimPassword, startNewTournament } from "@/app/actions/auth";
+import { checkEmailStatus, signInWithPassword, claimPassword, startNewTournament, requestPasswordReset } from "@/app/actions/auth";
 
-type Stage = "email" | "signin" | "claim" | "signup";
+type Stage = "email" | "signin" | "claim" | "signup" | "forgot" | "forgot-sent";
 
 export function LoginPanel() {
   const [stage, setStage] = useState<Stage>("email");
@@ -37,6 +37,18 @@ export function LoginPanel() {
       const result = await signInWithPassword(email, password);
       // A successful sign-in redirect()s server-side and never returns here.
       if (!result.ok) setError(result.error ?? "Something went wrong.");
+    });
+  };
+
+  const submitForgot = () => {
+    setError("");
+    startTransition(async () => {
+      const result = await requestPasswordReset(email);
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong.");
+        return;
+      }
+      setStage("forgot-sent");
     });
   };
 
@@ -88,6 +100,45 @@ export function LoginPanel() {
         <button type="button" className="btn btn-primary btn-block" disabled={pending || !password} onClick={submitSignin}>
           {pending ? "Signing in…" : "Sign in"} <i className="ph ph-arrow-right" />
         </button>
+        <button
+          type="button"
+          onClick={() => { setError(""); setStage("forgot"); }}
+          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--color-neutral-500)", fontSize: 12, textAlign: "center" }}
+        >
+          Forgot password?
+        </button>
+      </div>
+    );
+  }
+
+  if (stage === "forgot") {
+    return (
+      <div style={{ width: "min(400px, 100%)", display: "flex", flexDirection: "column", gap: 16 }}>
+        <BackButton onClick={() => { setStage("signin"); setError(""); }} />
+        <div>
+          <h3 style={{ margin: "10px 0 0", fontSize: 22 }}>Reset your password</h3>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
+            We'll email <b>{email}</b> a link to set a new password. It expires in 15 minutes.
+          </p>
+        </div>
+        {errorBlock}
+        <button type="button" className="btn btn-primary btn-block" disabled={pending} onClick={submitForgot}>
+          {pending ? "Sending…" : "Send reset link"} <i className="ph ph-arrow-right" />
+        </button>
+      </div>
+    );
+  }
+
+  if (stage === "forgot-sent") {
+    return (
+      <div style={{ width: "min(400px, 100%)", display: "flex", flexDirection: "column", gap: 16 }}>
+        <div>
+          <h3 style={{ margin: "10px 0 0", fontSize: 22 }}>Check your email</h3>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
+            If <b>{email}</b> has an account, a reset link is on its way. It expires in 15 minutes — if it doesn't show up, check spam or try again.
+          </p>
+        </div>
+        <BackButton onClick={back} />
       </div>
     );
   }

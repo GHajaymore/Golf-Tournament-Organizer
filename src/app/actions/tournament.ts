@@ -5,10 +5,10 @@ import { getSession, setActiveEvent, createSession, destroySession } from "@/lib
 import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule } from "@/lib/services/regroup";
 import { roundRobinStages, chainRoundStandings, scoringFrom } from "@/lib/services/tournament";
-import { marginToHoles, resolveMatch, roundRobinSchedule, TIEBREAKER_KEYS } from "@/lib/domain";
+import { marginToHoles, resolveMatch, deriveNetHoles, roundRobinSchedule, TIEBREAKER_KEYS } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { FORMAT_NAMES } from "@/lib/formats";
-import { findCourse } from "@/lib/courses";
+import { resolveCourse } from "@/lib/courses";
 
 async function requireEvent(): Promise<string> {
   const session = await getSession();
@@ -483,7 +483,7 @@ export async function generateNextRound(stageId: string) {
 
   const domainPlayers = confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }));
   const scoring = scoringFrom(event);
-  const holeDifficulty = findCourse(event.course).strokeIndex;
+  const holeDifficulty = resolveCourse(event).strokeIndex;
   const chain = chainRoundStandings(rrStages.slice(0, idx + 1), allMatches, domainPlayers, scoring, holeDifficulty);
   const priorStanding = chain[idx - 1];
 
@@ -759,12 +759,95 @@ export async function clearMatch(matchId: string) {
 
 /* ── Stroke play ──────────────────────────────────────────────────────── */
 
+/**
+ * Save the organizer's own hole-by-hole course data when the event's course
+ * doesn't match a built-in preset — prompted from Score entry so scoring
+ * math (par, net, stroke index) never silently runs against fake data.
+ */
+export async function saveCustomCourse(
+  courseName: string,
+  city: string,
+  pars: number[],
+  yards: number[],
+  strokeIndex: number[],
+) {
+  // Deliberately no assertUnlocked: this supplies missing reference data
+  // (par/yardage/stroke index) for scoring math, not a structural change to
+  // the field/schedule — and the gap is most likely to surface exactly when
+  // the event is already live and staff are trying to enter scores.
+  const eventId = await requireStaffEvent();
+  await prisma.event.update({
+    where: { id: eventId },
+    data: {
+      course: courseName,
+      city,
+      customPars: JSON.stringify(pars),
+      customYards: JSON.stringify(yards),
+      customStrokeIndex: JSON.stringify(strokeIndex),
+    },
+  });
+  refresh();
+}
+
 export async function saveScorecard(stageId: string, playerId: string, strokes: (number | null)[]) {
   const eventId = await requireEvent();
   await prisma.scorecard.upsert({
     where: { stageId_playerId: { stageId, playerId } },
     update: { strokes: JSON.stringify(strokes) },
     create: { eventId, stageId, playerId, strokes: JSON.stringify(strokes) },
+  });
+  refresh();
+}
+
+/**
+ * Net (handicap) match play: record one player's gross strokes-per-hole card
+ * for the match, then re-derive the match's `holes[]` result from both
+ * players' cards net of their handicap allowance. Everything downstream
+ * (standings, leaderboard, bracket) keeps reading Match.holes unchanged.
+ */
+export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strokes: (number | null)[]) {
+  const eventId = await requireEvent();
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
+  if (!match || match.eventId !== eventId) return;
+
+  await prisma.matchScorecard.upsert({
+    where: { matchId_slot: { matchId, slot } },
+    update: { strokes: JSON.stringify(strokes) },
+    create: { eventId, matchId, slot, strokes: JSON.stringify(strokes) },
+  });
+
+  const [cardA, cardB, playerA, playerB, event, stage] = await Promise.all([
+    prisma.matchScorecard.findUnique({ where: { matchId_slot: { matchId, slot: "A" } } }),
+    prisma.matchScorecard.findUnique({ where: { matchId_slot: { matchId, slot: "B" } } }),
+    prisma.player.findUnique({ where: { id: match.playerAId } }),
+    prisma.player.findUnique({ where: { id: match.playerBId } }),
+    prisma.event.findUnique({ where: { id: eventId } }),
+    prisma.stage.findUnique({ where: { id: match.stageId } }),
+  ]);
+  const course = resolveCourse({
+    course: event?.course ?? "",
+    city: event?.city ?? "",
+    customPars: event?.customPars ?? "",
+    customYards: event?.customYards ?? "",
+    customStrokeIndex: event?.customStrokeIndex ?? "",
+  });
+  // Handicap strokes only apply when the round is scored Net — a Gross round
+  // uses the same card, decided scratch (lower strokes wins the hole).
+  const netMode = stage?.scoringBasis === "net";
+  const strokesA = cardA ? (JSON.parse(cardA.strokes) as (number | null)[]) : [];
+  const strokesB = cardB ? (JSON.parse(cardB.strokes) as (number | null)[]) : [];
+  const holes = deriveNetHoles(
+    strokesA,
+    strokesB,
+    netMode ? playerA?.handicap ?? 0 : 0,
+    netMode ? playerB?.handicap ?? 0 : 0,
+    course.strokeIndex,
+  );
+  const complete = resolveMatch(holes).complete;
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null },
   });
   refresh();
 }

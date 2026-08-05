@@ -2,6 +2,7 @@
 // Reproduces the "Standings Logic" section of the handoff README exactly.
 
 import type { HoleResult, Match } from "./types";
+import { holeStrokesReceived } from "./stroke";
 
 export interface MatchResolution {
   /** Holes with a non-null value. */
@@ -152,4 +153,74 @@ export function parseResultTranscript(
 
 export function isMatchStarted(m: Match): boolean {
   return m.holes.some((h) => h !== null);
+}
+
+/**
+ * Parse a spoken sequence of hole-by-hole match results — the A-side or
+ * B-side player's first name, or "half"/"halved"/"push"/"tie" — starting at
+ * `startIndex` and advancing one hole per recognized token.
+ */
+export function parseHolesTranscript(
+  transcript: string,
+  aFirstName: string,
+  bFirstName: string,
+  startIndex: number,
+  totalHoles: number,
+): HoleResult[] {
+  const a = aFirstName.toLowerCase();
+  const b = bFirstName.toLowerCase();
+  const tokens = transcript.toLowerCase().split(/[\s,]+/).filter(Boolean);
+  const results: HoleResult[] = [];
+  let hole = startIndex;
+  for (let j = 0; j < tokens.length && hole < totalHoles; j += 1) {
+    const t = tokens[j];
+    if (a && t === a) { results.push("A"); hole += 1; }
+    else if (b && t === b) { results.push("B"); hole += 1; }
+    else if (/^half(ved)?$/.test(t) || t === "push" || t === "tie" || t === "tied") { results.push("H"); hole += 1; }
+  }
+  return results;
+}
+
+/**
+ * Standard handicap match-play allowance: the higher-handicap player receives
+ * strokes equal to the full difference between the two players' course
+ * handicaps, allocated to the hardest holes first by stroke index.
+ */
+export function matchStrokesGiven(
+  handicapA: number,
+  handicapB: number,
+  strokeIndex: number[],
+): { toA: number[]; toB: number[] } {
+  const diff = Math.round(handicapA) - Math.round(handicapB);
+  const toA = strokeIndex.map((si) => (diff < 0 ? holeStrokesReceived(-diff, si) : 0));
+  const toB = strokeIndex.map((si) => (diff > 0 ? holeStrokesReceived(diff, si) : 0));
+  return { toA, toB };
+}
+
+/**
+ * Derive per-hole match-play results net of handicap from two players' gross
+ * strokes-per-hole cards. A hole stays null (not yet decided) until both
+ * players have a gross score recorded for it.
+ */
+export function deriveNetHoles(
+  strokesA: (number | null)[],
+  strokesB: (number | null)[],
+  handicapA: number,
+  handicapB: number,
+  strokeIndex: number[],
+): HoleResult[] {
+  const { toA, toB } = matchStrokesGiven(handicapA, handicapB, strokeIndex);
+  const total = Math.max(strokesA.length, strokesB.length, strokeIndex.length);
+  const holes: HoleResult[] = new Array(total).fill(null);
+  for (let i = 0; i < total; i += 1) {
+    const a = strokesA[i];
+    const b = strokesB[i];
+    if (a == null || b == null) continue;
+    const netA = a - (toA[i] ?? 0);
+    const netB = b - (toB[i] ?? 0);
+    if (netA < netB) holes[i] = "A";
+    else if (netB < netA) holes[i] = "B";
+    else holes[i] = "H";
+  }
+  return holes;
 }
