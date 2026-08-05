@@ -19,7 +19,24 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("player");
+  const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+
+  const doSetRole = (accountId: string, next: string) => {
+    setError("");
+    startTransition(async () => {
+      const result = await setAccountRole(accountId, next);
+      if (!result.ok) setError(result.error ?? "Something went wrong.");
+    });
+  };
+
+  const doRemove = (accountId: string) => {
+    setError("");
+    startTransition(async () => {
+      const result = await removeAccount(accountId);
+      if (!result.ok) setError(result.error ?? "Something went wrong.");
+    });
+  };
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16, alignItems: "start" }}>
@@ -29,6 +46,11 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
           <b>Organizer</b> — full control. <b>Assistant</b> — operational tasks (players, flights, rounds,
           scores), but not event setup, access, or deletion. <b>Player</b> — schedule, scores, leaderboard.
         </p>
+        {error && (
+          <p style={{ fontSize: 13, margin: "0 0 4px", color: "var(--color-danger, #e0665a)" }}>
+            <i className="ph ph-warning-circle" /> {error}
+          </p>
+        )}
         <div className="table-scroll">
           <table className="table">
             <thead>
@@ -53,7 +75,7 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
                             name={`role-${a.id}`}
                             checked={a.role === o.v}
                             disabled={pending}
-                            onChange={() => startTransition(() => setAccountRole(a.id, o.v))}
+                            onChange={() => doSetRole(a.id, o.v)}
                           />
                           {o.l}
                         </label>
@@ -65,7 +87,7 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
                       type="button"
                       className="btn btn-icon"
                       disabled={pending}
-                      onClick={() => startTransition(() => removeAccount(a.id))}
+                      onClick={() => doRemove(a.id)}
                     >
                       <i className="ph ph-x" />
                     </button>
@@ -96,10 +118,17 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
           className="btn btn-primary btn-block"
           disabled={pending || !name.trim() || !email.trim()}
           onClick={() => {
-            startTransition(() => addAccount(name, email, role));
-            setName("");
-            setEmail("");
-            setRole("player");
+            setError("");
+            startTransition(async () => {
+              const result = await addAccount(name, email, role);
+              if (!result.ok) {
+                setError(result.error ?? "Something went wrong.");
+                return;
+              }
+              setName("");
+              setEmail("");
+              setRole("player");
+            });
           }}
         >
           <i className="ph ph-plus" /> Add account

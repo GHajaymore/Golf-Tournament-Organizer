@@ -912,35 +912,64 @@ export async function setBracketResult(key: string, result: string) {
 
 /* ── Access control ───────────────────────────────────────────────────── */
 
-export async function addAccount(name: string, email: string, role: string) {
+export async function addAccount(name: string, email: string, role: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
   const clean = name.trim();
   const cleanEmail = email.trim().toLowerCase();
-  if (!clean || !cleanEmail) return;
+  if (!clean || !cleanEmail) return { ok: false, error: "Enter a name and email." };
+  const next = cleanRole(role);
+
+  // This upserts by email, so re-adding an existing admin with a different
+  // role is a silent downgrade — guard it the same as setAccountRole.
+  const existing = await prisma.account.findUnique({ where: { eventId_email: { eventId, email: cleanEmail } } });
+  if (existing && existing.role === "admin" && next !== "admin" && !(await hasOtherAdmin(eventId, existing.id))) {
+    return { ok: false, error: "This is the only Organizer on this event — promote someone else first." };
+  }
+
   await prisma.account.upsert({
     where: { eventId_email: { eventId, email: cleanEmail } },
-    update: { name: clean, role: cleanRole(role) },
-    create: { eventId, name: clean, email: cleanEmail, role: cleanRole(role) },
+    update: { name: clean, role: next },
+    create: { eventId, name: clean, email: cleanEmail, role: next },
   });
   refresh();
+  return { ok: true };
 }
 
 const ACCOUNT_ROLES = ["admin", "assistant", "player"];
 const cleanRole = (role: string) => (ACCOUNT_ROLES.includes(role) ? role : "player");
 
-export async function setAccountRole(accountId: string, role: string) {
-  const eventId = await requireAdminEvent();
-  await prisma.account.updateMany({
-    where: { id: accountId, eventId },
-    data: { role: cleanRole(role) },
+/** True once this event has more than one admin — i.e. `accountId` is safe
+ *  to demote/remove without leaving the event with nobody who can manage it. */
+async function hasOtherAdmin(eventId: string, accountId: string): Promise<boolean> {
+  const otherAdmins = await prisma.account.count({
+    where: { eventId, role: "admin", id: { not: accountId } },
   });
-  refresh();
+  return otherAdmins > 0;
 }
 
-export async function removeAccount(accountId: string) {
+export async function setAccountRole(accountId: string, role: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
+  const next = cleanRole(role);
+  const account = await prisma.account.findFirst({ where: { id: accountId, eventId } });
+  if (!account) return { ok: false, error: "Account not found." };
+  if (account.role === "admin" && next !== "admin" && !(await hasOtherAdmin(eventId, accountId))) {
+    return { ok: false, error: "This is the only Organizer on this event — promote someone else first." };
+  }
+  await prisma.account.update({ where: { id: accountId }, data: { role: next } });
+  refresh();
+  return { ok: true };
+}
+
+export async function removeAccount(accountId: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  const account = await prisma.account.findFirst({ where: { id: accountId, eventId } });
+  if (!account) return { ok: false, error: "Account not found." };
+  if (account.role === "admin" && !(await hasOtherAdmin(eventId, accountId))) {
+    return { ok: false, error: "This is the only Organizer on this event — promote someone else before removing them." };
+  }
   await prisma.account.deleteMany({ where: { id: accountId, eventId } });
   refresh();
+  return { ok: true };
 }
 
 /* ── Multiple tournaments ─────────────────────────────────────────────── */
