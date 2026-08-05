@@ -1,6 +1,7 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { PlaySettings } from "@/components/PlaySettings";
+import { accessibleEvents } from "@/lib/services/access";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { EventSetupClient } from "@/components/EventSetupClient";
@@ -18,11 +19,12 @@ export default async function EventPage() {
 
   const allEvents = await prisma.event.findMany({
     orderBy: { createdAt: "desc" },
-    include: {
-      _count: { select: { players: true } },
-      accounts: { where: { email: session.email }, select: { id: true } },
-    },
+    include: { _count: { select: { players: true } } },
   });
+  // Access is per-event *or* inherited from running the organization, so this
+  // has to read the same list the switch action authorizes against — checking
+  // Account rows alone hid a club admin's own tournaments from them.
+  const accessible = new Set((await accessibleEvents(session.email)).map((a) => a.eventId));
   const eventRows = allEvents.map((ev) => ({
     id: ev.id,
     name: ev.name,
@@ -31,7 +33,7 @@ export default async function EventPage() {
     course: ev.course,
     players: ev._count.players,
     isActive: ev.id === session.eventId,
-    hasAccess: ev.accounts.length > 0,
+    hasAccess: accessible.has(ev.id),
   }));
 
   const hasSchedule = state.matches.length > 0;

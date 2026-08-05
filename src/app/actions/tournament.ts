@@ -12,6 +12,7 @@ import {
 } from "@/lib/tournament-settings";
 import type { Session } from "@/lib/auth";
 import { organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
+import { effectiveAccess } from "@/lib/services/access";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
 import { marginToHoles, resolveMatch, deriveNetHoles, roundRobinSchedule, TIEBREAKER_KEYS } from "@/lib/domain";
@@ -1118,8 +1119,12 @@ export async function removeAccount(accountId: string): Promise<{ ok: boolean; e
 export async function switchEvent(eventId: string) {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
-  const acct = await prisma.account.findFirst({ where: { eventId, email: session.email } });
-  if (!acct) throw new Error("You don't have access to that tournament");
+  // Access can come from a per-event Account *or* from being an owner/admin of
+  // the organization that runs the event. Checking Account alone locked club
+  // admins out of their own club's tournaments — the events showed up in their
+  // list and then refused to open.
+  const access = await effectiveAccess(session.email, eventId);
+  if (!access) throw new Error("You don't have access to that tournament");
   await setActiveEvent(eventId);
   refresh();
 }
@@ -1170,10 +1175,11 @@ export async function createEvent(name: string) {
 export async function deleteEvent(eventId: string) {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
-  const acct = await prisma.account.findFirst({
-    where: { eventId, email: session.email, role: "admin" },
-  });
-  if (!acct) throw new Error("Only the organizer can delete a tournament");
+  // Same rule as switchEvent, but admin-level only: an organization owner or
+  // admin holds the same authority over their club's events as an organizer
+  // named on the event itself.
+  const access = await effectiveAccess(session.email, eventId);
+  if (access?.role !== "admin") throw new Error("Only the organizer can delete a tournament");
 
   await prisma.event.delete({ where: { id: eventId } }); // cascades to all children
 
