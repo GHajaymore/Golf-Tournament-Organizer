@@ -1,24 +1,25 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-// TourneyHQ is a full-stack Next.js app (server actions, Prisma/SQLite,
+// TourneyHQ is a full-stack Next.js app (server actions, Prisma/Postgres,
 // cookie-based auth) — it can't run as a static offline bundle inside the
-// native shell. Instead the WebView loads the live server directly, the
+// native shell. Instead the WebView loads the live deployed server, the
 // same pattern used by most hybrid apps backed by a real server.
 //
-// For local testing: set `server.url` to `http://<your-lan-ip>:3000`, the
-// "Network:" address `next dev` prints on startup (already seen this
-// session as http://192.168.86.26:3000 — update it if your machine's LAN
-// IP changes). The device/simulator must be on the same network as this
-// machine. `cleartext: true` is required because local dev serves plain
-// HTTP; once there's a real HTTPS deployment, swap the URL and drop
-// `cleartext`.
+// This points at the production deployment over HTTPS, which is what App
+// Store / Play Store builds must ship with. Note there is deliberately no
+// `cleartext: true` here: plain-HTTP traffic is a store-review red flag and
+// isn't needed against an HTTPS origin.
+//
+// To test against a local dev server instead, temporarily set `server.url`
+// to the `Network:` address `next dev` prints (e.g. http://192.168.x.x:3000)
+// and add `cleartext: true` — but revert both before producing any build you
+// intend to submit to a store.
 const config: CapacitorConfig = {
   appId: "com.flights.tournament",
   appName: "TourneyHQ",
   webDir: "ios-shell-web",
   server: {
-    url: "http://192.168.86.26:3000",
-    cleartext: true,
+    url: "https://golf-tournament-organizer-amore3.vercel.app",
   },
   ios: {
     contentInset: "always",
