@@ -96,6 +96,20 @@ async function main() {
     return;
   }
 
+  // Events now belong to an organization (the billing tenant). The legacy
+  // SQLite schema predates that, so imported tournaments are parked in one
+  // clearly-named organization rather than guessing an owner.
+  const legacyOrg = await pg.organization.upsert({
+    where: { id: "imported-legacy" },
+    update: {},
+    create: {
+      id: "imported-legacy",
+      name: "Imported tournaments",
+      kind: "personal",
+      subscription: { create: { plan: "free", status: "active" } },
+    },
+  });
+
   const keep = new Set(candidates.map((e) => String(e.id)));
   const scoped = (table: string) => read(table).filter((r) => keep.has(String(r.eventId)));
   const counts: Record<string, number> = {};
@@ -107,7 +121,10 @@ async function main() {
   // Foreign-key dependency order.
   await insert("Event", () =>
     pg.event.createMany({
-      data: candidates.map((r) => coerce(r, ["configUnlocked"], ["launchedAt", "createdAt", "updatedAt"])) as never,
+      data: candidates.map((r) => ({
+        ...coerce(r, ["configUnlocked"], ["launchedAt", "createdAt", "updatedAt"]),
+        organizationId: legacyOrg.id,
+      })) as never,
       skipDuplicates: true,
     }),
   );

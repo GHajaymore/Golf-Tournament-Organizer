@@ -3,11 +3,13 @@ import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { ScorecardClient } from "@/components/ScorecardClient";
 import { COURSES } from "@/lib/courses";
+import { brandForEvent } from "@/lib/services/organization";
 
 export default async function ScorecardPage() {
   const session = await requireScreen("scorecard");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
+  const brand = await brandForEvent(session.eventId);
 
   const flights = state.groups.map((g, i) => ({
     label: `Flight ${i + 1}`,
@@ -33,6 +35,7 @@ export default async function ScorecardPage() {
         eventDates={state.event.dates}
         defaultCourse={state.event.course}
         isStroke={state.isStroke}
+        brand={brand}
       />
     </>
   );

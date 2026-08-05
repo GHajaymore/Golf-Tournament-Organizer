@@ -19,11 +19,14 @@ export function ReportsClient({
   isStroke,
   isStableford = false,
   eventName,
+  brand,
 }: {
   rows: StandingRow[];
   isStroke: boolean;
   isStableford?: boolean;
   eventName: string;
+  /** Owning club's branding, shown on the printable standings. */
+  brand?: { name: string; logoUrl: string } | null;
 }) {
   const router = useRouter();
   const status = (r: StandingRow) => (r.advancing ? "Advancing" : "Eliminated");
@@ -82,9 +85,26 @@ export function ReportsClient({
           Use your browser&rsquo;s Print → &ldquo;Save as PDF&rdquo; on any printable view (chrome is hidden in print).
         </p>
       </div>
-      <div className="card elev-sm">
+      <div className="card elev-sm print-card">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <span className="card-title" style={{ fontSize: 15 }}>Final standings snapshot</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            {/* Club identity on the printed standings — these get pinned to a
+                noticeboard or handed out at prizegiving. */}
+            {brand?.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={brand.logoUrl}
+                alt=""
+                style={{ height: 30, width: "auto", maxWidth: 110, objectFit: "contain", flex: "none" }}
+              />
+            )}
+            <div style={{ minWidth: 0 }}>
+              <span className="card-title" style={{ fontSize: 15 }}>Final standings snapshot</span>
+              <div className="text-muted" style={{ fontSize: 12 }}>
+                {[brand?.name, eventName].filter(Boolean).join(" · ")}
+              </div>
+            </div>
+          </div>
           <button type="button" className="btn btn-secondary" onClick={() => window.print()}>
             <i className="ph ph-printer" /> Print
           </button>

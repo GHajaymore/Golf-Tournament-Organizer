@@ -5,6 +5,7 @@ import { getSession, setActiveEvent, createSession, destroySession } from "@/lib
 import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule } from "@/lib/services/regroup";
 import { roundRobinStages, chainRoundStandings, scoringFrom } from "@/lib/services/tournament";
+import { organizationForNewEvent } from "@/lib/services/organization";
 import { marginToHoles, resolveMatch, deriveNetHoles, roundRobinSchedule, TIEBREAKER_KEYS } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { FORMAT_NAMES } from "@/lib/formats";
@@ -989,8 +990,12 @@ export async function createEvent(name: string) {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   const clean = name.trim() || "New Tournament";
+  // Every tournament belongs to a billing tenant; this creates the organizer's
+  // personal organization on their first event.
+  const organizationId = await organizationForNewEvent(session.email, session.name);
   const event = await prisma.event.create({
     data: {
+      organizationId,
       name: clean,
       dates: "",
       course: "",

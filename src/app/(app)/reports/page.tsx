@@ -3,11 +3,13 @@ import { loadEventState, matchProgress, standingRows } from "@/lib/services/tour
 import { redirect } from "next/navigation";
 import { ReportsClient } from "@/components/ReportsClient";
 import { StatCard } from "@/components/PageHeader";
+import { brandForEvent } from "@/lib/services/organization";
 
 export default async function ReportsPage() {
   const session = await requireScreen("reports");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
+  const brand = await brandForEvent(session.eventId);
 
   const progress = matchProgress(state);
   const rows = standingRows(state);
@@ -33,7 +35,7 @@ export default async function ReportsPage() {
         <StatCard label="Flights" value={state.groups.length} icon="ph ph-squares-four" />
         <StatCard label="Advancing" value={state.advancingCount} icon="ph ph-flag-checkered" />
       </div>
-      <ReportsClient rows={rows} isStroke={isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} eventName={state.event.name} />
+      <ReportsClient rows={rows} isStroke={isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} eventName={state.event.name} brand={brand} />
     </>
   );
 }

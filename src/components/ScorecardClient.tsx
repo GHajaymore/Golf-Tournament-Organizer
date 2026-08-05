@@ -15,6 +15,7 @@ export function ScorecardClient({
   eventDates,
   defaultCourse,
   isStroke,
+  brand,
 }: {
   courses: CoursePreset[];
   flights: CardFlight[];
@@ -22,6 +23,8 @@ export function ScorecardClient({
   eventDates: string;
   defaultCourse: string;
   isStroke: boolean;
+  /** Owning club's branding, printed on each card. */
+  brand?: { name: string; logoUrl: string } | null;
 }) {
   const [courseName, setCourseName] = useState(
     courses.find((c) => c.name === defaultCourse)?.name ?? courses[0]?.name ?? "",
@@ -113,12 +116,24 @@ export function ScorecardClient({
         {cards.map((card) => (
           <div key={card.label} className="card elev-sm print-card">
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-              <div>
-                <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 17 }}>
-                  {eventName} — {card.label}
-                </div>
-                <div className="text-muted" style={{ fontSize: 12 }}>
-                  {course?.name}{eventDates ? ` · ${eventDates}` : ""}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                {/* Club logo on the printed card — what a player is handed at
+                    the first tee should carry the club's identity, not ours. */}
+                {brand?.logoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={brand.logoUrl}
+                    alt=""
+                    style={{ height: 34, width: "auto", maxWidth: 110, objectFit: "contain", flex: "none" }}
+                  />
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 17 }}>
+                    {eventName} — {card.label}
+                  </div>
+                  <div className="text-muted" style={{ fontSize: 12 }}>
+                    {[brand?.name, course?.name, eventDates].filter(Boolean).join(" · ")}
+                  </div>
                 </div>
               </div>
               <span className="tag tag-outline">{lengthLabel} · par {totalPar}</span>

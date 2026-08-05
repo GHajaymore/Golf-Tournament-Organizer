@@ -12,8 +12,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const initials = initialsOf(session.name);
   const event = await prisma.event.findUnique({
     where: { id: session.eventId },
-    select: { name: true, dates: true, course: true, city: true, status: true },
+    select: {
+      name: true,
+      dates: true,
+      course: true,
+      city: true,
+      status: true,
+      // Club branding replaces the TourneyHQ mark in the sidebar for every
+      // tournament this organization runs.
+      organization: { select: { name: true, shortName: true, logoUrl: true } },
+    },
   });
+  const brand = event?.organization
+    ? { name: event.organization.shortName || event.organization.name, logoUrl: event.organization.logoUrl }
+    : null;
 
   return (
     <div
@@ -31,6 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         role={session.role}
         viewRole={session.viewRole}
         initials={initials}
+        brand={brand}
       />
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         <MobileTopBar />
@@ -54,6 +67,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         role={session.role}
         viewRole={session.viewRole}
         initials={initials}
+        brand={brand}
       />
     </div>
   );

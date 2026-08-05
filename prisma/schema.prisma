@@ -25,6 +25,94 @@ model User {
   createdAt DateTime @default(now())
 
   resetTokens PasswordResetToken[]
+  memberships OrganizationMember[]
+}
+
+/**
+ * The billing tenant: a golf club, society, or an individual organizer.
+ *
+ * Tournaments belong to an organization rather than floating free, so a
+ * subscription has something to attach to. Everyone gets one — an individual
+ * organizer's is `kind = "personal"` — which keeps a single code path instead
+ * of "event with an org" and "event without one".
+ *
+ * Note what is deliberately *not* here: players. They hold per-event Account
+ * rows and are never organization members, so seat counts can never be
+ * inflated by the field. Charging a club for its staff should never mean
+ * charging its golfers.
+ */
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  /** personal | club — a club is a shared tenant with staff; personal is one organizer. */
+  kind      String   @default("personal")
+
+  // Branding, applied to the console header and printed output for every
+  // tournament this organization owns.
+  /** Absolute https:// URL to a logo image. A URL rather than an upload
+   *  because file uploads need blob storage; this works with the club's
+   *  existing website assets and can be swapped for an upload later without
+   *  changing anything that reads it. */
+  logoUrl      String @default("")
+  /** Optional short name for tight spaces (headers, print). Falls back to `name`. */
+  shortName    String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members      OrganizationMember[]
+  events       Event[]
+  subscription Subscription?
+}
+
+/** Staff membership in an organization. Distinct from per-event Account
+ *  roles: this is who belongs to the club, not who does what in one event. */
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  /** owner (billing) | admin (manage events & staff) | member (staff pool) */
+  role           String   @default("member")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+/**
+ * An organization's plan. Every organization has exactly one, including free
+ * ones, so billing code never has to treat "no subscription" as a separate
+ * case.
+ *
+ * What a plan *includes* lives in code (src/lib/plans.ts), not here — tier
+ * limits change far more often than schemas should, and a price change
+ * shouldn't require a migration and a backfill. Only the plan's name is
+ * stored.
+ *
+ * The provider columns are unused until payments are wired up; they exist so
+ * that adding Stripe later is a code change, not a migration against live
+ * tenant data.
+ */
+model Subscription {
+  id             String    @id @default(cuid())
+  organizationId String    @unique
+  /** Key into PLANS in src/lib/plans.ts. */
+  plan           String    @default("free")
+  /** active | trialing | past_due | canceled */
+  status         String    @default("active")
+  /** e.g. "stripe" — empty until a payment provider is connected. */
+  provider               String  @default("")
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  currentPeriodEnd       DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 /** A one-time, short-lived "forgot password" link. Only the sha256 of the
@@ -45,6 +133,10 @@ model PasswordResetToken {
 
 model Event {
   id              String   @id @default(cuid())
+  /** Owning tenant. Required so no tournament can exist outside a billing
+   *  boundary — existing events were backfilled to their organizer's
+   *  personal organization. */
+  organizationId  String
   name            String
   dates           String
   format          String   @default("match") // match | stroke
@@ -88,6 +180,7 @@ model Event {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   accounts       Account[]
   players        Player[]
   groups         Group[]
@@ -100,6 +193,8 @@ model Event {
   prizes         Prize[]
   announcements  Announcement[]
   auditLogs      AuditLog[]
+
+  @@index([organizationId])
 }
 
 model Account {

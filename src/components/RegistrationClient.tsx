@@ -18,6 +18,8 @@ interface EventInfo {
   capacity: number;
   regDeadline: string;
   inviteMessage: string;
+  /** Owning club's name, used to sign invitations. */
+  organizationName?: string;
   dates: string;
   course: string;
   city: string;
@@ -131,7 +133,10 @@ export function RegistrationClient({
   };
 
   const registrationLink = typeof window !== "undefined" ? window.location.origin : "";
-  const fullMessage = `${invite}${registrationLink ? `\n\nSign up: ${registrationLink}` : ""}`;
+  // Sign the invitation with the club's name so the recipient recognises who
+  // it's from — a bare link from an unknown app reads like spam.
+  const signature = event.organizationName ? `\n— ${event.organizationName}` : "";
+  const fullMessage = `${invite}${signature}${registrationLink ? `\n\nSign up: ${registrationLink}` : ""}`;
 
   const sendWhatsApp = () => window.open(`https://wa.me/?text=${encodeURIComponent(fullMessage)}`, "_blank", "noopener");
   const sendSms = () => {

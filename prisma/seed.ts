@@ -44,8 +44,22 @@ async function main() {
   // Clean any prior seed of this event (cascade handles children).
   await prisma.event.deleteMany({ where: { name: "Nocturne Cup" } });
 
+  // Every tournament belongs to an organization (the billing tenant), so the
+  // seed creates one to own this event.
+  const org = await prisma.organization.upsert({
+    where: { id: "seed-org-nocturne" },
+    update: {},
+    create: {
+      id: "seed-org-nocturne",
+      name: "Nocturne Golf Club",
+      kind: "club",
+      subscription: { create: { plan: "free", status: "active" } },
+    },
+  });
+
   const event = await prisma.event.create({
     data: {
+      organizationId: org.id,
       name: "Nocturne Cup",
       dates: "May 14–16, 2026",
       format: "match",

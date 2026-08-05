@@ -38,6 +38,9 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   // Set up — defining the event. Assistants run it but don't reshape it.
   event: ["admin"],
   access: ["admin"],
+  // Organization settings sit above any one event; a finer check inside the
+  // screen limits editing to organization owners/admins.
+  organization: ["admin"],
   registration: ["admin", "assistant"],
   stages: ["admin", "assistant"],
   grouping: ["admin", "assistant"],

@@ -6,6 +6,7 @@ import type { NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { Logo } from "./Logo";
 import { BrandMark } from "./BrandMark";
+import { OrgBrand, type Brand } from "./OrgBrand";
 
 type Role = "admin" | "assistant" | "player";
 
@@ -17,6 +18,8 @@ interface Props {
   role: Role;
   viewRole: Role;
   initials: string;
+  /** Owning organization's branding; falls back to TourneyHQ when unset. */
+  brand?: Brand | null;
 }
 
 const TABS = [
@@ -25,7 +28,7 @@ const TABS = [
   { href: "/entry", label: "Scores", icon: "ph ph-pencil-simple" },
 ];
 
-export function MobileTabBar({ sections, name, role, viewRole, initials }: Props) {
+export function MobileTabBar({ sections, name, role, viewRole, initials, brand }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -68,7 +71,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials }: Props
               }}
             >
               <span style={{ display: "flex", alignItems: "center", gap: 9, fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
-                <Logo size={20} /> <BrandMark />
+                <OrgBrand brand={brand} size={20} />
               </span>
               <button type="button" className="btn btn-icon" onClick={() => setOpen(false)} aria-label="Close menu">
                 <i className="ph ph-x" />

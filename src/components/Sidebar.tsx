@@ -6,6 +6,7 @@ import type { NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { Logo } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
+import { OrgBrand, type Brand } from "@/components/OrgBrand";
 
 type Role = "admin" | "assistant" | "player";
 
@@ -17,9 +18,11 @@ interface Props {
   role: Role;
   viewRole: Role;
   initials: string;
+  /** Owning organization's branding; falls back to TourneyHQ when unset. */
+  brand?: Brand | null;
 }
 
-export function Sidebar({ sections, name, role, viewRole, initials }: Props) {
+export function Sidebar({ sections, name, role, viewRole, initials, brand }: Props) {
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
 
@@ -52,20 +55,26 @@ export function Sidebar({ sections, name, role, viewRole, initials }: Props) {
           letterSpacing: "-0.01em",
         }}
       >
-        <div
-          style={{
-            width: 30,
-            height: 30,
-            flex: "none",
-            display: "grid",
-            placeItems: "center",
-            borderRadius: 8,
-            background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
-          }}
-        >
-          <Logo size={17} style={{ color: "var(--color-accent)" }} />
-        </div>
-        <BrandMark />
+        {brand?.name ? (
+          <OrgBrand brand={brand} size={20} />
+        ) : (
+          <>
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                flex: "none",
+                display: "grid",
+                placeItems: "center",
+                borderRadius: 8,
+                background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
+              }}
+            >
+              <Logo size={17} style={{ color: "var(--color-accent)" }} />
+            </div>
+            <BrandMark />
+          </>
+        )}
       </div>
 
       {sections.map((sec) => (

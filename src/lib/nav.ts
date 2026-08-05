@@ -32,6 +32,7 @@ export const NAV: NavSection[] = [
       { key: "stages", label: "Rounds & format", href: "/stages", icon: "ph ph-stack" },
       { key: "grouping", label: "Flights & divisions", href: "/grouping", icon: "ph ph-squares-four" },
       { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check" },
+      { key: "organization", label: "Organization", href: "/organization", icon: "ph ph-buildings" },
     ],
   },
   {
