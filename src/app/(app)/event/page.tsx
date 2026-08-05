@@ -1,6 +1,7 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { PlaySettings } from "@/components/PlaySettings";
+import { CourseSetupPrompt } from "@/components/CourseSetupPrompt";
 import { accessibleEvents } from "@/lib/services/access";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -105,6 +106,19 @@ export default async function EventPage() {
         playersCount={state.confirmed.length}
         courses={COURSES.map((c) => ({ name: c.name, city: c.city, address: c.address }))}
       />
+
+      {/* Always available, never a blocker here. A tournament may not need
+          course data to score — gross match play doesn't — and still want it,
+          because printed scorecards carry par, yardage and stroke index next
+          to the club's logo. */}
+      <div style={{ marginTop: 16 }}>
+        <CourseSetupPrompt
+          eventCourse={e.course}
+          eventCity={e.city}
+          isStaff={session.viewRole === "admin" || session.viewRole === "assistant"}
+          blocking={false}
+        />
+      </div>
 
       <div style={{ marginTop: 16 }}>
         <PlaySettings

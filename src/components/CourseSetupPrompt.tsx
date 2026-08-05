@@ -5,14 +5,28 @@ import { COURSES } from "@/lib/courses";
 
 const BLANK_18 = new Array(18).fill("");
 
+/**
+ * The course card editor — par, yardage and stroke index, hole by hole.
+ *
+ * Two framings, one form. On Score entry it appears as a blocker when the
+ * scoring genuinely can't proceed without the data. On Event setup it is just
+ * an available section: a tournament may not *need* course data to score
+ * (gross match play doesn't) and still want it, because printed scorecards
+ * carry the course name, par, yardage and stroke index alongside the club's
+ * logo. Setting a course is always allowed; it is only sometimes required.
+ */
 export function CourseSetupPrompt({
   eventCourse,
   eventCity,
   isStaff,
+  blocking = true,
 }: {
   eventCourse: string;
   eventCity: string;
   isStaff: boolean;
+  /** True on Score entry, where scoring is waiting on this. False on Event
+   *  setup, where it's an optional detail the organizer may fill in. */
+  blocking?: boolean;
 }) {
   const [name, setName] = useState(eventCourse);
   const [city, setCity] = useState(eventCity);
@@ -66,11 +80,21 @@ export function CourseSetupPrompt({
 
   return (
     <div className="card elev-sm">
-      <span className="card-title">Set up this course</span>
+      <span className="card-title">{blocking ? "Set up this course" : "Course card"}</span>
       <p className="text-muted" style={{ fontSize: 13, margin: "4px 0 14px" }}>
-        {"“"}{eventCourse || "This event"}{"”"} isn't one of the built-in courses, so there's no real par, yardage, or handicap
-        data for it yet — scoring (net, Stableford, tiebreakers) needs that before you can enter results.
-        Fill in the card below, or start from a preset and adjust it.
+        {blocking ? (
+          <>
+            {"“"}{eventCourse || "This event"}{"”"} isn&rsquo;t one of the built-in courses, so there&rsquo;s no real par,
+            yardage, or handicap data for it yet — scoring (net, Stableford, tiebreakers) needs that before you can
+            enter results. Fill in the card below, or start from a preset and adjust it.
+          </>
+        ) : (
+          <>
+            Par, yardage and stroke index for {"“"}{eventCourse || "this event"}{"”"}. Gross match play doesn&rsquo;t
+            need this to score, but printed scorecards do — they carry the course details alongside your club&rsquo;s
+            logo. Start from a preset and adjust, or fill the card in by hand.
+          </>
+        )}
       </p>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
