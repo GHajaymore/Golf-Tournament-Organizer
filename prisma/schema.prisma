@@ -72,8 +72,61 @@ model Organization {
 
   members      OrganizationMember[]
   roster       Member[]
+  courses      Course[]
   events       Event[]
   subscription Subscription?
+}
+
+/**
+ * A golf course the club plays, entered once and reused.
+ *
+ * Owned by the organization rather than by an event, because the same venue
+ * comes back season after season and nobody should retype eighteen stroke
+ * indexes for it twice. Built-in presets still exist for common courses; this
+ * is for everywhere else.
+ */
+model Course {
+  id             String @id @default(cuid())
+  organizationId String
+
+  name String
+  city String @default("")
+
+  /** JSON number arrays, one entry per hole — same encoding as the custom
+   *  course fields on Event, which this generalises. */
+  pars        String
+  yards       String
+  strokeIndex String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  events       EventCourse[]
+  stages       Stage[]
+  matches      Match[]
+
+  @@index([organizationId])
+}
+
+/**
+ * Which courses a tournament may be played on.
+ *
+ * A single row is the ordinary case and nobody is ever asked to choose. More
+ * than one turns on the pickers: a multi-day or multi-week event rotating
+ * venues sets the course per round, and a community league where opponents
+ * arrange their own match sets it per match.
+ */
+model EventCourse {
+  id       String @id @default(cuid())
+  eventId  String
+  courseId String
+
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, courseId])
+  @@index([eventId])
 }
 
 /**
@@ -273,6 +326,7 @@ model Event {
   prizes         Prize[]
   announcements  Announcement[]
   auditLogs      AuditLog[]
+  courses        EventCourse[]
 
   @@index([organizationId])
 }
@@ -368,6 +422,13 @@ model Stage {
   cutCount   Int     @default(16)
   cutPercent Int     @default(50)
 
+  /** The venue for this round, when the tournament rotates them — a
+   *  multi-day member-guest or a multi-week league playing somewhere new
+   *  each time. Null means fall back to the event's course. */
+  courseId String?
+  /** Which nine, when the round is 9 holes. full | front | back */
+  nine     String  @default("full")
+
   /**
    * Round Code — the shared code players enter to report scores for this
    * round, modelled on the GGID golfers already know from Golf Genius.
@@ -384,6 +445,7 @@ model Stage {
   accessCode String @default("")
 
   event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  course  Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
   matches Match[]
 
   @@index([eventId])
@@ -405,14 +467,32 @@ model Match {
   // JSON array of 'A' | 'B' | 'H' | null, one per hole.
   holes     String @default("[]")
 
+  /**
+   * The venue this particular match was played at.
+   *
+   * Null means inherit — from the round, then the event — which is the normal
+   * case for a tournament that booked its courses in advance. It is set where
+   * the organizer couldn't know: a community league whose opponents arrange
+   * their own match somewhere of their choosing before the deadline.
+   *
+   * Inheriting is the default, never a restriction. The organizer can always
+   * set this on any match — a pairing that had to move venue at short notice
+   * is exactly the kind of thing no inference should be able to lock them out
+   * of correcting.
+   */
+  courseId String?
+  /** Which nine, when the round is 9 holes. full | front | back */
+  nine     String  @default("full")
+
   // Score confirmation (two-player workflow)
   scoreStatus   String    @default("pending") // pending | confirmed | disputed
   scoredAt      DateTime?
   confirmedById String?
 
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  stage  Stage   @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  group  Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
   matchScorecards MatchScorecard[]
 
   @@index([eventId])

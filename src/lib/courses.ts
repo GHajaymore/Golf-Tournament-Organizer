@@ -61,7 +61,7 @@ export interface EventCourseFields {
   customStrokeIndex: string;
 }
 
-function parseHoleArray(json: string): number[] | null {
+export function parseHoleArray(json: string): number[] | null {
   try {
     const arr = JSON.parse(json);
     return Array.isArray(arr) && arr.length === 18 && arr.every((n) => typeof n === "number") ? arr : null;

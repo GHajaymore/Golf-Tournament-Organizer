@@ -1,0 +1,118 @@
+import { describe, it, expect } from "vitest";
+import {
+  courseForMatch,
+  courseForRound,
+  applyNine,
+  type StoredCourse,
+  type EventCourseFields,
+} from "../services/course-resolution";
+
+const arr = (n: number) => JSON.stringify(new Array(18).fill(n));
+
+const stored = (name: string, par = 4): StoredCourse => ({
+  id: `c-${name}`,
+  name,
+  city: "Somewhere",
+  pars: arr(par),
+  yards: arr(400),
+  strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+});
+
+const blankEvent: EventCourseFields = {
+  course: "",
+  city: "",
+  customPars: "",
+  customYards: "",
+  customStrokeIndex: "",
+};
+
+const presetEvent: EventCourseFields = { ...blankEvent, course: "Ridgeline National" };
+
+describe("course resolution hierarchy", () => {
+  it("prefers the match's own course", () => {
+    const r = courseForMatch(stored("Match Venue"), stored("Round Venue"), presetEvent);
+    expect(r?.name).toBe("Match Venue");
+    expect(r?.source).toBe("match");
+  });
+
+  it("falls back to the round when the match has none", () => {
+    // Multi-day event: the organizer booked a venue per day.
+    const r = courseForMatch(null, stored("Round Venue"), presetEvent);
+    expect(r?.name).toBe("Round Venue");
+    expect(r?.source).toBe("round");
+  });
+
+  it("falls back to the event when neither is set", () => {
+    // The ordinary single-venue tournament — nobody is ever asked.
+    const r = courseForMatch(null, null, presetEvent);
+    expect(r?.name).toBe("Ridgeline National");
+    expect(r?.source).toBe("event");
+  });
+
+  it("returns null when nothing anywhere has course data", () => {
+    // A community league with no venue. Callers decide whether that's fatal:
+    // it is for net/stroke scoring, it isn't for gross match play.
+    expect(courseForMatch(null, null, blankEvent)).toBeNull();
+  });
+
+  it("resolves a round without consulting any match", () => {
+    expect(courseForRound(stored("Round Venue"), presetEvent)?.source).toBe("round");
+    expect(courseForRound(null, presetEvent)?.source).toBe("event");
+    expect(courseForRound(null, blankEvent)).toBeNull();
+  });
+
+  it("skips a level whose stored data is corrupt rather than failing outright", () => {
+    const broken: StoredCourse = { ...stored("Broken"), pars: "not json" };
+    const r = courseForMatch(broken, stored("Round Venue"), presetEvent);
+    expect(r?.name).toBe("Round Venue");
+  });
+
+  it("reads an event's saved custom card when it isn't a preset", () => {
+    const custom: EventCourseFields = {
+      course: "Hidden Valley",
+      city: "Elsewhere",
+      customPars: arr(5),
+      customYards: arr(500),
+      customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+    };
+    const r = courseForMatch(null, null, custom);
+    expect(r?.name).toBe("Hidden Valley");
+    expect(r?.pars[0]).toBe(5);
+  });
+});
+
+describe("nine selection", () => {
+  const full = courseForRound(stored("Eighteen"), blankEvent)!;
+  const indexed = {
+    ...full,
+    pars: [4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+    strokeIndex: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+  };
+
+  it("leaves an 18-hole round untouched", () => {
+    expect(applyNine(indexed, "full", 18).pars).toHaveLength(18);
+    expect(applyNine(indexed, "front", 18).pars).toHaveLength(18);
+  });
+
+  it("takes the front nine", () => {
+    const r = applyNine(indexed, "front", 9);
+    expect(r.pars).toEqual([4, 4, 4, 4, 4, 4, 4, 4, 4]);
+    expect(r.strokeIndex).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(r.name).toMatch(/front nine/);
+  });
+
+  it("takes the back nine, with its own pars and indexes", () => {
+    // This is the case that would silently mis-score: a net match on the back
+    // nine allocates strokes by the back nine's indexes, not the front's.
+    const r = applyNine(indexed, "back", 9);
+    expect(r.pars).toEqual([5, 5, 5, 5, 5, 5, 5, 5, 5]);
+    expect(r.strokeIndex).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18]);
+    expect(r.name).toMatch(/back nine/);
+  });
+
+  it("front and back genuinely differ", () => {
+    const front = applyNine(indexed, "front", 9);
+    const back = applyNine(indexed, "back", 9);
+    expect(front.strokeIndex).not.toEqual(back.strokeIndex);
+  });
+});

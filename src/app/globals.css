@@ -30,6 +30,13 @@
   --color-accent-800: #6c3c18;
   --color-accent-900: #38230f;
 
+  /* Errors and destructive confirmations. Nineteen components referenced
+     var(--color-danger, #e0665a) while the token itself was never declared,
+     so the hardcoded fallback was what actually rendered — making error red
+     the one colour a club palette could never touch. */
+  --color-danger: #e0665a;
+  --color-danger-bg: #2a1512;
+
   --color-accent-2-100: #e7f5ec;
   --color-accent-2-200: #c3e6d0;
   --color-accent-2-300: #93d0ac;
