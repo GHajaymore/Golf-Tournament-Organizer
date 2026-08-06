@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { refusalFor } from "@/lib/services/limits";
 import { checkLogoUrl } from "@/lib/services/logo-check";
 
 export interface OrgResult {
@@ -74,6 +75,9 @@ export async function addOrganizationMember(email: string, name: string, role: s
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
   if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can manage staff." };
+
+  const refusal = await refusalFor(org.organizationId, "staffSeats");
+  if (refusal) return { ok: false, error: refusal };
 
   const cleanEmail = email.trim().toLowerCase();
   if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };

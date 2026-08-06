@@ -1,0 +1,11 @@
+-- When a tournament was marked completed.
+--
+-- The anchor for the free tier's retention window. Nothing existing could
+-- serve: updatedAt moves on any edit, and `dates` is free text the organizer
+-- typed. Deleting a club's results needs a timestamp that means one thing.
+--
+-- Backfilled to NULL rather than to updatedAt. A guessed completion time on
+-- an already-finished tournament could put it instantly past the retention
+-- window, and the first thing this feature ever did would be to delete real
+-- results. NULL means "no clock has started", which is the safe reading.
+ALTER TABLE "Event" ADD COLUMN "completedAt" TIMESTAMP(3);

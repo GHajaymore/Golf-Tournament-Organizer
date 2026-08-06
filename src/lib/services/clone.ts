@@ -61,6 +61,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   status: "a copy starts as a draft, however far along the original got",
   configUnlocked: "an unlock is granted to one tournament, not inherited",
   launchedAt: "the copy has not been launched",
+  completedAt:
+    "the copy has not finished — and inheriting it would start the retention clock in the past, making a brand-new tournament immediately eligible for deletion",
   shareToken:
     "unique, so copying collides — and it would hand the copy the original's public link",
 };

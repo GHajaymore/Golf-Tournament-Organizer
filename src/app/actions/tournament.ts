@@ -13,6 +13,7 @@ import {
 import type { Session } from "@/lib/auth";
 import { organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
 import { effectiveAccess } from "@/lib/services/access";
+import { refusalFor } from "@/lib/services/limits";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
@@ -1243,6 +1244,15 @@ export async function addAccount(name: string, email: string, role: string): Pro
   if (!clean || !cleanEmail) return { ok: false, error: "Enter a name and email." };
   const next = cleanRole(role);
 
+  // Per-event organizer and assistant roles consume a staff seat too. Without
+  // this the seat limit would be trivially bypassed by granting rights on each
+  // event instead of at the club.
+  if (next !== "player") {
+    const orgId = await organizationIdForEvent(eventId);
+    const refusal = orgId ? await refusalFor(orgId, "staffSeats") : null;
+    if (refusal) return { ok: false, error: refusal };
+  }
+
   // This upserts by email, so re-adding an existing admin with a different
   // role is a silent downgrade — guard it the same as setAccountRole.
   const existing = await prisma.account.findUnique({ where: { eventId_email: { eventId, email: cleanEmail } } });
@@ -1351,6 +1361,10 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
   if (!source) return { ok: false, error: "Tournament not found." };
 
   const clean = name.trim() || `${source.name} (copy)`;
+
+  // A copy is a new tournament and counts like one.
+  const refusal = await refusalFor(source.organizationId, "activeEvents");
+  if (refusal) return { ok: false, error: refusal };
 
   const created = await prisma.event.create({
     data: {
@@ -1461,6 +1475,9 @@ export async function createEvent(
   // Every tournament belongs to a billing tenant; this creates the organizer's
   // personal organization on their first event.
   const organizationId = await organizationForNewEvent(session.email, session.name);
+  // Plan limits bite only once billing is connected — see services/limits.ts.
+  const refusal = await refusalFor(organizationId, "activeEvents");
+  if (refusal) return { ok: false, error: refusal };
   const event = await prisma.event.create({
     data: {
       organizationId,
@@ -1552,7 +1569,14 @@ const STATUS_FLOW = ["draft", "registration", "ready", "live", "completed"];
 export async function setEventStatus(status: string) {
   const eventId = await requireAdminEvent();
   const s = STATUS_FLOW.includes(status) ? status : "draft";
-  await prisma.event.update({ where: { id: eventId }, data: { status: s } });
+  // Stamp the completion time, because on a free plan it starts the clock the
+  // retention window runs on. Reopening a tournament clears it: a club that
+  // un-completes an event has said the result isn't final, and the countdown
+  // to deleting it should not keep running underneath them.
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { status: s, completedAt: s === "completed" ? new Date() : null },
+  });
   refresh();
 }
 

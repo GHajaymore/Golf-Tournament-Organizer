@@ -35,6 +35,15 @@ export interface Plan {
      *  explicit and stays that way if someone adds a tier later. */
     playersPerEvent: null;
   };
+  /**
+   * How long a finished tournament's data is kept, in hours. Null keeps it.
+   *
+   * This is the free tier's real cost, and it is the kind of term that has to
+   * be stated before someone runs an event rather than discovered afterwards:
+   * a club that loses its member-guest results the next morning was not warned
+   * enough. Every surface that offers the free plan says this in plain words.
+   */
+  retentionHours: number | null;
   features: {
     /**
      * Whether the club's branding fully replaces TourneyHQ's.
@@ -60,6 +69,10 @@ export const PLANS: Record<PlanKey, Plan> = {
       staffSeats: 1,
       playersPerEvent: null,
     },
+    // Two days to export, then the results are gone. The single biggest reason
+    // to upgrade, and the single most important thing to say before anyone
+    // plays — one number, read by every surface that mentions it.
+    retentionHours: 48,
     features: { whiteLabel: false },
   },
   club: {
@@ -72,6 +85,7 @@ export const PLANS: Record<PlanKey, Plan> = {
       staffSeats: 10,
       playersPerEvent: null,
     },
+    retentionHours: null,
     features: { whiteLabel: true },
   },
 };
@@ -113,4 +127,23 @@ export function limitCheck(planKey: string, limit: LimitKey, current: number): L
     current,
     reason: `The ${plan.name} plan includes ${max} ${what}. Upgrade to add more.`,
   };
+}
+
+/**
+ * The retention term in plain words, for wherever a plan is offered.
+ *
+ * Deliberately one sentence and deliberately blunt. A club losing its
+ * member-guest results the morning after is a disaster that a euphemism would
+ * have caused, so this says "deleted" rather than "not retained".
+ */
+export function retentionNotice(planKey: string): string | null {
+  const plan = planFor(planKey);
+  if (plan.retentionHours === null) return null;
+  const h = plan.retentionHours;
+  return `Scores, players and results are permanently deleted ${h} hours after a tournament finishes. Export anything you want to keep, or upgrade to hold on to it.`;
+}
+
+/** Whether this plan keeps data indefinitely. */
+export function keepsDataForever(planKey: string): boolean {
+  return planFor(planKey).retentionHours === null;
 }

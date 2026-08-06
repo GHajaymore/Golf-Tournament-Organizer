@@ -347,6 +347,15 @@ model Event {
   status         String    @default("draft") // draft | registration | ready | live | completed
   configUnlocked Boolean   @default(false)    // organizer override to edit after launch
   launchedAt     DateTime?
+  /**
+   * When this tournament was marked completed.
+   *
+   * The clock the free tier's retention runs on. status alone cannot
+   * carry it: updatedAt moves for any edit, and the free-text dates field is
+   * whatever the organizer typed. Deleting somebody's results needs a
+   * timestamp that means exactly one thing.
+   */
+  completedAt    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
