@@ -40,6 +40,29 @@ describe("when a tournament needs course data", () => {
 
   it("treats an unrecognized format as needing course data", () => {
     // Safer default: an unknown format is assumed to score against par.
+    // findFormat's fallback resolves an unknown name to Match Play, which
+    // would answer "no course needed" — hence the explicit lookup.
     expect(needsCourseData([round("Some Future Format")])).toBe(true);
+    expect(needsCourseData([round("")])).toBe(true);
+  });
+
+  it("needs one for every team format, including the match-play ones", () => {
+    // Four-Ball is match play and says so nowhere in its name, so a
+    // name-matching rule used to get this wrong. Every team format aggregates
+    // real scores, so all of them need par.
+    for (const f of ["Four-Ball", "Best Ball", "Shamble", "Foursomes", "Scramble", "Texas Scramble", "Chapman / Pinehurst", "Alternate Shot"]) {
+      expect(needsCourseData([round(f)]), `${f} should need course data`).toBe(true);
+    }
+  });
+
+  it("needs one for skins, which compares real scores", () => {
+    expect(needsCourseData([round("Skins")])).toBe(true);
+  });
+
+  it("does not need one for gross Nassau, which is three match-play bets", () => {
+    // Nassau resolves from hole results, exactly like the singles match it
+    // slices — so gross Nassau can be played anywhere, same as match play.
+    expect(needsCourseData([round("Nassau")])).toBe(false);
+    expect(needsCourseData([round("Nassau", "net")])).toBe(true);
   });
 });

@@ -67,6 +67,10 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
  * without their Round Codes, venues as plain links. Everything else here is a
  * record of what actually happened at a tournament: players, matches, cards,
  * prizes, announcements, audit trail. A copy has none of that yet.
+ *
+ * Teams are on that list for a reason worth stating: a team is made of
+ * players, and a copy carries no players. Copying the sides would leave every
+ * one of them pointing at entries in last year's tournament.
  */
 export const CLONE_IGNORED_RELATIONS = [
   "organization",
@@ -79,6 +83,8 @@ export const CLONE_IGNORED_RELATIONS = [
   "commentary",
   "scorecards",
   "matchScorecards",
+  "teams",
+  "teamScorecards",
   "prizes",
   "announcements",
   "auditLogs",

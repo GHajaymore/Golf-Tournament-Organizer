@@ -1,6 +1,8 @@
 // Course presets for the scorecard generator. In production these would live in
 // a Courses table; for the pilot they are a static catalog of realistic layouts.
 
+import { lookupFormat } from "./formats";
+
 export interface CoursePreset {
   name: string;
   city: string;
@@ -109,8 +111,17 @@ export interface ScoringShape {
 export function needsCourseData(stages: ScoringShape[]): boolean {
   if (stages.length === 0) return false;
   return stages.some((s) => {
-    const matchPlay = /match play/i.test(s.format);
-    if (!matchPlay) return true; // stroke play, Stableford, points formats need par
+    const f = lookupFormat(s.format);
+    // An unrecognized format is assumed to score against par. findFormat's
+    // fallback would resolve it to Match Play and wrongly answer "no course
+    // needed" — the unsafe direction for a format we know nothing about.
+    if (!f) return true;
+    // Match play is the only family that can be scored on nothing at all, and
+    // only gross: "who won this hole" needs no par. Everything else — stroke,
+    // Stableford, skins, and every team format, all of which aggregate real
+    // scores — needs par. Read off the format's family rather than its name,
+    // because "Four-Ball" is match play and says so nowhere in its title.
+    if (f.family !== "match") return true;
     return s.scoringBasis !== "gross"; // net/both match play needs stroke index
   });
 }

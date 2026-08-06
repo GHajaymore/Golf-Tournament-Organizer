@@ -340,6 +340,8 @@ model Event {
   commentary     Commentary[]
   scorecards     Scorecard[]
   matchScorecards MatchScorecard[]
+  teams          Team[]
+  teamScorecards TeamScorecard[]
   prizes         Prize[]
   announcements  Announcement[]
   auditLogs      AuditLog[]
@@ -398,6 +400,7 @@ model Player {
   // Removing someone from the roster must not delete tournaments they played
   // in — the entry stays, detached, preserving the result.
   member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  teamMemberships TeamMember[]
 
   @@index([eventId])
   @@index([groupId])
@@ -464,6 +467,7 @@ model Stage {
   event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   course  Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
   matches Match[]
+  teams   Team[]
 
   @@index([eventId])
   // Redemption looks a code up on its own, so codes must be unique across
@@ -479,8 +483,22 @@ model Match {
   stageId   String
   groupId   String
   round     Int
+  /**
+   * The two sides.
+   *
+   * In an individual format these are Player ids and the team columns are
+   * empty. In a team format the team columns hold the sides and these are
+   * empty — deliberately not repurposed to hold a team id, because a column
+   * whose meaning depends on the round's format is the kind of thing that
+   * silently mis-joins a year later.
+   *
+   * Empty string rather than null, matching how the rest of the schema models
+   * "not set", so the pairing can be read without null-juggling.
+   */
   playerAId String
   playerBId String
+  teamAId   String @default("")
+  teamBId   String @default("")
   // JSON array of 'A' | 'B' | 'H' | null, one per hole.
   holes     String @default("[]")
 
@@ -592,6 +610,91 @@ model Announcement {
 }
 
 /** Individual stroke-play scorecard for a player in a round. */
+/**
+ * A side in a team format — a member-guest pairing, a scramble four, a
+ * four-ball partnership.
+ *
+ * `stageId` decides how long the team lasts. Null means it plays the whole
+ * tournament, which is the member-guest case where a pairing is the entry
+ * itself. Set to a round means the teams were drawn for that round only, which
+ * is how a society mixes its field up week to week. Both are common, so
+ * neither is the model.
+ */
+model Team {
+  id      String  @id @default(cuid())
+  eventId String
+  stageId String?
+  name    String
+  /** Seeding/draw order, and the display order on a leaderboard. */
+  seed    Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  event      Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  stage      Stage?          @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  members    TeamMember[]
+  scorecards TeamScorecard[]
+
+  @@index([eventId])
+  @@index([stageId])
+}
+
+model TeamMember {
+  id       String @id @default(cuid())
+  teamId   String
+  playerId String
+  /**
+   * Order within the side. Not cosmetic: foursomes alternate who tees off on
+   * odd and even holes, and the scramble allowance table is applied in ability
+   * order, so a side's members are a sequence rather than a set.
+   */
+  position Int    @default(0)
+
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // Nobody plays for the same side twice.
+  @@unique([teamId, playerId])
+  @@index([teamId])
+  @@index([playerId])
+}
+
+/**
+ * A team's card for one round.
+ *
+ * `playerId` is what distinguishes the two shapes of team golf:
+ *
+ *   Empty — the side plays one ball and there is a single card for the team
+ *   (foursomes, scramble, Chapman).
+ *
+ *   Set — each partner keeps their own card and the team's score is derived
+ *   per hole (four-ball, best ball, shamble). One row per partner.
+ *
+ * Empty string rather than null so the unique constraint below actually
+ * constrains: Postgres treats nulls as distinct, so a nullable column here
+ * would happily accept two cards for the same single-ball side.
+ *
+ * `matchId` is empty for a team stroke-play round, which has no opponent, and
+ * set for team match play, where each match needs its own card.
+ */
+model TeamScorecard {
+  id       String @id @default(cuid())
+  eventId  String
+  stageId  String
+  teamId   String
+  matchId  String @default("")
+  playerId String @default("")
+  // JSON array of per-hole gross strokes (number | null), one per hole.
+  strokes  String @default("[]")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  team  Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, matchId, teamId, playerId])
+  @@index([eventId])
+  @@index([teamId])
+}
+
 model Scorecard {
   id       String @id @default(cuid())
   eventId  String

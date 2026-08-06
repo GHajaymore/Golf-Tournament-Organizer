@@ -34,6 +34,34 @@ export function stablefordPointsForHole(grossOnHole: number, par: number, stroke
   return Math.max(0, 2 - (net - par));
 }
 
+/**
+ * Modified Stableford points for one hole.
+ *
+ * The point of the variant is that it changes how you play rather than just
+ * how you count: birdies and eagles are worth enough to justify going for a
+ * green, and a bogey costs you, so laying up all day loses. The scale below is
+ * the widely used one (albatross 8, eagle 5, birdie 2, par 0, bogey -1, worse
+ * -3); tours and clubs run their own variants, so this is a default rather
+ * than a rule.
+ *
+ * Unlike standard Stableford there is no floor at zero — a blow-up hole is
+ * meant to hurt.
+ */
+export function modifiedStablefordForHole(
+  grossOnHole: number,
+  par: number,
+  strokesOnHole: number,
+): number {
+  const net = grossOnHole - strokesOnHole;
+  const diff = net - par;
+  if (diff <= -3) return 8; // albatross or better
+  if (diff === -2) return 5; // eagle
+  if (diff === -1) return 2; // birdie
+  if (diff === 0) return 0; // par
+  if (diff === 1) return -1; // bogey
+  return -3; // double bogey or worse
+}
+
 export function computeStrokeCard(
   strokes: (number | null)[],
   pars: number[],
