@@ -11,7 +11,7 @@ import {
   generateNextRound,
 } from "@/app/actions/tournament";
 import { setStageCourse } from "@/app/actions/courses";
-import { GOLF_FORMATS, SCORED_FORMAT_NAMES } from "@/lib/formats";
+import { GOLF_FORMATS } from "@/lib/formats";
 import { ScoringClient } from "./ScoringClient";
 import { QualControl } from "./QualControl";
 import { CutControl } from "./CutControl";
@@ -230,9 +230,27 @@ function StageCard({
   };
 
   const activeFormat = GOLF_FORMATS.find((f) => f.name === format);
-  // Only formats with a real scoring engine are selectable; a round already set
-  // to a legacy label (e.g. from before this restriction) still shows it.
-  const formatOptions = SCORED_FORMAT_NAMES.includes(format) ? SCORED_FORMAT_NAMES : [format, ...SCORED_FORMAT_NAMES];
+  // Every format in the catalog is listed, but only those runnable end to end
+  // can be picked. Showing the rest greyed out with the reason is deliberate:
+  // hiding them entirely makes the app look like it can't do team golf, while
+  // letting them be selected hands someone a round with nowhere to enter a
+  // card. A round already set to something unselectable still shows it.
+  const formatOptions: { name: string; disabled: boolean; note?: string }[] = [
+    ...GOLF_FORMATS.filter((f) => f.playable || f.name === format).map((f) => ({
+      name: f.name,
+      disabled: false,
+    })),
+    ...GOLF_FORMATS.filter((f) => !f.playable && f.name !== format).map((f) => ({
+      name: f.name,
+      disabled: true,
+      note: f.pendingReason,
+    })),
+  ];
+  // A legacy label from before the catalog was restricted still needs to show.
+  if (!GOLF_FORMATS.some((f) => f.name === format)) {
+    formatOptions.unshift({ name: format, disabled: false });
+  }
+  const activePending = GOLF_FORMATS.find((f) => f.name === format && !f.playable);
 
   // Round Robin description is derived (no hard-coded round count).
   const description =
@@ -320,10 +338,18 @@ function StageCard({
             </button>
           </label>
           <select className="input" value={format} disabled={pending} onChange={(e) => commitFormat(e.target.value)}>
-            {formatOptions.map((name) => (
-              <option key={name} value={name}>{name}</option>
+            {formatOptions.map((o) => (
+              <option key={o.name} value={o.name} disabled={o.disabled}>
+                {o.disabled && o.note ? `${o.name} — ${o.note}` : o.name}
+              </option>
             ))}
           </select>
+          {activePending && (
+            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+              This round is set to {activePending.name}, which can be configured but not yet
+              scored — {activePending.pendingReason}.
+            </p>
+          )}
         </div>
         <div className="field" style={{ width: 110 }}>
           <label>Holes</label>

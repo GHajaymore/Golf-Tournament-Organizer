@@ -3,6 +3,8 @@ import {
   GOLF_FORMATS,
   FORMAT_NAMES,
   SCORED_FORMAT_NAMES,
+  PLAYABLE_FORMAT_NAMES,
+  isPlayable,
   TEAM_FORMAT_NAMES,
   findFormat,
   lookupFormat,
@@ -56,6 +58,49 @@ describe("the catalog", () => {
     expect(SCORED_FORMAT_NAMES).toEqual(GOLF_FORMATS.filter((f) => f.scored).map((f) => f.name));
     expect(SCORED_FORMAT_NAMES).toContain("Scramble");
     expect(SCORED_FORMAT_NAMES).toContain("Stableford");
+  });
+
+  it("never claims a format is playable without an engine", () => {
+    // playable is the stronger claim: engine *and* score entry *and* a
+    // leaderboard. The reverse is allowed and currently common.
+    for (const f of GOLF_FORMATS) {
+      if (f.playable) expect(f.scored, `${f.name} is playable but unscored`).toBe(true);
+    }
+  });
+
+  it("gives a reason for every format that is scored but not playable", () => {
+    // Without one the picker greys an option out and says nothing, which reads
+    // as a bug rather than as a roadmap.
+    for (const f of GOLF_FORMATS) {
+      if (f.scored && !f.playable) {
+        expect(f.pendingReason, `${f.name} needs a pendingReason`).toBeTruthy();
+      }
+    }
+  });
+
+  it("offers only what can be run end to end", () => {
+    // The narrower list is what the round picker reads. Match play and stroke
+    // play are wired through entry and the leaderboard; nothing else is yet.
+    expect(PLAYABLE_FORMAT_NAMES).toEqual(["Match Play", "Stroke Play"]);
+    expect(isPlayable("Match Play")).toBe(true);
+    expect(isPlayable("Scramble")).toBe(false);
+    expect(isPlayable("Some Future Format")).toBe(false);
+  });
+
+  it("keeps playable a strict subset of scored", () => {
+    for (const name of PLAYABLE_FORMAT_NAMES) {
+      expect(SCORED_FORMAT_NAMES, `${name} must also be scored`).toContain(name);
+    }
+    expect(PLAYABLE_FORMAT_NAMES.length).toBeLessThan(SCORED_FORMAT_NAMES.length);
+  });
+
+  it("points Stableford at the scoring basis rather than the format", () => {
+    // Stableford is already runnable as a basis on a Stroke Play round, which
+    // is how the engine models it. Offering it as a format too would be two
+    // doors to the same room, one of which doesn't open.
+    const s = findFormat("Stableford");
+    expect(s.playable).toBe(false);
+    expect(s.pendingReason).toMatch(/stroke play/i);
   });
 
   it("names every team format as needing teams", () => {

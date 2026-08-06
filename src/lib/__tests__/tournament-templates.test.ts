@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "../tournament-templates";
 import { cleanSettings, DEFAULT_SETTINGS } from "../tournament-settings";
-import { SCORED_FORMAT_NAMES } from "../formats";
+import { PLAYABLE_FORMAT_NAMES } from "../formats";
 import { needsCourseData } from "../courses";
 
 describe("template catalogue", () => {
@@ -18,12 +18,14 @@ describe("template catalogue", () => {
     }
   });
 
-  it("only uses formats the app can actually score", () => {
-    // formats.ts lists team formats with no team model behind them. A
-    // template picking one would promise something that breaks on the first
-    // tee, so every template must stay inside the scored set.
+  it("only uses formats an organizer can actually run", () => {
+    // Playable, not merely scored: a template is a one-click setup, so it must
+    // never drop someone into a round that can be configured but not scored.
+    // This is the stricter of the two lists on purpose.
     for (const t of TOURNAMENT_TEMPLATES) {
-      expect(SCORED_FORMAT_NAMES, `${t.key} uses an unscoreable format`).toContain(t.round.format);
+      expect(PLAYABLE_FORMAT_NAMES, `${t.key} uses a format that can't be run yet`).toContain(
+        t.round.format,
+      );
     }
   });
 

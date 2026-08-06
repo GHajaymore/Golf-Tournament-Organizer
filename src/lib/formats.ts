@@ -54,9 +54,38 @@ export interface GolfFormat {
   /** True where `allowance` is local convention rather than a published WHS
    *  recommendation — the UI says so rather than implying a standard. */
   allowanceIsConvention?: boolean;
-  /** Whether a real scoring engine backs this format today. */
+  /**
+   * A real scoring engine computes this format's result.
+   *
+   * Necessary but *not* sufficient for an organizer to run it — see `playable`.
+   * The distinction matters because these two were once the same flag, and a
+   * picker reading "an engine exists" as "you can run this tournament" hands
+   * someone a format they can set up, brief their field on, and then discover
+   * on the first tee has nowhere to enter a card.
+   */
   scored: boolean;
+  /**
+   * Usable end to end: engine, score entry, and a leaderboard.
+   *
+   * This is what the round-format picker offers. Everything else is shown but
+   * not selectable, so the catalog stays honest about where the app is rather
+   * than quietly advertising a dead end.
+   */
+  playable: boolean;
+  /** Why a scored format isn't playable yet. Shown in the picker. */
+  pendingReason?: string;
 }
+
+/** What's missing for the formats whose engines exist but whose screens don't. */
+const NEEDS_ENTRY = "score entry coming soon";
+const NEEDS_TEAM_ENTRY = "team score entry coming soon";
+/**
+ * Stableford is already playable — as a scoring *basis* on a Stroke Play
+ * round, which is how the engine models it and how the leaderboard reads it.
+ * Offering it as a format too would give an organizer two doors to the same
+ * room, one of which doesn't open.
+ */
+const STABLEFORD_VIA_BASIS = "set Stroke Play and choose Stableford scoring";
 
 export const GOLF_FORMATS: GolfFormat[] = [
   /* ── Individual ────────────────────────────────────────────────────── */
@@ -69,6 +98,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "match",
     allowance: 100,
     scored: true,
+    playable: true,
   },
   {
     name: "Stroke Play",
@@ -79,6 +109,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "stroke",
     allowance: 95,
     scored: true,
+    playable: true,
   },
   {
     name: "Stableford",
@@ -89,6 +120,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "stableford",
     allowance: 95,
     scored: true,
+    playable: false,
+    pendingReason: STABLEFORD_VIA_BASIS,
   },
   {
     name: "Modified Stableford",
@@ -99,6 +132,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "modified-stableford",
     allowance: 95,
     scored: true,
+    playable: false,
+    pendingReason: NEEDS_ENTRY,
   },
   {
     name: "Skins",
@@ -109,6 +144,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "skins",
     allowance: 100,
     scored: true,
+    playable: false,
+    pendingReason: NEEDS_ENTRY,
   },
   {
     name: "Nassau",
@@ -119,6 +156,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "nassau",
     allowance: 100,
     scored: true,
+    playable: false,
+    pendingReason: NEEDS_ENTRY,
   },
 
   /* ── Pairs, each playing their own ball ────────────────────────────── */
@@ -131,6 +170,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "team-aggregate",
     allowance: 90,
     scored: true,
+    playable: false,
+    pendingReason: NEEDS_TEAM_ENTRY,
   },
   {
     name: "Best Ball",
@@ -142,6 +183,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "team-aggregate",
     allowance: 85,
     scored: true,
+    playable: false,
+    pendingReason: NEEDS_TEAM_ENTRY,
   },
   {
     name: "Shamble",
@@ -154,6 +197,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     allowance: 85,
     allowanceIsConvention: true,
     scored: true,
+    playable: false,
+    pendingReason: NEEDS_TEAM_ENTRY,
   },
 
   /* ── Sides sharing one ball ────────────────────────────────────────── */
@@ -167,6 +212,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     // 50% of the pair's combined course handicaps.
     allowance: 50,
     scored: true,
+    playable: false,
+    pendingReason: NEEDS_TEAM_ENTRY,
   },
   {
     name: "Alternate Shot",
@@ -177,6 +224,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "team-single",
     allowance: 50,
     scored: true,
+    playable: false,
+    pendingReason: NEEDS_TEAM_ENTRY,
   },
   {
     name: "Chapman / Pinehurst",
@@ -188,6 +237,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     allowance: 50,
     allowanceIsConvention: true,
     scored: true,
+    playable: false,
+    pendingReason: NEEDS_TEAM_ENTRY,
   },
   {
     name: "Scramble",
@@ -201,6 +252,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     allowance: 25,
     allowanceIsConvention: true,
     scored: true,
+    playable: false,
+    pendingReason: NEEDS_TEAM_ENTRY,
   },
   {
     name: "Texas Scramble",
@@ -213,6 +266,8 @@ export const GOLF_FORMATS: GolfFormat[] = [
     allowance: 25,
     allowanceIsConvention: true,
     scored: true,
+    playable: false,
+    pendingReason: NEEDS_TEAM_ENTRY,
   },
 ];
 
@@ -272,6 +327,22 @@ export function findFormat(name: string): GolfFormat {
  * it — the failure mode that list existed to prevent.
  */
 export const SCORED_FORMAT_NAMES = GOLF_FORMATS.filter((f) => f.scored).map((f) => f.name);
+
+/**
+ * Formats an organizer can actually run today — the ones the picker offers.
+ *
+ * Deliberately narrower than SCORED_FORMAT_NAMES. An engine that computes a
+ * result is not a tournament someone can run: the round also needs a way to
+ * enter scores and somewhere to read them. Conflating the two is how a picker
+ * ends up offering a format that can be chosen, briefed to a field, and then
+ * found to have nowhere to record a card.
+ */
+export const PLAYABLE_FORMAT_NAMES = GOLF_FORMATS.filter((f) => f.playable).map((f) => f.name);
+
+/** True when a round set to this format can be run end to end today. */
+export function isPlayable(name: string): boolean {
+  return lookupFormat(name)?.playable ?? false;
+}
 
 /** Formats played by teams rather than individuals. */
 export const TEAM_FORMAT_NAMES = GOLF_FORMATS.filter((f) => f.sideSize > 1).map((f) => f.name);
