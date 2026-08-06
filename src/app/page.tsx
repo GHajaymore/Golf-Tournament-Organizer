@@ -8,7 +8,7 @@ const FEATURES: Array<{ icon: string; title: string; text: string; accent: "acce
   {
     icon: "ph ph-arrows-clockwise",
     title: "Every format, one leaderboard",
-    text: "Match play, stroke play and Stableford run within a single event and resolve to a single set of standings.",
+    text: "Match play, stroke play, Stableford, skins, Nassau, four-ball, foursomes and scrambles — each scored properly, all resolving to one set of standings.",
     accent: "accent",
   },
   {
