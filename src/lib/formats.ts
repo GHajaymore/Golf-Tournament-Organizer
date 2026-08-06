@@ -78,7 +78,6 @@ export interface GolfFormat {
 
 /** What's missing for the formats whose engines exist but whose screens don't. */
 const NEEDS_ENTRY = "score entry coming soon";
-const NEEDS_TEAM_ENTRY = "team score entry coming soon";
 /**
  * Stableford is already playable — as a scoring *basis* on a Stroke Play
  * round, which is how the engine models it and how the leaderboard reads it.
@@ -170,8 +169,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "team-aggregate",
     allowance: 90,
     scored: true,
-    playable: false,
-    pendingReason: NEEDS_TEAM_ENTRY,
+    playable: true,
   },
   {
     name: "Best Ball",
@@ -183,8 +181,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "team-aggregate",
     allowance: 85,
     scored: true,
-    playable: false,
-    pendingReason: NEEDS_TEAM_ENTRY,
+    playable: true,
   },
   {
     name: "Shamble",
@@ -197,8 +194,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     allowance: 85,
     allowanceIsConvention: true,
     scored: true,
-    playable: false,
-    pendingReason: NEEDS_TEAM_ENTRY,
+    playable: true,
   },
 
   /* ── Sides sharing one ball ────────────────────────────────────────── */
@@ -212,8 +208,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     // 50% of the pair's combined course handicaps.
     allowance: 50,
     scored: true,
-    playable: false,
-    pendingReason: NEEDS_TEAM_ENTRY,
+    playable: true,
   },
   {
     name: "Alternate Shot",
@@ -224,8 +219,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "team-single",
     allowance: 50,
     scored: true,
-    playable: false,
-    pendingReason: NEEDS_TEAM_ENTRY,
+    playable: true,
   },
   {
     name: "Chapman / Pinehurst",
@@ -237,8 +231,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     allowance: 50,
     allowanceIsConvention: true,
     scored: true,
-    playable: false,
-    pendingReason: NEEDS_TEAM_ENTRY,
+    playable: true,
   },
   {
     name: "Scramble",
@@ -252,8 +245,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     allowance: 25,
     allowanceIsConvention: true,
     scored: true,
-    playable: false,
-    pendingReason: NEEDS_TEAM_ENTRY,
+    playable: true,
   },
   {
     name: "Texas Scramble",
@@ -266,8 +258,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     allowance: 25,
     allowanceIsConvention: true,
     scored: true,
-    playable: false,
-    pendingReason: NEEDS_TEAM_ENTRY,
+    playable: true,
   },
 ];
 

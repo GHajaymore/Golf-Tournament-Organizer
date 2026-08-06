@@ -81,9 +81,14 @@ describe("the catalog", () => {
   it("offers only what can be run end to end", () => {
     // The narrower list is what the round picker reads. Match play and stroke
     // play are wired through entry and the leaderboard; nothing else is yet.
-    expect(PLAYABLE_FORMAT_NAMES).toEqual(["Match Play", "Stroke Play"]);
-    expect(isPlayable("Match Play")).toBe(true);
-    expect(isPlayable("Scramble")).toBe(false);
+    expect(PLAYABLE_FORMAT_NAMES).toContain("Match Play");
+    expect(PLAYABLE_FORMAT_NAMES).toContain("Stroke Play");
+    // Team formats have entry and a leaderboard now.
+    expect(isPlayable("Scramble")).toBe(true);
+    expect(isPlayable("Four-Ball")).toBe(true);
+    // These still lack an entry screen.
+    expect(isPlayable("Skins")).toBe(false);
+    expect(isPlayable("Nassau")).toBe(false);
     expect(isPlayable("Some Future Format")).toBe(false);
   });
 

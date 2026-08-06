@@ -5,6 +5,10 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { CommentaryPanel } from "@/components/CommentaryPanel";
 import { LeaderboardBoard } from "@/components/LeaderboardBoard";
+import { TeamLeaderboard } from "@/components/TeamLeaderboard";
+import { needsTeams } from "@/lib/formats";
+import { teamStandings } from "@/lib/services/teams";
+import { resolveCourse } from "@/lib/courses";
 
 function ago(d: Date): string {
   const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
@@ -20,6 +24,31 @@ export default async function LeaderboardPage() {
 
   // A blind event hides standings from players until the organizer publishes.
   if (!canSeeLeaderboard(settingsOf(event), session.viewRole)) redirect("/dashboard");
+
+  // A team round ranks sides, not players. In a scramble nobody has an
+  // individual score to rank at all, and in a four-ball an individual score is
+  // only half the story — so this is a different board, not a column change.
+  const activeStage = state.activeStage ?? state.stages[0] ?? null;
+  if (activeStage && needsTeams(activeStage.format)) {
+    const holeCount = activeStage.holes === 9 ? 9 : 18;
+    const course = resolveCourse(event);
+    const standings = await teamStandings(
+      session.eventId,
+      activeStage.id,
+      activeStage.format,
+      course.pars.slice(0, holeCount),
+      course.strokeIndex.slice(0, holeCount),
+      activeStage.scoringBasis,
+    );
+    return (
+      <TeamLeaderboard
+        format={activeStage.format}
+        stableford={activeStage.scoringBasis === "stableford"}
+        rows={standings}
+      />
+    );
+  }
+
   const rows = standingRows(state);
   const highlights = computeHighlights(state);
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";

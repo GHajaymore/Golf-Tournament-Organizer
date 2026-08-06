@@ -21,6 +21,9 @@ import { marginToHoles, resolveMatch, deriveNetHoles, roundRobinSchedule, TIEBRE
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
+import { findFormat } from "@/lib/formats";
+import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
+import { sidePlayingHandicap } from "@/lib/services/teams";
 
 async function requireEvent(): Promise<string> {
   const session = await getSession();
@@ -951,6 +954,172 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null },
   });
   refresh();
+}
+
+/**
+ * Save a card for a team round.
+ *
+ * `playerId` decides which of the two shapes of team golf this is, and it is
+ * not a free choice — it must agree with the format:
+ *
+ *   Empty  — the side plays one ball, so there is one card for the team
+ *            (foursomes, alternate shot, scramble, Chapman).
+ *   Set    — each partner keeps their own card and the side's score is derived
+ *            per hole (four-ball, best ball, shamble).
+ *
+ * Sending the wrong one would produce a card the scoring engine then reads
+ * with the other shape's rules, so the mismatch is rejected rather than
+ * quietly stored.
+ */
+export async function saveTeamScorecard(
+  teamId: string,
+  playerId: string,
+  matchId: string,
+  strokes: (number | null)[],
+): Promise<{ ok: boolean; error?: string }> {
+  const { eventId, session, settings } = await requireScoreEntry();
+
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    include: { members: { select: { playerId: true } }, stage: { select: { id: true, format: true } } },
+  });
+  if (!team || team.eventId !== eventId) return { ok: false, error: "Team not found." };
+
+  // A team may be event-wide (stageId null), in which case the round comes
+  // from the match being scored.
+  let stageId = team.stageId;
+  let match: { id: string; stageId: string; eventId: string; teamAId: string; teamBId: string } | null = null;
+  if (matchId) {
+    const m = await prisma.match.findUnique({ where: { id: matchId } });
+    if (!m || m.eventId !== eventId) return { ok: false, error: "Match not found." };
+    if (m.teamAId !== teamId && m.teamBId !== teamId) {
+      return { ok: false, error: "That team is not in this match." };
+    }
+    match = m;
+    stageId = m.stageId;
+  }
+  if (!stageId) return { ok: false, error: "This card has no round to belong to." };
+
+  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { format: true, holes: true } });
+  if (!stage) return { ok: false, error: "Round not found." };
+  const format = findFormat(stage.format);
+
+  // A player may only enter cards for a side they are actually on. Staff are
+  // exempt — entering everyone's scores is the job in a committee-run event.
+  //
+  // Identity comes from the session email resolved to this event's Player row,
+  // the same way confirmMatch does it: the session carries an account, not an
+  // entry, and the two are only linked by email.
+  const isStaff = session.role === "admin" || session.role === "assistant";
+  let callerPlayerId = "";
+  if (!isStaff) {
+    const own = await prisma.player.findFirst({
+      where: { eventId, email: session.email },
+      select: { id: true },
+    });
+    if (!own || !team.members.some((m) => m.playerId === own.id)) {
+      return { ok: false, error: "You're not on this team." };
+    }
+    callerPlayerId = own.id;
+  }
+
+  // The card shape must match the format, not the caller's choice.
+  if (format.ball === "single" && playerId !== "") {
+    return { ok: false, error: `${format.name} is played with one ball per side — one card, not one each.` };
+  }
+  if (format.ball === "individual" && playerId === "") {
+    return { ok: false, error: `${format.name} needs a card for each partner.` };
+  }
+  if (playerId && !team.members.some((m) => m.playerId === playerId)) {
+    return { ok: false, error: "That player is not on this team." };
+  }
+  // A player entering a partner's card is the same hole confirmMatch had: on a
+  // side, but not this person. Shared-ball formats are exempt by construction,
+  // since that card belongs to nobody in particular.
+  if (!isStaff && playerId && playerId !== callerPlayerId) {
+    return { ok: false, error: "You can only enter your own card." };
+  }
+
+  if (session.role === "player" && !canPlayerSavePartial(settings)) {
+    const filled = strokes.filter((s) => typeof s === "number" && s > 0).length;
+    if (filled < strokes.length) {
+      return { ok: false, error: "Enter the full round, then submit it." };
+    }
+  }
+
+  await prisma.teamScorecard.upsert({
+    where: { stageId_matchId_teamId_playerId: { stageId, matchId, teamId, playerId } },
+    update: { strokes: JSON.stringify(strokes) },
+    create: { eventId, stageId, matchId, teamId, playerId, strokes: JSON.stringify(strokes) },
+  });
+
+  // Team match play: recompute the match from both sides' cards, so the same
+  // resolveMatch that decides singles decides this too.
+  if (match) {
+    await recomputeTeamMatch(eventId, match, stage.format, stage.holes === 9 ? 9 : 18);
+  }
+
+  refresh();
+  return { ok: true };
+}
+
+/** Rebuild a team match's hole results from the two sides' cards. */
+async function recomputeTeamMatch(
+  eventId: string,
+  match: { id: string; stageId: string; teamAId: string; teamBId: string },
+  formatName: string,
+  holeCount: number,
+): Promise<void> {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) return;
+  const course = resolveCourse(event);
+  const format = findFormat(formatName);
+
+  const sideCard = async (teamId: string) => {
+    const [cards, members] = await Promise.all([
+      prisma.teamScorecard.findMany({ where: { stageId: match.stageId, matchId: match.id, teamId } }),
+      prisma.teamMember.findMany({
+        where: { teamId },
+        include: { player: { select: { id: true, handicap: true } } },
+      }),
+    ]);
+    const parse = (s: string): (number | null)[] => {
+      try {
+        return JSON.parse(s) as (number | null)[];
+      } catch {
+        return [];
+      }
+    };
+    if (format.ball === "single") {
+      const one = cards.find((c) => c.playerId === "");
+      const hcp = sidePlayingHandicap(members.map((m) => m.player.handicap), formatName);
+      return singleBallTeamCard(one ? parse(one.strokes) : [], course.pars, hcp, course.strokeIndex);
+    }
+    return aggregateTeamCard(
+      members.map((m) => ({
+        playerId: m.playerId,
+        strokes: parse(cards.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
+        courseHandicap: m.player.handicap,
+      })),
+      course.pars.slice(0, holeCount),
+      course.strokeIndex.slice(0, holeCount),
+      format.allowance,
+    );
+  };
+
+  const [a, b] = await Promise.all([sideCard(match.teamAId), sideCard(match.teamBId)]);
+  const holes = teamMatchHoles(a, b);
+  const complete = resolveMatch(holes).complete;
+
+  await prisma.match.update({
+    where: { id: match.id },
+    data: {
+      holes: JSON.stringify(holes),
+      scoreStatus: "pending",
+      scoredAt: complete ? new Date() : null,
+      confirmedById: null,
+    },
+  });
 }
 
 /* ── Score confirmation ───────────────────────────────────────────────── */

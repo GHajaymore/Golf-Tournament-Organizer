@@ -8,6 +8,10 @@ import { prisma } from "@/lib/db";
 import { resolveCourse, hasCourseData, needsCourseData } from "@/lib/courses";
 import { courseForMatch, applyNine, type Nine } from "@/lib/services/course-resolution";
 import type { HoleResult } from "@/lib/domain";
+import { needsTeams, findFormat } from "@/lib/formats";
+import { teamsForStage } from "@/lib/services/teams";
+import { aggregateTeamCard, singleBallTeamCard } from "@/lib/domain/team";
+import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
 
 export default async function EntryPage() {
   const session = await requireScreen("entry");
@@ -44,6 +48,105 @@ export default async function EntryPage() {
   const courseKnown = hasCourseData(state.event) || venues.length > 0;
   if (scoringNeedsCourse && !courseKnown) {
     return <CourseSetupPrompt eventCourse={state.event.course} eventCity={state.event.city} isStaff={isStaff} />;
+  }
+
+  // A team round is entered differently enough that it gets its own screen
+  // rather than a mode inside the individual one: the unit is a side, the card
+  // count depends on the format, and there is no A/B slot to fill.
+  const activeStage = state.activeStage ?? state.stages[0] ?? null;
+  if (activeStage && needsTeams(activeStage.format)) {
+    const format = findFormat(activeStage.format);
+    const holeCount = activeStage.holes === 9 ? 9 : 18;
+    const teams = await teamsForStage(session.eventId, activeStage.id, activeStage.format);
+    const teamById = new Map(teams.map((t) => [t.id, t]));
+    const stageMatches = state.matches.filter(
+      (m) => m.stageId === activeStage.id && m.teamAId && m.teamBId,
+    );
+    const cards = await prisma.teamScorecard.findMany({
+      where: { eventId: session.eventId, stageId: activeStage.id },
+    });
+    const strokesFor = (teamId: string, matchId: string, playerId: string): (number | null)[] => {
+      const row = cards.find(
+        (c) => c.teamId === teamId && c.matchId === matchId && c.playerId === playerId,
+      );
+      if (!row) return new Array(holeCount).fill(null);
+      try {
+        return JSON.parse(row.strokes) as (number | null)[];
+      } catch {
+        return new Array(holeCount).fill(null);
+      }
+    };
+
+    const teamCourse = resolveCourse(state.event);
+    const rows: TeamEntryRow[] = [];
+    const pushRow = (teamId: string, matchId: string, opponentName?: string) => {
+      const t = teamById.get(teamId);
+      if (!t) return;
+      const cardRows =
+        format.ball === "single"
+          ? [{ playerId: "", playerName: "", handicap: 0, strokes: strokesFor(teamId, matchId, "") }]
+          : t.members.map((m) => ({
+              playerId: m.playerId,
+              playerName: m.name,
+              handicap: m.handicap,
+              strokes: strokesFor(teamId, matchId, m.playerId),
+            }));
+      const card =
+        format.ball === "single"
+          ? singleBallTeamCard(
+              cardRows[0].strokes,
+              teamCourse.pars.slice(0, holeCount),
+              t.playingHandicap,
+              teamCourse.strokeIndex.slice(0, holeCount),
+            )
+          : aggregateTeamCard(
+              cardRows.map((c) => ({
+                playerId: c.playerId,
+                strokes: c.strokes,
+                courseHandicap: c.handicap,
+              })),
+              teamCourse.pars.slice(0, holeCount),
+              teamCourse.strokeIndex.slice(0, holeCount),
+              format.allowance,
+            );
+      rows.push({
+        teamId,
+        teamName: t.name,
+        matchId,
+        opponentName,
+        playingHandicap: t.playingHandicap,
+        cards: cardRows,
+        grossTotal: card.grossTotal,
+        netTotal: card.netTotal,
+        played: card.played,
+      });
+    };
+
+    if (stageMatches.length > 0) {
+      for (const m of stageMatches) {
+        pushRow(m.teamAId, m.id, teamById.get(m.teamBId)?.name);
+        pushRow(m.teamBId, m.id, teamById.get(m.teamAId)?.name);
+      }
+    } else {
+      // No matches: a team stroke-play round, where every side returns one card
+      // against the field rather than against an opponent.
+      for (const t of teams) pushRow(t.id, "");
+    }
+
+    return (
+      <>
+        <p className="kicker">Manage</p>
+        <h1 className="page-title">Score entry</h1>
+        <TeamEntryClient
+          round={`${activeStage.format}`}
+          teams={rows}
+          pars={courseKnown ? teamCourse.pars.slice(0, holeCount) : []}
+          strokeIndex={courseKnown ? teamCourse.strokeIndex.slice(0, holeCount) : []}
+          sharesOneCard={format.ball === "single"}
+          holes={holeCount}
+        />
+      </>
+    );
   }
 
   const nameById = new Map(state.players.map((p) => [p.id, p.name]));

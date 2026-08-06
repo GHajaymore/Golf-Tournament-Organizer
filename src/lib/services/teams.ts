@@ -1,7 +1,13 @@
 import "server-only";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
-import { sideHandicap, SCRAMBLE_WEIGHTS_2, SCRAMBLE_WEIGHTS_4 } from "../domain/team";
+import {
+  sideHandicap,
+  aggregateTeamCard,
+  singleBallTeamCard,
+  SCRAMBLE_WEIGHTS_2,
+  SCRAMBLE_WEIGHTS_4,
+} from "../domain/team";
 
 export interface TeamMemberView {
   playerId: string;
@@ -125,6 +131,93 @@ export async function unassignedPlayers(
     orderBy: { seed: "asc" },
   });
   return players.filter((p) => !taken.has(p.id));
+}
+
+export interface TeamStanding {
+  teamId: string;
+  name: string;
+  members: string[];
+  playingHandicap: number;
+  gross: number;
+  net: number;
+  points: number;
+  played: number;
+  toPar: number;
+}
+
+/**
+ * Standings for a team round.
+ *
+ * Ranks sides rather than players, which is the whole point — in a scramble
+ * nobody has an individual score to rank, and in a four-ball an individual
+ * score is only half the story.
+ *
+ * Sides that haven't returned anything sort last rather than tying for first
+ * on a gross of zero, which is what a naive ascending sort would do.
+ */
+export async function teamStandings(
+  eventId: string,
+  stageId: string,
+  format: string,
+  pars: number[],
+  strokeIndex: number[],
+  basis: string,
+): Promise<TeamStanding[]> {
+  const f = findFormat(format);
+  const [teams, cards] = await Promise.all([
+    teamsForStage(eventId, stageId, format),
+    prisma.teamScorecard.findMany({ where: { eventId, stageId } }),
+  ]);
+
+  const parse = (s: string): (number | null)[] => {
+    try {
+      return JSON.parse(s) as (number | null)[];
+    } catch {
+      return [];
+    }
+  };
+
+  const rows = teams.map((t) => {
+    const own = cards.filter((c) => c.teamId === t.id);
+    const card =
+      f.ball === "single"
+        ? singleBallTeamCard(
+            parse(own.find((c) => c.playerId === "")?.strokes ?? "[]"),
+            pars,
+            t.playingHandicap,
+            strokeIndex,
+          )
+        : aggregateTeamCard(
+            t.members.map((m) => ({
+              playerId: m.playerId,
+              strokes: parse(own.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
+              courseHandicap: m.handicap,
+            })),
+            pars,
+            strokeIndex,
+            f.allowance,
+          );
+    return {
+      teamId: t.id,
+      name: t.name,
+      members: t.members.map((m) => m.name),
+      playingHandicap: t.playingHandicap,
+      gross: card.grossTotal,
+      net: card.netTotal,
+      points: card.pointsTotal,
+      played: card.played,
+      toPar: card.toPar,
+    };
+  });
+
+  const stableford = basis === "stableford";
+  return rows.sort((a, b) => {
+    // A side with no card yet has nothing to rank, and a gross of zero would
+    // otherwise put it top.
+    if (a.played === 0 !== (b.played === 0)) return a.played === 0 ? 1 : -1;
+    if (stableford) return b.points - a.points || a.name.localeCompare(b.name);
+    return a.net - b.net || a.gross - b.gross || a.name.localeCompare(b.name);
+  });
 }
 
 /**
