@@ -85,6 +85,7 @@ export function ScoreEntryClient({
   strokeIndex = [],
   netMode = false,
   courseKnown = true,
+  isAdmin = false,
 }: {
   matches: EntryMatch[];
   isStaff?: boolean;
@@ -96,6 +97,8 @@ export function ScoreEntryClient({
   /** Whether real par/stroke-index data backs this event. False for a league
    *  with no fixed venue, where scorecard entry can't be offered yet. */
   courseKnown?: boolean;
+  /** Organizer, as opposed to assistant. Only they may reopen a result. */
+  isAdmin?: boolean;
 }) {
   const [holesById, setHolesById] = useState<Record<string, HoleResult[]>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.holes])),
@@ -725,7 +728,10 @@ export function ScoreEntryClient({
                     </button>
                   </>
                 )}
-                {isStaff && (
+                {/* Organizer-only: reopening undoes an approval, and the
+                    action refuses anyone else. Showing it to assistants would
+                    hand them a button that only ever errors. */}
+                {isAdmin && (
                   <button type="button" className="btn btn-secondary" onClick={doReopen}>
                     <i className="ph ph-lock-key-open" /> Reopen
                   </button>

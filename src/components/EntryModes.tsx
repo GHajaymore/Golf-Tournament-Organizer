@@ -25,6 +25,7 @@ export function EntryModes({
   isStaff,
   defaultMode = "match",
   courseKnown = true,
+  isAdmin = false,
 }: {
   rounds: EntryRound[];
   activeIndex: number;
@@ -36,6 +37,8 @@ export function EntryModes({
   defaultMode?: "match" | "stroke";
   /** Whether real par/stroke-index data backs this event. */
   courseKnown?: boolean;
+  /** Organizer, not assistant — gates the Reopen control. */
+  isAdmin?: boolean;
 }) {
   const [mode, setMode] = useState<"match" | "stroke">(defaultMode);
   const [roundIdx, setRoundIdx] = useState(activeIndex);
@@ -85,6 +88,7 @@ export function EntryModes({
           strokeIndex={strokeIndex}
           netMode={round.netMode}
           courseKnown={courseKnown}
+          isAdmin={isAdmin}
         />
       ) : (
         <StrokePlayEntry

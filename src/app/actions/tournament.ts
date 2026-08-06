@@ -1015,9 +1015,16 @@ export async function disputeMatch(matchId: string) {
   refresh();
 }
 
-/** Organizer override: reopen a match for re-scoring; logged to the audit trail. */
+/**
+ * Organizer override: reopen a match for re-scoring; logged to the audit trail.
+ *
+ * Organizer-only, unlike the rest of score entry. This is the one action that
+ * undoes an approval, and under staff sign-off the whole point is that an
+ * organizer stands behind the number — an assistant reversing that quietly
+ * would hollow the guarantee out.
+ */
 export async function reopenMatch(matchId: string) {
-  const eventId = await requireStaffEvent();
+  const eventId = await requireAdminEvent();
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
     data: { scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },

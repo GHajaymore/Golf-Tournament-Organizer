@@ -131,6 +131,7 @@ export default async function EntryPage() {
       isStaff={isStaff}
       defaultMode={state.event.format === "stroke" ? "stroke" : "match"}
       courseKnown={courseKnown}
+      isAdmin={session.viewRole === "admin"}
     />
   );
 }
