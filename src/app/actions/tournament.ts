@@ -13,6 +13,8 @@ import {
 import type { Session } from "@/lib/auth";
 import { organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
 import { effectiveAccess } from "@/lib/services/access";
+import { generateShareToken } from "@/lib/codes";
+import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
 import { marginToHoles, resolveMatch, deriveNetHoles, roundRobinSchedule, TIEBREAKER_KEYS } from "@/lib/domain";
@@ -1136,11 +1138,135 @@ export async function switchEvent(eventId: string) {
   refresh();
 }
 
-/** Create a fresh tournament (owned by the current organizer) and switch to it. */
-export async function createEvent(name: string) {
+/**
+ * Create a tournament by copying an existing one.
+ *
+ * Most tournaments are not new — they're this year's version of last year's,
+ * and the organizer's own proven setup beats any preset someone else authored.
+ *
+ * Configuration only. Deliberately *not* copied:
+ *
+ *   - Players, matches, scorecards, prizes, announcements. A clone carrying
+ *     last year's results would be a disaster, and one carrying last year's
+ *     field would quietly enter people who never entered.
+ *   - The share token. It is unique, so copying would collide — and it would
+ *     hand this year's tournament last year's public link.
+ *   - Round Codes. They are credentials; a new tournament gets new ones, and
+ *     only if it turns code access on.
+ */
+export async function cloneEvent(sourceEventId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+
+  const access = await effectiveAccess(session.email, sourceEventId);
+  if (!access) return { ok: false, error: "You don't have access to that tournament." };
+
+  const source = await prisma.event.findUnique({
+    where: { id: sourceEventId },
+    include: { stages: { orderBy: { position: "asc" } }, courses: true },
+  });
+  if (!source) return { ok: false, error: "Tournament not found." };
+
+  const clean = name.trim() || `${source.name} (copy)`;
+
+  const created = await prisma.event.create({
+    data: {
+      organizationId: source.organizationId,
+      name: clean,
+      // Dates and the registration deadline are the two things that are always
+      // wrong on a copy, so they start empty rather than pointing at last year.
+      dates: "",
+      regDeadline: "",
+      format: source.format,
+      course: source.course,
+      city: source.city,
+      address: source.address,
+      customPars: source.customPars,
+      customYards: source.customYards,
+      customStrokeIndex: source.customStrokeIndex,
+      capacity: source.capacity,
+      playerCountMode: source.playerCountMode,
+      manualPlayerCount: source.manualPlayerCount,
+      formationRule: source.formationRule,
+      flightMode: source.flightMode,
+      flightValue: source.flightValue,
+      qualifyPerGroup: source.qualifyPerGroup,
+      qualifyMode: source.qualifyMode,
+      qualifyOverall: source.qualifyOverall,
+      winPts: source.winPts,
+      tiePts: source.tiePts,
+      lossPts: source.lossPts,
+      holeRatioPts: source.holeRatioPts,
+      bonusPts: source.bonusPts,
+      tiebreakers: source.tiebreakers,
+      inviteMessage: source.inviteMessage,
+      leaderboardVisibility: source.leaderboardVisibility,
+      scoreEntryBy: source.scoreEntryBy,
+      scoreEntryWindow: source.scoreEntryWindow,
+      voiceEntry: source.voiceEntry,
+      playerAccess: source.playerAccess,
+      scoreApproval: source.scoreApproval,
+      status: "draft",
+      // A fresh token: unique index aside, the copy must not inherit the
+      // original's public link.
+      shareToken: generateShareToken(),
+    },
+  });
+
+  // Venues carry over — a club plays the same courses year on year.
+  for (const link of source.courses) {
+    await prisma.eventCourse.create({ data: { eventId: created.id, courseId: link.courseId } });
+  }
+
+  // Rounds carry their shape, but never their Round Codes.
+  for (const s of source.stages) {
+    await prisma.stage.create({
+      data: {
+        eventId: created.id,
+        position: s.position,
+        type: s.type,
+        description: s.description,
+        format: s.format,
+        holes: s.holes,
+        deadline: "",
+        scoringBasis: s.scoringBasis,
+        carryForwardEnabled: s.carryForwardEnabled,
+        carryForwardPct: s.carryForwardPct,
+        cutEnabled: s.cutEnabled,
+        cutMode: s.cutMode,
+        cutCount: s.cutCount,
+        cutPercent: s.cutPercent,
+        courseId: s.courseId,
+        nine: s.nine,
+      },
+    });
+  }
+
+  // The creator is the organizer of the copy.
+  await prisma.account.create({
+    data: { eventId: created.id, name: session.name, email: session.email, role: "admin" },
+  });
+
+  await setActiveEvent(created.id);
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Create a fresh tournament (owned by the current organizer) and switch to it.
+ *
+ * `templateKey` is a starting point, never a lock — every setting it seeds
+ * stays editable on Event setup, and nothing reads the key again afterwards.
+ * An explicit template beats the club's house defaults, since picking one is a
+ * deliberate act; "custom" and an absent key both leave the house defaults in
+ * place.
+ */
+export async function createEvent(name: string, templateKey?: string): Promise<{ ok: boolean; error?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   const clean = name.trim() || "New Tournament";
+  const template = templateKey ? templateFor(templateKey) : null;
+  const templated = template && template.key !== DEFAULT_TEMPLATE_KEY ? template : null;
   // Every tournament belongs to a billing tenant; this creates the organizer's
   // personal organization on their first event.
   const organizationId = await organizationForNewEvent(session.email, session.name);
@@ -1157,6 +1283,7 @@ export async function createEvent(name: string) {
       status: "draft",
       // Start from the club's house defaults, then own them outright.
       ...(await settingsForNewEvent(organizationId)),
+      ...(templated ? templated.settings : {}),
     },
   });
   // A club plays at its own course, so a new tournament starts there and
@@ -1176,11 +1303,11 @@ export async function createEvent(name: string) {
     data: {
       eventId: event.id,
       position: 0,
-      type: "Round Robin",
       description: "",
-      format: "Match Play",
-      holes: 18,
-      scoringBasis: "gross",
+      type: templated?.round.type ?? "Round Robin",
+      format: templated?.round.format ?? "Match Play",
+      holes: templated?.round.holes ?? 18,
+      scoringBasis: templated?.round.scoringBasis ?? "gross",
     },
   });
   await prisma.account.create({
@@ -1188,6 +1315,7 @@ export async function createEvent(name: string) {
   });
   await setActiveEvent(event.id);
   refresh();
+  return { ok: true };
 }
 
 /** Delete a tournament (primary Organizer only). Re-anchors the session so the

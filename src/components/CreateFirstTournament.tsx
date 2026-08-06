@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { createEvent } from "@/app/actions/tournament";
+import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 
 /**
  * Create-a-tournament step on the picker screen. Shown prominently when
@@ -10,11 +11,14 @@ import { createEvent } from "@/app/actions/tournament";
 export function CreateFirstTournament({ first }: { first: boolean }) {
   const [name, setName] = useState("");
   const [open, setOpen] = useState(first);
+  const [template, setTemplate] = useState(DEFAULT_TEMPLATE_KEY);
   const [pending, startTransition] = useTransition();
 
   const submit = () => {
     if (!name.trim()) return;
-    startTransition(() => createEvent(name));
+    startTransition(async () => {
+      await createEvent(name, template);
+    });
   };
 
   if (!open) {
@@ -50,6 +54,17 @@ export function CreateFirstTournament({ first }: { first: boolean }) {
           placeholder="e.g. Club Championship 2026"
           autoFocus
         />
+      </div>
+      <div className="field">
+        <label>What kind of tournament?</label>
+        <select className="input" value={template} onChange={(e) => setTemplate(e.target.value)}>
+          {TOURNAMENT_TEMPLATES.map((t) => (
+            <option key={t.key} value={t.key}>{t.name}</option>
+          ))}
+        </select>
+        <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+          {templateFor(template).blurb} Every setting stays editable afterwards.
+        </p>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <button type="button" className="btn btn-primary" disabled={pending || !name.trim()} onClick={submit}>

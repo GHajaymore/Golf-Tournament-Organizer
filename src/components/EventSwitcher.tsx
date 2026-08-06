@@ -1,6 +1,11 @@
 "use client";
 import { useState, useTransition } from "react";
-import { switchEvent, createEvent, deleteEvent } from "@/app/actions/tournament";
+import { switchEvent, createEvent, cloneEvent, deleteEvent } from "@/app/actions/tournament";
+import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
+
+/** Marks a "Start from" value as an event id rather than a template key, so the
+ *  two namespaces can share one select without ever colliding. */
+const COPY_PREFIX = "copy:";
 
 export interface EventRow {
   id: string;
@@ -24,7 +29,20 @@ const STATUS: Record<string, { label: string; tag: string }> = {
 export function EventSwitcher({ events }: { events: EventRow[] }) {
   const [name, setName] = useState("");
   const [confirmingId, setConfirmingId] = useState("");
+  // Deliberately defaults to a blank tournament even though copying is listed
+  // first: anyone who clicks Create without reading gets exactly what that
+  // button has always done, and copying stays a decision they made on purpose.
+  const [source, setSource] = useState(DEFAULT_TEMPLATE_KEY);
+  const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+
+  const copyable = events.filter((e) => e.hasAccess);
+  const copyFrom = source.startsWith(COPY_PREFIX)
+    ? copyable.find((e) => e.id === source.slice(COPY_PREFIX.length))
+    : undefined;
+  const blurb = copyFrom
+    ? `Copies the settings, rounds and courses from ${copyFrom.name || "that tournament"} — never its players, scores or access codes. Dates start empty and everything stays editable.`
+    : templateFor(source).blurb + " Every setting stays editable afterwards.";
 
   return (
     <div className="card elev-sm" style={{ marginBottom: 16 }}>
@@ -100,21 +118,42 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
           <label>Create a new tournament</label>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Club Championship 2026" />
         </div>
+        <div className="field" style={{ flex: 1, minWidth: 220 }}>
+          <label>Start from</label>
+          <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>
+            {copyable.length > 0 && (
+              <optgroup label="Copy an existing tournament">
+                {copyable.map((e) => (
+                  <option key={e.id} value={`${COPY_PREFIX}${e.id}`}>{e.name || "Untitled"}</option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Start from a template">
+              {TOURNAMENT_TEMPLATES.map((t) => (
+                <option key={t.key} value={t.key}>{t.name}</option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
         <button
           type="button"
           className="btn btn-primary"
           disabled={pending}
           onClick={() => {
-            startTransition(() => createEvent(name));
+            const copyId = source.startsWith(COPY_PREFIX) ? source.slice(COPY_PREFIX.length) : "";
+            setError("");
+            startTransition(async () => {
+              const res = copyId ? await cloneEvent(copyId, name) : await createEvent(name, source);
+              if (res && !res.ok) setError(res.error ?? "Could not create the tournament.");
+            });
             setName("");
           }}
         >
           <i className="ph ph-plus" /> Create tournament
         </button>
       </div>
-      <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-        A new tournament starts empty (Draft, one Round Robin round) — the whole workflow below shows the tournament you're managing.
-      </p>
+      <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{blurb}</p>
+      {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
     </div>
   );
 }
