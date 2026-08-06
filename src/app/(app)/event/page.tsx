@@ -20,6 +20,11 @@ export default async function EventPage() {
   const e = state.event;
   const locked = isSetupLocked(state.event);
   const courses = await clubCourses(e.organizationId, e.id);
+  const org = await prisma.organization.findUnique({
+    where: { id: e.organizationId },
+    select: { defaultCourseId: true },
+  });
+  const homeCourseId = org?.defaultCourseId ?? null;
 
   const allEvents = await prisma.event.findMany({
     orderBy: { createdAt: "desc" },
@@ -119,6 +124,7 @@ export default async function EventPage() {
           courses={courses}
           presetNames={COURSES.map((c) => c.name)}
           canEdit={session.viewRole === "admin"}
+          homeCourse={homeCourseId}
         />
       </div>
 

@@ -1159,6 +1159,19 @@ export async function createEvent(name: string) {
       ...(await settingsForNewEvent(organizationId)),
     },
   });
+  // A club plays at its own course, so a new tournament starts there and
+  // nobody is asked to pick a venue they were never going to change. Societies
+  // and community organizations have no home course; they choose per event.
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { defaultCourseId: true },
+  });
+  if (org?.defaultCourseId) {
+    await prisma.eventCourse.create({
+      data: { eventId: event.id, courseId: org.defaultCourseId },
+    });
+  }
+
   await prisma.stage.create({
     data: {
       eventId: event.id,

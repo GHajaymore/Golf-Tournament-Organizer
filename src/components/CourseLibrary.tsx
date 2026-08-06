@@ -5,6 +5,7 @@ import {
   deleteClubCourse,
   addPresetCourse,
   setEventCourses,
+  setHomeCourse,
 } from "@/app/actions/courses";
 import type { ClubCourse } from "@/lib/services/courses";
 
@@ -22,14 +23,18 @@ export function CourseLibrary({
   courses,
   presetNames,
   canEdit,
+  homeCourse = null,
 }: {
   courses: ClubCourse[];
   presetNames: string[];
   canEdit: boolean;
+  /** The club's own course, if set — new tournaments start there. */
+  homeCourse?: string | null;
 }) {
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(courses.filter((c) => c.inEvent).map((c) => c.id)),
   );
+  const [homeCourseId, setHomeCourseId] = useState<string | null>(homeCourse);
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -199,6 +204,40 @@ export function CourseLibrary({
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* A club plays at its own course. Setting it here means every new
+          tournament starts there and nobody picks a venue they were never
+          going to change. Societies leave it unset — several venues is their
+          normal case, not an exception. */}
+      {courses.length > 0 && canEdit && (
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, flexWrap: "wrap" }}>
+          <span>Club&rsquo;s home course</span>
+          <select
+            className="input"
+            style={{ width: "auto" }}
+            value={homeCourseId ?? ""}
+            disabled={pending}
+            onChange={(e) => {
+              const id = e.target.value || null;
+              setHomeCourseId(id);
+              setError("");
+              startTransition(async () => {
+                const res = await setHomeCourse(id);
+                if (!res.ok) setError(res.error ?? "Couldn't set the home course.");
+                else setNotice(id ? "New tournaments will start at this course." : "Home course cleared.");
+              });
+            }}
+          >
+            <option value="">None — choose per tournament</option>
+            {courses.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <span className="text-muted" style={{ fontSize: 12 }}>
+            applies to new tournaments; existing ones keep their venues
+          </span>
+        </label>
       )}
 
       {selectedCount > 1 && (

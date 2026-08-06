@@ -162,6 +162,30 @@ export async function addPresetCourse(presetName: string): Promise<CourseResult>
 }
 
 /**
+ * Set the club's own course.
+ *
+ * Every tournament the club creates afterwards starts there, so the venue
+ * question disappears for the case where it has one obvious answer. Existing
+ * tournaments are deliberately untouched — same rule as the house play
+ * settings: changing a default must never rewrite an event already running.
+ */
+export async function setHomeCourse(courseId: string | null): Promise<CourseResult> {
+  const { organizationId } = await requireOrganizerOrg();
+
+  if (courseId) {
+    const owned = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
+    if (!owned) return { ok: false, error: "Course not found." };
+  }
+
+  await prisma.organization.update({
+    where: { id: organizationId },
+    data: { defaultCourseId: courseId },
+  });
+  refresh();
+  return { ok: true };
+}
+
+/**
  * Set which courses this tournament may be played on.
  *
  * One is the ordinary case and turns every picker off. More than one turns

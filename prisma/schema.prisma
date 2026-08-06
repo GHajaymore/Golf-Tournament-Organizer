@@ -67,6 +67,22 @@ model Organization {
   defaultPlayerAccess          String  @default("email")
   defaultScoreApproval         String  @default("staff")
 
+  /**
+   * The club's own course.
+   *
+   * A golf club plays at its course — every tournament, unless someone says
+   * otherwise — so setting it once here spares the organizer choosing a venue
+   * they were never going to change. New tournaments start with it as their
+   * only venue, which keeps every picker hidden.
+   *
+   * Null for societies and community organizations, which have no home course
+   * and for whom several venues is the normal case rather than the exception.
+   * A club is never locked in either: it can add an away venue to any
+   * tournament, for a member-guest held elsewhere.
+   */
+  defaultCourseId String?
+  homeCourse      Course? @relation("OrgHomeCourse", fields: [defaultCourseId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -105,6 +121,7 @@ model Course {
   events       EventCourse[]
   stages       Stage[]
   matches      Match[]
+  homeFor      Organization[] @relation("OrgHomeCourse")
 
   @@index([organizationId])
 }

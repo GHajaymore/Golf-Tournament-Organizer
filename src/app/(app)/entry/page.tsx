@@ -36,6 +36,8 @@ export default async function EntryPage() {
     where: { events: { some: { eventId: session.eventId } } },
   });
   const venueById = new Map(venues.map((c) => [c.id, c]));
+  /** One venue means the whole tournament is played there — nothing to pick. */
+  const soleVenue = venues.length === 1 ? venues[0] : null;
 
   // A tournament with venues has course data even when the event itself names
   // no course — that's exactly the rotating or venue-less case.
@@ -103,7 +105,11 @@ export default async function EntryPage() {
           // The match's own nine wins over the round's, since a pairing that
           // chose its own venue also chose which half of it.
           const matchCourse = m.courseId ? venueById.get(m.courseId) ?? null : null;
-          const resolved = courseForMatch(matchCourse, stageCourse, state.event);
+          // A tournament with exactly one venue is played there, full stop —
+          // no round or match ever needs to say so. Without this the event
+          // level would fall through to its legacy course fields and find
+          // nothing, because the venue lives in the course library instead.
+          const resolved = courseForMatch(matchCourse, stageCourse ?? soleVenue, state.event);
           const nine = (matchCourse ? m.nine : stage.nine) as Nine;
           const card = resolved ? applyNine(resolved, nine, holeCount) : null;
 
