@@ -667,6 +667,10 @@ export async function setStageCarry(stageId: string, enabled: boolean, pct: numb
     data: {
       carryForwardEnabled: enabled,
       carryForwardPct: Math.min(100, Math.max(0, Math.round(pct / 5) * 5)),
+      // Touching the control at all counts as answering, including turning it
+      // off — "no, rounds start fresh" is a decision, and the prompt should
+      // not keep asking someone who has made it.
+      carryForwardAsked: true,
     },
   });
   refresh();

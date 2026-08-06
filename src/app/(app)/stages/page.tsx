@@ -23,6 +23,7 @@ export default async function StagesPage() {
     scoringBasis: s.scoringBasis,
     carryEnabled: s.carryForwardEnabled,
     carryPct: s.carryForwardPct,
+    carryAsked: s.carryForwardAsked,
     cutEnabled: s.cutEnabled,
     cutMode: s.cutMode,
     cutCount: s.cutCount,

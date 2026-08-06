@@ -158,6 +158,68 @@ export function chainIssues(rounds: ChainRound[]): ChainIssue[] {
   return issues;
 }
 
+/**
+ * Whether a round's standings are counted in points.
+ *
+ * This decides whether carry-forward can work at all. Carrying forward scales
+ * a player's totalPoints into the next round, and totalPoints is a match-points
+ * quantity — a stroke-play round's standings are built separately from the
+ * returned cards and never consult it. So on a stroke round the carry-forward
+ * switch is inert: it can be turned on, and nothing happens.
+ */
+export function isPointsBased(unit: StandingsUnit): boolean {
+  return unit !== "strokes";
+}
+
+export interface CarryPrompt {
+  /** Put the question in front of the organizer rather than defaulting it. */
+  ask: boolean;
+  /** True where the control would do nothing and should not be offered. */
+  inert: boolean;
+  unit: StandingsUnit;
+  question: string;
+  detail: string;
+}
+
+/**
+ * Whether to ask an organizer about carry-forward, rather than leaving it off
+ * and hoping they find it.
+ *
+ * A points-based league where round two follows round one has one genuinely
+ * consequential decision — does a good first round still count? — and it was
+ * an unchecked box halfway down a collapsed panel. Nobody discovers that by
+ * accident, and discovering it late means the standings were wrong all along.
+ *
+ * Only asked where it can matter: rounds must actually chain, there must be a
+ * next round to carry into, the scoring must be in points, and the organizer
+ * must not have answered already.
+ */
+export function carryForwardPrompt(input: {
+  chainsRounds: boolean;
+  hasNextRound: boolean;
+  format: string;
+  scoringBasis: string;
+  /** Whether the organizer has answered this before, either way. */
+  answered: boolean;
+  locked: boolean;
+}): CarryPrompt {
+  const unit = standingsUnit(input.format, input.scoringBasis);
+  const points = isPointsBased(unit);
+  const inert = !points;
+  const ask =
+    input.chainsRounds && input.hasNextRound && points && !input.answered && !input.locked;
+
+  return {
+    ask,
+    inert,
+    unit,
+    question: `Do ${unit} carry into the next round?`,
+    detail: inert
+      ? `This round is scored in ${unit}, and carry-forward only moves points. The next round starts fresh either way.`
+      : `This round is scored in ${unit}. Carrying them forward means a strong round still counts next time; starting fresh makes every round its own contest.`,
+  };
+}
+
 /** Issues that concern one round, for showing on that round's card. */
 export function issuesForRound(issues: ChainIssue[], position: number): ChainIssue[] {
   return issues.filter((i) => i.round === position);

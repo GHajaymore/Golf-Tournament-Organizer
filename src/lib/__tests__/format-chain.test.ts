@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { chainIssues, standingsUnit, issuesForRound, type ChainRound } from "../format-chain";
+import {
+  chainIssues,
+  standingsUnit,
+  issuesForRound,
+  isPointsBased,
+  carryForwardPrompt,
+  type ChainRound,
+} from "../format-chain";
 
 const round = (position: number, format: string, over: Partial<ChainRound> = {}): ChainRound => ({
   position,
@@ -202,5 +209,71 @@ describe("robustness", () => {
       "cut-individual-to-team",
       "team-size-change",
     ]);
+  });
+});
+
+describe("asking about carry-forward", () => {
+  const base = {
+    chainsRounds: true,
+    hasNextRound: true,
+    format: "Match Play",
+    scoringBasis: "gross",
+    answered: false,
+    locked: false,
+  };
+
+  it("knows which scoring is counted in points", () => {
+    expect(isPointsBased(standingsUnit("Match Play", "gross"))).toBe(true);
+    expect(isPointsBased(standingsUnit("Stroke Play", "stableford"))).toBe(true);
+    expect(isPointsBased(standingsUnit("Skins", "gross"))).toBe(true);
+    expect(isPointsBased(standingsUnit("Stroke Play", "gross"))).toBe(false);
+  });
+
+  it("asks in a chained points league", () => {
+    // The one consequential decision in a points league, previously an
+    // unchecked box halfway down a collapsed panel.
+    const p = carryForwardPrompt(base);
+    expect(p.ask).toBe(true);
+    expect(p.inert).toBe(false);
+    expect(p.question).toMatch(/match points/);
+  });
+
+  it("asks for Stableford too, which is also points", () => {
+    const p = carryForwardPrompt({ ...base, format: "Stroke Play", scoringBasis: "stableford" });
+    expect(p.ask).toBe(true);
+    expect(p.question).toMatch(/Stableford points/);
+  });
+
+  it("does not ask about stroke play, where the switch does nothing", () => {
+    // strokeStandings is built from the returned cards and never consults the
+    // carried total, so the control can be turned on and have no effect.
+    const p = carryForwardPrompt({ ...base, format: "Stroke Play", scoringBasis: "gross" });
+    expect(p.ask).toBe(false);
+    expect(p.inert).toBe(true);
+    expect(p.detail).toMatch(/only moves points/);
+  });
+
+  it("stays quiet once the organizer has answered", () => {
+    expect(carryForwardPrompt({ ...base, answered: true }).ask).toBe(false);
+  });
+
+  it("stays quiet when there is no next round to carry into", () => {
+    expect(carryForwardPrompt({ ...base, hasNextRound: false }).ask).toBe(false);
+  });
+
+  it("stays quiet in a single-round tournament", () => {
+    expect(carryForwardPrompt({ ...base, chainsRounds: false }).ask).toBe(false);
+  });
+
+  it("stays quiet once the tournament is locked", () => {
+    // Asking a question whose answer can't be applied is worse than not asking.
+    expect(carryForwardPrompt({ ...base, locked: true }).ask).toBe(false);
+  });
+
+  it("still reports the unit when it isn't asking", () => {
+    // The card uses this to explain itself even when there's no question.
+    const p = carryForwardPrompt({ ...base, answered: true });
+    expect(p.unit).toBe("match points");
+    expect(p.detail.length).toBeGreaterThan(20);
   });
 });

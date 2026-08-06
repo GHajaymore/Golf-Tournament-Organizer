@@ -12,7 +12,7 @@ import {
 } from "@/app/actions/tournament";
 import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS } from "@/lib/formats";
-import { chainIssues, issuesForRound } from "@/lib/format-chain";
+import { chainIssues, issuesForRound, carryForwardPrompt, type CarryPrompt } from "@/lib/format-chain";
 import { ScoringClient } from "./ScoringClient";
 import { QualControl } from "./QualControl";
 import { CutControl } from "./CutControl";
@@ -29,6 +29,8 @@ export interface StageView {
   scoringBasis: string;
   carryEnabled: boolean;
   carryPct: number;
+  /** Whether the organizer has answered the carry-forward question either way. */
+  carryAsked: boolean;
   cutEnabled: boolean;
   cutMode: string;
   cutCount: number;
@@ -82,11 +84,14 @@ function NextRoundTransition({
   stageId,
   nextStage,
   confirmedCount,
+  carry,
 }: {
   /** The current round's id — where a newly-created next round gets appended after. */
   stageId: string;
   nextStage: StageView | undefined;
   confirmedCount: number;
+  /** Whether to put the carry-forward question in front of the organizer. */
+  carry: CarryPrompt;
 }) {
   const [carryEnabled, setCarryEnabled] = useState(nextStage?.carryEnabled ?? false);
   const [carryPct, setCarryPct] = useState(nextStage?.carryPct ?? 0);
@@ -114,6 +119,53 @@ function NextRoundTransition({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Asked outright rather than left as an unchecked box. In a points
+          league whether a strong round still counts is the central decision of
+          the format, and nobody finds it by accident halfway down a panel. */}
+      {carry.ask && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            padding: "12px 14px",
+            borderRadius: 10,
+            background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{carry.question}</span>
+          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{carry.detail}</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={pending}
+              onClick={() => commitCarry(true, carryPct > 0 ? carryPct : 100)}
+            >
+              Yes, carry them forward
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={pending}
+              onClick={() => commitCarry(false, 0)}
+            >
+              No, each round starts fresh
+            </button>
+          </div>
+        </div>
+      )}
+
+      {carry.inert ? (
+        // Offering a switch that does nothing is worse than not offering it:
+        // strokeStandings are built from the returned cards and never read the
+        // carried total, so turning this on for a stroke round changes nothing.
+        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          {carry.detail}
+        </p>
+      ) : (
+      <>
       <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
           <input type="checkbox" checked={carryEnabled} onChange={(e) => commitCarry(e.target.checked, carryPct)} />
@@ -136,6 +188,8 @@ function NextRoundTransition({
           ? `At ${carryPct}%, a player on 12 pts here starts ${roundLabel} with ${(12 * carryPct) / 100} pts.`
           : `Off — ${roundLabel} starts scoring from zero; no points carry over from this round.`}
       </p>
+      </>
+      )}
 
       <div style={{ borderTop: "1px solid var(--color-divider)", margin: "4px 0", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
         <CutControl
@@ -258,6 +312,17 @@ function StageCard({
     formatOptions.unshift({ name: format, disabled: false });
   }
   const activePending = GOLF_FORMATS.find((f) => f.name === format && !f.playable);
+
+  // Whether to put the carry-forward question in front of the organizer, and
+  // whether the control can do anything at all for this round's scoring.
+  const carryPrompt = carryForwardPrompt({
+    chainsRounds,
+    hasNextRound: !!nextStage,
+    format,
+    scoringBasis: basis,
+    answered: nextStage?.carryAsked ?? false,
+    locked: false,
+  });
 
   // Round Robin description is derived (no hard-coded round count).
   const description =
@@ -520,7 +585,7 @@ function StageCard({
                 <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
                   Carry points forward and/or cut the field before it moves on from this round.
                 </p>
-                <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} confirmedCount={confirmedCount} />
+                <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} confirmedCount={confirmedCount} carry={carryPrompt} />
               </div>
             )}
 

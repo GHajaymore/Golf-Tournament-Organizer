@@ -453,6 +453,15 @@ model Stage {
   scoringBasis        String  @default("gross") // gross | net | both
   carryForwardEnabled Boolean @default(false)
   carryForwardPct     Int     @default(0)
+  /**
+   * Whether the organizer has actually been asked about carry-forward.
+   *
+   * Distinguishes "they said no" from "nobody ever raised it", which a plain
+   * boolean cannot. In a points league whether a strong round still counts is
+   * the central decision, and leaving it as an unchecked box halfway down a
+   * collapsed panel meant it was made by default rather than on purpose.
+   */
+  carryForwardAsked   Boolean @default(false)
 
   // Field cut entering this round (Round Robin stages after the first): only
   // the top cutCount / cutPercent players from the previous round's standings
