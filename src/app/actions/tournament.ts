@@ -17,7 +17,7 @@ import { generateShareToken } from "@/lib/codes";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
-import { marginToHoles, resolveMatch, deriveNetHoles, roundRobinSchedule, TIEBREAKER_KEYS } from "@/lib/domain";
+import { marginToHoles, resolveMatch, deriveNetHoles, roundRobinSchedule, TIEBREAKER_KEYS, isBracketMode, BRACKET_MODES } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
@@ -1627,4 +1627,20 @@ export async function removeAnnouncement(announcementId: string) {
   const eventId = await requireStaffEvent();
   await prisma.announcement.deleteMany({ where: { id: announcementId, eventId } });
   refresh();
+}
+
+/**
+ * Choose how the knockout is arranged.
+ *
+ * Organizer-only and blocked once the tournament is locked: changing the shape
+ * of a bracket mid-event would redraw who plays whom, which is a rule change
+ * rather than a setting.
+ */
+export async function setBracketMode(mode: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+  await assertUnlocked(eventId);
+  if (!isBracketMode(mode)) return { ok: false, error: "Unknown bracket arrangement." };
+  await prisma.event.update({ where: { id: eventId }, data: { bracketMode: mode } });
+  refresh();
+  return { ok: true };
 }

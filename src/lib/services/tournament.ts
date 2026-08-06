@@ -9,7 +9,9 @@ import {
   groupCutoff,
   buildBracket,
   pickQualifiers,
-  splitBrackets,
+  drawBrackets,
+  firstRoundLosers,
+  isBracketMode,
   roundRobinMatchCount,
   resolveMatch,
   type Player,
@@ -17,6 +19,7 @@ import {
   type ScoringRules,
   type RankedPlayer,
   type BracketView,
+  type BracketMode,
   type TiebreakerKey,
 } from "../domain";
 import type { Event, Player as DbPlayer, Group as DbGroup, Stage as DbStage, Match as DbMatch } from "@prisma/client";
@@ -334,12 +337,22 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     .filter((rp) => qualifierIds.has(rp.player.id))
     .map((rp) => rp.stats.totalPoints);
   const overallCutoff = advTotals.length ? Math.min(...advTotals) : null;
-  const { winners, consolation } = splitBrackets(qualifiers);
   const winnersMap: Record<string, string> = {};
   for (const bw of bracketWinners) winnersMap[bw.key] = bw.winnerId;
+
+  // How the knockout is arranged is the organizer's decision. A plate is built
+  // in two passes because its second bracket is filled by results rather than
+  // by seeding: the main bracket has to exist before anyone has lost in it.
+  const mode: BracketMode = isBracketMode(event.bracketMode) ? event.bracketMode : "split";
+  const firstDraw = drawBrackets(qualifiers, mode);
+  const mainBracket = buildBracket("winners", firstDraw.main, winnersMap);
+  const secondField =
+    mode === "plate"
+      ? firstRoundLosers(mainBracket, new Map(qualifiers.map((p) => [p.id, p])))
+      : firstDraw.second;
   const brackets = {
-    winners: buildBracket("winners", winners, winnersMap),
-    consolation: buildBracket("consolation", consolation, winnersMap),
+    winners: mainBracket,
+    consolation: buildBracket("consolation", secondField, winnersMap),
   };
 
   return {

@@ -4,6 +4,8 @@ import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { BracketClient } from "@/components/BracketClient";
+import { BracketModePicker } from "@/components/BracketModePicker";
+import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
 
 export default async function BracketPage() {
   const session = await requireScreen("bracket");
@@ -19,12 +21,18 @@ export default async function BracketPage() {
   for (const w of bw) if (w.result) results[w.key] = w.result;
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
 
+  const mode: BracketMode = isBracketMode(state.event.bracketMode) ? state.event.bracketMode : "split";
+  const secondLabel = drawBrackets([], mode).secondLabel;
+
   return (
-    <BracketClient
-      winners={state.brackets.winners}
-      consolation={state.brackets.consolation}
-      results={results}
-      readOnly={!isStaff}
-    />
+    <>
+      <BracketModePicker mode={mode} secondLabel={secondLabel} readOnly={!isStaff} />
+      <BracketClient
+        winners={state.brackets.winners}
+        consolation={state.brackets.consolation}
+        results={results}
+        readOnly={!isStaff}
+      />
+    </>
   );
 }
