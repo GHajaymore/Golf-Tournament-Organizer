@@ -26,6 +26,7 @@ export function EntryModes({
   defaultMode = "match",
   courseKnown = true,
   isAdmin = false,
+  venues = [],
 }: {
   rounds: EntryRound[];
   activeIndex: number;
@@ -39,6 +40,8 @@ export function EntryModes({
   courseKnown?: boolean;
   /** Organizer, not assistant — gates the Reopen control. */
   isAdmin?: boolean;
+  /** Courses this tournament may be played on. */
+  venues?: Array<{ id: string; name: string }>;
 }) {
   const [mode, setMode] = useState<"match" | "stroke">(defaultMode);
   const [roundIdx, setRoundIdx] = useState(activeIndex);
@@ -89,6 +92,7 @@ export function EntryModes({
           netMode={round.netMode}
           courseKnown={courseKnown}
           isAdmin={isAdmin}
+          venues={venues}
         />
       ) : (
         <StrokePlayEntry

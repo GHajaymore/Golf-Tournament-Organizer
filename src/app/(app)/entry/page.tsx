@@ -6,6 +6,7 @@ import { EntryModes, type EntryRound } from "@/components/EntryModes";
 import { CourseSetupPrompt } from "@/components/CourseSetupPrompt";
 import { prisma } from "@/lib/db";
 import { resolveCourse, hasCourseData, needsCourseData } from "@/lib/courses";
+import { courseForMatch, applyNine, type Nine } from "@/lib/services/course-resolution";
 import type { HoleResult } from "@/lib/domain";
 
 export default async function EntryPage() {
@@ -29,7 +30,16 @@ export default async function EntryPage() {
       scoringBasis: s.scoringBasis,
     })),
   );
-  const courseKnown = hasCourseData(state.event);
+  // Every course this tournament may be played on, so each match can be scored
+  // against the card it was actually played on rather than the event's.
+  const venues = await prisma.course.findMany({
+    where: { events: { some: { eventId: session.eventId } } },
+  });
+  const venueById = new Map(venues.map((c) => [c.id, c]));
+
+  // A tournament with venues has course data even when the event itself names
+  // no course — that's exactly the rotating or venue-less case.
+  const courseKnown = hasCourseData(state.event) || venues.length > 0;
   if (scoringNeedsCourse && !courseKnown) {
     return <CourseSetupPrompt eventCourse={state.event.course} eventCity={state.event.city} isStaff={isStaff} />;
   }
@@ -54,6 +64,7 @@ export default async function EntryPage() {
     rrStages.map(async (stage, i) => {
       const holeCount = stage.holes === 9 ? 9 : 18;
       const netMode = stage.format === "Match Play" && stage.scoringBasis === "net";
+      const stageCourse = stage.courseId ? venueById.get(stage.courseId) ?? null : null;
 
       const cards = await prisma.scorecard.findMany({ where: { eventId: session.eventId, stageId: stage.id } });
       const cardsByPlayer: Record<string, (number | null)[]> = {};
@@ -88,6 +99,14 @@ export default async function EntryPage() {
           } catch {
             holes = new Array(holeCount).fill(null);
           }
+          // match → round → event, then narrowed to the nine actually played.
+          // The match's own nine wins over the round's, since a pairing that
+          // chose its own venue also chose which half of it.
+          const matchCourse = m.courseId ? venueById.get(m.courseId) ?? null : null;
+          const resolved = courseForMatch(matchCourse, stageCourse, state.event);
+          const nine = (matchCourse ? m.nine : stage.nine) as Nine;
+          const card = resolved ? applyNine(resolved, nine, holeCount) : null;
+
           return {
             id: m.id,
             aId: m.playerAId,
@@ -102,6 +121,10 @@ export default async function EntryPage() {
             status: effectiveScoreStatus(m, allowsAutoConfirm(settings)),
             aStrokes: matchStrokesByKey[`${m.id}:A`] ?? new Array(holeCount).fill(null),
             bStrokes: matchStrokesByKey[`${m.id}:B`] ?? new Array(holeCount).fill(null),
+            pars: card?.pars,
+            yards: card?.yards,
+            strokeIndex: card?.strokeIndex,
+            courseName: card?.name,
           };
         });
 
@@ -132,6 +155,7 @@ export default async function EntryPage() {
       defaultMode={state.event.format === "stroke" ? "stroke" : "match"}
       courseKnown={courseKnown}
       isAdmin={session.viewRole === "admin"}
+      venues={venues.map((v) => ({ id: v.id, name: v.name }))}
     />
   );
 }

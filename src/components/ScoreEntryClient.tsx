@@ -20,6 +20,7 @@ import {
   reopenMatch,
   saveMatchScorecard,
 } from "@/app/actions/tournament";
+import { setMatchCourse } from "@/app/actions/courses";
 
 export interface EntryMatch {
   id: string;
@@ -35,6 +36,21 @@ export interface EntryMatch {
   status: string;
   aStrokes: (number | null)[];
   bStrokes: (number | null)[];
+  /**
+   * The card this match was actually played on, already resolved through
+   * match → round → event and narrowed to the nine in play.
+   *
+   * Per match rather than per round because a venue-less league has every
+   * pairing somewhere different, and handicap strokes are allocated by that
+   * course's stroke index — scoring them all against the event's course would
+   * give the wrong shots on the wrong holes. Absent when no course is known,
+   * which gross match play doesn't need.
+   */
+  pars?: number[];
+  yards?: number[];
+  strokeIndex?: number[];
+  /** Venue name, shown so whoever is entering can see which card is in use. */
+  courseName?: string;
 }
 
 const CONFIRM_META: Record<string, { label: string; tag: string }> = {
@@ -80,12 +96,13 @@ export function ScoreEntryClient({
   matches,
   isStaff = false,
   hideHeader = false,
-  pars = [],
-  yards = [],
-  strokeIndex = [],
+  pars: parsProp = [],
+  yards: yardsProp = [],
+  strokeIndex: strokeIndexProp = [],
   netMode = false,
   courseKnown = true,
   isAdmin = false,
+  venues = [],
 }: {
   matches: EntryMatch[];
   isStaff?: boolean;
@@ -99,6 +116,9 @@ export function ScoreEntryClient({
   courseKnown?: boolean;
   /** Organizer, as opposed to assistant. Only they may reopen a result. */
   isAdmin?: boolean;
+  /** Courses this tournament may be played on. More than one turns on the
+   *  per-match venue picker. */
+  venues?: Array<{ id: string; name: string }>;
 }) {
   const [holesById, setHolesById] = useState<Record<string, HoleResult[]>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.holes])),
@@ -113,6 +133,8 @@ export function ScoreEntryClient({
     Object.fromEntries(matches.map((m) => [m.id, m.bStrokes])),
   );
   const [selectedId, setSelectedId] = useState<string>(matches[0]?.id ?? "");
+  /** Per-match venue override, empty string meaning inherit. */
+  const [courseByMatch, setCourseByMatch] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<"holes" | "result" | "handicap">("holes");
   const [winner, setWinner] = useState<Winner>("A");
   const [margin, setMargin] = useState("");
@@ -133,6 +155,11 @@ export function ScoreEntryClient({
   };
 
   const active = matches.find((m) => m.id === selectedId);
+  // The selected match's own card wins over the round-level one: in a league
+  // with no fixed venue every pairing may be somewhere different.
+  const pars = active?.pars?.length ? active.pars : parsProp;
+  const yards = active?.yards?.length ? active.yards : yardsProp;
+  const strokeIndex = active?.strokeIndex?.length ? active.strokeIndex : strokeIndexProp;
   const holes = active ? holesById[active.id] ?? active.holes : [];
   const resolution = useMemo(() => resolveMatch(holes), [holes]);
   const activeStatus = active ? statusById[active.id] ?? active.status : "pending";
@@ -438,6 +465,34 @@ export function ScoreEntryClient({
               <i className={netMode ? "ph ph-percent" : "ph ph-flag-checkered"} />{" "}
               {netMode ? "Net scoring — strokes given by handicap" : "Gross scoring — lowest strokes wins the hole"}
             </span>
+
+            {/* Which card this match is being scored against. Only meaningful
+                when the tournament has more than one venue — otherwise it
+                would state the obvious on every screen. */}
+            {venues.length > 1 && (
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                <span className="text-muted">Played at</span>
+                <select
+                  className="input"
+                  style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
+                  value={courseByMatch[active.id] ?? ""}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setCourseByMatch((prev) => ({ ...prev, [active.id]: id }));
+                    startTransition(() => void setMatchCourse(active.id, id || null, "full"));
+                  }}
+                >
+                  {/* Empty means inherit from the round, then the event —
+                      the default, not an absence. */}
+                  <option value="">
+                    {active.courseName ? `${active.courseName} (from round)` : "Not set"}
+                  </option>
+                  {venues.map((v) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
 
           {mode === "holes" && (
