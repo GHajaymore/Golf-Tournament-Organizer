@@ -1,7 +1,7 @@
 import { requireScreen } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { TeamsClient } from "@/components/TeamsClient";
-import { teamsForStage, unassignedPlayers, teamProblems } from "@/lib/services/teams";
+import { teamsForStage, unassignedPlayers, teamProblems, effectiveAllowance } from "@/lib/services/teams";
 import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
 
 /**
@@ -22,7 +22,7 @@ export default async function TeamsPage({
   const stages = await prisma.stage.findMany({
     where: { eventId: session.eventId },
     orderBy: { position: "asc" },
-    select: { id: true, position: true, type: true, format: true, description: true },
+    select: { id: true, position: true, type: true, format: true, description: true, handicapAllowance: true },
   });
 
   const teamStages = stages.filter((s) => TEAM_FORMAT_NAMES.includes(s.format));
@@ -45,7 +45,7 @@ export default async function TeamsPage({
     );
   }
 
-  const teams = await teamsForStage(session.eventId, active.id, active.format);
+  const teams = await teamsForStage(session.eventId, active.id, active.format, active.handicapAllowance);
   const matchCount = await prisma.match.count({ where: { eventId: session.eventId, stageId: active.id } });
   const unassigned = await unassignedPlayers(session.eventId, teams);
   const format = findFormat(active.format);
@@ -68,7 +68,9 @@ export default async function TeamsPage({
           min: range.min,
           max: range.max,
           sharesOneCard: format.ball === "single",
-          allowance: format.allowance,
+          allowance: effectiveAllowance(active.format, active.handicapAllowance),
+          recommendedAllowance: format.allowance,
+          allowanceOverridden: active.handicapAllowance > 0,
           allowanceIsConvention: !!format.allowanceIsConvention,
         }}
         teams={teams}

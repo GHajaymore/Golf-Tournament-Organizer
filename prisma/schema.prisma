@@ -450,6 +450,21 @@ model Stage {
   nine     String  @default("full")
 
   /**
+   * Committee override for this round's handicap allowance, as a percentage.
+   *
+   * Zero means "use the allowance the format recommends", which is what almost
+   * every round wants — a stored 0 is therefore not a 0% allowance but an
+   * absence of opinion, and that is why this isn't nullable.
+   *
+   * It exists because the published WHS allowances are recommendations, and
+   * the scramble family has no published allowance at all — only a widely used
+   * club convention. A committee that sets its own needs somewhere to say so,
+   * and the alternative is an app that quietly scores their event under
+   * different rules than they announced.
+   */
+  handicapAllowance Int @default(0)
+
+  /**
    * Round Code — the shared code players enter to report scores for this
    * round, modelled on the GGID golfers already know from Golf Genius.
    *

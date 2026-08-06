@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { snakeDraw, teamProblems, sidePlayingHandicap } from "../services/teams";
+import { snakeDraw, teamProblems, sidePlayingHandicap, effectiveAllowance } from "../services/teams";
 import type { TeamView } from "../services/teams";
 
 const player = (id: string, handicap: number) => ({ id, handicap });
@@ -106,5 +106,37 @@ describe("sidePlayingHandicap", () => {
 
   it("returns zero for a side with nobody in it", () => {
     expect(sidePlayingHandicap([], "Scramble")).toBe(0);
+  });
+});
+
+describe("committee allowance override", () => {
+  it("replaces the format's recommendation", () => {
+    // Foursomes recommends 50% of the combined handicaps; a committee that
+    // sets 60 means 60.
+    expect(sidePlayingHandicap([10, 20], "Foursomes")).toBe(15);
+    expect(sidePlayingHandicap([10, 20], "Foursomes", 60)).toBe(18);
+  });
+
+  it("replaces the scramble table outright rather than stacking on it", () => {
+    // A committee saying "40%" means 40% of the combined handicaps, not 40%
+    // layered on a descending table they never mentioned.
+    const table = sidePlayingHandicap([4, 8, 16, 24], "Scramble");
+    const flat = sidePlayingHandicap([4, 8, 16, 24], "Scramble", 40);
+    expect(flat).not.toBe(table);
+    expect(flat).toBe(Math.round((4 + 8 + 16 + 24) * 0.4));
+  });
+
+  it("treats zero as no opinion, not as a zero allowance", () => {
+    // Every existing round stores 0 and means "use the recommendation", so
+    // reading 0 as 0% would silently strip every side's shots.
+    expect(sidePlayingHandicap([10, 20], "Foursomes", 0)).toBe(
+      sidePlayingHandicap([10, 20], "Foursomes"),
+    );
+    expect(effectiveAllowance("Foursomes", 0)).toBe(50);
+    expect(effectiveAllowance("Foursomes", 60)).toBe(60);
+  });
+
+  it("reports the scramble convention when nothing is set", () => {
+    expect(effectiveAllowance("Scramble", 0)).toBe(25);
   });
 });

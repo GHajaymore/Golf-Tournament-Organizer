@@ -1,0 +1,13 @@
+-- Committee override for a round's handicap allowance.
+--
+-- The published WHS allowances are recommendations, and the scramble family
+-- has no published allowance at all — only a widely used club convention. The
+-- Teams screen already told organizers to "change it if your committee sets
+-- its own", which was a promise the app could not keep: there was nowhere to
+-- store an override and no control to set one.
+--
+-- Zero means "use the allowance the format recommends", which is what almost
+-- every round wants. A stored 0 is an absence of opinion rather than a 0%
+-- allowance, which is why this is not nullable — every existing round already
+-- means exactly that.
+ALTER TABLE "Stage" ADD COLUMN "handicapAllowance" INTEGER NOT NULL DEFAULT 0;

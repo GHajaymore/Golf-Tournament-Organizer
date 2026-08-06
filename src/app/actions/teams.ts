@@ -281,3 +281,26 @@ export async function autoDrawTeams(
   refresh();
   return { ok: true };
 }
+
+/**
+ * Set the committee's handicap allowance for a team round.
+ *
+ * Zero clears it and returns the round to the allowance its format
+ * recommends — a stored 0 is an absence of opinion, not a 0% allowance.
+ *
+ * Capped at 100 because an allowance above full handicap isn't a committee
+ * decision, it's a typo, and it would hand out strokes nobody has.
+ */
+export async function setStageAllowance(stageId: string, percent: number): Promise<TeamResult> {
+  const eventId = await requireStaff();
+  await stageInEvent(eventId, stageId);
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+    return { ok: false, error: "Enter an allowance between 0 and 100 percent." };
+  }
+  await prisma.stage.update({
+    where: { id: stageId },
+    data: { handicapAllowance: Math.round(percent) },
+  });
+  refresh();
+  return { ok: true };
+}

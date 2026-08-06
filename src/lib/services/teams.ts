@@ -35,7 +35,12 @@ export interface TeamView {
  * tournament, a society redraws every week, and neither should have to know
  * which model the other uses.
  */
-export async function teamsForStage(eventId: string, stageId: string, format: string): Promise<TeamView[]> {
+export async function teamsForStage(
+  eventId: string,
+  stageId: string,
+  format: string,
+  allowanceOverride = 0,
+): Promise<TeamView[]> {
   const rows = await prisma.team.findMany({
     where: { eventId, OR: [{ stageId }, { stageId: null }] },
     include: {
@@ -65,7 +70,7 @@ export async function teamsForStage(eventId: string, stageId: string, format: st
       seed: t.seed,
       stageId: t.stageId,
       members,
-      playingHandicap: sidePlayingHandicap(members.map((m) => m.handicap), format),
+      playingHandicap: sidePlayingHandicap(members.map((m) => m.handicap), format, allowanceOverride),
     };
   });
 }
@@ -79,13 +84,27 @@ export async function teamsForStage(eventId: string, stageId: string, format: st
  * percentage was applied. Everything else takes the format's allowance against
  * the combined handicaps, which is how foursomes' 50% is meant to work.
  */
-export function sidePlayingHandicap(courseHandicaps: number[], format: string): number {
+export function sidePlayingHandicap(
+  courseHandicaps: number[],
+  format: string,
+  allowanceOverride = 0,
+): number {
   const f = findFormat(format);
+  // A committee override replaces the whole scheme, including the scramble
+  // weights: a committee that says "40%" means 40% of the combined handicaps,
+  // not 40% layered on top of a descending table they never mentioned.
+  if (allowanceOverride > 0) return sideHandicap(courseHandicaps, allowanceOverride);
   if (/scramble/i.test(f.name)) {
     const weights = courseHandicaps.length > 2 ? SCRAMBLE_WEIGHTS_4 : SCRAMBLE_WEIGHTS_2;
     return sideHandicap(courseHandicaps, 0, weights);
   }
   return sideHandicap(courseHandicaps, f.allowance);
+}
+
+/** The allowance actually in force for a round: the committee's, or the
+ *  format's recommendation when they haven't set one. */
+export function effectiveAllowance(format: string, override: number): number {
+  return override > 0 ? override : findFormat(format).allowance;
 }
 
 export interface TeamProblem {
@@ -162,10 +181,11 @@ export async function teamStandings(
   pars: number[],
   strokeIndex: number[],
   basis: string,
+  allowanceOverride = 0,
 ): Promise<TeamStanding[]> {
   const f = findFormat(format);
   const [teams, cards] = await Promise.all([
-    teamsForStage(eventId, stageId, format),
+    teamsForStage(eventId, stageId, format, allowanceOverride),
     prisma.teamScorecard.findMany({ where: { eventId, stageId } }),
   ]);
 
@@ -195,7 +215,7 @@ export async function teamStandings(
             })),
             pars,
             strokeIndex,
-            f.allowance,
+            effectiveAllowance(format, allowanceOverride),
           );
     return {
       teamId: t.id,

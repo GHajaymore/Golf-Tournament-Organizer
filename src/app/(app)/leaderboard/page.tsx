@@ -41,6 +41,7 @@ export default async function LeaderboardPage() {
       course.pars.slice(0, holeCount),
       course.strokeIndex.slice(0, holeCount),
       activeStage.scoringBasis,
+      activeStage.handicapAllowance,
     );
     return (
       <TeamLeaderboard

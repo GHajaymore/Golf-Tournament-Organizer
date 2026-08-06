@@ -8,6 +8,7 @@ import {
   removeTeamMember,
   autoDrawTeams,
   generateTeamMatches,
+  setStageAllowance,
 } from "@/app/actions/teams";
 
 export interface TeamMemberRow {
@@ -39,6 +40,9 @@ export interface FormatInfo {
   max: number;
   sharesOneCard: boolean;
   allowance: number;
+  /** What the format recommends, when a committee has overridden it. */
+  recommendedAllowance: number;
+  allowanceOverridden: boolean;
   allowanceIsConvention: boolean;
 }
 
@@ -72,6 +76,8 @@ export function TeamsClient({
   const [error, setError] = useState("");
   const [confirmDraw, setConfirmDraw] = useState(false);
   const [confirmMatches, setConfirmMatches] = useState(false);
+  const [editingAllowance, setEditingAllowance] = useState(false);
+  const [allowance, setAllowance] = useState("");
   const [addingTo, setAddingTo] = useState("");
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
@@ -135,12 +141,70 @@ export function TeamsClient({
           )}
         </div>
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{format.desc}</p>
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-          Handicap allowance {format.allowance}%
-          {format.allowanceIsConvention
-            ? " — the common club convention for this format, not a published standard. Change it if your committee sets its own."
-            : " — the recommended allowance for this format."}
-        </p>
+
+        {/* The allowance is a committee decision, not a rule, but almost every
+            round wants the recommended one — so it reads as a plain statement
+            until someone chooses to change it. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            Handicap allowance <b style={{ color: "var(--color-text)" }}>{format.allowance}%</b>
+            {format.allowanceOverridden
+              ? ` — set by your committee, in place of the usual ${format.recommendedAllowance}%.`
+              : format.allowanceIsConvention
+                ? " — the common club convention for this format, not a published standard."
+                : " — the recommended allowance for this format."}
+          </p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ padding: "2px 10px", fontSize: 12 }}
+            onClick={() => {
+              setAllowance(String(format.allowance));
+              setEditingAllowance((o) => !o);
+            }}
+          >
+            {editingAllowance ? "Cancel" : "Change"}
+          </button>
+        </div>
+
+        {editingAllowance && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <input
+              className="input"
+              inputMode="numeric"
+              style={{ width: 90 }}
+              value={allowance}
+              onChange={(e) => setAllowance(e.target.value)}
+              aria-label="Handicap allowance percent"
+            />
+            <span className="text-muted" style={{ fontSize: 12 }}>% of course handicap</span>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={pending}
+              onClick={() => {
+                const n = parseInt(allowance, 10);
+                run(() => setStageAllowance(activeRoundId, Number.isFinite(n) ? n : -1));
+                setEditingAllowance(false);
+              }}
+            >
+              Save
+            </button>
+            {format.allowanceOverridden && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={pending}
+                onClick={() => {
+                  run(() => setStageAllowance(activeRoundId, 0));
+                  setEditingAllowance(false);
+                }}
+              >
+                Back to {format.recommendedAllowance}%
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {problems.length > 0 && (

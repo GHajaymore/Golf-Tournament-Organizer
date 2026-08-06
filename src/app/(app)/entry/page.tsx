@@ -9,7 +9,7 @@ import { resolveCourse, hasCourseData, needsCourseData } from "@/lib/courses";
 import { courseForMatch, applyNine, type Nine } from "@/lib/services/course-resolution";
 import type { HoleResult } from "@/lib/domain";
 import { needsTeams, findFormat, entryModeFor } from "@/lib/formats";
-import { teamsForStage } from "@/lib/services/teams";
+import { teamsForStage, effectiveAllowance } from "@/lib/services/teams";
 import { aggregateTeamCard, singleBallTeamCard } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
 
@@ -57,7 +57,7 @@ export default async function EntryPage() {
   if (activeStage && needsTeams(activeStage.format)) {
     const format = findFormat(activeStage.format);
     const holeCount = activeStage.holes === 9 ? 9 : 18;
-    const teams = await teamsForStage(session.eventId, activeStage.id, activeStage.format);
+    const teams = await teamsForStage(session.eventId, activeStage.id, activeStage.format, activeStage.handicapAllowance);
     const teamById = new Map(teams.map((t) => [t.id, t]));
     const stageMatches = state.matches.filter(
       (m) => m.stageId === activeStage.id && m.teamAId && m.teamBId,
@@ -107,7 +107,7 @@ export default async function EntryPage() {
               })),
               teamCourse.pars.slice(0, holeCount),
               teamCourse.strokeIndex.slice(0, holeCount),
-              format.allowance,
+              effectiveAllowance(activeStage.format, activeStage.handicapAllowance),
             );
       rows.push({
         teamId,
