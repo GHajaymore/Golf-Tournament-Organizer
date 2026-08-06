@@ -128,6 +128,7 @@ export default async function EntryPage() {
             aStrokes: matchStrokesByKey[`${m.id}:A`] ?? new Array(holeCount).fill(null),
             bStrokes: matchStrokesByKey[`${m.id}:B`] ?? new Array(holeCount).fill(null),
             courseId: m.courseId,
+            nine: m.nine,
             pars: card?.pars,
             yards: card?.yards,
             strokeIndex: card?.strokeIndex,

@@ -54,6 +54,8 @@ export interface EntryMatch {
   /** The venue set on this match itself, if any. Null means it inherits from
    *  the round, and then the event — which the picker must show as such. */
   courseId?: string | null;
+  /** full | front | back — which nine this match played, when 9 holes. */
+  nine?: string;
 }
 
 const CONFIRM_META: Record<string, { label: string; tag: string }> = {
@@ -139,6 +141,9 @@ export function ScoreEntryClient({
   /** Per-match venue override, empty string meaning inherit. */
   const [courseByMatch, setCourseByMatch] = useState<Record<string, string>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.courseId ?? ""])),
+  );
+  const [nineByMatch, setNineByMatch] = useState<Record<string, string>>(() =>
+    Object.fromEntries(matches.map((m) => [m.id, m.nine === "back" ? "back" : "front"])),
   );
   const [mode, setMode] = useState<"holes" | "result" | "handicap">("holes");
   const [winner, setWinner] = useState<Winner>("A");
@@ -484,17 +489,44 @@ export function ScoreEntryClient({
                   onChange={(e) => {
                     const id = e.target.value;
                     setCourseByMatch((prev) => ({ ...prev, [active.id]: id }));
-                    startTransition(() => void setMatchCourse(active.id, id || null, "full"));
+                    startTransition(() =>
+                      void setMatchCourse(active.id, id || null, totalHoles === 9 ? nineByMatch[active.id] ?? "front" : "full"),
+                    );
                   }}
                 >
-                  {/* Empty means inherit from the round, then the event —
-                      the default, not an absence. */}
+                  {/* Empty means inherit — from the round, then the event. The
+                      label names whatever that resolves to, so "inherit" is a
+                      visible default rather than a blank. */}
                   <option value="">
-                    {active.courseName ? ` (from round)` : "Not set"}
+                    {active.courseName ? `${active.courseName} (inherited)` : "Not set"}
                   </option>
                   {venues.map((v) => (
                     <option key={v.id} value={v.id}>{v.name}</option>
                   ))}
+                </select>
+              </label>
+            )}
+
+            {/* Which nine, when this round is 9 holes. Front and back carry
+                different pars and stroke indexes, so on a net match this
+                decides which holes a player receives shots on. */}
+            {totalHoles === 9 && venues.length > 1 && (
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                <span className="text-muted">Nine</span>
+                <select
+                  className="input"
+                  style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
+                  value={nineByMatch[active.id] ?? "front"}
+                  onChange={(e) => {
+                    const nine = e.target.value;
+                    setNineByMatch((prev) => ({ ...prev, [active.id]: nine }));
+                    startTransition(() =>
+                      void setMatchCourse(active.id, courseByMatch[active.id] || null, nine),
+                    );
+                  }}
+                >
+                  <option value="front">Front</option>
+                  <option value="back">Back</option>
                 </select>
               </label>
             )}

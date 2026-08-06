@@ -6,6 +6,7 @@ import { LifecycleBar } from "@/components/LifecycleBar";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
+import { showBracket, bracketBadge } from "@/lib/bracket-visibility";
 import { matchProgress, standingRows } from "@/lib/services/tournament";
 import { pts, shortName } from "@/lib/format";
 
@@ -44,6 +45,21 @@ export default async function DashboardPage() {
   const settings = settingsOf(event);
   const showStandings = canSeeLeaderboard(settings, session.viewRole);
   const showEntry = canEnterScores(settings, session.viewRole);
+
+  // A bracket seeded from two of forty-eight matches isn't cautious
+  // information, it's noise — organizers screenshot it and players argue about
+  // it. The tile earns its place once the ordering means something.
+  const bracketProgress = {
+    hasBracketStage: state.stages.some((s) => s.type === "Bracket Stage"),
+    matchesComplete: progress.done,
+    matchesTotal: progress.total,
+    bracketStarted:
+      !!brackets.winners.champion ||
+      brackets.winners.rounds.some((r) => r.matches.some((m) => !!m.winnerId)),
+    qualificationDecided: progress.total > 0 && progress.done === progress.total,
+  };
+  const showBracketTile = showStandings && showBracket(bracketProgress);
+  const bracketTileBadge = bracketBadge(bracketProgress);
 
   const quickActions = QUICK_ACTIONS.filter((a) => {
     if (a.staff && !isStaff) return false;
@@ -227,11 +243,11 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {showStandings && (
+          {showBracketTile && (
           <div className="card elev-sm">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span className="card-title">Bracket status</span>
-              <span className="tag tag-neutral">Provisional</span>
+              <span className="tag tag-neutral">{bracketTileBadge}</span>
             </div>
             <div className="text-muted" style={{ fontSize: 12, marginTop: -2 }}>Seeded from live group standings</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
