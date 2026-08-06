@@ -2,6 +2,8 @@ import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { PlaySettings } from "@/components/PlaySettings";
 import { CourseSetupPrompt } from "@/components/CourseSetupPrompt";
+import { CourseLibrary } from "@/components/CourseLibrary";
+import { clubCourses } from "@/lib/services/courses";
 import { accessibleEvents } from "@/lib/services/access";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -17,6 +19,7 @@ export default async function EventPage() {
   if (!state) redirect("/");
   const e = state.event;
   const locked = isSetupLocked(state.event);
+  const courses = await clubCourses(e.organizationId, e.id);
 
   const allEvents = await prisma.event.findMany({
     orderBy: { createdAt: "desc" },
@@ -111,6 +114,14 @@ export default async function EventPage() {
           course data to score — gross match play doesn't — and still want it,
           because printed scorecards carry par, yardage and stroke index next
           to the club's logo. */}
+      <div style={{ marginTop: 16 }}>
+        <CourseLibrary
+          courses={courses}
+          presetNames={COURSES.map((c) => c.name)}
+          canEdit={session.viewRole === "admin"}
+        />
+      </div>
+
       <div style={{ marginTop: 16 }}>
         <CourseSetupPrompt
           eventCourse={e.course}
