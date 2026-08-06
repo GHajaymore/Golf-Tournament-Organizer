@@ -1,0 +1,12 @@
+-- How the knockout is arranged, which used to be hardcoded to one shape.
+--
+-- The old behaviour split qualifiers by rank: top half into Winners, bottom
+-- half into Consolation. That is two flights drawn before anyone plays, not a
+-- consolation — a club plate is normally filled by whoever loses in the first
+-- round, which is decided by results rather than by seeding. Both are real
+-- formats and neither should be the only option.
+--
+-- Defaults to 'split' so every existing tournament keeps the arrangement it
+-- was set up under. Changing the shape of a knockout beneath a running event
+-- would be a silent rule change.
+ALTER TABLE "Event" ADD COLUMN "bracketMode" TEXT NOT NULL DEFAULT 'split';

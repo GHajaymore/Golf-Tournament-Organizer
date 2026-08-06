@@ -54,19 +54,163 @@ export function pickQualifiers(
   return overallRanked.filter((rp) => ids.has(rp.player.id)).map((rp) => rp.player);
 }
 
-/** Split qualifiers (already in overall-rank order): top half -> Winners, bottom -> Consolation. */
+/**
+ * How an organizer wants the knockout arranged.
+ *
+ *   single — one bracket, every qualifier in it. A championship: you lose, you
+ *            are out. The plainest shape and the one most events want.
+ *
+ *   split  — top half and bottom half of the qualifiers play separate
+ *            brackets. Two flights decided before a ball is struck, so a
+ *            player never meets someone far above them. Not a consolation:
+ *            nobody drops into the second bracket, they are drawn into it.
+ *
+ *   plate  — one bracket, and whoever loses in the first round goes into a
+ *            second. This is what a club usually means by a consolation or
+ *            plate, and it differs from `split` in the way that matters: it is
+ *            decided by results rather than by seeding, so everyone starts
+ *            with a shot at the main prize.
+ */
+export type BracketMode = "single" | "split" | "plate";
+
+export const BRACKET_MODES: Array<{ key: BracketMode; label: string; blurb: string }> = [
+  { key: "single", label: "One bracket", blurb: "Every qualifier in a single knockout. Lose and you're out." },
+  { key: "split", label: "Two flights", blurb: "Top half and bottom half play separate brackets, drawn by qualifying rank." },
+  { key: "plate", label: "Main + plate", blurb: "One knockout; first-round losers drop into a plate. Everyone starts with a shot at the main prize." },
+];
+
+export function isBracketMode(v: string): v is BracketMode {
+  return v === "single" || v === "split" || v === "plate";
+}
+
+export interface BracketDraw {
+  main: Player[];
+  /** Empty in single mode, and in plate mode until the first round is played. */
+  second: Player[];
+  /** What to call the second bracket, or "" when there isn't one. */
+  secondLabel: string;
+}
+
+/**
+ * Work out who plays in which bracket.
+ *
+ * `firstRoundLosers` only matters in plate mode, where the second bracket is
+ * filled by results rather than by seeding. Passing none simply means the
+ * first round hasn't been decided yet, and the plate is still empty — which is
+ * the honest state to show rather than guessing at it.
+ */
+export function drawBrackets(
+  qualifiers: Player[],
+  mode: BracketMode = "split",
+  firstRoundLosers: Player[] = [],
+): BracketDraw {
+  if (mode === "single") {
+    return { main: qualifiers, second: [], secondLabel: "" };
+  }
+  if (mode === "plate") {
+    return { main: qualifiers, second: firstRoundLosers, secondLabel: "Plate" };
+  }
+  const half = Math.ceil(qualifiers.length / 2);
+  return {
+    main: qualifiers.slice(0, half),
+    second: qualifiers.slice(half),
+    secondLabel: "Consolation",
+  };
+}
+
+/** Split qualifiers (already in overall-rank order): top half -> Winners, bottom -> Consolation.
+ *  Retained as the `split` case of drawBrackets, which is what callers should use. */
 export function splitBrackets(qualifiers: Player[]): {
   winners: Player[];
   consolation: Player[];
 } {
-  const half = Math.ceil(qualifiers.length / 2);
-  return { winners: qualifiers.slice(0, half), consolation: qualifiers.slice(half) };
+  const { main, second } = drawBrackets(qualifiers, "split");
+  return { winners: main, consolation: second };
 }
 
 /**
- * Build a full bracket view for up to 8 seeded players (index 0 = seed 1).
- * `winners` maps match key -> winning playerId (organizer picks). Rounds after
- * the first are populated by advancing chosen winners; byes auto-advance.
+ * Who lost in the opening round of a bracket.
+ *
+ * Reads the organizer's recorded winners rather than inferring anything: a
+ * match with a winner has a loser, and a match still in progress has neither.
+ * Byes are excluded — a player who advanced unopposed didn't lose to anybody.
+ */
+export function firstRoundLosers(view: BracketView, byId: Map<string, Player>): Player[] {
+  const round0 = view.rounds[0];
+  if (!round0) return [];
+  const out: Player[] = [];
+  for (const m of round0.matches) {
+    if (!m.winnerId) continue;
+    // A bye has only one side, so there is no loser to drop.
+    if (!m.a.playerId || !m.b.playerId) continue;
+    const loserId = m.winnerId === m.a.playerId ? m.b.playerId : m.a.playerId;
+    const p = byId.get(loserId);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+/**
+ * The standard seeding order for a bracket of `size`, built by reflection.
+ *
+ * Each round of doubling pairs every existing seed with its complement, which
+ * is what produces the property a seeded draw exists for: the top two seeds
+ * can only meet in the final, the top four only in the semis, and so on.
+ *
+ * Replaces a hardcoded eight-entry table. That table meant a knockout could
+ * only ever hold eight players — a 16- or 32-player championship, or a
+ * four-side final, was simply not expressible.
+ */
+export function seedOrder(size: number): number[] {
+  // Eight keeps the exact table this app has always used. Reflection produces
+  // the same *pairs* but lists the bottom half in a different order, and
+  // changing that would redraw any eight-player bracket already under way —
+  // the same players, rearranged, which is indistinguishable from a mistake to
+  // whoever is playing in it. Every other size is generated.
+  if (size === 8) return [...SEED_ORDER_8];
+  let order = [1, 2];
+  while (order.length < size) {
+    const n = order.length * 2;
+    const next: number[] = [];
+    for (const s of order) next.push(s, n + 1 - s);
+    order = next;
+  }
+  return order.slice(0, size);
+}
+
+/** Smallest power of two that holds `n` players, minimum 2. */
+export function bracketSizeFor(n: number): number {
+  let size = 2;
+  while (size < n) size *= 2;
+  return size;
+}
+
+/**
+ * What to call each round, counting back from the final.
+ *
+ * Derived rather than listed, so a bracket of any depth names its rounds
+ * correctly instead of running off the end of a three-entry array.
+ */
+export function roundLabels(size: number): string[] {
+  const total = Math.log2(size);
+  const labels: string[] = [];
+  for (let r = 0; r < total; r += 1) {
+    const remaining = total - r;
+    if (remaining === 1) labels.push("Final");
+    else if (remaining === 2) labels.push("Semifinals");
+    else if (remaining === 3) labels.push("Quarterfinals");
+    else labels.push(`Round of ${2 ** remaining}`);
+  }
+  return labels;
+}
+
+/**
+ * Build a full bracket view for any number of seeded players (index 0 = seed 1).
+ *
+ * The bracket sizes itself to the field, rounding up to the next power of two;
+ * the unfilled seeds become byes and auto-advance. `winners` maps match key ->
+ * winning playerId (organizer picks). Rounds after the first are populated by
+ * advancing chosen winners.
  */
 export function buildBracket(
   kind: BracketKind,
@@ -86,50 +230,40 @@ export function buildBracket(
     };
   };
 
-  // Round of 8, seeded per SEED_ORDER_8. Missing seeds become byes (null).
+  const size = bracketSizeFor(seededPlayers.length);
+  const order = seedOrder(size);
+  const labels = roundLabels(size);
   const seedSlot = (seedNum: number): string | null => seededPlayers[seedNum - 1]?.id ?? null;
 
   const rounds: BracketRound[] = [];
 
-  // Round 0: 4 matches from the seed order.
-  const r0: BracketMatch[] = [];
-  for (let i = 0; i < 4; i += 1) {
-    const aId = seedSlot(SEED_ORDER_8[i * 2]);
-    const bId = seedSlot(SEED_ORDER_8[i * 2 + 1]);
+  // Opening round: one match per pair in the seed order. Missing seeds are byes.
+  const first: BracketMatch[] = [];
+  for (let i = 0; i < size / 2; i += 1) {
+    const aId = seedSlot(order[i * 2]);
+    const bId = seedSlot(order[i * 2 + 1]);
     const key = `${kind}-0-${i}`;
-    // Byes: if exactly one side is present, it auto-advances.
     let winnerId = winners[key] ?? null;
     if (!winnerId) {
       if (aId && !bId) winnerId = aId;
       else if (bId && !aId) winnerId = bId;
     }
-    r0.push({
-      key,
-      roundIndex: 0,
-      matchIndex: i,
-      a: slotFor(aId),
-      b: slotFor(bId),
-      winnerId,
-    });
+    first.push({ key, roundIndex: 0, matchIndex: i, a: slotFor(aId), b: slotFor(bId), winnerId });
   }
-  rounds.push({ label: ROUND_LABELS[0], roundIndex: 0, matches: r0 });
+  rounds.push({ label: labels[0], roundIndex: 0, matches: first });
 
-  // Rounds 1..2: fed by previous round winners.
-  for (let round = 1; round <= 2; round += 1) {
+  // Every later round is fed by the winners of the one before it.
+  for (let round = 1; round < labels.length; round += 1) {
     const prev = rounds[round - 1].matches;
-    const count = prev.length / 2;
     const matches: BracketMatch[] = [];
-    for (let i = 0; i < count; i += 1) {
+    for (let i = 0; i < prev.length / 2; i += 1) {
       const aId = prev[i * 2].winnerId;
       const bId = prev[i * 2 + 1].winnerId;
       const key = `${kind}-${round}-${i}`;
       let winnerId = winners[key] ?? null;
-      // Only auto-advance a bye once both feeders are actually resolved.
-      if (!winnerId) {
-        if (aId && !bId && prev[i * 2 + 1].winnerId === null && isByeFeeder(prev[i * 2 + 1])) {
-          winnerId = aId;
-        }
-      }
+      // Only auto-advance a bye once the other feeder is known to be empty.
+      if (!winnerId && aId && !bId && isByeFeeder(prev[i * 2 + 1])) winnerId = aId;
+      if (!winnerId && bId && !aId && isByeFeeder(prev[i * 2])) winnerId = bId;
       matches.push({
         key,
         roundIndex: round,
@@ -139,10 +273,10 @@ export function buildBracket(
         winnerId,
       });
     }
-    rounds.push({ label: ROUND_LABELS[round], roundIndex: round, matches });
+    rounds.push({ label: labels[round], roundIndex: round, matches });
   }
 
-  const finalMatch = rounds[2].matches[0];
+  const finalMatch = rounds[rounds.length - 1]?.matches[0];
   const champion = finalMatch?.winnerId ? slotFor(finalMatch.winnerId) : null;
 
   return { kind, rounds, champion };

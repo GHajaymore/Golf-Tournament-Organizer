@@ -291,6 +291,15 @@ model Event {
   qualifyPerGroup Int      @default(2)
   qualifyMode     String   @default("perFlight") // perFlight | overall
   qualifyOverall  Int      @default(16)
+  /**
+   * How the knockout is arranged once qualifiers are decided.
+   *
+   * single = one bracket; split = two flights drawn by rank; plate = one
+   * bracket with first-round losers dropping into a second. Defaults to split
+   * because that is what every existing tournament already does — changing the
+   * shape of a knockout under a running event would be a silent rule change.
+   */
+  bracketMode     String   @default("split") // single | split | plate
 
   // Scoring rules (round-robin stages)
   winPts        Float  @default(3)

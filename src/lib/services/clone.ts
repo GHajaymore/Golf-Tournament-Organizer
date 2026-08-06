@@ -27,6 +27,8 @@ export const CLONED_EVENT_FIELDS = [
   "qualifyPerGroup",
   "qualifyMode",
   "qualifyOverall",
+  // A club that runs a plate every year wants the plate again.
+  "bracketMode",
   "winPts",
   "tiePts",
   "lossPts",
