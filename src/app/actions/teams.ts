@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { sideSizeRange, needsTeams } from "@/lib/formats";
 import { snakeDraw } from "@/lib/services/teams";
+import { roundRobinSchedule } from "@/lib/domain";
 
 export interface TeamResult {
   ok: boolean;
@@ -130,6 +131,89 @@ export async function removeTeamMember(teamId: string, playerId: string): Promis
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true } });
   if (!team || team.eventId !== eventId) return { ok: false, error: "Team not found." };
   await prisma.teamMember.deleteMany({ where: { teamId, playerId } });
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Build the match schedule for a team round: every side against every other.
+ *
+ * Separate from the flight-based generator, which pairs individual players and
+ * is skipped entirely for team rounds — running it there would fill the round
+ * with matches nobody plays, and they would count toward the standings.
+ *
+ * Match.groupId is required, so the sides need a group to belong to. Rather
+ * than borrow a flight built for individuals, this round gets its own, named
+ * after it.
+ */
+export async function generateTeamMatches(stageId: string, replace = false): Promise<DrawResult> {
+  const eventId = await requireStaff();
+  await assertUnlocked(eventId);
+  await stageInEvent(eventId, stageId);
+
+  const stage = await prisma.stage.findUnique({ where: { id: stageId } });
+  if (!stage) return { ok: false, error: "Round not found." };
+  if (!needsTeams(stage.format)) {
+    return { ok: false, error: `${stage.format} is played by individuals — use the flight generator.` };
+  }
+
+  const teams = await prisma.team.findMany({
+    where: { eventId, OR: [{ stageId }, { stageId: null }] },
+    orderBy: [{ seed: "asc" }, { createdAt: "asc" }],
+    select: { id: true, stageId: true },
+  });
+  // Round-specific sides win over event-wide ones, matching teamsForStage —
+  // otherwise a redrawn round would field every pairing twice.
+  const scoped = teams.filter((t) => t.stageId === stageId);
+  const use = scoped.length > 0 ? scoped : teams.filter((t) => t.stageId === null);
+  if (use.length < 2) {
+    return { ok: false, error: "Draw at least two sides before generating matches." };
+  }
+
+  const existing = await prisma.match.findMany({ where: { eventId, stageId }, select: { id: true } });
+  if (existing.length > 0 && !replace) {
+    return { ok: false, needsConfirm: true, existing: existing.length };
+  }
+  if (existing.length > 0) {
+    const scored = await prisma.teamScorecard.count({
+      where: { stageId, NOT: { strokes: "[]" } },
+    });
+    if (scored > 0) {
+      return { ok: false, error: "Scores have already been recorded for this round." };
+    }
+    await prisma.match.deleteMany({ where: { id: { in: existing.map((m) => m.id) } } });
+  }
+
+  const groupName = `${stage.format} — Round ${stage.position + 1}`;
+  let group = await prisma.group.findFirst({ where: { eventId, name: groupName } });
+  if (!group) {
+    const maxPos = await prisma.group.aggregate({ where: { eventId }, _max: { position: true } });
+    group = await prisma.group.create({
+      data: { eventId, name: groupName, position: (maxPos._max.position ?? -1) + 1 },
+    });
+  }
+
+  const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
+  const schedule = roundRobinSchedule(use.map((t) => t.id));
+  for (const pairing of schedule) {
+    await prisma.match.create({
+      data: {
+        eventId,
+        stageId,
+        groupId: group.id,
+        round: pairing.round,
+        // The sides are teams, so the player columns stay empty rather than
+        // being repurposed — a column whose meaning depends on the format is
+        // exactly what silently mis-joins later.
+        playerAId: "",
+        playerBId: "",
+        teamAId: pairing.aId,
+        teamBId: pairing.bId,
+        holes: emptyHoles,
+      },
+    });
+  }
+
   refresh();
   return { ok: true };
 }

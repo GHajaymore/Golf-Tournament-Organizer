@@ -45,13 +45,23 @@ export function TeamEntryClient({
     const seed: Record<string, (number | null)[]> = {};
     for (const t of teams) {
       for (const c of t.cards) {
-        seed[`${t.teamId}:${c.playerId}`] = [...c.strokes];
+        seed[`${t.teamId}:${t.matchId}:${c.playerId}`] = [...c.strokes];
       }
     }
     return seed;
   });
 
-  const keyFor = (teamId: string, playerId: string) => `${teamId}:${playerId}`;
+  /**
+   * Identity of one card on this screen.
+   *
+   * The match id is part of it, and has to be: in a team round robin a side
+   * plays several matches, so the same team appears more than once. Keying on
+   * team and player alone made those rows share draft state — a score typed
+   * against one opponent appeared against the other — and gave React duplicate
+   * keys into the bargain.
+   */
+  const keyFor = (teamId: string, matchId: string, playerId: string) =>
+    `${teamId}:${matchId}:${playerId}`;
 
   const setHole = (key: string, hole: number, value: string) => {
     const n = value === "" ? null : parseInt(value, 10);
@@ -62,9 +72,11 @@ export function TeamEntryClient({
     });
   };
 
-  const save = (teamId: string, playerId: string, matchId: string) => {
-    const key = keyFor(teamId, playerId);
-    const strokes = draft[key] ?? new Array(holes).fill(null);
+  const save = (teamId: string, playerId: string, matchId: string, saved: (number | null)[]) => {
+    const key = keyFor(teamId, matchId, playerId);
+    // Falls back to what the server already holds, never to an empty card —
+    // an untouched draft must not blank a score somebody already returned.
+    const strokes = draft[key] ?? saved;
     setError("");
     startTransition(async () => {
       const res = await saveTeamScorecard(teamId, playerId, matchId, strokes);
@@ -94,7 +106,7 @@ export function TeamEntryClient({
       )}
 
       {teams.map((t) => (
-        <div key={t.teamId} className="card elev-sm" style={{ gap: 10 }}>
+        <div key={`${t.teamId}:${t.matchId}`} className="card elev-sm" style={{ gap: 10 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             <span className="card-title" style={{ fontSize: 15 }}>{t.teamName}</span>
             {t.opponentName && (
@@ -109,8 +121,8 @@ export function TeamEntryClient({
           </div>
 
           {t.cards.map((c) => {
-            const key = keyFor(t.teamId, c.playerId);
-            const values = draft[key] ?? new Array(holes).fill(null);
+            const key = keyFor(t.teamId, t.matchId, c.playerId);
+            const values = draft[key] ?? c.strokes;
             return (
               <div key={key} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -125,7 +137,7 @@ export function TeamEntryClient({
                     className="btn btn-secondary"
                     style={{ marginLeft: "auto" }}
                     disabled={pending}
-                    onClick={() => save(t.teamId, c.playerId, t.matchId)}
+                    onClick={() => save(t.teamId, c.playerId, t.matchId, c.strokes)}
                   >
                     {pending ? "Saving…" : "Save card"}
                   </button>

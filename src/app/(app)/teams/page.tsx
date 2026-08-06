@@ -46,6 +46,7 @@ export default async function TeamsPage({
   }
 
   const teams = await teamsForStage(session.eventId, active.id, active.format);
+  const matchCount = await prisma.match.count({ where: { eventId: session.eventId, stageId: active.id } });
   const unassigned = await unassignedPlayers(session.eventId, teams);
   const format = findFormat(active.format);
   const range = sideSizeRange(active.format);
@@ -73,6 +74,7 @@ export default async function TeamsPage({
         teams={teams}
         problems={teamProblems(teams, active.format)}
         unassigned={unassigned}
+        matchCount={matchCount}
       />
     </>
   );

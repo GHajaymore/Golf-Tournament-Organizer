@@ -141,3 +141,47 @@ describe("team score entry authorization", () => {
     expect(body).toMatch(/m\.eventId !== eventId/);
   });
 });
+
+describe("team match generation", () => {
+  const src = () =>
+    readFileSync(join(ACTIONS_DIR, "teams.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+
+  it("exists — the team columns were dead until it did", () => {
+    // Match gained teamAId/teamBId, the entry screen read them and
+    // recomputeTeamMatch scored them, but nothing ever wrote them. Team match
+    // play silently degraded to team stroke play.
+    expect(src()).toMatch(/export async function generateTeamMatches/);
+  });
+
+  it("pairs sides rather than players", () => {
+    const body = src().slice(src().indexOf("generateTeamMatches"));
+    expect(body).toMatch(/teamAId: pairing\.aId/);
+    expect(body).toMatch(/teamBId: pairing\.bId/);
+    // The player columns stay empty rather than being repurposed.
+    expect(body).toMatch(/playerAId: ""/);
+  });
+
+  it("refuses on an individual format", () => {
+    expect(src()).toMatch(/is played by individuals/);
+  });
+
+  it("will not silently discard scored matches", () => {
+    const body = src().slice(src().indexOf("generateTeamMatches"));
+    expect(body).toMatch(/needsConfirm: true/);
+    expect(body).toMatch(/Scores have already been recorded/);
+  });
+});
+
+describe("the flight generator leaves team rounds alone", () => {
+  it("skips a team round instead of pairing its players", () => {
+    // Player-vs-player matches in a four-ball round are matches nobody plays,
+    // and they would count toward the standings.
+    const regroup = readFileSync(
+      join(process.cwd(), "src", "lib", "services", "regroup.ts"),
+      "utf8",
+    ).replace(/\/\/.*$/gm, "");
+    expect(regroup).toMatch(/if \(needsTeams\(rrStage\.format\)\) continue;/);
+  });
+});

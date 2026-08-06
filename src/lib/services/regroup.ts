@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import { formGroups, roundRobinSchedule } from "../domain";
 import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../domain";
+import { needsTeams } from "../formats";
 
 /**
  * Re-form flights for an event from its confirmed players using the stored rule
@@ -104,6 +105,11 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
       // Cut-gated stages are built separately (generateNextRound), once the
       // preceding round's real results decide who's still in the field.
       if (rrStage.cutEnabled) continue;
+      // A team round is played side against side, so pairing its players
+      // individually would fill it with matches nobody plays — and they would
+      // count toward the standings. Its matches come from generateTeamMatches
+      // on the Teams screen, once the sides are drawn.
+      if (needsTeams(rrStage.format)) continue;
       const emptyHoles = JSON.stringify(new Array(rrStage.holes === 9 ? 9 : 18).fill(null));
       for (const g of groups) {
         const dbGroupId = groupIdByEngineId.get(g.id)!;

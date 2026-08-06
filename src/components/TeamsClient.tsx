@@ -7,6 +7,7 @@ import {
   addTeamMember,
   removeTeamMember,
   autoDrawTeams,
+  generateTeamMatches,
 } from "@/app/actions/teams";
 
 export interface TeamMemberRow {
@@ -54,6 +55,7 @@ export function TeamsClient({
   teams,
   problems,
   unassigned,
+  matchCount,
 }: {
   rounds: RoundRow[];
   activeRoundId: string;
@@ -61,18 +63,34 @@ export function TeamsClient({
   teams: TeamRow[];
   problems: ProblemRow[];
   unassigned: { id: string; name: string; handicap: number }[];
+  /** Matches already generated for this round. */
+  matchCount: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [newName, setNewName] = useState("");
   const [error, setError] = useState("");
   const [confirmDraw, setConfirmDraw] = useState(false);
+  const [confirmMatches, setConfirmMatches] = useState(false);
   const [addingTo, setAddingTo] = useState("");
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
     setError("");
     startTransition(async () => {
       const res = await fn();
+      if (!res.ok && res.error) setError(res.error);
+    });
+  };
+
+  const makeMatches = (replace: boolean) => {
+    setError("");
+    startTransition(async () => {
+      const res = await generateTeamMatches(activeRoundId, replace);
+      if (res.needsConfirm) {
+        setConfirmMatches(true);
+        return;
+      }
+      setConfirmMatches(false);
       if (!res.ok && res.error) setError(res.error);
     });
   };
@@ -192,7 +210,34 @@ export function TeamsClient({
         <button type="button" className="btn btn-primary" disabled={pending} onClick={() => draw(false)}>
           <i className="ph ph-shuffle" /> Draw sides automatically
         </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={pending || teams.length < 2}
+          title={teams.length < 2 ? "Draw at least two sides first" : undefined}
+          onClick={() => makeMatches(false)}
+        >
+          <i className="ph ph-arrows-clockwise" /> {matchCount > 0 ? "Regenerate" : "Generate"} matches
+        </button>
       </div>
+
+      {confirmMatches && (
+        <div className="card elev-sm" style={{ gap: 8, borderLeft: "3px solid var(--color-accent)" }}>
+          <span className="card-title" style={{ fontSize: 14 }}>Replace this round&apos;s matches?</span>
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            This round already has {matchCount} {matchCount === 1 ? "match" : "matches"}. Regenerating
+            discards them and pairs the sides again.
+          </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" className="btn btn-primary" disabled={pending} onClick={() => makeMatches(true)}>
+              Replace them
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => setConfirmMatches(false)}>
+              Keep them
+            </button>
+          </div>
+        </div>
+      )}
       <p className="text-muted" style={{ fontSize: 12, margin: "-8px 0 0" }}>
         An automatic draw balances the sides by handicap, pairing stronger players with weaker ones —
         otherwise a field with a wide spread is decided at registration rather than on the course.
