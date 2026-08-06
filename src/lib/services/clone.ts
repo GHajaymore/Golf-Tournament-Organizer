@@ -29,6 +29,9 @@ export const CLONED_EVENT_FIELDS = [
   "qualifyOverall",
   // A club that runs a plate every year wants the plate again.
   "bracketMode",
+  // A copy of last year's knockout is a knockout. Dropping this would silently
+  // reopen every control the shape exists to hide.
+  "shape",
   "winPts",
   "tiePts",
   "lossPts",

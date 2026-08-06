@@ -300,6 +300,18 @@ model Event {
    * shape of a knockout under a running event would be a silent rule change.
    */
   bracketMode     String   @default("split") // single | split | plate
+  /**
+   * What shape of tournament this is, asked once at the start.
+   *
+   * Decides what the rest of setup is about: a single round has no next round
+   * to carry into, and a knockout has a bracket where a league has none.
+   * Defaults to "series" because that is what every existing tournament was
+   * built as — it shows every control, which is the behaviour they have now.
+   *
+   * A starting point, never a cage. An organizer who adds a bracket to a
+   * series has changed their mind, and the app follows.
+   */
+  shape           String   @default("series") // single | series | knockout
 
   // Scoring rules (round-robin stages)
   winPts        Float  @default(3)

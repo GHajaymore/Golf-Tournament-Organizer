@@ -15,6 +15,7 @@ import { organizationForNewEvent, settingsForNewEvent } from "@/lib/services/org
 import { effectiveAccess } from "@/lib/services/access";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
+import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
 import { marginToHoles, resolveMatch, deriveNetHoles, roundRobinSchedule, TIEBREAKER_KEYS, isBracketMode, BRACKET_MODES } from "@/lib/domain";
@@ -1439,10 +1440,18 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
  * deliberate act; "custom" and an absent key both leave the house defaults in
  * place.
  */
-export async function createEvent(name: string, templateKey?: string): Promise<{ ok: boolean; error?: string }> {
+export async function createEvent(
+  name: string,
+  templateKey?: string,
+  shapeKey?: string,
+): Promise<{ ok: boolean; error?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   const clean = name.trim() || "New Tournament";
+  // The shape decides what the rest of setup is even about, so it is asked
+  // alongside the name rather than buried in a settings screen later.
+  const shape = shapeOf(shapeKey);
+  const shapeStart = shapeOption(shape).openingRound;
   const template = templateKey ? templateFor(templateKey) : null;
   const templated = template && template.key !== DEFAULT_TEMPLATE_KEY ? template : null;
   // Every tournament belongs to a billing tenant; this creates the organizer's
@@ -1459,6 +1468,7 @@ export async function createEvent(name: string, templateKey?: string): Promise<{
       regDeadline: "",
       capacity: 0, // open field by default
       status: "draft",
+      shape,
       // Start from the club's house defaults, then own them outright.
       ...(await settingsForNewEvent(organizationId)),
       ...(templated ? templated.settings : {}),
@@ -1482,10 +1492,12 @@ export async function createEvent(name: string, templateKey?: string): Promise<{
       eventId: event.id,
       position: 0,
       description: "",
-      type: templated?.round.type ?? "Round Robin",
-      format: templated?.round.format ?? "Match Play",
-      holes: templated?.round.holes ?? 18,
-      scoringBasis: templated?.round.scoringBasis ?? "gross",
+      // A template is a deliberate choice and outranks the shape default;
+      // otherwise the shape decides what the opening round looks like.
+      type: templated?.round.type ?? shapeStart.type,
+      format: templated?.round.format ?? shapeStart.format,
+      holes: templated?.round.holes ?? shapeStart.holes,
+      scoringBasis: templated?.round.scoringBasis ?? shapeStart.scoringBasis,
     },
   });
   await prisma.account.create({

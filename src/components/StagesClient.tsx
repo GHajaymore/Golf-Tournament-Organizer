@@ -190,6 +190,7 @@ function StageCard({
   confirmedCount,
   venues,
   chainWarnings,
+  chainsRounds,
 }: {
   stage: StageView;
   isFirst: boolean;
@@ -202,6 +203,8 @@ function StageCard({
   venues: Array<{ id: string; name: string }>;
   /** Ways this round doesn't fit the one before it. */
   chainWarnings: string[];
+  /** False for a single-round tournament, which has no next round. */
+  chainsRounds: boolean;
 }) {
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
@@ -262,7 +265,11 @@ function StageCard({
       ? `Players compete against everyone in their flight — ${rrMatchesPerPlayer} ${rrMatchesPerPlayer === 1 ? "match" : "matches"} each.`
       : stage.description;
 
-  const showTransition = stage.type === "Round Robin";
+  // Carry-forward and the cut line describe what happens *into the next
+  // round*. A single-round tournament has no next round, so offering them
+  // asks an organizer to configure something that cannot happen — which is
+  // what the shape question exists to stop.
+  const showTransition = stage.type === "Round Robin" && chainsRounds;
   const notGenerated = !isFirst && stage.type === "Round Robin" && stage.matchCount === 0;
 
   // One rich, always-legible summary line for the collapsed toggle — covers
@@ -562,6 +569,7 @@ export function StagesClient({
   qual,
   confirmedCount,
   venues = [],
+  chainsRounds = true,
 }: {
   stages: StageView[];
   rrMatchesPerPlayer: number;
@@ -571,6 +579,8 @@ export function StagesClient({
   confirmedCount: number;
   /** Courses this tournament may be played on; more than one shows the picker. */
   venues?: Array<{ id: string; name: string }>;
+  /** Whether rounds feed each other — false for a single-round tournament. */
+  chainsRounds?: boolean;
 }) {
   const [newType, setNewType] = useState(STAGE_TYPES[0]);
   const [pending, startTransition] = useTransition();
@@ -609,6 +619,7 @@ export function StagesClient({
             confirmedCount={confirmedCount}
             venues={venues}
             chainWarnings={issuesForRound(chain, s.position).map((w) => w.message)}
+            chainsRounds={chainsRounds}
           />
         );
       })}

@@ -3,6 +3,7 @@ import { loadEventState } from "@/lib/services/tournament";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { StagesClient } from "@/components/StagesClient";
+import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 
 export default async function StagesPage() {
@@ -58,6 +59,12 @@ export default async function StagesPage() {
       <StagesClient
         stages={stages}
         venues={venues}
+        chainsRounds={
+          effectiveCapabilities(shapeOf(state.event.shape), {
+            roundCount: state.stages.length,
+            hasBracketStage: state.stages.some((s) => s.type === "Bracket Stage"),
+          }).chainsRounds
+        }
         rrMatchesPerPlayer={rrMatchesPerPlayer}
         scoring={{
           winPts: state.scoring.winPts,

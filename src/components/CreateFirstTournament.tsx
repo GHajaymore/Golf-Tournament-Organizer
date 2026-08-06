@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { createEvent } from "@/app/actions/tournament";
 import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
+import { TOURNAMENT_SHAPES, DEFAULT_SHAPE, type TournamentShape } from "@/lib/tournament-shape";
 
 /**
  * Create-a-tournament step on the picker screen. Shown prominently when
@@ -12,12 +13,13 @@ export function CreateFirstTournament({ first }: { first: boolean }) {
   const [name, setName] = useState("");
   const [open, setOpen] = useState(first);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE_KEY);
+  const [shape, setShape] = useState<TournamentShape>(DEFAULT_SHAPE);
   const [pending, startTransition] = useTransition();
 
   const submit = () => {
     if (!name.trim()) return;
     startTransition(async () => {
-      await createEvent(name, template);
+      await createEvent(name, template, shape);
     });
   };
 
@@ -55,6 +57,41 @@ export function CreateFirstTournament({ first }: { first: boolean }) {
           autoFocus
         />
       </div>
+      {/* Asked before anything else, because it decides what the rest of setup
+          is even about: a single round has no next round to carry into, and a
+          knockout has a bracket where a league has none. */}
+      <div className="field">
+        <label>How is it played?</label>
+        <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+          {TOURNAMENT_SHAPES.map((s) => {
+            const active = s.key === shape;
+            return (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setShape(s.key)}
+                style={{
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  color: "var(--color-text)",
+                  background: active
+                    ? "color-mix(in srgb, var(--color-accent) 14%, transparent)"
+                    : "var(--color-bg)",
+                  border: `1px solid ${active ? "var(--color-accent)" : "var(--color-divider)"}`,
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{s.label}</div>
+                <div className="text-muted" style={{ fontSize: 12, marginTop: 2, lineHeight: 1.4 }}>
+                  {s.blurb}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="field">
         <label>What kind of tournament?</label>
         <select className="input" value={template} onChange={(e) => setTemplate(e.target.value)}>
