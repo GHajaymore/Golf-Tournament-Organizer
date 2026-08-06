@@ -42,6 +42,7 @@ export const NAV: NavSection[] = [
       { key: "registration", label: "Registration & field", href: "/registration", icon: "ph ph-user-plus" },
       { key: "stages", label: "Rounds & format", href: "/stages", icon: "ph ph-stack" },
       { key: "grouping", label: "Flights & divisions", href: "/grouping", icon: "ph ph-squares-four" },
+      { key: "teams", label: "Teams", href: "/teams", icon: "ph ph-users-three" },
       { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check" },
     ],
   },
@@ -75,9 +76,17 @@ export const NAV: NavSection[] = [
  * organizer-scored event has no score entry link. Without this the sidebar
  * would offer doors that bounce you straight back to the dashboard.
  */
-export function navForRole(viewRole: Role, settings?: TournamentSettings): NavSection[] {
+export function navForRole(
+  viewRole: Role,
+  settings?: TournamentSettings,
+  opts: { hasTeamRound?: boolean } = {},
+): NavSection[] {
   const allowed = (key: string): boolean => {
     if (!canAccessScreen(viewRole, key)) return false;
+    // Teams only matter to a tournament that has a team round in it. Most
+    // don't, and a permanent link to an empty screen is just clutter — the
+    // link appears the moment a round is set to a team format.
+    if (key === "teams" && !opts.hasTeamRound) return false;
     if (!settings) return true;
     // The bracket is seeded from live standings, so showing it in a blind
     // event would give away the order the leaderboard is hiding.

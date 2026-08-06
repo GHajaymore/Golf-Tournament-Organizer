@@ -67,12 +67,45 @@ describe("role boundaries", () => {
 });
 
 describe("sidebar matches the guards", () => {
-  it("shows a role exactly the screens it is allowed to open", () => {
+  it("never shows a screen the guards would bounce", () => {
+    // The invariant is one-directional: everything shown must be reachable.
+    // The reverse does not hold, because some links are conditional on the
+    // tournament (see the teams gate below) — showing fewer doors is safe,
+    // showing one that bounces you is not.
     for (const role of ROLES) {
-      const shown = navForRole(role).flatMap((s) => s.items.map((i) => i.key));
-      const allowed = ALL_NAV_KEYS.filter((k) => canAccessScreen(role, k));
-      expect(shown.sort(), `sidebar/guard mismatch for ${role}`).toEqual(allowed.sort());
+      const shown = navForRole(role, undefined, { hasTeamRound: true }).flatMap((s) =>
+        s.items.map((i) => i.key),
+      );
+      for (const key of shown) {
+        expect(canAccessScreen(role, key), `sidebar offers ${key} to ${role} but the guard refuses`).toBe(true);
+      }
     }
+  });
+
+  it("shows every unconditional screen a role may open", () => {
+    // Guards against the opposite failure — a screen that exists, is allowed,
+    // and is simply unreachable because nothing links to it.
+    const CONDITIONAL = ["teams"];
+    for (const role of ROLES) {
+      const shown = navForRole(role, undefined, { hasTeamRound: true }).flatMap((s) =>
+        s.items.map((i) => i.key),
+      );
+      const allowed = ALL_NAV_KEYS.filter((k) => canAccessScreen(role, k) && !CONDITIONAL.includes(k));
+      for (const key of allowed) {
+        expect(shown, `${key} is allowed for ${role} but absent from the sidebar`).toContain(key);
+      }
+    }
+  });
+
+  it("hides Teams until a round is actually played by teams", () => {
+    // Most tournaments never play a team format, and a permanent link to an
+    // empty screen is clutter.
+    const without = navForRole("admin").flatMap((s) => s.items.map((i) => i.key));
+    const with_ = navForRole("admin", undefined, { hasTeamRound: true }).flatMap((s) =>
+      s.items.map((i) => i.key),
+    );
+    expect(without).not.toContain("teams");
+    expect(with_).toContain("teams");
   });
 
   it("never shows an empty section", () => {

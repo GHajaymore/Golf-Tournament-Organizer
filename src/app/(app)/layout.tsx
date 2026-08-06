@@ -7,6 +7,7 @@ import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { brandForEvent } from "@/lib/services/organization";
 import { settingsOf } from "@/lib/services/tournament";
+import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -14,9 +15,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const event = await prisma.event.findUnique({
     where: { id: session.eventId },
   });
+  // Teams only appear once a round is actually set to a team format, so the
+  // many tournaments that never play one are not shown a link to an empty
+  // screen.
+  const teamRounds = event
+    ? await prisma.stage.count({ where: { eventId: event.id, format: { in: TEAM_FORMAT_NAMES } } })
+    : 0;
   // Screens the tournament governs (leaderboard, score entry) are filtered out
   // of the sidebar here rather than shown and then bounced.
-  const sections = navForRole(session.viewRole, event ? settingsOf(event) : undefined);
+  const sections = navForRole(session.viewRole, event ? settingsOf(event) : undefined, {
+    hasTeamRound: teamRounds > 0,
+  });
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;

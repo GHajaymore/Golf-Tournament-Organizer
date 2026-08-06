@@ -47,6 +47,9 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   registration: ["admin", "assistant"],
   stages: ["admin", "assistant"],
   grouping: ["admin", "assistant"],
+  // Drawing sides for a team format is the same kind of work as building
+  // flights, so it follows grouping's access rather than the event's.
+  teams: ["admin", "assistant"],
 
   // Manage — running the live competition.
   foursomes: ["admin", "assistant"],
