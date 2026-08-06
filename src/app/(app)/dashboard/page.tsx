@@ -6,7 +6,7 @@ import { LifecycleBar } from "@/components/LifecycleBar";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
-import { showBracket, bracketBadge } from "@/lib/bracket-visibility";
+import { showBracket, bracketBadge, feederFraction } from "@/lib/bracket-visibility";
 import { matchProgress, standingRows } from "@/lib/services/tournament";
 import { pts, shortName } from "@/lib/format";
 
@@ -46,17 +46,31 @@ export default async function DashboardPage() {
   const showStandings = canSeeLeaderboard(settings, session.viewRole);
   const showEntry = canEnterScores(settings, session.viewRole);
 
-  // A bracket seeded from two of forty-eight matches isn't cautious
-  // information, it's noise — organizers screenshot it and players argue about
-  // it. The tile earns its place once the ordering means something.
+  const isStroke = state.isStroke;
+  const cardsIn = state.strokeStandings.filter((s) => s.thru > 0).length;
+
+  // What decides the bracket differs by tournament: a round robin decides it
+  // by matches, a stroke qualifier by cards returned, a straight knockout by
+  // nothing at all. Measure whichever this tournament actually uses rather
+  // than assuming one shape.
+  const bracketIndex = state.stages.findIndex((s) => s.type === "Bracket Stage");
+  const feeders = bracketIndex >= 0 ? state.stages.slice(0, bracketIndex) : [];
+  const feederProgress =
+    feeders.length === 0
+      ? null // straight knockout — the draw is the tournament, known from entry
+      : isStroke
+        ? feederFraction(cardsIn, state.confirmed.length)
+        : feederFraction(progress.done, progress.total);
+
   const bracketProgress = {
-    hasBracketStage: state.stages.some((s) => s.type === "Bracket Stage"),
-    matchesComplete: progress.done,
-    matchesTotal: progress.total,
+    hasBracketStage: bracketIndex >= 0,
+    feederProgress,
     bracketStarted:
       !!brackets.winners.champion ||
       brackets.winners.rounds.some((r) => r.matches.some((m) => !!m.winnerId)),
-    qualificationDecided: progress.total > 0 && progress.done === progress.total,
+    // A qualification stage resolves the field outright — that is its job.
+    qualificationDecided:
+      feeders.some((s) => s.type === "Qualification Stage") && advancingCount > 0,
   };
   const showBracketTile = showStandings && showBracket(bracketProgress);
   const bracketTileBadge = bracketBadge(bracketProgress);
@@ -68,10 +82,8 @@ export default async function DashboardPage() {
     return true;
   });
 
-  const isStroke = state.isStroke;
   const rows = standingRows(state).slice(0, 8);
   const advancingIds = state.advancingIds;
-  const cardsIn = state.strokeStandings.filter((s) => s.thru > 0).length;
 
   const announcements = await prisma.announcement.findMany({
     where: { eventId: session.eventId },
