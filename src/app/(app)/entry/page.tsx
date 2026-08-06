@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 import { resolveCourse, hasCourseData, needsCourseData } from "@/lib/courses";
 import { courseForMatch, applyNine, type Nine } from "@/lib/services/course-resolution";
 import type { HoleResult } from "@/lib/domain";
-import { needsTeams, findFormat } from "@/lib/formats";
+import { needsTeams, findFormat, entryModeFor } from "@/lib/formats";
 import { teamsForStage } from "@/lib/services/teams";
 import { aggregateTeamCard, singleBallTeamCard } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
@@ -282,7 +282,13 @@ export default async function EntryPage() {
       yards={yards}
       strokeIndex={strokeIndex}
       isStaff={isStaff}
-      defaultMode={state.event.format === "stroke" ? "stroke" : "match"}
+      // Off the round's format, not the event's match/stroke flag. A skins
+      // round is entered as a stroke card and a Nassau as a match card, which
+      // the event-level flag has no way to express.
+      defaultMode={
+        activeStage ? (entryModeFor(activeStage.format) === "stroke" ? "stroke" : "match")
+                    : state.event.format === "stroke" ? "stroke" : "match"
+      }
       courseKnown={courseKnown}
       isAdmin={session.viewRole === "admin"}
       venues={venues.map((v) => ({ id: v.id, name: v.name }))}

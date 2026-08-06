@@ -81,14 +81,19 @@ describe("the catalog", () => {
   it("offers only what can be run end to end", () => {
     // The narrower list is what the round picker reads. Match play and stroke
     // play are wired through entry and the leaderboard; nothing else is yet.
+    // Every format in the catalog is now runnable end to end, bar one.
     expect(PLAYABLE_FORMAT_NAMES).toContain("Match Play");
     expect(PLAYABLE_FORMAT_NAMES).toContain("Stroke Play");
-    // Team formats have entry and a leaderboard now.
     expect(isPlayable("Scramble")).toBe(true);
     expect(isPlayable("Four-Ball")).toBe(true);
-    // These still lack an entry screen.
-    expect(isPlayable("Skins")).toBe(false);
-    expect(isPlayable("Nassau")).toBe(false);
+    expect(isPlayable("Skins")).toBe(true);
+    expect(isPlayable("Nassau")).toBe(true);
+    expect(isPlayable("Modified Stableford")).toBe(true);
+    // The exception, and deliberately so: Stableford is reachable as a scoring
+    // basis on a Stroke Play round, which is how the engine models it. Two
+    // doors to one room, one of them locked, would be worse than one door.
+    expect(isPlayable("Stableford")).toBe(false);
+    expect(isPlayable("Some Future Format")).toBe(false);
     expect(isPlayable("Some Future Format")).toBe(false);
   });
 

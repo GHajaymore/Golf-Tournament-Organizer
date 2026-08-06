@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/tournament";
 import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS } from "@/lib/formats";
+import { chainIssues, issuesForRound } from "@/lib/format-chain";
 import { ScoringClient } from "./ScoringClient";
 import { QualControl } from "./QualControl";
 import { CutControl } from "./CutControl";
@@ -188,6 +189,7 @@ function StageCard({
   qual,
   confirmedCount,
   venues,
+  chainWarnings,
 }: {
   stage: StageView;
   isFirst: boolean;
@@ -198,6 +200,8 @@ function StageCard({
   qual: QualValues;
   confirmedCount: number;
   venues: Array<{ id: string; name: string }>;
+  /** Ways this round doesn't fit the one before it. */
+  chainWarnings: string[];
 }) {
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
@@ -295,6 +299,32 @@ function StageCard({
 
   return (
     <div className="card elev-sm" style={{ gap: 14, borderLeft: `3px solid ${roundColor}` }}>
+      {chainWarnings.length > 0 && (
+        // Shown on the later round of the pair, because that is where the
+        // carry-forward or cut setting causing it actually lives. Advisory
+        // rather than blocking: plenty of real tournaments do deliberately odd
+        // things, and an organizer who understands the trade shouldn't be
+        // stopped by an app that doesn't.
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
+          }}
+        >
+          <span style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+            <i className="ph ph-warning" />
+            {chainWarnings.length === 1 ? "Check this round follows on" : "Check how this round follows on"}
+          </span>
+          {chainWarnings.map((w, i) => (
+            <p key={i} className="text-muted" style={{ fontSize: 12, margin: 0 }}>{w}</p>
+          ))}
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <div
           style={{
@@ -547,6 +577,20 @@ export function StagesClient({
 
   const rrStages = stages.filter((s) => s.type === "Round Robin");
 
+  // Where the rounds don't fit together. Rounds chain — standings carry
+  // forward, cuts pick the next field from the last round's results — and that
+  // silently assumes consecutive rounds measure the same thing. Once any round
+  // can be any format, they often don't.
+  const chain = chainIssues(
+    stages.map((s) => ({
+      position: s.position,
+      format: s.format,
+      scoringBasis: s.scoringBasis,
+      carryForwardEnabled: s.carryEnabled,
+      cutEnabled: s.cutEnabled,
+    })),
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {stages.map((s, i) => {
@@ -564,6 +608,7 @@ export function StagesClient({
             qual={qual}
             confirmedCount={confirmedCount}
             venues={venues}
+            chainWarnings={issuesForRound(chain, s.position).map((w) => w.message)}
           />
         );
       })}

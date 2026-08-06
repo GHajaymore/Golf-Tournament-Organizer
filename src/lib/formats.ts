@@ -76,8 +76,6 @@ export interface GolfFormat {
   pendingReason?: string;
 }
 
-/** What's missing for the formats whose engines exist but whose screens don't. */
-const NEEDS_ENTRY = "score entry coming soon";
 /**
  * Stableford is already playable — as a scoring *basis* on a Stroke Play
  * round, which is how the engine models it and how the leaderboard reads it.
@@ -131,8 +129,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "modified-stableford",
     allowance: 95,
     scored: true,
-    playable: false,
-    pendingReason: NEEDS_ENTRY,
+    playable: true,
   },
   {
     name: "Skins",
@@ -143,8 +140,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "skins",
     allowance: 100,
     scored: true,
-    playable: false,
-    pendingReason: NEEDS_ENTRY,
+    playable: true,
   },
   {
     name: "Nassau",
@@ -155,8 +151,7 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "nassau",
     allowance: 100,
     scored: true,
-    playable: false,
-    pendingReason: NEEDS_ENTRY,
+    playable: true,
   },
 
   /* ── Pairs, each playing their own ball ────────────────────────────── */
@@ -333,6 +328,34 @@ export const PLAYABLE_FORMAT_NAMES = GOLF_FORMATS.filter((f) => f.playable).map(
 /** True when a round set to this format can be run end to end today. */
 export function isPlayable(name: string): boolean {
   return lookupFormat(name)?.playable ?? false;
+}
+
+/** How scores are captured for a format. */
+export type EntryMode = "match" | "stroke" | "team";
+
+/**
+ * Which entry screen a round needs.
+ *
+ * Several formats differ only in how their results are *read*, not how they
+ * are recorded: skins and modified Stableford are both entered as an ordinary
+ * stroke card, and a Nassau is entered as an ordinary match card — it is three
+ * bets sliced from one result, not three sets of holes. Routing off the engine
+ * rather than the event's match/stroke flag is what lets those formats reuse
+ * screens that already exist instead of growing near-duplicates.
+ */
+export function entryModeFor(formatName: string): EntryMode {
+  const f = lookupFormat(formatName);
+  if (!f) return "match";
+  if (f.sideSize > 1) return "team";
+  switch (f.engine) {
+    case "stroke":
+    case "stableford":
+    case "modified-stableford":
+    case "skins":
+      return "stroke";
+    default:
+      return "match";
+  }
 }
 
 /** Formats played by teams rather than individuals. */

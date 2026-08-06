@@ -6,7 +6,9 @@ import { prisma } from "@/lib/db";
 import { CommentaryPanel } from "@/components/CommentaryPanel";
 import { LeaderboardBoard } from "@/components/LeaderboardBoard";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
-import { needsTeams } from "@/lib/formats";
+import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
+import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
+import { needsTeams, findFormat } from "@/lib/formats";
 import { teamStandings } from "@/lib/services/teams";
 import { resolveCourse } from "@/lib/courses";
 
@@ -47,6 +49,32 @@ export default async function LeaderboardPage() {
         rows={standings}
       />
     );
+  }
+
+  // Formats that read an ordinary card a different way. Each one already has
+  // its scores where the standard boards keep them — a skins game is a stroke
+  // card, a Nassau is a match card — so these only change the reading.
+  if (activeStage) {
+    const engine = findFormat(activeStage.format).engine;
+    const holes = activeStage.holes === 9 ? 9 : 18;
+    const c = resolveCourse(event);
+
+    if (engine === "skins") {
+      const net = activeStage.scoringBasis !== "gross";
+      const board = await skinsBoard(
+        session.eventId, activeStage.id, holes, net, c.strokeIndex.slice(0, holes),
+      );
+      return <SkinsLeaderboard board={board} net={net} />;
+    }
+    if (engine === "nassau") {
+      return <NassauLeaderboard rows={await nassauBoard(session.eventId, activeStage.id)} />;
+    }
+    if (engine === "modified-stableford") {
+      const rows = await modifiedStablefordBoard(
+        session.eventId, activeStage.id, c.pars.slice(0, holes), c.strokeIndex.slice(0, holes),
+      );
+      return <ModifiedStablefordLeaderboard rows={rows} />;
+    }
   }
 
   const rows = standingRows(state);
