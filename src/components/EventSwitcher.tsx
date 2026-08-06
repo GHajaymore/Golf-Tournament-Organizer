@@ -16,6 +16,8 @@ export interface EventRow {
   players: number;
   isActive: boolean;
   hasAccess: boolean;
+  /** Organizer on this event — the bar for copying and deleting it. */
+  isOrganizer: boolean;
 }
 
 const STATUS: Record<string, { label: string; tag: string }> = {
@@ -36,7 +38,11 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
-  const copyable = events.filter((e) => e.hasAccess);
+  // Only tournaments this person organizes. A copy is created inside the source
+  // tournament's organization, so anything less than organizer would let a
+  // player create events in a club they merely play in — cloneEvent rejects it
+  // regardless, but the list shouldn't offer what the action refuses.
+  const copyable = events.filter((e) => e.isOrganizer);
   const copyFrom = source.startsWith(COPY_PREFIX)
     ? copyable.find((e) => e.id === source.slice(COPY_PREFIX.length))
     : undefined;
@@ -97,7 +103,7 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
                           ) : (
                             <span className="text-muted" style={{ fontSize: 12 }}>No access</span>
                           )}
-                          {e.hasAccess && (
+                          {e.isOrganizer && (
                             <button type="button" className="btn btn-icon" title="Delete tournament" disabled={pending} onClick={() => setConfirmingId(e.id)}>
                               <i className="ph ph-trash" />
                             </button>

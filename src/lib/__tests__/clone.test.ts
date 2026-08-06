@@ -113,6 +113,34 @@ describe("clone field policy", () => {
   });
 });
 
+describe("cloneEvent authorization", () => {
+  const action = () =>
+    readFileSync(join(process.cwd(), "src", "app", "actions", "tournament.ts"), "utf8");
+  /** cloneEvent's body with comments stripped — the guard comment names the
+   *  very anti-pattern being asserted against, so prose would false-positive. */
+  const cloneBody = () => {
+    const m = /export async function cloneEvent[\s\S]*?\n\}\n/.exec(action());
+    if (!m) throw new Error("cloneEvent not found");
+    return m[0].replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  };
+
+  it("requires organizer, not merely access", () => {
+    // effectiveAccess returns a role for players too, so `if (!access)` would
+    // let anyone entered in a club's tournament copy it — and because the copy
+    // is created in the *source's* organization, they'd end up owning an event
+    // inside a club they only play in.
+    const body = cloneBody();
+    expect(body).toMatch(/access\?\.role\s*!==\s*"admin"/);
+    expect(body, "a bare !access check is not sufficient here").not.toMatch(/if\s*\(\s*!access\s*\)/);
+  });
+
+  it("authorizes against the source event", () => {
+    // Not the caller's active event: the copy inherits the source's
+    // organization, so the source is what has to be checked.
+    expect(cloneBody()).toMatch(/effectiveAccess\(session\.email,\s*sourceEventId\)/);
+  });
+});
+
 describe("clone never carries a Round Code", () => {
   it("Stage.accessCode exists and is excluded by name", () => {
     // Round Codes are credentials. A copy that inherited them would let last

@@ -33,7 +33,7 @@ export default async function EventPage() {
   // Access is per-event *or* inherited from running the organization, so this
   // has to read the same list the switch action authorizes against — checking
   // Account rows alone hid a club admin's own tournaments from them.
-  const accessible = new Set((await accessibleEvents(session.email)).map((a) => a.eventId));
+  const accessible = new Map((await accessibleEvents(session.email)).map((a) => [a.eventId, a.role]));
   const eventRows = allEvents.map((ev) => ({
     id: ev.id,
     name: ev.name,
@@ -43,6 +43,10 @@ export default async function EventPage() {
     players: ev._count.players,
     isActive: ev.id === session.eventId,
     hasAccess: accessible.has(ev.id),
+    // Copying and deleting are organizer acts — a copy is created inside this
+    // tournament's organization, so offering either to a player would show
+    // controls the actions reject anyway.
+    isOrganizer: accessible.get(ev.id) === "admin",
   }));
 
   const hasSchedule = state.matches.length > 0;

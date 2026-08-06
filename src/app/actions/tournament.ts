@@ -1158,8 +1158,17 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
 
+  // Organizer-level, and on the *source* event specifically — because the copy
+  // lands in the source's organization, not the caller's own. Merely having
+  // access is the wrong bar: effectiveAccess also returns a role for players,
+  // so `if (!access)` would let anyone entered in a club's tournament create an
+  // event inside that club and make themselves its organizer. Same rule as
+  // deleteEvent: creating and destroying tournaments in a club's name is an
+  // organizer act, not an assistant's.
   const access = await effectiveAccess(session.email, sourceEventId);
-  if (!access) return { ok: false, error: "You don't have access to that tournament." };
+  if (access?.role !== "admin") {
+    return { ok: false, error: "Only an organizer of that tournament can make a copy of it." };
+  }
 
   const source = await prisma.event.findUnique({
     where: { id: sourceEventId },
