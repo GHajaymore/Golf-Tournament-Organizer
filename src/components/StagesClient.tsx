@@ -10,6 +10,7 @@ import {
   removeStage,
   generateNextRound,
 } from "@/app/actions/tournament";
+import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS, SCORED_FORMAT_NAMES } from "@/lib/formats";
 import { ScoringClient } from "./ScoringClient";
 import { QualControl } from "./QualControl";
@@ -32,6 +33,10 @@ export interface StageView {
   cutCount: number;
   cutPercent: number;
   matchCount: number;
+  /** Venue for this round; null means the tournament's own course. */
+  courseId: string | null;
+  /** full | front | back — which nine, when the round is 9 holes. */
+  nine: string;
 }
 
 export interface ScoringValues {
@@ -182,6 +187,7 @@ function StageCard({
   tiebreakers,
   qual,
   confirmedCount,
+  venues,
 }: {
   stage: StageView;
   isFirst: boolean;
@@ -191,11 +197,14 @@ function StageCard({
   tiebreakers: TiebreakerKey[];
   qual: QualValues;
   confirmedCount: number;
+  venues: Array<{ id: string; name: string }>;
 }) {
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
   const [format, setFormat] = useState(stage.format);
   const [holes, setHoles] = useState(stage.holes);
+  const [courseId, setCourseId] = useState<string | null>(stage.courseId);
+  const [nine, setNine] = useState(stage.nine === "back" ? "back" : "front");
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formatInfoOpen, setFormatInfoOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -207,6 +216,13 @@ function StageCard({
   const commitHoles = (v: number) => {
     setHoles(v);
     startTransition(() => setStageHoles(stage.id, v));
+  };
+  // Venue and nine travel together: the action takes both, and a round that
+  // changes course usually needs its nine restated for the new card.
+  const commitVenue = (nextCourse: string | null, nextNine: string) => {
+    setCourseId(nextCourse);
+    setNine(nextNine);
+    startTransition(() => void setStageCourse(stage.id, nextCourse, holes === 9 ? nextNine : "full"));
   };
   const commitBasis = (next: string) => {
     setBasis(next);
@@ -320,6 +336,43 @@ function StageCard({
             </label>
           </div>
         </div>
+
+        {/* Which nine, when the round is 9 holes. Front and back have their own
+            pars and stroke indexes, so a net round on the back allocates shots
+            completely differently — this is not cosmetic. */}
+        {holes === 9 && (
+          <div className="field" style={{ width: 130 }}>
+            <label>Which nine</label>
+            <select
+              className="input"
+              value={nine}
+              disabled={pending}
+              onChange={(e) => commitVenue(courseId, e.target.value)}
+            >
+              <option value="front">Front nine</option>
+              <option value="back">Back nine</option>
+            </select>
+          </div>
+        )}
+
+        {/* Only where the tournament rotates venues. One course means the
+            whole event is played there and asking would be noise. */}
+        {venues.length > 1 && (
+          <div className="field" style={{ minWidth: 170 }}>
+            <label>Course</label>
+            <select
+              className="input"
+              value={courseId ?? ""}
+              disabled={pending}
+              onChange={(e) => commitVenue(e.target.value || null, nine)}
+            >
+              <option value="">Same as the tournament</option>
+              {venues.map((v) => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <button
           type="button"
           className="btn btn-icon"
@@ -452,6 +505,7 @@ export function StagesClient({
   tiebreakers,
   qual,
   confirmedCount,
+  venues = [],
 }: {
   stages: StageView[];
   rrMatchesPerPlayer: number;
@@ -459,6 +513,8 @@ export function StagesClient({
   tiebreakers: TiebreakerKey[];
   qual: QualValues;
   confirmedCount: number;
+  /** Courses this tournament may be played on; more than one shows the picker. */
+  venues?: Array<{ id: string; name: string }>;
 }) {
   const [newType, setNewType] = useState(STAGE_TYPES[0]);
   const [pending, startTransition] = useTransition();
@@ -481,6 +537,7 @@ export function StagesClient({
             tiebreakers={tiebreakers}
             qual={qual}
             confirmedCount={confirmedCount}
+            venues={venues}
           />
         );
       })}

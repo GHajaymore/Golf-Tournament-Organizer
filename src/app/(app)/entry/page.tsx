@@ -127,6 +127,7 @@ export default async function EntryPage() {
             status: effectiveScoreStatus(m, allowsAutoConfirm(settings)),
             aStrokes: matchStrokesByKey[`${m.id}:A`] ?? new Array(holeCount).fill(null),
             bStrokes: matchStrokesByKey[`${m.id}:B`] ?? new Array(holeCount).fill(null),
+            courseId: m.courseId,
             pars: card?.pars,
             yards: card?.yards,
             strokeIndex: card?.strokeIndex,

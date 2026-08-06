@@ -51,6 +51,9 @@ export interface EntryMatch {
   strokeIndex?: number[];
   /** Venue name, shown so whoever is entering can see which card is in use. */
   courseName?: string;
+  /** The venue set on this match itself, if any. Null means it inherits from
+   *  the round, and then the event — which the picker must show as such. */
+  courseId?: string | null;
 }
 
 const CONFIRM_META: Record<string, { label: string; tag: string }> = {
@@ -134,7 +137,9 @@ export function ScoreEntryClient({
   );
   const [selectedId, setSelectedId] = useState<string>(matches[0]?.id ?? "");
   /** Per-match venue override, empty string meaning inherit. */
-  const [courseByMatch, setCourseByMatch] = useState<Record<string, string>>({});
+  const [courseByMatch, setCourseByMatch] = useState<Record<string, string>>(() =>
+    Object.fromEntries(matches.map((m) => [m.id, m.courseId ?? ""])),
+  );
   const [mode, setMode] = useState<"holes" | "result" | "handicap">("holes");
   const [winner, setWinner] = useState<Winner>("A");
   const [margin, setMargin] = useState("");
@@ -485,7 +490,7 @@ export function ScoreEntryClient({
                   {/* Empty means inherit from the round, then the event —
                       the default, not an absence. */}
                   <option value="">
-                    {active.courseName ? `${active.courseName} (from round)` : "Not set"}
+                    {active.courseName ? ` (from round)` : "Not set"}
                   </option>
                   {venues.map((v) => (
                     <option key={v.id} value={v.id}>{v.name}</option>

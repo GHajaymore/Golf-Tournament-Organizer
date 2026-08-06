@@ -1,5 +1,6 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState } from "@/lib/services/tournament";
+import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { StagesClient } from "@/components/StagesClient";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
@@ -26,7 +27,17 @@ export default async function StagesPage() {
     cutCount: s.cutCount,
     cutPercent: s.cutPercent,
     matchCount: state.matches.filter((m) => m.stageId === s.id).length,
+    courseId: s.courseId,
+    nine: s.nine,
   }));
+
+  // Venues this tournament may be played on — more than one turns on the
+  // per-round course picker.
+  const venues = await prisma.course.findMany({
+    where: { events: { some: { eventId: session.eventId } } },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
 
   // Matches per player in a round robin = (largest flight size − 1).
   const flightSizes = state.groups.map(
@@ -46,6 +57,7 @@ export default async function StagesPage() {
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
       <StagesClient
         stages={stages}
+        venues={venues}
         rrMatchesPerPlayer={rrMatchesPerPlayer}
         scoring={{
           winPts: state.scoring.winPts,
