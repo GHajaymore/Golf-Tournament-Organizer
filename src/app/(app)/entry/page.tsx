@@ -133,13 +133,32 @@ export default async function EntryPage() {
       for (const t of teams) pushRow(t.id, "");
     }
 
+    // A player sees only the sides they are on.
+    //
+    // Every row carries that side's running gross and net, so handing a player
+    // the full set would hand them the leaderboard — including in a blind
+    // event, which exists precisely to withhold it. Filtering here rather than
+    // in the component because anything sent to a client component is in the
+    // page source whether it is rendered or not.
+    let visible = rows;
+    if (!isStaff) {
+      const me = await prisma.player.findFirst({
+        where: { eventId: session.eventId, email: session.email },
+        select: { id: true },
+      });
+      const mine = new Set(
+        teams.filter((t) => t.members.some((m) => m.playerId === me?.id)).map((t) => t.id),
+      );
+      visible = rows.filter((r) => mine.has(r.teamId));
+    }
+
     return (
       <>
         <p className="kicker">Manage</p>
         <h1 className="page-title">Score entry</h1>
         <TeamEntryClient
           round={`${activeStage.format}`}
-          teams={rows}
+          teams={visible}
           pars={courseKnown ? teamCourse.pars.slice(0, holeCount) : []}
           strokeIndex={courseKnown ? teamCourse.strokeIndex.slice(0, holeCount) : []}
           sharesOneCard={format.ball === "single"}

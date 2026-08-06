@@ -91,6 +91,16 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
   const code = normalizeAccessCode(rawCode);
   if (!looksLikeAccessCode(code)) return { ok: false, error: "That code isn't valid." };
 
+  // Rate limited on the same key as redeemRoundCode, and it must be: this
+  // performs the identical accessCode lookup, so without a limit here an
+  // attacker simply guesses codes through this action instead and the limit on
+  // the other one counts for nothing. Sharing the key means attempts against a
+  // code are capped however they arrive.
+  const limit = rateLimit(`redeem:${code}`, REDEEM_LIMIT, REDEEM_WINDOW_MS);
+  if (!limit.ok) {
+    return { ok: false, error: `Too many attempts. Try again in ${retryAfterText(limit.retryAfterSeconds)}.` };
+  }
+
   const stage = await prisma.stage.findFirst({
     where: { accessCode: code },
     include: { event: true },
@@ -103,8 +113,14 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
     where: { id: playerId, eventId: stage.eventId, status: "confirmed" },
     select: { id: true },
   });
-  if (!player) return { ok: false, error: "Pick your name from the list." };
+  // Same message as a bad code. Saying "pick your name from the list" here
+  // would confirm that the code was real — turning a failed claim into a
+  // reliable oracle for which codes exist.
+  if (!player) return { ok: false, error: "That code isn't valid." };
 
+  // A genuine claim resets the budget, so a fourball fumbling the code on the
+  // first tee doesn't lock the group out of the round they're about to play.
+  clearRateLimit(`redeem:${code}`);
   await createPlaySession(stage.id, player.id);
   revalidatePath("/play");
   return { ok: true };

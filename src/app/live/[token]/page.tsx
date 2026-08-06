@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { loadEventState, standingRows, settingsOf } from "@/lib/services/tournament";
+import { needsTeams } from "@/lib/formats";
+import { teamStandings } from "@/lib/services/teams";
+import { resolveCourse } from "@/lib/courses";
+import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
 import { brandForEvent } from "@/lib/services/organization";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
@@ -44,6 +48,24 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
   const state = await loadEventState(event.id);
   if (!state) notFound();
 
+  // A team round keeps its scores on TeamScorecard, so standingRows — which
+  // only knows about players — would render an empty table on a page the club
+  // has deliberately made public.
+  const activeStage = state.activeStage ?? state.stages[0] ?? null;
+  const teamRound = !!activeStage && needsTeams(activeStage.format);
+  const holeCount = activeStage?.holes === 9 ? 9 : 18;
+  const liveCourse = resolveCourse(event);
+  const teamRows = teamRound
+    ? await teamStandings(
+        event.id,
+        activeStage!.id,
+        activeStage!.format,
+        liveCourse.pars.slice(0, holeCount),
+        liveCourse.strokeIndex.slice(0, holeCount),
+        activeStage!.scoringBasis,
+      )
+    : [];
+
   const rows = standingRows(state);
   const brand = await brandForEvent(event.id);
   const venue = [event.course, event.city].filter(Boolean).join(", ");
@@ -71,19 +93,27 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
           </p>
         </div>
 
-        <div className="card elev-sm">
-          {rows.length === 0 ? (
-            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-              No scores yet. This page updates as cards come in.
-            </p>
-          ) : (
-            <LeaderboardTable
-              isStroke={state.isStroke}
-              isStableford={state.activeStage?.scoringBasis === "stableford"}
-              rows={rows}
-            />
-          )}
-        </div>
+        {teamRound ? (
+          <TeamLeaderboard
+            format={activeStage!.format}
+            stableford={activeStage!.scoringBasis === "stableford"}
+            rows={teamRows}
+          />
+        ) : (
+          <div className="card elev-sm">
+            {rows.length === 0 ? (
+              <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+                No scores yet. This page updates as cards come in.
+              </p>
+            ) : (
+              <LeaderboardTable
+                isStroke={state.isStroke}
+                isStableford={state.activeStage?.scoringBasis === "stableford"}
+                rows={rows}
+              />
+            )}
+          </div>
+        )}
 
         <p className="text-muted" style={{ fontSize: 11, marginTop: 16, textAlign: "center" }}>
           Read-only · refresh for the latest scores
