@@ -63,6 +63,10 @@ describe("every server action is guarded", () => {
     "requireOrganizer",
     "requireStaff",
     "currentOrganization",
+    // series.ts: getSession, admin-only, then resolves the owning club so every
+    // query is scoped to it. Verified before being listed — adding a name here
+    // without checking would defeat the point of the test.
+    "requireOrg",
     "getPlaySession",
     "effectiveAccess",
   ];

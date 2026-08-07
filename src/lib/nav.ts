@@ -31,6 +31,7 @@ export const NAV: NavSection[] = [
     label: "Club",
     items: [
       { key: "roster", label: "Members", href: "/roster", icon: "ph ph-address-book" },
+      { key: "series", label: "Season standings", href: "/series", icon: "ph ph-trophy" },
       { key: "organization", label: "Organization", href: "/organization", icon: "ph ph-buildings" },
     ],
   },
