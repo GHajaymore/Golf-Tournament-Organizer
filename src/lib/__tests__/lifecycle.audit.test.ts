@@ -16,6 +16,7 @@ import { chainIssues } from "../format-chain";
 import { staffSeatCount, activeEventCount } from "../services/limits";
 import { clubCourses } from "../services/courses";
 import { unratedWarning } from "../services/handicaps";
+import { seriesTable } from "../services/series";
 
 /**
  * End-to-end audit against the real database.
@@ -504,5 +505,141 @@ describe("the tee editor's data path works end to end", () => {
     await prisma.course.delete({ where: { id: courseId } });
     expect(await prisma.tee.count({ where: { courseId } })).toBe(0);
     courseId = "";
+  });
+});
+
+describe("a season aggregates real tournaments", () => {
+  let seriesId = "";
+  let memberIds: string[] = [];
+  const eventIds: string[] = [];
+
+  it("builds a two-round season from real events and roster members", async () => {
+    const series = await prisma.series.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} winter league`,
+        pointsTable: JSON.stringify([100, 80, 65]),
+        bestOf: 0,
+        minEvents: 0,
+      },
+    });
+    seriesId = series.id;
+
+    // Three roster members who will play both rounds — the identity the whole
+    // season hangs on.
+    for (let i = 0; i < 3; i += 1) {
+      const m = await prisma.member.create({
+        data: { organizationId: orgId, name: `${TAG} M${i + 1}`, email: `zzm${i}@example.invalid` },
+      });
+      memberIds.push(m.id);
+    }
+
+    // Round 1: M1 wins. Round 2: order reversed.
+    for (const [round, order] of [[1, [0, 1, 2]], [2, [2, 1, 0]]] as Array<[number, number[]]>) {
+      const e = await prisma.event.create({
+        data: {
+          organizationId: orgId,
+          seriesId,
+          name: `${TAG} round ${round}`,
+          dates: "", course: "", city: "", address: "", regDeadline: "",
+          capacity: 0, status: "completed", format: "stroke",
+          completedAt: new Date(),
+          shareToken: `audit-series-${round}-${Date.now()}`,
+          customPars: JSON.stringify(PARS),
+          customYards: JSON.stringify(Array(18).fill(380)),
+          customStrokeIndex: JSON.stringify(SI),
+        },
+      });
+      eventIds.push(e.id);
+      const stage = await prisma.stage.create({
+        data: { eventId: e.id, position: 0, type: "Round Robin", format: "Stroke Play", holes: 18, scoringBasis: "gross" },
+      });
+      // Lower gross finishes higher, so strokes ascend with intended position.
+      for (let pos = 0; pos < order.length; pos += 1) {
+        const memberId = memberIds[order[pos]];
+        const player = await prisma.player.create({
+          data: {
+            eventId: e.id, memberId, name: `M${order[pos] + 1}`,
+            handicap: 0, seed: pos + 1, status: "confirmed",
+            email: `zzm${order[pos]}@example.invalid`,
+          },
+        });
+        await prisma.scorecard.create({
+          data: {
+            eventId: e.id, stageId: stage.id, playerId: player.id,
+            strokes: JSON.stringify(Array(18).fill(4 + pos)),
+          },
+        });
+      }
+    }
+    expect(await prisma.event.count({ where: { seriesId } })).toBe(2);
+  });
+
+  it("aggregates one member across both rounds on their roster identity", async () => {
+    // The point of the whole design: six Player rows, three lines in the table.
+    const table = (await seriesTable(seriesId))!;
+    expect(table.standings).toHaveLength(3);
+    expect(table.standings.every((s) => s.played === 2)).toBe(true);
+  });
+
+  it("totals the points a reversed pair of rounds should produce", async () => {
+    const table = (await seriesTable(seriesId))!;
+    const byMember = new Map(table.standings.map((s) => [s.memberId, s]));
+    // M1 won round 1 (100) and finished last in round 2 (65) = 165.
+    // M3 is the mirror = 165. M2 was second twice = 160.
+    expect(byMember.get(memberIds[0])!.total).toBe(165);
+    expect(byMember.get(memberIds[2])!.total).toBe(165);
+    expect(byMember.get(memberIds[1])!.total).toBe(160);
+  });
+
+  it("separates the level pair on the countback, not arbitrarily", async () => {
+    const table = (await seriesTable(seriesId))!;
+    // M1 and M3 both have a win and a third, so the countback is genuinely
+    // level and they share the position rather than being ordered by chance.
+    const top = table.standings.filter((s) => s.total === 165);
+    expect(top).toHaveLength(2);
+    expect(top[0].position).toBe(top[1].position);
+  });
+
+  it("honours best-of by dropping the weaker round", async () => {
+    await prisma.series.update({ where: { id: seriesId }, data: { bestOf: 1 } });
+    const table = (await seriesTable(seriesId))!;
+    const byMember = new Map(table.standings.map((s) => [s.memberId, s]));
+    // Best single round: the two winners keep 100, the ever-second keeps 80.
+    expect(byMember.get(memberIds[0])!.total).toBe(100);
+    expect(byMember.get(memberIds[1])!.total).toBe(80);
+    expect(byMember.get(memberIds[0])!.entries.filter((e) => e.counted)).toHaveLength(1);
+    await prisma.series.update({ where: { id: seriesId }, data: { bestOf: 0 } });
+  });
+
+  it("leaves someone short of the minimum unranked but visible", async () => {
+    await prisma.series.update({ where: { id: seriesId }, data: { minEvents: 3 } });
+    const table = (await seriesTable(seriesId))!;
+    expect(table.standings).toHaveLength(3);
+    expect(table.standings.every((s) => s.position === null)).toBe(true);
+    await prisma.series.update({ where: { id: seriesId }, data: { minEvents: 0 } });
+  });
+
+  it("ignores a tournament that hasn't finished", async () => {
+    // A round in progress has a leaderboard that moves with every card; letting
+    // it shift the order of merit would show a season position that reverses
+    // itself an hour later.
+    await prisma.event.update({ where: { id: eventIds[1] }, data: { status: "live" } });
+    const table = (await seriesTable(seriesId))!;
+    expect(table.standings.every((s) => s.played === 1)).toBe(true);
+    await prisma.event.update({ where: { id: eventIds[1] }, data: { status: "completed" } });
+  });
+
+  it("deleting the season keeps the tournaments that counted towards it", async () => {
+    await prisma.series.delete({ where: { id: seriesId } });
+    const survivors = await prisma.event.count({ where: { id: { in: eventIds } } });
+    expect(survivors).toBe(2);
+    const orphaned = await prisma.event.findFirst({ where: { id: eventIds[0] } });
+    expect(orphaned!.seriesId).toBeNull();
+    seriesId = "";
+
+    for (const id of eventIds) await prisma.event.delete({ where: { id } });
+    await prisma.member.deleteMany({ where: { id: { in: memberIds } } });
+    memberIds = [];
   });
 });

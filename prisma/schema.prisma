@@ -102,6 +102,7 @@ model Organization {
   roster       Member[]
   courses      Course[]
   events       Event[]
+  series       Series[]
   subscription Subscription?
 }
 
@@ -186,6 +187,43 @@ model Tee {
   players Player[]
 
   @@index([courseId])
+}
+
+/**
+ * A season-long competition across many tournaments — an order of merit.
+ *
+ * Standings aggregate on Member, never on Player: a Player row belongs to one
+ * event, so the same golfer entering twelve league rounds is twelve rows. The
+ * club roster exists so there is one record of a person to hang a season on.
+ *
+ * Points come from finishing position rather than score, because a season can
+ * mix stroke play, Stableford and match play, and those produce numbers that
+ * cannot be added together. Position is the only currency every format shares.
+ */
+model Series {
+  id             String @id @default(cuid())
+  organizationId String
+
+  name        String
+  description String @default("")
+
+  /** JSON number array: points for 1st, 2nd, 3rd... Empty uses the default. */
+  pointsTable String @default("")
+  /** Count only this many best results. 0 counts everything. */
+  bestOf      Int    @default(0)
+  /** Events a member must play before being ranked. 0 ranks everyone. */
+  minEvents   Int    @default(0)
+
+  /** active | complete — a finished season stops accepting new events. */
+  status String @default("active")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  events       Event[]
+
+  @@index([organizationId])
 }
 
 model EventCourse {
@@ -366,6 +404,14 @@ model Event {
    * series has changed their mind, and the app follows.
    */
   shape           String   @default("series") // single | series | knockout
+  /**
+   * The season this tournament counts towards, if any.
+   *
+   * Null is the ordinary case: most tournaments stand alone. Setting it makes
+   * the result feed an order of merit, which is what a league or a winter
+   * series is.
+   */
+  seriesId        String?
 
   // Scoring rules (round-robin stages)
   winPts        Float  @default(3)
@@ -424,6 +470,7 @@ model Event {
   updatedAt DateTime @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  series         Series?      @relation(fields: [seriesId], references: [id], onDelete: SetNull)
   accounts       Account[]
   players        Player[]
   groups         Group[]

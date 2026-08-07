@@ -63,6 +63,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   launchedAt: "the copy has not been launched",
   retainUntil:
     "a hold is granted to one tournament for a reason; a copy inherits neither the reason nor the reprieve",
+  seriesId:
+    "copying last season's Spring Medal to run this season's would silently enter the new tournament into the old order of merit — a corrupted league table nobody would trace back to a copy. Joining a season is one click; joining the wrong one is a bug",
   completedAt:
     "the copy has not finished — and inheriting it would start the retention clock in the past, making a brand-new tournament immediately eligible for deletion",
   shareToken:
@@ -83,6 +85,7 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
  */
 export const CLONE_IGNORED_RELATIONS = [
   "organization",
+  "series",
   "accounts",
   "players",
   "groups",
