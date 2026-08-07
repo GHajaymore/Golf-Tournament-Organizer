@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
+import { courseHandicapMap } from "../domain/handicap";
 import {
   sideHandicap,
   aggregateTeamCard,
@@ -40,13 +41,26 @@ export async function teamsForStage(
   stageId: string,
   format: string,
   allowanceOverride = 0,
+  holes = 18,
 ): Promise<TeamView[]> {
+  // Side handicaps are built from Course Handicaps, not roster Indexes — a
+  // foursomes pair off the blues receives different strokes to the same pair
+  // off the reds, which is the whole reason tees are rated.
+  const tees = await prisma.tee.findMany({
+    where: { course: { events: { some: { eventId } } } },
+    orderBy: [{ position: "asc" }],
+  });
+  const teeRatings = new Map(
+    tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+  );
+  const defaultTeeId = tees[0]?.id ?? null;
+
   const rows = await prisma.team.findMany({
     where: { eventId, OR: [{ stageId }, { stageId: null }] },
     include: {
       members: {
         orderBy: { position: "asc" },
-        include: { player: { select: { id: true, name: true, handicap: true } } },
+        include: { player: { select: { id: true, name: true, handicap: true, handicapType: true, teeId: true } } },
       },
     },
     orderBy: [{ seed: "asc" }, { createdAt: "asc" }],
@@ -57,11 +71,14 @@ export async function teamsForStage(
   const scoped = rows.filter((t) => t.stageId === stageId);
   const use = scoped.length > 0 ? scoped : rows.filter((t) => t.stageId === null);
 
+  const allMembers = use.flatMap((t) => t.members.map((m) => m.player));
+  const courseHcp = courseHandicapMap(allMembers, teeRatings, defaultTeeId, holes);
+
   return use.map((t) => {
     const members = t.members.map((m) => ({
       playerId: m.playerId,
       name: m.player.name,
-      handicap: m.player.handicap,
+      handicap: courseHcp.get(m.playerId) ?? m.player.handicap,
       position: m.position,
     }));
     return {

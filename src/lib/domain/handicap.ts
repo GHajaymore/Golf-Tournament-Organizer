@@ -138,3 +138,45 @@ export function explainHandicap(
 
   return { index, courseHandicap: ch, playingHandicap: ph, rated, detail };
 }
+
+export interface IndexHolder {
+  id: string;
+  /** The roster's Handicap Index. */
+  handicap: number;
+  /** "9" when the stored number is a nine-hole index. */
+  handicapType?: string;
+  /** Which tees this player is on, if they've been assigned a specific set. */
+  teeId?: string | null;
+}
+
+/**
+ * Course Handicaps for a whole field, in one place.
+ *
+ * Built as a map rather than converted at each call site on purpose. There are
+ * half a dozen places that consume a handicap — stroke cards, net match play,
+ * team allowances, standings — and converting at each one means a single
+ * missed site silently reinstates the original bug with no visible symptom.
+ * Resolving once, where the field is loaded, makes that impossible.
+ *
+ * `defaultTee` is the round's tees, used for anyone not assigned their own.
+ * Null everywhere means unrated, and every index passes through unchanged —
+ * which is exactly how the app behaved before ratings existed.
+ */
+export function courseHandicapMap(
+  players: IndexHolder[],
+  teesById: Map<string, TeeRating>,
+  defaultTeeId: string | null,
+  holes: number,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const p of players) {
+    const raw = teesById.get(p.teeId ?? defaultTeeId ?? "") ?? null;
+    // A nine-hole index is already half an eighteen-hole one. Halving the
+    // rating as well would compound, so the index is doubled back to its
+    // eighteen-hole equivalent whenever the round is not itself nine holes.
+    const index = p.handicapType === "9" && holes !== 9 ? p.handicap * 2 : p.handicap;
+    const tee = raw && holes === 9 ? nineHoleTee(raw) : raw;
+    out.set(p.id, courseHandicap(index, tee));
+  }
+  return out;
+}

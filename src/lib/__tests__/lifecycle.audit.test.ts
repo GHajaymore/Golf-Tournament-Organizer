@@ -11,6 +11,7 @@ import {
 } from "../domain";
 import { teamStandings, snakeDraw } from "../services/teams";
 import { retentionDecision } from "../retention";
+import { courseHandicapMap, holeStrokesReceived } from "../domain";
 import { chainIssues } from "../format-chain";
 import { staffSeatCount, activeEventCount } from "../services/limits";
 
@@ -347,5 +348,89 @@ describe("teardown leaves nothing behind", () => {
 
   it("leaves the club roster intact", async () => {
     expect(await prisma.member.count()).toBeGreaterThan(0);
+  });
+});
+
+describe("Course Handicap changes real strokes end to end", () => {
+  let courseId = "";
+  let hardTeeId = "";
+  let easyTeeId = "";
+
+  it("creates a rated course with two very different sets of tees", async () => {
+    const course = await prisma.course.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} rated course`,
+        city: "",
+        pars: JSON.stringify(PARS),
+        yards: JSON.stringify(Array(18).fill(400)),
+        strokeIndex: JSON.stringify(SI),
+      },
+    });
+    courseId = course.id;
+
+    const hard = await prisma.tee.create({
+      data: { courseId, name: "Championship", courseRating: 74.5, slopeRating: 145, par: 72, position: 0 },
+    });
+    const easy = await prisma.tee.create({
+      data: { courseId, name: "Forward", courseRating: 66.8, slopeRating: 95, par: 72, position: 1 },
+    });
+    hardTeeId = hard.id;
+    easyTeeId = easy.id;
+    expect(await prisma.tee.count({ where: { courseId } })).toBe(2);
+  });
+
+  it("gives the same index materially more strokes off the harder tees", async () => {
+    // The whole point. A 14.0 index is not worth 14 strokes everywhere, and
+    // a member-guest with mixed tees cannot be settled fairly without this.
+    const tees = await prisma.tee.findMany({ where: { courseId } });
+    const ratings = new Map(
+      tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+    );
+    const field = [
+      { id: "off-hard", handicap: 14.0, teeId: hardTeeId },
+      { id: "off-easy", handicap: 14.0, teeId: easyTeeId },
+    ];
+    const map = courseHandicapMap(field, ratings, null, 18);
+
+    const hard = map.get("off-hard")!;
+    const easy = map.get("off-easy")!;
+    expect(hard).toBeGreaterThan(14);
+    expect(easy).toBeLessThan(14);
+    expect(hard - easy).toBeGreaterThanOrEqual(6);
+  });
+
+  it("allocates those extra strokes to real holes", async () => {
+    const tees = await prisma.tee.findMany({ where: { courseId } });
+    const ratings = new Map(
+      tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+    );
+    const map = courseHandicapMap([{ id: "p", handicap: 14.0, teeId: hardTeeId }], ratings, null, 18);
+    const ch = map.get("p")!;
+    const total = SI.reduce((sum, si) => sum + holeStrokesReceived(ch, si), 0);
+    expect(total).toBe(ch);
+    // A stroke index that gets nothing off a raw 14 does get one off the
+    // championship tees, which is the shot the old code was losing.
+    expect(holeStrokesReceived(14, 17)).toBe(0);
+    expect(holeStrokesReceived(ch, 17)).toBe(1);
+  });
+
+  it("leaves an unrated tee scoring exactly as before", async () => {
+    const plain = await prisma.tee.create({
+      data: { courseId, name: "Unrated", slopeRating: 0, courseRating: 0, par: 72, position: 2 },
+    });
+    const map = courseHandicapMap(
+      [{ id: "p", handicap: 14.4, teeId: plain.id }],
+      new Map([[plain.id, { courseRating: 0, slopeRating: 0, par: 72 }]]),
+      null,
+      18,
+    );
+    expect(map.get("p")).toBe(14);
+  });
+
+  it("cleans up the course and nulls nobody's entry", async () => {
+    await prisma.course.delete({ where: { id: courseId } });
+    expect(await prisma.tee.count({ where: { courseId } })).toBe(0);
+    courseId = "";
   });
 });

@@ -19,7 +19,16 @@ import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
-import { marginToHoles, resolveMatch, deriveNetHoles, roundRobinSchedule, TIEBREAKER_KEYS, isBracketMode, BRACKET_MODES } from "@/lib/domain";
+import {
+  marginToHoles,
+  resolveMatch,
+  deriveNetHoles,
+  roundRobinSchedule,
+  TIEBREAKER_KEYS,
+  isBracketMode,
+  BRACKET_MODES,
+  courseHandicapMap,
+} from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
@@ -946,11 +955,28 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   const netMode = stage?.scoringBasis === "net";
   const strokesA = cardA ? (JSON.parse(cardA.strokes) as (number | null)[]) : [];
   const strokesB = cardB ? (JSON.parse(cardB.strokes) as (number | null)[]) : [];
+  // Net match play allocates off Course Handicaps, not roster Indexes. Two
+  // players on the same index but different tees are owed different strokes,
+  // and deriveNetHoles works from the difference between them.
+  const holeCount = stage?.holes === 9 ? 9 : 18;
+  const netTees = await prisma.tee.findMany({
+    where: { course: { events: { some: { eventId } } } },
+    orderBy: [{ position: "asc" }],
+  });
+  const netRatings = new Map(
+    netTees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+  );
+  const netHcp = courseHandicapMap(
+    [playerA, playerB].filter((x): x is NonNullable<typeof x> => !!x),
+    netRatings,
+    netTees[0]?.id ?? null,
+    holeCount,
+  );
   const holes = deriveNetHoles(
     strokesA,
     strokesB,
-    netMode ? playerA?.handicap ?? 0 : 0,
-    netMode ? playerB?.handicap ?? 0 : 0,
+    netMode && playerA ? netHcp.get(playerA.id) ?? playerA.handicap : 0,
+    netMode && playerB ? netHcp.get(playerB.id) ?? playerB.handicap : 0,
     course.strokeIndex,
   );
   const complete = resolveMatch(holes).complete;

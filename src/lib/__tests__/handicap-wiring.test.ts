@@ -78,3 +78,52 @@ describe("the app tells an organizer when net scoring is approximate", () => {
     expect(src).toMatch(/understates strokes on a hard course and overstates them on an easy one/);
   });
 });
+
+describe("every engine receives a Course Handicap, not an Index", () => {
+  // The reason this reads source: the bug has no runtime symptom on an unrated
+  // course, which is every course until a club enters its ratings. A missed
+  // call site would look perfectly correct in every test that doesn't happen
+  // to use a rated tee.
+  const service = read("src/lib/services/tournament.ts");
+  const teams = read("src/lib/services/teams.ts");
+  const actions = read("src/app/actions/tournament.ts");
+
+  it("resolves the field once, where players are loaded", () => {
+    expect(service).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId/);
+  });
+
+  it("builds every domain player from the resolved map", () => {
+    // toDomainPlayer without a course handicap falls back to the raw index, so
+    // any bare call inside loadEventState is a missed conversion.
+    const inside = service.slice(service.indexOf("export async function loadEventState"));
+    const bare = inside.match(/toDomainPlayer\((?!.*hcpOf)[^)]*\)/g) ?? [];
+    expect(bare, `bare toDomainPlayer calls: ${bare.join(", ")}`).toEqual([]);
+  });
+
+  it("feeds stroke standings the resolved map rather than raw handicaps", () => {
+    expect(service).toMatch(/const handicapById = courseHcp;/);
+    expect(service).not.toMatch(/new Map\(players\.map\(\(p\) => \[p\.id, p\.handicap\]\)\)/);
+  });
+
+  it("builds team side handicaps from Course Handicaps", () => {
+    // A foursomes pair off the blues is owed different strokes to the same
+    // pair off the reds.
+    expect(teams).toMatch(/courseHandicapMap\(allMembers, teeRatings, defaultTeeId, holes\)/);
+    expect(teams).toMatch(/courseHcp\.get\(m\.playerId\) \?\? m\.player\.handicap/);
+  });
+
+  it("allocates net match play off Course Handicaps", () => {
+    const save = actions.slice(actions.indexOf("saveMatchScorecard"));
+    expect(save).toMatch(/netHcp\.get\(playerA\.id\)/);
+    expect(save).toMatch(/netHcp\.get\(playerB\.id\)/);
+    expect(save).not.toMatch(/netMode \? playerA\?\.handicap/);
+  });
+
+  it("falls back to the raw index everywhere, so unrated courses are unchanged", () => {
+    // Every fallback is `?? p.handicap`. That is what makes this migration
+    // invisible until a club actually enters a rating.
+    expect(service).toMatch(/courseHcp\.get\(p\.id\) \?\? p\.handicap/);
+    expect(teams).toMatch(/\?\? m\.player\.handicap/);
+    expect(actions).toMatch(/\?\? playerA\.handicap/);
+  });
+});

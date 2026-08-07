@@ -14,6 +14,7 @@ import {
   isBracketMode,
   roundRobinMatchCount,
   resolveMatch,
+  courseHandicapMap,
   type Player,
   type Match as DomainMatch,
   type ScoringRules,
@@ -78,8 +79,21 @@ export function scoringFrom(event: Event): ScoringRules {
   };
 }
 
-function toDomainPlayer(p: DbPlayer): Player {
-  return { id: p.id, name: p.name, handicap: p.handicap, seed: p.seed, groupId: p.groupId };
+/**
+ * A player as the engines see them.
+ *
+ * `handicap` here is a **Course Handicap**, not the roster Index. Callers
+ * inside loadEventState pass the resolved value; the default is the raw index
+ * so the few call sites outside it keep working unrated.
+ */
+function toDomainPlayer(p: DbPlayer, courseHandicap?: number): Player {
+  return {
+    id: p.id,
+    name: p.name,
+    handicap: courseHandicap ?? p.handicap,
+    seed: p.seed,
+    groupId: p.groupId,
+  };
 }
 
 function toDomainMatch(m: DbMatch): DomainMatch {
@@ -188,7 +202,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return null;
 
-  const [accounts, players, groups, stages, matches, bracketWinners, scorecards] = await Promise.all([
+  const [accounts, players, groups, stages, matches, bracketWinners, scorecards, tees] = await Promise.all([
     prisma.account.findMany({ where: { eventId }, orderBy: { name: "asc" } }),
     prisma.player.findMany({ where: { eventId }, orderBy: { seed: "asc" } }),
     prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
@@ -196,10 +210,26 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     prisma.match.findMany({ where: { eventId } }),
     prisma.bracketWinner.findMany({ where: { eventId } }),
     prisma.scorecard.findMany({ where: { eventId } }),
+    // Tees carry the Course Rating and Slope that turn a Handicap Index into
+    // the strokes a player actually receives here.
+    prisma.tee.findMany({ where: { course: { events: { some: { eventId } } } }, orderBy: [{ position: "asc" }] }),
   ]);
 
   const scoring = scoringFrom(event);
   const confirmed = players.filter((p) => p.status === "confirmed");
+
+  // Every handicap below this line is a Course Handicap, not an Index.
+  // Resolved once, here, because converting at each consuming site means one
+  // missed site silently reinstates the original bug with no visible symptom.
+  // With no rated tees the map is the raw indexes, which is exactly how the
+  // app behaved before ratings existed.
+  const activeHoles = stages.find((s) => s.type === "Round Robin")?.holes === 9 ? 9 : 18;
+  const teeRatings = new Map(
+    tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+  );
+  const defaultTeeId = tees[0]?.id ?? null;
+  const courseHcp = courseHandicapMap(confirmed, teeRatings, defaultTeeId, activeHoles);
+  const hcpOf = (p: { id: string; handicap: number }) => courseHcp.get(p.id) ?? p.handicap;
   const waitlist = players.filter((p) => p.status === "waitlisted");
 
   // Standings chain through every Round Robin stage in order: each stage scores
@@ -208,14 +238,14 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // stage's starting points. The final stage's numbers are the tournament's
   // standings; a single Round Robin stage behaves exactly as before.
   const rrStages = roundRobinStages(stages);
-  const domainPlayers = confirmed.map(toDomainPlayer);
+  const domainPlayers = confirmed.map((p) => toDomainPlayer(p, hcpOf(p)));
   const course = resolveCourse(event);
   const holeDifficulty = course.strokeIndex;
 
   let carried: Record<string, number> = {};
   let overall: RankedPlayer[] = computeStandings(domainPlayers, [], scoring);
   let groupStandings: GroupStanding[] = groups.map((g) => {
-    const gp = confirmed.filter((p) => p.groupId === g.id).map(toDomainPlayer);
+    const gp = confirmed.filter((p) => p.groupId === g.id).map((p) => toDomainPlayer(p, hcpOf(p)));
     const ranked = computeStandings(gp, [], scoring);
     return { group: g, ranked, cutoff: groupCutoff(ranked, event.qualifyPerGroup) };
   });
@@ -228,7 +258,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
 
     overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty);
     groupStandings = groups.map((g) => {
-      const gp = confirmed.filter((p) => p.groupId === g.id).map(toDomainPlayer);
+      const gp = confirmed.filter((p) => p.groupId === g.id).map((p) => toDomainPlayer(p, hcpOf(p)));
       const ranked = computeStandings(gp, stageMatches, scoring, carryIn, holeDifficulty);
       return { group: g, ranked, cutoff: groupCutoff(ranked, event.qualifyPerGroup) };
     });
@@ -247,7 +277,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // Stroke-play standings (from submitted scorecards), used when the event format is stroke.
   const isStroke = event.format === "stroke";
   const pars = course.pars;
-  const handicapById = new Map(players.map((p) => [p.id, p.handicap]));
+  const handicapById = courseHcp;
   const strokeAgg = new Map<string, { gross: number; thru: number; parThru: number; strokesReceived: number; points: number }>();
   for (const sc of scorecards) {
     let strokes: (number | null)[];
@@ -330,7 +360,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     return resolveMatch(holes).complete && effectiveScoreStatus(m, autoConfirm) === "pending";
   }).length;
   const qualifiers = isStroke
-    ? strokeStandings.filter((s) => qualifierIds.has(s.player.id)).map((s) => toDomainPlayer(s.player))
+    ? strokeStandings.filter((s) => qualifierIds.has(s.player.id)).map((s) => toDomainPlayer(s.player, hcpOf(s.player)))
     : overall.filter((rp) => qualifierIds.has(rp.player.id)).map((rp) => rp.player);
 
   const advTotals = overall
