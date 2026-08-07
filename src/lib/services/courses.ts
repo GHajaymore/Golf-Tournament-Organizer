@@ -12,6 +12,25 @@ export interface ClubCourse {
   strokeIndex: number[];
   /** Whether this tournament is allowed to be played on it. */
   inEvent: boolean;
+  /** The sets of tees it is played from, with their ratings. */
+  tees: ClubTee[];
+}
+
+/**
+ * A set of tees as the library screen shows them.
+ *
+ * `rated` is carried rather than derived in the component so the two places
+ * that decide what "rated" means — this and the scoring conversion — cannot
+ * drift apart into showing one thing and scoring another.
+ */
+export interface ClubTee {
+  id: string;
+  name: string;
+  gender: string;
+  courseRating: number;
+  slopeRating: number;
+  par: number;
+  rated: boolean;
 }
 
 const DEFAULT_PARS = new Array(18).fill(4);
@@ -28,7 +47,11 @@ const DEFAULT_SI = Array.from({ length: 18 }, (_, i) => i + 1);
  */
 export async function clubCourses(organizationId: string, eventId: string): Promise<ClubCourse[]> {
   const [courses, links] = await Promise.all([
-    prisma.course.findMany({ where: { organizationId }, orderBy: { name: "asc" } }),
+    prisma.course.findMany({
+      where: { organizationId },
+      orderBy: { name: "asc" },
+      include: { tees: { orderBy: [{ position: "asc" }, { name: "asc" }] } },
+    }),
     prisma.eventCourse.findMany({ where: { eventId }, select: { courseId: true } }),
   ]);
   const selected = new Set(links.map((l) => l.courseId));
@@ -43,6 +66,18 @@ export async function clubCourses(organizationId: string, eventId: string): Prom
     yards: parseHoleArray(c.yards) ?? DEFAULT_YARDS,
     strokeIndex: parseHoleArray(c.strokeIndex) ?? DEFAULT_SI,
     inEvent: selected.has(c.id),
+    // Ratings are what turn a Handicap Index into the strokes a player
+    // actually receives here, so they travel with the course rather than
+    // living on a separate screen nobody finds.
+    tees: c.tees.map((t) => ({
+      id: t.id,
+      name: t.name,
+      gender: t.gender,
+      courseRating: t.courseRating,
+      slopeRating: t.slopeRating,
+      par: t.par,
+      rated: t.slopeRating > 0,
+    })),
   }));
 }
 
@@ -50,7 +85,7 @@ export async function clubCourses(organizationId: string, eventId: string): Prom
 export async function eventCourses(eventId: string): Promise<ClubCourse[]> {
   const links = await prisma.eventCourse.findMany({
     where: { eventId },
-    include: { course: true },
+    include: { course: { include: { tees: { orderBy: [{ position: "asc" }, { name: "asc" }] } } } },
   });
   return links
     .map((l) => ({
@@ -58,6 +93,15 @@ export async function eventCourses(eventId: string): Promise<ClubCourse[]> {
       name: l.course.name,
       city: l.course.city,
       pars: parseHoleArray(l.course.pars) ?? DEFAULT_PARS,
+      tees: l.course.tees.map((t) => ({
+        id: t.id,
+        name: t.name,
+        gender: t.gender,
+        courseRating: t.courseRating,
+        slopeRating: t.slopeRating,
+        par: t.par,
+        rated: t.slopeRating > 0,
+      })),
       yards: parseHoleArray(l.course.yards) ?? DEFAULT_YARDS,
       strokeIndex: parseHoleArray(l.course.strokeIndex) ?? DEFAULT_SI,
       inEvent: true,

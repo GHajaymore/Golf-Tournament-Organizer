@@ -635,6 +635,7 @@ export function StagesClient({
   confirmedCount,
   venues = [],
   chainsRounds = true,
+  handicapWarning = null,
 }: {
   stages: StageView[];
   rrMatchesPerPlayer: number;
@@ -646,6 +647,8 @@ export function StagesClient({
   venues?: Array<{ id: string; name: string }>;
   /** Whether rounds feed each other — false for a single-round tournament. */
   chainsRounds?: boolean;
+  /** Set when net scoring is running on unrated tees. */
+  handicapWarning?: string | null;
 }) {
   const [newType, setNewType] = useState(STAGE_TYPES[0]);
   const [pending, startTransition] = useTransition();
@@ -668,6 +671,23 @@ export function StagesClient({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Net scoring without a Course Rating and Slope is an approximation,
+          and an organizer should know that before the results are published
+          rather than after somebody queries them. */}
+      {handicapWarning && (
+        <div
+          className="card elev-sm"
+          style={{ gap: 6, borderLeft: "3px solid var(--color-accent)" }}
+        >
+          <span className="card-title" style={{ fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
+            <i className="ph ph-flag" /> Handicaps are approximate
+          </span>
+          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{handicapWarning}</p>
+          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            Add them under the course on <a href="/event">Event setup</a>.
+          </p>
+        </div>
+      )}
       {stages.map((s, i) => {
         const rrIdx = rrStages.findIndex((r) => r.id === s.id);
         const nextStage = rrIdx >= 0 ? rrStages[rrIdx + 1] : undefined;

@@ -1,5 +1,6 @@
 "use client";
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
+import { TeeEditor } from "./TeeEditor";
 import {
   saveClubCourse,
   deleteClubCourse,
@@ -150,7 +151,8 @@ export function CourseLibrary({
             </thead>
             <tbody>
               {courses.map((c) => (
-                <tr key={c.id}>
+              <Fragment key={c.id}>
+                <tr>
                   <td>
                     <input
                       type="checkbox"
@@ -200,6 +202,16 @@ export function CourseLibrary({
                     )}
                   </td>
                 </tr>
+                {/* Ratings live with the course rather than on a separate
+                    screen: they are what make a handicap mean anything here,
+                    and an organizer setting up a venue is exactly the person
+                    holding the scorecard they are printed on. */}
+                <tr key={`-tees`}>
+                  <td colSpan={canEdit ? 7 : 6} style={{ paddingTop: 0 }}>
+                    <TeeEditor courseId={c.id} tees={c.tees} canEdit={canEdit} />
+                  </td>
+                </tr>
+              </Fragment>
               ))}
             </tbody>
           </table>

@@ -14,6 +14,8 @@ import { retentionDecision } from "../retention";
 import { courseHandicapMap, holeStrokesReceived } from "../domain";
 import { chainIssues } from "../format-chain";
 import { staffSeatCount, activeEventCount } from "../services/limits";
+import { clubCourses } from "../services/courses";
+import { unratedWarning } from "../services/handicaps";
 
 /**
  * End-to-end audit against the real database.
@@ -429,6 +431,76 @@ describe("Course Handicap changes real strokes end to end", () => {
   });
 
   it("cleans up the course and nulls nobody's entry", async () => {
+    await prisma.course.delete({ where: { id: courseId } });
+    expect(await prisma.tee.count({ where: { courseId } })).toBe(0);
+    courseId = "";
+  });
+});
+
+describe("the tee editor's data path works end to end", () => {
+  let courseId = "";
+
+  it("surfaces tees on the course library the editor renders from", async () => {
+    const course = await prisma.course.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} library course`,
+        city: "",
+        pars: JSON.stringify(PARS),
+        yards: JSON.stringify(Array(18).fill(400)),
+        strokeIndex: JSON.stringify(SI),
+      },
+    });
+    courseId = course.id;
+    await prisma.tee.create({
+      data: { courseId, name: "Blue", courseRating: 71.5, slopeRating: 125, par: 72, position: 0 },
+    });
+    await prisma.tee.create({
+      data: { courseId, name: "Yellow", slopeRating: 0, courseRating: 0, par: 72, position: 1 },
+    });
+
+    const rows = await clubCourses(orgId, "no-such-event");
+    const mine = rows.find((c) => c.id === courseId)!;
+    expect(mine.tees.map((t) => t.name)).toEqual(["Blue", "Yellow"]);
+    expect(mine.tees.find((t) => t.name === "Blue")!.rated).toBe(true);
+    expect(mine.tees.find((t) => t.name === "Yellow")!.rated).toBe(false);
+  });
+
+  it("warns about the unrated set by name, and only for net scoring", async () => {
+    const event = await prisma.event.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} warn`,
+        dates: "", course: "", city: "", address: "", regDeadline: "",
+        capacity: 0, status: "draft", shareToken: `audit-warn-${Date.now()}`,
+      },
+    });
+    await prisma.eventCourse.create({ data: { eventId: event.id, courseId } });
+
+    expect(await unratedWarning(event.id, "gross")).toBeNull();
+    const net = await unratedWarning(event.id, "net");
+    expect(net).toContain("Yellow");
+    expect(net).not.toContain("Blue");
+
+    await prisma.event.delete({ where: { id: event.id } });
+  });
+
+  it("says nothing once every set is rated", async () => {
+    const event = await prisma.event.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} rated`,
+        dates: "", course: "", city: "", address: "", regDeadline: "",
+        capacity: 0, status: "draft", shareToken: `audit-rated-${Date.now()}`,
+      },
+    });
+    await prisma.tee.updateMany({ where: { courseId, slopeRating: 0 }, data: { slopeRating: 113, courseRating: 70 } });
+    await prisma.eventCourse.create({ data: { eventId: event.id, courseId } });
+    expect(await unratedWarning(event.id, "net")).toBeNull();
+    await prisma.event.delete({ where: { id: event.id } });
+  });
+
+  it("removes the course and its tees together", async () => {
     await prisma.course.delete({ where: { id: courseId } });
     expect(await prisma.tee.count({ where: { courseId } })).toBe(0);
     courseId = "";

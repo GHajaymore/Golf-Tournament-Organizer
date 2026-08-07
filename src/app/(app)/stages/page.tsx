@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { StagesClient } from "@/components/StagesClient";
 import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
+import { unratedWarning } from "@/lib/services/handicaps";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 
 export default async function StagesPage() {
@@ -60,6 +61,7 @@ export default async function StagesPage() {
       <StagesClient
         stages={stages}
         venues={venues}
+        handicapWarning={await unratedWarning(session.eventId, state.stages.find((s) => s.type === "Round Robin")?.scoringBasis ?? "gross")}
         chainsRounds={
           effectiveCapabilities(shapeOf(state.event.shape), {
             roundCount: state.stages.length,
