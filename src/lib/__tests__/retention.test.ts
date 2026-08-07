@@ -107,3 +107,43 @@ describe("the notice shown before anyone plays", () => {
     expect(retentionNotice("club")).toBeNull();
   });
 });
+
+describe("an explicit hold", () => {
+  it("keeps a tournament the plan would otherwise delete", () => {
+    const d = retentionDecision(
+      ev({ completedAt: hoursAgo(500), retainUntil: new Date("2027-01-01T00:00:00Z") }),
+      NOW,
+    );
+    expect(d.purge).toBe(false);
+    expect(d.reason).toMatch(/held until 2027-01-01/);
+  });
+
+  it("stops protecting once it lapses", () => {
+    // A hold is a reprieve with a date on it, not an exemption forever.
+    const d = retentionDecision(
+      ev({ completedAt: hoursAgo(500), retainUntil: hoursAgo(1) }),
+      NOW,
+    );
+    expect(d.purge).toBe(true);
+  });
+
+  it("only ever extends the countdown, never shortens it", () => {
+    // A hold set earlier than the plan window must not cut short a window the
+    // organizer was already promised.
+    const shortHold = hoursRemaining(
+      ev({ completedAt: hoursAgo(1), retainUntil: new Date(NOW.getTime() + 3600_000) }),
+      NOW,
+    );
+    const planOnly = hoursRemaining(ev({ completedAt: hoursAgo(1) }), NOW);
+    expect(shortHold).toBe(planOnly);
+    expect(shortHold).toBeCloseTo(47, 1);
+  });
+
+  it("extends the countdown when it reaches further out", () => {
+    const far = hoursRemaining(
+      ev({ completedAt: hoursAgo(1), retainUntil: new Date(NOW.getTime() + 200 * 3600_000) }),
+      NOW,
+    );
+    expect(far).toBeCloseTo(200, 1);
+  });
+});

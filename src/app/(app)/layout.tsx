@@ -5,7 +5,8 @@ import { EventContextBar } from "@/components/EventContextBar";
 import { navForRole } from "@/lib/nav";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
-import { brandForEvent } from "@/lib/services/organization";
+import { brandForEvent, themeForEvent } from "@/lib/services/organization";
+import { resolvedThemeVars } from "@/lib/themes";
 import { settingsOf } from "@/lib/services/tournament";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 
@@ -29,6 +30,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;
+  // Applied inline on the wrapper so the club's colours arrive with the
+  // server-rendered HTML. Injected later, the first paint would flash the
+  // default orange before settling — a visible flicker of the wrong brand.
+  const theme = session.eventId ? await themeForEvent(session.eventId) : { key: "", hex: "" };
+  const themeStyle = resolvedThemeVars(theme.key, theme.hex) as React.CSSProperties;
 
   return (
     <div
@@ -38,6 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         background: "var(--color-bg)",
         color: "var(--color-text)",
         fontFamily: "var(--font-body)",
+        ...themeStyle,
       }}
     >
       <Sidebar

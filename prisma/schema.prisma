@@ -56,6 +56,18 @@ model Organization {
   logoUrl      String @default("")
   /** Optional short name for tight spaces (headers, print). Falls back to `name`. */
   shortName    String @default("")
+  /**
+   * Accent colour preset, from src/lib/themes.ts.
+   *
+   * A key rather than a hex value, deliberately. Storing raw colour would let
+   * a club pick something the app cannot stay readable against; the presets
+   * are contrast-checked by test, so whichever is chosen the text survives.
+   */
+  themeKey     String @default("sunset")
+  /** The club's own colour, used when themeKey is "custom". Stored as entered;
+   *  the ramp built from it fixes lightness, so only hue and saturation are
+   *  actually honoured — that is what keeps an open field readable. */
+  themeHex     String @default("")
 
   // House defaults for new tournaments. Communities often have several
   // organizers who each run their events differently, so these are only a
@@ -356,6 +368,15 @@ model Event {
    * timestamp that means exactly one thing.
    */
   completedAt    DateTime?
+  /**
+   * Keep this tournament until at least this time, whatever the plan says.
+   *
+   * An explicit reprieve rather than a loophole: demos, a disputed result
+   * still being argued over, an event a club has asked to hold. Retention
+   * takes the later of the plan window and this, so setting it can only ever
+   * extend — it can never shorten a window somebody was promised.
+   */
+  retainUntil    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

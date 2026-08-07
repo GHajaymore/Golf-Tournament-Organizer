@@ -2,6 +2,7 @@ import { requireScreen } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { OrganizationClient } from "@/components/OrganizationClient";
+import { ThemePicker } from "@/components/ThemePicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { organizationAccessReport } from "@/lib/services/access";
 import { PlaySettings } from "@/components/PlaySettings";
@@ -53,6 +54,9 @@ export default async function OrganizationPage() {
         memberCount={org._count.members}
         canEdit={canEdit}
       />
+      <div style={{ marginTop: 16 }}>
+        <ThemePicker themeKey={org.themeKey} themeHex={org.themeHex} readOnly={!canEdit} />
+      </div>
       <div style={{ marginTop: 16 }}>
         <PlaySettings
           mode="organization"

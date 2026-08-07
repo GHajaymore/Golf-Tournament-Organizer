@@ -26,6 +26,12 @@ export interface RetainableEvent {
   completedAt: Date | null;
   /** The owning organization's plan key. */
   plan: string;
+  /**
+   * An explicit reprieve. Retention takes the later of the plan window and
+   * this, so a hold can only extend — it can never shorten a window an
+   * organizer was already promised.
+   */
+  retainUntil?: Date | null;
 }
 
 export interface PurgeDecision {
@@ -49,6 +55,16 @@ export function retentionDecision(event: RetainableEvent, now: Date = new Date()
   if (!event.completedAt) {
     // Predates retention, or was completed before the timestamp existed.
     return { id: event.id, purge: false, reason: "no completion time recorded", overdueHours: 0 };
+  }
+  // An explicit hold outranks the plan window. Checked before the arithmetic
+  // so a held tournament is never even a candidate.
+  if (event.retainUntil && now.getTime() < new Date(event.retainUntil).getTime()) {
+    return {
+      id: event.id,
+      purge: false,
+      reason: `held until ${new Date(event.retainUntil).toISOString().slice(0, 10)}`,
+      overdueHours: 0,
+    };
   }
 
   const elapsedMs = now.getTime() - new Date(event.completedAt).getTime();
@@ -84,5 +100,10 @@ export function hoursRemaining(event: RetainableEvent, now: Date = new Date()): 
   const hours = planFor(event.plan).retentionHours;
   if (hours === null || event.status !== "completed" || !event.completedAt) return null;
   const elapsed = (now.getTime() - new Date(event.completedAt).getTime()) / (1000 * 60 * 60);
-  return Math.max(0, hours - elapsed);
+  const fromPlan = Math.max(0, hours - elapsed);
+  // The later of the two, never the earlier — a hold extends, it never cuts
+  // short a window somebody was already promised.
+  if (!event.retainUntil) return fromPlan;
+  const fromHold = (new Date(event.retainUntil).getTime() - now.getTime()) / (1000 * 60 * 60);
+  return Math.max(0, fromPlan, fromHold);
 }

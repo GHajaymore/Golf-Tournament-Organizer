@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { refusalFor } from "@/lib/services/limits";
+import { isThemeKey, hexToHsl } from "@/lib/themes";
 import { checkLogoUrl } from "@/lib/services/logo-check";
 
 export interface OrgResult {
@@ -171,4 +172,35 @@ export async function saveOrganizationBranding(
 
   revalidatePath("/", "layout");
   return { ok: true, warning };
+}
+
+/**
+ * Set the club's accent colour.
+ *
+ * Takes a preset key, never a colour. A raw hex would let a club pick
+ * something the app cannot stay readable against; the presets are
+ * contrast-checked, so whichever is chosen the text survives.
+ */
+export async function saveOrganizationTheme(themeKey: string, themeHex = ""): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change branding." };
+
+  // "custom" is a legitimate key that isn't in the preset list, so it is
+  // checked separately rather than widening isThemeKey and letting an unknown
+  // preset name through.
+  if (themeKey === "custom") {
+    if (!hexToHsl(themeHex)) {
+      return { ok: false, error: "Enter a colour like #1B4D3E, or pick one of the presets." };
+    }
+  } else if (!isThemeKey(themeKey)) {
+    return { ok: false, error: "Unknown theme." };
+  }
+
+  await prisma.organization.update({
+    where: { id: org.organizationId },
+    data: { themeKey, themeHex: themeKey === "custom" ? themeHex.trim() : "" },
+  });
+  revalidatePath("/", "layout");
+  return { ok: true };
 }

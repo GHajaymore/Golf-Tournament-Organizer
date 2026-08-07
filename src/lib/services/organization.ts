@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { DEFAULT_PLAN, planFor } from "../plans";
+import { DEFAULT_THEME } from "../themes";
 import { cleanSettings } from "../tournament-settings";
 import { generateShareToken } from "../codes";
 
@@ -126,4 +127,22 @@ export async function organizationsFor(email: string) {
     include: { organization: { include: { subscription: true, _count: { select: { events: true } } } } },
     orderBy: { createdAt: "asc" },
   });
+}
+
+/**
+ * The accent preset for whichever organization owns this event.
+ *
+ * Separate from brandForEvent because a theme applies even when a club has set
+ * no name or logo — brandForEvent returns null in that case, and a club that
+ * picked a colour should still see it.
+ */
+export async function themeForEvent(eventId: string): Promise<{ key: string; hex: string }> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { organization: { select: { themeKey: true, themeHex: true } } },
+  });
+  return {
+    key: event?.organization.themeKey ?? DEFAULT_THEME,
+    hex: event?.organization.themeHex ?? "",
+  };
 }
