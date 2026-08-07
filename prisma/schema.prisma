@@ -133,6 +133,7 @@ model Course {
   events       EventCourse[]
   stages       Stage[]
   matches      Match[]
+  tees         Tee[]
   homeFor      Organization[] @relation("OrgHomeCourse")
 
   @@index([organizationId])
@@ -146,6 +147,47 @@ model Course {
  * venues sets the course per round, and a community league where opponents
  * arrange their own match sets it per match.
  */
+/**
+ * A set of tees, with the ratings that make a handicap mean something.
+ *
+ * Course Rating and Slope are what convert a portable Handicap Index into the
+ * strokes a player actually receives here. Without them the app was scoring
+ * everyone off their raw index, which understates strokes on a hard course and
+ * overstates them on an easy one — and treats a member-guest playing mixed
+ * tees as though the course were identical for everyone.
+ *
+ * pars and strokeIndex are usually the course's own and stay empty. They exist
+ * because championship tees occasionally differ, and a blank means inherit.
+ */
+model Tee {
+  id       String @id @default(cuid())
+  courseId String
+
+  /** As printed on the card: Blue, White, Red, Championship. */
+  name     String
+  /** any | men | women — whose card this set is rated for. */
+  gender   String @default("any")
+
+  /** Strokes a scratch golfer is expected to take, e.g. 71.5. */
+  courseRating Float @default(0)
+  /** Difficulty relative to a bogey golfer. 113 is standard; 0 means unrated. */
+  slopeRating  Int   @default(0)
+  /** Par for these tees, which can differ from the course's nominal par. */
+  par          Int   @default(72)
+
+  /** JSON number arrays, one per hole. Empty inherits from the course. */
+  yards       String @default("")
+  pars        String @default("")
+  strokeIndex String @default("")
+
+  position Int @default(0)
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  players Player[]
+
+  @@index([courseId])
+}
+
 model EventCourse {
   id       String @id @default(cuid())
   eventId  String
@@ -443,6 +485,14 @@ model Player {
   preferredTee   String @default("")
   handicapSource String @default("manual") // ghin | manual | none
   handicapType   String @default("18") // 9 | 18 — which index this handicap number represents
+  /**
+   * Which tees this entry plays from.
+   *
+   * Null means the round's default. It matters because the Course Handicap
+   * depends on the tees: the same index is worth different strokes off the
+   * blues and the reds, which is the whole point of a slope rating.
+   */
+  teeId          String?
 
   groupId  String?
 
@@ -451,6 +501,7 @@ model Player {
   // Removing someone from the roster must not delete tournaments they played
   // in — the entry stays, detached, preserving the result.
   member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  tee    Tee?    @relation(fields: [teeId], references: [id], onDelete: SetNull)
   teamMemberships TeamMember[]
 
   @@index([eventId])

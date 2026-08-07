@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { settingsOf } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
 import { COURSES } from "@/lib/courses";
+import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
 
 /**
  * The club's course library, and which venue a round or match was played on.
@@ -286,6 +287,102 @@ export async function setMatchCourse(
     where: { id: matchId },
     data: { courseId, nine: cleanNine(nine) },
   });
+  refresh();
+  return { ok: true };
+}
+
+/* ── Tees, and the ratings that make a handicap mean something ──────────── */
+
+export interface TeeInput {
+  name: string;
+  gender: string;
+  courseRating: number;
+  slopeRating: number;
+  par: number;
+}
+
+const GENDERS = ["any", "men", "women"] as const;
+const cleanGender = (g: string) => (GENDERS.includes(g as (typeof GENDERS)[number]) ? g : "any");
+
+/**
+ * Validate a set of tees.
+ *
+ * Slope and rating decide how many strokes every player in the field
+ * receives, so a typo here is not cosmetic — it silently rewrites every net
+ * result. Zero is allowed and means "not rated yet", which the conversion
+ * reads as a signal to fall back to the raw index rather than as a slope of
+ * zero.
+ */
+function teeProblem(input: TeeInput): string | null {
+  if (!input.name.trim()) return "Give the tees a name — Blue, White, Red.";
+  if (input.slopeRating !== 0 && (input.slopeRating < MIN_SLOPE || input.slopeRating > MAX_SLOPE)) {
+    return `Slope Rating is between ${MIN_SLOPE} and ${MAX_SLOPE} (113 is standard). Leave it at 0 if you don't have it yet.`;
+  }
+  if (input.courseRating !== 0 && (input.courseRating < 55 || input.courseRating > 90)) {
+    return "Course Rating is the strokes a scratch golfer is expected to take — usually within a few of par.";
+  }
+  if (input.par < 27 || input.par > 80) return "Par should be a real par for the holes played.";
+  if (input.courseRating !== 0 && input.slopeRating === 0) {
+    return "A Course Rating without a Slope Rating can't be used. Enter both, or neither.";
+  }
+  return null;
+}
+
+export async function saveTee(courseId: string, input: TeeInput, teeId?: string): Promise<CourseResult> {
+  const { organizationId } = await requireOrganizerOrg();
+  const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
+  if (!course) return { ok: false, error: "Course not found." };
+
+  const problem = teeProblem(input);
+  if (problem) return { ok: false, error: problem };
+
+  const data = {
+    name: input.name.trim(),
+    gender: cleanGender(input.gender),
+    courseRating: Number.isFinite(input.courseRating) ? input.courseRating : 0,
+    slopeRating: Number.isFinite(input.slopeRating) ? Math.round(input.slopeRating) : 0,
+    par: Math.round(input.par),
+  };
+
+  if (teeId) {
+    const existing = await prisma.tee.findFirst({ where: { id: teeId, courseId } });
+    if (!existing) return { ok: false, error: "Tees not found." };
+    await prisma.tee.update({ where: { id: teeId }, data });
+  } else {
+    const max = await prisma.tee.aggregate({ where: { courseId }, _max: { position: true } });
+    await prisma.tee.create({
+      data: { ...data, courseId, position: (max._max.position ?? -1) + 1 },
+    });
+  }
+  refresh();
+  return { ok: true };
+}
+
+export async function deleteTee(teeId: string): Promise<CourseResult> {
+  const { organizationId } = await requireOrganizerOrg();
+  const tee = await prisma.tee.findFirst({
+    where: { id: teeId, course: { organizationId } },
+  });
+  if (!tee) return { ok: false, error: "Tees not found." };
+  // Players keep their entry; the foreign key nulls their teeId rather than
+  // deleting anyone who played off these tees.
+  await prisma.tee.delete({ where: { id: teeId } });
+  refresh();
+  return { ok: true };
+}
+
+/** Put a player on a set of tees, which decides the strokes they receive. */
+export async function setPlayerTee(playerId: string, teeId: string | null): Promise<CourseResult> {
+  const { eventId } = await requireOrganizerOrg();
+  const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
+  if (!player) return { ok: false, error: "Player not found." };
+  if (teeId) {
+    const tee = await prisma.tee.findFirst({
+      where: { id: teeId, course: { events: { some: { eventId } } } },
+    });
+    if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
+  }
+  await prisma.player.update({ where: { id: playerId }, data: { teeId } });
   refresh();
   return { ok: true };
 }
