@@ -11,7 +11,9 @@ export default defineConfig({
     },
   },
   test: {
+    // Audit tests hit a real database and live in their own config.
     include: ["src/**/*.test.ts"],
+    exclude: ["src/**/*.audit.test.ts", "**/node_modules/**"],
     environment: "node",
   },
 });
