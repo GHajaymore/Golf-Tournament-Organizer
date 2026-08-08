@@ -138,7 +138,7 @@ describe("individual standings play off the Playing Handicap", () => {
     // off 100% and nobody could see why the numbers differed from the sheet.
     const src = read("src/lib/services/tournament.ts");
     expect(src).toMatch(/effectiveAllowance\(cardStage\.format, cardStage\.handicapAllowance\)/);
-    expect(src).toMatch(/playingHandicapFrom\(handicapById\.get\(sc\.playerId\) \?\? 0, allowance\)/);
+    expect(src).toMatch(/playingHandicapFrom\(chByRound\.get\(sc\.playerId\) \?\? handicapById\.get\(sc\.playerId\) \?\? 0, allowance\)/);
   });
 
   it("leaves flight formation on the Course Handicap", () => {
