@@ -125,6 +125,8 @@ export interface EntryMatch {
   courseId?: string | null;
   /** full | front | back — which nine this match played, when 9 holes. */
   nine?: string;
+  /** When a score was last written for this match, ISO. Null until one is. */
+  scoredAt?: string | null;
   /** Nothing up the match -> round -> event chain says where this was played,
    *  and the tournament has no fixed venue. Decided on the server. */
   venueNeeded?: boolean;
@@ -222,8 +224,16 @@ export function ScoreEntryClient({
   const [courseByMatch, setCourseByMatch] = useState<Record<string, string>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.courseId ?? ""])),
   );
+  // Unanswered stays unanswered. This used to fall back to "front", so a
+  // 9-hole match — which starts as "full", the schema default — showed
+  // "Front" as though somebody had chosen it, and scored against the front
+  // nine while the database still recorded no answer. On a back-nine round
+  // that puts every handicap stroke on a hole nobody played, and the card
+  // reads perfectly normally.
   const [nineByMatch, setNineByMatch] = useState<Record<string, string>>(() =>
-    Object.fromEntries(matches.map((m) => [m.id, m.nine === "back" ? "back" : "front"])),
+    Object.fromEntries(
+      matches.map((m) => [m.id, m.nine === "back" || m.nine === "front" ? m.nine : ""]),
+    ),
   );
   // Lazy initializer: derived once from the round, then owned by the
   // organizer if they change it.
@@ -600,6 +610,26 @@ export function ScoreEntryClient({
               <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, marginTop: 2 }}>
                 {active.aName} <span className="text-muted" style={{ fontSize: 13 }}>vs</span> {active.bName}
               </div>
+              {/* Where, which nine, and when it was written down. This is the
+                  first thing anyone checks when a card is queried, and in a
+                  league with no fixed venue it is the only way to tell two
+                  otherwise identical cards apart. */}
+              <div className="text-muted" style={{ fontSize: 12, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {active.courseName && (
+                  <span><i className="ph ph-map-pin" style={{ marginRight: 3 }} />{active.courseName}</span>
+                )}
+                {totalHoles === 9 && nineByMatch[active.id] && (
+                  <span>{nineByMatch[active.id] === "back" ? "Back 9 (10–18)" : "Front 9 (1–9)"}</span>
+                )}
+                {active.scoredAt && (
+                  <span title="When a score was last written for this match">
+                    <i className="ph ph-clock-counter-clockwise" style={{ marginRight: 3 }} />
+                    Entered {new Date(active.scoredAt).toLocaleDateString(undefined, {
+                      month: "short", day: "numeric", year: "numeric",
+                    })}
+                  </span>
+                )}
+              </div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontFamily: "var(--font-heading)", fontSize: 22, color: "var(--color-accent-200)" }}>
@@ -722,7 +752,7 @@ export function ScoreEntryClient({
                 <select
                   className="input"
                   style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
-                  value={nineByMatch[active.id] ?? "front"}
+                  value={nineByMatch[active.id] ?? ""}
                   onChange={(e) => {
                     const nine = e.target.value;
                     setNineByMatch((prev) => ({ ...prev, [active.id]: nine }));
@@ -731,10 +761,20 @@ export function ScoreEntryClient({
                     );
                   }}
                 >
-                  <option value="front">Front</option>
-                  <option value="back">Back</option>
+                  <option value="">— which nine? —</option>
+                  <option value="front">Front (1–9)</option>
+                  <option value="back">Back (10–18)</option>
                 </select>
               </label>
+            )}
+            {/* Said plainly rather than left to the empty dropdown: the card
+                below is already scoreable, and a player would have no reason
+                to look at a select they have not been asked about. */}
+            {totalHoles === 9 && !nineByMatch[active.id] && (
+              <span style={{ fontSize: 12, color: "var(--color-danger)", fontWeight: 500 }}>
+                <i className="ph ph-warning-circle" /> Say which nine before scoring — front and
+                back have different stroke indexes, so this decides where shots fall.
+              </span>
             )}
           </div>
 

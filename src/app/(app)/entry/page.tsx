@@ -313,6 +313,7 @@ export default async function EntryPage() {
             bStrokes: matchStrokesByKey[`${m.id}:B`] ?? new Array(holeCount).fill(null),
             courseId: m.courseId,
             nine: m.nine,
+            scoredAt: m.scoredAt ? m.scoredAt.toISOString() : null,
             // Decided here rather than in the browser, because only the server
             // can see the whole match -> round -> event chain.
             venueNeeded: needsVenue(courseMode, {
