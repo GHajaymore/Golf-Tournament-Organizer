@@ -952,7 +952,7 @@ export async function applyMatchResult(
   const holes = marginToHoles(winner, margin, total);
   await prisma.match.update({
     where: { id: matchId },
-    data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },
+    data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: session.name },
   });
   refresh();
 }
@@ -1087,7 +1087,7 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
 
   await prisma.match.update({
     where: { id: matchId },
-    data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null },
+    data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: session.name },
   });
   refresh();
 }
@@ -1304,7 +1304,7 @@ export async function confirmMatch(matchId: string) {
 
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
-    data: { scoreStatus: "confirmed", confirmedById: session.accountId || null },
+    data: { scoreStatus: "confirmed", confirmedById: session.accountId || null, confirmedBy: session.name },
   });
   await logAudit(eventId, matchId, "confirm", isStaff ? "Approved by organizer" : "Confirmed by player");
   refresh();
@@ -1335,7 +1335,7 @@ export async function reopenMatch(matchId: string) {
   const eventId = await requireAdminEvent();
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
-    data: { scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },
+    data: { scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "" },
   });
   await logAudit(eventId, matchId, "reopen", "Organizer reopened the scorecard");
   refresh();
@@ -1978,6 +1978,8 @@ export async function importScores(
   }>,
 ): Promise<ScoreImportOutcome> {
   const eventId = await requireStaffEvent();
+  // Whoever ran the import is who the field will ask about these scores.
+  const importedBy = (await getSession())?.name ?? "";
 
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
   if (!stage) return { ok: false, written: 0, error: "That round isn't in this tournament." };
@@ -2103,7 +2105,7 @@ export async function importScores(
         .map((h) => (h === "A" || h === "B" || h === "H" ? (flipped ? flip(h) : h) : null));
       await prisma.match.updateMany({
         where: { id: found.id, eventId },
-        data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },
+        data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: importedBy },
       });
       written += 1;
       continue;
@@ -2126,7 +2128,7 @@ export async function importScores(
       const synth = marginToHoles(w, row.margin ?? "", matchHoleCount(found.holes));
       await prisma.match.updateMany({
         where: { id: found.id, eventId },
-        data: { holes: JSON.stringify(synth), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },
+        data: { holes: JSON.stringify(synth), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: importedBy },
       });
       written += 1;
       continue;

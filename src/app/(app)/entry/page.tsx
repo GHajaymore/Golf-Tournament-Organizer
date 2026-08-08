@@ -193,6 +193,29 @@ export default async function EntryPage() {
     );
   }
 
+  // Which tees each player is rated off. Shown on the card because the shots
+  // given are computed from slope and rating, and a player cannot check an
+  // allocation whose inputs are invisible.
+  const allTees = await prisma.tee.findMany({
+    where: { course: { events: { some: { eventId: session.eventId } } } },
+    orderBy: [{ position: "asc" }],
+  });
+  const teeById = new Map(allTees.map((t) => [t.id, t]));
+  const playerTeeIds = await prisma.player.findMany({
+    where: { eventId: session.eventId },
+    select: { id: true, teeId: true },
+  });
+  const teeLabel = (playerId: string): string | undefined => {
+    const teeId = playerTeeIds.find((p) => p.id === playerId)?.teeId;
+    const tee = teeId ? teeById.get(teeId) : null;
+    if (!tee) return undefined;
+    // Slope and rating alongside the name: the name alone does not say why
+    // one player is owed more shots than another.
+    return tee.slopeRating > 0
+      ? `${tee.name} (${tee.slopeRating}/${tee.courseRating})`
+      : `${tee.name} — unrated`;
+  };
+
   const nameById = new Map(state.players.map((p) => [p.id, p.name]));
   const handicapById = new Map(state.players.map((p) => [p.id, p.handicap]));
   const groupById = new Map(state.groups.map((g) => [g.id, g.position]));
@@ -314,6 +337,10 @@ export default async function EntryPage() {
             courseId: m.courseId,
             nine: m.nine,
             scoredAt: m.scoredAt ? m.scoredAt.toISOString() : null,
+            enteredBy: m.enteredBy,
+            confirmedBy: m.confirmedBy,
+            aTee: teeLabel(m.playerAId),
+            bTee: teeLabel(m.playerBId),
             // Decided here rather than in the browser, because only the server
             // can see the whole match -> round -> event chain.
             venueNeeded: needsVenue(courseMode, {

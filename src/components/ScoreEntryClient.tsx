@@ -127,6 +127,16 @@ export interface EntryMatch {
   nine?: string;
   /** When a score was last written for this match, ISO. Null until one is. */
   scoredAt?: string | null;
+  /** Who wrote it down, and who signed it off. Names, so a card stays
+   *  readable after a member leaves and their row is gone. */
+  enteredBy?: string;
+  confirmedBy?: string;
+  /** The tees each player is rated off, already formatted. Shown because the
+   *  shots given come out of slope and rating, and with these invisible the
+   *  handicap arithmetic is unauditable — "why did I only get 4 shots?" has
+   *  no answer anywhere on the screen. */
+  aTee?: string;
+  bTee?: string;
   /** Nothing up the match -> round -> event chain says where this was played,
    *  and the tournament has no fixed venue. Decided on the server. */
   venueNeeded?: boolean;
@@ -621,13 +631,27 @@ export function ScoreEntryClient({
                 {totalHoles === 9 && nineByMatch[active.id] && (
                   <span>{nineByMatch[active.id] === "back" ? "Back 9 (10–18)" : "Front 9 (1–9)"}</span>
                 )}
-                {active.scoredAt && (
-                  <span title="When a score was last written for this match">
-                    <i className="ph ph-clock-counter-clockwise" style={{ marginRight: 3 }} />
-                    Entered {new Date(active.scoredAt).toLocaleDateString(undefined, {
-                      month: "short", day: "numeric", year: "numeric",
-                    })}
+                {(active.aTee || active.bTee) && (
+                  <span title="Tees, course rating and slope — what the shots given are calculated from">
+                    <i className="ph ph-flag-pennant" style={{ marginRight: 3 }} />
+                    {active.aTee === active.bTee
+                      ? active.aTee
+                      : `${firstName(active.aName)} ${active.aTee ?? "—"} · ${firstName(active.bName)} ${active.bTee ?? "—"}`}
                   </span>
+                )}
+                {(active.scoredAt || active.enteredBy) && (
+                  <span title="Who last wrote a score for this match, and when the card was completed">
+                    <i className="ph ph-clock-counter-clockwise" style={{ marginRight: 3 }} />
+                    {active.enteredBy ? `Entered by ${active.enteredBy}` : "Entered"}
+                    {active.scoredAt
+                      ? ` · ${new Date(active.scoredAt).toLocaleDateString(undefined, {
+                          month: "short", day: "numeric", year: "numeric",
+                        })}`
+                      : ""}
+                  </span>
+                )}
+                {active.confirmedBy && (
+                  <span><i className="ph ph-seal-check" style={{ marginRight: 3 }} />Signed off by {active.confirmedBy}</span>
                 )}
               </div>
             </div>

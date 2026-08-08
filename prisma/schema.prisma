@@ -864,7 +864,14 @@ model Match {
   // Score confirmation (two-player workflow)
   scoreStatus   String    @default("pending") // pending | confirmed | disputed
   scoredAt      DateTime?
+  /** Who wrote the score down, as a display name. A result that nobody can be
+   *  traced to is not a result a committee can defend, and this was the half
+   *  of the trail that was never recorded — confirmedById existed but was only
+   *  ever written as null. */
+  enteredBy     String    @default("")
   confirmedById String?
+  /** Who signed it off, as a display name, alongside the id. */
+  confirmedBy   String    @default("")
 
   event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   stage  Stage   @relation(fields: [stageId], references: [id], onDelete: Cascade)
