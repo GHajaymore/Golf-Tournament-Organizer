@@ -4,6 +4,8 @@ import { ScoreImport } from "./ScoreImport";
 import { ClearScores } from "./ClearScores";
 import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient";
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
+import { VoiceAsk } from "./VoiceAsk";
+import type { VoiceContext } from "@/lib/domain/voice-query";
 
 export interface EntryRound {
   stageId: string;
@@ -33,6 +35,7 @@ export function EntryModes({
   venues = [],
   courseName = "",
   eventDates = "",
+  voice,
 }: {
   rounds: EntryRound[];
   activeIndex: number;
@@ -53,6 +56,9 @@ export function EntryModes({
    *  when a card is queried. */
   courseName?: string;
   eventDates?: string;
+  /** Present only for someone playing in this tournament — an organizer
+   *  entering the field's cards has no handicap or opponent to ask about. */
+  voice?: VoiceContext;
 }) {
   const [mode, setMode] = useState<"match" | "stroke">(defaultMode);
   const [importing, setImporting] = useState(false);
@@ -118,6 +124,14 @@ export function EntryModes({
           </div>
         </div>
       </div>
+
+      {/* Before the cards, not buried under them: the questions this answers
+          are the ones asked walking to the tee, not after the round. */}
+      {voice && (
+        <div className="card elev-sm" style={{ marginBottom: 16 }}>
+          <VoiceAsk context={{ ...voice, currentRound: roundIdx + 1 }} />
+        </div>
+      )}
 
       {clearing && isStaff && (
         <div style={{ marginBottom: 16 }}>

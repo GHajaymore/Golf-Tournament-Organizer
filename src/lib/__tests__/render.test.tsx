@@ -1125,3 +1125,22 @@ describe("printed foursome cards", () => {
     expect(render(<TeeSheetPrint {...base} groups={[]} />)).toBe("");
   });
 });
+
+describe("the ask-a-question mic", () => {
+  it("renders its prompt and example questions", async () => {
+    const { VoiceAsk } = await import("@/components/VoiceAsk");
+    const html = renderToStaticMarkup(
+      <VoiceAsk context={{ playerName: "Atal Varma", handicapByRound: { 1: 15 }, currentRound: 1 }} />,
+    );
+    expect(html).toContain("Ask");
+    expect(html).toContain("handicap");
+  });
+
+  it("renders for a player with nothing scored yet", async () => {
+    // The state a mic is most likely to meet: first tee, nothing entered.
+    const { VoiceAsk } = await import("@/components/VoiceAsk");
+    expect(() =>
+      renderToStaticMarkup(<VoiceAsk context={{ playerName: "Nobody Yet" }} />),
+    ).not.toThrow();
+  });
+});

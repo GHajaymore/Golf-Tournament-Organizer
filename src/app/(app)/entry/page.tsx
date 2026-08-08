@@ -13,6 +13,9 @@ import { needsTeams, findFormat, entryModeFor } from "@/lib/formats";
 import { teamsForStage, effectiveAllowance } from "@/lib/services/teams";
 import { aggregateTeamCard, singleBallTeamCard } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
+import { courseHandicapMap, playingHandicapFrom } from "@/lib/domain/handicap";
+import { standingRows } from "@/lib/services/tournament";
+import type { VoiceContext } from "@/lib/domain/voice-query";
 
 export default async function EntryPage() {
   const session = await requireScreen("entry");
@@ -326,9 +329,55 @@ export default async function EntryPage() {
     rounds.findIndex((r) => r.stageId === state.activeStage?.id),
   );
 
+  // ── What the mic can answer ─────────────────────────────────────────────
+  // Only for someone actually playing: an organizer entering the field's
+  // cards has no handicap of their own to be told and no opponent to be
+  // drawn against, so they get no mic rather than a row of "I can't see".
+  //
+  // Every number here comes from the same helpers the leaderboard and the
+  // importer use. A spoken handicap that disagreed with the printed card
+  // would be worse than no answer at all — it is the number someone plays
+  // off without checking.
+  let voice: VoiceContext | undefined;
+  const myId = ownIds && ownIds.size > 0 ? [...ownIds][0] : null;
+  if (myId) {
+    const me = state.confirmed.find((p) => p.id === myId);
+    if (me) {
+      const tees = await prisma.tee.findMany();
+      const teeRatings = new Map(
+        tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+      );
+      const handicapByRound: Record<number, number> = {};
+      const opponentByRound: Record<number, string> = {};
+      rrStages.forEach((stage, i) => {
+        const holeCount = stage.holes === 9 ? 9 : 18;
+        const ch = courseHandicapMap(state.confirmed, teeRatings, tees[0]?.id ?? null, holeCount);
+        const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
+        handicapByRound[i + 1] = playingHandicapFrom(ch.get(myId) ?? 0, allowance);
+        const m = state.matches.find(
+          (x) => x.stageId === stage.id && (x.playerAId === myId || x.playerBId === myId),
+        );
+        if (m) {
+          const oppId = m.playerAId === myId ? m.playerBId : m.playerAId;
+          const opp = state.confirmed.find((p) => p.id === oppId);
+          if (opp) opponentByRound[i + 1] = opp.name;
+        }
+      });
+      const rows = standingRows(state);
+      const idx = rows.findIndex((r) => r.id === myId);
+      voice = {
+        playerName: me.name,
+        handicapByRound,
+        opponentByRound,
+        position: idx >= 0 ? { rank: rows[idx].rank, of: rows.length } : undefined,
+      };
+    }
+  }
+
   return (
     <EntryModes
       rounds={rounds}
+      voice={voice}
       activeIndex={activeIndex}
       players={state.confirmed
         .filter((p) => !ownIds || ownIds.has(p.id))
