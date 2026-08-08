@@ -4,15 +4,23 @@ Written 2026-08-07. Read this first, then `git log` for detail.
 
 ## Where things stand
 
-- Branch `build/production-app`. Latest commit `82281c7`; the large one is `d2e1097`.
-- **Not pushed.** Pushing turns on `.github/workflows/ci.yml`, which runs `next build`
-  for the first time in this project's history. Expect it to fail — that is the
-  workflow doing its job, not a regression.
-- 872 tests pass, `tsc --noEmit` clean, ESLint reports 9 problems (all unused
-  variables in test files).
-- Migrations 19–27 applied. `DATABASE_URL` points at a **local** Postgres, not
-  production.
-- Dev server runs on **port 3100**. Port 3000 is dead but still holds the port.
+- Branch `build/production-app`, **pushed**, and **CI is green** — including the
+  first-ever `next build` and a full migration replay onto an empty database.
+- 910 tests pass, `tsc --noEmit` clean, ESLint zero errors (2 advisory warnings).
+- Migration folders are zero-padded (they replayed lexicographically before —
+  0, 1, 10, 11 … — and died at 15_org_theme on any fresh database).
+  `scripts/pad-migration-names.mjs` renames applied rows on existing databases
+  and runs before `migrate deploy` in vercel-build, so production heals itself
+  on its next deploy. Do not rename migration folders again without the same
+  two-sided treatment.
+- Players can only write their own scores (assertOwnMatch/assertOwnCard in
+  actions/tournament.ts, linked by registration email); the entry screen
+  filters with the same rule.
+- Next feature in queue: net-per-hole score import (deterministic — gross =
+  net + strokes received; the server knows the Playing Handicap per round).
+  Points-only and totals-only imports are deliberately refused: neither can be
+  inverted to real hole scores, and the importer never manufactures golf that
+  wasn't played.
 
 ## Environment traps
 
