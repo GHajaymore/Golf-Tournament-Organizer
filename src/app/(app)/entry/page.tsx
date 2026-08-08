@@ -193,6 +193,36 @@ export default async function EntryPage() {
   // fallback must not be *shown*: printing one course's par and stroke index
   // over a match played somewhere else is worse than showing nothing. With no
   // real course, the card renders hole numbers only.
+  // Who this session *is* on the tee sheet. Staff see the whole field; a
+  // player sees the matches they are in and their own card, which is also
+  // exactly what the write actions will accept from them — the screen and the
+  // server refusing at the same line is what makes the screen trustworthy.
+  const ownIds = isStaff
+    ? null
+    : new Set(
+        (
+          await prisma.player.findMany({
+            where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" } },
+            select: { id: true },
+          })
+        ).map((r) => r.id),
+      );
+  const ownTeamIds = ownIds
+    ? new Set(
+        (
+          await prisma.teamMember.findMany({
+            where: { playerId: { in: [...ownIds] } },
+            select: { teamId: true },
+          })
+        ).map((r) => r.teamId),
+      )
+    : null;
+  const mine = (m: { playerAId: string; playerBId: string; teamAId: string; teamBId: string }) =>
+    !ownIds ||
+    ownIds.has(m.playerAId) ||
+    ownIds.has(m.playerBId) ||
+    (ownTeamIds !== null && (ownTeamIds.has(m.teamAId) || ownTeamIds.has(m.teamBId)));
+
   const course = resolveCourse(state.event);
   const pars = courseKnown ? course.pars : [];
   const yards = courseKnown ? course.yards : [];
@@ -236,6 +266,7 @@ export default async function EntryPage() {
 
       const stageMatches = state.matches
         .filter((m) => m.stageId === stage.id)
+        .filter(mine)
         .sort((a, b) => a.round - b.round)
         .map((m) => {
           let holes: HoleResult[];
@@ -299,7 +330,9 @@ export default async function EntryPage() {
     <EntryModes
       rounds={rounds}
       activeIndex={activeIndex}
-      players={state.confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap }))}
+      players={state.confirmed
+        .filter((p) => !ownIds || ownIds.has(p.id))
+        .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap }))}
       pars={pars}
       yards={yards}
       strokeIndex={strokeIndex}

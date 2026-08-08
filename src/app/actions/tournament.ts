@@ -83,6 +83,58 @@ async function requireScoreEntry(): Promise<{ eventId: string; session: Session;
   return { eventId: session.eventId, session, settings };
 }
 
+/**
+ * The Player rows this signed-in person is, in this event.
+ *
+ * A console session knows an email, not a Player id — the link is the email
+ * on the registration. Case-insensitive because sign-in lowercases and CSV
+ * imports arrive however the spreadsheet had them.
+ */
+async function ownPlayerIds(eventId: string, email: string): Promise<Set<string>> {
+  const rows = await prisma.player.findMany({
+    where: { eventId, email: { equals: email, mode: "insensitive" } },
+    select: { id: true },
+  });
+  return new Set(rows.map((r) => r.id));
+}
+
+/**
+ * A player may write scores for their own match and nobody else's.
+ *
+ * requireScoreEntry answers "may this role enter scores at all"; it never
+ * asked "for whom". With the answer missing, any signed-in player could
+ * overwrite any match or any card in the event — the round-code path had
+ * this check from day one, and the console path did not. Staff pass through
+ * untouched: entering the whole field's cards is their job.
+ *
+ * Membership means being on one of the match's sides — the player columns in
+ * an individual format, team membership in a team format. Same scoring-group
+ * rule as domain/attest.ts and savePlayMatchHoles.
+ */
+async function assertOwnMatch(session: Session, eventId: string, matchId: string): Promise<void> {
+  if (session.role !== "player") return;
+  const match = await prisma.match.findFirst({ where: { id: matchId, eventId } });
+  if (!match) throw new Error("Match not found.");
+  const own = await ownPlayerIds(eventId, session.email);
+  if (own.has(match.playerAId) || own.has(match.playerBId)) return;
+  const teamIds = [match.teamAId, match.teamBId].filter((id) => id !== "");
+  if (teamIds.length) {
+    const member = await prisma.teamMember.findFirst({
+      where: { teamId: { in: teamIds }, playerId: { in: [...own] } },
+      select: { id: true },
+    });
+    if (member) return;
+  }
+  throw new Error("You can only enter scores for your own match.");
+}
+
+/** Same rule for a stroke card: your own, or you are staff. */
+async function assertOwnCard(session: Session, eventId: string, playerId: string): Promise<void> {
+  if (session.role !== "player") return;
+  const own = await ownPlayerIds(eventId, session.email);
+  if (!own.has(playerId)) throw new Error("You can only enter your own scorecard.");
+}
+
 /** Block structural changes once the tournament is live/completed, unless unlocked. */
 async function assertUnlocked(eventId: string): Promise<void> {
   const e = await prisma.event.findUnique({
@@ -835,6 +887,7 @@ async function logAudit(eventId: string, matchId: string | null, action: string,
 
 export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   const { eventId, session, settings } = await requireScoreEntry();
+  await assertOwnMatch(session, eventId, matchId);
   const complete = resolveMatch(holes).complete;
   // Where the organizer wants finished cards only, a player can't dribble
   // holes onto the leaderboard as they play. Staff are never restricted this
@@ -871,7 +924,8 @@ export async function applyMatchResult(
   winner: "A" | "B" | "H",
   margin: string,
 ) {
-  const { eventId } = await requireScoreEntry();
+  const { eventId, session } = await requireScoreEntry();
+  await assertOwnMatch(session, eventId, matchId);
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
   const holes = marginToHoles(winner, margin, matchHoleCount(match.holes));
@@ -883,7 +937,8 @@ export async function applyMatchResult(
 }
 
 export async function clearMatch(matchId: string) {
-  const { eventId } = await requireScoreEntry();
+  const { eventId, session } = await requireScoreEntry();
+  await assertOwnMatch(session, eventId, matchId);
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
   const empty = new Array(matchHoleCount(match.holes)).fill(null);
@@ -928,6 +983,7 @@ export async function saveCustomCourse(
 
 export async function saveScorecard(stageId: string, playerId: string, strokes: (number | null)[]) {
   const { eventId, session, settings } = await requireScoreEntry();
+  await assertOwnCard(session, eventId, playerId);
   if (session.role === "player" && !canPlayerSavePartial(settings)) {
     const filled = strokes.filter((s) => typeof s === "number" && s > 0).length;
     if (filled < strokes.length) throw new Error("Enter the full round, then submit it.");
@@ -948,6 +1004,7 @@ export async function saveScorecard(stageId: string, playerId: string, strokes: 
  */
 export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strokes: (number | null)[]) {
   const { eventId, session, settings } = await requireScoreEntry();
+  await assertOwnMatch(session, eventId, matchId);
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
   if (session.role === "player" && !canPlayerSavePartial(settings)) {
@@ -1036,6 +1093,7 @@ export async function saveTeamScorecard(
   strokes: (number | null)[],
 ): Promise<{ ok: boolean; error?: string }> {
   const { eventId, session, settings } = await requireScoreEntry();
+  await assertOwnMatch(session, eventId, matchId);
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },

@@ -367,3 +367,35 @@ describe("a four-ball partner may score their own match", () => {
     expect(guard).toMatch(/You can only enter scores for your own match/);
   });
 });
+
+describe("a player writes their own scores and nobody else's", () => {
+  const src = read("tournament.ts");
+
+  it("every score write a player can reach checks whose score it is", () => {
+    // requireScoreEntry answers "may this role enter scores at all" and never
+    // asked "for whom" — any signed-in player could overwrite any match or
+    // card in the event. The round-code path had this check from day one; the
+    // console path did not.
+    for (const fn of ["saveMatchHoles", "applyMatchResult", "clearMatch", "saveMatchScorecard", "saveTeamScorecard"]) {
+      const body = src.slice(src.indexOf(`export async function ${fn}`));
+      expect(body.slice(0, 400), fn).toMatch(/assertOwnMatch\(session, eventId, matchId\)/);
+    }
+    const card = src.slice(src.indexOf("export async function saveScorecard"));
+    expect(card.slice(0, 300)).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
+  });
+
+  it("links the session to its Player rows by registration email", () => {
+    expect(src).toMatch(/email: \{ equals: email, mode: "insensitive" \}/);
+  });
+
+  it("recognises team membership as being in the match", () => {
+    const guard = src.slice(src.indexOf("async function assertOwnMatch"));
+    expect(guard.slice(0, 900)).toMatch(/teamMember\.findFirst/);
+  });
+
+  it("scopes the entry screen with the same rule it enforces", () => {
+    const page = readFileSync(join(process.cwd(), "src/app/(app)/entry/page.tsx"), "utf8");
+    expect(page).toMatch(/\.filter\(mine\)/);
+    expect(page).toMatch(/ownIds\.has\(p\.id\)/);
+  });
+});
