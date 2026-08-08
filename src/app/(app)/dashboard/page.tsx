@@ -9,6 +9,9 @@ import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
 import { showBracket, bracketBadge, feederFraction } from "@/lib/bracket-visibility";
 import { matchProgress, standingRows } from "@/lib/services/tournament";
 import { pts, shortName } from "@/lib/format";
+import { playingStages } from "@/lib/services/tournament";
+import { resolveAttendance, effectiveStatus, playerMayChange, type AttendanceMode } from "@/lib/domain/attendance";
+import { RoundAvailability, type AvailabilityRound, type CaptainFlight } from "@/components/RoundAvailability";
 
 const QUICK_ACTIONS = [
   { label: "Players", href: "/registration", icon: "ph ph-user-plus", staff: true },
@@ -85,6 +88,69 @@ export default async function DashboardPage() {
   const rows = standingRows(state).slice(0, 8);
   const advancingIds = state.advancingIds;
 
+  // ── Weekly sign-up ──────────────────────────────────────────────────────
+  // Only when the league asks the question, and only for a session that maps
+  // to a player. Captains additionally see their own flight's list — theirs,
+  // and nobody else's; staff see everything on the Flights and Tee sheet
+  // screens instead of here.
+  const attendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
+  let availabilityRounds: AvailabilityRound[] = [];
+  let captainFlights: CaptainFlight[] = [];
+  let ownPlayerId = "";
+  if (attendanceMode !== "everyone") {
+    const own = await prisma.player.findMany({
+      where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" }, status: "confirmed" },
+      select: { id: true, groupId: true },
+    });
+    ownPlayerId = own[0]?.id ?? "";
+    if (ownPlayerId) {
+      const leagueRounds = playingStages(state.stages);
+      const explicit = await prisma.roundAttendance.findMany({
+        where: { eventId: session.eventId, stageId: { in: leagueRounds.map((r) => r.id) } },
+      });
+      availabilityRounds = leagueRounds.map((r, i) => {
+        const mine = explicit.find((e) => e.stageId === r.id && e.playerId === ownPlayerId);
+        const chosen = mine && (mine.status === "in" || mine.status === "out") ? (mine.status as "in" | "out") : null;
+        return {
+          stageId: r.id,
+          label: `Round ${i + 1}`,
+          optDeadline: r.optDeadline,
+          status: effectiveStatus(attendanceMode, chosen),
+          explicit: chosen !== null,
+          locked: !playerMayChange(r.optDeadline),
+        };
+      });
+
+      // The flights this player captains, resolved for the current round.
+      const captained = await prisma.group.findMany({
+        where: { eventId: session.eventId, captainId: { in: own.map((o) => o.id) } },
+        select: { id: true, name: true },
+      });
+      if (captained.length && state.activeStage) {
+        const stageExplicit = explicit.filter((e) => e.stageId === state.activeStage!.id);
+        const roundLabel = `Round ${Math.max(1, leagueRounds.findIndex((r) => r.id === state.activeStage!.id) + 1)}`;
+        captainFlights = captained.map((g) => {
+          const members = state.confirmed.filter((pl) => pl.groupId === g.id);
+          const resolved = resolveAttendance(
+            attendanceMode,
+            members.map((m) => m.id),
+            stageExplicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
+          );
+          return {
+            flightName: g.name,
+            roundLabel,
+            rows: resolved.rows.map((row) => ({
+              playerId: row.playerId,
+              name: members.find((m) => m.id === row.playerId)?.name ?? "",
+              status: row.status,
+              explicit: row.explicit,
+            })),
+          };
+        });
+      }
+    }
+  }
+
   const announcements = await prisma.announcement.findMany({
     where: { eventId: session.eventId },
     orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
@@ -93,6 +159,11 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {ownPlayerId && (availabilityRounds.length > 0 || captainFlights.length > 0) && (
+        <div style={{ marginBottom: 16 }}>
+          <RoundAvailability playerId={ownPlayerId} rounds={availabilityRounds} captainOf={captainFlights} />
+        </div>
+      )}
       <div
         style={{
           display: "flex",

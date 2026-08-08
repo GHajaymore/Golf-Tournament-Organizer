@@ -49,6 +49,8 @@ export const CLONED_EVENT_FIELDS = [
   // Travels with scoreApproval — a club that wants every player in the match
   // to sign off wants that next year too.
   "attestBy",
+  // A weekly league copied for next season is still a weekly league.
+  "attendanceMode",
 ] as const;
 
 /**
@@ -95,6 +97,9 @@ export const CLONE_IGNORED_RELATIONS = [
   "organization",
   "series",
   "accounts",
+  // Weekly in/out answers are the record of who played which week — a copy
+  // for next season starts with nobody asked.
+  "attendance",
   "players",
   "groups",
   "stages",

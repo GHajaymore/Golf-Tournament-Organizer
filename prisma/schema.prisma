@@ -517,6 +517,10 @@ model Event {
    *  auto-confirm. Defaults to staff — auto-confirming an unreviewed score is
    *  not something an organizer should get without asking for it. */
   scoreApproval         String  @default("staff")        // staff | players
+  /** Weekly-league attendance: everyone (no opt in/out — every confirmed
+   *  player is in every round), opt-out (regulars are in unless they say
+   *  otherwise), opt-in (only those who put their name down). */
+  attendanceMode        String  @default("everyone")     // everyone | opt-out | opt-in
   /** When players approve, how many playing partners must confirm.
    *  "Playing together" is the scoring group — the match, not the foursome. */
   attestBy              String  @default("marker")       // marker | opponent | all
@@ -558,6 +562,7 @@ model Event {
   groups         Group[]
   stages         Stage[]
   matches        Match[]
+  attendance     RoundAttendance[]
   bracketWinners BracketWinner[]
   commentary     Commentary[]
   scorecards     Scorecard[]
@@ -632,6 +637,9 @@ model Player {
   member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
   tee    Tee?    @relation(fields: [teeId], references: [id], onDelete: SetNull)
   teamMemberships TeamMember[]
+  attendance      RoundAttendance[]
+  captainOf       Group[] @relation("FlightCaptain")
+  viceCaptainOf   Group[] @relation("FlightViceCaptain")
 
   @@index([eventId])
   @@index([groupId])
@@ -643,6 +651,14 @@ model Group {
   eventId  String
   name     String
   position Int
+  /** The flight's captain, appointed by the organizer. Sees their own
+   *  flight's attendance list; never anyone else's. Null = no captain. */
+  captainId String?
+  captain   Player? @relation("FlightCaptain", fields: [captainId], references: [id], onDelete: SetNull)
+  /** Deputises for the captain: same read-only view of the flight's list. */
+  viceCaptainId String?
+  viceCaptain   Player? @relation("FlightViceCaptain", fields: [viceCaptainId], references: [id], onDelete: SetNull)
+
 
   event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   players Player[]
@@ -734,11 +750,16 @@ model Stage {
    * Empty unless the tournament has code access switched on.
    */
   accessCode String @default("")
+  /** Last day a player may change their in/out for this round (inclusive,
+   *  same reading as every other deadline — see src/lib/deadline.ts). Empty
+   *  means changes stay open. Staff always may. */
+  optDeadline String @default("")
 
-  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  course  Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  matches Match[]
-  teams   Team[]
+  event      Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  course     Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  matches    Match[]
+  teams      Team[]
+  attendance RoundAttendance[]
 
   @@index([eventId])
   // Redemption looks a code up on its own, so codes must be unique across
@@ -746,6 +767,33 @@ model Stage {
   // (unique where accessCode <> ''), which Prisma's schema language can't
   // express — a plain @@unique would make the empty default collide for every
   // round that has no code.
+}
+
+/**
+ * One player's explicit in/out for one round of a league.
+ *
+ * Only explicit choices are rows. Absence means the tournament's default —
+ * in for an opt-out league, out for an opt-in one — which is what lets an
+ * organizer flip a forty-player league to opt-out without writing forty
+ * rows, and lets "by default you're in" be literally true.
+ */
+model RoundAttendance {
+  id        String   @id @default(cuid())
+  eventId   String
+  stageId   String
+  playerId  String
+  status    String // in | out
+  decidedAt DateTime @default(now())
+  /** Who flipped it — the player themself, or a staff name. The answer to
+   *  "why am I not playing this week" has to name a person. */
+  decidedBy String   @default("")
+
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  stage  Stage  @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, playerId])
+  @@index([eventId])
 }
 
 model Match {

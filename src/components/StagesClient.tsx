@@ -26,6 +26,7 @@ import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
 import { QualControl } from "./QualControl";
 import { CutControl } from "./CutControl";
 import { RoundDeadlineControl } from "./RoundDeadlineControl";
+import { setStageOptDeadline } from "@/app/actions/attendance";
 import type { TiebreakerKey } from "@/lib/domain";
 
 export interface StageView {
@@ -50,6 +51,11 @@ export interface StageView {
   cutScope: string;
   /** true = closed by hand, false = extended past the date, null = follow it. */
   deadlineOverride: boolean | null;
+  /** Last day players may change their weekly in/out. "" = open. */
+  optDeadline: string;
+  /** Resolved sign-up counts for this round; null when the league question
+   *  is switched off. */
+  attendance: { in: number; out: number; inByDefault: number } | null;
   matchCount: number;
   /** Venue for this round; null means the tournament's own course. */
   courseId: string | null;
@@ -652,6 +658,35 @@ function StageCard({
                 )}
               </div>
             </div>
+
+            {/* Weekly sign-up, when the league asks the question. The counts
+                keep the organizer honest about Wednesday: "18 in" where five
+                are only in by default is a different tee sheet from 18 who
+                said so. */}
+            {stage.attendance && (
+              <div className="field" style={{ maxWidth: 420 }}>
+                <label>Sign-up deadline</label>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <input
+                    className="input"
+                    type="date"
+                    style={{ width: 170 }}
+                    defaultValue={isIsoDate(stage.optDeadline) ? stage.optDeadline : ""}
+                    disabled={pending}
+                    onChange={(e) => startTransition(() => void setStageOptDeadline(stage.id, e.target.value))}
+                  />
+                  <span className="text-muted" style={{ fontSize: 12 }}>
+                    {stage.attendance.in} in
+                    {stage.attendance.inByDefault > 0 && ` (${stage.attendance.inByDefault} by default)`}
+                    {" · "}
+                    {stage.attendance.out} out
+                  </span>
+                </div>
+                <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0", lineHeight: 1.4 }}>
+                  Players may answer until the end of this day; after it, changes go through you.
+                </p>
+              </div>
+            )}
 
             {/* Directly under the date, because it is the thing that overrules
                 it. Kept out of the collapsed summary: closing a round early is

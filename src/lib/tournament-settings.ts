@@ -1,3 +1,4 @@
+import { ATTENDANCE_MODES, type AttendanceMode } from "./domain/attendance";
 /**
  * Per-tournament settings for how players see standings and report scores.
  *
@@ -156,6 +157,8 @@ export interface TournamentSettings {
   scoreApproval: ScoreApproval;
   /** How many playing partners must confirm, when players approve. */
   attestBy: AttestBy;
+  /** Weekly-league sign-up: everyone | opt-out | opt-in. See domain/attendance. */
+  attendanceMode: AttendanceMode;
 }
 
 /**
@@ -174,6 +177,9 @@ export const DEFAULT_SETTINGS: TournamentSettings = {
   // One partner is what a club medal has always required, so a tournament
   // switching to player approval behaves the way its members expect.
   attestBy: "marker",
+  // "everyone" is the feature switched off — exactly how every tournament
+  // behaved before leagues could ask the weekly question.
+  attendanceMode: "everyone",
 };
 
 /** Coerce stored strings into valid settings, falling back per field. A bad
@@ -194,6 +200,7 @@ export function cleanSettings(raw: Partial<Record<keyof TournamentSettings, unkn
     playerAccess: pick(raw.playerAccess, PLAYER_ACCESS, DEFAULT_SETTINGS.playerAccess),
     scoreApproval: pick(raw.scoreApproval, SCORE_APPROVAL, DEFAULT_SETTINGS.scoreApproval),
     attestBy: pick(raw.attestBy, ATTEST_BY, DEFAULT_SETTINGS.attestBy),
+    attendanceMode: pick(raw.attendanceMode, ATTENDANCE_MODES, DEFAULT_SETTINGS.attendanceMode),
   };
 }
 

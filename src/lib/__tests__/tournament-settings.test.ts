@@ -39,6 +39,9 @@ describe("defaults", () => {
       // One playing partner is what a club medal has always required, so a
       // tournament switching to player approval behaves as its members expect.
       attestBy: "marker",
+      // "everyone" = the league question switched off, which is what every
+      // pre-league tournament was implicitly doing.
+      attendanceMode: "everyone",
       // The deliberate exception: prior behaviour auto-confirmed unreviewed
       // scores after 24h. Defaulting to staff approval is a considered change,
       // not an oversight — this assertion is here so it can't drift back

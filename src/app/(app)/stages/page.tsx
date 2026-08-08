@@ -1,5 +1,6 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
-import { loadEventState, parseMatchTiebreakers } from "@/lib/services/tournament";
+import { loadEventState, parseMatchTiebreakers, settingsOf } from "@/lib/services/tournament";
+import { resolveAttendance } from "@/lib/domain/attendance";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { StagesClient } from "@/components/StagesClient";
@@ -31,6 +32,20 @@ export default async function StagesPage() {
     cutPercent: s.cutPercent,
     cutScope: s.cutScope,
     deadlineOverride: s.deadlineOverride,
+    optDeadline: s.optDeadline,
+    attendance:
+      attendanceMode === "everyone"
+        ? null
+        : (() => {
+            const resolved = resolveAttendance(
+              attendanceMode,
+              state.confirmed.map((p) => p.id),
+              attendanceRows
+                .filter((r) => r.stageId === s.id)
+                .map((r) => ({ playerId: r.playerId, status: r.status, decidedBy: r.decidedBy })),
+            );
+            return { in: resolved.in, out: resolved.out, inByDefault: resolved.inByDefault };
+          })(),
     matchCount: state.matches.filter((m) => m.stageId === s.id).length,
     courseId: s.courseId,
     nine: s.nine,
@@ -45,6 +60,13 @@ export default async function StagesPage() {
   });
 
   // Matches per player in a round robin = (largest flight size − 1).
+  // League sign-up, resolved per round for the counts on each card.
+  const attendanceMode = settingsOf(state.event).attendanceMode;
+  const attendanceRows =
+    attendanceMode === "everyone"
+      ? []
+      : await prisma.roundAttendance.findMany({ where: { eventId: session.eventId } });
+
   const flightSizes = state.groups.map(
     (g) => state.confirmed.filter((p) => p.groupId === g.id).length,
   );

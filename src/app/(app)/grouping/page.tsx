@@ -1,4 +1,5 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { settingsOf } from "@/lib/services/tournament";
 import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { GroupingControls } from "@/components/GroupingControls";
@@ -27,7 +28,7 @@ export default async function GroupingPage() {
         // The club's own name when it has set one; the positional label only as
     // a fallback for flights nobody has renamed.
     const label = g.name?.trim() || `Flight ${i + 1}`;
-    return { id: g.id, label, avg, players };
+    return { id: g.id, label, avg, players, captainId: g.captainId, viceCaptainId: g.viceCaptainId };
   });
 
   const mode = (["auto", "count", "perFlight"].includes(state.event.flightMode)
@@ -84,6 +85,7 @@ export default async function GroupingPage() {
           locked={locked}
           canEdit={session.viewRole !== "player"}
           confirmed={state.event.flightsConfirmed}
+          leadership={settingsOf(state.event).attendanceMode !== "everyone"}
         />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>

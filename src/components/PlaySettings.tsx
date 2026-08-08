@@ -19,6 +19,13 @@ import {
   ATTEST_BY,
   ATTEST_BY_LABEL,
   ATTEST_BY_HELP,
+} from "@/lib/tournament-settings";
+import {
+  ATTENDANCE_MODES,
+  ATTENDANCE_MODE_LABEL,
+  ATTENDANCE_MODE_HELP,
+} from "@/lib/domain/attendance";
+import {
   PLAYER_ACCESS,
   PLAYER_ACCESS_LABEL,
   usesAccessCodes,
@@ -249,6 +256,17 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
       {/* Only asked when players sign off. With staff approval there is
           nobody to configure, and showing it anyway invites an organizer to
           set something that will never apply. */}
+      <Choice
+        label="Weekly sign-up"
+        hint="For a league that plays every week: whether the field is assumed in, assumed out, or the question never asked. Players answer per round, until each round's sign-up deadline."
+        value={form.attendanceMode}
+        options={ATTENDANCE_MODES}
+        labels={ATTENDANCE_MODE_LABEL}
+        help={ATTENDANCE_MODE_HELP}
+        disabled={!canEdit || pending}
+        onChange={(v) => set("attendanceMode", v)}
+      />
+
       {form.scoreApproval === "players" && (
         <Choice
           label="How many playing partners must confirm"

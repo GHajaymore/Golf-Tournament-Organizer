@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { movePlayerToGroup, renameGroup, setFlightsConfirmed } from "@/app/actions/tournament";
+import { setFlightCaptain } from "@/app/actions/attendance";
 
 export interface FlightPlayer {
   id: string;
@@ -13,6 +14,9 @@ export interface FlightCard {
   label: string;
   avg: number;
   players: FlightPlayer[];
+  /** Appointed leadership — see setFlightCaptain. Null = none yet. */
+  captainId?: string | null;
+  viceCaptainId?: string | null;
 }
 
 /**
@@ -30,6 +34,7 @@ export interface FlightCard {
  * don't fire at all.
  */
 export function FlightBoard({
+  leadership = false,
   cards,
   locked,
   canEdit,
@@ -38,6 +43,9 @@ export function FlightBoard({
   cards: FlightCard[];
   locked: boolean;
   canEdit: boolean;
+  /** Show captain/vice pickers — league furniture, only when the weekly
+   *  question is asked. */
+  leadership?: boolean;
   /** Whether the organizer has signed the draw off. */
   confirmed: boolean;
 }) {
@@ -247,6 +255,33 @@ export function FlightBoard({
                 <span className="text-muted" style={{ fontSize: 11, flex: "none" }}>
                   {g.players.length} · avg {g.avg}
                 </span>
+              </div>
+            )}
+
+            {/* Leadership lives with the flight, not the round: a captain
+                leads these people all season. Both pickers only offer the
+                flight's own members — the server refuses anyone else, and a
+                menu that offers what the server refuses is a lie. */}
+            {leadership && g.players.length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                {(["captain", "vice"] as const).map((role) => (
+                  <label key={role} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
+                    <span className="text-muted">{role === "captain" ? "Captain" : "Vice"}</span>
+                    <select
+                      className="input"
+                      style={{ width: "auto", fontSize: 11.5, padding: "2px 6px" }}
+                      value={(role === "captain" ? g.captainId : g.viceCaptainId) ?? ""}
+                      onChange={(e) =>
+                        startTransition(() => void setFlightCaptain(g.id, e.target.value || null, role))
+                      }
+                    >
+                      <option value="">—</option>
+                      {g.players.map((pl) => (
+                        <option key={pl.id} value={pl.id}>{pl.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
               </div>
             )}
 

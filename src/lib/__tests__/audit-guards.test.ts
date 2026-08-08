@@ -413,3 +413,28 @@ describe("the console refuses impossible match margins", () => {
     expect(body.slice(0, 1200)).toMatch(/lead > total/);
   });
 });
+
+describe("league attendance answers are scoped like scores", () => {
+  const src = readFileSync(join(process.cwd(), "src/app/actions/attendance.ts"), "utf8");
+
+  it("a player answers for themself, by registration email", () => {
+    expect(src).toMatch(/own\.has\(playerId\)/);
+    expect(src).toMatch(/email: \{ equals: email, mode: "insensitive" \}/);
+    expect(src).toMatch(/You can only answer for yourself/);
+  });
+
+  it("the opt deadline binds players and never staff", () => {
+    const fn = src.slice(src.indexOf("export async function setAttendance"));
+    expect(fn).toMatch(/if \(!isStaff\) \{[\s\S]*?playerMayChange\(stage\.optDeadline\)/);
+  });
+
+  it("captains and vices must be members of the flight they lead", () => {
+    expect(src).toMatch(/eventId: session\.eventId, groupId/);
+    expect(src).toMatch(/has to be a member of the flight/);
+  });
+
+  it("every write is scoped to the session's event", () => {
+    expect(src).toMatch(/where: \{ id: stageId, eventId: session\.eventId \}/);
+    expect(src).toMatch(/where: \{ id: groupId, eventId: session\.eventId \}/);
+  });
+});
