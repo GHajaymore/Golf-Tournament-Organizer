@@ -844,12 +844,13 @@ export function ScoreEntryClient({
                             {firstName(name)}
                             <button
                               type="button"
-                              className="btn btn-icon"
+                              className="btn btn-secondary"
                               onClick={() => toggleListenStrokes(slot)}
                               title={`Dictate ${firstName(name)}'s scores`}
-                              style={{ width: 20, height: 20, padding: 0, ...(listening === `hcp-${slot}` ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : {}) }}
+                              style={{ fontSize: 11, padding: "2px 7px", whiteSpace: "nowrap", ...(listening === `hcp-${slot}` ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : {}) }}
                             >
-                              <i className={listening === `hcp-${slot}` ? "ph-fill ph-microphone" : "ph ph-microphone"} style={{ fontSize: 11 }} />
+                              <i className={listening === `hcp-${slot}` ? "ph-fill ph-microphone" : "ph ph-microphone"} style={{ fontSize: 11 }} />{" "}
+                              {listening === `hcp-${slot}` ? "Listening…" : "Voice"}
                             </button>
                           </td>
                           {front.map((i) => (
