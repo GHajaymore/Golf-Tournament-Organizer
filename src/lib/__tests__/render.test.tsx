@@ -72,6 +72,7 @@ import { FlightBoard, type FlightCard } from "@/components/FlightBoard";
 import { FoursomeMaker } from "@/components/FoursomeMaker";
 import { CutControl } from "@/components/CutControl";
 import { ScoreImport } from "@/components/ScoreImport";
+import { TeeSheetPrint } from "@/components/TeeSheetPrint";
 import { CourseSetupPrompt } from "@/components/CourseSetupPrompt";
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
 import { RoundDeadlineControl } from "@/components/RoundDeadlineControl";
@@ -1084,5 +1085,43 @@ describe("bulk score import", () => {
     // The button reads as inert rather than inviting a click that does nothing.
     const html = render(<ScoreImport stageId="s1" format="Stroke Play" holes={18} field={field} />);
     expect(html).toContain("disabled");
+  });
+});
+
+describe("printed foursome cards", () => {
+  const groups = [
+    { name: "Group 1", startHole: 1, time: "8:00 AM", players: [{ name: "Ann Doyle", handicap: 8 }, { name: "Rob Ferris", handicap: 14 }] },
+    { name: "Group 2", startHole: 10, time: "8:00 AM", players: [{ name: "M. Ndlovu", handicap: 3 }] },
+  ];
+  const base = {
+    groups,
+    clubName: "Cinci Desi Golf",
+    courseName: "CDG Home Course",
+    dates: "May 3 – Sep 30, 2026",
+    roundLabel: "Round 1",
+    pars: new Array(18).fill(4),
+    strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
+    holes: 18,
+  };
+
+  it("carries club, course, date and tee time on every card", () => {
+    // A card without its provenance is a page of numbers — this is the whole
+    // point of merging printing into the sheet of record.
+    const html = render(<TeeSheetPrint {...base} />);
+    expect(html).toContain("Cinci Desi Golf");
+    expect(html).toContain("CDG Home Course");
+    expect(html).toContain("May 3 – Sep 30, 2026");
+    expect(html).toContain("Hole 10 · 8:00 AM");
+  });
+
+  it("gives every player a row with their handicap, and a marker line", () => {
+    const html = render(<TeeSheetPrint {...base} />);
+    expect(html).toContain("Ann Doyle");
+    expect(html).toContain("(14)");
+    expect(html).toContain("Marker");
+  });
+
+  it("renders nothing at all with no saved sheet", () => {
+    expect(render(<TeeSheetPrint {...base} groups={[]} />)).toBe("");
   });
 });

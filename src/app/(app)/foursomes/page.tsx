@@ -8,6 +8,9 @@ import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
 import { resolveAttendance, type AttendanceMode } from "@/lib/domain/attendance";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { TeeSheetPrint } from "@/components/TeeSheetPrint";
+import { resolveCourse } from "@/lib/courses";
+import { brandForEvent } from "@/lib/services/organization";
 
 export default async function FoursomesPage() {
   await requireScreen("foursomes");
@@ -35,6 +38,24 @@ export default async function FoursomesPage() {
         .map((r) => ({ playerId: r.player.id, position: r.rank }));
 
   const holes = playingStages(state.stages)[0]?.holes === 9 ? 9 : 18;
+
+  // Printed cards come from the SAVED sheet, never the on-screen preview —
+  // the preview reshuffles on every visit, and a card has to match what was
+  // announced. No saved sheet, no print button.
+  const savedSheet = state.activeStage ? parseTeeSheet(state.activeStage.teeSheet) : null;
+  const course = resolveCourse(state.event);
+  const brand = await brandForEvent(session.eventId);
+  const nameOf = new Map(state.confirmed.map((p) => [p.id, p]));
+  const printGroups = (savedSheet?.groups ?? []).map((g) => ({
+    name: g.name,
+    startHole: g.startHole,
+    half: g.half,
+    time: g.time,
+    players: g.playerIds
+      .map((id) => nameOf.get(id))
+      .filter((pl): pl is NonNullable<typeof pl> => !!pl)
+      .map((pl) => ({ name: pl.name, handicap: pl.handicap })),
+  }));
 
   // A league tee sheet is drawn from the week's attendees, not the season's
   // roster. Outside league mode this filter is the identity — every confirmed
@@ -78,6 +99,16 @@ export default async function FoursomesPage() {
         stageId={state.activeStage?.id ?? ""}
         savedAt={state.activeStage ? parseTeeSheet(state.activeStage.teeSheet)?.savedAt ?? "" : ""}
         published={state.activeStage?.teeSheetPublished ?? false}
+      />
+      <TeeSheetPrint
+        groups={printGroups}
+        clubName={brand?.name ?? ""}
+        courseName={course.name || state.event.course}
+        dates={state.event.dates}
+        roundLabel={`Round ${Math.max(1, playingStages(state.stages).findIndex((r) => r.id === state.activeStage?.id) + 1)}`}
+        pars={course.pars}
+        strokeIndex={course.strokeIndex}
+        holes={holes}
       />
     </>
   );
