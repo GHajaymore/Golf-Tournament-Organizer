@@ -80,7 +80,7 @@ export default async function EventPage() {
       href: "/stages",
     },
     {
-      label: "Flights & divisions",
+      label: "Flights",
       detail:
         state.groups.length > 0
           ? `${state.groups.length} flights · ${hasSchedule ? "schedule generated" : "schedule not generated yet"}`

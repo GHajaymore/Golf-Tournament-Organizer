@@ -304,9 +304,17 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   }
 
   const playRounds = playingStages(stages);
+  // The current round is the latest round that actually has matches to score.
+  // Taking the last stage unconditionally sent score entry to a Round 2 that
+  // existed but hadn't been generated yet — "No matches yet" — while Round 1
+  // sat fully scheduled one dropdown away. An organizer mid-tournament reads
+  // that as the app being broken, because from where they stand it is.
+  const stagesWithMatches = new Set(matches.map((m) => m.stageId));
+  const latestActive = [...rrStages].reverse().find((s) => stagesWithMatches.has(s.id)) ?? null;
   // Falls back to the last played round so a tournament made only of medal
   // rounds still has a "current round" for the dashboard and score entry.
-  const activeStage = rrStages[rrStages.length - 1] ?? playRounds[playRounds.length - 1] ?? null;
+  const activeStage =
+    latestActive ?? rrStages[rrStages.length - 1] ?? playRounds[playRounds.length - 1] ?? null;
   const rrMatches = activeStage ? matches.filter((m) => m.stageId === activeStage.id) : [];
   const domainMatches = activeDomainMatches;
 

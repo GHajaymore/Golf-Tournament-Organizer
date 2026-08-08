@@ -293,7 +293,7 @@ export function ScoreEntryClient({
         <span className="card-title">No matches yet</span>
         <p className="text-muted" style={{ fontSize: 13 }}>
           {isStaff ? (
-            <>Generate flights on the <Link href="/grouping">Flights & divisions</Link> screen to create the round-robin schedule.</>
+            <>Generate flights on the <Link href="/grouping">Flights</Link> screen to create the round-robin schedule.</>
           ) : (
             "The schedule hasn't been generated yet — check back once flights are set."
           )}
