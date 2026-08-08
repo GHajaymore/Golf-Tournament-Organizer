@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The adaptive icon's background layer. White was the Android template
+     default and left the mark floating on a colour the brand never uses;
+     this is --color-bg, the same ground the tile and iOS icons sit on. -->
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <color name="ic_launcher_background">#16181A</color>
 </resources>

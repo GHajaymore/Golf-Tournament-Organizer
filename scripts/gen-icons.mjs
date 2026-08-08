@@ -1,41 +1,102 @@
-// Rasterize the Flights mark into the PNG icons a PWA needs (install + Apple).
-// Run: node scripts/gen-icons.mjs
+// Rasterize the TourneyHQ mark into every icon the web app and the two
+// store builds need. Run: node scripts/gen-icons.mjs
+//
+// This file used to draw a different logo entirely — a dashed ball-flight arc
+// rising to a circle, from when the product was called Flights. The mark was
+// redrawn as a flagstick over a green precisely because the arc read as an
+// airline, and Logo.tsx still says so; but nothing regenerated the icons, so
+// the PWA, the Android launcher and the iOS home screen all kept shipping the
+// rejected one. The paths below are the component's, scaled — if the mark
+// changes again, change it here and re-run, and everything follows.
 import sharp from "sharp";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pub = join(root, "public");
-mkdirSync(pub, { recursive: true });
+const androidRes = join(root, "android/app/src/main/res");
+const iosIcons = join(root, "ios/App/App/Assets.xcassets/AppIcon.appiconset");
 
-// The mark at 512, scaled 16x from the 32-unit component viewBox.
-const markPaths = `
-  <path d="M64 408 H152" stroke="#e9e9ed" stroke-width="26" stroke-linecap="round" opacity="0.45"/>
-  <path d="M112 400 Q224 96 416 136" stroke="#f2872e" stroke-width="34" stroke-linecap="round" stroke-dasharray="3.2 64" fill="none"/>
-  <circle cx="416" cy="136" r="48" fill="#e9e9ed"/>`;
+// Brand colours, resolved. The component uses CSS custom properties, which an
+// SVG rasterizer cannot see, so the values are written out here.
+const GROUND = "#16181a"; // --color-bg
+const FLAG = "#5fb484"; // --color-accent-2-400: lifted one step off the
+//                          in-app green, which goes muddy at 48px
+const BALL = "#f2862e"; // --color-accent
+const EDGE = "#55605a"; // green's rim, brightened for small sizes
 
-const tile = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#161826"/>${markPaths}
-</svg>`;
+/**
+ * The mark on a 512 grid — Logo.tsx's 32-unit viewBox scaled 16x.
+ * Flagstick and flag top-right, putting surface below, ball on the green.
+ */
+const mark = `
+  <path d="M320 64 V288" stroke="${FLAG}" stroke-width="28.8" stroke-linecap="round"/>
+  <path d="M320 72 L440 120 L320 168 Z" fill="${FLAG}"/>
+  <ellipse cx="256" cy="352" rx="128" ry="54.4" fill="${GROUND}" stroke="${EDGE}" stroke-width="16"/>
+  <circle cx="192" cy="312" r="54.4" fill="${BALL}"/>`;
 
-// Maskable: full-bleed, mark inset to the ~66% safe zone.
-const maskable = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#161826"/>
-  <g transform="translate(87,87) scale(0.66)">${markPaths}</g>
-</svg>`;
+const svg = (body, size = 512) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512">${body}</svg>`;
 
-// Apple touch icon: square (iOS applies its own rounding), dark ground.
-const apple = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#161826"/>${markPaths}
-</svg>`;
+/** Rounded tile — the PWA install icon and the Android legacy launcher. */
+const tile = svg(`<rect width="512" height="512" rx="112" fill="${GROUND}"/>${mark}`);
+/** Square, because iOS applies its own corner radius and dislikes alpha. */
+const square = svg(`<rect width="512" height="512" fill="${GROUND}"/>${mark}`);
+/** Circular, for Android's round launcher. */
+const round = svg(`<circle cx="256" cy="256" r="256" fill="${GROUND}"/>${mark}`);
+/** Full bleed with the mark inside the ~66% safe zone every mask respects. */
+const maskable = svg(
+  `<rect width="512" height="512" fill="${GROUND}"/><g transform="translate(87,87) scale(0.66)">${mark}</g>`,
+);
+/** Android adaptive foreground: transparent, same safe zone, its own layer. */
+const adaptiveFg = svg(`<g transform="translate(87,87) scale(0.66)">${mark}</g>`);
+
+/** The favicon, at the component's own scale so it stays crisp at 16px. */
+const favicon = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="${GROUND}"/>
+  <path d="M20 4 V18" stroke="${FLAG}" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M20 4.5 L27.5 7.5 L20 10.5 Z" fill="${FLAG}"/>
+  <ellipse cx="16" cy="22" rx="8" ry="3.4" fill="${GROUND}" stroke="${EDGE}" stroke-width="1"/>
+  <circle cx="12" cy="19.5" r="3.4" fill="${BALL}"/>
+</svg>
+`;
+
+const png = (source, size, out) =>
+  sharp(Buffer.from(source)).resize(size, size).png().toFile(out);
+
+// Android launcher densities, as the platform names them.
+const DENSITIES = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
 
 async function main() {
-  await sharp(Buffer.from(tile)).resize(192, 192).png().toFile(join(pub, "icon-192.png"));
-  await sharp(Buffer.from(tile)).resize(512, 512).png().toFile(join(pub, "icon-512.png"));
-  await sharp(Buffer.from(maskable)).resize(512, 512).png().toFile(join(pub, "icon-maskable-512.png"));
-  await sharp(Buffer.from(apple)).resize(180, 180).png().toFile(join(pub, "apple-touch-icon.png"));
-  console.log("Generated PWA icons in public/.");
+  mkdirSync(pub, { recursive: true });
+
+  // Web / PWA
+  await png(tile, 192, join(pub, "icon-192.png"));
+  await png(tile, 512, join(pub, "icon-512.png"));
+  await png(maskable, 512, join(pub, "icon-maskable-512.png"));
+  await png(square, 180, join(pub, "apple-touch-icon.png"));
+  writeFileSync(join(root, "src/app/icon.svg"), favicon, "utf8");
+
+  // Android — legacy, round and adaptive foreground at every density.
+  for (const [density, size] of Object.entries(DENSITIES)) {
+    const dir = join(androidRes, `mipmap-${density}`);
+    mkdirSync(dir, { recursive: true });
+    await png(tile, size, join(dir, "ic_launcher.png"));
+    await png(round, size, join(dir, "ic_launcher_round.png"));
+    // The foreground layer is drawn larger: the system crops it to the mask.
+    await png(adaptiveFg, Math.round(size * 1.5), join(dir, "ic_launcher_foreground.png"));
+  }
+
+  // iOS wants one 1024 square with no alpha.
+  mkdirSync(iosIcons, { recursive: true });
+  await sharp(Buffer.from(square))
+    .resize(1024, 1024)
+    .flatten({ background: GROUND })
+    .png()
+    .toFile(join(iosIcons, "AppIcon-512@2x.png"));
+
+  console.log("Generated: PWA icons, favicon, Android mipmaps, iOS AppIcon.");
 }
 
 main().catch((e) => {
