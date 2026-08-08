@@ -261,7 +261,13 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
   const defaultTeeId = tees[0]?.id ?? null;
-  const courseHcp = courseHandicapMap(confirmed, teeRatings, defaultTeeId, activeHoles);
+  // Both conversions, so every consumer takes the one its own round calls
+  // for. One map keyed to the first round's hole count meant a tournament
+  // mixing an 18-hole round with a 9-hole one converted every handicap on
+  // the first round's setting, whichever card it was scoring.
+  const courseHcp18 = courseHandicapMap(confirmed, teeRatings, defaultTeeId, 18);
+  const courseHcp9 = courseHandicapMap(confirmed, teeRatings, defaultTeeId, 9);
+  const courseHcp = activeHoles === 9 ? courseHcp9 : courseHcp18;
   const hcpOf = (p: { id: string; handicap: number }) => courseHcp.get(p.id) ?? p.handicap;
   const waitlist = players.filter((p) => p.status === "waitlisted");
 
@@ -339,7 +345,11 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     // was quietly played off 100%.
     const cardStage = stageById.get(sc.stageId);
     const allowance = cardStage ? effectiveAllowance(cardStage.format, cardStage.handicapAllowance) : 100;
-    const handicap = playingHandicapFrom(handicapById.get(sc.playerId) ?? 0, allowance);
+    // The round's own setup says whether it is nine holes or eighteen, and the
+    // handicap conversion goes with the round — not with whichever round
+    // happened to come first in the tournament.
+    const chByRound = cardStage?.holes === 9 ? courseHcp9 : courseHcp18;
+    const handicap = playingHandicapFrom(chByRound.get(sc.playerId) ?? handicapById.get(sc.playerId) ?? 0, allowance);
     const a = strokeAgg.get(sc.playerId) ?? { gross: 0, thru: 0, parThru: 0, strokesReceived: 0, points: 0 };
     strokes.forEach((s, i) => {
       if (typeof s === "number" && s > 0) {

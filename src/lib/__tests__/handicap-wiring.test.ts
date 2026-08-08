@@ -148,3 +148,15 @@ describe("individual standings play off the Playing Handicap", () => {
     expect(src).toMatch(/const domainPlayers = confirmed\.map\(\(p\) => toDomainPlayer\(p, hcpOf\(p\)\)\)/);
   });
 });
+
+describe("handicap conversion follows each round's own hole count", () => {
+  it("resolves both conversions and picks per card", () => {
+    // A tournament mixing an 18-hole round with a 9-hole one used a single
+    // map keyed to whichever round came first, so the other round's cards
+    // were converted on the wrong hole count.
+    const src = read("src/lib/services/tournament.ts");
+    expect(src).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId, 18\)/);
+    expect(src).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId, 9\)/);
+    expect(src).toMatch(/cardStage\?\.holes === 9 \? courseHcp9 : courseHcp18/);
+  });
+});
