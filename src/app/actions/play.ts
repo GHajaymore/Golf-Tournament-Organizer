@@ -157,7 +157,22 @@ export async function savePlayMatchHoles(
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
     return { ok: false, error: "That match isn't in your round." };
   }
-  if (match.playerAId !== session.playerId && match.playerBId !== session.playerId) {
+  // Being "in" a match means being on one of its sides. In an individual
+  // format the sides are the two player columns; in a team format those are
+  // empty by design and the sides are teams — so checking the player columns
+  // alone refused every four-ball partner their own match. Same scoring-group
+  // rule as domain/attest.ts: the match decides who belongs, and membership of
+  // either side qualifies.
+  let inMatch = match.playerAId === session.playerId || match.playerBId === session.playerId;
+  if (!inMatch && (match.teamAId || match.teamBId)) {
+    const teamIds = [match.teamAId, match.teamBId].filter((id) => id !== "");
+    const membership = await prisma.teamMember.findFirst({
+      where: { playerId: session.playerId, teamId: { in: teamIds } },
+      select: { id: true },
+    });
+    inMatch = membership !== null;
+  }
+  if (!inMatch) {
     return { ok: false, error: "You can only enter scores for your own match." };
   }
 

@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { refusalFor } from "@/lib/services/limits";
 import {
-  isThemeKey, hexToHsl, isAppearance, FAIRWAY, SECONDARY_PRESETS, DEFAULT_APPEARANCE,
+  isThemeKey, hexToHsl, isAppearance, FAIRWAY, SECONDARY_PRESETS, DEFAULT_APPEARANCE, pairVerdict, type Appearance,
 } from "@/lib/themes";
 import { checkLogoUrl } from "@/lib/services/logo-check";
 import { isBrandDisplay } from "@/lib/brand";
@@ -232,6 +232,18 @@ export async function saveOrganizationTheme(
   }
 
   if (!isAppearance(appearance)) return { ok: false, error: "Unknown appearance." };
+
+  // The same rule the picker enforces, because the picker's gate means nothing
+  // here: a second colour indistinguishable from the accent erases the
+  // information it carries on every leaderboard.
+  const pair = pairVerdict({
+    accentKey: themeKey,
+    accentHex: themeHex,
+    secondaryKey,
+    secondaryHex,
+    appearance: appearance as Appearance,
+  });
+  if (pair.kind === "indistinct") return { ok: false, error: pair.message };
 
   await prisma.organization.update({
     where: { id: org.organizationId },

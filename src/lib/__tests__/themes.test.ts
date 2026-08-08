@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   THEME_PRESETS,
   DEFAULT_THEME,
@@ -31,6 +33,8 @@ import {
   themeCss,
   sunlightVerdict,
   type ClubTheme,
+  pairVerdict,
+  hueDistance,
 } from "../themes";
 
 describe("the preset list", () => {
@@ -645,5 +649,44 @@ describe("text sitting ON the accent", () => {
   it("is emitted as a token so the stylesheet doesn't have to derive it", () => {
     expect(themeVarsFor(DEFAULT_CLUB_THEME, DARK_GROUND)["--color-on-accent"]).toBe(DARK_GROUND.onAccent);
     expect(themeVarsFor(DEFAULT_CLUB_THEME, LIGHT_GROUND)["--color-on-accent"]).toBe(LIGHT_GROUND.onAccent);
+  });
+});
+
+describe("two colours have to read as two colours", () => {
+  it("measures hue distance the short way round the wheel", () => {
+    expect(hueDistance(350, 10)).toBe(20);
+    expect(hueDistance(0, 180)).toBe(180);
+    expect(hueDistance(27, 27)).toBe(0);
+  });
+
+  it("refuses a second colour indistinguishable from the accent", () => {
+    // Sunset (27°) against Bunker (42°): fifteen degrees apart, one colour on
+    // a phone in the sun — and "advancing" stops meaning anything.
+    const v = pairVerdict({ ...DEFAULT_CLUB_THEME, secondaryKey: "bunker" });
+    expect(v.kind).toBe("indistinct");
+  });
+
+  it("warns about an adjacent pair without refusing it", () => {
+    // A custom hex 30-odd degrees from sunset: legal, flagged.
+    const v = pairVerdict({ ...DEFAULT_CLUB_THEME, secondaryKey: "custom", secondaryHex: "#f2e422" });
+    expect(v.kind).toBe("close");
+  });
+
+  it("passes the stock pairing without comment", () => {
+    // Sunset orange and fairway green are the default for a reason.
+    expect(pairVerdict(DEFAULT_CLUB_THEME).kind).toBe("ok");
+  });
+
+  it("stays quiet when a hue cannot be known", () => {
+    // A half-typed custom hex is the picker's everyday state — nagging about
+    // a colour that doesn't exist yet would fire on every keystroke.
+    const v = pairVerdict({ ...DEFAULT_CLUB_THEME, secondaryKey: "custom", secondaryHex: "#zz" });
+    expect(v.kind).toBe("ok");
+  });
+
+  it("is enforced where it matters — on the save endpoint", () => {
+    const src = readFileSync(join(process.cwd(), "src/app/actions/organization.ts"), "utf8");
+    expect(src).toMatch(/pairVerdict\(/);
+    expect(src).toMatch(/pair\.kind === "indistinct"/);
   });
 });

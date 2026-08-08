@@ -341,3 +341,29 @@ describe("registration close / extend", () => {
     expect(client).not.toMatch(/const status = unlimited \? "Open · unlimited"/);
   });
 });
+
+describe("the event switcher never lists another club's tournaments", () => {
+  it("scopes the query to the user's accessible events", () => {
+    // This was an unscoped findMany: every signed-in user of any organization
+    // saw every club's event names, dates, venues and field sizes, and the
+    // switcher offered rows the actions then refused. The access list is the
+    // single source of what appears, exactly as it is for what switches.
+    const src = readFileSync(join(process.cwd(), "src/app/(app)/event/page.tsx"), "utf8");
+    expect(src).toMatch(/prisma\.event\.findMany\(\{\s*\n\s*where: \{ id: \{ in: \[\.\.\.accessible\.keys\(\)\] \} \}/);
+  });
+});
+
+describe("a four-ball partner may score their own match", () => {
+  it("checks team membership when the sides are teams", () => {
+    // Match.playerAId/playerBId are empty in a team format — the sides live in
+    // teamAId/teamBId. Checking only the player columns refused every partner
+    // in a four-ball their own match, while the comment above the guard still
+    // claimed "a match this player is actually in".
+    const src = read("play.ts");
+    const guard = src.slice(src.indexOf("savePlayMatchHoles"));
+    expect(guard).toMatch(/teamMember\.findFirst/);
+    expect(guard).toMatch(/teamId: \{ in: teamIds \}/);
+    // And the refusal still exists for genuine outsiders.
+    expect(guard).toMatch(/You can only enter scores for your own match/);
+  });
+});

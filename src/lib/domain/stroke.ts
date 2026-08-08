@@ -14,13 +14,34 @@ export interface StrokeCard {
 }
 
 /**
- * Standard USGA/R&A stroke allocation for a single hole: a player gets one
- * extra stroke per full 18 in their course handicap, plus one more on the
- * `h % 18` hardest holes by stroke index (1 = hardest, 18 = easiest).
+ * Standard USGA/R&A stroke allocation for a single hole: one stroke per full
+ * lap of the card in the course handicap, plus one more on the hardest
+ * `h % holeCount` holes by stroke index (1 = hardest).
+ *
+ * `holeCount` is the number of holes strokes are being spread across — 18 for
+ * a full round, 9 for a nine-hole one. It was hardcoded to 18, which quietly
+ * swallowed strokes in nine-hole rounds: a nine-hole course handicap of 10
+ * allocated only 9 (SI 1–9 once each, the tenth lost) instead of a second
+ * stroke landing on SI 1. Exactly the players the allowance exists for.
  */
-export function holeStrokesReceived(courseHandicap: number, strokeIndex: number): number {
+export function holeStrokesReceived(courseHandicap: number, strokeIndex: number, holeCount = 18): number {
   const h = Math.round(courseHandicap);
-  return Math.floor(h / 18) + (strokeIndex <= h % 18 ? 1 : 0);
+  const n = holeCount === 9 ? 9 : 18;
+  return Math.floor(h / n) + (strokeIndex <= h % n ? 1 : 0);
+}
+
+/**
+ * The wrap base for a round, from its stroke-index array.
+ *
+ * Snapped to the only cards golf is played on: nine holes or eighteen. Callers
+ * pass the round's own SI array, which the app slices to the round length — so
+ * nine means a nine-hole round, and anything else (including the short arrays
+ * tests use as shorthand) allocates on the standard eighteen. Inferring the
+ * base from the raw length made a one-hole fixture hand out eighteen strokes
+ * on one hole, which is not a competition anyone has played.
+ */
+export function allocationHoles(strokeIndexLength: number): 9 | 18 {
+  return strokeIndexLength === 9 ? 9 : 18;
 }
 
 /**
@@ -86,7 +107,7 @@ export function computeStrokeCard(
     // Allocate strokes per hole actually played, so net is accurate mid-round
     // (not the full handicap subtracted against a partial gross). Falls back
     // to a flat full-handicap split if course stroke-index data is unknown.
-    const holeStrokes = strokeIndex ? holeStrokesReceived(handicap, strokeIndex[i] ?? 18) : Math.round(handicap) / strokes.length;
+    const holeStrokes = strokeIndex ? holeStrokesReceived(handicap, strokeIndex[i] ?? 18, allocationHoles(strokeIndex.length)) : Math.round(handicap) / strokes.length;
     strokesReceived += holeStrokes;
     points += stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes);
   }

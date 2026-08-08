@@ -29,14 +29,21 @@ export default async function EventPage() {
   });
   const homeCourseId = org?.defaultCourseId ?? null;
 
+  // Access is per-event *or* inherited from running the organization, so this
+  // reads the same list the switch action authorizes against — checking
+  // Account rows alone hid a club admin's own tournaments from them.
+  //
+  // The access list is also the *only* source of events shown. This used to be
+  // an unscoped findMany over every organization's tournaments: any signed-in
+  // user saw every club's event names, dates, venues and field sizes, and the
+  // switcher offered rows the actions then refused — which is how "why can't I
+  // delete this tournament?" turned out to mean "why can I see it at all?".
+  const accessible = new Map((await accessibleEvents(session.email)).map((a) => [a.eventId, a.role]));
   const allEvents = await prisma.event.findMany({
+    where: { id: { in: [...accessible.keys()] } },
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { players: true } } },
   });
-  // Access is per-event *or* inherited from running the organization, so this
-  // has to read the same list the switch action authorizes against — checking
-  // Account rows alone hid a club admin's own tournaments from them.
-  const accessible = new Map((await accessibleEvents(session.email)).map((a) => [a.eventId, a.role]));
   const eventRows = allEvents.map((ev) => ({
     id: ev.id,
     name: ev.name,

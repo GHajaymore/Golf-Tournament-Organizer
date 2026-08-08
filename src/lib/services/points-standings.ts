@@ -1,3 +1,4 @@
+import { allocationHoles } from "../domain/stroke";
 import "server-only";
 import { prisma } from "../db";
 import { playSkins, type SkinsOutcome } from "../domain/skins";
@@ -113,7 +114,7 @@ export async function modifiedStablefordBoard(
     for (let h = 0; h < pars.length; h += 1) {
       const s = strokes[h];
       if (s == null || !Number.isFinite(s)) continue;
-      const shots = holeStrokesReceived(p.handicap, strokeIndex[h] ?? 18);
+      const shots = holeStrokesReceived(p.handicap, strokeIndex[h] ?? 18, allocationHoles(strokeIndex.length));
       points += modifiedStablefordForHole(s, pars[h] ?? 0, shots);
       gross += s;
       played += 1;

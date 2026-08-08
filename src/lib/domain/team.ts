@@ -10,7 +10,7 @@
 //   one ball, so there is one card and nothing to combine. What remains is the
 //   handicap, which is computed from the whole side.
 
-import { holeStrokesReceived, stablefordPointsForHole } from "./stroke";
+import { holeStrokesReceived, stablefordPointsForHole , allocationHoles } from "./stroke";
 
 export interface TeamMemberCard {
   playerId: string;
@@ -54,7 +54,7 @@ export function allocatedStrokes(
   strokeIndex: number[],
 ): number[] {
   const playing = Math.round((courseHandicap * allowancePct) / 100);
-  return strokeIndex.map((si) => holeStrokesReceived(playing, si));
+  return strokeIndex.map((si) => holeStrokesReceived(playing, si, allocationHoles(strokeIndex.length)));
 }
 
 /**
@@ -184,7 +184,7 @@ export function singleBallTeamCard(
       holes.push({ net: null, gross: null, playerId: "", points: 0 });
       continue;
     }
-    const shots = holeStrokesReceived(sidePlayingHandicap, strokeIndex[h] ?? 18);
+    const shots = holeStrokesReceived(sidePlayingHandicap, strokeIndex[h] ?? 18, allocationHoles(strokeIndex.length));
     const net = gross - shots;
     const points = stablefordPointsForHole(gross, pars[h] ?? 0, shots);
     holes.push({ net, gross, playerId: "", points });

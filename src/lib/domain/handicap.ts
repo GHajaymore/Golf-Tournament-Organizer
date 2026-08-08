@@ -150,6 +150,30 @@ export interface IndexHolder {
 }
 
 /**
+ * The index expressed for the holes actually being played (WHS Rule 6.1b).
+ *
+ * A Handicap Index describes eighteen holes. Playing nine, it is halved
+ * *before* the slope conversion — the nine-hole rating handles the course
+ * side, this handles the player side, and each covers exactly one of them:
+ *
+ *   - 18-hole index, 18-hole round: unchanged.
+ *   - 18-hole index,  9-hole round: halved. This was the missing case — the
+ *     rating was halved and the index was not, so every player with an
+ *     ordinary index received double their strokes in a nine-hole net round.
+ *   -  9-hole index,  9-hole round: unchanged (already a nine-hole number).
+ *   -  9-hole index, 18-hole round: doubled.
+ *
+ * Unrounded on purpose: courseHandicap() rounds once at the end, and rounding
+ * the half-index first would lose the .5 that decides a stroke.
+ */
+export function indexForHoles(handicap: number, handicapType: string | undefined, holes: number): number {
+  if (!Number.isFinite(handicap)) return 0;
+  const isNineIndex = handicapType === "9";
+  if (holes === 9) return isNineIndex ? handicap : handicap / 2;
+  return isNineIndex ? handicap * 2 : handicap;
+}
+
+/**
  * Course Handicaps for a whole field, in one place.
  *
  * Built as a map rather than converted at each call site on purpose. There are
@@ -171,10 +195,10 @@ export function courseHandicapMap(
   const out = new Map<string, number>();
   for (const p of players) {
     const raw = teesById.get(p.teeId ?? defaultTeeId ?? "") ?? null;
-    // A nine-hole index is already half an eighteen-hole one. Halving the
-    // rating as well would compound, so the index is doubled back to its
-    // eighteen-hole equivalent whenever the round is not itself nine holes.
-    const index = p.handicapType === "9" && holes !== 9 ? p.handicap * 2 : p.handicap;
+    // Index and rating are each converted to the holes being played, once.
+    // See indexForHoles for the four cases and the doubling bug the old
+    // one-case conversion caused.
+    const index = indexForHoles(p.handicap, p.handicapType, holes);
     const tee = raw && holes === 9 ? nineHoleTee(raw) : raw;
     out.set(p.id, courseHandicap(index, tee));
   }

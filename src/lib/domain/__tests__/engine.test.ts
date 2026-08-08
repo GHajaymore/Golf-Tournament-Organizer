@@ -384,3 +384,20 @@ describe("bracket", () => {
     expect(consolation[0].id).toBe("q8");
   });
 });
+
+describe("voice result attribution between prefix names", () => {
+  it("credits Samantha, not Sam, when Samantha wins", () => {
+    // Substring matching credited whoever was checked first: "samantha wins
+    // 3 and 2" contains "sam", so Sam took Samantha's match. Whole-word
+    // matching with the longer name tried first.
+    const r = parseResultTranscript("samantha wins 3 and 2", "Sam", "Samantha");
+    expect(r.winner).toBe("B");
+    expect(r.margin).toBe("3&2");
+  });
+
+  it("still hears the shorter name on its own", () => {
+    const r = parseResultTranscript("sam wins 2 up", "Sam", "Samantha");
+    expect(r.winner).toBe("A");
+    expect(r.margin).toBe("2 UP");
+  });
+});

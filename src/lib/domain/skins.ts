@@ -38,7 +38,7 @@ export interface SkinsOutcome {
   unclaimed: number;
 }
 
-import { holeStrokesReceived } from "./stroke";
+import { holeStrokesReceived , allocationHoles } from "./stroke";
 
 /**
  * Play out a skins game.
@@ -68,7 +68,7 @@ export function playSkins(
         if (gross == null || !Number.isFinite(gross)) return null;
         const shots =
           opts.net && opts.strokeIndex
-            ? holeStrokesReceived(p.courseHandicap, opts.strokeIndex[h] ?? 18)
+            ? holeStrokesReceived(p.courseHandicap, opts.strokeIndex[h] ?? 18, allocationHoles(opts.strokeIndex.length))
             : 0;
         return { playerId: p.playerId, score: gross - shots };
       })

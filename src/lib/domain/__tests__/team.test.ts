@@ -22,9 +22,12 @@ const member = (playerId: string, strokes: (number | null)[], courseHandicap: nu
 
 describe("allocatedStrokes", () => {
   it("applies the allowance before spreading, not after", () => {
-    // A 20 handicap at 90% is 18, which on this nine gives a stroke on every
-    // hole. Applying 90% per hole instead would round nine times and drift.
-    expect(allocatedStrokes(20, 90, SI_9)).toEqual([1, 1, 1, 1, 1, 1, 1, 1, 1]);
+    // A 20 nine-hole course handicap at 90% is 18 — two strokes on every one
+    // of these nine holes, the full allowance. The old expectation here was
+    // [1×9]: the wrap was hardcoded to eighteen, so half the strokes a
+    // nine-hole side was due simply vanished. Applying 90% per hole instead
+    // would round nine times and drift, which is the other half of the test.
+    expect(allocatedStrokes(20, 90, SI_9)).toEqual([2, 2, 2, 2, 2, 2, 2, 2, 2]);
   });
 
   it("gives strokes to the hardest holes first", () => {
@@ -55,8 +58,11 @@ describe("aggregate team card (four-ball / best ball)", () => {
     // Gross, the scratch player's 4 wins the hole. With a shot on stroke index
     // 1, the higher handicapper's 5 becomes a net 4 and ties — and the gross
     // tiebreak then credits the genuinely better score rather than roster order.
+    // A nine-hole course handicap of 9 is one stroke per hole over this nine.
+    // (The fixture used to say 18 and still expect one stroke — that was the
+    // eighteen-hole wrap leaking into a nine-hole card.)
     const scratch = member("scratch", [4, null, null, null, null, null, null, null, null], 0);
-    const bogey = member("bogey", [5, null, null, null, null, null, null, null, null], 18);
+    const bogey = member("bogey", [5, null, null, null, null, null, null, null, null], 9);
     const card = aggregateTeamCard([scratch, bogey], PARS_9, SI_9, 100);
     expect(card.holes[0].net).toBe(4);
     expect(card.holes[0].playerId).toBe("scratch");

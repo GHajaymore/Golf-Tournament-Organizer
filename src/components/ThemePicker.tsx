@@ -12,6 +12,10 @@ import {
   resolveSecondary,
   customPreset,
   sunlightVerdict,
+  pairVerdict,
+  hueDistance,
+  themeHue,
+  DEFAULT_CLUB_THEME,
   type ThemePreset,
   type Appearance,
   type ClubTheme,
@@ -86,27 +90,34 @@ export function ThemePicker({
   // every colour as it appears in dark mode.
   const ground = groundFor(draft.appearance === "dark" ? "dark" : "light");
   const sun = sunlightVerdict(draft);
+  const pair = pairVerdict(draft);
+  const accentHue = themeHue(draft.accentKey, draft.accentHex);
 
   const Swatch = ({
     preset,
     selected,
     onPick,
+    disabledReason,
   }: {
     preset: ThemePreset;
     selected: boolean;
     onPick: () => void;
+    /** Set when this swatch can't do its job against the current accent. */
+    disabledReason?: string;
   }) => {
     const s = themeScale(preset, ground);
     return (
       <button
         type="button"
-        disabled={pending || readOnly}
+        disabled={pending || readOnly || !!disabledReason}
+        title={disabledReason}
         onClick={onPick}
         style={{
           textAlign: "left",
           padding: "10px 12px",
           borderRadius: 10,
-          cursor: readOnly ? "default" : "pointer",
+          cursor: readOnly || disabledReason ? "default" : "pointer",
+          opacity: disabledReason ? 0.4 : 1,
           color: ground.text,
           background: selected ? s[900] : ground.bg,
           border: `1px solid ${selected ? s[500] : `color-mix(in srgb, ${ground.text} 16%, transparent)`}`,
@@ -244,14 +255,24 @@ export function ThemePicker({
           Fairway — it reads as the colour of the game rather than of any one club.
         </p>
         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-          {SECONDARY_PRESETS.map((p) => (
-            <Swatch
-              key={p.key}
-              preset={p}
-              selected={draft.secondaryKey === p.key}
-              onPick={() => set({ secondaryKey: p.key, secondaryHex: "" })}
-            />
-          ))}
+          {SECONDARY_PRESETS.map((p) => {
+            // A second colour under 24° from the accent is the accent, as far
+            // as a leaderboard in daylight is concerned — so it can't be
+            // picked, and the swatch says why instead of just dimming.
+            const clash =
+              accentHue !== null && hueDistance(accentHue, p.hue) < 24 && draft.secondaryKey !== p.key
+                ? `Too close to ${draft.accentKey === "custom" ? "your accent colour" : "the accent"} to read as a second colour.`
+                : undefined;
+            return (
+              <Swatch
+                key={p.key}
+                preset={p}
+                selected={draft.secondaryKey === p.key}
+                onPick={() => set({ secondaryKey: p.key, secondaryHex: "" })}
+                disabledReason={clash}
+              />
+            );
+          })}
         </div>
         <HexField
           label="Second colour hex"
@@ -288,12 +309,65 @@ export function ThemePicker({
         </div>
       )}
 
+      {pair.kind !== "ok" && (
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-start",
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: pair.kind === "indistinct"
+              ? "color-mix(in srgb, var(--color-danger, #e0665a) 10%, transparent)"
+              : "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+            border: pair.kind === "indistinct"
+              ? "1px solid color-mix(in srgb, var(--color-danger, #e0665a) 35%, transparent)"
+              : "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
+          }}
+        >
+          <i className="ph ph-palette" style={{ fontSize: 15, marginTop: 1 }} />
+          <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+            {pair.message}
+            {pair.kind === "indistinct" && " Pick a second colour further from the accent to save."}
+          </p>
+        </div>
+      )}
+
       {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
 
       {!readOnly && (
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button type="button" className="btn btn-primary" disabled={pending || !dirty} onClick={save}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={pending || !dirty || pair.kind === "indistinct"}
+            onClick={save}
+          >
             {pending ? "Saving…" : saved && !dirty ? "Saved" : "Save theme"}
+          </button>
+          {/* The way back to the stock look. Restores every field at once —
+              including a stored custom hex, which switching presets alone
+              leaves behind to resurrect on the next "custom" click. */}
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={
+              pending ||
+              (draft.accentKey === DEFAULT_CLUB_THEME.accentKey &&
+                draft.accentHex === DEFAULT_CLUB_THEME.accentHex &&
+                draft.secondaryKey === DEFAULT_CLUB_THEME.secondaryKey &&
+                draft.secondaryHex === DEFAULT_CLUB_THEME.secondaryHex &&
+                draft.appearance === DEFAULT_CLUB_THEME.appearance)
+            }
+            onClick={() => {
+              setDraft({ ...DEFAULT_CLUB_THEME });
+              setAccentHexDraft("#1b4d3e");
+              setSecondaryHexDraft("#1b4d3e");
+              setSaved(false);
+              setError("");
+            }}
+          >
+            Back to default (Sunset + Fairway)
           </button>
           {dirty && (
             <button

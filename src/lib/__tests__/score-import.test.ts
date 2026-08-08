@@ -242,3 +242,27 @@ describe("nine-hole rounds", () => {
     expect(r.strokeRows[0].strokes).toHaveLength(9);
   });
 });
+
+describe("a margin has to describe a possible result", () => {
+  it("refuses 2&3 and suggests the transposition", () => {
+    // Up by two with three to play is not a closed-out match. Imported as
+    // typed, the standings read it as still in progress forever.
+    const csv = "Player A,Player B,Winner,Margin\nAlex Vaughn,Sam Okafor,Alex Vaughn,2&3";
+    const r = parseScoreCsv(csv, "match-results", FIELD);
+    expect(r.ready).toBe(0);
+    expect(r.problems[0].message).toContain("3&2");
+  });
+
+  it("refuses a margin bigger than the round", () => {
+    const csv = "Player A,Player B,Winner,Margin\nAlex Vaughn,Sam Okafor,Alex Vaughn,19&1";
+    const r = parseScoreCsv(csv, "match-results", FIELD);
+    expect(r.ready).toBe(0);
+    expect(r.problems[0].message).toContain("18 holes");
+  });
+
+  it("accepts the record 10&8, which looks wrong and isn't", () => {
+    const csv = "Player A,Player B,Winner,Margin\nAlex Vaughn,Sam Okafor,Alex Vaughn,10&8";
+    const r = parseScoreCsv(csv, "match-results", FIELD);
+    expect(r.ready).toBe(1);
+  });
+});

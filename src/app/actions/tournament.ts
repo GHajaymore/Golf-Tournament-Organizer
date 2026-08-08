@@ -1929,7 +1929,13 @@ export async function importScores(
         problems.push("A row named someone who isn't in this tournament's field.");
         continue;
       }
-      const strokes = Array.isArray(row.strokes) ? row.strokes : [];
+      // Coerced hole by hole, never stored as-given: this is a public endpoint
+      // and the parser's checks ran in the caller's browser, which proves
+      // nothing here. A stroke is an integer a golf hole can produce or null;
+      // the card is capped at the sizes a card can be.
+      const strokes = (Array.isArray(row.strokes) ? row.strokes : [])
+        .slice(0, 18)
+        .map((v) => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 30 ? v : null));
       await prisma.scorecard.upsert({
         where: { stageId_playerId: { stageId, playerId: row.playerId } },
         update: { strokes: JSON.stringify(strokes) },
@@ -1956,7 +1962,12 @@ export async function importScores(
     const flip = (r: HoleResult): HoleResult => (r === "A" ? "B" : r === "B" ? "A" : r);
 
     if (shape === "hole-results") {
-      const holes = (Array.isArray(row.holes) ? row.holes : []).map((h) => (flipped ? flip(h) : h));
+      // Same rule as the strokes shape: a hole result is A, B, H or null, and
+      // a card has at most eighteen of them — anything else from the caller is
+      // dropped rather than stored.
+      const holes = (Array.isArray(row.holes) ? row.holes : [])
+        .slice(0, 18)
+        .map((h) => (h === "A" || h === "B" || h === "H" ? (flipped ? flip(h) : h) : null));
       await prisma.match.updateMany({
         where: { id: found.id, eventId },
         data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },

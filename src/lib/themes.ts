@@ -686,3 +686,66 @@ export function sunlightVerdict(theme: ClubTheme): {
     suggestion,
   };
 }
+
+/* ── Do the two colours read as two colours? ─────────────────────────────── */
+
+/** Degrees between two hues, the short way round the wheel. */
+export function hueDistance(a: number, b: number): number {
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/** The hue a key/hex pair resolves to, or null when it can't be known. */
+export function themeHue(key: string, hex: string): number | null {
+  if (key === "custom") {
+    const hsl = hexToHsl(hex);
+    return hsl ? hsl.h : null;
+  }
+  const preset = SECONDARY_PRESETS.find((p) => p.key === key) ?? THEME_PRESETS.find((p) => p.key === key);
+  return preset ? preset.hue : null;
+}
+
+export type PairVerdict =
+  | { kind: "ok" }
+  | { kind: "close"; distance: number; message: string }
+  | { kind: "indistinct"; distance: number; message: string };
+
+/**
+ * Whether an accent and a second colour can do their jobs together.
+ *
+ * The second colour exists to mean something different from the first — it
+ * marks advancing players, scores under par, matches won. Contrast against the
+ * background is already guaranteed by the ramp, so the only way the pair can
+ * fail is against *each other*:
+ *
+ *  - Under 24° apart the two are the same colour to most eyes, and the same
+ *    colour to everyone on a phone in the sun. A leaderboard where "leading"
+ *    and "advancing" are indistinguishable has lost the information the
+ *    second colour was carrying — that pairing is refused.
+ *  - 24–45° reads as adjacent; some clubs genuinely wear it, so it warns and
+ *    lets them.
+ *  - Wider is fine, whatever anyone's taste says: taste belongs to the club.
+ */
+export function pairVerdict(theme: ClubTheme): PairVerdict {
+  const accent = themeHue(theme.accentKey, theme.accentHex);
+  const secondary = themeHue(theme.secondaryKey, theme.secondaryHex);
+  if (accent === null || secondary === null) return { kind: "ok" };
+  const distance = hueDistance(accent, secondary);
+  if (distance < 24) {
+    return {
+      kind: "indistinct",
+      distance,
+      message:
+        "These two are close enough to read as one colour — the second colour marks advancing players and scores under par, and it would vanish into the first.",
+    };
+  }
+  if (distance < 45) {
+    return {
+      kind: "close",
+      distance,
+      message:
+        "These sit close on the colour wheel. They stay distinguishable, but only just — worth a look at the preview before saving.",
+    };
+  }
+  return { kind: "ok" };
+}

@@ -19,12 +19,14 @@ describe("nine-hole rounds don't halve twice", () => {
     expect(full!.par).toBe(72);
   });
 
-  it("does not compound a 9-hole index with a 9-hole rating", () => {
-    // A player holding a 9-hole index of 7 has an 18-hole index of 14.
-    // Playing nine holes, the rating is halved and the index is not — halving
-    // both would give them roughly a quarter of the strokes they are due.
+  it("converts the index through the shared four-case rule", () => {
+    // One rule, one place. The old inline conversion handled only stored
+    // 9-hole indexes and silently doubled ordinary 18-hole indexes in
+    // nine-hole rounds — see nine-hole-index.test.ts for the behaviour.
     const src = read("src/lib/services/handicaps.ts");
-    expect(src).toMatch(/handicapType === "9" && holes !== 9 \? p\.handicap \* 2 : p\.handicap/);
+    expect(src).toMatch(/indexForHoles\(p\.handicap, p\.handicapType, holes\)/);
+    expect(src).toMatch(/indexForHoles\(player\.handicap, player\.handicapType, holes\)/);
+    expect(src).not.toMatch(/handicapType === "9" && holes !== 9/);
   });
 
   it("returns null for an absent tee rather than inventing a rating", () => {

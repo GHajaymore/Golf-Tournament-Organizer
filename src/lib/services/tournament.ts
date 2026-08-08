@@ -3,7 +3,7 @@ import { isPlayingRound } from "../stage-types";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { prisma } from "../db";
 import {
-  holeStrokesReceived, stablefordPointsForHole } from "../domain";
+  holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "../domain";
 import { resolveCourse } from "../courses";
 import { pts as fmtPts, record as fmtRecord, diff as fmtDiff } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
@@ -331,7 +331,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
         // Strokes are allocated per hole actually played (not the full
         // handicap against a partial gross), so "net" is accurate thru any
         // number of holes, not just once the round is complete.
-        const holeStrokes = holeStrokesReceived(handicap, holeDifficulty[i] ?? 18);
+        const holeStrokes = holeStrokesReceived(handicap, holeDifficulty[i] ?? 18, allocationHoles(holeDifficulty.length));
         a.strokesReceived += holeStrokes;
         a.points += stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes);
       }

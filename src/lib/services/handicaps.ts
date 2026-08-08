@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { courseHandicap, nineHoleTee, isRated, explainHandicap, type TeeRating } from "../domain/handicap";
+import { courseHandicap, nineHoleTee, isRated, explainHandicap, indexForHoles, type TeeRating } from "../domain/handicap";
 import { parseHoleArray } from "../courses";
 
 /**
@@ -68,9 +68,10 @@ export async function handicapsForRound(
   return players.map((p) => {
     const tee = teeById.get(p.teeId ?? defaultTeeId ?? "") ?? null;
     const rating = teeRatingFor(tee, holes);
-    // A 9-hole index is already half an 18-hole one, so it must not be halved
-    // again by the nine-hole rating — the two would compound.
-    const index = p.handicapType === "9" && holes !== 9 ? p.handicap * 2 : p.handicap;
+    // Index and rating are each converted to the holes being played, once.
+    // The old conversion only handled stored 9-hole indexes; an ordinary
+    // 18-hole index in a 9-hole round was never halved and got double strokes.
+    const index = indexForHoles(p.handicap, p.handicapType, holes);
     const e = explainHandicap(index, rating, allowancePct);
     return {
       playerId: p.id,
@@ -97,7 +98,7 @@ export async function courseHandicapForPlayer(
   if (!player) return 0;
   const teeId = player.teeId ?? defaultTeeId;
   const tee = teeId ? await prisma.tee.findUnique({ where: { id: teeId } }) : null;
-  const index = player.handicapType === "9" && holes !== 9 ? player.handicap * 2 : player.handicap;
+  const index = indexForHoles(player.handicap, player.handicapType, holes);
   return courseHandicap(index, teeRatingFor(tee, holes));
 }
 

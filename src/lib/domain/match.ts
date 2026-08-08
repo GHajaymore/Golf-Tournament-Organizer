@@ -2,7 +2,7 @@
 // Reproduces the "Standings Logic" section of the handoff README exactly.
 
 import type { HoleResult, Match } from "./types";
-import { holeStrokesReceived } from "./stroke";
+import { holeStrokesReceived , allocationHoles } from "./stroke";
 
 export interface MatchResolution {
   /** Holes with a non-null value. */
@@ -138,10 +138,18 @@ export function parseResultTranscript(
     return { winner: "H", margin: "AS" };
   }
 
+  // Whole-word match, longer name tried first. Substring matching credited
+  // the wrong player whenever one first name prefixed the other: "Samantha
+  // wins 3 and 2" contains "sam", and with A checked first, Sam got
+  // Samantha's match. Between two named people that is not a parsing quirk,
+  // it is the wrong result on the board.
   const a = aFirstName.toLowerCase();
   const b = bFirstName.toLowerCase();
-  if (a && t.includes(a)) winner = "A";
-  else if (b && t.includes(b)) winner = "B";
+  const said = (name: string) => name !== "" && new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(t);
+  const ordered: Array<["A" | "B", string]> = a.length >= b.length ? [["A", a], ["B", b]] : [["B", b], ["A", a]];
+  for (const [side, name] of ordered) {
+    if (said(name)) { winner = side; break; }
+  }
 
   const amp = t.match(/(\d+)\s*(?:&|and)\s*(\d+)/);
   const up = t.match(/(\d+)\s*up/);
@@ -199,8 +207,8 @@ export function matchStrokesGiven(
   // 4-handicapper. Net match play has been backwards, and the failure is
   // invisible on a card — the holes just go the wrong way.
   const diff = Math.round(handicapA) - Math.round(handicapB);
-  const toA = strokeIndex.map((si) => (diff > 0 ? holeStrokesReceived(diff, si) : 0));
-  const toB = strokeIndex.map((si) => (diff < 0 ? holeStrokesReceived(-diff, si) : 0));
+  const toA = strokeIndex.map((si) => (diff > 0 ? holeStrokesReceived(diff, si, allocationHoles(strokeIndex.length)) : 0));
+  const toB = strokeIndex.map((si) => (diff < 0 ? holeStrokesReceived(-diff, si, allocationHoles(strokeIndex.length)) : 0));
   return { toA, toB };
 }
 
