@@ -438,3 +438,27 @@ describe("league attendance answers are scoped like scores", () => {
     expect(src).toMatch(/where: \{ id: groupId, eventId: session\.eventId \}/);
   });
 });
+
+describe("the round-code result path carries every guard the hole path has", () => {
+  const src = readFileSync(join(process.cwd(), "src/app/actions/play.ts"), "utf8");
+  const fn = src.slice(src.indexOf("export async function savePlayMatchResult"));
+
+  it("requires a play session scoped to the match's round", () => {
+    expect(fn).toMatch(/getPlaySession/);
+    expect(fn).toMatch(/match\.stageId !== session\.stageId/);
+  });
+
+  it("requires membership, teams included", () => {
+    expect(fn).toMatch(/teamMember\.findFirst/);
+    expect(fn).toMatch(/You can only enter scores for your own match/);
+  });
+
+  it("refuses impossible margins with the transposition suggested", () => {
+    expect(fn).toMatch(/lead <= toPlay/);
+    expect(fn).toMatch(/did you mean/i);
+  });
+
+  it("reconstructs holes so a phoned-in result equals a tapped one", () => {
+    expect(fn).toMatch(/marginToHoles\(winner, margin, total\)/);
+  });
+});

@@ -6,6 +6,7 @@ import { createPlaySession, destroyPlaySession, getPlaySession } from "@/lib/pla
 import { settingsOf } from "@/lib/services/tournament";
 import { usesAccessCodes, canPlayerSavePartial } from "@/lib/tournament-settings";
 import { rateLimit, clearRateLimit, retryAfterText } from "@/lib/rate-limit";
+import { marginToHoles } from "@/lib/domain";
 
 /**
  * Redeeming a Round Code.
@@ -202,5 +203,95 @@ export async function savePlayMatchHoles(
   });
 
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * The result phoned in from the green: winner and margin, nothing else.
+ *
+ * The most-used quick path in real match play — "3&2" — brought to the
+ * round-code surface with exactly the checks the console path has: the same
+ * membership guard as savePlayMatchHoles, and the same refusal of margins
+ * that describe no possible match. It reconstructs holes via marginToHoles so
+ * a phoned-in result and a tapped-in card are identical downstream.
+ */
+/** Hole count from the stored holes array (9 or 18 depending on the round). */
+function matchHoleCount(holesJson: string): number {
+  try {
+    const parsed = JSON.parse(holesJson) as unknown[];
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed.length : 18;
+  } catch {
+    return 18;
+  }
+}
+
+export async function savePlayMatchResult(
+  matchId: string,
+  winner: "A" | "B" | "H",
+  margin: string,
+): Promise<ClaimResult> {
+  const session = await getPlaySession();
+  if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+
+  const [event, match] = await Promise.all([
+    prisma.event.findUnique({ where: { id: session.eventId } }),
+    prisma.match.findUnique({ where: { id: matchId } }),
+  ]);
+  if (!event || !match) return { ok: false, error: "Match not found." };
+  if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
+    return { ok: false, error: "That match isn't in your round." };
+  }
+
+  // Same membership rule as savePlayMatchHoles: player columns in an
+  // individual format, team membership in a team format.
+  let inMatch = match.playerAId === session.playerId || match.playerBId === session.playerId;
+  if (!inMatch && (match.teamAId || match.teamBId)) {
+    const teamIds = [match.teamAId, match.teamBId].filter((id) => id !== "");
+    const membership = await prisma.teamMember.findFirst({
+      where: { playerId: session.playerId, teamId: { in: teamIds } },
+      select: { id: true },
+    });
+    inMatch = membership !== null;
+  }
+  if (!inMatch) return { ok: false, error: "You can only enter scores for your own match." };
+
+  if (winner !== "A" && winner !== "B" && winner !== "H") {
+    return { ok: false, error: "Pick a winner, or halved." };
+  }
+
+  // "2&3" is not a match anyone has won; the transposition almost always is.
+  const total = matchHoleCount(match.holes);
+  const amp = /^(\d+)\s*&\s*(\d+)$/.exec(margin.trim().toUpperCase());
+  if (amp) {
+    const lead = parseInt(amp[1], 10);
+    const toPlay = parseInt(amp[2], 10);
+    if (lead <= toPlay) {
+      return {
+        ok: false,
+        error: `"${margin}" isn't a possible result — did you mean "${toPlay}&${lead}"?`,
+      };
+    }
+    if (lead > total) return { ok: false, error: `"${margin}" can't happen over ${total} holes.` };
+  }
+
+  const holes = marginToHoles(winner, margin, total);
+  await prisma.match.update({
+    where: { id: matchId },
+    data: {
+      holes: JSON.stringify(holes),
+      scoreStatus: "pending",
+      scoredAt: new Date(),
+      confirmedById: null,
+    },
+  });
+  await prisma.auditLog.create({
+    data: {
+      eventId: session.eventId,
+      matchId,
+      actor: session.playerName,
+      action: "score",
+      detail: `Result entered via round code: ${winner === "H" ? "halved" : margin || "1 UP"}`,
+    },
+  });
   return { ok: true };
 }

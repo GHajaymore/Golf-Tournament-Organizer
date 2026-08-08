@@ -677,12 +677,12 @@ export function ScoreEntryClient({
                 </span>
                 <button
                   type="button"
-                  className="btn btn-icon"
+                  className="btn btn-secondary"
                   onClick={toggleListenHoles}
-                  title="Dictate hole results"
                   style={listening === "holes" ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
                 >
-                  <i className={listening === "holes" ? "ph-fill ph-microphone" : "ph ph-microphone"} />
+                  <i className={listening === "holes" ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
+                  {listening === "holes" ? "Listening…" : "Voice entry"}
                 </button>
                 <span className="text-muted" style={{ fontSize: 12 }}>{listening === "holes" ? "Listening…" : "Say each hole's winner in order, e.g. “Alex, half, Sam”."}</span>
               </div>

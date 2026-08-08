@@ -166,12 +166,12 @@ export function StrokePlayEntry({
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
         <button
           type="button"
-          className="btn btn-icon"
+          className="btn btn-secondary"
           onClick={toggleListen}
-          title="Dictate scores"
           style={listening ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
         >
-          <i className={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />
+          <i className={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
+          {listening ? "Listening…" : "Voice entry"}
         </button>
         <span className="text-muted" style={{ fontSize: 12 }}>{listenHint}</span>
       </div>

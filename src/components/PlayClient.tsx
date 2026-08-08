@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles } from "@/app/actions/play";
+import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult } from "@/app/actions/play";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
 
@@ -63,6 +63,11 @@ export function PlayClient(props: Props) {
   // Local copy of the hole results, from the session holder's point of view.
   const [holes, setHoles] = useState<HoleResult[]>(props.match?.holes ?? []);
   const [saved, setSaved] = useState(false);
+  // Two ways a finished match arrives: tapped hole by hole as it was played,
+  // or phoned in from the green as "3&2". Both write the same record.
+  const [entryMode, setEntryMode] = useState<"holes" | "result">("holes");
+  const [resultWinner, setResultWinner] = useState<"me" | "them" | "halved">("me");
+  const [resultMargin, setResultMargin] = useState("");
 
   /* ── Step 1: enter the code ───────────────────────────────────────── */
 
@@ -249,6 +254,21 @@ export function PlayClient(props: Props) {
     });
   };
 
+  const saveResult = () => {
+    setError("");
+    startTransition(async () => {
+      // A-relative like everything stored: "me" flips when this player is B.
+      const w =
+        resultWinner === "halved" ? "H" : (resultWinner === "me") !== !!m.flipped ? "A" : "B";
+      const res = await savePlayMatchResult(m.id, w, resultMargin);
+      if (!res.ok) {
+        setError(res.error ?? "Couldn't save.");
+        return;
+      }
+      setSaved(true);
+    });
+  };
+
   const won = holes.filter((h) => h === "A").length;
   const lost = holes.filter((h) => h === "B").length;
   const halved = holes.filter((h) => h === "H").length;
@@ -267,6 +287,54 @@ export function PlayClient(props: Props) {
         </p>
       </div>
 
+      <div className="seg" style={{ marginBottom: 10 }}>
+        <label className="seg-opt">
+          <input type="radio" name="playmode" checked={entryMode === "holes"} onChange={() => setEntryMode("holes")} />
+          Hole by hole
+        </label>
+        <label className="seg-opt">
+          <input type="radio" name="playmode" checked={entryMode === "result"} onChange={() => setEntryMode("result")} />
+          Final result
+        </label>
+      </div>
+
+      {entryMode === "result" && (
+        <div className="card elev-sm" style={{ gap: 12 }}>
+          <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+            The finished match, straight from the green. This replaces anything tapped hole by hole.
+          </p>
+          <div className="seg" style={{ width: "100%" }}>
+            {(["me", "halved", "them"] as const).map((w) => (
+              <label key={w} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                <input type="radio" name="playwinner" checked={resultWinner === w} onChange={() => setResultWinner(w)} />
+                {w === "me" ? "I won" : w === "halved" ? "Halved" : "They won"}
+              </label>
+            ))}
+          </div>
+          {resultWinner !== "halved" && (
+            <div className="field">
+              <label>By how much</label>
+              <input
+                className="input"
+                value={resultMargin}
+                onChange={(e) => setResultMargin(e.target.value)}
+                placeholder={'e.g. "3&2", "2 UP", "1 UP"'}
+                inputMode="text"
+              />
+            </div>
+          )}
+          <button type="button" className="btn btn-primary" disabled={pending} onClick={saveResult}>
+            {pending ? "Saving…" : saved ? "Saved" : "Submit result"}
+          </button>
+          {error && (
+            <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+              <i className="ph ph-warning-circle" /> {error}
+            </p>
+          )}
+        </div>
+      )}
+
+      {entryMode === "holes" && (
       <div className="card elev-sm" style={{ gap: 10 }}>
         <div style={{ display: "flex", gap: 14, fontSize: 13 }}>
           <span><b>{won}</b> won</span>
@@ -343,6 +411,7 @@ export function PlayClient(props: Props) {
                 : "Save"}
         </button>
       </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
         <span className="text-muted" style={{ fontSize: 12 }}>Playing as {props.playerName}</span>
