@@ -638,7 +638,7 @@ export function ScoreEntryClient({
             {/* Which nine, when this round is 9 holes. Front and back carry
                 different pars and stroke indexes, so on a net match this
                 decides which holes a player receives shots on. */}
-            {totalHoles === 9 && venues.length > 1 && (
+            {totalHoles === 9 && (
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
                 <span className="text-muted">Nine</span>
                 <select
