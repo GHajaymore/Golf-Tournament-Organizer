@@ -1,0 +1,218 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/live/[token]",
+      "regex": "^/live/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPtoken": "nxtPtoken"
+      },
+      "namedRegex": "^/live/(?<nxtPtoken>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/access",
+      "regex": "^/access(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/access(?:/)?$"
+    },
+    {
+      "page": "/announcements",
+      "regex": "^/announcements(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/announcements(?:/)?$"
+    },
+    {
+      "page": "/bracket",
+      "regex": "^/bracket(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/bracket(?:/)?$"
+    },
+    {
+      "page": "/choose",
+      "regex": "^/choose(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/choose(?:/)?$"
+    },
+    {
+      "page": "/dashboard",
+      "regex": "^/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
+      "page": "/entry",
+      "regex": "^/entry(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/entry(?:/)?$"
+    },
+    {
+      "page": "/event",
+      "regex": "^/event(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/event(?:/)?$"
+    },
+    {
+      "page": "/foursomes",
+      "regex": "^/foursomes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/foursomes(?:/)?$"
+    },
+    {
+      "page": "/grouping",
+      "regex": "^/grouping(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/grouping(?:/)?$"
+    },
+    {
+      "page": "/icon.svg",
+      "regex": "^/icon\\.svg(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/icon\\.svg(?:/)?$"
+    },
+    {
+      "page": "/leaderboard",
+      "regex": "^/leaderboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/leaderboard(?:/)?$"
+    },
+    {
+      "page": "/manifest.webmanifest",
+      "regex": "^/manifest\\.webmanifest(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/manifest\\.webmanifest(?:/)?$"
+    },
+    {
+      "page": "/organization",
+      "regex": "^/organization(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/organization(?:/)?$"
+    },
+    {
+      "page": "/play",
+      "regex": "^/play(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/play(?:/)?$"
+    },
+    {
+      "page": "/prizes",
+      "regex": "^/prizes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/prizes(?:/)?$"
+    },
+    {
+      "page": "/qualification",
+      "regex": "^/qualification(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/qualification(?:/)?$"
+    },
+    {
+      "page": "/registration",
+      "regex": "^/registration(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/registration(?:/)?$"
+    },
+    {
+      "page": "/reports",
+      "regex": "^/reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/reports(?:/)?$"
+    },
+    {
+      "page": "/reset-password",
+      "regex": "^/reset\\-password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/reset\\-password(?:/)?$"
+    },
+    {
+      "page": "/roster",
+      "regex": "^/roster(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/roster(?:/)?$"
+    },
+    {
+      "page": "/scorecard",
+      "regex": "^/scorecard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/scorecard(?:/)?$"
+    },
+    {
+      "page": "/scoring",
+      "regex": "^/scoring(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/scoring(?:/)?$"
+    },
+    {
+      "page": "/series",
+      "regex": "^/series(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/series(?:/)?$"
+    },
+    {
+      "page": "/stages",
+      "regex": "^/stages(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/stages(?:/)?$"
+    },
+    {
+      "page": "/styleguide",
+      "regex": "^/styleguide(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/styleguide(?:/)?$"
+    },
+    {
+      "page": "/teams",
+      "regex": "^/teams(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/teams(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

@@ -3,7 +3,7 @@ import { getSession, type Session } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { settingsOf } from "@/lib/services/tournament";
-import { isAttendanceMode, playerMayChange } from "@/lib/domain/attendance";
+import { playerMayChange } from "@/lib/domain/attendance";
 import { isIsoDate } from "@/lib/deadline";
 
 /**

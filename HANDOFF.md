@@ -21,6 +21,19 @@ Written 2026-08-07. Read this first, then `git log` for detail.
   needs three props EntryModes lacks: who the session is, per-round playing
   handicaps, and the current standing — then a mic button reusing the existing
   SpeechRecognition pattern from ScoreEntryClient.
+- **Queued by the user overnight**, in their order:
+  1. Publish the tee sheet to players + merge scorecard printing into it.
+     These converge: the sheet is currently ephemeral (computed client-side,
+     never saved). Persist the draw once — a TeeSlot table or JSON on Stage —
+     and the player view, the published flag, and per-foursome printed cards
+     all read the same stored sheet.
+  2. Match-play entry modes for the round-code /play surface (hole-by-hole
+     gross, hole winner, match result — console has all three; /play has one).
+  3. Post-signup onboarding: revisit the landing workflow right after signup.
+  4. Voice-query mic wiring (engine done; needs identity + per-round PH +
+     standing passed to EntryModes).
+- Local production builds now work beside a dev server:
+  NEXT_DIST_DIR=.next-ci npx next build
 - Next feature in queue: net-per-hole score import (deterministic — gross =
   net + strokes received; the server knows the Playing Handicap per round).
   Points-only and totals-only imports are deliberately refused: neither can be
