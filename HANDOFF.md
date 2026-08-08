@@ -16,6 +16,11 @@ Written 2026-08-07. Read this first, then `git log` for detail.
 - Players can only write their own scores (assertOwnMatch/assertOwnCard in
   actions/tournament.ts, linked by registration email); the entry screen
   filters with the same rule.
+- Voice queries: parseVoiceQuery/answerVoiceQuery in domain/voice-query.ts are
+  built and tested (handicap / opponent / standing / score intents). UI wiring
+  needs three props EntryModes lacks: who the session is, per-round playing
+  handicaps, and the current standing — then a mic button reusing the existing
+  SpeechRecognition pattern from ScoreEntryClient.
 - Next feature in queue: net-per-hole score import (deterministic — gross =
   net + strokes received; the server knows the Playing Handicap per round).
   Points-only and totals-only imports are deliberately refused: neither can be
