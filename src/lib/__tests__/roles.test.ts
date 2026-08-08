@@ -88,7 +88,7 @@ describe("sidebar matches the guards", () => {
     // Conditional on the tournament's shape rather than the role: teams only
     // once a round plays a team format, qualification only when there is a
     // knockout to qualify for.
-    const CONDITIONAL = ["teams", "qualification"];
+    const CONDITIONAL = ["teams", "qualification", "bracket"];
     for (const role of ROLES) {
       const shown = navForRole(role, undefined, { hasTeamRound: true, hasKnockout: true }).flatMap((s) =>
         s.items.map((i) => i.key),
@@ -190,5 +190,34 @@ describe("qualification only appears when it has an answer", () => {
     // Hidden from the sidebar is not the same as forbidden — the guard is
     // still the role check, and a bookmarked link must still open.
     expect(canAccessScreen("admin", "qualification")).toBe(true);
+  });
+});
+
+describe("the sidebar only offers screens with something on them", () => {
+  it("hides Bracket when nothing feeds a knockout", () => {
+    // The dashboard tile has been gated on this since it existed; the sidebar
+    // link never was, so a weekly league carried a permanent door to an empty
+    // bracket.
+    const shown = navForRole("admin", undefined, { hasKnockout: false })
+      .flatMap((s) => s.items)
+      .map((i) => i.key);
+    expect(shown).not.toContain("bracket");
+    expect(shown).not.toContain("qualification");
+  });
+
+  it("shows both once a knockout exists", () => {
+    const shown = navForRole("admin", undefined, { hasKnockout: true })
+      .flatMap((s) => s.items)
+      .map((i) => i.key);
+    expect(shown).toContain("bracket");
+    expect(shown).toContain("qualification");
+  });
+
+  it("no longer offers Scorecards, which the tee sheet absorbed", () => {
+    // One entry point for printing cards, on the screen that owns the draw.
+    const shown = navForRole("admin", undefined, { hasKnockout: true, hasTeamRound: true })
+      .flatMap((s) => s.items)
+      .map((i) => i.key);
+    expect(shown).not.toContain("scorecard");
   });
 });

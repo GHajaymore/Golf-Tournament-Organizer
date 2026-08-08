@@ -56,7 +56,6 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
 
   // Manage — running the live competition.
   foursomes: ["admin", "assistant"],
-  scorecard: ["admin", "assistant"],
   entry: ["admin", "assistant", "player"],
   qualification: ["admin", "assistant"],
   bracket: ["admin", "assistant", "player"],

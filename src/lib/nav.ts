@@ -52,7 +52,6 @@ export const NAV: NavSection[] = [
     label: "Manage",
     items: [
       { key: "foursomes", label: "Tee sheet", href: "/foursomes", icon: "ph ph-users-four" },
-      { key: "scorecard", label: "Scorecards", href: "/scorecard", icon: "ph ph-cards" },
       { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple" },
       { key: "qualification", label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered" },
       { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure" },
@@ -94,6 +93,12 @@ export function navForRole(
     // at the last round already has the cut line and the leaderboard saying
     // the same thing in the place the decision is made.
     if (key === "qualification" && !opts.hasKnockout) return false;
+    // Same rule, same reason: a bracket is a knockout draw, so a league or a
+    // medal that ends at the last round has nothing to show. The dashboard
+    // tile has been gated on this since it existed (bracket-visibility.ts);
+    // the sidebar link never was, so every tournament carried a permanent
+    // door to an empty screen.
+    if (key === "bracket" && !opts.hasKnockout) return false;
     if (!settings) return true;
     // The bracket is seeded from live standings, so showing it in a blind
     // event would give away the order the leaderboard is hiding.

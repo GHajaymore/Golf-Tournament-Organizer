@@ -261,9 +261,6 @@ export function FoursomeMaker({
               <i className="ph ph-shuffle" /> Reshuffle
             </button>
           )}
-          <button type="button" className="btn btn-secondary" onClick={() => window.print()}>
-            <i className="ph ph-printer" /> Print
-          </button>
           {/* Saving turns the draw on screen into the round's sheet of
               record; publishing is the separate act of telling the field.
               Until saved, this screen is a sketch that vanishes on refresh —
