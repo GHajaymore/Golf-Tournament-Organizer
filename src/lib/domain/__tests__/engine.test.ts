@@ -401,3 +401,25 @@ describe("voice result attribution between prefix names", () => {
     expect(r.margin).toBe("2 UP");
   });
 });
+
+describe("margins on a nine-hole card", () => {
+  it("reconstructs 3&2 over nine holes", () => {
+    const holes = marginToHoles("A", "3&2", 9);
+    expect(holes).toHaveLength(9);
+    const r = resolveMatch(holes);
+    expect(r.winner).toBe("A");
+    expect(r.resultText).toBe("3&2");
+  });
+
+  it("reconstructs 2 UP through nine", () => {
+    const r = resolveMatch(marginToHoles("B", "2 UP", 9));
+    expect(r.winner).toBe("B");
+    expect(r.resultText).toBe("2 UP");
+  });
+
+  it("halves all nine on AS", () => {
+    const holes = marginToHoles("H", "AS", 9);
+    expect(holes.every((h) => h === "H")).toBe(true);
+    expect(resolveMatch(holes).resultText).toBe("AS");
+  });
+});

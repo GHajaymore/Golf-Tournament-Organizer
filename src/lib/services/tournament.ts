@@ -2,8 +2,9 @@ import "server-only";
 import { isPlayingRound } from "../stage-types";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { prisma } from "../db";
+import { effectiveAllowance } from "./teams";
 import {
-  holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "../domain";
+  holeStrokesReceived, stablefordPointsForHole, allocationHoles, playingHandicapFrom } from "../domain";
 import { resolveCourse } from "../courses";
 import { pts as fmtPts, record as fmtRecord, diff as fmtDiff } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
@@ -313,6 +314,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const isStroke = event.format === "stroke";
   const pars = course.pars;
   const handicapById = courseHcp;
+  const stageById = new Map(stages.map((s) => [s.id, s]));
   const strokeAgg = new Map<string, { gross: number; thru: number; parThru: number; strokesReceived: number; points: number }>();
   for (const sc of scorecards) {
     let strokes: (number | null)[];
@@ -321,7 +323,15 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     } catch {
       continue;
     }
-    const handicap = handicapById.get(sc.playerId) ?? 0;
+    // Playing Handicap, not Course Handicap: the format's allowance — 95% for
+    // an individual medal or Stableford under WHS Appendix C, or whatever the
+    // committee set on the round — applied to the strokes this card receives.
+    // The allowance existed in the format table and on the stage, and the team
+    // engines honoured it; the individual standings never did, so every medal
+    // was quietly played off 100%.
+    const cardStage = stageById.get(sc.stageId);
+    const allowance = cardStage ? effectiveAllowance(cardStage.format, cardStage.handicapAllowance) : 100;
+    const handicap = playingHandicapFrom(handicapById.get(sc.playerId) ?? 0, allowance);
     const a = strokeAgg.get(sc.playerId) ?? { gross: 0, thru: 0, parThru: 0, strokesReceived: 0, points: 0 };
     strokes.forEach((s, i) => {
       if (typeof s === "number" && s > 0) {

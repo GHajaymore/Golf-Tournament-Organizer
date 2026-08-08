@@ -129,3 +129,22 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     expect(actions).toMatch(/\?\? playerA\.handicap/);
   });
 });
+
+describe("individual standings play off the Playing Handicap", () => {
+  it("applies the stage's allowance to each scorecard", () => {
+    // The format table has carried 95% for an individual medal (WHS Appendix
+    // C) since it was written, and the team engines honoured it; the
+    // individual standings used the raw Course Handicap, so every medal ran
+    // off 100% and nobody could see why the numbers differed from the sheet.
+    const src = read("src/lib/services/tournament.ts");
+    expect(src).toMatch(/effectiveAllowance\(cardStage\.format, cardStage\.handicapAllowance\)/);
+    expect(src).toMatch(/playingHandicapFrom\(handicapById\.get\(sc\.playerId\) \?\? 0, allowance\)/);
+  });
+
+  it("leaves flight formation on the Course Handicap", () => {
+    // Flights measure ability; the allowance is a competition condition. The
+    // draw must not shrink because the medal plays at 95%.
+    const src = read("src/lib/services/tournament.ts");
+    expect(src).toMatch(/const domainPlayers = confirmed\.map\(\(p\) => toDomainPlayer\(p, hcpOf\(p\)\)\)/);
+  });
+});
