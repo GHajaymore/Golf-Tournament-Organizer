@@ -116,7 +116,10 @@ const STEPS: Array<{ n: string; title: string; text: string }> = [
 
 export default async function LoginPage() {
   const session = await getSession();
-  if (session) redirect("/dashboard");
+  // Straight after sign-up there is no tournament yet, and the dashboard has
+  // nothing to render without one — it would only bounce to /choose anyway.
+  // Sending them there directly saves a redirect through a dead screen.
+  if (session) redirect(session.eventId ? "/dashboard" : "/choose");
 
   return (
     <div

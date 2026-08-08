@@ -10,7 +10,8 @@ import { prisma } from "@/lib/db";
 import { EventSetupClient } from "@/components/EventSetupClient";
 import { EventSwitcher } from "@/components/EventSwitcher";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
-import { SetupChecklist, type ChecklistItem } from "@/components/SetupChecklist";
+import { SetupChecklist } from "@/components/SetupChecklist";
+import { setupChecklist } from "@/lib/services/checklist";
 
 
 export default async function EventPage() {
@@ -59,46 +60,7 @@ export default async function EventPage() {
     isOrganizer: accessible.get(ev.id) === "admin",
   }));
 
-  const hasSchedule = state.matches.length > 0;
-  const checklist: ChecklistItem[] = [
-    {
-      label: "Registration & field",
-      detail:
-        state.confirmed.length > 0
-          ? `${state.confirmed.length} confirmed${state.waitlist.length ? ` · ${state.waitlist.length} waitlisted` : ""}`
-          : "No players yet — open registration and add the field.",
-      done: state.confirmed.length > 0,
-      href: "/registration",
-    },
-    {
-      label: "Rounds & format",
-      detail:
-        state.stages.length > 0
-          ? `${state.stages.length} round${state.stages.length === 1 ? "" : "s"} configured`
-          : "No rounds yet — sequence the tournament.",
-      done: state.stages.length > 0,
-      href: "/stages",
-    },
-    {
-      label: "Flights",
-      detail:
-        state.groups.length > 0
-          ? `${state.groups.length} flights · ${hasSchedule ? "schedule generated" : "schedule not generated yet"}`
-          : "No flights yet — generate them from the confirmed field.",
-      done: state.groups.length > 0 && hasSchedule,
-      href: "/grouping",
-    },
-    {
-      label: "Access & staff",
-      detail:
-        state.accounts.length > 1
-          ? `${state.accounts.length - 1} additional staff account${state.accounts.length - 1 === 1 ? "" : "s"}`
-          : "Just you so far — invite assistants if you need help running it.",
-      done: state.accounts.length > 1,
-      href: "/access",
-      optional: true,
-    },
-  ];
+  const checklist = setupChecklist(state);
 
   return (
     <>
