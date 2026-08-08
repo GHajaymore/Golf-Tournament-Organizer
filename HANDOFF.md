@@ -21,17 +21,25 @@ Written 2026-08-07. Read this first, then `git log` for detail.
   needs three props EntryModes lacks: who the session is, per-round playing
   handicaps, and the current standing — then a mic button reusing the existing
   SpeechRecognition pattern from ScoreEntryClient.
-- **Queued by the user overnight**, in their order:
-  1. Publish the tee sheet to players + merge scorecard printing into it.
-     These converge: the sheet is currently ephemeral (computed client-side,
-     never saved). Persist the draw once — a TeeSlot table or JSON on Stage —
-     and the player view, the published flag, and per-foursome printed cards
-     all read the same stored sheet.
+- **Queued by the user overnight** — all cleared as of 2026-08-08:
+  1. ~~Publish the tee sheet to players + merge scorecard printing into it.~~ Done.
   2. Match-play entry modes for the round-code /play surface (hole-by-hole
      gross, hole winner, match result — console has all three; /play has one).
-  3. Post-signup onboarding: revisit the landing workflow right after signup.
-  4. Voice-query mic wiring (engine done; needs identity + per-round PH +
-     standing passed to EntryModes).
+     **Still open** — the only item from this list not finished.
+  3. ~~Post-signup onboarding.~~ Done (efadbb7): the dashboard leads with the
+     setup checklist while a tournament has no field, instead of a wall of
+     zeroes; quick actions now intersect the sidebar so the two cannot drift;
+     `/` sends an eventless session to /choose rather than through /dashboard.
+  4. ~~Voice-query mic wiring.~~ Done (f5a1adf): Ask button on score entry,
+     per-round Playing Handicap from the same path the leaderboard uses.
+     **Caveat worth knowing:** it is mounted on score entry, which players are
+     bounced out of when the tournament is organizer-scored — so in those
+     tournaments the people the mic is for cannot reach it. If that matters,
+     the dashboard is where players actually land.
+- ~~Net-per-hole score import.~~ Done (76f8438). Conversion is server-side, in
+  `importScores`, because the authoritative Playing Handicap depends on the
+  round's allowance, the player's tees and holes played. A round with no
+  stroke index is refused rather than converted at a flat rate.
 - Local production builds now work beside a dev server:
   NEXT_DIST_DIR=.next-ci npx next build
 - Next feature in queue: net-per-hole score import (deterministic — gross =
