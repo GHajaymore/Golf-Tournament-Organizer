@@ -5,6 +5,8 @@
 
 # next.js
 /.next/
+# Any alternate build dir (NEXT_DIST_DIR) — artifacts never belong in a public repo.
+/.next*/
 /out/
 next-env.d.ts
 
