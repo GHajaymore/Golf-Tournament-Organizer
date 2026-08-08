@@ -5,6 +5,7 @@ import {
   resolvePlayer,
   readHoleResult,
   importShapesFor,
+  isNetShape,
   templateCsv,
   IMPORT_SHAPES,
 } from "../domain/score-import";
@@ -191,15 +192,21 @@ describe("final results only", () => {
 });
 
 describe("which shapes a format accepts", () => {
-  it("gives match play all three", () => {
-    expect(importShapesFor("Match Play")).toEqual(["hole-results", "match-results", "strokes"]);
+  it("gives match play every shape, gross and net", () => {
+    expect(importShapesFor("Match Play")).toEqual([
+      "hole-results",
+      "match-results",
+      "strokes",
+      "net-strokes",
+    ]);
   });
 
-  it("gives a stroke-based round only strokes", () => {
-    // Same rule the entry screen follows — a Stableford round has no hole
-    // winner to import and no match margin to record.
+  it("gives a stroke-based round strokes only — gross or net, no hole winners", () => {
+    // Same rule the entry screen follows: a Stableford round has no hole
+    // winner to import and no match margin to record. Net is a different way
+    // of writing the same strokes, so it belongs to every format.
     for (const f of ["Stroke Play", "Stableford", "Skins", "Four-Ball"]) {
-      expect(importShapesFor(f), f).toEqual(["strokes"]);
+      expect(importShapesFor(f), f).toEqual(["strokes", "net-strokes"]);
     }
   });
 
@@ -209,7 +216,7 @@ describe("which shapes a format accepts", () => {
     for (const shape of IMPORT_SHAPES) {
       const header = templateCsv(shape.key);
       const body =
-        shape.key === "strokes"
+        shape.key === "strokes" || shape.key === "net-strokes"
           ? `Alex Vaughn,${new Array(18).fill(4).join(",")}`
           : shape.key === "hole-results"
             ? `Alex Vaughn,Sam Okafor,${new Array(18).fill("H").join(",")}`
@@ -221,7 +228,7 @@ describe("which shapes a format accepts", () => {
   });
 
   it("describes every shape it offers", () => {
-    expect(IMPORT_SHAPES).toHaveLength(3);
+    expect(IMPORT_SHAPES).toHaveLength(4);
     for (const s of IMPORT_SHAPES) {
       expect(s.blurb.length, s.key).toBeGreaterThan(30);
       expect(s.example, s.key).toContain(",");
@@ -285,5 +292,31 @@ describe("files arrive in whatever Excel produced", () => {
 
   it("leaves a comma file exactly alone", () => {
     expect(normalizeDelimiters("Player,1,2\nA,4,5")).toBe("Player,1,2\nA,4,5");
+  });
+});
+
+describe("net cards", () => {
+  it("parses net rows exactly like gross ones — the meaning is the server's business", () => {
+    const csv = `Player,${HOLES}\nAlex Vaughn,${new Array(18).fill(4).join(",")}`;
+    const r = parseScoreCsv(csv, "net-strokes", FIELD);
+    expect(r.problems).toEqual([]);
+    expect(r.strokeRows[0].strokes).toEqual(new Array(18).fill(4));
+  });
+
+  it("is offered for every format, alongside gross", () => {
+    // A club that keeps net-only sheets should be able to import them
+    // whatever the round is scored as.
+    expect(importShapesFor("Match Play")).toContain("net-strokes");
+    expect(importShapesFor("Stableford")).toContain("net-strokes");
+  });
+
+  it("marks itself as needing conversion", () => {
+    expect(isNetShape("net-strokes")).toBe(true);
+    expect(isNetShape("strokes")).toBe(false);
+  });
+
+  it("hands out a header its own parser accepts", () => {
+    const r = parseScoreCsv(`${templateCsv("net-strokes")}\nAlex Vaughn,${new Array(18).fill(4).join(",")}`, "net-strokes", FIELD);
+    expect(r.ready).toBe(1);
   });
 });

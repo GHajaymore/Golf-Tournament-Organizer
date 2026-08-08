@@ -31,8 +31,12 @@ import {
   TIEBREAKER_KEYS,
   isBracketMode,
   courseHandicapMap,
+  playingHandicapFrom,
+  holeStrokesReceived,
+  allocationHoles,
 } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
+import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
 import { findFormat } from "@/lib/formats";
@@ -1986,6 +1990,46 @@ export async function importScores(
       (p) => p.id,
     ),
   );
+
+  // Net cards are converted back to gross HERE, not in the browser: the
+  // authoritative Playing Handicap depends on the round's allowance, the
+  // player's tees and the holes being played, and the client knows none of
+  // those. gross = net + shots received on that hole, so nothing is lost and
+  // the card re-scores if the round's basis or allowance later changes.
+  //
+  // Refused rather than guessed when there is no stroke index: without one
+  // there is nowhere to put the shots, and spreading them evenly would invent
+  // a card nobody played.
+  const isNet = shape === "net-strokes";
+  let netHcp = new Map<string, number>();
+  let netSi: number[] = [];
+  if (isNet) {
+    const [event, players, tees] = await Promise.all([
+      prisma.event.findUnique({ where: { id: eventId } }),
+      prisma.player.findMany({
+        where: { eventId, status: "confirmed" },
+        select: { id: true, handicap: true, handicapType: true, teeId: true },
+      }),
+      prisma.tee.findMany(),
+    ]);
+    if (!event) return { ok: false, written: 0, error: "Tournament not found." };
+    const holes = stage.holes === 9 ? 9 : 18;
+    const teeRatings = new Map(
+      tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+    );
+    const ch = courseHandicapMap(players, teeRatings, tees[0]?.id ?? null, holes);
+    const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
+    netHcp = new Map([...ch].map(([id, v]) => [id, playingHandicapFrom(v, allowance)]));
+    netSi = resolveCourse(event).strokeIndex.slice(0, holes);
+    if (netSi.length === 0) {
+      return {
+        ok: false,
+        written: 0,
+        error:
+          "This round has no stroke index, so net scores can't be converted back to gross. Add the course card first, or import gross scores.",
+      };
+    }
+  }
   const matches = await prisma.match.findMany({
     where: { eventId, stageId },
     select: { id: true, playerAId: true, playerBId: true, holes: true },
@@ -2004,9 +2048,16 @@ export async function importScores(
       // and the parser's checks ran in the caller's browser, which proves
       // nothing here. A stroke is an integer a golf hole can produce or null;
       // the card is capped at the sizes a card can be.
-      const strokes = (Array.isArray(row.strokes) ? row.strokes : [])
+      const raw = (Array.isArray(row.strokes) ? row.strokes : [])
         .slice(0, 18)
         .map((v) => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 30 ? v : null));
+      const strokes = isNet
+        ? raw.map((v, i) =>
+            v === null
+              ? null
+              : v + holeStrokesReceived(netHcp.get(row.playerId!) ?? 0, netSi[i] ?? 18, allocationHoles(netSi.length)),
+          )
+        : raw;
       await prisma.scorecard.upsert({
         where: { stageId_playerId: { stageId, playerId: row.playerId } },
         update: { strokes: JSON.stringify(strokes) },

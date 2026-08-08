@@ -485,3 +485,23 @@ describe("the tee sheet is the organizer's to save and announce", () => {
     expect(src).toMatch(/Save a sheet before publishing/);
   });
 });
+
+describe("net imports are converted where the real handicap lives", () => {
+  const src = read("tournament.ts");
+  const fn = src.slice(src.indexOf("export async function importScores"));
+
+  it("resolves the Playing Handicap server-side, not from the client", () => {
+    // The authoritative number depends on the round's allowance, the player's
+    // tees and the holes played — none of which the browser knows.
+    expect(fn).toMatch(/courseHandicapMap\(players, teeRatings/);
+    expect(fn).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance\)/);
+  });
+
+  it("adds the shots back per hole off the stroke index", () => {
+    expect(fn).toMatch(/v \+ holeStrokesReceived\(netHcp\.get/);
+  });
+
+  it("refuses rather than spreading shots evenly with no stroke index", () => {
+    expect(fn).toMatch(/no stroke index, so net scores can't be converted/);
+  });
+});

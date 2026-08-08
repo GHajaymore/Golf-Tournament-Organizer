@@ -47,7 +47,7 @@ export function normalizeDelimiters(csv: string): string {
   return out;
 }
 
-export type ScoreImportShape = "strokes" | "hole-results" | "match-results";
+export type ScoreImportShape = "strokes" | "net-strokes" | "hole-results" | "match-results";
 
 /** One column an organizer has to put in their file. */
 export interface ColumnSpec {
@@ -97,6 +97,32 @@ export const IMPORT_SHAPES: ImportShapeInfo[] = [
       },
     ],
     sampleRow: "Alex Vaughn,4,5,3,4,4,4,3,4,5,4,4,3,4,5,4,3,4,4",
+  },
+  {
+    key: "net-strokes",
+    label: "Net strokes per hole",
+    example: "Player,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18",
+    blurb:
+      "The same shape, holding net scores instead of gross. The app adds each player's shots back on to recover the gross card — so nothing is lost, and it re-scores if the round's basis or allowance changes.",
+    columns: [
+      {
+        heading: "Player",
+        required: true,
+        accepts: "Full name as registered, a unique surname, or a player id.",
+      },
+      {
+        heading: "1 … 18",
+        required: true,
+        accepts:
+          "Net score for the hole — gross minus the shots received there. The app converts back to gross using this round's Playing Handicap and the course's stroke index.",
+      },
+      {
+        heading: "Out, In, Total",
+        required: false,
+        accepts: "Ignored if present.",
+      },
+    ],
+    sampleRow: "Alex Vaughn,4,4,3,3,4,4,3,4,4,4,3,3,4,4,4,3,4,4",
   },
   {
     key: "hole-results",
@@ -149,8 +175,13 @@ export const IMPORT_SHAPES: ImportShapeInfo[] = [
 /** Which shapes a round's format can actually accept. Mirrors entryModesFor. */
 export function importShapesFor(format: string): ScoreImportShape[] {
   return format === "Match Play"
-    ? ["hole-results", "match-results", "strokes"]
-    : ["strokes"];
+    ? ["hole-results", "match-results", "strokes", "net-strokes"]
+    : ["strokes", "net-strokes"];
+}
+
+/** Whether a shape's numbers are net of handicap and need converting back. */
+export function isNetShape(shape: ScoreImportShape): boolean {
+  return shape === "net-strokes";
 }
 
 export interface ImportProblem {
@@ -326,7 +357,7 @@ export function parseScoreCsv(
   table.rows.forEach((row, i) => {
     const line = i + 2; // header is line 1
 
-    if (shape === "strokes") {
+    if (shape === "strokes" || shape === "net-strokes") {
       const r = resolvePlayer(row[0] ?? "", field);
       if ("error" in r) {
         out.problems.push({ row: line, message: r.error });
@@ -447,7 +478,7 @@ export function parseScoreCsv(
 /** The header row for a shape, so an organizer can start from a real file. */
 export function templateCsv(shape: ScoreImportShape, holes = 18): string {
   const nums = Array.from({ length: holes }, (_, i) => i + 1).join(",");
-  if (shape === "strokes") return `Player,${nums}`;
+  if (shape === "strokes" || shape === "net-strokes") return `Player,${nums}`;
   if (shape === "hole-results") return `Player A,Player B,${nums}`;
   return "Player A,Player B,Winner,Margin";
 }
