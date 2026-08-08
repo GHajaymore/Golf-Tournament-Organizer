@@ -20,10 +20,15 @@ export function CourseSetupPrompt({
   eventCity,
   isStaff,
   blocking = true,
+  saved = [],
 }: {
   eventCourse: string;
   eventCity: string;
   isStaff: boolean;
+  /** Courses the club has already saved. Picking one is the fast path, and
+   *  this screen used to ignore them entirely — asking an organizer to paste
+   *  a card the app was already holding. */
+  saved?: Array<{ id: string; name: string; city: string; pars: number[]; yards: number[]; strokeIndex: number[] }>;
   /** True on Score entry, where scoring is waiting on this. False on Event
    *  setup, where it's an optional detail the organizer may fill in. */
   blocking?: boolean;
@@ -88,6 +93,15 @@ export function CourseSetupPrompt({
     );
   }
 
+  const useSaved = (c: (typeof saved)[number]) => {
+    setName(c.name);
+    setCity(c.city);
+    setPars(c.pars.map(String));
+    setYards(c.yards.map(String));
+    setStrokeIndex(c.strokeIndex.map(String));
+    setPasteProblems([]);
+  };
+
   const paste = (
     <div className="field" style={{ flexBasis: "100%" }}>
       <label>
@@ -135,6 +149,29 @@ export function CourseSetupPrompt({
         )}
       </p>
 
+      {saved.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: "block", marginBottom: 6 }}>Your club&rsquo;s courses</label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {saved.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => useSaved(c)}
+                style={{ fontSize: 12.5 }}
+              >
+                <i className="ph ph-flag-pennant" /> {c.name}
+                {c.city && <span className="text-muted" style={{ marginLeft: 5 }}>{c.city}</span>}
+              </button>
+            ))}
+          </div>
+          <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0" }}>
+            Pick one to fill the card below, or add a new course by pasting it.
+          </p>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
         <div className="field" style={{ minWidth: 220, flex: 1 }}>
           <label>Course name</label>
@@ -147,62 +184,55 @@ export function CourseSetupPrompt({
         {paste}
       </div>
 
-      <div style={{ overflowX: "auto" }}>
-        <table className="table" style={{ fontSize: 11, minWidth: 920 }}>
-          <thead>
-            <tr>
-              <th>Hole</th>
-              {Array.from({ length: 18 }, (_, i) => (
-                <th key={i} style={{ textAlign: "center" }}>{i + 1}</th>
+      {/* Two rows of nine, the way a card is actually printed. One scrolling
+          row of eighteen put 54 identical boxes behind a horizontal scrollbar,
+          which is both unreadable and the least-used path on the screen. */}
+      <details>
+        <summary style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 600, marginBottom: 10 }}>
+          Or type the card in by hand
+        </summary>
+        {[0, 9].map((offset) => (
+          <table key={offset} className="sc" style={{ width: "100%", marginBottom: 10 }}>
+            <thead>
+              <tr>
+                <th>{offset === 0 ? "Front" : "Back"}</th>
+                {Array.from({ length: 9 }, (_, i) => (
+                  <th key={i}>{offset + i + 1}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(
+                [
+                  ["Par", pars, setPars, "4"],
+                  ["Yards", yards, setYards, "400"],
+                  ["S.I.", strokeIndex, setStrokeIndex, String(offset + 1)],
+                ] as const
+              ).map(([label, values, setter, hint]) => (
+                <tr key={label}>
+                  <td>{label}</td>
+                  {Array.from({ length: 9 }, (_, i) => {
+                    const idx = offset + i;
+                    return (
+                      <td key={idx} style={{ padding: 2 }}>
+                        <input
+                          className="input sc-score"
+                          inputMode="numeric"
+                          value={values[idx] ?? ""}
+                          placeholder={hint}
+                          aria-label={`${label}, hole ${idx + 1}`}
+                          onChange={(e) => setCell(values, setter, idx, e.target.value)}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="text-muted">Par</td>
-              {pars.map((v, i) => (
-                <td key={i} style={{ padding: 2 }}>
-                  <input
-                    className="input"
-                    inputMode="numeric"
-                    value={v}
-                    onChange={(e) => setCell(pars, setPars, i, e.target.value)}
-                    style={{ width: 30, textAlign: "center", padding: "4px 2px", minHeight: 30 }}
-                  />
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <td className="text-muted">Yards</td>
-              {yards.map((v, i) => (
-                <td key={i} style={{ padding: 2 }}>
-                  <input
-                    className="input"
-                    inputMode="numeric"
-                    value={v}
-                    onChange={(e) => setCell(yards, setYards, i, e.target.value)}
-                    style={{ width: 40, textAlign: "center", padding: "4px 2px", minHeight: 30 }}
-                  />
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <td className="text-muted">S.I.</td>
-              {strokeIndex.map((v, i) => (
-                <td key={i} style={{ padding: 2 }}>
-                  <input
-                    className="input"
-                    inputMode="numeric"
-                    value={v}
-                    onChange={(e) => setCell(strokeIndex, setStrokeIndex, i, e.target.value)}
-                    style={{ width: 30, textAlign: "center", padding: "4px 2px", minHeight: 30 }}
-                  />
-                </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        ))}
+      </details>
+
 
       {error && (
         <p style={{ fontSize: 13, margin: "10px 0 0", color: "var(--color-danger, #e0665a)" }}>

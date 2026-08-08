@@ -1,4 +1,5 @@
 import { requireScreen } from "@/lib/page-helpers";
+import { clubCourses } from "@/lib/services/courses";
 import { loadEventState, effectiveScoreStatus, settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { redirect } from "next/navigation";
@@ -47,7 +48,24 @@ export default async function EntryPage() {
   // no course — that's exactly the rotating or venue-less case.
   const courseKnown = hasCourseData(state.event) || venues.length > 0;
   if (scoringNeedsCourse && !courseKnown) {
-    return <CourseSetupPrompt eventCourse={state.event.course} eventCity={state.event.city} isStaff={isStaff} />;
+    // The club's own courses, so an organizer picks one instead of pasting a
+    // card the app is already holding.
+    const saved = await clubCourses(state.event.organizationId, session.eventId);
+    return (
+      <CourseSetupPrompt
+        eventCourse={state.event.course}
+        eventCity={state.event.city}
+        isStaff={isStaff}
+        saved={saved.map((c) => ({
+          id: c.id,
+          name: c.name,
+          city: c.city,
+          pars: c.pars,
+          yards: c.yards,
+          strokeIndex: c.strokeIndex,
+        }))}
+      />
+    );
   }
 
   // A team round is entered differently enough that it gets its own screen
