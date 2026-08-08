@@ -12,6 +12,7 @@ import { pts, shortName } from "@/lib/format";
 import { playingStages } from "@/lib/services/tournament";
 import { resolveAttendance, effectiveStatus, playerMayChange, type AttendanceMode } from "@/lib/domain/attendance";
 import { RoundAvailability, type AvailabilityRound, type CaptainFlight } from "@/components/RoundAvailability";
+import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
 
 const QUICK_ACTIONS = [
   { label: "Players", href: "/registration", icon: "ph ph-user-plus", staff: true },
@@ -88,6 +89,35 @@ export default async function DashboardPage() {
   const rows = standingRows(state).slice(0, 8);
   const advancingIds = state.advancingIds;
 
+  // ── Published tee sheet ─────────────────────────────────────────────────
+  // The player's answer to the only question that matters on the morning:
+  // when do I go, and with whom. Their own group first, the whole sheet
+  // under it — and nothing at all until the organizer publishes, because a
+  // draft draw is the organizer's.
+  const nameOf = new Map(state.confirmed.map((pl) => [pl.id, pl.name]));
+  const myPlayerRows = await prisma.player.findMany({
+    where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" }, status: "confirmed" },
+    select: { id: true },
+  });
+  const myIds = new Set(myPlayerRows.map((r) => r.id));
+  let publishedSheet: { roundLabel: string; sheet: TeeSheet; mine: string | null } | null = null;
+  {
+    const rounds = state.playRounds;
+    for (let i = rounds.length - 1; i >= 0; i -= 1) {
+      const r = rounds[i];
+      if (!r.teeSheetPublished) continue;
+      const sheet = parseTeeSheet(r.teeSheet);
+      if (!sheet) continue;
+      let mine: string | null = null;
+      for (const id of myIds) {
+        const g = groupForPlayer(sheet, id);
+        if (g) { mine = g.name; break; }
+      }
+      publishedSheet = { roundLabel: `Round ${i + 1}`, sheet, mine };
+      break;
+    }
+  }
+
   // ── Weekly sign-up ──────────────────────────────────────────────────────
   // Only when the league asks the question, and only for a session that maps
   // to a player. Captains additionally see their own flight's list — theirs,
@@ -159,6 +189,46 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {publishedSheet && (
+        <div className="card elev-sm" style={{ marginBottom: 16, gap: 10 }}>
+          <div>
+            <span className="card-title" style={{ fontSize: 15 }}>
+              Tee sheet — {publishedSheet.roundLabel}
+            </span>
+            {publishedSheet.mine && (
+              <p style={{ fontSize: 13, margin: "4px 0 0", fontWeight: 600 }}>
+                {(() => {
+                  const g = publishedSheet!.sheet.groups.find((x) => x.name === publishedSheet!.mine)!;
+                  return `You're in ${g.name} — hole ${g.startHole}${g.half ?? ""} at ${g.time}.`;
+                })()}
+              </p>
+            )}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+            {publishedSheet.sheet.groups.map((g) => (
+              <div
+                key={g.name}
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-md)",
+                  boxShadow: `inset 0 0 0 1px ${g.name === publishedSheet!.mine ? "var(--color-accent)" : "var(--color-divider)"}`,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600 }}>{g.name}</span>
+                  <span className="text-muted">Hole {g.startHole}{g.half ?? ""} · {g.time}</span>
+                </div>
+                {g.playerIds.map((id) => (
+                  <div key={id} style={{ fontSize: 12.5, padding: "1px 0" }}>
+                    {nameOf.get(id) ?? "—"}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {ownPlayerId && (availabilityRounds.length > 0 || captainFlights.length > 0) && (
         <div style={{ marginBottom: 16 }}>
           <RoundAvailability playerId={ownPlayerId} rounds={availabilityRounds} captainOf={captainFlights} />

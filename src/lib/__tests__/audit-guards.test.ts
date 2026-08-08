@@ -462,3 +462,26 @@ describe("the round-code result path carries every guard the hole path has", () 
     expect(fn).toMatch(/marginToHoles\(winner, margin, total\)/);
   });
 });
+
+describe("the tee sheet is the organizer's to save and announce", () => {
+  const src = readFileSync(join(process.cwd(), "src/app/actions/tee-sheet.ts"), "utf8");
+
+  it("both actions require staff and scope to the session's event", () => {
+    expect(src).toMatch(/requireStaffSession/);
+    expect(src.match(/where: \{ id: stageId, eventId: session\.eventId \}/g)?.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("stores only what the parser accepts, capped", () => {
+    // Whatever arrived is arbitrary caller input, not the component's object.
+    expect(src).toMatch(/parseTeeSheet\(JSON\.stringify/);
+    expect(src).toMatch(/MAX_SHEET_BYTES/);
+  });
+
+  it("validates against the confirmed field before storing", () => {
+    expect(src).toMatch(/validateTeeSheet\(clean, new Set/);
+  });
+
+  it("cannot publish a sheet that was never saved", () => {
+    expect(src).toMatch(/Save a sheet before publishing/);
+  });
+});

@@ -1,6 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import { formGroups, type FormationRule, type Player } from "@/lib/domain";
+import { useTransition } from "react";
+import { saveTeeSheet } from "@/app/actions/tee-sheet";
 import {
   DRAW_ORDERS,
   groupByStandings,
@@ -45,11 +47,19 @@ export function FoursomeMaker({
   players,
   standings = [],
   holes = 18,
+  stageId = "",
+  savedAt = "",
+  published = false,
 }: {
   players: Player[];
   /** Current leaderboard, best first. Empty before anyone has posted a score. */
   standings?: Standing[];
   holes?: 9 | 18;
+  /** The round this sheet belongs to; empty disables saving. */
+  stageId?: string;
+  /** When a sheet was last saved for this round, ISO. Empty = never. */
+  savedAt?: string;
+  published?: boolean;
 }) {
   const hasStandings = standings.length > 0;
   const [algo, setAlgo] = useState<Pairing>("random");
@@ -57,6 +67,9 @@ export function FoursomeMaker({
   const [size, setSize] = useState(4);
   const [seed, setSeed] = useState(1);
   const [startType, setStartType] = useState<StartStyle>("tee");
+  const [saveState, setSaveState] = useState<{ savedAt: string; published: boolean }>({ savedAt, published });
+  const [saveError, setSaveError] = useState("");
+  const [savePending, startSaveTransition] = useTransition();
   const [firstTee, setFirstTee] = useState("08:00");
   const [interval, setInterval] = useState(10);
 
@@ -91,6 +104,32 @@ export function FoursomeMaker({
     .sort((a, b) => Number(b[0]) - Number(a[0]))
     .map(([s, n]) => `${n} ${sizeName[Number(s)] ?? `${s}-ball`}${n > 1 ? "s" : ""}`)
     .join(" · ");
+
+  const persist = (publish: boolean) => {
+    setSaveError("");
+    startSaveTransition(async () => {
+      const sheet = {
+        savedAt: "",
+        startType,
+        groups: groups.map((g, i) => {
+          const slot = slots[i];
+          return {
+            name: `Group ${i + 1}`,
+            startHole: slot.startHole,
+            half: slot.half,
+            time: slot.time,
+            playerIds: g.playerIds,
+          };
+        }),
+      };
+      const res = await saveTeeSheet(stageId, sheet, publish);
+      if (!res.ok) {
+        setSaveError(res.error ?? "Couldn't save the sheet.");
+        return;
+      }
+      setSaveState({ savedAt: new Date().toISOString(), published: publish });
+    });
+  };
 
   const active = ALGORITHMS.find((a) => a.key === algo) ?? ALGORITHMS[0];
   const activeOrder = DRAW_ORDERS.find((d) => d.key === order) ?? DRAW_ORDERS[2];
@@ -225,8 +264,46 @@ export function FoursomeMaker({
           <button type="button" className="btn btn-secondary" onClick={() => window.print()}>
             <i className="ph ph-printer" /> Print
           </button>
+          {/* Saving turns the draw on screen into the round's sheet of
+              record; publishing is the separate act of telling the field.
+              Until saved, this screen is a sketch that vanishes on refresh —
+              which is exactly what it did for the app's whole life. */}
+          {stageId && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={savePending || groups.length === 0}
+                onClick={() => persist(false)}
+              >
+                <i className="ph ph-floppy-disk" /> {savePending ? "Saving…" : "Save sheet"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={savePending || groups.length === 0}
+                onClick={() => persist(true)}
+              >
+                <i className="ph ph-megaphone" /> Save &amp; publish
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {(saveState.savedAt || saveError) && (
+        <p style={{ fontSize: 12, margin: "0 0 10px", color: saveError ? "var(--color-danger)" : "var(--color-neutral-500)" }}>
+          {saveError ? (
+            <><i className="ph ph-warning-circle" /> {saveError}</>
+          ) : (
+            <>
+              <i className={saveState.published ? "ph ph-megaphone" : "ph ph-floppy-disk"} />{" "}
+              {saveState.published ? "Published to players" : "Saved as a draft"} — regenerating here only changes
+              the preview until you save again.
+            </>
+          )}
+        </p>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12 }}>
         {groups.map((g, i) => {

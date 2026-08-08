@@ -754,6 +754,18 @@ model Stage {
    *  same reading as every other deadline — see src/lib/deadline.ts). Empty
    *  means changes stay open. Staff always may. */
   optDeadline String @default("")
+  /**
+   * The round's tee sheet, saved as drawn.
+   *
+   * JSON rather than rows on purpose: a sheet is replaced wholesale on every
+   * regenerate, read as a unit, and never queried relationally — groups with
+   * their players, start holes and times. Empty until an organizer saves one;
+   * until then the sheet exists only in their browser, which is why nothing
+   * downstream could ever use it.
+   */
+  teeSheet          String  @default("")
+  /** Whether players may see it. Drafts stay the organizer's. */
+  teeSheetPublished Boolean @default(false)
 
   event      Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   course     Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)

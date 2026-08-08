@@ -7,6 +7,7 @@ import type { Standing } from "@/lib/domain/draw";
 import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
 import { resolveAttendance, type AttendanceMode } from "@/lib/domain/attendance";
+import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 
 export default async function FoursomesPage() {
   await requireScreen("foursomes");
@@ -74,6 +75,9 @@ export default async function FoursomesPage() {
         players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }))}
         standings={standings}
         holes={holes}
+        stageId={state.activeStage?.id ?? ""}
+        savedAt={state.activeStage ? parseTeeSheet(state.activeStage.teeSheet)?.savedAt ?? "" : ""}
+        published={state.activeStage?.teeSheetPublished ?? false}
       />
     </>
   );
