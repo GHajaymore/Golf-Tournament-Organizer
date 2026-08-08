@@ -1364,6 +1364,9 @@ export async function setBracketResult(key: string, result: string) {
 
 /* ── Access control ───────────────────────────────────────────────────── */
 
+const ACCOUNT_ROLES = ["admin", "assistant", "player"];
+const cleanRole = (role: string) => (ACCOUNT_ROLES.includes(role) ? role : "player");
+
 export async function addAccount(name: string, email: string, role: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
   const clean = name.trim();
@@ -1396,8 +1399,6 @@ export async function addAccount(name: string, email: string, role: string): Pro
   return { ok: true };
 }
 
-const ACCOUNT_ROLES = ["admin", "assistant", "player"];
-const cleanRole = (role: string) => (ACCOUNT_ROLES.includes(role) ? role : "player");
 
 /** True once this event has more than one admin — i.e. `accountId` is safe
  *  to demote/remove without leaving the event with nobody who can manage it. */

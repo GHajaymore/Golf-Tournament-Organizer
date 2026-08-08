@@ -60,6 +60,7 @@ export function RegistrationClient({
   const [importResult, setImportResult] = useState<CsvImportResult | null>(null);
   const [addError, setAddError] = useState("");
   const [rowError, setRowError] = useState("");
+  const [pending, startTransition] = useTransition();
   const commitUpdate = (playerId: string, patch: Parameters<typeof updateSignup>[1]) =>
     startTransition(async () => {
       const result = await updateSignup(playerId, patch);
@@ -67,7 +68,6 @@ export function RegistrationClient({
     });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
-  const [pending, startTransition] = useTransition();
 
   const unlimited = event.capacity <= 0;
   const spotsLeft = unlimited ? Infinity : Math.max(0, event.capacity - confirmed.length);

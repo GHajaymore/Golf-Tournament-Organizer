@@ -18,6 +18,8 @@
 // Declared before contrastRatio is used by lightnessFor; hoisted function
 // declarations below make the ordering safe.
 const LIGHTNESS = [0.96, 0.89, 0.8, 0.68, 0.565, 0.48, 0.38, 0.26, 0.14];
+const LIGHTNESS_LIGHT = [0.08, 0.16, 0.24, 0.33, 0.45, 0.6, 0.74, 0.87, 0.95];
+const MIN_RAMP_GAP = 0.035;
 const STEPS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 
 export interface ThemePreset {
@@ -224,7 +226,6 @@ function rampFor(ground: Ground): number[] {
  * the designed spacing survives and the solver is the exception rather than
  * the rule.
  */
-const LIGHTNESS_LIGHT = [0.08, 0.16, 0.24, 0.33, 0.45, 0.6, 0.74, 0.87, 0.95];
 
 /**
  * The lightness a hue needs to clear its contrast floor.
@@ -302,7 +303,6 @@ export function themeScale(preset: ThemePreset, ground: Ground = DARK_GROUND): R
 }
 
 /** Smallest lightness difference that still reads as two colours. */
-const MIN_RAMP_GAP = 0.035;
 
 function clamp01(v: number): number {
   return Math.min(1, Math.max(0, v));

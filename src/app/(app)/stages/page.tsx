@@ -14,6 +14,17 @@ export default async function StagesPage() {
   if (!state) redirect("/");
   const locked = isSetupLocked(state.event);
 
+  // League sign-up, resolved per round for the counts on each card. Declared
+  // before the map that reads them — they used to sit below it, so every
+  // render of this page threw "Cannot access 'attendanceMode' before
+  // initialization". Because saving a score revalidates the whole layout,
+  // that turned every score entry into a 500 and nothing could be entered.
+  const attendanceMode = settingsOf(state.event).attendanceMode;
+  const attendanceRows =
+    attendanceMode === "everyone"
+      ? []
+      : await prisma.roundAttendance.findMany({ where: { eventId: session.eventId } });
+
   const stages = state.stages.map((s) => ({
     id: s.id,
     position: s.position,
@@ -60,13 +71,6 @@ export default async function StagesPage() {
   });
 
   // Matches per player in a round robin = (largest flight size − 1).
-  // League sign-up, resolved per round for the counts on each card.
-  const attendanceMode = settingsOf(state.event).attendanceMode;
-  const attendanceRows =
-    attendanceMode === "everyone"
-      ? []
-      : await prisma.roundAttendance.findMany({ where: { eventId: session.eventId } });
-
   const flightSizes = state.groups.map(
     (g) => state.confirmed.filter((p) => p.groupId === g.id).length,
   );

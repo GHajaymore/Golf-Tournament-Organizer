@@ -42,6 +42,20 @@ export default [
       // `any` disables the type checking that catches the bugs this project
       // keeps hitting — a wrong field name, a null that was not handled.
       "@typescript-eslint/no-explicit-any": "error",
+      // A `const` read above the line that declares it. TypeScript permits
+      // this whenever the read sits inside a closure, because the closure
+      // *could* run later — but a callback passed to .map() runs immediately,
+      // and the read throws "Cannot access X before initialization" at
+      // runtime. That is exactly how the Rounds & formats screen broke: it
+      // used `attendanceMode` inside a .map() above the line declaring it, so
+      // the page threw on every render, and since saving a score revalidates
+      // the whole layout, no score could be entered anywhere in the app.
+      // tsc and 985 tests all passed. Only the browser console showed it.
+      "no-use-before-define": "off",
+      "@typescript-eslint/no-use-before-define": [
+        "error",
+        { functions: false, classes: false, variables: true, typedefs: false },
+      ],
       // Style, not correctness. Left to judgement.
       "react/no-unescaped-entities": "off",
     },
