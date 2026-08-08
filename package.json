@@ -23,7 +23,8 @@
     "cap:open:ios": "cap open ios",
     "cap:open:android": "cap open android",
     "electron:dev": "electron .",
-    "electron:build": "next build && node electron/prepare-standalone.js && electron-builder"
+    "electron:build": "next build && node electron/prepare-standalone.js && electron-builder",
+    "smoke": "node scripts/smoke-routes.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

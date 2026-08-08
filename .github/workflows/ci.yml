@@ -98,3 +98,30 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Smoke-test every route
+        # Building proves the app compiles; it does not prove a single screen
+        # renders. A server component that reads a const above its own
+        # declaration typechecks, builds, and throws on every request — which
+        # shipped once, and because saving a score revalidates the layout, it
+        # broke score entry across the whole app. This starts the built server
+        # and asks each route for a page.
+        env:
+          AUTH_SECRET: ci-smoke-secret
+          SMOKE_BASE_URL: http://localhost:3000
+        run: |
+          npm start &
+          SERVER_PID=$!
+          # Poll rather than sleep a fixed amount: too short is a flaky red
+          # build, too long is wasted on every push forever.
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null "$SMOKE_BASE_URL"; then break; fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              echo "Server exited before it began serving."; exit 1
+            fi
+            sleep 2
+          done
+          node scripts/smoke-routes.mjs
+          STATUS=$?
+          kill "$SERVER_PID" 2>/dev/null || true
+          exit $STATUS
