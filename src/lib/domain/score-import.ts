@@ -23,6 +23,30 @@
 
 import { parseCsv, splitCsvLine } from "../csv";
 
+/**
+ * Commas, whatever the file arrived with.
+ *
+ * A straight copy out of Excel is TAB-separated, and a European CSV export is
+ * semicolons — both parsed as one giant column and died with "no hole
+ * columns found", which reads as the importer being broken rather than the
+ * clipboard being Excel's. When the header line has no commas but does have
+ * tabs or semicolons, that character is the delimiter; it is swapped for
+ * commas outside quotes and the rest of the pipeline never knows.
+ */
+export function normalizeDelimiters(csv: string): string {
+  const header = csv.split(/\r?\n/).find((l) => l.trim()) ?? "";
+  if (header.includes(",")) return csv;
+  const delim = header.includes("\t") ? "\t" : header.includes(";") ? ";" : null;
+  if (!delim) return csv;
+  let out = "";
+  let inQuotes = false;
+  for (const c of csv) {
+    if (c === '"') inQuotes = !inQuotes;
+    out += c === delim && !inQuotes ? "," : c;
+  }
+  return out;
+}
+
 export type ScoreImportShape = "strokes" | "hole-results" | "match-results";
 
 /** One column an organizer has to put in their file. */
@@ -279,6 +303,7 @@ export function parseScoreCsv(
     seen: 0,
   };
 
+  csv = normalizeDelimiters(csv);
   const table = parseCsv(csv);
   if (!table || table.rows.length === 0) {
     out.problems.push({ row: 1, message: "That file has no rows — check it saved as CSV." });

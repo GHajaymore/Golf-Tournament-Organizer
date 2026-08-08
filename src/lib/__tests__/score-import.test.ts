@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseScoreCsv,
+  normalizeDelimiters,
   resolvePlayer,
   readHoleResult,
   importShapesFor,
@@ -264,5 +265,25 @@ describe("a margin has to describe a possible result", () => {
     const csv = "Player A,Player B,Winner,Margin\nAlex Vaughn,Sam Okafor,Alex Vaughn,10&8";
     const r = parseScoreCsv(csv, "match-results", FIELD);
     expect(r.ready).toBe(1);
+  });
+});
+
+describe("files arrive in whatever Excel produced", () => {
+  it("reads a tab-separated paste straight from a spreadsheet", () => {
+    const tsv = ["Player\t1\t2\t3\t4\t5\t6\t7\t8\t9", "Alex Vaughn\t4\t5\t3\t4\t4\t4\t3\t4\t5"].join("\n");
+    const r = parseScoreCsv(tsv, "strokes", FIELD, 9);
+    expect(r.problems).toEqual([]);
+    expect(r.strokeRows[0].strokes).toEqual([4, 5, 3, 4, 4, 4, 3, 4, 5]);
+  });
+
+  it("reads a semicolon-delimited European export", () => {
+    const csv = ["Player;1;2;3;4;5;6;7;8;9", "Sam Okafor;4;4;4;4;4;4;4;4;4"].join("\n");
+    const r = parseScoreCsv(csv, "strokes", FIELD, 9);
+    expect(r.problems).toEqual([]);
+    expect(r.ready).toBe(1);
+  });
+
+  it("leaves a comma file exactly alone", () => {
+    expect(normalizeDelimiters("Player,1,2\nA,4,5")).toBe("Player,1,2\nA,4,5");
   });
 });
