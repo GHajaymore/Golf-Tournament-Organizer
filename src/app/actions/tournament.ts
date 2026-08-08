@@ -19,7 +19,7 @@ import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { splitCsvLine, matchColumn } from "@/lib/csv";
-import { STAGE_TYPES, STAGE_DESCRIPTIONS, isStageType } from "@/lib/stage-types";
+import { STAGE_DESCRIPTIONS, isStageType } from "@/lib/stage-types";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { survivors, isCutScope } from "@/lib/domain/cut";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
@@ -30,7 +30,6 @@ import {
   roundRobinSchedule,
   TIEBREAKER_KEYS,
   isBracketMode,
-  BRACKET_MODES,
   courseHandicapMap,
 } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";

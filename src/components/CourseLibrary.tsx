@@ -5,7 +5,6 @@ import { TeeEditor } from "./TeeEditor";
 import {
   saveClubCourse,
   deleteClubCourse,
-  addPresetCourse,
   setEventCourses,
   setHomeCourse,
   verifyCourseCard,

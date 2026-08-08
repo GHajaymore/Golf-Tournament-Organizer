@@ -25,7 +25,7 @@ const TAG = "ZZ-AUDIT-ROLES";
 const at = (who: string) => `${TAG}.${who}@example.invalid`.toLowerCase();
 
 let orgId = "";
-let otherOrgId = "";
+let _otherOrgId = "";
 let eventId = "";
 let siblingEventId = "";
 let foreignEventId = "";
@@ -56,7 +56,7 @@ beforeAll(async () => {
   const org = await prisma.organization.create({ data: { name: `${TAG} club`, kind: "club" } });
   const other = await prisma.organization.create({ data: { name: `${TAG} rival`, kind: "club" } });
   orgId = org.id;
-  otherOrgId = other.id;
+  _otherOrgId = other.id;
 
   const [ev, sibling, foreign] = await Promise.all([
     prisma.event.create({ data: newEvent(org.id, "spring medal", "a") }),

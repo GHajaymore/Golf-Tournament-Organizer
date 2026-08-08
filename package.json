@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "prisma migrate deploy && next build",
+    "vercel-build": "node scripts/pad-migration-names.mjs && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",

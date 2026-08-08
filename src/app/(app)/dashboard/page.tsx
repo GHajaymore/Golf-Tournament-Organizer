@@ -25,7 +25,7 @@ const QUICK_ACTIONS = [
 
 export default async function DashboardPage() {
   const { session, state } = await requireState();
-  const { event, overall, groupStandings, advancingCount, overallCutoff, brackets } = state;
+  const { event, groupStandings, advancingCount, overallCutoff, brackets } = state;
   const progress = matchProgress(state);
   const currentStage = state.activeStage ?? state.stages[0];
   const currentRoundLabel =

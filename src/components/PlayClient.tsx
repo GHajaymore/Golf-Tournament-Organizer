@@ -2,7 +2,6 @@
 import { useState, useTransition } from "react";
 import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles } from "@/app/actions/play";
 import { OrgBrand, type Brand } from "./OrgBrand";
-import { formatAccessCode } from "@/lib/code-format";
 import type { HoleResult } from "@/lib/domain";
 
 interface PlayMatch {

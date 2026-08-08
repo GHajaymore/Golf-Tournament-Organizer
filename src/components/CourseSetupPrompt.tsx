@@ -93,7 +93,7 @@ export function CourseSetupPrompt({
     );
   }
 
-  const useSaved = (c: (typeof saved)[number]) => {
+  const applySaved = (c: (typeof saved)[number]) => {
     setName(c.name);
     setCity(c.city);
     setPars(c.pars.map(String));
@@ -158,7 +158,7 @@ export function CourseSetupPrompt({
                 key={c.id}
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => useSaved(c)}
+                onClick={() => applySaved(c)}
                 style={{ fontSize: 12.5 }}
               >
                 <i className="ph ph-flag-pennant" /> {c.name}
