@@ -40,6 +40,16 @@ Written 2026-08-07. Read this first, then `git log` for detail.
   `importScores`, because the authoritative Playing Handicap depends on the
   round's allowance, the player's tees and holes played. A round with no
   stroke index is refused rather than converted at a flat rate.
+- **Score entry was completely broken and is fixed** (1ddac46). Rounds &
+  formats read `attendanceMode` above the line declaring it, inside a .map()
+  callback — so the page threw on every render, and since saving a score calls
+  `revalidatePath("/", "layout")`, every keystroke refetched that route and got
+  a 500. Nothing could be entered anywhere. tsc cannot see this (the read is in
+  a closure, which TypeScript assumes may run later) and no test rendered a
+  server component.
+  - `@typescript-eslint/no-use-before-define` is now on for variables.
+  - `npm run smoke` GETs every route against a running server and fails on
+    5xx; CI runs it after the build. Proven to catch this exact regression.
 - Local production builds now work beside a dev server:
   NEXT_DIST_DIR=.next-ci npx next build
 - Next feature in queue: net-per-hole score import (deterministic — gross =
