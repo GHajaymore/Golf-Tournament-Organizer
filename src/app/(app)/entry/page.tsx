@@ -345,6 +345,8 @@ export default async function EntryPage() {
                     : state.event.format === "stroke" ? "stroke" : "match"
       }
       courseKnown={courseKnown}
+      courseName={course.name || state.event.course}
+      eventDates={state.event.dates}
       isAdmin={session.viewRole === "admin"}
       venues={venues.map((v) => ({ id: v.id, name: v.name }))}
     />

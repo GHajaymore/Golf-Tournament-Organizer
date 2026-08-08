@@ -31,6 +31,8 @@ export function EntryModes({
   courseKnown = true,
   isAdmin = false,
   venues = [],
+  courseName = "",
+  eventDates = "",
 }: {
   rounds: EntryRound[];
   activeIndex: number;
@@ -46,6 +48,11 @@ export function EntryModes({
   isAdmin?: boolean;
   /** Courses this tournament may be played on. */
   venues?: Array<{ id: string; name: string }>;
+  /** Where and when — a scorecard without its course and date is a page of
+   *  numbers with no provenance, and it's the first thing a committee checks
+   *  when a card is queried. */
+  courseName?: string;
+  eventDates?: string;
 }) {
   const [mode, setMode] = useState<"match" | "stroke">(defaultMode);
   const [importing, setImporting] = useState(false);
@@ -82,6 +89,12 @@ export function EntryModes({
                 Stroke play
               </label>
             </div>
+            {(courseName || eventDates) && (
+              <span className="text-muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                <i className="ph ph-map-pin" style={{ marginRight: 4 }} />
+                {[courseName, eventDates].filter(Boolean).join(" · ")}
+              </span>
+            )}
             {isStaff && (
               <button
                 type="button"

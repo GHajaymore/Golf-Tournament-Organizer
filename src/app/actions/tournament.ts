@@ -927,7 +927,21 @@ export async function applyMatchResult(
   await assertOwnMatch(session, eventId, matchId);
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
-  const holes = marginToHoles(winner, margin, matchHoleCount(match.holes));
+  // A margin has to describe a result that can happen. "2&3" — up two with
+  // three to play — is not a closed-out match; typed in as-is it reconstructs
+  // a card the standings read as still in progress, forever. The importer has
+  // refused these since it existed; the console path took them silently.
+  const total = matchHoleCount(match.holes);
+  const amp = /^(\d+)\s*&\s*(\d+)$/.exec(margin.trim().toUpperCase());
+  if (amp) {
+    const lead = parseInt(amp[1], 10);
+    const toPlay = parseInt(amp[2], 10);
+    if (lead <= toPlay) {
+      throw new Error(`"${margin}" isn't a possible result — ${lead} up with ${toPlay} to play isn't a closed-out match. Did you mean "${toPlay}&${lead}"?`);
+    }
+    if (lead > total) throw new Error(`"${margin}" can't happen over ${total} holes.`);
+  }
+  const holes = marginToHoles(winner, margin, total);
   await prisma.match.update({
     where: { id: matchId },
     data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },

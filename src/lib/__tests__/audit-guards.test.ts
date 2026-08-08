@@ -399,3 +399,17 @@ describe("a player writes their own scores and nobody else's", () => {
     expect(page).toMatch(/ownIds\.has\(p\.id\)/);
   });
 });
+
+describe("the console refuses impossible match margins", () => {
+  it("validates N&M in applyMatchResult the same way the importer does", () => {
+    // "2&3" — up two with three to play — is not a closed-out match. The
+    // importer has refused these since it existed; the console path took them
+    // silently and reconstructed a card the standings read as in progress
+    // forever.
+    const src = read("tournament.ts");
+    const body = src.slice(src.indexOf("export async function applyMatchResult"));
+    expect(body.slice(0, 1200)).toMatch(/lead <= toPlay/);
+    expect(body.slice(0, 1200)).toMatch(/Did you mean/);
+    expect(body.slice(0, 1200)).toMatch(/lead > total/);
+  });
+});
