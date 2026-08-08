@@ -86,6 +86,7 @@ export default async function EventPage() {
           name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,
           address: e.address, regDeadline: e.regDeadline, capacity: e.capacity,
           playerCountMode: e.playerCountMode, manualPlayerCount: e.manualPlayerCount,
+          courseMode: e.courseMode,
         }}
         playersCount={state.confirmed.length}
         courses={courses.map((c) => ({ name: c.name, city: c.city, address: "" }))}

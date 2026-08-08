@@ -22,6 +22,7 @@ import {
   saveMatchScorecard,
 } from "@/app/actions/tournament";
 import { setMatchCourse } from "@/app/actions/courses";
+import { VenuePrompt, type VenueCourse } from "./VenuePrompt";
 
 /**
  * The three ways a match gets written down, as the screen offers them.
@@ -124,6 +125,9 @@ export interface EntryMatch {
   courseId?: string | null;
   /** full | front | back — which nine this match played, when 9 holes. */
   nine?: string;
+  /** Nothing up the match -> round -> event chain says where this was played,
+   *  and the tournament has no fixed venue. Decided on the server. */
+  venueNeeded?: boolean;
 }
 
 const CONFIRM_META: Record<string, { label: string; tag: string }> = {
@@ -177,6 +181,8 @@ export function ScoreEntryClient({
   courseKnown = true,
   isAdmin = false,
   venues = [],
+  openCourse = false,
+  courseLibrary = [],
 }: {
   matches: EntryMatch[];
   /** The round's format. Only match play can be written down three ways. */
@@ -195,6 +201,9 @@ export function ScoreEntryClient({
   /** Courses this tournament may be played on. More than one turns on the
    *  per-match venue picker. */
   venues?: Array<{ id: string; name: string }>;
+  /** No fixed venue: each match names its own before it can be scored. */
+  openCourse?: boolean;
+  courseLibrary?: VenueCourse[];
 }) {
   const [holesById, setHolesById] = useState<Record<string, HoleResult[]>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.holes])),
@@ -570,6 +579,18 @@ export function ScoreEntryClient({
           })}
         </div>
 
+        {openCourse && active.venueNeeded ? (
+          <div ref={entryRef} style={{ scrollMarginTop: 60 }}>
+            <VenuePrompt
+              key={active.id}
+              matchId={active.id}
+              holes={holes.length || 18}
+              library={courseLibrary}
+              aName={active.aName}
+              bName={active.bName}
+            />
+          </div>
+        ) : (
         <div className="card elev-sm" ref={entryRef} style={{ scrollMarginTop: 60 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
             <div>
@@ -1042,6 +1063,7 @@ export function ScoreEntryClient({
             </div>
           </div>
         </div>
+        )}
       </div>
     </>
   );

@@ -61,7 +61,12 @@ export async function handicapsForRound(
       select: { id: true, name: true, handicap: true, handicapType: true, teeId: true },
       orderBy: { seed: "asc" },
     }),
-    prisma.tee.findMany(),
+    prisma.tee.findMany({
+      // This club's tees only. An unscoped read let a player's teeId resolve
+      // to another organization's rating, quietly changing their handicap.
+      where: { course: { events: { some: { eventId } } } },
+      orderBy: [{ position: "asc" }],
+    }),
   ]);
   const teeById = new Map(tees.map((t) => [t.id, t]));
 

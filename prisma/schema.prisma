@@ -153,6 +153,9 @@ model Course {
 
   name String
   city String @default("")
+  /** Street address as printed. Free text — clubs write these many ways, and
+   *  a strict shape would only stop somebody saving a real course. */
+  address String @default("")
 
   /**
    * Where this card came from, and whether anyone has checked it.
@@ -424,6 +427,14 @@ model Event {
   customYards       String @default("")
   customStrokeIndex String @default("")
   regDeadline     String
+  /**
+   * fixed | open — whether one venue covers the whole tournament.
+   *
+   * "open" is the society or inter-club league where each pairing arranges
+   * its own course. The event-level course stays empty on purpose and the
+   * venue is named per match, by whoever enters the card.
+   */
+  courseMode      String @default("fixed")
   capacity        Int      @default(32)
   playerCountMode String   @default("registration") // registration | manual
   manualPlayerCount Int    @default(32)

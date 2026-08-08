@@ -434,6 +434,7 @@ export async function saveEvent(data: {
   regDeadline: string;
   capacity: number;
   playerCountMode: string;
+  courseMode: string;
 }) {
   const eventId = await requireAdminEvent();
   await assertUnlocked(eventId);
@@ -446,6 +447,9 @@ export async function saveEvent(data: {
       course: data.course,
       city: data.city,
       address: data.address,
+      // Only ever the two known values — an unrecognised mode would decide
+      // whether every match asks where it was played.
+      courseMode: data.courseMode === "open" ? "open" : "fixed",
       regDeadline: data.regDeadline,
       // 0 is the deliberate "open / unlimited field" sentinel (see the Fixed/Open
       // toggle in EventSetupClient) — only clamp upward when the organizer has
@@ -2011,7 +2015,13 @@ export async function importScores(
         where: { eventId, status: "confirmed" },
         select: { id: true, handicap: true, handicapType: true, teeId: true },
       }),
-      prisma.tee.findMany(),
+      prisma.tee.findMany({
+        // Scoped to this tournament's courses. Unscoped, this returned every
+        // organization's tees, so a stray teeId resolved to another club's
+        // rating — and the course handicap it produced was simply wrong.
+        where: { course: { events: { some: { eventId } } } },
+        orderBy: [{ position: "asc" }],
+      }),
     ]);
     if (!event) return { ok: false, written: 0, error: "Tournament not found." };
     const holes = stage.holes === 9 ? 9 : 18;

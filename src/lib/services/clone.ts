@@ -51,6 +51,10 @@ export const CLONED_EVENT_FIELDS = [
   "attestBy",
   // A weekly league copied for next season is still a weekly league.
   "attendanceMode",
+  // A society that plays a different course every week does so next season
+  // too. The venue itself is not copied — see the exclusion below — but the
+  // decision not to have one is part of what the tournament is.
+  "courseMode",
 ] as const;
 
 /**

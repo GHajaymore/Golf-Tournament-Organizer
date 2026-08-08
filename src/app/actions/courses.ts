@@ -7,6 +7,7 @@ import { canEnterScores } from "@/lib/tournament-settings";
 import { COURSES } from "@/lib/courses";
 import { parseCard } from "@/lib/domain/scorecard-parse";
 import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
+import { cardProblems, matchCourse, teeProblems } from "@/lib/domain/venue";
 
 /**
  * The club's course library, and which venue a round or match was played on.
@@ -495,4 +496,147 @@ export async function importClubCourseCard(input: {
 
   refresh();
   return { ok: true, courseId: created.id };
+}
+
+/* ── Naming the venue for one match, in an open-course tournament ────────── */
+
+export interface NameVenueInput {
+  /** An existing club course, when the player picked one from the list. */
+  courseId?: string;
+  /** Otherwise a course the club has not played before. */
+  newCourse?: {
+    name: string;
+    city: string;
+    address: string;
+    pars: number[];
+    yards: number[];
+    strokeIndex: number[];
+  };
+  /** The tees played, rated — without these there is no course handicap. */
+  tee?: { name: string; courseRating: number; slopeRating: number; par: number };
+  /** full | front | back, for a nine-hole round. */
+  nine?: string;
+}
+
+/**
+ * Say where a match was played, creating the course if the club is new to it.
+ *
+ * The flow a league actually needs: two members play somewhere neither the
+ * organizer nor the app has heard of, and one of them enters the card that
+ * evening. Whoever is entering the score may do this — the same permission
+ * that lets them enter the score at all — because they are the one who knows
+ * where they played, and a Saturday round should not wait for an organizer.
+ *
+ * A course entered this way joins the club's library, so the next pairing to
+ * play there gets the card instantly. That is what makes the second season of
+ * a league quick, and it is the only "lookup" this app performs: a real card
+ * a real member typed, rather than a guess.
+ */
+export async function nameMatchVenue(matchId: string, input: NameVenueInput): Promise<CourseResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Not authenticated" };
+
+  const [event, match] = await Promise.all([
+    prisma.event.findUnique({ where: { id: session.eventId } }),
+    prisma.match.findUnique({ where: { id: matchId } }),
+  ]);
+  if (!event || !match || match.eventId !== session.eventId) {
+    return { ok: false, error: "Match not found." };
+  }
+  // Same gate as entering the score itself. An organizer-scored tournament
+  // does not let a player name the venue either.
+  if (!canEnterScores(settingsOf(event), session.role)) {
+    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
+  }
+  // A player may only speak for a match they are actually in. Without this,
+  // any signed-in player could repoint anyone's match at another course and
+  // silently rescore it against a different stroke index.
+  if (session.role === "player") {
+    const own = await prisma.player.findMany({
+      where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" } },
+      select: { id: true },
+    });
+    const mine = new Set(own.map((p) => p.id));
+    if (!mine.has(match.playerAId) && !mine.has(match.playerBId)) {
+      return { ok: false, error: "That isn't your match." };
+    }
+  }
+
+  let courseId = input.courseId ?? "";
+
+  if (!courseId) {
+    const c = input.newCourse;
+    if (!c || !c.name.trim()) return { ok: false, error: "Give the course a name." };
+
+    // The card is checked before it is stored, not after it has scored a
+    // round. A stroke index that isn't a full 1..18 puts handicap strokes on
+    // the wrong holes, and every total still looks perfectly ordinary.
+    const problems = cardProblems({ pars: c.pars, strokeIndex: c.strokeIndex }, 18);
+    if (problems.length) return { ok: false, error: problems[0] };
+
+    // Don't create a second row for a course the club already has — that is
+    // how a library becomes three Maketewahs with one usable card between them.
+    const existing = await prisma.course.findMany({
+      where: { organizationId: event.organizationId },
+      select: { id: true, name: true, city: true },
+    });
+    const m = matchCourse(c.name, existing);
+    if (m.kind === "exact") {
+      courseId = m.course.id;
+    } else if (m.kind === "suggest") {
+      return {
+        ok: false,
+        error: `This club already has ${m.candidates.map((x) => `"${x.name}"`).join(" and ")}. Pick one of those instead, or give this course its full name.`,
+      };
+    } else {
+      const created = await prisma.course.create({
+        data: {
+          organizationId: event.organizationId,
+          name: c.name.trim(),
+          city: c.city.trim(),
+          address: c.address.trim(),
+          pars: holeArray(c.pars, 4),
+          yards: holeArray(c.yards, 0),
+          strokeIndex: holeArray(c.strokeIndex, 1),
+          source: "entered-at-scoring",
+        },
+      });
+      courseId = created.id;
+    }
+  }
+
+  // The tees, and with them the rating and slope a course handicap needs.
+  if (input.tee) {
+    const problems = teeProblems(input.tee);
+    if (problems.length) return { ok: false, error: problems[0] };
+    const already = await prisma.tee.findFirst({
+      where: { courseId, name: { equals: input.tee.name.trim(), mode: "insensitive" } },
+    });
+    if (!already) {
+      await prisma.tee.create({
+        data: {
+          courseId,
+          name: input.tee.name.trim(),
+          courseRating: input.tee.courseRating,
+          slopeRating: input.tee.slopeRating,
+          par: input.tee.par,
+        },
+      });
+    }
+  }
+
+  // Make it one of this tournament's venues, so the existing per-match course
+  // picker and every downstream resolver accept it.
+  await prisma.eventCourse.upsert({
+    where: { eventId_courseId: { eventId: session.eventId, courseId } },
+    update: {},
+    create: { eventId: session.eventId, courseId },
+  });
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: { courseId, nine: cleanNine(input.nine ?? "full") },
+  });
+  refresh();
+  return { ok: true };
 }

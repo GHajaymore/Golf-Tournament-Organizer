@@ -6,6 +6,7 @@ import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
 import { VoiceAsk } from "./VoiceAsk";
 import type { VoiceContext } from "@/lib/domain/voice-query";
+import type { VenueCourse } from "./VenuePrompt";
 
 export interface EntryRound {
   stageId: string;
@@ -36,6 +37,8 @@ export function EntryModes({
   courseName = "",
   eventDates = "",
   voice,
+  openCourse = false,
+  courseLibrary = [],
 }: {
   rounds: EntryRound[];
   activeIndex: number;
@@ -59,6 +62,10 @@ export function EntryModes({
   /** Present only for someone playing in this tournament — an organizer
    *  entering the field's cards has no handicap or opponent to ask about. */
   voice?: VoiceContext;
+  /** True when the tournament has no fixed venue and each match names its own. */
+  openCourse?: boolean;
+  /** This club's saved courses, offered before anyone types a card by hand. */
+  courseLibrary?: VenueCourse[];
 }) {
   const [mode, setMode] = useState<"match" | "stroke">(defaultMode);
   const [importing, setImporting] = useState(false);
@@ -171,6 +178,8 @@ export function EntryModes({
           courseKnown={courseKnown}
           isAdmin={isAdmin}
           venues={venues}
+          openCourse={openCourse}
+          courseLibrary={courseLibrary}
         />
       ) : (
         <StrokePlayEntry

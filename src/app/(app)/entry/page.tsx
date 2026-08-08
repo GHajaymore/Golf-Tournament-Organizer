@@ -16,6 +16,7 @@ import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient
 import { courseHandicapMap, playingHandicapFrom } from "@/lib/domain/handicap";
 import { standingRows } from "@/lib/services/tournament";
 import type { VoiceContext } from "@/lib/domain/voice-query";
+import { courseModeOf, needsVenue } from "@/lib/domain/venue";
 
 export default async function EntryPage() {
   const session = await requireScreen("entry");
@@ -49,7 +50,10 @@ export default async function EntryPage() {
 
   // A tournament with venues has course data even when the event itself names
   // no course — that's exactly the rotating or venue-less case.
-  const courseKnown = hasCourseData(state.event) || venues.length > 0;
+  const courseMode = courseModeOf(state.event.courseMode);
+  // An open-course tournament is never blocked on a missing event course —
+  // the venue is named per match, at scoring time, by whoever was there.
+  const courseKnown = hasCourseData(state.event) || venues.length > 0 || courseMode === "open";
   if (scoringNeedsCourse && !courseKnown) {
     // The club's own courses, so an organizer picks one instead of pasting a
     // card the app is already holding.
@@ -226,6 +230,9 @@ export default async function EntryPage() {
     ownIds.has(m.playerBId) ||
     (ownTeamIds !== null && (ownTeamIds.has(m.teamAId) || ownTeamIds.has(m.teamBId)));
 
+  // Offered first when a venue is asked for: a card somebody at this club
+  // already entered beats anything typed again from memory.
+  const clubLibrary = await clubCourses(state.event.organizationId, session.eventId);
   const course = resolveCourse(state.event);
   const pars = courseKnown ? course.pars : [];
   const yards = courseKnown ? course.yards : [];
@@ -306,6 +313,14 @@ export default async function EntryPage() {
             bStrokes: matchStrokesByKey[`${m.id}:B`] ?? new Array(holeCount).fill(null),
             courseId: m.courseId,
             nine: m.nine,
+            // Decided here rather than in the browser, because only the server
+            // can see the whole match -> round -> event chain.
+            venueNeeded: needsVenue(courseMode, {
+              matchCourseId: m.courseId,
+              roundCourseId: stage.courseId,
+              eventCourse: state.event.course,
+              eventHasCard: hasCourseData(state.event),
+            }),
             pars: card?.pars,
             yards: card?.yards,
             strokeIndex: card?.strokeIndex,
@@ -343,7 +358,10 @@ export default async function EntryPage() {
   if (myId) {
     const me = state.confirmed.find((p) => p.id === myId);
     if (me) {
-      const tees = await prisma.tee.findMany();
+      const tees = await prisma.tee.findMany({
+        where: { course: { events: { some: { eventId: session.eventId } } } },
+        orderBy: [{ position: "asc" }],
+      });
       const teeRatings = new Map(
         tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
       );
@@ -378,6 +396,8 @@ export default async function EntryPage() {
     <EntryModes
       rounds={rounds}
       voice={voice}
+      openCourse={courseMode === "open"}
+      courseLibrary={clubLibrary.map((c) => ({ id: c.id, name: c.name, city: c.city }))}
       activeIndex={activeIndex}
       players={state.confirmed
         .filter((p) => !ownIds || ownIds.has(p.id))

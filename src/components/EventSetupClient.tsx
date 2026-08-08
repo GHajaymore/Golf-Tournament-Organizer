@@ -7,6 +7,7 @@ interface EventForm {
   dates: string;
   format: string;
   course: string;
+  courseMode: string;
   city: string;
   address: string;
   regDeadline: string;
@@ -67,9 +68,19 @@ export function EventSetupClient({
   const [savedSnapshot, setSavedSnapshot] = useState<EventForm>(initial);
   const isDirty = JSON.stringify(f) !== JSON.stringify(savedSnapshot);
 
-  // Course selector: a preset name, "__other" (manual entry), or "" (none yet).
+  // Course selector: a preset name, "__other" (manual entry), "__open" (no
+  // fixed course), or "" (none yet). The open mode is checked first because
+  // it is the one case with no course name to recognise — reading the name
+  // alone would show it as "no course selected yet" and quietly lose it.
   const presetNames = new Set(courses.map((c) => c.name));
-  const initialSelect = initial.course === "" ? "" : presetNames.has(initial.course) ? initial.course : "__other";
+  const initialSelect =
+    initial.courseMode === "open"
+      ? "__open"
+      : initial.course === ""
+        ? ""
+        : presetNames.has(initial.course)
+          ? initial.course
+          : "__other";
   const [courseSelect, setCourseSelect] = useState(initialSelect);
   const [zip, setZip] = useState("");
   const [zipMsg, setZipMsg] = useState("Enter a US zip to fill in the city/state.");
@@ -104,12 +115,17 @@ export function EventSetupClient({
   const onSelectCourse = (val: string) => {
     setCourseSelect(val);
     if (val === "") {
-      setF((prev) => ({ ...prev, course: "", city: "", address: "" }));
+      setF((prev) => ({ ...prev, course: "", city: "", address: "", courseMode: "fixed" }));
+    } else if (val === "__open") {
+      // Deliberately clears the venue: an open tournament has no course until
+      // a card is entered, and leaving a stale name here would score every
+      // match against a venue nobody played.
+      setF((prev) => ({ ...prev, course: "", city: "", address: "", courseMode: "open" }));
     } else if (val === "__other") {
-      setF((prev) => ({ ...prev, course: "" }));
+      setF((prev) => ({ ...prev, course: "", courseMode: "fixed" }));
     } else {
       const c = courses.find((x) => x.name === val);
-      if (c) setF((prev) => ({ ...prev, course: c.name, city: c.city, address: c.address }));
+      if (c) setF((prev) => ({ ...prev, course: c.name, city: c.city, address: c.address, courseMode: "fixed" }));
     }
   };
 
@@ -190,7 +206,7 @@ export function EventSetupClient({
 
   const summary = [
     { k: "Format", v: f.format === "stroke" ? "Stroke play" : "Match play" },
-    { k: "Course", v: f.course || "—" },
+    { k: "Course", v: f.courseMode === "open" ? "Players choose" : f.course || "—" },
     { k: "Capacity", v: f.capacity > 0 ? `${f.capacity} players` : "Open / unlimited" },
     { k: "Confirmed", v: `${playersCount}` },
     { k: "Player count", v: f.playerCountMode === "manual" ? "Manual target" : "From registrations" },
@@ -241,7 +257,15 @@ export function EventSetupClient({
               <option key={c.name} value={c.name}>{c.name}</option>
             ))}
             <option value="__other">Other (enter manually)</option>
+            <option value="__open">No fixed course — players choose</option>
           </select>
+          {courseSelect === "__open" && (
+            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
+              For a league or society where each pairing arranges its own venue.
+              Nothing is set here; whoever enters a card names the course they
+              played, and it is saved to the club&rsquo;s list for next time.
+            </p>
+          )}
         </div>
 
         {courseSelect === "__other" && (
@@ -390,6 +414,7 @@ export function EventSetupClient({
                 saveEvent({
                   name: f.name, dates: f.dates, format: f.format, course: f.course, city: f.city,
                   address: f.address, regDeadline: f.regDeadline, capacity: f.capacity, playerCountMode: f.playerCountMode,
+                  courseMode: f.courseMode,
                 }),
               );
               setSavedSnapshot(f);
