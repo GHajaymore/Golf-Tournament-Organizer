@@ -85,6 +85,11 @@ const ENTRY_MODES: Array<{ key: "holes" | "result" | "handicap"; domain: MatchEn
   blurb: MATCH_ENTRY_MODES.find((d) => d.key === m.domain)?.blurb ?? "",
 }));
 
+/** Where .entry-grid in nocturne.css collapses to a single column. Kept in
+ *  both places because CSS cannot tell JavaScript its breakpoints; if one
+ *  moves, the other has to move with it. */
+const ENTRY_STACK_WIDTH = 900;
+
 export interface EntryMatch {
   id: string;
   aId: string;
@@ -248,11 +253,37 @@ export function ScoreEntryClient({
   const recognitionRef = useRef<unknown>(null);
   const entryRef = useRef<HTMLDivElement>(null);
   const [, startTransition] = useTransition();
+  // This card saves on every keystroke and has no Save button, so without
+  // this a failed write and a successful one look exactly the same — which
+  // is how an outage that blocked every score went unnoticed until someone
+  // reported it. Now the screen says which happened.
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
 
-  // On phones, jump to the entry panel when a match is picked from the list.
+  /** Run a write and report how it went. */
+  const save = (run: () => Promise<unknown>) => {
+    setSaveState("saving");
+    startTransition(async () => {
+      try {
+        await run();
+        setSaveState("saved");
+      } catch {
+        // Deliberately sticky: the entered value is still on screen and is
+        // *not* stored, and clearing that warning on a timer would hide it.
+        setSaveState("failed");
+      }
+    });
+  };
+
+  // Whenever the card is stacked under the list rather than beside it, jump to
+  // it — otherwise picking a match silently changes something off-screen.
+  //
+  // 900px is the breakpoint in nocturne.css where .entry-grid drops to one
+  // column, and the two have to agree. They didn't: this said 820, so between
+  // 821 and 900 the layout stacked but nothing scrolled, and the screen looked
+  // completely unresponsive to a click.
   const openMatch = (id: string) => {
     setSelectedId(id);
-    if (typeof window !== "undefined" && window.innerWidth <= 820) {
+    if (typeof window !== "undefined" && window.innerWidth <= ENTRY_STACK_WIDTH) {
       requestAnimationFrame(() =>
         entryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
       );
@@ -308,9 +339,7 @@ export function ScoreEntryClient({
   const persist = (id: string, next: HoleResult[]) => {
     setHolesById((prev) => ({ ...prev, [id]: next }));
     setStatusById((prev) => ({ ...prev, [id]: "pending" }));
-    startTransition(() => {
-      void saveMatchHoles(id, next);
-    });
+    save(() => saveMatchHoles(id, next));
   };
 
   const setStatus = (id: string, s: string) => setStatusById((prev) => ({ ...prev, [id]: s }));
@@ -338,9 +367,7 @@ export function ScoreEntryClient({
 
   const doApplyResult = () => {
     const total = holes.length || 18;
-    startTransition(() => {
-      void applyMatchResult(active.id, winner, margin);
-    });
+    save(() => applyMatchResult(active.id, winner, margin));
     import("@/lib/domain").then(({ marginToHoles }) => {
       setHolesById((prev) => ({ ...prev, [active.id]: marginToHoles(winner, margin, total) }));
     });
@@ -362,7 +389,7 @@ export function ScoreEntryClient({
     const derived = deriveNetHoles(nextA, nextB, effAHandicap, effBHandicap, strokeIndex.length ? strokeIndex : new Array(totalHoles).fill(18));
     setHolesById((prev) => ({ ...prev, [active.id]: derived }));
     setStatusById((prev) => ({ ...prev, [active.id]: "pending" }));
-    startTransition(() => void saveMatchScorecard(active.id, slot, next));
+    save(() => saveMatchScorecard(active.id, slot, next));
   };
 
   const setStroke = (slot: "A" | "B", i: number, val: string) => {
@@ -512,7 +539,11 @@ export function ScoreEntryClient({
       )}
 
       <div className="entry-grid">
-        <div className="card elev-sm entry-matchlist" style={{ gap: 6, maxHeight: "74vh", overflow: "auto" }}>
+        {/* Height lives in .entry-matchlist, not here. As an inline style it
+            beat the stylesheet's own narrow-screen cap, so on a single-column
+            layout the list stayed 74vh tall and pushed the card below the
+            fold — picking a match appeared to do nothing at all. */}
+        <div className="card elev-sm entry-matchlist" style={{ gap: 6 }}>
           <span className="card-kicker">Round-robin matches</span>
           {matches.map((m) => {
             const st = statusOf(holesById[m.id] ?? m.holes, statusById[m.id] ?? m.status);
@@ -556,6 +587,32 @@ export function ScoreEntryClient({
               <div className="text-muted" style={{ fontSize: 12 }}>
                 {resolution.played} played · {resolution.remaining} to play
               </div>
+              {/* Sits under the score the eye is already on. A failure has to
+                  be loud: the number is on screen but not in the database,
+                  and the person entering it has no other way to tell. */}
+              {saveState !== "idle" && (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  style={{
+                    fontSize: 12,
+                    marginTop: 4,
+                    fontWeight: saveState === "failed" ? 600 : 400,
+                    color:
+                      saveState === "failed"
+                        ? "var(--color-danger)"
+                        : saveState === "saved"
+                          ? "var(--color-accent-2)"
+                          : "var(--color-neutral-500)",
+                  }}
+                >
+                  {saveState === "saving" && (<><i className="ph ph-circle-notch" /> Saving…</>)}
+                  {saveState === "saved" && (<><i className="ph ph-check" /> Saved</>)}
+                  {saveState === "failed" && (
+                    <><i className="ph ph-warning-circle" /> Not saved — check your connection and re-enter.</>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

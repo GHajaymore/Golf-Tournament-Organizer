@@ -464,8 +464,19 @@ textarea.input { min-height: 90px; resize: vertical; }
   align-items: start;
 }
 
+/* Tall enough to show the draw at a glance while it is a sidebar. Kept here
+   rather than inline on the element so the narrow-screen cap below can win —
+   an inline style cannot be overridden by a media query. */
+.entry-matchlist {
+  max-height: 74vh;
+  overflow: auto;
+}
+
 /* One column below the point where 300px of match list stops being worth its
-   width. Below this the list is a strip above the card, not a sidebar. */
+   width. Below this the list is a strip above the card, not a sidebar — and it
+   has to be a short strip, because a full-height list of an 84-match draw
+   pushes the card off the bottom of the screen. ScoreEntryClient scrolls the
+   card into view on the same breakpoint; the two must agree. */
 @media (max-width: 900px) {
   .entry-grid { grid-template-columns: minmax(0, 1fr); }
   .entry-matchlist { max-height: 210px; }
