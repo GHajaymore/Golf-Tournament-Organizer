@@ -36,7 +36,8 @@ export interface BracketView {
   champion: BracketSlot | null;
 }
 
-const ROUND_LABELS = ["Round of 8", "Semifinals", "Final"];
+/** Kept as reference for a future label pass; not read today. */
+const _ROUND_LABELS = ["Round of 8", "Semifinals", "Final"];
 
 /**
  * Select qualifiers: top `qualifyPerGroup` from each group's ranking, then

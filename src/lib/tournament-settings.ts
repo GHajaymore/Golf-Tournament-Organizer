@@ -94,7 +94,37 @@ export const SCORE_APPROVAL_LABEL: Record<ScoreApproval, string> = {
 
 export const SCORE_APPROVAL_HELP: Record<ScoreApproval, string> = {
   staff: "Submitted cards wait as pending review. Nothing counts until you approve it.",
-  players: "The opponent agrees the result. Anything still pending locks itself after 24 hours.",
+  players: "The players agree the result between themselves. Anything still pending locks itself after 24 hours.",
+};
+
+/* ── How much agreement a card needs ──────────────────────────────────── */
+
+/**
+ * When players confirm between themselves, how many of them have to.
+ *
+ * Only consulted when scoreApproval is "players" — with staff approval there
+ * is nobody to configure. Kept as its own setting rather than folded into
+ * scoreApproval because the two questions are genuinely separate: who signs
+ * off, and how many of them.
+ *
+ * "Playing together" means the players bound into one result — see
+ * scoringGroup in domain/attest.ts. In match play that is the match, not the
+ * foursome, so two pairs sharing a tee time never approve each other's cards.
+ */
+export const ATTEST_BY = ["marker", "opponent", "all"] as const;
+export type AttestBy = (typeof ATTEST_BY)[number];
+
+export const ATTEST_BY_LABEL: Record<AttestBy, string> = {
+  marker: "One playing partner",
+  opponent: "Someone from the other side",
+  all: "Everyone in the match",
+};
+
+export const ATTEST_BY_HELP: Record<AttestBy, string> = {
+  marker: "The marker system every club medal already runs on. Fastest, and enough for most tournaments.",
+  opponent:
+    "The people with a reason to check it. In stroke play, where there is no other side, this behaves as one playing partner.",
+  all: "Every other player bound into the result must confirm. Slowest, and worth it when the result will be argued about.",
 };
 
 /* ── Player sign-in ───────────────────────────────────────────────────── */
@@ -124,6 +154,8 @@ export interface TournamentSettings {
   voiceEntry: boolean;
   playerAccess: PlayerAccess;
   scoreApproval: ScoreApproval;
+  /** How many playing partners must confirm, when players approve. */
+  attestBy: AttestBy;
 }
 
 /**
@@ -139,6 +171,9 @@ export const DEFAULT_SETTINGS: TournamentSettings = {
   // The one default that deliberately does not match prior behaviour — see
   // SCORE_APPROVAL above.
   scoreApproval: "staff",
+  // One partner is what a club medal has always required, so a tournament
+  // switching to player approval behaves the way its members expect.
+  attestBy: "marker",
 };
 
 /** Coerce stored strings into valid settings, falling back per field. A bad
@@ -158,6 +193,7 @@ export function cleanSettings(raw: Partial<Record<keyof TournamentSettings, unkn
     voiceEntry: typeof raw.voiceEntry === "boolean" ? raw.voiceEntry : DEFAULT_SETTINGS.voiceEntry,
     playerAccess: pick(raw.playerAccess, PLAYER_ACCESS, DEFAULT_SETTINGS.playerAccess),
     scoreApproval: pick(raw.scoreApproval, SCORE_APPROVAL, DEFAULT_SETTINGS.scoreApproval),
+    attestBy: pick(raw.attestBy, ATTEST_BY, DEFAULT_SETTINGS.attestBy),
   };
 }
 

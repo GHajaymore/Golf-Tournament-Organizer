@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { saveCustomCourse } from "@/app/actions/tournament";
-import { COURSES } from "@/lib/courses";
+import { parseCard } from "@/lib/domain/scorecard-parse";
 
 const BLANK_18 = new Array(18).fill("");
 
@@ -30,20 +30,30 @@ export function CourseSetupPrompt({
 }) {
   const [name, setName] = useState(eventCourse);
   const [city, setCity] = useState(eventCity);
+  const [pasteText, setPasteText] = useState("");
+  const [pasteProblems, setPasteProblems] = useState<string[]>([]);
   const [pars, setPars] = useState<string[]>(BLANK_18);
   const [yards, setYards] = useState<string[]>(BLANK_18);
   const [strokeIndex, setStrokeIndex] = useState<string[]>(BLANK_18);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
-  const applyPreset = (presetName: string) => {
-    const preset = COURSES.find((c) => c.name === presetName);
-    if (!preset) return;
-    setName(preset.name);
-    setCity(preset.city);
-    setPars(preset.pars.map(String));
-    setYards(preset.yards.map(String));
-    setStrokeIndex(preset.strokeIndex.map(String));
+  /**
+   * Fill the card from three rows pasted off the club's website.
+   *
+   * This replaced a preset dropdown of invented courses. Those were removed
+   * for being fiction that scored real tournaments, which left this screen
+   * offering a menu with nothing in it and 54 boxes to type by hand — the
+   * reason score entry became unreachable for any event without a course.
+   */
+  const applyPaste = (text: string) => {
+    const rows = text.split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
+    if (rows.length < 2) return;
+    const card = parseCard({ pars: rows[0], strokeIndex: rows[1], yards: rows[2] ?? "" });
+    if (card.pars.length) setPars(card.pars.map(String));
+    if (card.strokeIndex.length) setStrokeIndex(card.strokeIndex.map(String));
+    if (card.yards.length) setYards(card.yards.map(String));
+    setPasteProblems(card.problems.map((pr) => pr.message));
   };
 
   const setCell = (arr: string[], setArr: (v: string[]) => void, i: number, v: string) => {
@@ -78,6 +88,34 @@ export function CourseSetupPrompt({
     );
   }
 
+  const paste = (
+    <div className="field" style={{ flexBasis: "100%" }}>
+      <label>
+        Paste the card <span className="text-muted">— par, stroke index, then yardage; one row each</span>
+      </label>
+      <textarea
+        className="input"
+        rows={3}
+        value={pasteText}
+        onChange={(e) => {
+          setPasteText(e.target.value);
+          applyPaste(e.target.value);
+        }}
+        placeholder={"4 5 3 4 4 4 3 4 5 36 4 4 3 4 5 4 3 4 4 35 71\n7 3 11 1 15 5 17 9 13 8 4 12 2 16 6 18 10 14"}
+        style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 12.5, minHeight: 66 }}
+      />
+      <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0", lineHeight: 1.45 }}>
+        Copy the rows straight off the club&rsquo;s website — totals and labels are stripped automatically, and
+        the boxes below fill in as you paste.
+      </p>
+      {pasteProblems.map((m, i) => (
+        <p key={i} style={{ fontSize: 11.5, margin: "3px 0 0", color: "var(--color-danger)" }}>
+          <i className="ph ph-warning-circle" /> {m}
+        </p>
+      ))}
+    </div>
+  );
+
   return (
     <div className="card elev-sm">
       <span className="card-title">{blocking ? "Set up this course" : "Course card"}</span>
@@ -86,13 +124,13 @@ export function CourseSetupPrompt({
           <>
             {"“"}{eventCourse || "This event"}{"”"} isn&rsquo;t one of the built-in courses, so there&rsquo;s no real par,
             yardage, or handicap data for it yet — scoring (net, Stableford, tiebreakers) needs that before you can
-            enter results. Fill in the card below, or start from a preset and adjust it.
+            enter results. Paste the card off the club&rsquo;s website, or fill it in by hand below.
           </>
         ) : (
           <>
             Par, yardage and stroke index for {"“"}{eventCourse || "this event"}{"”"}. Gross match play doesn&rsquo;t
             need this to score, but printed scorecards do — they carry the course details alongside your club&rsquo;s
-            logo. Start from a preset and adjust, or fill the card in by hand.
+            logo. Paste the card off the club&rsquo;s website, or fill it in by hand.
           </>
         )}
       </p>
@@ -106,15 +144,7 @@ export function CourseSetupPrompt({
           <label>City</label>
           <input className="input" value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Pinehurst, NC" />
         </div>
-        <div className="field" style={{ minWidth: 200 }}>
-          <label>Start from a preset</label>
-          <select className="input" defaultValue="" onChange={(e) => e.target.value && applyPreset(e.target.value)}>
-            <option value="">Blank card</option>
-            {COURSES.map((c) => (
-              <option key={c.name} value={c.name}>{c.name}</option>
-            ))}
-          </select>
-        </div>
+        {paste}
       </div>
 
       <div style={{ overflowX: "auto" }}>

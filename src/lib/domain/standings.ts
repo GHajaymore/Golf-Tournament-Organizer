@@ -3,6 +3,7 @@
 // qualification cutoff. All values are derived on every call — never stored.
 
 import { resolveMatch } from "./match";
+import { breakMatchTie, type MatchTiebreakKey } from "./match-tiebreak";
 import type {
   Match,
   Player,
@@ -40,6 +41,14 @@ export function aggregateStats(
   matches: Match[],
   scoring: ScoringRules,
   carriedPoints: Record<string, number> = {},
+  /**
+   * How an all-square match is decided, and the card to decide it on.
+   *
+   * Applied here rather than stored on the match, so changing the sequence
+   * re-decides every affected match instead of leaving results frozen at
+   * whatever rule was in force when the card was entered.
+   */
+  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
 ): Map<string, PlayerStats> {
   const stats = new Map<string, PlayerStats>();
   for (const p of players) stats.set(p.id, emptyStats(p.id));
@@ -62,13 +71,22 @@ export function aggregateStats(
     if (r.complete) {
       if (a) a.played += 1;
       if (b) b.played += 1;
-      if (r.winner === "H") {
+      // A halved match is only halved if nothing decides it. The countback
+      // runs here so the points follow the organizer's rule rather than the
+      // raw card.
+      const decided =
+        r.winner === "H" && matchTiebreak?.sequence.length
+          ? breakMatchTie(m.holes, matchTiebreak.strokeIndex, matchTiebreak.sequence).winner
+          : null;
+      const outcome = decided ?? r.winner;
+
+      if (outcome === "H") {
         if (a) a.ties += 1;
         if (b) b.ties += 1;
-      } else if (r.winner === "A") {
+      } else if (outcome === "A") {
         if (a) a.wins += 1;
         if (b) b.losses += 1;
-      } else if (r.winner === "B") {
+      } else if (outcome === "B") {
         if (b) b.wins += 1;
         if (a) a.losses += 1;
       }
@@ -219,8 +237,12 @@ export function computeStandings(
   scoring: ScoringRules,
   carriedPoints: Record<string, number> = {},
   holeDifficulty?: number[],
+  matchTiebreakers: MatchTiebreakKey[] = [],
 ): RankedPlayer[] {
-  const stats = aggregateStats(players, matches, scoring, carriedPoints);
+  const stats = aggregateStats(players, matches, scoring, carriedPoints, {
+    sequence: matchTiebreakers,
+    strokeIndex: holeDifficulty ?? [],
+  });
   return rankPlayers(players, stats, scoring, matches, holeDifficulty);
 }
 

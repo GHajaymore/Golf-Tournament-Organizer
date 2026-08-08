@@ -2,6 +2,10 @@ import { defineConfig } from "vitest/config";
 import { resolve } from "node:path";
 
 export default defineConfig({
+  // The automatic runtime, matching tsconfig's "jsx": "preserve" + Next's own
+  // transform. Without it esbuild emits React.createElement and every render
+  // test fails on an undefined React.
+  esbuild: { jsx: "automatic" },
   resolve: {
     alias: {
       "@": resolve(__dirname, "src"),
@@ -12,7 +16,9 @@ export default defineConfig({
   },
   test: {
     // Audit tests hit a real database and live in their own config.
-    include: ["src/**/*.test.ts"],
+    // .tsx picks up the component render tests, which use react-dom/server and
+    // so need no DOM — the node environment is enough.
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["src/**/*.audit.test.ts", "**/node_modules/**"],
     environment: "node",
   },

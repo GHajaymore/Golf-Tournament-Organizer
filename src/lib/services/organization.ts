@@ -1,7 +1,10 @@
 import "server-only";
+import { brandLines, brandMonogram, isBrandDisplay } from "@/lib/brand";
 import { prisma } from "../db";
 import { DEFAULT_PLAN, planFor } from "../plans";
-import { DEFAULT_THEME } from "../themes";
+import {
+  DEFAULT_THEME, DEFAULT_APPEARANCE, FAIRWAY, isAppearance, type ClubTheme,
+} from "../themes";
 import { cleanSettings } from "../tournament-settings";
 import { generateShareToken } from "../codes";
 
@@ -79,6 +82,10 @@ export async function settingsForNewEvent(organizationId: string) {
 
 export interface EventBrand {
   name: string;
+  /** Second line, when the club asked for both names. Empty otherwise. */
+  secondary: string;
+  /** Initials for the fallback mark. */
+  monogram: string;
   logoUrl: string;
   /** Whether to keep a "Powered by TourneyHQ" line alongside the club's mark.
    *  True on plans without white-labelling — that attribution is how other
@@ -101,6 +108,7 @@ export async function brandForEvent(eventId: string): Promise<EventBrand | null>
         select: {
           name: true,
           shortName: true,
+          brandDisplay: true,
           logoUrl: true,
           subscription: { select: { plan: true } },
         },
@@ -109,10 +117,12 @@ export async function brandForEvent(eventId: string): Promise<EventBrand | null>
   });
   const org = event?.organization;
   if (!org) return null;
-  const name = org.shortName || org.name;
-  if (!name && !org.logoUrl) return null;
+  const lines = brandLines(org.name, org.shortName, isBrandDisplay(org.brandDisplay) ? org.brandDisplay : "short");
+  if (!lines.primary && !org.logoUrl) return null;
   return {
-    name,
+    name: lines.primary,
+    secondary: lines.secondary,
+    monogram: brandMonogram(org.name, org.shortName),
     logoUrl: org.logoUrl,
     showAttribution: !planFor(org.subscription?.plan).features.whiteLabel,
   };
@@ -130,19 +140,35 @@ export async function organizationsFor(email: string) {
 }
 
 /**
- * The accent preset for whichever organization owns this event.
+ * The whole theme for whichever organization owns this event.
  *
  * Separate from brandForEvent because a theme applies even when a club has set
  * no name or logo — brandForEvent returns null in that case, and a club that
  * picked a colour should still see it.
+ *
+ * Each field falls back on its own. A club that set a colour years ago and
+ * never touched appearance gets its colour on the default ground, rather than
+ * one unset field dropping the whole theme back to stock.
  */
-export async function themeForEvent(eventId: string): Promise<{ key: string; hex: string }> {
+export async function themeForEvent(eventId: string): Promise<ClubTheme> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { organization: { select: { themeKey: true, themeHex: true } } },
+    select: {
+      organization: {
+        select: {
+          themeKey: true, themeHex: true,
+          themeSecondaryKey: true, themeSecondaryHex: true, themeAppearance: true,
+        },
+      },
+    },
   });
+  const org = event?.organization;
+  const appearance = org?.themeAppearance ?? "";
   return {
-    key: event?.organization.themeKey ?? DEFAULT_THEME,
-    hex: event?.organization.themeHex ?? "",
+    accentKey: org?.themeKey ?? DEFAULT_THEME,
+    accentHex: org?.themeHex ?? "",
+    secondaryKey: org?.themeSecondaryKey ?? FAIRWAY.key,
+    secondaryHex: org?.themeSecondaryHex ?? "",
+    appearance: isAppearance(appearance) ? appearance : DEFAULT_APPEARANCE,
   };
 }

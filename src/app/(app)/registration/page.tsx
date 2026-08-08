@@ -25,6 +25,7 @@ export default async function RegistrationPage() {
         name: state.event.name,
         capacity: state.event.capacity,
         regDeadline: state.event.regDeadline,
+          registrationOverride: state.event.registrationOverride,
         inviteMessage: state.event.inviteMessage,
         organizationName: brand?.name,
         dates: state.event.dates,

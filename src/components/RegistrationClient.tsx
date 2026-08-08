@@ -1,4 +1,6 @@
 "use client";
+import { registrationStatus } from "@/lib/registration";
+import { setRegistrationOverride } from "@/app/actions/tournament";
 import { useState, useRef, useTransition } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SetupLockBanner } from "./SetupLockBanner";
@@ -19,6 +21,8 @@ interface EventInfo {
   name: string;
   capacity: number;
   regDeadline: string;
+  /** Organizer overriding the deadline: null follows it, true closes, false extends. */
+  registrationOverride: boolean | null;
   inviteMessage: string;
   /** Owning club's name, used to sign invitations. */
   organizationName?: string;
@@ -67,7 +71,16 @@ export function RegistrationClient({
 
   const unlimited = event.capacity <= 0;
   const spotsLeft = unlimited ? Infinity : Math.max(0, event.capacity - confirmed.length);
-  const status = unlimited ? "Open · unlimited" : spotsLeft === 0 ? "Full — waitlist active" : "Open";
+  // Was computed from capacity alone, so a tournament whose deadline passed a
+  // week ago still read "Open · unlimited" — the screen stating something
+  // false about the organizer's own event.
+  const reg = registrationStatus({
+    deadline: event.regDeadline,
+    capacity: event.capacity,
+    confirmedCount: confirmed.length,
+    override: event.registrationOverride,
+  });
+  const status = reg.label;
   const missingEmailCount = [...confirmed, ...waitlist].filter((p) => !p.email?.trim()).length;
 
   const toggleSelect = (id: string) =>
@@ -310,9 +323,99 @@ export function RegistrationClient({
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Status</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18, color: "var(--color-accent-200)" }}>{status}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>spots remaining: {unlimited ? "∞" : spotsLeft}</div>
+          <div
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontSize: 18,
+              color: reg.acceptingEntries ? "var(--color-accent-200)" : "var(--color-danger)",
+            }}
+          >
+            {status}
+          </div>
+          <div className="text-muted" style={{ fontSize: 12 }}>
+            {reg.acceptingEntries ? `spots remaining: ${unlimited ? "∞" : spotsLeft}` : reg.detail}
+          </div>
         </div>
+      </div>
+
+      {/* The organizer's own decision about the deadline, in both directions.
+          Adding a player by hand is never blocked by this — that is how a
+          closed event still takes a late entry, and it is the organizer's job.
+          What this governs is what the screen tells everyone else. */}
+      <div
+        className="card elev-sm"
+        style={{
+          marginBottom: 16,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          background: reg.acceptingEntries
+            ? "color-mix(in srgb, var(--color-text) 3%, transparent)"
+            : "var(--color-danger-bg)",
+          boxShadow: reg.acceptingEntries
+            ? "inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent)"
+            : "inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 30%, transparent)",
+        }}
+      >
+        <i
+          className={reg.acceptingEntries ? "ph ph-door-open" : "ph ph-lock-simple"}
+          style={{
+            fontSize: 16,
+            color: reg.acceptingEntries ? "var(--color-accent-400)" : "var(--color-danger)",
+          }}
+        />
+        <span style={{ fontSize: 12.5, flex: 1, minWidth: 220, lineHeight: 1.5 }}>
+          {reg.detail || `Entries are open${event.regDeadline ? ` until ${event.regDeadline}` : ""}.`}
+          {!reg.acceptingEntries && (
+            <>
+              {" "}
+              <strong>You can still add players below</strong> — closing only changes what this says.
+            </>
+          )}
+        </span>
+
+        {reg.state === "closed-deadline" && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={pending || locked}
+            onClick={() => startTransition(() => void setRegistrationOverride(false))}
+          >
+            <i className="ph ph-calendar-plus" /> Keep taking entries
+          </button>
+        )}
+        {reg.state === "open-extended" && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={pending || locked}
+            onClick={() => startTransition(() => void setRegistrationOverride(null))}
+          >
+            <i className="ph ph-arrow-counter-clockwise" /> Follow the deadline again
+          </button>
+        )}
+        {reg.state === "closed-manual" ? (
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={pending || locked}
+            onClick={() => startTransition(() => void setRegistrationOverride(null))}
+          >
+            <i className="ph ph-door-open" /> Reopen registration
+          </button>
+        ) : (
+          reg.acceptingEntries && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={pending || locked}
+              onClick={() => startTransition(() => void setRegistrationOverride(true))}
+            >
+              <i className="ph ph-lock-simple" /> Close registration
+            </button>
+          )
+        )}
       </div>
 
       <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>

@@ -40,7 +40,7 @@ let eventId = "";
 let stageId = "";
 let orgId = "";
 let sides: { id: string; handicap: number }[][] = [];
-let teamIds: string[] = [];
+const teamIds: string[] = [];
 let matchId = "";
 
 beforeAll(async () => {

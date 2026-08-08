@@ -1,11 +1,23 @@
 "use client";
 import { useState, useTransition } from "react";
 import { saveOrganizationBranding } from "@/app/actions/organization";
+import {
+  brandLines,
+  brandMonogram,
+  isBrandDisplay,
+  BRAND_DISPLAY,
+  BRAND_DISPLAY_LABEL,
+  BRAND_DISPLAY_HELP,
+} from "@/lib/brand";
 
 interface Props {
   name: string;
   shortName: string;
   logoUrl: string;
+  city: string;
+  region: string;
+  country: string;
+  brandDisplay: string;
   kind: string;
   plan: string;
   eventCount: number;
@@ -17,20 +29,33 @@ export function OrganizationClient(props: Props) {
   const [name, setName] = useState(props.name);
   const [shortName, setShortName] = useState(props.shortName);
   const [logoUrl, setLogoUrl] = useState(props.logoUrl);
+  const [city, setCity] = useState(props.city);
+  const [region, setRegion] = useState(props.region);
+  const [country, setCountry] = useState(props.country);
+  const [brandDisplay, setBrandDisplay] = useState(props.brandDisplay);
   const [error, setError] = useState("");
   /** Saved, but the logo couldn't be reached from our server. */
   const [warning, setWarning] = useState("");
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const dirty = name !== props.name || shortName !== props.shortName || logoUrl !== props.logoUrl;
+  const dirty =
+    name !== props.name ||
+    shortName !== props.shortName ||
+    logoUrl !== props.logoUrl ||
+    city !== props.city ||
+    region !== props.region ||
+    country !== props.country ||
+    brandDisplay !== props.brandDisplay;
+
+  const preview = brandLines(name, shortName, isBrandDisplay(brandDisplay) ? brandDisplay : "short");
 
   const save = () => {
     setError("");
     setWarning("");
     setSaved(false);
     startTransition(async () => {
-      const result = await saveOrganizationBranding(name, shortName, logoUrl);
+      const result = await saveOrganizationBranding(name, shortName, logoUrl, { city, region, country }, brandDisplay);
       if (!result.ok) {
         setError(result.error ?? "Couldn't save.");
         return;
@@ -44,7 +69,7 @@ export function OrganizationClient(props: Props) {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Organization</h2>
+        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Club settings</h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Branding here applies to every tournament this organization runs — the console header and printed
           scorecards and reports.
@@ -121,6 +146,119 @@ export function OrganizationClient(props: Props) {
               Most clubs already host a logo on their website — right-click it there and copy the image
               address. A square or wide transparent PNG works best. Direct file upload needs storage that
               isn&rsquo;t set up yet.
+            </p>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: 6 }}>Name beside the logo</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {BRAND_DISPLAY.map((k) => {
+                const on = brandDisplay === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    className="btn"
+                    disabled={!props.canEdit || pending}
+                    onClick={() => setBrandDisplay(k)}
+                    title={BRAND_DISPLAY_HELP[k]}
+                    style={{
+                      border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
+                      color: on ? "var(--color-accent)" : "var(--color-text)",
+                    }}
+                  >
+                    {BRAND_DISPLAY_LABEL[k]}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+              {BRAND_DISPLAY_HELP[(BRAND_DISPLAY as readonly string[]).includes(brandDisplay)
+                ? (brandDisplay as (typeof BRAND_DISPLAY)[number])
+                : "short"]}
+            </p>
+            {/* A live preview, because nobody can picture three renderings of
+                their own club name from a label. Shows the same fallbacks the
+                sidebar uses, so an empty short name looks here exactly as it
+                will there. */}
+            <div
+              style={{
+                marginTop: 10,
+                padding: "10px 12px",
+                borderRadius: "var(--radius-md)",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                background: "var(--color-bg)",
+                boxShadow: "inset 0 0 0 1px var(--color-divider)",
+              }}
+            >
+              {logoUrl.trim() ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt="" style={{ height: 28, width: "auto", maxWidth: 110, objectFit: "contain" }} />
+              ) : (
+                <span
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 7,
+                    display: "grid",
+                    placeItems: "center",
+                    background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
+                    color: "var(--color-accent)",
+                    fontSize: brandMonogram(name, shortName).length > 1 ? 11 : 15,
+                    fontWeight: 600,
+                  }}
+                >
+                  {brandMonogram(name, shortName)}
+                </span>
+              )}
+              <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15, minWidth: 0 }}>
+                <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}>
+                  {preview.primary || <span className="text-muted">Your club</span>}
+                </span>
+                {preview.secondary && (
+                  <span style={{ fontSize: 10.5, color: "var(--color-neutral-500)" }}>{preview.secondary}</span>
+                )}
+              </span>
+            </div>
+          </div>
+
+          {/* Where the club is. Not branding — it prefills a new course's city
+              and scopes the course search, so an organizer adding a card is not
+              typing their own town every time. */}
+          <div>
+            <label style={{ display: "block", marginBottom: 6 }}>
+              Where the club is <span className="text-muted">· optional</span>
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+              <input
+                className="input"
+                value={city}
+                disabled={!props.canEdit || pending}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="City"
+                aria-label="City"
+              />
+              <input
+                className="input"
+                value={region}
+                disabled={!props.canEdit || pending}
+                onChange={(e) => setRegion(e.target.value)}
+                placeholder="State or region"
+                aria-label="State or region"
+              />
+              <input
+                className="input"
+                value={country}
+                disabled={!props.canEdit || pending}
+                onChange={(e) => setCountry(e.target.value)}
+                placeholder="Country"
+                aria-label="Country"
+              />
+            </div>
+            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+              Used to prefill the city when you add a course, so local courses don&rsquo;t need retyping.
             </p>
           </div>
 

@@ -27,6 +27,20 @@ export interface ThemePreset {
   blurb: string;
   hue: number;
   saturation: number;
+  /**
+   * Hand-tuned shades that bypass the generated ramp on the dark ground.
+   *
+   * Only the fairway green has these, and only because it is a fixed brand
+   * colour that predates the ramp rather than a preset chosen from it. Running
+   * it through the shared curve moved it from a deep forest green to a bright
+   * mint — the curve puts step 500 at lightness 0.565 and the original sits at
+   * 0.37 — which changed the colour of every advancing row in the app for
+   * clubs that had chosen nothing.
+   *
+   * Dark ground only: these values are tuned for a dark page, and light mode
+   * still generates, because a reversed hand-tuned ramp is not a light ramp.
+   */
+  fixedDarkScale?: Record<number, string>;
 }
 
 export const THEME_PRESETS: ThemePreset[] = [
@@ -71,17 +85,146 @@ export function hslToHex(h: number, s: number, l: number): string {
   return `#${to(r)}${to(g)}${to(b)}`;
 }
 
+/* ── Ground: the surfaces a club's colour has to survive on ──────────────── */
+
+/**
+ * Light or dark. Everything in the interface is drawn from tokens, so this is
+ * a token swap rather than a second stylesheet — no component knows which one
+ * it's rendering on.
+ *
+ * `auto` follows the device. It exists mostly for the course: a phone set to
+ * follow daylight will already be in light mode by the time it's carried onto
+ * the first tee, which is where the contrast is hardest to win.
+ */
+export type Appearance = "dark" | "light" | "auto";
+
+export const APPEARANCES: Array<{ key: Appearance; name: string; blurb: string }> = [
+  { key: "dark", name: "Dark", blurb: "Clubhouse at dusk. Easy on the eyes indoors and at night." },
+  { key: "light", name: "Light", blurb: "Paper white. Much easier to read outdoors in bright sun." },
+  { key: "auto", name: "Follow the device", blurb: "Dark indoors, light in daylight — whatever the phone is set to." },
+];
+
+export function isAppearance(v: string): v is Appearance {
+  return v === "dark" || v === "light" || v === "auto";
+}
+
+export const DEFAULT_APPEARANCE: Appearance = "dark";
+
+export interface Ground {
+  key: "dark" | "light";
+  bg: string;
+  surface: string;
+  text: string;
+  /** Neutral ramp 100→900, in the order the tokens are numbered. */
+  neutrals: string[];
+  /** Error red and its tinted background, which also have to flip. */
+  danger: string;
+  dangerBg: string;
+  /**
+   * Label colour for text sitting ON the accent — the filled primary button.
+   *
+   * Not derived from the page background. Mixing toward it looked principled
+   * and measured 3.87:1 on a light ground, because the label ends up a pale
+   * off-white on a mid-dark accent. These are the two values that actually
+   * clear the bar against every hue the ramp can produce.
+   */
+  onAccent: string;
+}
+
+/**
+ * The two grounds.
+ *
+ * Both keep the warm cast the brand is built on — the light one is a paper
+ * off-white rather than a clinical #fff, and its cards sit *above* the page
+ * rather than below it, which is the one relationship that inverts between the
+ * two. Neutrals are the dark ramp read backwards, so a token used for a muted
+ * label stays muted and one used for a background stays a background.
+ */
+export const DARK_GROUND: Ground = {
+  key: "dark",
+  bg: "#16181a",
+  surface: "#21231f",
+  text: "#e9e9ed",
+  neutrals: ["#f3f5fe", "#e4e7f5", "#cfd3e5", "#b2b6ca", "#9397ab", "#75798c", "#595d6c", "#3f424d", "#292b31"],
+  danger: "#e0665a",
+  dangerBg: "#2a1512",
+  // Near-black on a light accent: the dark ramp puts step 500 in the upper
+  // lightness range, so dark text is what clears the bar there.
+  onAccent: "#16181a",
+};
+
+export const LIGHT_GROUND: Ground = {
+  key: "light",
+  bg: "#f4f2ee",
+  surface: "#fffefb",
+  text: "#1a1c1e",
+  // Darker through the middle than a straight reversal would give: neutral-500
+  // carries muted labels and icons, and the dark ramp's mid greys are far too
+  // pale to read on paper.
+  neutrals: ["#1f2126", "#2b2d33", "#3f424d", "#565a68", "#6b6f80", "#9297a8", "#b8bccd", "#d7dae7", "#eceef7"],
+  // The dark theme's salmon red only manages about 3:1 on white, so light mode
+  // takes a deeper one. Error text is the last thing that should be hard to
+  // read.
+  danger: "#b3261e",
+  dangerBg: "#fdecea",
+  // Pure white on a light-mode accent, which the ramp keeps dark enough to
+  // carry it. An off-white mixed from the page background measured 3.87:1.
+  onAccent: "#ffffff",
+};
+
+export function groundFor(appearance: "dark" | "light"): Ground {
+  return appearance === "light" ? LIGHT_GROUND : DARK_GROUND;
+}
+
 /**
  * Minimum contrast each step has to clear, and against what.
  *
- * Only the shades used as foreground carry a requirement. 100 and 200 are
- * lighter than anything asked of them, and 600–900 are backgrounds.
+ * Only the shades used as foreground carry a requirement. On a dark ground
+ * those are the light end of the ramp; on a light ground they're the dark end.
+ * The ramp reverses between the two (see `rampFor`), so the same step numbers
+ * carry the same *role* either way and this table doesn't move.
  */
-const CONTRAST_FLOOR: Record<number, { ratio: number; against: string }> = {
-  300: { ratio: 4.5, against: "#1d2022" }, // text, on the lighter card surface
-  400: { ratio: 4.5, against: "#16181a" },
-  500: { ratio: 3, against: "#16181a" }, // buttons, borders, large text
-};
+function contrastFloors(ground: Ground): Record<number, { ratio: number; against: string }> {
+  return {
+    300: { ratio: 4.5, against: ground.surface }, // text, on the card surface
+    // 400 is the accent *text* token and 500 the accent *UI* token, so 400
+    // carries the stricter bar. That is also what keeps them apart: held to
+    // the same floor, both get solved to exactly it and land on the same
+    // colour — which happened to bunker and every hue near 35°, making the
+    // 400/500 hover states invisible.
+    400: { ratio: 5.5, against: ground.bg },
+    // 500 was held to 3:1 as a "buttons and borders" colour. It isn't one:
+    // .btn-primary and .btn-ghost both render label text in it at normal size,
+    // so it is read as text and owes the text ratio.
+    500: { ratio: 4.5, against: ground.bg },
+  };
+}
+
+/**
+ * The lightness curve for a ground.
+ *
+ * Reversed for light mode, and that reversal is the whole trick. In this
+ * interface the low steps are foreground and the high steps are background —
+ * `--color-accent-300` is text, `--color-accent-900` is a tint behind a card.
+ * On a dark ground foreground means light; on a light ground it means dark. So
+ * reading the same curve backwards keeps every token's meaning intact and
+ * leaves every component untouched.
+ */
+function rampFor(ground: Ground): number[] {
+  return ground.key === "light" ? LIGHTNESS_LIGHT : LIGHTNESS;
+}
+
+/**
+ * Not simply the dark curve reversed.
+ *
+ * A straight reversal put the foreground steps at 0.38–0.565, which on paper
+ * clears 4.5:1 only after the solver drags every one of them down to exactly
+ * the floor — so every club colour came out at an identical weight and the
+ * ramp did no work at all. This curve runs darker through the foreground so
+ * the designed spacing survives and the solver is the exception rather than
+ * the rule.
+ */
+const LIGHTNESS_LIGHT = [0.08, 0.16, 0.24, 0.33, 0.45, 0.6, 0.74, 0.87, 0.95];
 
 /**
  * The lightness a hue needs to clear its contrast floor.
@@ -97,30 +240,72 @@ const CONTRAST_FLOOR: Record<number, { ratio: number; against: string }> = {
  * lifted until they're legible. Consistency yields to readability precisely
  * where the two disagree.
  */
-function lightnessFor(hue: number, saturation: number, step: number, base: number): number {
-  const floor = CONTRAST_FLOOR[step];
+function lightnessFor(
+  hue: number,
+  saturation: number,
+  step: number,
+  base: number,
+  ground: Ground,
+): number {
+  const floor = contrastFloors(ground)[step];
   if (!floor) return base;
   if (contrastRatio(hslToHex(hue, saturation, base), floor.against) >= floor.ratio) return base;
 
-  // Binary search upward. 24 iterations resolves far finer than 8-bit colour.
-  let lo = base;
-  let hi = 1;
+  // Which way is "more contrast" depends on the ground: away from a dark page
+  // means lighter, away from a light one means darker. Searching the wrong way
+  // would drive the colour *into* the background it has to stand out from.
+  const target = ground.key === "light" ? 0 : 1;
+  let stay = base;
+  let go = target;
+  // Binary search. 24 iterations resolves far finer than 8-bit colour.
   for (let i = 0; i < 24; i += 1) {
-    const mid = (lo + hi) / 2;
-    if (contrastRatio(hslToHex(hue, saturation, mid), floor.against) >= floor.ratio) hi = mid;
-    else lo = mid;
+    const mid = (stay + go) / 2;
+    if (contrastRatio(hslToHex(hue, saturation, mid), floor.against) >= floor.ratio) go = mid;
+    else stay = mid;
   }
-  return hi;
+  return go;
 }
 
-/** The full 100–900 ramp for a preset, keyed by step. */
-export function themeScale(preset: ThemePreset): Record<number, string> {
+/**
+ * The full 100–900 ramp for a preset, keyed by step.
+ *
+ * Defaults to the dark ground so every existing caller keeps its behaviour.
+ */
+export function themeScale(preset: ThemePreset, ground: Ground = DARK_GROUND): Record<number, string> {
+  if (ground.key === "dark" && preset.fixedDarkScale) return { ...preset.fixedDarkScale };
+  const ramp = rampFor(ground);
+  const solved = STEPS.map((step, i) =>
+    lightnessFor(preset.hue, preset.saturation, step, ramp[i], ground),
+  );
+
+  // Solving each step against its own floor can reorder the ramp: 400 carries
+  // a stricter bar than 500, and on a yellow it gets dragged past 300. A ramp
+  // that doubles back makes hover states look like glitches, so ordering is
+  // restored here rather than hoped for.
+  //
+  // The repair only ever moves a step *away* from the background — lighter on
+  // a dark ground, darker on a light one — which is the direction that adds
+  // contrast. So no step can be pushed below the floor it was just solved to.
+  // Walking from the background end toward the foreground end means each fix
+  // propagates instead of fighting the next one.
+  const away = ground.key === "light" ? -1 : 1;
+  for (let i = solved.length - 2; i >= 0; i -= 1) {
+    const wanted = solved[i + 1] + away * MIN_RAMP_GAP;
+    solved[i] = away > 0 ? Math.max(solved[i], wanted) : Math.min(solved[i], wanted);
+  }
+
   const out: Record<number, string> = {};
   STEPS.forEach((step, i) => {
-    const l = lightnessFor(preset.hue, preset.saturation, step, LIGHTNESS[i]);
-    out[step] = hslToHex(preset.hue, preset.saturation, l);
+    out[step] = hslToHex(preset.hue, preset.saturation, clamp01(solved[i]));
   });
   return out;
+}
+
+/** Smallest lightness difference that still reads as two colours. */
+const MIN_RAMP_GAP = 0.035;
+
+function clamp01(v: number): number {
+  return Math.min(1, Math.max(0, v));
 }
 
 /**
@@ -235,6 +420,139 @@ export function resolvedThemeVars(
   return vars;
 }
 
+/* ── The second colour ───────────────────────────────────────────────────── */
+
+/**
+ * The fairway green, as a preset rather than a constant.
+ *
+ * It carries meaning the primary accent doesn't — advancing rows, positive
+ * deltas, a match won — so it defaults to the colour of the game and most
+ * clubs should leave it alone. But a club whose identity is *two* colours has
+ * nowhere else to put the second one, and forcing green next to, say, a navy
+ * and gold crest looks like a bug rather than a choice.
+ */
+export const FAIRWAY: ThemePreset = {
+  key: "fairway",
+  name: "Fairway",
+  blurb: "The colour of the game — the default, and the safe answer.",
+  hue: 151,
+  saturation: 0.42,
+  // The exact ramp the app has always drawn, so a club that never touches
+  // this sees no change at all. Generating it instead moved every advancing
+  // row from forest green to mint.
+  fixedDarkScale: {
+    100: "#e7f5ec",
+    200: "#c3e6d0",
+    300: "#93d0ac",
+    400: "#5fb484",
+    500: "#3c8361",
+    600: "#2e6a4c",
+    700: "#23503a",
+    800: "#173627",
+    900: "#0d2016",
+  },
+};
+
+export const SECONDARY_PRESETS: ThemePreset[] = [FAIRWAY, ...THEME_PRESETS];
+
+export function secondaryFor(key: string | null | undefined): ThemePreset {
+  return SECONDARY_PRESETS.find((t) => t.key === key) ?? FAIRWAY;
+}
+
+export function resolveSecondary(key: string | null | undefined, hex: string): ThemePreset {
+  if (key === "custom") {
+    const p = customPreset(hex);
+    if (p) return p;
+  }
+  return secondaryFor(key);
+}
+
+/* ── A club's whole theme ────────────────────────────────────────────────── */
+
+/**
+ * Everything an organization can set about how the app looks.
+ *
+ * Stored as five short strings rather than a blob so each one can be validated
+ * on its own and a bad value for one can't take the rest of the theme down.
+ */
+export interface ClubTheme {
+  accentKey: string;
+  accentHex: string;
+  secondaryKey: string;
+  secondaryHex: string;
+  appearance: Appearance;
+}
+
+export const DEFAULT_CLUB_THEME: ClubTheme = {
+  accentKey: DEFAULT_THEME,
+  accentHex: "",
+  secondaryKey: FAIRWAY.key,
+  secondaryHex: "",
+  appearance: DEFAULT_APPEARANCE,
+};
+
+/** Every custom property a theme sets, for one ground. */
+export function themeVarsFor(theme: ClubTheme, ground: Ground): Record<string, string> {
+  const accent = themeScale(resolveTheme(theme.accentKey, theme.accentHex), ground);
+  const secondary = themeScale(resolveSecondary(theme.secondaryKey, theme.secondaryHex), ground);
+
+  const vars: Record<string, string> = {
+    "--color-accent": accent[500],
+    "--color-accent-2": secondary[500],
+    "--color-bg": ground.bg,
+    "--color-surface": ground.surface,
+    "--color-text": ground.text,
+    "--color-divider": `color-mix(in srgb, ${ground.text} 16%, transparent)`,
+    "--color-danger": ground.danger,
+    "--color-danger-bg": ground.dangerBg,
+    "--color-on-accent": ground.onAccent,
+  };
+  STEPS.forEach((step, i) => {
+    vars[`--color-accent-${step}`] = accent[step];
+    vars[`--color-accent-2-${step}`] = secondary[step];
+    vars[`--color-neutral-${step}`] = ground.neutrals[i];
+  });
+  return vars;
+}
+
+/**
+ * Only values this module generated itself.
+ *
+ * The theme is rendered into a `<style>` element, and part of it comes from a
+ * hex field a club typed. That field is validated on save, but a value that
+ * reached a stylesheet without passing through the ramp would be a CSS
+ * injection — and every value here *is* regenerated by `hslToHex` or picked
+ * from a constant, so nothing club-typed survives to the output. This asserts
+ * that rather than assuming it, because the assumption is one refactor away
+ * from being wrong and the failure would be silent.
+ */
+const SAFE_CSS_VALUE = /^(#[0-9a-f]{6}|color-mix\(in srgb, #[0-9a-f]{6} \d{1,3}%, transparent\))$/i;
+
+function declarations(vars: Record<string, string>): string {
+  return Object.entries(vars)
+    .filter(([, v]) => SAFE_CSS_VALUE.test(v))
+    .map(([k, v]) => `${k}:${v}`)
+    .join(";");
+}
+
+/**
+ * The club's theme as a stylesheet, scoped to one selector.
+ *
+ * A stylesheet rather than an inline `style` attribute, because `auto` needs a
+ * media query and an inline custom property would outrank it — a club that
+ * chose "follow the device" would be stuck in whichever mode was rendered.
+ * Server-rendered either way, so there's no frame of default orange before the
+ * club's colours arrive.
+ */
+export function themeCss(theme: ClubTheme, selector = "[data-club-theme]"): string {
+  const dark = declarations(themeVarsFor(theme, DARK_GROUND));
+  const light = declarations(themeVarsFor(theme, LIGHT_GROUND));
+
+  if (theme.appearance === "light") return `${selector}{${light}}`;
+  if (theme.appearance === "dark") return `${selector}{${dark}}`;
+  return `${selector}{${dark}}@media(prefers-color-scheme:light){${selector}{${light}}}`;
+}
+
 /* ── Readability on a phone, in the sun, on the 14th tee ─────────────────── */
 
 /**
@@ -268,29 +586,103 @@ export interface SunlightCheck {
  * buttons they tap, 300 and 400 the text they read. The darker steps are
  * backgrounds and the lighter ones are already bright.
  */
-export function sunlightCheck(preset: ThemePreset): SunlightCheck {
-  const scale = themeScale(preset);
+/**
+ * The bar a shade is held to outdoors, which is not the same on both grounds.
+ *
+ * On a dark ground the accent has room to be much brighter than the floor, so
+ * 7:1 discriminates properly — measured across the presets it separates 4.5
+ * from 14.75, and a club whose colour lands at the bottom really is harder to
+ * read on the course.
+ *
+ * On a light ground it can't. Reaching 7:1 against near-white paper needs a
+ * lightness under about 0.1, and pushing three foreground steps down there
+ * would collapse them into one near-black and take the colour with them. So a
+ * light theme's accent sits at the readable minimum by construction, and its
+ * outdoor advantage comes from the bright page rather than from the accent —
+ * which is what `sunlightVerdict` says instead of pretending the same number
+ * means the same thing on both.
+ */
+function outdoorBar(ground: Ground): number {
+  return ground.key === "light" ? 4.5 : SUNLIGHT_RATIO;
+}
+
+export function sunlightCheck(preset: ThemePreset, ground: Ground = DARK_GROUND): SunlightCheck {
+  const scale = themeScale(preset, ground);
   let worstRatio = Infinity;
   let worstStep = 500;
   for (const step of [300, 400, 500]) {
-    const ratio = contrastRatio(scale[step], APP_BG);
+    const ratio = contrastRatio(scale[step], ground.bg);
     if (ratio < worstRatio) {
       worstRatio = ratio;
       worstStep = step;
     }
   }
-  const ok = worstRatio >= SUNLIGHT_RATIO;
+  const bar = outdoorBar(ground);
+  const ok = worstRatio >= bar;
+  // On a dark ground the fix is a brighter shade; on a light one it's a deeper
+  // one. Advising "lighter" to a club already in light mode would make it worse.
+  const remedy =
+    ground.key === "light"
+      ? "a deeper or more saturated shade reads better on the course"
+      : "a lighter or more saturated shade reads better on the course";
   return {
     ok,
     worstRatio,
     worstStep,
     warning: ok
       ? null
-      : `This colour is readable indoors but dim in sunlight (${worstRatio.toFixed(1)}:1, where ${SUNLIGHT_RATIO}:1 holds up outdoors). Players entering scores on a bright day may struggle — a lighter or more saturated shade reads better on the course.`,
+      : `This colour is readable indoors but dim in sunlight (${worstRatio.toFixed(1)}:1, where ${bar}:1 holds up outdoors). Players entering scores on a bright day may struggle — ${remedy}.`,
   };
 }
 
 /** The same check for a stored theme, preset or custom. */
-export function sunlightCheckFor(themeKey: string | null | undefined, customHex: string): SunlightCheck {
-  return sunlightCheck(resolveTheme(themeKey, customHex));
+export function sunlightCheckFor(
+  themeKey: string | null | undefined,
+  customHex: string,
+  ground: Ground = DARK_GROUND,
+): SunlightCheck {
+  return sunlightCheck(resolveTheme(themeKey, customHex), ground);
+}
+
+/**
+ * How a whole theme behaves outdoors — the thing an organizer actually wants
+ * to know before a tournament.
+ *
+ * Judged on the ground the phone will really be in: `auto` is checked as light,
+ * because a device that follows daylight is in light mode exactly when the sun
+ * is the problem. Reporting a dark-mode number there would be reassuring and
+ * wrong.
+ */
+export function sunlightVerdict(theme: ClubTheme): {
+  ok: boolean;
+  accent: SunlightCheck;
+  secondary: SunlightCheck;
+  /** The single sentence worth showing, or null when it's fine. */
+  warning: string | null;
+  /** Set when switching appearance would fix it on its own. */
+  suggestion: string | null;
+} {
+  const ground = theme.appearance === "dark" ? DARK_GROUND : LIGHT_GROUND;
+  const accent = sunlightCheck(resolveTheme(theme.accentKey, theme.accentHex), ground);
+  const secondary = sunlightCheck(resolveSecondary(theme.secondaryKey, theme.secondaryHex), ground);
+  const worst = accent.worstRatio <= secondary.worstRatio ? accent : secondary;
+  const which = worst === accent ? "main colour" : "second colour";
+
+  // Worth raising light mode, but only for the reason that is actually true.
+  // A light theme's accent is NOT a higher ratio than a dark one's — it sits
+  // at the readable minimum by construction. What helps outdoors is the bright
+  // page behind it, and saying that is honest where "these colours hold up in
+  // light mode" would not be.
+  const suggestion =
+    !worst.ok && theme.appearance === "dark"
+      ? "A light screen is easier to read at arm's length in direct sun, whatever the accent colour. Switching appearance to Light — or Follow the device — helps more here than changing the club's colours would."
+      : null;
+
+  return {
+    ok: accent.ok && secondary.ok,
+    accent,
+    secondary,
+    warning: worst.ok ? null : `Your ${which}: ${worst.warning}`,
+    suggestion,
+  };
 }

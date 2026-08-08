@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { setStageCut } from "@/app/actions/tournament";
+import { setStageCut, setStageCutScope } from "@/app/actions/tournament";
 
 export function CutControl({
   formId,
@@ -10,7 +10,9 @@ export function CutControl({
   mode,
   count,
   percent,
+  scope,
   confirmedCount,
+  flightCount = 1,
 }: {
   /** Stable id for radio/name grouping — doesn't need to be a real stage id yet. */
   formId: string;
@@ -22,13 +24,27 @@ export function CutControl({
   mode: string;
   count: number;
   percent: number;
+  /** overall = one cut across the field; perFlight = the same cut inside each
+   *  flight, which is how a flighted club event actually runs. */
+  scope: string;
   confirmedCount: number;
+  /** How many flights the field is divided into — decides what "top N" means. */
+  flightCount?: number;
 }) {
   const [on, setOn] = useState(enabled);
   const [m, setM] = useState(mode === "percent" ? "percent" : "count");
   const [n, setN] = useState(count);
   const [pct, setPct] = useState(percent);
+  const [sc, setSc] = useState(scope === "perFlight" ? "perFlight" : "overall");
   const [pending, startTransition] = useTransition();
+
+  const commitScope = (next: string) => {
+    setSc(next);
+    startTransition(async () => {
+      const stageId = await getStageId();
+      await setStageCutScope(stageId, next);
+    });
+  };
 
   const commit = (nextOn: boolean, nextMode: string, nextN: number, nextPct: number) => {
     setOn(nextOn);
@@ -41,10 +57,20 @@ export function CutControl({
     });
   };
 
-  const survivors =
+  // Per flight, the cut is applied inside each flight — so "top 4" across
+  // eight flights advances thirty-two players, not four. Showing the overall
+  // number here would understate the next round's field by a factor of the
+  // flight count.
+  const flights = Math.max(1, flightCount);
+  const perFlight = sc === "perFlight";
+  const fieldPerBucket = perFlight ? Math.ceil(confirmedCount / flights) : confirmedCount;
+  const bucketSurvivors =
     m === "percent"
-      ? Math.max(1, Math.ceil((confirmedCount * pct) / 100))
-      : Math.max(1, Math.min(n, confirmedCount || n));
+      ? Math.max(1, Math.ceil((fieldPerBucket * pct) / 100))
+      : Math.max(1, Math.min(n, fieldPerBucket || n));
+  const survivors = perFlight
+    ? Math.min(confirmedCount || bucketSurvivors * flights, bucketSurvivors * flights)
+    : bucketSurvivors;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -100,8 +126,32 @@ export function CutControl({
               onBlur={() => commit(on, m, n, pct)}
             />
           )}
+          <div className="seg">
+            <label className="seg-opt">
+              <input
+                type="radio"
+                name={`cutscope-${formId}`}
+                checked={!perFlight}
+                disabled={pending}
+                onChange={() => commitScope("overall")}
+              />
+              Overall
+            </label>
+            <label className="seg-opt" title={flights < 2 ? "Only one flight — same as overall." : undefined}>
+              <input
+                type="radio"
+                name={`cutscope-${formId}`}
+                checked={perFlight}
+                disabled={pending || flights < 2}
+                onChange={() => commitScope("perFlight")}
+              />
+              Per flight
+            </label>
+          </div>
           <span className="text-muted" style={{ fontSize: 12 }}>
-            {survivors} of {confirmedCount} advance into {roundLabel}.
+            {perFlight
+              ? `${bucketSurvivors} from each of ${flights} flights — ${survivors} of ${confirmedCount} advance into ${roundLabel}.`
+              : `${survivors} of ${confirmedCount} advance into ${roundLabel}.`}
           </span>
         </div>
       )}

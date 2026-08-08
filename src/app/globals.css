@@ -67,26 +67,21 @@
    they layer cleanly over the existing component system.
    ────────────────────────────────────────────────────────────────────────── */
 
-/* Cards lift and pick up a hairline gold edge on hover — a small tactile cue
-   that most of the console's surfaces are interactive without being loud. */
+/* Interactive cards brighten their edge on hover rather than jumping.
+   They used to translate up 1px, which on a dashboard of a dozen cards made
+   the whole page twitch as the pointer crossed it — and a moving surface is
+   read as a glitch, not as affordance. The edge change says the same thing
+   without moving anything. */
 .card.elev-sm, .card.elev-md, .card.elev-lg {
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  transition: box-shadow var(--fast) var(--ease), background var(--fast) var(--ease);
 }
-a.card:hover, button.card:hover,
-.card-hover:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md), 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
+a.card, button.card, .card-hover { cursor: pointer; }
+a.card:hover, button.card:hover, .card-hover:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent),
+              0 2px 4px -1px rgba(0,0,0,0.1), 0 8px 20px -6px rgba(0,0,0,0.22);
 }
-
-/* Primary buttons get a soft trophy-gold sheen instead of a flat fill. */
-.btn-primary {
-  position: relative;
-  overflow: hidden;
-}
-.btn-primary:hover {
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--color-accent) 20%, transparent),
-    color-mix(in srgb, var(--color-accent) 10%, transparent));
+a.card:active, button.card:active, .card-hover:active {
+  background: color-mix(in srgb, var(--color-text) 3%, transparent);
 }
 
 /* Flight-path divider — the logo's dashed trajectory, stretched into a
@@ -146,6 +141,12 @@ html {
      near-black and disappears against the dark theme. */
   color-scheme: dark;
 }
+/* …and follows the club's chosen appearance inside the app shell, which sets
+   data-appearance alongside its theme. Without this a club in light mode gets
+   a white page with a black native date picker on it — the one piece of
+   chrome CSS variables cannot reach. */
+[data-appearance="light"] { color-scheme: light; }
+[data-appearance="auto"] { color-scheme: light dark; }
 html,
 body {
   margin: 0;
@@ -167,34 +168,61 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 8px;
+  padding: 6px 10px;
   border-radius: var(--radius-md);
   font-size: 13px;
-  color: var(--color-text);
+  font-weight: 450;
+  /* Resting nav links sit back; the page you are on comes forward. Every link
+     at full strength made the sidebar compete with the screen's content. */
+  color: color-mix(in srgb, var(--color-text) 72%, transparent);
   text-decoration: none;
   cursor: pointer;
   border: none;
   background: transparent;
   width: 100%;
   text-align: left;
+  position: relative;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
 }
 .side-link:hover {
   background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  color: var(--color-text);
 }
 .side-link[aria-current="page"] {
-  background: var(--color-accent-900);
-  color: var(--color-accent-200);
+  background: color-mix(in srgb, var(--color-accent) 13%, transparent);
+  color: var(--color-accent-300);
+  font-weight: 550;
+}
+/* A marker on the rail rather than a filled block: it reads as position in a
+   list, which is what it is. */
+.side-link[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--color-accent);
 }
 .side-link i {
-  font-size: 17px;
+  font-size: 16px;
   width: 20px;
+  opacity: 0.85;
 }
+.side-link[aria-current="page"] i { opacity: 1; }
 
 .page-kicker {
-  font-size: 11px;
-  letter-spacing: 0.1em;
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--color-accent);
+  font-weight: 600;
+  color: var(--color-accent-400);
+  margin: 0 0 2px;
+}
+.page-title {
+  letter-spacing: -0.024em;
 }
 
 .stat-grid {
@@ -278,8 +306,30 @@ body {
   .login-grid {
     grid-template-columns: 1fr !important;
   }
-  .login-pitch {
+  /* The pitch used to be hidden outright on a phone, which left a mobile
+     visitor on an unlabelled password box — and phones are how most people
+     first reach a link someone sent them. Sign-in comes first, the pitch
+     follows underneath. */
+  .login-side {
+    order: -1;
+    border-left: none !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
+    padding: 28px 20px !important;
+  }
+  .login-sticky {
+    position: static !important;
+  }
+  .login-side-brand {
+    display: block !important;
+  }
+  .pitch-brand {
     display: none !important;
+  }
+  .login-pitch {
+    padding: 32px 20px 28px !important;
+  }
+  .login-pitch h1 {
+    font-size: 32px !important;
   }
   /* Match picker becomes a short scroller so the entry panel sits below it. */
   .entry-matchlist {

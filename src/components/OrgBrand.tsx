@@ -3,6 +3,10 @@ import { BrandMark } from "./BrandMark";
 
 export interface Brand {
   name: string;
+  /** Quieter second line — the full club name under its short one. */
+  secondary?: string;
+  /** Initials for the no-logo mark; two letters where the name allows. */
+  monogram?: string;
   logoUrl: string;
   /** Keep a small TourneyHQ credit beside the club's mark (non-white-label plans). */
   showAttribution?: boolean;
@@ -46,12 +50,14 @@ export function OrgBrand({ brand, size = 22 }: { brand?: Brand | null; size?: nu
             placeItems: "center",
             background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
             color: "var(--color-accent)",
-            fontSize: size * 0.6,
+            // Two letters need to sit smaller than one, or the tile crops.
+            fontSize: (brand.monogram ?? "").length > 1 ? size * 0.42 : size * 0.6,
             fontWeight: 600,
+            letterSpacing: "0.01em",
             flex: "none",
           }}
         >
-          {brand.name.trim().charAt(0).toUpperCase()}
+          {brand.monogram || brand.name.trim().charAt(0).toUpperCase()}
         </span>
       )}
       <span style={{ minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
@@ -67,6 +73,24 @@ export function OrgBrand({ brand, size = 22 }: { brand?: Brand | null; size?: nu
         >
           {brand.name}
         </span>
+        {brand.secondary && (
+          // The full name under the short one. Truncated rather than wrapped:
+          // the sidebar is a fixed width and a club name that reflows pushes
+          // the whole nav down.
+          <span
+            style={{
+              fontSize: 10.5,
+              fontWeight: 500,
+              color: "var(--color-neutral-500)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+            title={brand.secondary}
+          >
+            {brand.secondary}
+          </span>
+        )}
         {brand.showAttribution && (
           // Mixed case and in the accent colour: this is the line that turns a
           // player at someone else's member-guest into the next organizer, so

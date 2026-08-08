@@ -26,7 +26,16 @@ const blankEvent: EventCourseFields = {
   customStrokeIndex: "",
 };
 
-const presetEvent: EventCourseFields = { ...blankEvent, course: "Ridgeline National" };
+// A club course with its own card — which is now the only way an event has
+// real hole data. The bundled "presets" this used to name were invented
+// layouts, and scoring a tournament against them was the bug they caused.
+const presetEvent: EventCourseFields = {
+  ...blankEvent,
+  course: "Bushwood",
+  customPars: JSON.stringify(Array(18).fill(4)),
+  customYards: JSON.stringify(Array(18).fill(400)),
+  customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+};
 
 describe("course resolution hierarchy", () => {
   it("prefers the match's own course", () => {
@@ -45,7 +54,7 @@ describe("course resolution hierarchy", () => {
   it("falls back to the event when neither is set", () => {
     // The ordinary single-venue tournament — nobody is ever asked.
     const r = courseForMatch(null, null, presetEvent);
-    expect(r?.name).toBe("Ridgeline National");
+    expect(r?.name).toBe("Bushwood");
     expect(r?.source).toBe("event");
   });
 

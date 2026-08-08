@@ -3,8 +3,11 @@ import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { refusalFor } from "@/lib/services/limits";
-import { isThemeKey, hexToHsl } from "@/lib/themes";
+import {
+  isThemeKey, hexToHsl, isAppearance, FAIRWAY, SECONDARY_PRESETS, DEFAULT_APPEARANCE,
+} from "@/lib/themes";
 import { checkLogoUrl } from "@/lib/services/logo-check";
+import { isBrandDisplay } from "@/lib/brand";
 
 export interface OrgResult {
   ok: boolean;
@@ -142,6 +145,10 @@ export async function saveOrganizationBranding(
   name: string,
   shortName: string,
   logoUrl: string,
+  /** Where the club is — prefills new courses and scopes a course search. */
+  location: { city?: string; region?: string; country?: string } = {},
+  /** How the name renders beside the logo. Checked against a closed list. */
+  brandDisplay = "short",
 ): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
@@ -167,7 +174,15 @@ export async function saveOrganizationBranding(
 
   await prisma.organization.update({
     where: { id: org.organizationId },
-    data: { name: cleanName, shortName: shortName.trim(), logoUrl: cleanLogo },
+    data: {
+      name: cleanName,
+      shortName: shortName.trim(),
+      logoUrl: cleanLogo,
+      city: (location.city ?? "").trim().slice(0, 80),
+      region: (location.region ?? "").trim().slice(0, 80),
+      country: (location.country ?? "").trim().slice(0, 80),
+      brandDisplay: isBrandDisplay(brandDisplay) ? brandDisplay : "short",
+    },
   });
 
   revalidatePath("/", "layout");
@@ -175,13 +190,24 @@ export async function saveOrganizationBranding(
 }
 
 /**
- * Set the club's accent colour.
+ * Set the club's whole theme: both colours and light/dark appearance.
  *
- * Takes a preset key, never a colour. A raw hex would let a club pick
- * something the app cannot stay readable against; the presets are
- * contrast-checked, so whichever is chosen the text survives.
+ * Every field is checked separately and against a closed list. This is a
+ * "use server" export, so the picker's own constraints mean nothing here —
+ * whatever arrives is arbitrary caller input, and one of these values ends up
+ * in a stylesheet.
+ *
+ * A club's own colour is allowed, but only its hue and saturation survive: the
+ * ramp built from it fixes lightness, which is what keeps an open colour field
+ * readable. The hex is stored, never emitted.
  */
-export async function saveOrganizationTheme(themeKey: string, themeHex = ""): Promise<OrgResult> {
+export async function saveOrganizationTheme(
+  themeKey: string,
+  themeHex = "",
+  secondaryKey = FAIRWAY.key,
+  secondaryHex = "",
+  appearance = DEFAULT_APPEARANCE as string,
+): Promise<OrgResult> {
   const org = await currentOrganization();
   if (!org) return { ok: false, error: "No organization found for this tournament." };
   if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change branding." };
@@ -197,9 +223,25 @@ export async function saveOrganizationTheme(themeKey: string, themeHex = ""): Pr
     return { ok: false, error: "Unknown theme." };
   }
 
+  if (secondaryKey === "custom") {
+    if (!hexToHsl(secondaryHex)) {
+      return { ok: false, error: "Enter a second colour like #1B4D3E, or pick one of the presets." };
+    }
+  } else if (!SECONDARY_PRESETS.some((p) => p.key === secondaryKey)) {
+    return { ok: false, error: "Unknown second colour." };
+  }
+
+  if (!isAppearance(appearance)) return { ok: false, error: "Unknown appearance." };
+
   await prisma.organization.update({
     where: { id: org.organizationId },
-    data: { themeKey, themeHex: themeKey === "custom" ? themeHex.trim() : "" },
+    data: {
+      themeKey,
+      themeHex: themeKey === "custom" ? themeHex.trim() : "",
+      themeSecondaryKey: secondaryKey,
+      themeSecondaryHex: secondaryKey === "custom" ? secondaryHex.trim() : "",
+      themeAppearance: appearance,
+    },
   });
   revalidatePath("/", "layout");
   return { ok: true };

@@ -7,6 +7,7 @@ import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { organizationAccessReport } from "@/lib/services/access";
 import { PlaySettings } from "@/components/PlaySettings";
 import { cleanSettings } from "@/lib/tournament-settings";
+import { isAppearance, DEFAULT_APPEARANCE } from "@/lib/themes";
 
 export default async function OrganizationPage() {
   const session = await requireScreen("organization");
@@ -48,6 +49,10 @@ export default async function OrganizationPage() {
         name={org.name}
         shortName={org.shortName}
         logoUrl={org.logoUrl}
+        city={org.city}
+        region={org.region}
+        country={org.country}
+        brandDisplay={org.brandDisplay}
         kind={org.kind}
         plan={org.subscription?.plan ?? "free"}
         eventCount={org._count.events}
@@ -55,7 +60,18 @@ export default async function OrganizationPage() {
         canEdit={canEdit}
       />
       <div style={{ marginTop: 16 }}>
-        <ThemePicker themeKey={org.themeKey} themeHex={org.themeHex} readOnly={!canEdit} />
+        <ThemePicker
+          theme={{
+            accentKey: org.themeKey,
+            accentHex: org.themeHex,
+            secondaryKey: org.themeSecondaryKey,
+            secondaryHex: org.themeSecondaryHex,
+            // Stored as free text, so it is narrowed here rather than cast —
+            // a bad row shouldn't crash the settings screen.
+            appearance: isAppearance(org.themeAppearance) ? org.themeAppearance : DEFAULT_APPEARANCE,
+          }}
+          readOnly={!canEdit}
+        />
       </div>
       <div style={{ marginTop: 16 }}>
         <PlaySettings

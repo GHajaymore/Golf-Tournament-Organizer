@@ -52,6 +52,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       voiceEntry: false,
       playerAccess: "email",
       scoreApproval: "staff",
+      attestBy: "marker",
     },
     round: { type: "Round Robin", format: "Stroke Play", scoringBasis: "gross", holes: 18 },
   },
@@ -68,6 +69,9 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       // the only sign-in that actually works on the day.
       playerAccess: "both",
       scoreApproval: "players",
+      // Players sign off between themselves, and a match-play league is
+      // exactly where the other side is the right check.
+      attestBy: "opponent",
     },
     round: ROUND_ROBIN_GROSS,
   },
@@ -82,6 +86,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       voiceEntry: true,
       playerAccess: "both",
       scoreApproval: "staff",
+      attestBy: "marker",
     },
     round: { type: "Round Robin", format: "Match Play", scoringBasis: "net", holes: 18 },
   },
@@ -97,6 +102,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       voiceEntry: true,
       playerAccess: "code",
       scoreApproval: "staff",
+      attestBy: "marker",
     },
     // Individual Stableford, not a scramble. Two things to note:
     //

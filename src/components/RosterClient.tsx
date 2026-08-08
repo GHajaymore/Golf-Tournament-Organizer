@@ -1,12 +1,14 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import {
   addMember,
   updateMember,
   setMemberStatus,
   deleteMember,
   addMembersToEvent,
+  importCsvMembers,
   type MemberInput,
+  type MemberImportResult,
 } from "@/app/actions/roster";
 
 export interface RosterRow {
@@ -51,6 +53,8 @@ const BLANK: MemberInput = {
 };
 
 export function RosterClient({ clubName, isClub, eventName, fieldLocked, members }: Props) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importResult, setImportResult] = useState<MemberImportResult | null>(null);
   const [query, setQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -130,6 +134,20 @@ export function RosterClient({ clubName, isClub, eventName, fieldLocked, members
     setAdding(false);
     setForm(BLANK);
     setError("");
+  };
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    setImportResult(null);
+    setError("");
+    startTransition(async () => {
+      setImportResult(await importCsvMembers(text));
+    });
+    // Cleared so re-picking the same file after a correction still fires
+    // onChange — otherwise the second upload silently does nothing.
+    if (fileRef.current) fileRef.current.value = "";
   };
 
   const submitForm = () => {
@@ -345,19 +363,36 @@ export function RosterClient({ clubName, isClub, eventName, fieldLocked, members
             Show inactive
           </label>
           {!adding && !editing && (
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                setAdding(true);
-                setEditing(null);
-                setForm(BLANK);
-              }}
-            >
-              <i className="ph ph-user-plus" /> Add member
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setAdding(true);
+                  setEditing(null);
+                  setForm(BLANK);
+                }}
+              >
+                <i className="ph ph-user-plus" /> Add member
+              </button>
+              {/* A club with a membership list already has it in a spreadsheet.
+                  Typing it in one member at a time is the reason a roster never
+                  gets filled in. */}
+              <label className="btn btn-secondary" style={{ cursor: "pointer" }}>
+                <i className="ph ph-upload-simple" /> Import CSV
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={onFile}
+                  style={{ display: "none" }}
+                />
+              </label>
+            </>
           )}
         </div>
+
+        {importResult && <ImportSummary result={importResult} onDismiss={() => setImportResult(null)} />}
 
         {addable.length > 0 && (
           <div
@@ -507,5 +542,85 @@ export function RosterClient({ clubName, isClub, eventName, fieldLocked, members
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * What the upload actually did.
+ *
+ * Reports updates separately from additions, because those are different
+ * events to an organizer: "142 added" after re-uploading a corrected export
+ * would mean the roster had just doubled. It also names the columns it didn't
+ * recognise — a file whose handicaps all imported as zero because the column
+ * was headed "Playing Hcp" is otherwise a silent, plausible-looking failure.
+ */
+/**
+ * Exported so the render tests can drive each outcome directly. It is a pure
+ * function of its props, and the copy is the part most likely to be wrong —
+ * reporting 142 "added" after a re-upload would tell an organizer their roster
+ * had just doubled.
+ */
+export function ImportSummary({
+  result,
+  onDismiss,
+}: {
+  result: MemberImportResult;
+  onDismiss: () => void;
+}) {
+  const bad = !!result.error;
+  const parts = [
+    result.imported > 0 ? `${result.imported} added` : "",
+    result.updated > 0 ? `${result.updated} updated` : "",
+    result.skippedDuplicates > 0 ? `${result.skippedDuplicates} already up to date` : "",
+    result.skippedInvalid > 0 ? `${result.skippedInvalid} skipped (no name, or a bad email)` : "",
+  ].filter(Boolean);
+
+  return (
+    <div
+      role="status"
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 10,
+        padding: "10px 12px",
+        marginTop: 10,
+        borderRadius: "var(--radius-md)",
+        fontSize: 13,
+        lineHeight: 1.5,
+        color: bad ? "var(--color-danger)" : "var(--color-text)",
+        background: bad ? "var(--color-danger-bg)" : "color-mix(in srgb, var(--color-accent-2) 12%, transparent)",
+        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${bad ? "var(--color-danger)" : "var(--color-accent-2)"} 30%, transparent)`,
+      }}
+    >
+      <i
+        className={bad ? "ph ph-warning-circle" : "ph ph-check-circle"}
+        style={{ fontSize: 15, marginTop: 1, flex: "none" }}
+      />
+      <div style={{ flex: 1 }}>
+        {bad ? (
+          result.error
+        ) : (
+          <>
+            <span>{parts.length ? parts.join(" · ") : "Nothing to import — every row was already on the roster."}</span>
+            {result.unknownColumns.length > 0 && (
+              <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
+                Ignored {result.unknownColumns.length === 1 ? "column" : "columns"}:{" "}
+                {result.unknownColumns.join(", ")}. Rename to a recognised heading and upload again to
+                bring {result.unknownColumns.length === 1 ? "it" : "them"} in.
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      <button
+        type="button"
+        className="btn btn-icon"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        style={{ width: 24, height: 24, flex: "none" }}
+      >
+        <i className="ph ph-x" style={{ fontSize: 12 }} />
+      </button>
+    </div>
   );
 }

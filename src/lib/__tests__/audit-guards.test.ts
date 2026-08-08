@@ -189,3 +189,155 @@ describe("the flight generator leaves team rounds alone", () => {
     expect(regroup).toMatch(/if \(needsTeams\(rrStage\.format\)\) continue;/);
   });
 });
+
+describe("roster CSV import", () => {
+  const roster = stripComments(read("roster.ts"));
+  const body = roster.slice(roster.indexOf("export async function importCsvMembers"));
+
+  it("is organizer-or-assistant only, like the rest of the roster", () => {
+    expect(body).toMatch(/requireRosterOrg\(\)/);
+  });
+
+  it("scopes every lookup and write to the caller's club", () => {
+    // Without this, uploading a file could read or overwrite another club's
+    // roster by matching on an email that exists there.
+    expect(body).toMatch(/where:\s*\{\s*organizationId\s*\}/);
+    expect(body).toMatch(/organizationId\s*\}\s*\}\)/);
+  });
+
+  it("does not require an email, unlike the entry-list importer", () => {
+    // A club roster is a record of members and plenty have no email on file.
+    // Requiring one would mean the roster could never match the membership
+    // list it was copied from.
+    expect(body).toMatch(/if \(email && !EMAIL_RE\.test\(email\)\)/);
+  });
+
+  it("never blanks a stored field from an absent column", () => {
+    // The destructive failure: a handicaps-only sheet uploaded after a full
+    // export would otherwise erase every phone number and GHIN on the roster.
+    expect(body).toMatch(/Object\.entries\(data\)\.filter/);
+    expect(body).toMatch(/rawHandicap\.trim\(\) !== ""/);
+    expect(body).toMatch(/handicapText\.trim\(\) !== ""/);
+  });
+
+  it("keeps its in-file index current so one file can't duplicate a person", () => {
+    expect(body).toMatch(/byEmail\.set\(/);
+    expect(body).toMatch(/byName\.set\(/);
+  });
+
+  it("shares one parser with the entry-list importer", () => {
+    // Two parsers drift: a club whose spreadsheet says "Hcp Index" would be
+    // understood by one screen and rejected by the other.
+    expect(roster).toMatch(/from "@\/lib\/csv"/);
+    expect(stripComments(read("tournament.ts"))).toMatch(/from "@\/lib\/csv"/);
+    // And no second copy of the splitter survives in either file.
+    expect(roster).not.toMatch(/function splitCsvLine/);
+    expect(stripComments(read("tournament.ts"))).not.toMatch(/function splitCsvLine/);
+  });
+});
+
+describe("the styleguide never ships", () => {
+  const page = readFileSync(
+    join(process.cwd(), "src", "app", "styleguide", "page.tsx"),
+    "utf8",
+  );
+
+  it("returns a 404 in production", () => {
+    // It is an unauthenticated page whose whole job is to enumerate the
+    // interface. Useful in development, and nobody's business in production.
+    expect(page).toMatch(/if \(process\.env\.NODE_ENV === "production"\) notFound\(\);/);
+    expect(page).toMatch(/from "next\/navigation"/);
+  });
+
+  it("is not linked from anywhere in the app", () => {
+    // A dev-only route reachable from the sidebar would be a dead link for
+    // every real user.
+    const nav = readFileSync(join(process.cwd(), "src", "lib", "nav.ts"), "utf8");
+    expect(nav).not.toMatch(/styleguide/);
+  });
+});
+
+describe("moving a player between flights", () => {
+  const body = actions("tournament.ts").find((a) => a.name === "movePlayerToGroup")!.body;
+
+  it("exists — manual formation had no way to actually move anyone", () => {
+    expect(body).toBeTruthy();
+  });
+
+  it("is staff-only and refuses once setup is locked", () => {
+    expect(body).toMatch(/requireStaffEvent\(\)/);
+    expect(body).toMatch(/assertUnlocked\(eventId\)/);
+  });
+
+  it("scopes BOTH ids to the caller's tournament", () => {
+    // Either one unscoped lets an organizer of any event move a stranger's
+    // player into a stranger's flight by posting two ids.
+    expect(body).toMatch(/prisma\.player\.findFirst\(\{ where: \{ id: playerId, eventId \}/);
+    expect(body).toMatch(/prisma\.group\.findFirst\(\{ where: \{ id: groupId, eventId \}/);
+  });
+
+  it("will not silently move someone after matches are scored", () => {
+    expect(body).toMatch(/scoredMatchCount\(eventId\)/);
+    expect(body).toMatch(/needsConfirm: true/);
+  });
+});
+
+describe("flight naming and sign-off", () => {
+  const rename = actions("tournament.ts").find((a) => a.name === "renameGroup")!.body;
+  const confirm = actions("tournament.ts").find((a) => a.name === "setFlightsConfirmed")!.body;
+
+  it("renaming is staff-only, scoped, and bounded", () => {
+    expect(rename).toMatch(/requireStaffEvent\(\)/);
+    expect(rename).toMatch(/where: \{ id: groupId, eventId \}/);
+    // Unbounded, a name is a free text field on a public endpoint.
+    expect(rename).toMatch(/\.slice\(0, 40\)/);
+  });
+
+  it("sign-off is staff-only and refuses on a computed rule", () => {
+    // The other rules regenerate from a policy, so "confirmed" would be a
+    // promise the next regenerate breaks.
+    expect(confirm).toMatch(/requireStaffEvent\(\)/);
+    expect(confirm).toMatch(/formationRule !== "manual"/);
+  });
+
+  it("flight formation uses the same handicap the round is scored on", () => {
+    // It built its players from the raw stored handicap while scoring used a
+    // Course Handicap — so a handicap-balanced draw was balanced on indexes,
+    // and over nine holes on doubled ones.
+    const regroup = stripComments(
+      readFileSync(join(process.cwd(), "src", "lib", "services", "regroup.ts"), "utf8"),
+    );
+    expect(regroup).toMatch(/courseHandicapMap\(/);
+    expect(regroup).toMatch(/handicap: courseHcp\.get\(p\.id\) \?\? p\.handicap/);
+    expect(regroup).toMatch(/\?\.holes === 9 \? 9 : 18/);
+  });
+});
+
+describe("registration close / extend", () => {
+  const body = actions("tournament.ts").find((a) => a.name === "setRegistrationOverride")!.body;
+
+  it("is staff-only and refuses once setup is locked", () => {
+    expect(body).toMatch(/requireStaffEvent\(\)/);
+    expect(body).toMatch(/assertUnlocked\(eventId\)/);
+  });
+
+  it("never blocks an organizer adding a late entry", () => {
+    // Closing registration is a statement about what members may do. The
+    // organizer adding a late entry by hand is how a closed event still takes
+    // one, and it is their job.
+    const add = actions("tournament.ts").find((a) => a.name === "addSignup")!.body;
+    expect(add).not.toMatch(/registrationOverride/);
+    expect(add).not.toMatch(/registrationStatus/);
+  });
+
+  it("the screen derives status from the deadline rather than capacity alone", () => {
+    // The bug: a tournament whose deadline passed still read "Open · unlimited".
+    const client = readFileSync(
+      join(process.cwd(), "src", "components", "RegistrationClient.tsx"),
+      "utf8",
+    );
+    expect(client).toMatch(/registrationStatus\(\{/);
+    expect(client).toMatch(/deadline: event\.regDeadline/);
+    expect(client).not.toMatch(/const status = unlimited \? "Open · unlimited"/);
+  });
+});

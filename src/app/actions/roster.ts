@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { syncPlayerAccount } from "@/lib/services/player-access";
+import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine } from "@/lib/csv";
 
 /**
  * Club roster management.
@@ -88,6 +89,128 @@ export async function addMember(input: MemberInput): Promise<RosterResult> {
   await prisma.member.create({ data: { ...data, organizationId } });
   refresh();
   return { ok: true };
+}
+
+export interface MemberImportResult {
+  imported: number;
+  updated: number;
+  skippedDuplicates: number;
+  skippedInvalid: number;
+  /** Header cells we didn't recognise, so the organizer can see what was ignored. */
+  unknownColumns: string[];
+  error?: string;
+}
+
+/**
+ * Build the roster from a club's own export.
+ *
+ * Deliberately more forgiving than the tournament entry import, because the
+ * two answer different questions. An entry list needs an email — that is how
+ * the player signs in. A roster is the club's record of its members, and
+ * plenty of them have no email on file; refusing those rows would mean the
+ * roster could never match the membership list it was copied from.
+ *
+ * Rows already on the roster are updated rather than skipped, so re-uploading
+ * a corrected export is the natural way to bulk-edit handicaps — which is how
+ * a club actually keeps this current, once a month when the new indexes land.
+ * A row is "already on the roster" by email when it has one, and by name when
+ * it doesn't; matching a nameless row on nothing would create a duplicate on
+ * every upload.
+ */
+export async function importCsvMembers(csv: string): Promise<MemberImportResult> {
+  const { organizationId } = await requireRosterOrg();
+  const empty = { imported: 0, updated: 0, skippedDuplicates: 0, skippedInvalid: 0, unknownColumns: [] };
+
+  const table = parseCsv(csv);
+  if (!table) return { ...empty, error: "The file is empty." };
+  if (!hasNameColumn(table)) {
+    return {
+      ...empty,
+      error:
+        'Couldn\'t find a name column in the header row. Expected a header like: name, email, handicap, phone — or first name and last name in separate columns.',
+    };
+  }
+
+  const unknownColumns = splitCsvLine(csv.split(/\r?\n/).filter((l) => l.trim() !== "")[0])
+    .filter((_, i) => table.columns[i] === null)
+    .map((h) => h.replace(/^﻿/, "").trim())
+    .filter(Boolean);
+
+  const existing = await prisma.member.findMany({
+    where: { organizationId },
+    select: { id: true, name: true, email: true },
+  });
+  const byEmail = new Map(existing.filter((m) => m.email).map((m) => [m.email.toLowerCase(), m.id]));
+  const byName = new Map(existing.map((m) => [m.name.trim().toLowerCase(), m.id]));
+
+  let imported = 0;
+  let updated = 0;
+  let skippedDuplicates = 0;
+  let skippedInvalid = 0;
+
+  for (const row of table.rows) {
+    const name = nameFrom(table, row);
+    if (!name) {
+      skippedInvalid += 1;
+      continue;
+    }
+    const email = cell(table, row, "email").toLowerCase();
+    if (email && !EMAIL_RE.test(email)) {
+      skippedInvalid += 1;
+      continue;
+    }
+
+    const rawHandicap = cell(table, row, "handicap");
+    const parsedHandicap = parseFloat(rawHandicap);
+    const handicapText = cell(table, row, "handicapType");
+    const data = cleanMemberData({
+      name,
+      email,
+      phone: cell(table, row, "phone"),
+      ghin: cell(table, row, "ghin"),
+      homeClub: cell(table, row, "homeClub"),
+      gender: cell(table, row, "gender"),
+      preferredTee: cell(table, row, "preferredTee"),
+      memberNumber: cell(table, row, "memberNumber"),
+      notes: cell(table, row, "notes"),
+      handicap: Number.isFinite(parsedHandicap) ? parsedHandicap : 0,
+      // "9" or a column that literally says 9 holes; anything else is 18.
+      handicapType: handicapText.trim() === "9" || /\b9\b/.test(handicapText) ? "9" : "18",
+      handicapSource: "manual",
+    });
+
+    const existingId = email ? byEmail.get(email) : byName.get(name.trim().toLowerCase());
+
+    if (existingId) {
+      // Don't overwrite a stored value with a blank cell — a narrower export
+      // would otherwise wipe phone numbers and GHIN numbers off the roster.
+      const patch = Object.fromEntries(
+        Object.entries(data).filter(([k, v]) => {
+          if (k === "handicap") return rawHandicap.trim() !== "";
+          if (k === "handicapType") return handicapText.trim() !== "";
+          if (k === "handicapSource") return false;
+          return v !== "";
+        }),
+      );
+      if (Object.keys(patch).length === 0) {
+        skippedDuplicates += 1;
+        continue;
+      }
+      await prisma.member.update({ where: { id: existingId }, data: patch });
+      updated += 1;
+      continue;
+    }
+
+    const created = await prisma.member.create({ data: { ...data, organizationId } });
+    // Keep the in-memory index current so two rows for the same person in one
+    // file update each other rather than creating a duplicate.
+    if (data.email) byEmail.set(data.email, created.id);
+    byName.set(data.name.trim().toLowerCase(), created.id);
+    imported += 1;
+  }
+
+  refresh();
+  return { imported, updated, skippedDuplicates, skippedInvalid, unknownColumns };
 }
 
 export async function updateMember(memberId: string, input: MemberInput): Promise<RosterResult> {

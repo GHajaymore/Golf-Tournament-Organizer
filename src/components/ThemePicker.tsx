@@ -3,150 +3,266 @@ import { useState, useTransition } from "react";
 import { saveOrganizationTheme } from "@/app/actions/organization";
 import {
   THEME_PRESETS,
+  SECONDARY_PRESETS,
+  APPEARANCES,
   themeScale,
-  themeFor,
+  themeVarsFor,
+  groundFor,
+  resolveTheme,
+  resolveSecondary,
   customPreset,
-  sunlightCheck,
+  sunlightVerdict,
   type ThemePreset,
+  type Appearance,
+  type ClubTheme,
+  type Ground,
 } from "@/lib/themes";
 
 /**
- * The club's accent colour.
+ * The club's whole look: light or dark, and both accent colours.
  *
  * Presets first because most clubs want a colour that looks right rather than
- * one that matches a hex from a brand guide, and a custom field underneath for
- * the ones that do. Both are safe by construction: the ramp is rebuilt from
- * hue and saturation with lightness solved per hue, so a club cannot choose
- * something the app can't render legibly.
+ * one matching a hex from a brand guide, and a custom field for the ones that
+ * do. Both are safe by construction — the ramp is rebuilt from hue and
+ * saturation with lightness solved per hue against the chosen ground, so a
+ * club cannot pick something the app can't render legibly.
  *
- * What it *can* choose is something that reads poorly outdoors, which no
- * contrast standard covers — hence the sunlight note.
+ * What it *can* pick is something that reads poorly outdoors, which no
+ * contrast standard covers. That's what the sunlight note is for, and it's why
+ * appearance sits at the top: switching to light does more for readability on
+ * the 14th tee than any colour choice below it.
+ *
+ * Changes are staged and saved together rather than applied per click. With
+ * five fields, saving each one separately would walk the club through
+ * combinations it never asked for — and the preview only means something when
+ * it shows the whole thing at once.
  */
 export function ThemePicker({
-  themeKey,
-  themeHex,
+  theme,
   readOnly,
 }: {
-  themeKey: string;
-  themeHex: string;
+  theme: ClubTheme;
   readOnly: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [hex, setHex] = useState(themeHex || "#1b4d3e");
+  const [saved, setSaved] = useState(false);
+  const [draft, setDraft] = useState<ClubTheme>(theme);
+  // Held separately from the draft so typing a half-finished hex doesn't blank
+  // the preview on every keystroke.
+  const [accentHexDraft, setAccentHexDraft] = useState(theme.accentHex || "#1b4d3e");
+  const [secondaryHexDraft, setSecondaryHexDraft] = useState(theme.secondaryHex || "#1b4d3e");
 
-  const save = (key: string, colour = "") => {
+  const set = (patch: Partial<ClubTheme>) => {
+    setDraft((d) => ({ ...d, ...patch }));
+    setSaved(false);
+    setError("");
+  };
+
+  const save = () => {
     setError("");
     startTransition(async () => {
-      const res = await saveOrganizationTheme(key, colour);
+      const res = await saveOrganizationTheme(
+        draft.accentKey,
+        draft.accentHex,
+        draft.secondaryKey,
+        draft.secondaryHex,
+        draft.appearance,
+      );
       if (!res.ok && res.error) setError(res.error);
+      else setSaved(true);
     });
   };
 
-  const active: ThemePreset =
-    themeKey === "custom" ? (customPreset(themeHex) ?? themeFor(themeKey)) : themeFor(themeKey);
-  const sun = sunlightCheck(active);
-  const preview = customPreset(hex);
+  const dirty =
+    draft.accentKey !== theme.accentKey ||
+    draft.accentHex !== theme.accentHex ||
+    draft.secondaryKey !== theme.secondaryKey ||
+    draft.secondaryHex !== theme.secondaryHex ||
+    draft.appearance !== theme.appearance;
 
-  const Swatch = ({ preset, selected }: { preset: ThemePreset; selected: boolean }) => {
-    const s = themeScale(preset);
+  // Swatches and preview are drawn on the ground the club is choosing, not the
+  // one they're currently looking at — otherwise picking "light" would show
+  // every colour as it appears in dark mode.
+  const ground = groundFor(draft.appearance === "dark" ? "dark" : "light");
+  const sun = sunlightVerdict(draft);
+
+  const Swatch = ({
+    preset,
+    selected,
+    onPick,
+  }: {
+    preset: ThemePreset;
+    selected: boolean;
+    onPick: () => void;
+  }) => {
+    const s = themeScale(preset, ground);
     return (
       <button
         type="button"
         disabled={pending || readOnly}
-        onClick={() => save(preset.key)}
+        onClick={onPick}
         style={{
           textAlign: "left",
           padding: "10px 12px",
           borderRadius: 10,
           cursor: readOnly ? "default" : "pointer",
-          color: "var(--color-text)",
-          background: selected ? `${s[900]}` : "var(--color-bg)",
-          border: `1px solid ${selected ? s[500] : "var(--color-divider)"}`,
+          color: ground.text,
+          background: selected ? s[900] : ground.bg,
+          border: `1px solid ${selected ? s[500] : `color-mix(in srgb, ${ground.text} 16%, transparent)`}`,
         }}
       >
         <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
           {[300, 400, 500, 600, 700].map((step) => (
-            <span
-              key={step}
-              style={{ width: 18, height: 18, borderRadius: 4, background: s[step] }}
-            />
+            <span key={step} style={{ width: 18, height: 18, borderRadius: 4, background: s[step] }} />
           ))}
         </div>
         <div style={{ fontSize: 13, fontWeight: 600 }}>{preset.name}</div>
-        <div className="text-muted" style={{ fontSize: 11, marginTop: 1 }}>{preset.blurb}</div>
+        <div style={{ fontSize: 11, marginTop: 1, opacity: 0.66 }}>{preset.blurb}</div>
       </button>
     );
   };
 
+  const HexField = ({
+    label,
+    value,
+    onChange,
+    onUse,
+    active,
+  }: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    onUse: () => void;
+    active: boolean;
+  }) => {
+    const preview = customPreset(value);
+    return (
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          className="input"
+          style={{ width: 130, fontFamily: "var(--font-mono, monospace)" }}
+          value={value}
+          disabled={readOnly}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="#1B4D3E"
+          aria-label={label}
+        />
+        {preview && (
+          <div style={{ display: "flex", gap: 4 }}>
+            {[300, 400, 500, 600, 700].map((step) => (
+              <span
+                key={step}
+                style={{ width: 20, height: 20, borderRadius: 4, background: themeScale(preview, ground)[step] }}
+              />
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={pending || readOnly || !preview}
+          onClick={onUse}
+        >
+          {active ? "Update" : "Use this colour"}
+        </button>
+      </div>
+    );
+  };
+
   return (
-    <div className="card elev-sm" style={{ gap: 12 }}>
+    <div className="card elev-sm" style={{ gap: 16 }}>
       <div>
-        <span className="card-title" style={{ fontSize: 15 }}>Club colour</span>
+        <span className="card-title" style={{ fontSize: 15 }}>Club colour &amp; appearance</span>
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
-          Applies to every tournament this organization runs. The fairway green stays as it is —
-          it marks players advancing and scores under par, so it shouldn&apos;t change with a rebrand.
+          Applies to every tournament this organization runs, on every device anyone opens it on.
         </p>
       </div>
 
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-        {THEME_PRESETS.map((p) => (
-          <Swatch key={p.key} preset={p} selected={themeKey === p.key} />
-        ))}
+      {/* Appearance first: it changes the ground every colour below is judged
+          against, and it matters more outdoors than any colour does. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <span className="card-kicker">Appearance</span>
+        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+          {APPEARANCES.map((a) => (
+            <button
+              key={a.key}
+              type="button"
+              disabled={pending || readOnly}
+              onClick={() => set({ appearance: a.key as Appearance })}
+              style={{
+                textAlign: "left",
+                padding: "10px 12px",
+                borderRadius: 10,
+                cursor: readOnly ? "default" : "pointer",
+                color: "var(--color-text)",
+                background: draft.appearance === a.key ? "color-mix(in srgb, var(--color-accent) 12%, transparent)" : "var(--color-bg)",
+                border: `1px solid ${draft.appearance === a.key ? "var(--color-accent)" : "var(--color-divider)"}`,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600 }}>
+                <i className={`ph ph-${a.key === "light" ? "sun" : a.key === "dark" ? "moon" : "circle-half"}`} />
+                {a.name}
+              </div>
+              <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>{a.blurb}</div>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* The club's own colour. Only its hue and saturation are used — the
-          lightness is rebuilt, which is what stops a pale crest colour from
-          producing text nobody can read. */}
-      <div
-        style={{
-          borderTop: "1px solid var(--color-divider)",
-          paddingTop: 12,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        }}
-      >
-        <span className="card-kicker">Or your own colour</span>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <input
-            className="input"
-            style={{ width: 130, fontFamily: "var(--font-mono, monospace)" }}
-            value={hex}
-            disabled={readOnly}
-            onChange={(e) => setHex(e.target.value)}
-            placeholder="#1B4D3E"
-            aria-label="Club colour hex"
-          />
-          {preview && (
-            <div style={{ display: "flex", gap: 4 }}>
-              {[300, 400, 500, 600, 700].map((step) => (
-                <span
-                  key={step}
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 4,
-                    background: themeScale(preview)[step],
-                  }}
-                />
-              ))}
-            </div>
-          )}
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={pending || readOnly || !preview}
-            onClick={() => save("custom", hex)}
-          >
-            {themeKey === "custom" ? "Update" : "Use this colour"}
-          </button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <span className="card-kicker">Main colour</span>
+        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+          {THEME_PRESETS.map((p) => (
+            <Swatch
+              key={p.key}
+              preset={p}
+              selected={draft.accentKey === p.key}
+              onPick={() => set({ accentKey: p.key, accentHex: "" })}
+            />
+          ))}
         </div>
+        {/* Only hue and saturation are used — the lightness is rebuilt, which is
+            what stops a pale crest colour producing text nobody can read. */}
+        <HexField
+          label="Club colour hex"
+          value={accentHexDraft}
+          onChange={setAccentHexDraft}
+          onUse={() => set({ accentKey: "custom", accentHex: accentHexDraft })}
+          active={draft.accentKey === "custom"}
+        />
         <p className="text-muted" style={{ fontSize: 11, margin: 0 }}>
           We keep your colour&apos;s hue and adjust its brightness so text stays readable on every
-          screen — the swatches above show exactly what you&apos;ll get.
+          screen — the swatches show exactly what you&apos;ll get.
         </p>
       </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <span className="card-kicker">Second colour</span>
+        <p className="text-muted" style={{ fontSize: 11, margin: 0 }}>
+          Marks players advancing, scores under par and matches won. Most clubs should leave this on
+          Fairway — it reads as the colour of the game rather than of any one club.
+        </p>
+        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+          {SECONDARY_PRESETS.map((p) => (
+            <Swatch
+              key={p.key}
+              preset={p}
+              selected={draft.secondaryKey === p.key}
+              onPick={() => set({ secondaryKey: p.key, secondaryHex: "" })}
+            />
+          ))}
+        </div>
+        <HexField
+          label="Second colour hex"
+          value={secondaryHexDraft}
+          onChange={setSecondaryHexDraft}
+          onUse={() => set({ secondaryKey: "custom", secondaryHex: secondaryHexDraft })}
+          active={draft.secondaryKey === "custom"}
+        />
+      </div>
+
+      <ThemePreview theme={draft} ground={ground} />
 
       {/* No contrast standard covers a phone in direct sun, and that is where
           this app is used. */}
@@ -163,11 +279,143 @@ export function ThemePicker({
           }}
         >
           <i className="ph ph-sun" style={{ fontSize: 15, marginTop: 1 }} />
-          <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>{sun.warning}</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>{sun.warning}</p>
+            {sun.suggestion && (
+              <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5, fontWeight: 500 }}>{sun.suggestion}</p>
+            )}
+          </div>
         </div>
       )}
 
       {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
+
+      {!readOnly && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button type="button" className="btn btn-primary" disabled={pending || !dirty} onClick={save}>
+            {pending ? "Saving…" : saved && !dirty ? "Saved" : "Save theme"}
+          </button>
+          {dirty && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={pending}
+              onClick={() => { setDraft(theme); setError(""); }}
+            >
+              Discard
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The theme drawn on itself.
+ *
+ * Real interface pieces — a leaderboard row, a primary button, a muted label —
+ * rather than a strip of swatches, because the question a club is actually
+ * asking is "can I read a score in this", and a swatch can't answer it. The
+ * whole panel is given the theme's own variables, so what's shown is produced
+ * by exactly the tokens the app will render with.
+ */
+function ThemePreview({ theme, ground }: { theme: ClubTheme; ground: Ground }) {
+  const vars = themeVarsFor(theme, ground) as React.CSSProperties;
+  const accent = resolveTheme(theme.accentKey, theme.accentHex);
+  const secondary = resolveSecondary(theme.secondaryKey, theme.secondaryHex);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <span className="card-kicker">Preview</span>
+      <div
+        style={{
+          ...vars,
+          background: "var(--color-bg)",
+          color: "var(--color-text)",
+          border: "1px solid var(--color-divider)",
+          borderRadius: 10,
+          padding: 14,
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 15 }}>
+            Leaderboard
+          </span>
+          <span style={{ fontSize: 11, color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>
+            after Round 2
+          </span>
+        </div>
+
+        <div style={{ background: "var(--color-surface)", borderRadius: 8, overflow: "hidden" }}>
+          {[
+            { pos: 1, name: "Ann Doyle", score: "−4", advancing: true },
+            { pos: 2, name: "Bob Ellery", score: "−1", advancing: true },
+            { pos: 3, name: "Cara Fenn", score: "+3", advancing: false },
+          ].map((r) => (
+            <div
+              key={r.pos}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 12px",
+                fontSize: 13,
+                borderTop: r.pos === 1 ? "none" : "1px solid var(--color-divider)",
+                background: r.advancing ? "color-mix(in srgb, var(--color-accent-2) 12%, transparent)" : "transparent",
+              }}
+            >
+              <span style={{ color: "var(--color-accent-300)", fontWeight: 600, width: 16 }}>{r.pos}</span>
+              <span style={{ flex: 1 }}>{r.name}</span>
+              <span
+                style={{
+                  fontVariantNumeric: "tabular-nums",
+                  fontWeight: 600,
+                  color: r.advancing ? "var(--color-accent-2-400)" : "var(--color-text)",
+                }}
+              >
+                {r.score}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {/* Outlined, matching .btn-primary — accent as label text on the page
+              itself. A filled swatch would flatter a colour the app never
+              renders that way. */}
+          <span
+            style={{
+              border: "1px solid var(--color-accent)",
+              color: "var(--color-accent)",
+              borderRadius: 8,
+              padding: "6px 12px",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            Enter scores
+          </span>
+          <span
+            style={{
+              border: "1px solid var(--color-divider)",
+              color: "var(--color-text)",
+              borderRadius: 8,
+              padding: "6px 12px",
+              fontSize: 13,
+            }}
+          >
+            Publish
+          </span>
+          <span style={{ fontSize: 11, color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>
+            {accent.name}
+            {secondary.key === "fairway" ? "" : ` + ${secondary.name}`}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

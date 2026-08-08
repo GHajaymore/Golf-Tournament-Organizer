@@ -3,6 +3,8 @@ import { prisma } from "../db";
 import { formGroups, roundRobinSchedule } from "../domain";
 import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../domain";
 import { needsTeams } from "../formats";
+import { generatesPairings, isPlayingRound } from "../stage-types";
+import { courseHandicapMap } from "../domain";
 
 /**
  * Re-form flights for an event from its confirmed players using the stored rule
@@ -66,10 +68,29 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
     orderBy: { seed: "asc" },
   });
 
+  // Flights must be balanced on the same number the round is scored on.
+  // This built its players from the raw stored handicap while scoring used a
+  // Course Handicap — so a handicap-balanced draw was balanced on indexes,
+  // and over nine holes it was balanced on doubled ones. Both are the same
+  // mistake as using an index where a Course Handicap belongs, and neither
+  // shows a symptom: the flights just come out subtly uneven.
+  const [allStages, tees] = await Promise.all([
+    prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
+    prisma.tee.findMany({
+      where: { course: { events: { some: { eventId } } } },
+      orderBy: [{ position: "asc" }],
+    }),
+  ]);
+  const activeHoles = allStages.filter((s) => isPlayingRound(s.type))[0]?.holes === 9 ? 9 : 18;
+  const teeRatings = new Map(
+    tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+  );
+  const courseHcp = courseHandicapMap(confirmed, teeRatings, tees[0]?.id ?? null, activeHoles);
+
   const domainPlayers: DomainPlayer[] = confirmed.map((p) => ({
     id: p.id,
     name: p.name,
-    handicap: p.handicap,
+    handicap: courseHcp.get(p.id) ?? p.handicap,
     seed: p.seed,
   }));
   const groups = formGroups(domainPlayers, formationRule, config);
@@ -110,6 +131,11 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
       // count toward the standings. Its matches come from generateTeamMatches
       // on the Teams screen, once the sides are drawn.
       if (needsTeams(rrStage.format)) continue;
+      // A medal round has no opponents. Drawing pairings for it produced
+      // matches nobody played, which could still be scored and would then
+      // count toward the standings — the same failure the team skip above
+      // exists to prevent.
+      if (!generatesPairings(rrStage.type)) continue;
       const emptyHoles = JSON.stringify(new Array(rrStage.holes === 9 ? 9 : 18).fill(null));
       for (const g of groups) {
         const dbGroupId = groupIdByEngineId.get(g.id)!;

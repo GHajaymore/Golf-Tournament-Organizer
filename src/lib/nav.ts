@@ -32,18 +32,18 @@ export const NAV: NavSection[] = [
     items: [
       { key: "roster", label: "Members", href: "/roster", icon: "ph ph-address-book" },
       { key: "series", label: "Season standings", href: "/series", icon: "ph ph-trophy" },
-      { key: "organization", label: "Organization", href: "/organization", icon: "ph ph-buildings" },
+      { key: "organization", label: "Club settings", href: "/organization", icon: "ph ph-buildings" },
     ],
   },
   {
     // Everything that defines the tournament. Locks when the event goes live.
     label: "Set up",
     items: [
-      { key: "event", label: "Event setup", href: "/event", icon: "ph ph-gear-six" },
+      { key: "event", label: "Tournament details", href: "/event", icon: "ph ph-gear-six" },
       { key: "registration", label: "Registration & field", href: "/registration", icon: "ph ph-user-plus" },
-      { key: "stages", label: "Rounds & format", href: "/stages", icon: "ph ph-stack" },
-      { key: "grouping", label: "Flights & divisions", href: "/grouping", icon: "ph ph-squares-four" },
-      { key: "teams", label: "Teams", href: "/teams", icon: "ph ph-users-three" },
+      { key: "stages", label: "Rounds & formats", href: "/stages", icon: "ph ph-stack" },
+      { key: "grouping", label: "Flights", href: "/grouping", icon: "ph ph-squares-four" },
+      { key: "teams", label: "Teams & pairs", href: "/teams", icon: "ph ph-users-three" },
       { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check" },
     ],
   },
@@ -51,7 +51,7 @@ export const NAV: NavSection[] = [
     // Running the live competition — always available once play begins.
     label: "Manage",
     items: [
-      { key: "foursomes", label: "Tee sheet & pairings", href: "/foursomes", icon: "ph ph-users-four" },
+      { key: "foursomes", label: "Tee sheet", href: "/foursomes", icon: "ph ph-users-four" },
       { key: "scorecard", label: "Scorecards", href: "/scorecard", icon: "ph ph-cards" },
       { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple" },
       { key: "qualification", label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered" },
@@ -80,7 +80,7 @@ export const NAV: NavSection[] = [
 export function navForRole(
   viewRole: Role,
   settings?: TournamentSettings,
-  opts: { hasTeamRound?: boolean } = {},
+  opts: { hasTeamRound?: boolean; hasKnockout?: boolean } = {},
 ): NavSection[] {
   const allowed = (key: string): boolean => {
     if (!canAccessScreen(viewRole, key)) return false;
@@ -88,6 +88,12 @@ export function navForRole(
     // don't, and a permanent link to an empty screen is just clutter — the
     // link appears the moment a round is set to a team format.
     if (key === "teams" && !opts.hasTeamRound) return false;
+    // Qualification answers one question — who goes through to the knockout —
+    // so it only earns a slot when there is a knockout to go through to. Its
+    // configuration moved into the round builder, and a tournament that ends
+    // at the last round already has the cut line and the leaderboard saying
+    // the same thing in the place the decision is made.
+    if (key === "qualification" && !opts.hasKnockout) return false;
     if (!settings) return true;
     // The bracket is seeded from live standings, so showing it in a blind
     // event would give away the order the leaderboard is hiding.

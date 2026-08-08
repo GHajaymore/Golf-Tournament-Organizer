@@ -6,7 +6,7 @@ import { navForRole } from "@/lib/nav";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { brandForEvent, themeForEvent } from "@/lib/services/organization";
-import { resolvedThemeVars } from "@/lib/themes";
+import { themeCss, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { settingsOf } from "@/lib/services/tournament";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 
@@ -22,10 +22,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const teamRounds = event
     ? await prisma.stage.count({ where: { eventId: event.id, format: { in: TEAM_FORMAT_NAMES } } })
     : 0;
+  // Qualification is the preview of who advances to the knockout. Without a
+  // knockout stage there is nothing to advance to, and the screen reports
+  // "0 players qualify" for the many tournaments that simply end at the last
+  // round.
+  const knockoutRounds = event
+    ? await prisma.stage.count({
+        where: { eventId: event.id, type: { in: ["Bracket Stage", "Qualification Stage"] } },
+      })
+    : 0;
   // Screens the tournament governs (leaderboard, score entry) are filtered out
   // of the sidebar here rather than shown and then bounced.
   const sections = navForRole(session.viewRole, event ? settingsOf(event) : undefined, {
     hasTeamRound: teamRounds > 0,
+    hasKnockout: knockoutRounds > 0,
   });
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).
@@ -33,20 +43,30 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Applied inline on the wrapper so the club's colours arrive with the
   // server-rendered HTML. Injected later, the first paint would flash the
   // default orange before settling — a visible flicker of the wrong brand.
-  const theme = session.eventId ? await themeForEvent(session.eventId) : { key: "", hex: "" };
-  const themeStyle = resolvedThemeVars(theme.key, theme.hex) as React.CSSProperties;
+  const theme = session.eventId ? await themeForEvent(session.eventId) : DEFAULT_CLUB_THEME;
+  // A stylesheet rather than an inline style attribute: "follow the device"
+  // needs a media query, and an inline custom property outranks any rule, so
+  // inlining would pin such a club to whichever mode happened to render.
+  // themeCss emits only values it generated itself — see SAFE_CSS_VALUE.
+  const themeStyleSheet = themeCss(theme, "#club-theme");
 
   return (
     <div
+      id="club-theme"
+      // Drives `color-scheme` in globals.css. Native form chrome — the date
+      // picker especially — is the one thing custom properties can't reach,
+      // and a black calendar popup on a white page is the tell that a light
+      // theme was bolted on.
+      data-appearance={theme.appearance}
       style={{
         display: "flex",
         minHeight: "100vh",
         background: "var(--color-bg)",
         color: "var(--color-text)",
         fontFamily: "var(--font-body)",
-        ...themeStyle,
       }}
     >
+      <style dangerouslySetInnerHTML={{ __html: themeStyleSheet }} />
       <Sidebar
         sections={sections}
         name={session.name}

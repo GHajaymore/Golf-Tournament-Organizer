@@ -1,5 +1,5 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
-import { loadEventState } from "@/lib/services/tournament";
+import { loadEventState, parseMatchTiebreakers } from "@/lib/services/tournament";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { StagesClient } from "@/components/StagesClient";
@@ -29,6 +29,8 @@ export default async function StagesPage() {
     cutMode: s.cutMode,
     cutCount: s.cutCount,
     cutPercent: s.cutPercent,
+    cutScope: s.cutScope,
+    deadlineOverride: s.deadlineOverride,
     matchCount: state.matches.filter((m) => m.stageId === s.id).length,
     courseId: s.courseId,
     nine: s.nine,
@@ -52,7 +54,7 @@ export default async function StagesPage() {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Rounds &amp; format</h2>
+        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Rounds &amp; formats</h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Sequence the tournament — add as many rounds as you need, each feeding the next.
         </p>
@@ -68,6 +70,7 @@ export default async function StagesPage() {
             hasBracketStage: state.stages.some((s) => s.type === "Bracket Stage"),
           }).chainsRounds
         }
+        matchTiebreakers={parseMatchTiebreakers(state.event.matchTiebreakers)}
         rrMatchesPerPlayer={rrMatchesPerPlayer}
         scoring={{
           winPts: state.scoring.winPts,
@@ -82,6 +85,7 @@ export default async function StagesPage() {
           perFlight: state.event.qualifyPerGroup,
           overall: state.event.qualifyOverall,
         }}
+        flightCount={state.groups.length}
         confirmedCount={state.confirmed.length}
       />
     </>

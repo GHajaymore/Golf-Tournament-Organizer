@@ -73,7 +73,7 @@ describe("sidebar matches the guards", () => {
     // tournament (see the teams gate below) — showing fewer doors is safe,
     // showing one that bounces you is not.
     for (const role of ROLES) {
-      const shown = navForRole(role, undefined, { hasTeamRound: true }).flatMap((s) =>
+      const shown = navForRole(role, undefined, { hasTeamRound: true, hasKnockout: true }).flatMap((s) =>
         s.items.map((i) => i.key),
       );
       for (const key of shown) {
@@ -85,9 +85,12 @@ describe("sidebar matches the guards", () => {
   it("shows every unconditional screen a role may open", () => {
     // Guards against the opposite failure — a screen that exists, is allowed,
     // and is simply unreachable because nothing links to it.
-    const CONDITIONAL = ["teams"];
+    // Conditional on the tournament's shape rather than the role: teams only
+    // once a round plays a team format, qualification only when there is a
+    // knockout to qualify for.
+    const CONDITIONAL = ["teams", "qualification"];
     for (const role of ROLES) {
-      const shown = navForRole(role, undefined, { hasTeamRound: true }).flatMap((s) =>
+      const shown = navForRole(role, undefined, { hasTeamRound: true, hasKnockout: true }).flatMap((s) =>
         s.items.map((i) => i.key),
       );
       const allowed = ALL_NAV_KEYS.filter((k) => canAccessScreen(role, k) && !CONDITIONAL.includes(k));
@@ -161,5 +164,31 @@ describe("landing screens", () => {
       const key = landing.replace(/^\//, "");
       expect(canAccessScreen(role as Role, key), `${role} lands on ${landing} but cannot open it`).toBe(true);
     }
+  });
+});
+
+describe("qualification only appears when it has an answer", () => {
+  it("is hidden when the tournament has no knockout", () => {
+    // Its configuration moved into the round builder, so the screen's whole
+    // remaining job is previewing who advances. With nothing to advance to it
+    // reports "0 players qualify" on every tournament that simply ends at the
+    // last round.
+    const shown = navForRole("admin", undefined, { hasKnockout: false })
+      .flatMap((s) => s.items)
+      .map((i) => i.key);
+    expect(shown).not.toContain("qualification");
+  });
+
+  it("appears once there is a knockout to qualify for", () => {
+    const shown = navForRole("admin", undefined, { hasKnockout: true })
+      .flatMap((s) => s.items)
+      .map((i) => i.key);
+    expect(shown).toContain("qualification");
+  });
+
+  it("stays reachable by URL, so an existing link never dead-ends", () => {
+    // Hidden from the sidebar is not the same as forbidden — the guard is
+    // still the role check, and a bookmarked link must still open.
+    expect(canAccessScreen("admin", "qualification")).toBe(true);
   });
 });

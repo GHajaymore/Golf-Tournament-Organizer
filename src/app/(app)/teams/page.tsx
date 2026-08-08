@@ -32,7 +32,7 @@ export default async function TeamsPage({
     return (
       <>
         <p className="kicker">Set up</p>
-        <h1 className="page-title">Teams</h1>
+        <h1 className="page-title">Teams &amp; pairs</h1>
         <div className="card elev-sm" style={{ marginTop: 16 }}>
           <span className="card-title" style={{ fontSize: 15 }}>No team rounds yet</span>
           <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
@@ -54,7 +54,7 @@ export default async function TeamsPage({
   return (
     <>
       <p className="kicker">Set up</p>
-      <h1 className="page-title">Teams</h1>
+      <h1 className="page-title">Teams &amp; pairs</h1>
       <TeamsClient
         rounds={teamStages.map((s) => ({
           id: s.id,

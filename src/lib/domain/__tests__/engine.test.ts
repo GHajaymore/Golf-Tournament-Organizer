@@ -11,7 +11,6 @@ import {
   roundRobinSchedule,
   roundRobinMatchCount,
   buildBracket,
-  pickQualifiers,
   splitBrackets,
   carriedInto,
   computeStrokeCard,

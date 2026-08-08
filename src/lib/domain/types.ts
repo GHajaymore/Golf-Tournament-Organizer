@@ -13,6 +13,7 @@ export type HoleResult = "A" | "B" | "H" | null;
 
 export type StageType =
   | "Round Robin"
+  | "Stroke Play Round"
   | "Qualification Stage"
   | "Single Match Stage"
   | "Bracket Stage";

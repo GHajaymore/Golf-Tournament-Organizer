@@ -32,7 +32,7 @@ const RULES: Array<{ key: FormationRule; label: string; icon: string; desc: stri
     key: "manual",
     label: "Manual",
     icon: "ph ph-hand-pointing",
-    desc: "Keeps roster order and chunks it into flights; drag-and-drop reassignment is coming.",
+    desc: "Chunks the roster in order, then lets you drag players between flights below — or move them from the menu on each row.",
   },
 ];
 

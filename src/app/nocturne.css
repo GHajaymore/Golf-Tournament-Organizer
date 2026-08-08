@@ -62,22 +62,38 @@
   --font-heading-weight: 500;
   --font-body: "Inter", system-ui, sans-serif;
 
-  --space-1: 2.8px;
-  --space-2: 5.6px;
-  --space-3: 8.4px;
-  --space-4: 11.2px;
-  --space-6: 16.8px;
-  --space-8: 22.4px;
+  /* A 4px grid. The scale was 2.8/5.6/8.4/11.2 — a 2.8px base, which lands
+     every padding and gap on a fractional pixel and is why edges through the
+     app never quite lined up with each other. Same rhythm, whole numbers. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
 
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 14px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
 
-  /* Elevation — derived from the ground: soft ink-tinted shadows on a
-     light theme, a hairline edge + ambient darkness on a dark one. */
-  --shadow-sm: 0 0 0 1px #3f424d;
-  --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgba(0,0,0,0.55);
-  --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgba(0,0,0,0.65);
+  /* Elevation, in two parts: a hairline that defines the edge and an ambient
+     shadow that lifts it.
+
+     The hairline is mixed from --color-text rather than written as a fixed
+     grey, so it inverts with the theme — a fixed #3f424d is a pale edge on a
+     dark page and a heavy dark ring around a white card, which is exactly the
+     wrong way round. The ambient shadow stays black: on a dark ground it is
+     invisible and the hairline does the work, on a light one it does. */
+  --edge-1: 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent);
+  --edge-2: 0 0 0 1px color-mix(in srgb, var(--color-text) 14%, transparent);
+  --shadow-sm: var(--edge-1);
+  --shadow-md: var(--edge-1), 0 2px 4px -1px rgba(0,0,0,0.12), 0 8px 20px -6px rgba(0,0,0,0.28);
+  --shadow-lg: var(--edge-2), 0 8px 16px -4px rgba(0,0,0,0.16), 0 24px 56px -12px rgba(0,0,0,0.4);
+
+  /* One duration and one curve, so nothing in the interface moves at a speed
+     nothing else moves at. */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --fast: 120ms;
 }
 
 body {
@@ -96,18 +112,37 @@ h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: var(--font-headi
    ══════════════════════════════════════════════════════════════════════ */
 
 *, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400; }
+body {
+  margin: 0; font-size: 14px; line-height: 1.55; font-weight: 400;
+  /* Real text rendering rather than the browser default: kerning and the
+     common ligatures, which is most of what separates a typeset interface
+     from a styled one. */
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1, "cv05" 1;
+  -webkit-font-smoothing: antialiased;
+}
+/* Anything numeric lines up in columns. Scores, handicaps, points and
+   positions are read down a column far more than across a row, and
+   proportional digits make that column ragged. */
+.table, .num, input[type="number"], .input { font-variant-numeric: tabular-nums; }
+
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
-  line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--space-2);
+  line-height: 1.15; letter-spacing: -0.018em; margin: 0 0 var(--space-2);
+  /* Optical alignment: a heading's left edge should sit flush with the body
+     text under it, which it doesn't with default side bearings. */
+  text-wrap: balance;
 }
-h1 { font-size: 42px; }
-h2 { font-size: 32px; }
-h3 { font-size: 25px; }
-h4 { font-size: 20px; }
-h5 { font-size: 16px; }
-h6 { font-size: 13px; }
-h6 { letter-spacing: 0.08em; text-transform: uppercase; }
+/* A console is not a poster. The old scale opened at 42px, which pushed
+   every screen's real content below the fold and made a page title compete
+   with the data it was labelling. Tightened to a working range, with the
+   tracking closing up as the size grows — the usual optical correction. */
+h1 { font-size: 28px; letter-spacing: -0.024em; }
+h2 { font-size: 22px; letter-spacing: -0.021em; }
+h3 { font-size: 18px; }
+h4 { font-size: 16px; }
+h5 { font-size: 14px; letter-spacing: -0.008em; }
+h6 { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; font-weight: 600; }
 p { margin: 0 0 var(--space-3); }
 a { color: var(--color-accent); text-underline-offset: 3px; }
 img { display: block; max-width: 100%; }
@@ -116,10 +151,27 @@ figcaption {
   font-size: 11px; margin-top: var(--space-1);
   color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
-.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.text-muted { color: color-mix(in srgb, var(--color-text) 62%, transparent); }
 :focus { outline: none; }
-:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* A ring rather than a bare outline: the halo keeps the indicator visible
+   where the accent happens to sit close to whatever is behind it. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
 ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* Nothing here is load-bearing motion — it's all easing on hover and focus.
+   Someone who has asked for less of it loses nothing by having none. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* — rules — */
 /* Rules fade to transparent at both ends instead of stopping cleanly — a
@@ -136,41 +188,120 @@ figcaption {
 /* — buttons — */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  cursor: pointer; text-decoration: none;
-  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
-  font-size: 14px; line-height: 1.2; color: var(--color-text); /* matches the .input's 14px —
-     the pair sits side by side in sign-up rows */
+  cursor: pointer; text-decoration: none; white-space: nowrap;
+  font-family: var(--font-heading); font-weight: 500;
+  font-size: 13.5px; line-height: 1.2; letter-spacing: -0.006em;
+  color: var(--color-text);
+  /* One height for buttons, inputs and selects, so a row of controls reads as
+     a row rather than as three things that happen to be near each other. */
+  min-height: 34px;
   background: transparent; border: 1px solid transparent;
-  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  padding: 0 var(--space-3);
   border-radius: var(--radius-md);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease),
+              color var(--fast) var(--ease), box-shadow var(--fast) var(--ease),
+              opacity var(--fast) var(--ease);
 }
 .btn svg { display: block; }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-primary { color: var(--color-accent); border-color: var(--color-accent); }
-.btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
-.btn-primary:active { background: color-mix(in srgb, var(--color-accent) 22%, transparent); }
-.btn-secondary { border-color: var(--color-divider); }
-.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
-.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
-.btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
-.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
-.btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
-.btn-icon { width: 36px; height: 36px; padding: 0; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn:active:not(:disabled) { transform: translateY(0.5px); }
+
+/* The primary action is filled. It was outlined, which left every screen
+   without a single obvious next step — three bordered buttons of equal weight
+   and no hierarchy between them. Filled is what makes a console feel decided.
+
+   The label comes from --color-on-accent, a token the theme sets per ground.
+   It was mixed from the page background instead, which sounded principled and
+   measured 3.87:1 in light mode — the mix lands as a pale off-white on a
+   mid-dark accent. The token is a value chosen to clear the bar, not derived
+   from something that happens to be nearby. The fallback keeps the button
+   readable on the marketing pages, which render outside the club theme. */
+.btn-primary {
+  background: var(--color-accent);
+  border-color: transparent;
+  color: var(--color-on-accent, #16181a);
+  font-weight: 600;
+}
+.btn-primary:hover:not(:disabled) { background: var(--color-accent-400); }
+.btn-primary:active:not(:disabled) { background: var(--color-accent-600); }
+
+.btn-secondary {
+  border-color: color-mix(in srgb, var(--color-text) 16%, transparent);
+  background: color-mix(in srgb, var(--color-text) 3%, transparent);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-text) 26%, transparent);
+}
+.btn-secondary:active:not(:disabled) { background: color-mix(in srgb, var(--color-text) 13%, transparent); }
+
+.btn-ghost { color: var(--color-accent); padding-inline: var(--space-2); }
+.btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-ghost:active:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+
+.btn-icon {
+  width: 34px; height: 34px; padding: 0;
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+}
+.btn-icon:hover:not(:disabled) {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
 .btn-block { width: 100%; margin-top: var(--space-2); }
 
 /* — forms — */
 .field > label {
-  display: block; font-size: 12px; margin-bottom: 5px;
-  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+  display: block; font-size: 12px; margin-bottom: 6px; font-weight: 500;
+  letter-spacing: -0.004em;
+  color: color-mix(in srgb, var(--color-text) 72%, transparent);
 }
 .input {
-  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
-  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
-  background: var(--color-surface);
-  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  width: 100%; min-height: 34px; padding: 6px 10px; font: inherit;
+  font-size: 13.5px; color: var(--color-text); caret-color: var(--color-accent);
+  /* Recessed rather than raised: an input sits *into* the card it is on, and
+     matching the card's own surface made every field invisible until hovered. */
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-text) 13%, transparent);
+  border-radius: var(--radius-md);
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease),
+              background var(--fast) var(--ease);
 }
-.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
-.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+.input::placeholder { color: color-mix(in srgb, var(--color-text) 38%, transparent); }
+.input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--color-text) 24%, transparent); }
+.input:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  /* The halo is what makes a focused field obvious at a glance across a form
+     of a dozen of them, which a 1px border change is not. */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+.input:disabled { opacity: 0.55; cursor: not-allowed; }
+select.input {
+  /* Native select arrows are the single most obviously unstyled thing in a
+     console. Replaced with a chevron drawn from the text colour, so it
+     inverts with the theme like everything else. */
+  appearance: none;
+  padding-right: 30px;
+  /* Opaque, unlike the other inputs. The browser paints the open option list
+     using the select's own background-color, and a 4%-alpha one composites
+     against the browser default — so a dark theme opened a near-white
+     dropdown with near-white text in it. Mixing against the surface instead
+     of transparent keeps the same appearance while giving the popup a real
+     colour to inherit. */
+  background-color: color-mix(in srgb, var(--color-text) 4%, var(--color-surface));
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 15px) calc(50% + 1px), calc(100% - 10px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+/* Firefox and Windows Chrome paint option rows from the option's own colours
+   rather than inheriting the select's, so the popup needs stating outright. */
+select.input option,
+select.input optgroup {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
 textarea.input { min-height: 90px; resize: vertical; }
 .radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
 .radio input, .seg-opt input {
@@ -202,17 +333,23 @@ textarea.input { min-height: 90px; resize: vertical; }
 /* — cards — */
 .card {
   display: flex; flex-direction: column; gap: var(--space-2);
-  padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
+  /* Was 8.4px, which read as cramped at every size and left titles almost
+     touching the edge. A card needs room to look deliberate. */
+  padding: var(--space-4);
+  border-radius: var(--radius-lg); background: var(--color-surface);
 }
-.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+.card-kicker {
+  font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase;
+  font-weight: 600; color: var(--color-accent-400);
+}
 .card-title {
-  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
-  font-size: 17px; line-height: 1.2;
+  font-family: var(--font-heading); font-weight: 600;
+  font-size: 15px; line-height: 1.25; letter-spacing: -0.012em;
 }
 .card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
 .card-meta {
   display: flex; align-items: center; gap: 6px; font-size: 11px;
-  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
 .elev-sm { box-shadow: var(--shadow-sm); }
 .elev-md { box-shadow: var(--shadow-md); }
@@ -220,14 +357,34 @@ textarea.input { min-height: 90px; resize: vertical; }
 
 /* — tags — */
 .tag {
-  display: inline-flex; align-items: center; font-size: 11px;
-  letter-spacing: 0.02em; padding: 3px 10px;
-  border-radius: calc(var(--radius-md) * 0.75);
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 500; letter-spacing: 0.005em;
+  padding: 2px 8px; line-height: 1.5;
+  /* A pill, not a small rectangle. At this size a rounded rectangle just
+     reads as a badly cropped box. */
+  border-radius: 999px;
+  white-space: nowrap;
 }
-.tag-accent { background: var(--color-accent-800); color: var(--color-accent-100); }
-.tag-accent-2 { background: var(--color-accent-2-800); color: var(--color-accent-2-100); }
-.tag-neutral { background: var(--color-neutral-800); color: var(--color-neutral-100); }
-.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+/* Tinted from the ramp's own dark end with a hairline of the same hue, rather
+   than a flat block of colour — a solid fill at this size fights the row it is
+   sitting in. The 800/100 pairing inverts correctly on both grounds, because
+   the ramp itself reverses. */
+.tag-accent {
+  background: color-mix(in srgb, var(--color-accent-800) 70%, transparent);
+  color: var(--color-accent-200);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-500) 30%, transparent);
+}
+.tag-accent-2 {
+  background: color-mix(in srgb, var(--color-accent-2-800) 70%, transparent);
+  color: var(--color-accent-2-200);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent-2-500) 30%, transparent);
+}
+.tag-neutral {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  color: color-mix(in srgb, var(--color-text) 78%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 12%, transparent);
+}
+.tag-outline { box-shadow: inset 0 0 0 1px var(--color-accent); color: var(--color-accent); }
 
 /* — navigation — */
 .nav {
@@ -243,36 +400,33 @@ textarea.input { min-height: 90px; resize: vertical; }
 .nav a:hover, .nav a[aria-current='page'] { color: var(--color-accent); }
 
 /* — tables — */
-.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+/* Tables are where this app is actually read — a leaderboard is the product.
+   The rules were 48px-fading gradients, a signature borrowed from full-width
+   deck dividers. Inside a 60px-wide "Pos" column the fade never reaches full
+   strength, so the rule appeared to dissolve at random and the whole table
+   looked unresolved. Flat hairlines instead: quieter, and they line up. */
+.table {
+  width: 100%; border-collapse: collapse; font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
 .table th {
-  text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text) 60%, transparent);
-  padding: var(--space-2); border-bottom: 1px solid transparent; /* keeps layout; the row paints the fading rule */
+  text-align: left; font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--color-text) 52%, transparent);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+  white-space: nowrap;
 }
 .table td {
-  padding: var(--space-2);
-  border-bottom: 1px solid transparent;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
 }
-/* Row rules as row-level strips so the end-fade spans the row, not each cell. */
-.table thead tr {
-  background: linear-gradient(to right,
-    transparent, var(--color-divider) 48px,
-    var(--color-divider) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
-}
-.table tbody tr {
-  background: linear-gradient(to right,
-    transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px,
-    color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
-}
-.table tbody tr:hover {
-  /* the hover tint layers over the row rule, which keeps painting */
-  background:
-    linear-gradient(color-mix(in srgb, var(--color-text) 4%, transparent),
-                    color-mix(in srgb, var(--color-text) 4%, transparent)) no-repeat 0 0 / 100% 100%,
-    linear-gradient(to right,
-      transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px,
-      color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
-}
+/* The last row's rule doubles with whatever contains the table. */
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr { transition: background var(--fast) var(--ease); }
+.table tbody tr:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+/* Rows are frequently links or buttons in this app; make that legible. */
+.table tbody tr[data-clickable]:hover { cursor: pointer; }
 
 /* — dialog — */
 .dialog-backdrop {
@@ -292,3 +446,276 @@ textarea.input { min-height: 90px; resize: vertical; }
 .dialog-body { font-size: 14px; opacity: 0.85; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
 
+
+/* ── Score entry ───────────────────────────────────────────────────────────
+   Built for the place it is actually used: outdoors, one-handed, on a phone,
+   in sun. That drives every choice here — targets sized for a thumb rather
+   than a cursor, the row labels pinned while the card scrolls sideways, and
+   numerals that line up in columns so a mis-keyed score is visible.
+
+   The three-way hole picker gets the two players' colours and, for a half,
+   plain text-on-background. A half is not a third team, and giving it a third
+   hue made a finished card read as noise. Maximum contrast, no new colour. */
+
+.entry-grid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+/* One column below the point where 300px of match list stops being worth its
+   width. Below this the list is a strip above the card, not a sidebar. */
+@media (max-width: 900px) {
+  .entry-grid { grid-template-columns: minmax(0, 1fr); }
+  .entry-matchlist { max-height: 210px; }
+}
+
+.match-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--color-divider);
+  border-left: 3px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 9px 11px;
+  cursor: pointer;
+  color: var(--color-text);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.match-row:hover { background: color-mix(in srgb, var(--color-text) 5%, transparent); }
+.match-row[aria-current="true"] {
+  background: color-mix(in srgb, var(--color-accent) 13%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  border-left-color: var(--color-accent);
+}
+.match-row-name {
+  display: block;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.match-row-meta { font-size: 11px; color: var(--color-neutral-500); }
+
+/* ── The card itself ──────────────────────────────────────────────────── */
+
+.sc-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--color-divider);
+}
+
+.sc {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sc th,
+.sc td {
+  padding: 5px 4px;
+  text-align: center;
+  border-bottom: 1px solid var(--color-divider);
+  white-space: nowrap;
+}
+
+/* Pinned so the row you are typing into keeps its label when the back nine
+   is scrolled into view. Without this, an 18-hole card on a phone is a grid
+   of anonymous numbers. */
+.sc th:first-child,
+.sc td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left;
+  padding-left: 10px;
+  min-width: 58px;
+  background: var(--color-surface);
+  font-weight: 500;
+}
+
+.sc thead th {
+  background: color-mix(in srgb, var(--color-text) 5%, var(--color-surface));
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-neutral-400);
+  font-weight: 600;
+}
+.sc thead th:first-child { background: color-mix(in srgb, var(--color-text) 5%, var(--color-surface)); }
+
+.sc tbody tr:last-child td { border-bottom: none; }
+
+/* Reference rows sit back; the row being filled in comes forward. */
+.sc-ref td { color: var(--color-neutral-500); }
+.sc-ref td:first-child { color: var(--color-neutral-400); }
+.sc-par td { color: var(--color-neutral-400); }
+
+/* Out / In / Total: the columns you check against the paper card. */
+.sc-tot {
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* ── Three-way hole picker ────────────────────────────────────────────── */
+
+.sc-pick {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-divider);
+  border-radius: 7px;
+  overflow: hidden;
+  min-width: 38px;
+}
+.sc-pick > button {
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  /* 32px is the floor for a thumb in a row of eighteen. Anything less and
+     the neighbouring hole gets tapped, which on a card is a silent error. */
+  min-height: 32px;
+  padding: 0 2px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 90ms ease;
+}
+.sc-pick > button + button { border-top: 1px solid var(--color-divider); }
+.sc-pick > button:hover { background: color-mix(in srgb, var(--color-text) 9%, transparent); }
+.sc-pick > button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+.sc-pick > button[aria-pressed="true"].is-a {
+  background: var(--color-accent);
+  color: var(--color-on-accent, #16181a);
+}
+.sc-pick > button[aria-pressed="true"].is-b {
+  background: var(--color-accent-2);
+  color: var(--color-on-accent, #16181a);
+}
+.sc-pick > button[aria-pressed="true"].is-h {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.sc-key {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.sc-key-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  display: inline-block;
+  vertical-align: -1px;
+  margin-right: 6px;
+}
+
+/* ── Score entry: how the match is being written down ──────────────────────
+   Three genuinely different shapes, not three views of one thing. A bare
+   segmented control gave three words and no way to tell that only one of them
+   survives the round switching from gross to net — so organizers picked the
+   quickest to type and lost the ability to re-score.
+
+   Each option states what it records and what it costs. The disabled one says
+   why it is disabled, in place, rather than dimming to 45% and hiding the
+   reason in a title attribute nobody hovers on a phone. */
+
+.mode-pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.mode-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.mode-opt:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+}
+.mode-opt[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 11%, transparent);
+}
+.mode-opt:disabled { cursor: not-allowed; }
+.mode-opt:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+.mode-opt-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.mode-opt[aria-pressed="true"] .mode-opt-head { color: var(--color-accent); }
+
+.mode-opt-blurb {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--color-neutral-500);
+}
+
+/* The reason an option is unavailable, shown in place. Not dimmed away. */
+.mode-opt-why {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--color-danger);
+}
+.mode-opt:disabled .mode-opt-head { color: var(--color-neutral-500); }
+.mode-opt:disabled .mode-opt-blurb { opacity: 0.6; }
+
+/* ── Stroke-play score boxes ───────────────────────────────────────────────
+   Under par is ringed, over par is boxed — the marking every printed card
+   uses. It is not decoration: a 3 typed where a 5 belongs looks like any other
+   digit in a row of eighteen, but a birdie ring appearing on a par 5 you know
+   you bogeyed is caught immediately. */
+
+.sc-score {
+  width: 100%;
+  min-width: 36px;
+  /* 38px so it can be hit with a thumb between two neighbours. */
+  min-height: 38px;
+  text-align: center;
+  padding: 4px 2px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.sc-score.is-under {
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--color-accent-2);
+}
+.sc-score.is-eagle {
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--color-accent-2), inset 0 0 0 4px var(--color-surface), inset 0 0 0 6px var(--color-accent-2);
+}
+.sc-score.is-over {
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-danger, #e0665a) 65%, transparent);
+}
+.sc-score.is-double {
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-danger, #e0665a) 65%, transparent), inset 0 0 0 4px var(--color-surface), inset 0 0 0 6px color-mix(in srgb, var(--color-danger, #e0665a) 65%, transparent);
+}

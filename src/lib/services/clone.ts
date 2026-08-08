@@ -38,6 +38,7 @@ export const CLONED_EVENT_FIELDS = [
   "holeRatioPts",
   "bonusPts",
   "tiebreakers",
+  "matchTiebreakers",
   "inviteMessage",
   "leaderboardVisibility",
   "scoreEntryBy",
@@ -45,6 +46,9 @@ export const CLONED_EVENT_FIELDS = [
   "voiceEntry",
   "playerAccess",
   "scoreApproval",
+  // Travels with scoreApproval — a club that wants every player in the match
+  // to sign off wants that next year too.
+  "attestBy",
 ] as const;
 
 /**
@@ -58,9 +62,13 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   name: "supplied by the organizer",
   dates: "always wrong on a copy — last year's dates are not this year's",
   regDeadline: "same reason as dates",
+  registrationOverride:
+    "a decision about last year's deadline — a copy has a new deadline and starts following it",
   status: "a copy starts as a draft, however far along the original got",
   configUnlocked: "an unlock is granted to one tournament, not inherited",
   launchedAt: "the copy has not been launched",
+  flightsConfirmed:
+    "a copy has no flights yet — inheriting the sign-off would mark an empty draw as finished, and lock it",
   retainUntil:
     "a hold is granted to one tournament for a reason; a copy inherits neither the reason nor the reprieve",
   seriesId:

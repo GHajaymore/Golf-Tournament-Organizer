@@ -11,7 +11,7 @@ import { EventSetupClient } from "@/components/EventSetupClient";
 import { EventSwitcher } from "@/components/EventSwitcher";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { SetupChecklist, type ChecklistItem } from "@/components/SetupChecklist";
-import { COURSES } from "@/lib/courses";
+
 
 export default async function EventPage() {
   const session = await requireScreen("event");
@@ -19,6 +19,9 @@ export default async function EventPage() {
   if (!state) redirect("/");
   const e = state.event;
   const locked = isSetupLocked(state.event);
+  // The club's own courses. The setup picker used to read a bundled list of
+  // four invented layouts, so it offered courses nobody plays and scored
+  // against cards that do not exist.
   const courses = await clubCourses(e.organizationId, e.id);
   const org = await prisma.organization.findUnique({
     where: { id: e.organizationId },
@@ -94,7 +97,7 @@ export default async function EventPage() {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Event setup</h2>
+        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Tournament details</h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Manage your tournaments, or configure the one you're running.
         </p>
@@ -116,7 +119,7 @@ export default async function EventPage() {
           playerCountMode: e.playerCountMode, manualPlayerCount: e.manualPlayerCount,
         }}
         playersCount={state.confirmed.length}
-        courses={COURSES.map((c) => ({ name: c.name, city: c.city, address: c.address }))}
+        courses={courses.map((c) => ({ name: c.name, city: c.city, address: "" }))}
       />
 
       {/* Always available, never a blocker here. A tournament may not need
@@ -126,7 +129,6 @@ export default async function EventPage() {
       <div style={{ marginTop: 16 }}>
         <CourseLibrary
           courses={courses}
-          presetNames={COURSES.map((c) => c.name)}
           canEdit={session.viewRole === "admin"}
           homeCourse={homeCourseId}
         />

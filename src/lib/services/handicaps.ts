@@ -175,3 +175,28 @@ export async function unratedWarning(eventId: string, basis: string): Promise<st
   if (unrated.length === 0) return null;
   return `${unrated.map((t) => t.name).join(", ")} ${unrated.length === 1 ? "has" : "have"} no Course Rating or Slope, so players off ${unrated.length === 1 ? "it" : "them"} are scored on their raw index. That understates strokes on a hard course and overstates them on an easy one.`;
 }
+
+/**
+ * The same unrated-tee problem, as it affects the draw rather than the score.
+ *
+ * A handicap-balanced draw is balanced on Course Handicaps — so with no
+ * ratings it is balanced on raw indexes instead, and the flights come out
+ * subtly uneven with nothing on screen to say why. Distinct from
+ * `unratedWarning`, which is about net *scoring*: this one fires regardless of
+ * scoring basis, because the draw uses handicaps even in a gross event.
+ */
+export async function unratedFlightWarning(
+  eventId: string,
+  formationRule: string,
+): Promise<string | null> {
+  // Only the handicap rule reads handicaps. Seeding, random and manual don't
+  // care what anyone plays off.
+  if (formationRule !== "handicap") return null;
+  const tees = await teesForEvent(eventId);
+  if (tees.length === 0) {
+    return "No tees have been set up, so flights are balanced on raw handicap indexes rather than Course Handicaps. Add a set of tees with its Course Rating and Slope for an even draw.";
+  }
+  const unrated = tees.filter((t) => !t.rated);
+  if (unrated.length === 0) return null;
+  return `${unrated.map((t) => t.name).join(", ")} ${unrated.length === 1 ? "has" : "have"} no Course Rating or Slope, so players off ${unrated.length === 1 ? "it" : "them"} are balanced on their raw index. Flights will be slightly uneven.`;
+}

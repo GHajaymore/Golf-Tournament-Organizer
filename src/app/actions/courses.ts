@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { settingsOf } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
 import { COURSES } from "@/lib/courses";
+import { parseCard } from "@/lib/domain/scorecard-parse";
 import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
 
 /**
@@ -385,4 +386,113 @@ export async function setPlayerTee(playerId: string, teeId: string | null): Prom
   await prisma.player.update({ where: { id: playerId }, data: { teeId } });
   refresh();
   return { ok: true };
+}
+
+/**
+ * Confirm that a course card is right.
+ *
+ * Only meaningful for an imported card. A wrong par is obvious the first time
+ * someone plays the hole; a wrong stroke index is invisible and quietly
+ * allocates handicap shots to the wrong holes for the life of the course. So
+ * an imported card is usable but flagged, and this is a person at the club
+ * saying they have looked at it.
+ */
+export async function verifyCourseCard(courseId: string): Promise<CourseResult> {
+  const { organizationId } = await requireOrganizerOrg();
+  const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
+  if (!course) return { ok: false, error: "Course not found." };
+
+  const session = await getSession();
+  await prisma.course.update({
+    where: { id: courseId },
+    data: { verifiedAt: new Date(), verifiedBy: session?.name ?? "" },
+  });
+  refresh();
+  return { ok: true };
+}
+
+/** Withdraw a confirmation — the card turned out to be wrong after all. */
+export async function unverifyCourseCard(courseId: string): Promise<CourseResult> {
+  const { organizationId } = await requireOrganizerOrg();
+  const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
+  if (!course) return { ok: false, error: "Course not found." };
+  await prisma.course.update({
+    where: { id: courseId },
+    data: { verifiedAt: null, verifiedBy: "" },
+  });
+  refresh();
+  return { ok: true };
+}
+
+export interface CardImportResult extends CourseResult {
+  /** What's wrong with the pasted card, so the screen can point at the holes. */
+  problems?: Array<{ row: string; message: string; holes: number[] }>;
+}
+
+/**
+ * Add a course from a pasted card.
+ *
+ * A club's own website almost always has the card as a table, and pasting the
+ * three rows takes about twenty seconds — far less than typing fifty-four
+ * numbers, and with no third-party data source to depend on.
+ *
+ * Refuses rather than saving a card that fails validation. That is the whole
+ * point: a wrong par is obvious the first time someone plays the hole, but a
+ * wrong stroke index is invisible and quietly allocates handicap shots to the
+ * wrong holes for the life of the course. The stroke index is checkable — 1 to
+ * 18, once each — so a shifted or misread row is caught here rather than
+ * discovered in a protest.
+ *
+ * Saved as `imported` and unverified: usable, and flagged until someone at the
+ * club confirms it against the real card.
+ */
+export async function importClubCourseCard(input: {
+  name: string;
+  city?: string;
+  pars: string;
+  yards?: string;
+  strokeIndex: string;
+  holes?: number;
+  sourceUrl?: string;
+}): Promise<CardImportResult> {
+  const { organizationId } = await requireOrganizerOrg();
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Enter a course name." };
+
+  const holes = input.holes === 9 ? 9 : 18;
+  const card = parseCard(
+    { pars: input.pars, yards: input.yards, strokeIndex: input.strokeIndex },
+    holes,
+  );
+
+  if (!card.ok) {
+    return {
+      ok: false,
+      error: "That card doesn't look right yet — check the rows below.",
+      problems: card.problems,
+    };
+  }
+
+  // A nine-hole card is stored as eighteen with the nine repeated, matching
+  // how the rest of the app treats a nine-hole round: it slices the front or
+  // back out of a full card rather than carrying a separate shape.
+  const toEighteen = (v: number[]) => (holes === 9 ? [...v, ...v] : v);
+
+  const created = await prisma.course.create({
+    data: {
+      organizationId,
+      name,
+      city: (input.city ?? "").trim(),
+      pars: JSON.stringify(toEighteen(card.pars)),
+      yards: JSON.stringify(card.yards.length ? toEighteen(card.yards) : new Array(18).fill(0)),
+      strokeIndex: JSON.stringify(
+        holes === 9 ? [...card.strokeIndex, ...card.strokeIndex.map((n) => n + 9)] : card.strokeIndex,
+      ),
+      source: "imported",
+      sourceUrl: (input.sourceUrl ?? "").trim().slice(0, 500),
+    },
+  });
+
+  refresh();
+  return { ok: true, courseId: created.id };
 }

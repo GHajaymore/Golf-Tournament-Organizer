@@ -1,4 +1,5 @@
 "use client";
+import { CardImport } from "./CardImport";
 import { Fragment, useState, useTransition } from "react";
 import { TeeEditor } from "./TeeEditor";
 import {
@@ -7,6 +8,8 @@ import {
   addPresetCourse,
   setEventCourses,
   setHomeCourse,
+  verifyCourseCard,
+  unverifyCourseCard,
 } from "@/app/actions/courses";
 import type { ClubCourse } from "@/lib/services/courses";
 
@@ -22,12 +25,13 @@ const BLANK = new Array(18).fill("");
  */
 export function CourseLibrary({
   courses,
-  presetNames,
   canEdit,
+  clubCity = "",
   homeCourse = null,
 }: {
   courses: ClubCourse[];
-  presetNames: string[];
+  /** The club's city, so a local course does not need retyping. */
+  clubCity?: string;
   canEdit: boolean;
   /** The club's own course, if set — new tournaments start there. */
   homeCourse?: string | null;
@@ -38,6 +42,7 @@ export function CourseLibrary({
   const [homeCourseId, setHomeCourseId] = useState<string | null>(homeCourse);
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [pasting, setPasting] = useState(false);
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
   const [pars, setPars] = useState<string[]>(BLANK);
@@ -167,6 +172,29 @@ export function CourseLibrary({
                     {c.city && (
                       <span className="text-muted" style={{ fontSize: 12 }}> · {c.city}</span>
                     )}
+                    {/* An imported card is usable but unproven, and the thing
+                        that can be wrong about it — the stroke index — is
+                        invisible in play. It just sends handicap shots to the
+                        wrong holes, for the life of the course. So the state
+                        is shown on the row rather than buried. */}
+                    {!c.verified && (
+                      <span
+                        className="tag tag-neutral"
+                        style={{ fontSize: 10.5, marginLeft: 8, verticalAlign: "middle" }}
+                        title={
+                          c.sourceUrl
+                            ? `Imported from ${c.sourceUrl} — nobody has checked it against the real card.`
+                            : "Nobody has checked this card against the real one."
+                        }
+                      >
+                        <i className="ph ph-seal-question" /> Unverified
+                      </span>
+                    )}
+                    {c.verified && c.verifiedBy && (
+                      <span className="text-muted" style={{ fontSize: 11, marginLeft: 8 }} title={`Checked by ${c.verifiedBy}`}>
+                        <i className="ph ph-seal-check" />
+                      </span>
+                    )}
                   </td>
                   <td style={{ fontVariantNumeric: "tabular-nums" }}>
                     {c.pars.reduce((s, p) => s + p, 0)}
@@ -174,6 +202,30 @@ export function CourseLibrary({
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                     {canEdit && (
                       <>
+                        {/* The other half of importing a card. Without it the
+                            library fills with permanently-unverified courses
+                            and the badge stops meaning anything. */}
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ fontSize: 12, padding: "3px 9px", marginRight: 6 }}
+                          disabled={pending}
+                          title={
+                            c.verified
+                              ? "Mark this card as needing another check"
+                              : "Confirm this card matches the real one — especially the stroke index"
+                          }
+                          onClick={() =>
+                            startTransition(async () => {
+                              const res = c.verified
+                                ? await unverifyCourseCard(c.id)
+                                : await verifyCourseCard(c.id);
+                              if (!res.ok) setError(res.error ?? "Couldn't change the card's status.");
+                            })
+                          }
+                        >
+                          {c.verified ? "Unverify" : "Verify card"}
+                        </button>
                         <button
                           type="button"
                           className="btn btn-secondary"
@@ -278,28 +330,27 @@ export function CourseLibrary({
         </p>
       )}
 
-      {canEdit && !adding && !editing && (
+      {canEdit && pasting && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <CardImport defaultCity={clubCity} onDone={() => setPasting(false)} />
+          <button type="button" className="btn btn-ghost" style={{ alignSelf: "flex-start" }} onClick={() => setPasting(false)}>
+            Done
+          </button>
+        </div>
+      )}
+
+      {canEdit && !adding && !editing && !pasting && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button type="button" className="btn" onClick={() => { resetForm(); setAdding(true); }}>
             <i className="ph ph-plus" /> Add a course
           </button>
-          {presetNames.map((p) => (
-            <button
-              key={p}
-              type="button"
-              className="btn btn-secondary"
-              style={{ fontSize: 12 }}
-              disabled={pending || courses.some((c) => c.name === p)}
-              onClick={() =>
-                startTransition(async () => {
-                  const res = await addPresetCourse(p);
-                  if (!res.ok) setError(res.error ?? "Couldn't add that course.");
-                })
-              }
-            >
-              + {p}
-            </button>
-          ))}
+          {/* The bundled "presets" that used to sit here were four invented
+              courses with invented stroke indexes. Pasting the real card off
+              the club website takes about the same number of clicks and is
+              the actual course. */}
+          <button type="button" className="btn btn-secondary" onClick={() => setPasting(true)}>
+            <i className="ph ph-clipboard-text" /> Paste a card
+          </button>
         </div>
       )}
 

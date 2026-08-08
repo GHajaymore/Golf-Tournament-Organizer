@@ -1,6 +1,9 @@
 import "server-only";
+import { isPlayingRound } from "../stage-types";
+import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { prisma } from "../db";
-import { computeStrokeCard, holeStrokesReceived, stablefordPointsForHole } from "../domain";
+import {
+  holeStrokesReceived, stablefordPointsForHole } from "../domain";
 import { resolveCourse } from "../courses";
 import { pts as fmtPts, record as fmtRecord, diff as fmtDiff } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
@@ -8,7 +11,6 @@ import {
   computeStandings,
   groupCutoff,
   buildBracket,
-  pickQualifiers,
   drawBrackets,
   firstRoundLosers,
   isBracketMode,
@@ -142,6 +144,8 @@ export interface EventState {
   matches: DbMatch[];
   /** Every Round Robin stage, in play order — a tournament can sequence more than one. */
   rrStages: DbStage[];
+  /** Every round the field plays, including medal rounds that have no pairings. */
+  playRounds: DbStage[];
   /** The current/most recent Round Robin round — what score entry and "current round" default to. */
   activeStage: DbStage | null;
   /** Matches for the active Round Robin stage only. */
@@ -162,8 +166,30 @@ export interface EventState {
 }
 
 /** Every stage of type "Round Robin", in play order. */
+/** Stored JSON to a clean sequence; anything unparseable means "leave it halved". */
+export function parseMatchTiebreakers(raw: string | null | undefined): MatchTiebreakKey[] {
+  if (!raw) return [];
+  try {
+    return cleanMatchTiebreakers(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
 export function roundRobinStages(stages: DbStage[]): DbStage[] {
   return stages.filter((s) => s.type === "Round Robin");
+}
+
+/**
+ * Every round the field actually plays, in play order.
+ *
+ * Distinct from roundRobinStages, which is specifically the match-points
+ * chain. A medal round is played and scored but produces no match points, so
+ * it belongs here and not there — score entry and the hole count follow this
+ * list, while the chained standings follow the other one.
+ */
+export function playingStages(stages: DbStage[]): DbStage[] {
+  return stages.filter((s) => isPlayingRound(s.type));
 }
 
 /**
@@ -181,6 +207,8 @@ export function chainRoundStandings(
   scoring: ScoringRules,
   /** Stroke index per hole (1 = hardest), for the "toughest N holes" tiebreakers. */
   holeDifficulty?: number[],
+  /** How an all-square match is decided, in order. */
+  matchTiebreakers: MatchTiebreakKey[] = [],
 ): RankedPlayer[][] {
   let carried: Record<string, number> = {};
   const perStage: RankedPlayer[][] = [];
@@ -188,7 +216,7 @@ export function chainRoundStandings(
     const stage = rrStages[i];
     const stageMatches = matches.filter((m) => m.stageId === stage.id).map(toDomainMatch);
     const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
-    const overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty);
+    const overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
     perStage.push(overall);
     const next = rrStages[i + 1];
     carried = next?.carryForwardEnabled
@@ -216,6 +244,10 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   ]);
 
   const scoring = scoringFrom(event);
+  // Resolved once. Applied at read time rather than stored on the match, so
+  // changing the rule re-decides every affected match instead of leaving old
+  // results frozen under whatever was in force when the card was entered.
+  const matchTiebreakers = parseMatchTiebreakers(event.matchTiebreakers);
   const confirmed = players.filter((p) => p.status === "confirmed");
 
   // Every handicap below this line is a Course Handicap, not an Index.
@@ -223,7 +255,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // missed site silently reinstates the original bug with no visible symptom.
   // With no rated tees the map is the raw indexes, which is exactly how the
   // app behaved before ratings existed.
-  const activeHoles = stages.find((s) => s.type === "Round Robin")?.holes === 9 ? 9 : 18;
+  const activeHoles = playingStages(stages)[0]?.holes === 9 ? 9 : 18;
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
@@ -256,10 +288,10 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     const stageMatches = matches.filter((m) => m.stageId === stage.id).map(toDomainMatch);
     const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
 
-    overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty);
+    overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
     groupStandings = groups.map((g) => {
       const gp = confirmed.filter((p) => p.groupId === g.id).map((p) => toDomainPlayer(p, hcpOf(p)));
-      const ranked = computeStandings(gp, stageMatches, scoring, carryIn, holeDifficulty);
+      const ranked = computeStandings(gp, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
       return { group: g, ranked, cutoff: groupCutoff(ranked, event.qualifyPerGroup) };
     });
     activeDomainMatches = stageMatches;
@@ -270,7 +302,10 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       : {};
   }
 
-  const activeStage = rrStages[rrStages.length - 1] ?? null;
+  const playRounds = playingStages(stages);
+  // Falls back to the last played round so a tournament made only of medal
+  // rounds still has a "current round" for the dashboard and score entry.
+  const activeStage = rrStages[rrStages.length - 1] ?? playRounds[playRounds.length - 1] ?? null;
   const rrMatches = activeStage ? matches.filter((m) => m.stageId === activeStage.id) : [];
   const domainMatches = activeDomainMatches;
 
@@ -396,6 +431,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     stages,
     matches,
     rrStages,
+    playRounds,
     activeStage,
     rrMatches,
     domainPlayers,

@@ -142,51 +142,53 @@ export function TeamEntryClient({
                     {pending ? "Saving…" : "Save card"}
                   </button>
                 </div>
-                <div className="table-scroll">
-                  <table className="table" style={{ fontSize: 12 }}>
+                <div className="sc-wrap">
+                  <table className="sc" style={{ minWidth: holes > 9 ? 900 : 500 }}>
                     <thead>
                       <tr>
-                        <th style={{ textAlign: "left" }}>Hole</th>
+                        <th>Hole</th>
                         {Array.from({ length: holes }, (_, i) => (
-                          <th key={i} style={{ textAlign: "center" }}>{i + 1}</th>
+                          <th key={i}>{i + 1}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {pars.length > 0 && (
-                        <tr>
-                          <td className="text-muted">Par</td>
+                        <tr className="sc-ref sc-par">
+                          <td>Par</td>
                           {Array.from({ length: holes }, (_, i) => (
-                            <td key={i} className="text-muted" style={{ textAlign: "center" }}>
-                              {pars[i] ?? "—"}
-                            </td>
+                            <td key={i}>{pars[i] ?? "—"}</td>
                           ))}
                         </tr>
                       )}
                       {strokeIndex.length > 0 && (
-                        <tr>
-                          <td className="text-muted">S.I.</td>
+                        <tr className="sc-ref">
+                          <td>S.I.</td>
                           {Array.from({ length: holes }, (_, i) => (
-                            <td key={i} className="text-muted" style={{ textAlign: "center" }}>
-                              {strokeIndex[i] ?? "—"}
-                            </td>
+                            <td key={i}>{strokeIndex[i] ?? "—"}</td>
                           ))}
                         </tr>
                       )}
                       <tr>
-                        <td style={{ fontWeight: 500 }}>Score</td>
-                        {Array.from({ length: holes }, (_, i) => (
-                          <td key={i} style={{ textAlign: "center", padding: 2 }}>
-                            <input
-                              className="input"
-                              inputMode="numeric"
-                              style={{ width: 40, textAlign: "center", padding: "4px 2px" }}
-                              value={values[i] ?? ""}
-                              onChange={(e) => setHole(key, i, e.target.value)}
-                              aria-label={`${c.playerId ? c.playerName : t.teamName} hole ${i + 1}`}
-                            />
-                          </td>
-                        ))}
+                        <td>Score</td>
+                        {Array.from({ length: holes }, (_, i) => {
+                          const v = values[i];
+                          const par = pars[i];
+                          const d = v != null && par ? v - par : null;
+                          const mark =
+                            d === null ? "" : d <= -2 ? " is-eagle" : d === -1 ? " is-under" : d === 1 ? " is-over" : d >= 2 ? " is-double" : "";
+                          return (
+                            <td key={i} style={{ padding: 2 }}>
+                              <input
+                                className={`input sc-score${mark}`}
+                                inputMode="numeric"
+                                value={values[i] ?? ""}
+                                onChange={(e) => setHole(key, i, e.target.value)}
+                                aria-label={`${c.playerId ? c.playerName : t.teamName}, hole ${i + 1}${par ? `, par ${par}` : ""}`}
+                              />
+                            </td>
+                          );
+                        })}
                       </tr>
                     </tbody>
                   </table>

@@ -16,6 +16,9 @@ import {
   SCORE_APPROVAL,
   SCORE_APPROVAL_LABEL,
   SCORE_APPROVAL_HELP,
+  ATTEST_BY,
+  ATTEST_BY_LABEL,
+  ATTEST_BY_HELP,
   PLAYER_ACCESS,
   PLAYER_ACCESS_LABEL,
   usesAccessCodes,
@@ -242,6 +245,22 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
         disabled={!canEdit || pending}
         onChange={(v) => set("scoreApproval", v)}
       />
+
+      {/* Only asked when players sign off. With staff approval there is
+          nobody to configure, and showing it anyway invites an organizer to
+          set something that will never apply. */}
+      {form.scoreApproval === "players" && (
+        <Choice
+          label="How many playing partners must confirm"
+          hint="Playing together means the players in one result — in match play that is the match, so two pairs sharing a tee time never approve each other's cards."
+          value={form.attestBy}
+          options={ATTEST_BY}
+          labels={ATTEST_BY_LABEL}
+          help={ATTEST_BY_HELP}
+          disabled={!canEdit || pending}
+          onChange={(v) => set("attestBy", v)}
+        />
+      )}
 
       {error && (
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger, #e0665a)" }}>

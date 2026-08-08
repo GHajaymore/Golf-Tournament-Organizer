@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createSeries, updateSeries, deleteSeries, setEventSeries } from "@/app/actions/series";
 import { describeTable, type SeriesStanding } from "@/lib/domain/series";
@@ -309,8 +309,13 @@ export function SeriesClient({
               </thead>
               <tbody>
                 {standings.map((s) => (
-                  <>
-                    <tr key={s.memberId}>
+                  // The key belongs on the fragment, not the rows inside it —
+                  // the fragment is what's in the array. Without it React
+                  // matches standings by position, so a table that reorders
+                  // when a round finishes would leave the expanded detail
+                  // attached to whoever now sits in that row.
+                  <Fragment key={s.memberId}>
+                    <tr>
                       <td style={{ fontVariantNumeric: "tabular-nums" }}>
                         {s.position ?? <span className="text-muted" title="Hasn't played enough rounds to be ranked">—</span>}
                       </td>
@@ -331,7 +336,7 @@ export function SeriesClient({
                       </td>
                     </tr>
                     {expanded === s.memberId && (
-                      <tr key={`${s.memberId}-detail`}>
+                      <tr>
                         <td colSpan={5} style={{ paddingTop: 0 }}>
                           {/* Dropped rounds are shown rather than hidden: an
                               organizer fielding a query needs to see what was
@@ -360,7 +365,7 @@ export function SeriesClient({
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

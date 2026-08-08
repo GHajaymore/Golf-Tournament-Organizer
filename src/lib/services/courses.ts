@@ -12,6 +12,15 @@ export interface ClubCourse {
   strokeIndex: number[];
   /** Whether this tournament is allowed to be played on it. */
   inEvent: boolean;
+  /** manual | imported | preset — how the card got here. */
+  source: string;
+  /** Whether someone at the club has confirmed the card against the real one.
+   *  An unconfirmed stroke index allocates shots to the wrong holes silently. */
+  verified: boolean;
+  /** Who confirmed it, for the organizer who asks "says who?". */
+  verifiedBy: string;
+  /** Where an imported card came from, so it can be re-checked. */
+  sourceUrl: string;
   /** The sets of tees it is played from, with their ratings. */
   tees: ClubTee[];
 }
@@ -66,6 +75,10 @@ export async function clubCourses(organizationId: string, eventId: string): Prom
     yards: parseHoleArray(c.yards) ?? DEFAULT_YARDS,
     strokeIndex: parseHoleArray(c.strokeIndex) ?? DEFAULT_SI,
     inEvent: selected.has(c.id),
+    source: c.source,
+    verified: c.verifiedAt !== null,
+    verifiedBy: c.verifiedBy,
+    sourceUrl: c.sourceUrl,
     // Ratings are what turn a Handicap Index into the strokes a player
     // actually receives here, so they travel with the course rather than
     // living on a separate screen nobody finds.
@@ -92,6 +105,10 @@ export async function eventCourses(eventId: string): Promise<ClubCourse[]> {
       id: l.course.id,
       name: l.course.name,
       city: l.course.city,
+      source: l.course.source,
+      verified: l.course.verifiedAt !== null,
+      verifiedBy: l.course.verifiedBy,
+      sourceUrl: l.course.sourceUrl,
       pars: parseHoleArray(l.course.pars) ?? DEFAULT_PARS,
       tees: l.course.tees.map((t) => ({
         id: t.id,

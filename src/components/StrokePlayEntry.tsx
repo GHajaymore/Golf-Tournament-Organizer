@@ -117,17 +117,32 @@ export function StrokePlayEntry({
   const front = Array.from({ length: Math.min(9, holes) }, (_, i) => i);
   const back = isEighteen ? Array.from({ length: holes - 9 }, (_, i) => i + 9) : [];
 
-  const scoreCell = (i: number) => (
-    <td key={i} style={{ textAlign: "center", padding: 2 }}>
-      <input
-        className="input"
-        inputMode="numeric"
-        value={strokes[i] ?? ""}
-        onChange={(e) => setHole(i, e.target.value)}
-        style={{ width: 34, textAlign: "center", padding: "4px 2px", minHeight: 30 }}
-      />
-    </td>
-  );
+  /**
+   * One hole's box, marked the way a printed card is: under par ringed, over
+   * par boxed.
+   *
+   * Not decoration. A 3 typed where a 5 belongs is just another digit in a row
+   * of eighteen, but a birdie ring on a hole you know you bogeyed is caught
+   * the moment it appears.
+   */
+  const scoreCell = (i: number) => {
+    const v = strokes[i];
+    const par = pars[i];
+    const d = v != null && par ? v - par : null;
+    const mark =
+      d === null ? "" : d <= -2 ? " is-eagle" : d === -1 ? " is-under" : d === 1 ? " is-over" : d >= 2 ? " is-double" : "";
+    return (
+      <td key={i} style={{ padding: 2 }}>
+        <input
+          className={`input sc-score${mark}`}
+          inputMode="numeric"
+          value={strokes[i] ?? ""}
+          onChange={(e) => setHole(i, e.target.value)}
+          aria-label={`Hole ${i + 1}${par ? `, par ${par}` : ""}`}
+        />
+      </td>
+    );
+  };
 
   return (
     <div className="card elev-sm">
@@ -161,50 +176,50 @@ export function StrokePlayEntry({
         <span className="text-muted" style={{ fontSize: 12 }}>{listenHint}</span>
       </div>
 
-      <div style={{ overflowX: "auto", marginTop: 12 }}>
-        <table className="table" style={{ fontSize: 12, minWidth: isEighteen ? 920 : 520 }}>
+      <div className="sc-wrap" style={{ marginTop: 12 }}>
+        <table className="sc" style={{ minWidth: isEighteen ? 960 : 560 }}>
           <thead>
             <tr>
               <th>Hole</th>
-              {front.map((i) => (<th key={i} style={{ textAlign: "center" }}>{i + 1}</th>))}
-              {isEighteen && <th style={{ textAlign: "center" }}>OUT</th>}
-              {back.map((i) => (<th key={i} style={{ textAlign: "center" }}>{i + 1}</th>))}
-              {isEighteen && <th style={{ textAlign: "center" }}>IN</th>}
-              <th style={{ textAlign: "center" }}>TOT</th>
+              {front.map((i) => (<th key={i}>{i + 1}</th>))}
+              {isEighteen && <th className="sc-tot">Out</th>}
+              {back.map((i) => (<th key={i}>{i + 1}</th>))}
+              {isEighteen && <th className="sc-tot">In</th>}
+              <th className="sc-tot">Tot</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="text-muted">Yards</td>
-              {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{yards[i] ?? "-"}</td>))}
-              {isEighteen && <td style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{sum(yards, 0, 9)}</td>}
-              {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{yards[i] ?? "-"}</td>))}
-              {isEighteen && <td style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{sum(yards, 9, holes)}</td>}
-              <td style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{sum(yards, 0, holes)}</td>
+            <tr className="sc-ref">
+              <td>Yards</td>
+              {front.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
+              {isEighteen && <td className="sc-tot">{sum(yards, 0, 9)}</td>}
+              {back.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
+              {isEighteen && <td className="sc-tot">{sum(yards, 9, holes)}</td>}
+              <td className="sc-tot">{sum(yards, 0, holes)}</td>
+            </tr>
+            <tr className="sc-ref sc-par">
+              <td>Par</td>
+              {front.map((i) => (<td key={i}>{pars[i] ?? "-"}</td>))}
+              {isEighteen && <td className="sc-tot">{sum(pars, 0, 9)}</td>}
+              {back.map((i) => (<td key={i}>{pars[i] ?? "-"}</td>))}
+              {isEighteen && <td className="sc-tot">{sum(pars, 9, holes)}</td>}
+              <td className="sc-tot">{parTotal}</td>
+            </tr>
+            <tr className="sc-ref">
+              <td>S.I.</td>
+              {front.map((i) => (<td key={i}>{strokeIndex[i] ?? "-"}</td>))}
+              {isEighteen && <td className="sc-tot" />}
+              {back.map((i) => (<td key={i}>{strokeIndex[i] ?? "-"}</td>))}
+              {isEighteen && <td className="sc-tot" />}
+              <td className="sc-tot" />
             </tr>
             <tr>
-              <td className="text-muted">Par</td>
-              {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{pars[i] ?? "-"}</td>))}
-              {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(pars, 0, 9)}</td>}
-              {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{pars[i] ?? "-"}</td>))}
-              {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(pars, 9, holes)}</td>}
-              <td style={{ textAlign: "center", fontWeight: 600 }}>{parTotal}</td>
-            </tr>
-            <tr>
-              <td className="text-muted">Hcp</td>
-              {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{strokeIndex[i] ?? "-"}</td>))}
-              {isEighteen && <td />}
-              {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{strokeIndex[i] ?? "-"}</td>))}
-              {isEighteen && <td />}
-              <td />
-            </tr>
-            <tr>
-              <td style={{ fontWeight: 500 }}>Score</td>
+              <td>Score</td>
               {front.map((i) => scoreCell(i))}
-              {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{card.front || "—"}</td>}
+              {isEighteen && <td className="sc-tot">{card.front || "—"}</td>}
               {back.map((i) => scoreCell(i))}
-              {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{card.back || "—"}</td>}
-              <td style={{ textAlign: "center", fontWeight: 600 }}>{card.gross || "—"}</td>
+              {isEighteen && <td className="sc-tot">{card.back || "—"}</td>}
+              <td className="sc-tot">{card.gross || "—"}</td>
             </tr>
           </tbody>
         </table>

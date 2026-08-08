@@ -56,6 +56,24 @@ model Organization {
   logoUrl      String @default("")
   /** Optional short name for tight spaces (headers, print). Falls back to `name`. */
   shortName    String @default("")
+  /** How the name renders beside the logo: short | full | both. */
+  brandDisplay String @default("short")
+
+  /**
+   * Where the club is.
+   *
+   * Nothing anchored "courses near us" before this — the app knew a club by
+   * name and nothing else, so there was no region to search and no sensible
+   * default city when adding a course.
+   *
+   * Free text rather than a geocoded point: it prefills the course form today
+   * and is enough to scope a course lookup later, and asking a golf secretary
+   * for coordinates would be asking the wrong question.
+   */
+  city         String @default("")
+  /** State, county or province — whatever the club would write on a letter. */
+  region       String @default("")
+  country      String @default("")
   /**
    * Accent colour preset, from src/lib/themes.ts.
    *
@@ -68,6 +86,21 @@ model Organization {
    *  the ramp built from it fixes lightness, so only hue and saturation are
    *  actually honoured — that is what keeps an open field readable. */
   themeHex     String @default("")
+  /**
+   * The second colour — advancing rows, positive deltas, a match won.
+   *
+   * Defaults to the fairway green, which is the colour of the game rather than
+   * of any one club and should usually be left alone. A club whose identity is
+   * genuinely two colours has nowhere else to put the second one.
+   */
+  themeSecondaryKey String @default("fairway")
+  themeSecondaryHex String @default("")
+  /**
+   * dark | light | auto. Light is not just taste: a bright screen is far
+   * easier to read at arm's length in direct sun, which is where scores are
+   * actually entered.
+   */
+  themeAppearance   String @default("dark")
 
   // House defaults for new tournaments. Communities often have several
   // organizers who each run their events differently, so these are only a
@@ -120,6 +153,25 @@ model Course {
 
   name String
   city String @default("")
+
+  /**
+   * Where this card came from, and whether anyone has checked it.
+   *
+   * manual   — typed in by the club. Trusted.
+   * imported — pulled from the web or a club site. NOT trusted until checked.
+   *
+   * The distinction is not bureaucracy. A wrong par is obvious the first time
+   * someone plays the hole; a wrong stroke index is invisible, and it silently
+   * allocates handicap shots to the wrong holes for the life of the course.
+   * An imported card is usable, but the app says so until a human confirms it.
+   */
+  source      String   @default("manual")
+  /** When someone at the club confirmed the card is right. Null = unchecked. */
+  verifiedAt  DateTime?
+  /** Who confirmed it, for the organizer who asks "says who?". */
+  verifiedBy  String   @default("")
+  /** Where an imported card came from, so it can be re-checked or blamed. */
+  sourceUrl   String   @default("")
 
   /** JSON number arrays, one entry per hole — same encoding as the custom
    *  course fields on Event, which this generalises. */
@@ -380,6 +432,15 @@ model Event {
   formationRule   String   @default("balanced") // balanced | handicap | seeding | random | manual
   flightMode      String   @default("auto")     // auto | count | perFlight
   flightValue     Int      @default(0)
+  /**
+   * Whether the organizer has signed off the manual draw.
+   *
+   * Only meaningful for the manual formation rule. The computed rules are
+   * regenerated from a policy, so there is nothing to confirm — but a hand-
+   * built draw is finished work, and it needs a point where it stops being
+   * dragged around by accident.
+   */
+  flightsConfirmed Boolean @default(false)
   qualifyPerGroup Int      @default(2)
   qualifyMode     String   @default("perFlight") // perFlight | overall
   qualifyOverall  Int      @default(16)
@@ -420,6 +481,24 @@ model Event {
   holeRatioPts  Float  @default(0.5)
   bonusPts      Float  @default(0)
   tiebreakers   String @default("[\"head-to-head\",\"holes-won-ratio\",\"fewest-holes-lost\",\"lower-handicap\"]")
+  /**
+   * How an ALL-SQUARE MATCH is decided — a different question from
+   * `tiebreakers` above, which separates players level on points across the
+   * whole tournament. This decides one match, on the card in front of you.
+   *
+   * JSON array of keys from src/lib/domain/match-tiebreak.ts, in order. Empty
+   * means a halved match stays halved: correct match play, and exactly what
+   * every existing tournament already does.
+   */
+  matchTiebreakers String @default("")
+  /**
+   * The organizer overriding the registration deadline, either way.
+   *
+   * null follows the deadline. true closes early. false keeps entries open
+   * past it — which is the common case, because deadlines get extended by a
+   * word at the bar far more often than they get edited in software.
+   */
+  registrationOverride Boolean?
 
   inviteMessage String @default("")
 
@@ -438,6 +517,9 @@ model Event {
    *  auto-confirm. Defaults to staff — auto-confirming an unreviewed score is
    *  not something an organizer should get without asking for it. */
   scoreApproval         String  @default("staff")        // staff | players
+  /** When players approve, how many playing partners must confirm.
+   *  "Playing together" is the scoring group — the match, not the foursome. */
+  attestBy              String  @default("marker")       // marker | opponent | all
   /** Unguessable id for the public read-only leaderboard. Always present, but
    *  the link only resolves while leaderboardVisibility is "public", so
    *  publishing and un-publishing is a single toggle and the URL survives it. */
@@ -578,6 +660,13 @@ model Stage {
   format              String  @default("Match Play") // golf format (see src/lib/formats.ts)
   holes               Int     @default(18)           // 9 | 18
   deadline            String  @default("")
+  /**
+   * The organizer closing this round early or extending it past its date.
+   *
+   * null follows the deadline. Same rule as registration — see
+   * src/lib/deadline.ts — because they are the same question asked twice.
+   */
+  deadlineOverride    Boolean?
   scoringBasis        String  @default("gross") // gross | net | both
   carryForwardEnabled Boolean @default(false)
   carryForwardPct     Int     @default(0)
@@ -596,6 +685,15 @@ model Stage {
   // are scheduled here. Generated separately from the global flight builder
   // via generateNextRound, since it depends on that round's real results.
   cutEnabled Boolean @default(false)
+  /**
+   * overall | perFlight — out of what the cut is taken.
+   *
+   * The cut line could only ever take the top N across the whole field, while
+   * a separate tournament-level "qualification" setting had per-flight but no
+   * percentage. Two half-answers to one question, which an organizer could set
+   * to contradict each other.
+   */
+  cutScope   String  @default("overall")
   cutMode    String  @default("count") // count | percent
   cutCount   Int     @default(16)
   cutPercent Int     @default(50)

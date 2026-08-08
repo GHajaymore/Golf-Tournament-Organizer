@@ -11,6 +11,7 @@ import {
   type HoleResult,
 } from "@/lib/domain";
 import { firstName } from "@/lib/format";
+import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import {
   saveMatchHoles,
   applyMatchResult,
@@ -21,6 +22,68 @@ import {
   saveMatchScorecard,
 } from "@/app/actions/tournament";
 import { setMatchCourse } from "@/app/actions/courses";
+
+/**
+ * The three ways a match gets written down, as the screen offers them.
+ *
+ * The wording comes from the scoring engine rather than being retyped here,
+ * so the screen cannot drift from what the engine actually does with each
+ * shape. That matters most for the scorecard option: it is the only one that
+ * can be re-scored if the round switches between gross and net, and an
+ * organizer choosing the quickest thing to type has no way to know that
+ * unless the screen says so.
+ */
+/**
+ * The right card for this round, without asking.
+ *
+ * The app already knows the format, whether the round is net, and whether a
+ * course backs it — which is enough to land on the correct card every time.
+ * Asking first made an entry screen open on a menu.
+ *
+ * There is still a real choice underneath, because match play arrives three
+ * ways: a full card, a list of who won each hole, or "3&2" phoned in from the
+ * green. But that is a question about what someone happens to be holding, not
+ * a setting, so it belongs behind the card rather than in front of it.
+ */
+export function defaultEntryMode(
+  format: string,
+  netMode: boolean,
+  courseKnown: boolean,
+): "holes" | "result" | "handicap" {
+  // A stroke-based round has nothing else it can be.
+  if (format !== "Match Play") return "handicap";
+  // Net match play off a full card lets the app allocate the shots itself,
+  // off the course's stroke index. Taking hole results instead means trusting
+  // that four people did the same allocation in their heads on the 14th tee.
+  if (netMode && courseKnown) return "handicap";
+  // Gross: who won each hole is what a player actually writes down.
+  return "holes";
+}
+
+/** Who took the hole, as one glyph in a scorecard column. */
+function holeMark(r: HoleResult): React.ReactNode {
+  if (r === "A") return <span style={{ color: "var(--color-accent)" }}>A</span>;
+  if (r === "B") return <span style={{ color: "var(--color-accent-2)" }}>B</span>;
+  if (r === "H") return <span className="text-muted">½</span>;
+  return null;
+}
+
+/** Under par is ringed, over par is boxed — the marking a printed card uses,
+ *  and the reason a mis-keyed score is visible at all in a row of eighteen. */
+function scoreMark(v: number | null | undefined, par: number | undefined): string {
+  if (v == null || !par) return "";
+  const d = v - par;
+  return d <= -2 ? " is-eagle" : d === -1 ? " is-under" : d === 1 ? " is-over" : d >= 2 ? " is-double" : "";
+}
+
+const ENTRY_MODES: Array<{ key: "holes" | "result" | "handicap"; domain: MatchEntryMode; label: string; blurb: string; icon: string }> = ([
+  { key: "holes", domain: "hole-results", icon: "ph ph-flag", label: "Hole-by-hole result" },
+  { key: "handicap", domain: "gross-cards", icon: "ph ph-cards", label: "Full scorecard" },
+  { key: "result", domain: "match-result", icon: "ph ph-check-circle", label: "Final result only" },
+] as const).map((m) => ({
+  ...m,
+  blurb: MATCH_ENTRY_MODES.find((d) => d.key === m.domain)?.blurb ?? "",
+}));
 
 export interface EntryMatch {
   id: string;
@@ -99,6 +162,7 @@ function sum(arr: number[], from: number, to: number): number {
 
 export function ScoreEntryClient({
   matches,
+  format = "Match Play",
   isStaff = false,
   hideHeader = false,
   pars: parsProp = [],
@@ -110,6 +174,8 @@ export function ScoreEntryClient({
   venues = [],
 }: {
   matches: EntryMatch[];
+  /** The round's format. Only match play can be written down three ways. */
+  format?: string;
   isStaff?: boolean;
   hideHeader?: boolean;
   pars?: number[];
@@ -145,7 +211,36 @@ export function ScoreEntryClient({
   const [nineByMatch, setNineByMatch] = useState<Record<string, string>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.nine === "back" ? "back" : "front"])),
   );
-  const [mode, setMode] = useState<"holes" | "result" | "handicap">("holes");
+  // Lazy initializer: derived once from the round, then owned by the
+  // organizer if they change it.
+  const [mode, setMode] = useState<"holes" | "result" | "handicap">(() =>
+    defaultEntryMode(format, netMode, courseKnown),
+  );
+
+  /**
+   * Which shapes this round's format can actually be written down as.
+   *
+   * Only match play has three. A stroke-based round — Stableford, Skins,
+   * Four-Ball — has no concept of "winning a hole", so a hole result is a
+   * shape its scoring simply cannot read, and a match margin is meaningless.
+   * Offering them produced entries the leaderboard silently ignored.
+   *
+   * The rule lives in the engine, not here, so the screen and the resolver
+   * cannot disagree about what a format accepts.
+   */
+  const allowed = useMemo(() => entryModesFor(format), [format]);
+  const availableModes = useMemo(
+    () => ENTRY_MODES.filter((m) => allowed.includes(m.domain)),
+    [allowed],
+  );
+
+  // A format change can strand the selection on a mode this round no longer
+  // accepts. Snapping during render rather than in an effect keeps the card
+  // below from painting once against a shape it cannot score.
+  const effectiveMode = availableModes.some((m) => m.key === mode)
+    ? mode
+    : defaultEntryMode(format, netMode, courseKnown);
+  const activeMode = availableModes.find((m) => m.key === effectiveMode) ?? availableModes[0];
   const [winner, setWinner] = useState<Winner>("A");
   const [margin, setMargin] = useState("");
   const [listening, setListening] = useState<string | null>(null);
@@ -178,6 +273,20 @@ export function ScoreEntryClient({
   const front = Array.from({ length: Math.min(9, totalHoles) }, (_, i) => i);
   const back = isEighteen ? Array.from({ length: totalHoles - 9 }, (_, i) => i + 9) : [];
 
+  // Above the early return, and unconditional. It used to sit below, so a
+  // round with no matches skipped this hook and React saw a different hook
+  // order between renders — a crash the type checker cannot see and no test
+  // exercised, because every fixture had at least one match.
+  //
+  // Handicap strokes only apply on a Net round; a Gross round gets the same
+  // card, decided scratch.
+  const effAHandicap = netMode ? active?.aHandicap ?? 0 : 0;
+  const effBHandicap = netMode ? active?.bHandicap ?? 0 : 0;
+  const strokesGiven = useMemo(
+    () => matchStrokesGiven(effAHandicap, effBHandicap, strokeIndex.length ? strokeIndex : new Array(totalHoles).fill(18)),
+    [effAHandicap, effBHandicap, strokeIndex, totalHoles],
+  );
+
   if (!active) {
     return (
       <div className="card elev-sm">
@@ -195,14 +304,6 @@ export function ScoreEntryClient({
 
   const aStrokes = aStrokesById[active.id] ?? active.aStrokes;
   const bStrokes = bStrokesById[active.id] ?? active.bStrokes;
-  // Handicap strokes only apply when this round is scored Net; a Gross round
-  // still gets the same "enter each hole's strokes" card, just decided scratch.
-  const effAHandicap = netMode ? active.aHandicap : 0;
-  const effBHandicap = netMode ? active.bHandicap : 0;
-  const strokesGiven = useMemo(
-    () => matchStrokesGiven(effAHandicap, effBHandicap, strokeIndex.length ? strokeIndex : new Array(totalHoles).fill(18)),
-    [effAHandicap, effBHandicap, strokeIndex, totalHoles],
-  );
 
   const persist = (id: string, next: HoleResult[]) => {
     setHolesById((prev) => ({ ...prev, [id]: next }));
@@ -359,6 +460,45 @@ export function ScoreEntryClient({
 
   const hasCourseData = pars.length > 0;
 
+  /**
+   * One hole's three-way picker.
+   *
+   * Named for the two players rather than "home/away": on a phone the column
+   * is too narrow for a name, so the letters carry the colour and the label
+   * carries the name for anyone using a screen reader.
+   */
+  const pick = (i: number) => (
+    <div className="sc-pick">
+      <button
+        type="button"
+        className="is-a"
+        aria-pressed={holes[i] === "A"}
+        aria-label={`Hole ${i + 1} to ${active.aName}`}
+        onClick={() => setHole(i, "A")}
+      >
+        A
+      </button>
+      <button
+        type="button"
+        className="is-h"
+        aria-pressed={holes[i] === "H"}
+        aria-label={`Hole ${i + 1} halved`}
+        onClick={() => setHole(i, "H")}
+      >
+        ½
+      </button>
+      <button
+        type="button"
+        className="is-b"
+        aria-pressed={holes[i] === "B"}
+        aria-label={`Hole ${i + 1} to ${active.bName}`}
+        onClick={() => setHole(i, "B")}
+      >
+        B
+      </button>
+    </div>
+  );
+
   return (
     <>
       {!hideHeader && (
@@ -371,7 +511,7 @@ export function ScoreEntryClient({
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16, alignItems: "start" }}>
+      <div className="entry-grid">
         <div className="card elev-sm entry-matchlist" style={{ gap: 6, maxHeight: "74vh", overflow: "auto" }}>
           <span className="card-kicker">Round-robin matches</span>
           {matches.map((m) => {
@@ -381,33 +521,15 @@ export function ScoreEntryClient({
               <button
                 key={m.id}
                 type="button"
+                className="match-row"
+                aria-current={selected}
                 onClick={() => openMatch(m.id)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  textAlign: "left",
-                  background: selected ? "var(--color-accent-900)" : "transparent",
-                  border: `1px solid ${selected ? "var(--color-accent)" : "var(--color-divider)"}`,
-                  borderRadius: "var(--radius-md)",
-                  padding: "8px 10px",
-                  cursor: "pointer",
-                  color: "var(--color-text)",
-                }}
               >
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: 13,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                  <span className="match-row-name">
                     {m.aName} v {m.bName}
                   </span>
-                  <span style={{ fontSize: 11, color: "var(--color-neutral-500)" }}>
+                  <span className="match-row-meta">
                     {m.groupName} · Round {m.round}
                   </span>
                 </span>
@@ -437,40 +559,46 @@ export function ScoreEntryClient({
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 0", flexWrap: "wrap" }}>
-            <div className="seg">
-              <label className="seg-opt">
-                <input type="radio" name="entrymode" checked={mode === "holes"} onChange={() => setMode("holes")} />
-                Hole-by-hole
-              </label>
-              <label className="seg-opt">
-                <input type="radio" name="entrymode" checked={mode === "result"} onChange={() => setMode("result")} />
-                Match result
-              </label>
-              {/* Strokes are meaningless without the card they were played
-                  on — par for context, stroke index for net allowances. A
-                  league with no fixed venue can still record who won each
-                  hole, but it cannot take a scorecard until the course for
-                  that match is known. */}
-              <label
-                className="seg-opt"
-                title={
-                  courseKnown
-                    ? undefined
-                    : "Set the course for this match before entering a scorecard — strokes need its par and stroke index."
-                }
-                style={courseKnown ? undefined : { opacity: 0.45 }}
-              >
-                <input
-                  type="radio"
-                  name="entrymode"
-                  checked={mode === "handicap"}
-                  disabled={!courseKnown}
-                  onChange={() => setMode("handicap")}
-                />
-                Scorecard
-              </label>
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "12px 0", flexWrap: "wrap" }}>
+            {/* Shown, not hidden behind a link. The format decides which of
+                these exist at all; the round decides which one is already
+                selected. Both of those are the app's job — but the choice
+                between the shapes that remain is the organizer's, and it
+                belongs in front of them. */}
+            {availableModes.length > 1 ? (
+              <div className="mode-pick">
+                {availableModes.map((m) => {
+                  const off = m.key === "handicap" && !courseKnown;
+                  return (
+                    <button
+                      key={m.key}
+                      type="button"
+                      className="mode-opt"
+                      aria-pressed={effectiveMode === m.key}
+                      disabled={off}
+                      onClick={() => setMode(m.key)}
+                    >
+                      <span className="mode-opt-head">
+                        <i className={m.icon} /> {m.label}
+                      </span>
+                      <span className="mode-opt-blurb">{m.blurb}</span>
+                      {off && (
+                        <span className="mode-opt-why">
+                          Set the course for this match first — strokes need its par and stroke index.
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-muted" style={{ fontSize: 12, margin: 0, maxWidth: "64ch", lineHeight: 1.5 }}>
+                <i className={activeMode?.icon ?? "ph ph-cards"} />{" "}
+                <strong style={{ color: "var(--color-text)" }}>{activeMode?.label}</strong> — {format} is scored
+                on strokes, so there is no hole winner to record and no match margin to report.
+              </p>
+            )}
+
             <span className={`tag ${netMode ? "tag-accent" : "tag-neutral"}`} style={{ fontSize: 11 }}>
               <i className={netMode ? "ph ph-percent" : "ph ph-flag-checkered"} />{" "}
               {netMode ? "Net scoring — strokes given by handicap" : "Gross scoring — lowest strokes wins the hole"}
@@ -532,19 +660,19 @@ export function ScoreEntryClient({
             )}
           </div>
 
-          {mode === "holes" && (
+          {effectiveMode === "holes" && (
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "12px 0", fontSize: 13, flexWrap: "wrap" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "var(--color-accent)" }} />
+                  <span className="sc-key-dot" style={{ background: "var(--color-accent)" }} />
                   {firstName(active.aName)}
                 </span>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "var(--color-neutral-600)" }} />
+                  <span className="sc-key-dot" style={{ background: "var(--color-text)" }} />
                   Halved
                 </span>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "var(--color-accent-2-500)" }} />
+                  <span className="sc-key-dot" style={{ background: "var(--color-accent-2)" }} />
                   {firstName(active.bName)}
                 </span>
                 <button
@@ -559,79 +687,60 @@ export function ScoreEntryClient({
                 <span className="text-muted" style={{ fontSize: 12 }}>{listening === "holes" ? "Listening…" : "Say each hole's winner in order, e.g. “Alex, half, Sam”."}</span>
               </div>
 
-              <div style={{ overflowX: "auto" }}>
-                <table className="table" style={{ fontSize: 11, minWidth: hasCourseData ? (isEighteen ? 920 : 520) : undefined }}>
+              <div className="sc-wrap">
+                <table className="sc" style={{ minWidth: hasCourseData ? (isEighteen ? 900 : 520) : undefined }}>
                   {hasCourseData && (
                     <thead>
                       <tr>
                         <th>Hole</th>
-                        {front.map((i) => (<th key={i} style={{ textAlign: "center" }}>{i + 1}</th>))}
-                        {isEighteen && <th style={{ textAlign: "center" }}>OUT</th>}
-                        {back.map((i) => (<th key={i} style={{ textAlign: "center" }}>{i + 1}</th>))}
-                        {isEighteen && <th style={{ textAlign: "center" }}>IN</th>}
+                        {front.map((i) => (<th key={i}>{i + 1}</th>))}
+                        {isEighteen && <th className="sc-tot">Out</th>}
+                        {back.map((i) => (<th key={i}>{i + 1}</th>))}
+                        {isEighteen && <th className="sc-tot">In</th>}
                       </tr>
                     </thead>
                   )}
                   <tbody>
                     {hasCourseData && (
                       <>
-                        <tr>
-                          <td className="text-muted">Yards</td>
-                          {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{yards[i] ?? "-"}</td>))}
-                          {isEighteen && <td style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{sum(yards, 0, 9)}</td>}
-                          {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{yards[i] ?? "-"}</td>))}
-                          {isEighteen && <td style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{sum(yards, 9, totalHoles)}</td>}
+                        <tr className="sc-ref">
+                          <td>Yards</td>
+                          {front.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
+                          {isEighteen && <td className="sc-tot">{sum(yards, 0, 9)}</td>}
+                          {back.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
+                          {isEighteen && <td className="sc-tot">{sum(yards, 9, totalHoles)}</td>}
                         </tr>
-                        <tr>
-                          <td className="text-muted">Par</td>
-                          {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{pars[i] ?? "-"}</td>))}
-                          {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(pars, 0, 9)}</td>}
-                          {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{pars[i] ?? "-"}</td>))}
-                          {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(pars, 9, totalHoles)}</td>}
+                        <tr className="sc-ref sc-par">
+                          <td>Par</td>
+                          {front.map((i) => (<td key={i}>{pars[i] ?? "-"}</td>))}
+                          {isEighteen && <td className="sc-tot">{sum(pars, 0, 9)}</td>}
+                          {back.map((i) => (<td key={i}>{pars[i] ?? "-"}</td>))}
+                          {isEighteen && <td className="sc-tot">{sum(pars, 9, totalHoles)}</td>}
                         </tr>
-                        <tr>
-                          <td className="text-muted">S.I.</td>
-                          {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{strokeIndex[i] ?? "-"}</td>))}
-                          {isEighteen && <td />}
-                          {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{strokeIndex[i] ?? "-"}</td>))}
-                          {isEighteen && <td />}
+                        <tr className="sc-ref">
+                          <td>S.I.</td>
+                          {front.map((i) => (<td key={i}>{strokeIndex[i] ?? "-"}</td>))}
+                          {isEighteen && <td className="sc-tot" />}
+                          {back.map((i) => (<td key={i}>{strokeIndex[i] ?? "-"}</td>))}
+                          {isEighteen && <td className="sc-tot" />}
                         </tr>
                       </>
                     )}
                     <tr>
-                      <td style={{ fontWeight: 500 }}>Result</td>
-                      {[...front, ...back].map((i) => (
-                        <td key={i} style={{ padding: 2 }}>
-                          <div style={{ border: "1px solid var(--color-divider)", borderRadius: 6, overflow: "hidden" }}>
-                            <div style={{ display: "flex", flexDirection: "column" }}>
-                              <button
-                                type="button"
-                                className="hole-btn"
-                                onClick={() => setHole(i, "A")}
-                                style={holes[i] === "A" ? { background: "var(--color-accent)", color: "var(--color-bg)" } : undefined}
-                              >
-                                A
-                              </button>
-                              <button
-                                type="button"
-                                className="hole-btn"
-                                onClick={() => setHole(i, "H")}
-                                style={holes[i] === "H" ? { background: "var(--color-neutral-600)", color: "var(--color-neutral-100)" } : undefined}
-                              >
-                                ½
-                              </button>
-                              <button
-                                type="button"
-                                className="hole-btn"
-                                onClick={() => setHole(i, "B")}
-                                style={holes[i] === "B" ? { background: "var(--color-accent-2-500)", color: "var(--color-bg)" } : undefined}
-                              >
-                                B
-                              </button>
-                            </div>
-                          </div>
-                        </td>
+                      <td>Result</td>
+                      {/* Front and back are emitted separately with the total
+                          columns between them. Mapping all eighteen in one go
+                          skipped the Out and In cells, so every back-nine
+                          picker sat one column left of its hole number — the
+                          card looked right and pointed at the wrong hole. */}
+                      {front.map((i) => (
+                        <td key={i} style={{ padding: 2 }}>{pick(i)}</td>
                       ))}
+                      {isEighteen && <td className="sc-tot" />}
+                      {back.map((i) => (
+                        <td key={i} style={{ padding: 2 }}>{pick(i)}</td>
+                      ))}
+                      {isEighteen && <td className="sc-tot" />}
                     </tr>
                   </tbody>
                 </table>
@@ -639,7 +748,7 @@ export function ScoreEntryClient({
             </>
           )}
 
-          {mode === "result" && (
+          {effectiveMode === "result" && (
             <div className="card elev-sm" style={{ margin: "12px 0", gap: 12, background: "var(--color-bg)" }}>
               <div>
                 <div className="text-muted" style={{ fontSize: 12, marginBottom: 6 }}>Winner</div>
@@ -685,38 +794,44 @@ export function ScoreEntryClient({
             </div>
           )}
 
-          {mode === "handicap" && (
+          {effectiveMode === "handicap" && (
             <div style={{ margin: "12px 0" }}>
               <p className="text-muted" style={{ fontSize: 12, margin: "0 0 10px" }}>
                 {netMode
                   ? "Enter each player's gross strokes per hole — the net winner (after handicap strokes, marked •) is worked out automatically."
                   : "Enter each player's gross strokes per hole — the lower score wins each hole, straight up."}
               </p>
-              <div style={{ overflowX: "auto" }}>
-                <table className="table" style={{ fontSize: 11, minWidth: isEighteen ? 920 : 520 }}>
+              <div className="sc-wrap">
+                <table className="sc" style={{ minWidth: isEighteen ? 940 : 540 }}>
                   <thead>
                     <tr>
                       <th>Hole</th>
-                      {front.map((i) => (<th key={i} style={{ textAlign: "center" }}>{i + 1}</th>))}
-                      {isEighteen && <th style={{ textAlign: "center" }}>OUT</th>}
-                      {back.map((i) => (<th key={i} style={{ textAlign: "center" }}>{i + 1}</th>))}
-                      {isEighteen && <th style={{ textAlign: "center" }}>IN</th>}
+                      {front.map((i) => (<th key={i}>{i + 1}</th>))}
+                      {isEighteen && <th className="sc-tot">Out</th>}
+                      {back.map((i) => (<th key={i}>{i + 1}</th>))}
+                      {isEighteen && <th className="sc-tot">In</th>}
+                      {/* The player rows have always emitted a gross total.
+                          The header never declared it, so every column in the
+                          body sat one place left of its label. */}
+                      <th className="sc-tot">Tot</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td className="text-muted">Par</td>
-                      {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{pars[i] ?? "-"}</td>))}
-                      {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(pars, 0, 9)}</td>}
-                      {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-400)" }}>{pars[i] ?? "-"}</td>))}
-                      {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(pars, 9, totalHoles)}</td>}
+                    <tr className="sc-ref sc-par">
+                      <td>Par</td>
+                      {front.map((i) => (<td key={i}>{pars[i] ?? "-"}</td>))}
+                      {isEighteen && <td className="sc-tot">{sum(pars, 0, 9)}</td>}
+                      {back.map((i) => (<td key={i}>{pars[i] ?? "-"}</td>))}
+                      {isEighteen && <td className="sc-tot">{sum(pars, 9, totalHoles)}</td>}
+                      <td className="sc-tot">{sum(pars, 0, totalHoles)}</td>
                     </tr>
-                    <tr>
-                      <td className="text-muted">S.I.</td>
-                      {front.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{strokeIndex[i] ?? "-"}</td>))}
-                      {isEighteen && <td />}
-                      {back.map((i) => (<td key={i} style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>{strokeIndex[i] ?? "-"}</td>))}
-                      {isEighteen && <td />}
+                    <tr className="sc-ref">
+                      <td>S.I.</td>
+                      {front.map((i) => (<td key={i}>{strokeIndex[i] ?? "-"}</td>))}
+                      {isEighteen && <td className="sc-tot" />}
+                      {back.map((i) => (<td key={i}>{strokeIndex[i] ?? "-"}</td>))}
+                      {isEighteen && <td className="sc-tot" />}
+                      <td className="sc-tot" />
                     </tr>
                     {(["A", "B"] as const).map((slot) => {
                       const strokes = slot === "A" ? aStrokes : bStrokes;
@@ -738,49 +853,63 @@ export function ScoreEntryClient({
                             </button>
                           </td>
                           {front.map((i) => (
-                            <td key={i} style={{ textAlign: "center", padding: 2, position: "relative" }}>
+                            <td key={i} style={{ padding: 2, position: "relative" }}>
                               <input
-                                className="input"
+                                className={`input sc-score${scoreMark(strokes[i], pars[i])}`}
                                 inputMode="numeric"
                                 value={strokes[i] ?? ""}
                                 onChange={(e) => setStroke(slot, i, e.target.value)}
-                                style={{ width: 30, textAlign: "center", padding: "4px 2px", minHeight: 30 }}
+                                aria-label={`${name}, hole ${i + 1}${pars[i] ? `, par ${pars[i]}` : ""}`}
                               />
                               {given[i] > 0 && (
-                                <span style={{ position: "absolute", top: 0, right: 2, color: "var(--color-accent)", fontSize: 10 }}>•</span>
+                                <span
+                                  title={`${firstName(name)} receives a shot here`}
+                                  style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1 }}
+                                >
+                                  •
+                                </span>
                               )}
                             </td>
                           ))}
-                          {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(strokes.slice(0, 9).map((s) => s ?? 0), 0, 9) || "—"}</td>}
+                          {isEighteen && <td className="sc-tot">{sum(strokes.slice(0, 9).map((s) => s ?? 0), 0, 9) || "—"}</td>}
                           {back.map((i) => (
-                            <td key={i} style={{ textAlign: "center", padding: 2, position: "relative" }}>
+                            <td key={i} style={{ padding: 2, position: "relative" }}>
                               <input
-                                className="input"
+                                className={`input sc-score${scoreMark(strokes[i], pars[i])}`}
                                 inputMode="numeric"
                                 value={strokes[i] ?? ""}
                                 onChange={(e) => setStroke(slot, i, e.target.value)}
-                                style={{ width: 30, textAlign: "center", padding: "4px 2px", minHeight: 30 }}
+                                aria-label={`${name}, hole ${i + 1}${pars[i] ? `, par ${pars[i]}` : ""}`}
                               />
                               {given[i] > 0 && (
-                                <span style={{ position: "absolute", top: 0, right: 2, color: "var(--color-accent)", fontSize: 10 }}>•</span>
+                                <span
+                                  title={`${firstName(name)} receives a shot here`}
+                                  style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1 }}
+                                >
+                                  •
+                                </span>
                               )}
                             </td>
                           ))}
-                          {isEighteen && <td style={{ textAlign: "center", fontWeight: 600 }}>{sum(strokes.slice(9, totalHoles).map((s) => s ?? 0), 0, totalHoles - 9) || "—"}</td>}
-                          <td style={{ textAlign: "center", fontWeight: 600 }}>{gross || "—"}</td>
+                          {isEighteen && <td className="sc-tot">{sum(strokes.slice(9, totalHoles).map((s) => s ?? 0), 0, totalHoles - 9) || "—"}</td>}
+                          <td className="sc-tot">{gross || "—"}</td>
                         </tr>
                       );
                     })}
+                    {/* Same trap as the row above: mapping all eighteen in
+                        one pass and pushing the totals to the end put every
+                        back-nine result under the wrong hole number. */}
                     <tr>
-                      <td className="text-muted">Net result</td>
-                      {[...front, ...back].map((i) => (
-                        <td key={i} style={{ textAlign: "center" }}>
-                          {holes[i] === "A" && <span style={{ color: "var(--color-accent)" }}>A</span>}
-                          {holes[i] === "B" && <span style={{ color: "var(--color-accent-2-500)" }}>B</span>}
-                          {holes[i] === "H" && <span className="text-muted">½</span>}
-                        </td>
+                      <td>Net result</td>
+                      {front.map((i) => (
+                        <td key={i}>{holeMark(holes[i])}</td>
                       ))}
-                      {isEighteen && <><td /><td /></>}
+                      {isEighteen && <td className="sc-tot" />}
+                      {back.map((i) => (
+                        <td key={i}>{holeMark(holes[i])}</td>
+                      ))}
+                      {isEighteen && <td className="sc-tot" />}
+                      <td className="sc-tot" />
                     </tr>
                   </tbody>
                 </table>

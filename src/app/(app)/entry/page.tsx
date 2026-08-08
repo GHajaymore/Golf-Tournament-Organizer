@@ -29,7 +29,7 @@ export default async function EntryPage() {
   // before the deadline — and gross match play needs no par or stroke index to
   // record who won a hole.
   const scoringNeedsCourse = needsCourseData(
-    (state.rrStages.length ? state.rrStages : state.stages).map((s) => ({
+    (state.playRounds.length ? state.playRounds : state.stages).map((s) => ({
       format: s.format,
       scoringBasis: s.scoringBasis,
     })),
@@ -183,7 +183,10 @@ export default async function EntryPage() {
   // A tournament can sequence more than one Round Robin round; build entry data
   // for each so staff/players can switch between them (e.g. fix Round 1 while
   // Round 2 is under way), defaulting to the active (latest) round.
-  const rrStages = state.rrStages.length ? state.rrStages : state.stages.slice(0, 1);
+  // Every round the field plays, not just the round-robin chain — a medal
+  // round has no pairings but very much has cards to enter, and keying this
+  // off rrStages alone made it unreachable from score entry.
+  const rrStages = state.playRounds.length ? state.playRounds : state.stages.slice(0, 1);
   const rounds: EntryRound[] = await Promise.all(
     rrStages.map(async (stage, i) => {
       const holeCount = stage.holes === 9 ? 9 : 18;
@@ -261,6 +264,7 @@ export default async function EntryPage() {
       return {
         stageId: stage.id,
         label: `Round ${i + 1}`,
+        format: stage.format,
         matches: stageMatches,
         netMode,
         stroke: { holes: holeCount, stageId: stage.id, cardsByPlayer },

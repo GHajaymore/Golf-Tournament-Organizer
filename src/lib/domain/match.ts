@@ -191,9 +191,16 @@ export function matchStrokesGiven(
   handicapB: number,
   strokeIndex: number[],
 ): { toA: number[]; toB: number[] } {
+  // diff > 0 means A has the HIGHER course handicap — the weaker player — so A
+  // is the one who receives.
+  //
+  // This was inverted, and nothing tested it: the shots went to whoever had
+  // the LOWER handicap, so a scratch golfer was given four shots against a
+  // 4-handicapper. Net match play has been backwards, and the failure is
+  // invisible on a card — the holes just go the wrong way.
   const diff = Math.round(handicapA) - Math.round(handicapB);
-  const toA = strokeIndex.map((si) => (diff < 0 ? holeStrokesReceived(-diff, si) : 0));
-  const toB = strokeIndex.map((si) => (diff > 0 ? holeStrokesReceived(diff, si) : 0));
+  const toA = strokeIndex.map((si) => (diff > 0 ? holeStrokesReceived(diff, si) : 0));
+  const toB = strokeIndex.map((si) => (diff < 0 ? holeStrokesReceived(-diff, si) : 0));
   return { toA, toB };
 }
 

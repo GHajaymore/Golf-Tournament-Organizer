@@ -14,6 +14,9 @@ import {
   SCORE_ENTRY_BY,
   SCORE_APPROVAL,
   type TournamentSettings,
+  ATTEST_BY,
+  ATTEST_BY_LABEL,
+  ATTEST_BY_HELP,
 } from "../tournament-settings";
 import { ROLES } from "../roles";
 
@@ -33,6 +36,9 @@ describe("defaults", () => {
       scoreEntryWindow: "during",
       voiceEntry: true,
       playerAccess: "email",
+      // One playing partner is what a club medal has always required, so a
+      // tournament switching to player approval behaves as its members expect.
+      attestBy: "marker",
       // The deliberate exception: prior behaviour auto-confirmed unreviewed
       // scores after 24h. Defaulting to staff approval is a considered change,
       // not an oversight — this assertion is here so it can't drift back
@@ -163,6 +169,28 @@ describe("rules cover every role", () => {
     for (const role of ROLES) {
       expect(typeof canSeeLeaderboard(DEFAULT_SETTINGS, role)).toBe("boolean");
       expect(typeof canEnterScores(DEFAULT_SETTINGS, role)).toBe("boolean");
+    }
+  });
+});
+
+describe("how much agreement a card needs", () => {
+  it("falls back to one partner rather than rejecting an unknown value", () => {
+    // A bad value in one column must not invalidate the rest of the
+    // tournament — the same rule every other setting follows.
+    expect(cleanSettings({ attestBy: "everyone" }).attestBy).toBe("marker");
+    expect(cleanSettings({}).attestBy).toBe("marker");
+  });
+
+  it("keeps each valid choice", () => {
+    for (const v of ["marker", "opponent", "all"] as const) {
+      expect(cleanSettings({ attestBy: v }).attestBy, v).toBe(v);
+    }
+  });
+
+  it("describes every option it offers", () => {
+    for (const key of ATTEST_BY) {
+      expect(ATTEST_BY_LABEL[key], key).toBeTruthy();
+      expect(ATTEST_BY_HELP[key].length, key).toBeGreaterThan(30);
     }
   });
 });

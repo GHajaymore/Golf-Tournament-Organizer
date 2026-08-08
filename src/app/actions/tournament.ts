@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule, scoredMatchCount } from "@/lib/services/regroup";
-import { roundRobinStages, chainRoundStandings, scoringFrom, settingsOf } from "@/lib/services/tournament";
+import { roundRobinStages, chainRoundStandings, scoringFrom, settingsOf, parseMatchTiebreakers } from "@/lib/services/tournament";
 import {
   canEnterScores,
   canPlayerSavePartial,
@@ -18,6 +18,10 @@ import { generateShareToken } from "@/lib/codes";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
+import { splitCsvLine, matchColumn } from "@/lib/csv";
+import { STAGE_TYPES, STAGE_DESCRIPTIONS, isStageType } from "@/lib/stage-types";
+import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
+import { survivors, isCutScope } from "@/lib/domain/cut";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
 import {
   marginToHoles,
@@ -243,50 +247,10 @@ export async function removeSignups(playerIds: string[]) {
   }
 }
 
-const CSV_COLUMN_ALIASES: Record<string, string[]> = {
-  name: ["name", "player", "player name", "full name"],
-  handicap: ["handicap", "hcp", "handicap index", "index"],
-  email: ["email", "e-mail", "email address"],
-  phone: ["phone", "phone number", "mobile", "cell"],
-  handicapType: ["handicap type", "9/18", "hcp type"],
-};
-
-function matchColumn(header: string): string | null {
-  const h = header.trim().toLowerCase();
-  for (const [field, aliases] of Object.entries(CSV_COLUMN_ALIASES)) {
-    if (aliases.includes(h)) return field;
-  }
-  return null;
-}
-
-/** Simple CSV line split — handles quoted fields containing commas. */
-function splitCsvLine(line: string): string[] {
-  const out: string[] = [];
-  let cur = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const c = line[i];
-    if (inQuotes) {
-      if (c === '"' && line[i + 1] === '"') {
-        cur += '"';
-        i += 1;
-      } else if (c === '"') {
-        inQuotes = false;
-      } else {
-        cur += c;
-      }
-    } else if (c === '"') {
-      inQuotes = true;
-    } else if (c === ",") {
-      out.push(cur);
-      cur = "";
-    } else {
-      cur += c;
-    }
-  }
-  out.push(cur);
-  return out;
-}
+/* CSV parsing lives in src/lib/csv.ts, shared with the roster importer. The
+   two have different rules about what a row must contain, but they must
+   agree on what a column is — a club whose spreadsheet says "Hcp Index"
+   should not be understood by one screen and rejected by the other. */
 
 export interface CsvImportResult {
   imported: number;
@@ -524,6 +488,55 @@ export interface RegenResult {
  *
  * So the guard is on scored matches, and the organizer has to confirm.
  */
+export interface MovePlayerResult {
+  ok: boolean;
+  error?: string;
+  /** Set when matches already exist for the flights involved. */
+  needsConfirm?: boolean;
+  scoredMatches?: number;
+}
+
+/**
+ * Move one player into a different flight.
+ *
+ * The manual formation rule chunks the roster into flights and, until now,
+ * that was the end of it — an organizer who wanted Ferris in Flight 2 had to
+ * reorder the roster and regenerate, which reshuffles everyone else too. This
+ * is the missing half: manual has to mean manual.
+ *
+ * Refuses once scores exist unless forced. Flights decide who plays whom, so
+ * moving someone after a match has been returned changes what that result was
+ * a result *of* — recoverable, but never silently.
+ */
+export async function movePlayerToGroup(
+  playerId: string,
+  groupId: string,
+  force = false,
+): Promise<MovePlayerResult> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+
+  // Both ends scoped to the caller's tournament. Either one unscoped would let
+  // an organizer of any event move a stranger's player into a stranger's
+  // flight by posting two ids.
+  const [player, group] = await Promise.all([
+    prisma.player.findFirst({ where: { id: playerId, eventId }, select: { id: true, groupId: true } }),
+    prisma.group.findFirst({ where: { id: groupId, eventId }, select: { id: true } }),
+  ]);
+  if (!player) return { ok: false, error: "Player not found in this tournament." };
+  if (!group) return { ok: false, error: "Flight not found in this tournament." };
+  if (player.groupId === groupId) return { ok: true };
+
+  const scored = await scoredMatchCount(eventId);
+  if (scored > 0 && !force) {
+    return { ok: false, needsConfirm: true, scoredMatches: scored };
+  }
+
+  await prisma.player.update({ where: { id: playerId }, data: { groupId } });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function regenGroups(
   rule: FormationRule,
   mode = "auto",
@@ -581,19 +594,42 @@ export async function generateNextRound(stageId: string) {
   const idx = rrStages.findIndex((s) => s.id === stageId);
   if (idx <= 0) return; // first Round Robin stage has no predecessor to cut from — use Generate flights instead
 
-  const domainPlayers = confirmed.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }));
+  // groupId carried through so a per-flight cut can be taken flight by flight.
+  const domainPlayers = confirmed.map((p) => ({
+    id: p.id,
+    name: p.name,
+    handicap: p.handicap,
+    seed: p.seed,
+    groupId: p.groupId,
+  }));
   const scoring = scoringFrom(event);
   const holeDifficulty = resolveCourse(event).strokeIndex;
-  const chain = chainRoundStandings(rrStages.slice(0, idx + 1), allMatches, domainPlayers, scoring, holeDifficulty);
+  // The cut has to be made on the same standings the leaderboard shows, so it
+  // reads the same match-tiebreak rule.
+  const chain = chainRoundStandings(
+    rrStages.slice(0, idx + 1),
+    allMatches,
+    domainPlayers,
+    scoring,
+    holeDifficulty,
+    parseMatchTiebreakers(event.matchTiebreakers),
+  );
   const priorStanding = chain[idx - 1];
 
   let survivorIds: Set<string>;
   if (stage.cutEnabled) {
-    const n =
-      stage.cutMode === "percent"
-        ? Math.max(1, Math.ceil((confirmed.length * stage.cutPercent) / 100))
-        : Math.max(1, Math.min(stage.cutCount, confirmed.length));
-    survivorIds = new Set(priorStanding.slice(0, n).map((rp) => rp.player.id));
+    // The rule now covers both axes — how many, and out of what. A per-flight
+    // cut takes N from every flight rather than N from the tournament, which
+    // is the difference between a bracket of eight and a bracket of two.
+    survivorIds = survivors(
+      priorStanding.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId })),
+      {
+        scope: isCutScope(stage.cutScope) ? stage.cutScope : "overall",
+        mode: stage.cutMode === "percent" ? "percent" : "count",
+        count: stage.cutCount,
+        percent: stage.cutPercent,
+      },
+    );
   } else {
     survivorIds = new Set(confirmed.map((p) => p.id));
   }
@@ -756,25 +792,15 @@ export async function setQualifyMode(mode: string, overall: number) {
   refresh();
 }
 
-const STAGE_TYPES = [
-  "Round Robin",
-  "Single Match Stage",
-  "Qualification Stage",
-  "Bracket Stage",
-] as const;
-
-const STAGE_DESCRIPTIONS: Record<string, string> = {
-  "Round Robin": "Every player meets every other in their group.",
-  "Single Match Stage": "A single seeding or play-in match.",
-  "Qualification Stage": "Cut the field — top players per flight advance.",
-  "Bracket Stage": "Single-elimination bracket to a champion.",
-};
+/* Stage types live in src/lib/stage-types.ts, shared with the picker. Two
+   lists describing the same thing drift: a type offered in the UI but absent
+   from the validator here silently becomes a Round Robin on save. */
 
 /** Returns the new stage's id so callers can act on it immediately (e.g. set a cut line before the page revalidates). */
 export async function addStage(type: string): Promise<string | undefined> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
-  const stageType = (STAGE_TYPES as readonly string[]).includes(type) ? type : "Round Robin";
+  const stageType = isStageType(type) ? type : "Round Robin";
   const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
   const position = (agg._max.position ?? -1) + 1;
   const created = await prisma.stage.create({
@@ -1709,4 +1735,344 @@ export async function setBracketMode(mode: string): Promise<{ ok: boolean; error
   await prisma.event.update({ where: { id: eventId }, data: { bracketMode: mode } });
   refresh();
   return { ok: true };
+}
+
+/* ── Manual flights: naming and sign-off ──────────────────────────────── */
+
+/**
+ * Rename a flight.
+ *
+ * `Group.name` has existed since the beginning and the screen ignored it,
+ * rendering "Flight 1", "Flight 2" from the index. Clubs don't call them that:
+ * they run an A Flight and a B Flight, or Championship and Handicap, or name
+ * them after the four courses a society is playing.
+ */
+export async function renameGroup(groupId: string, name: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  const clean = name.trim().slice(0, 40);
+  if (!clean) return { ok: false, error: "Give the flight a name." };
+
+  const group = await prisma.group.findFirst({ where: { id: groupId, eventId }, select: { id: true } });
+  if (!group) return { ok: false, error: "Flight not found in this tournament." };
+
+  await prisma.group.update({ where: { id: groupId }, data: { name: clean } });
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Sign off — or reopen — a hand-built draw.
+ *
+ * Only meaningful for the manual rule. The computed rules derive the whole
+ * allocation from a policy and are regenerated on demand, so there is nothing
+ * to confirm; a manual draw is finished work, and this is the point where it
+ * stops being one stray drag away from changing.
+ *
+ * Reopening is deliberately just as easy. A lock an organizer cannot undo is a
+ * lock they will route around by regenerating, which loses the draw entirely.
+ */
+export async function setFlightsConfirmed(confirmed: boolean): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { formationRule: true } });
+  if (event?.formationRule !== "manual") {
+    return { ok: false, error: "Only a manual draw is confirmed by hand — the other rules regenerate." };
+  }
+  await prisma.event.update({ where: { id: eventId }, data: { flightsConfirmed: confirmed } });
+  refresh();
+  return { ok: true };
+}
+
+
+/**
+ * How an all-square match is decided.
+ *
+ * Stored as an ordered list rather than a single choice, because the countback
+ * IS a sequence — last nine, then last six, then last three, then the last
+ * hole — and a committee that has to justify a result will be quoting the
+ * whole ladder, not one rung of it.
+ */
+export async function setMatchTiebreakers(keys: string[]): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  // Cleaned rather than trusted: this is a public endpoint, and an unknown key
+  // reaching the engine would silently skip instead of failing loudly.
+  const clean = cleanMatchTiebreakers(keys).filter((k) => OFFERED_MATCH_TIEBREAKS.includes(k));
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { matchTiebreakers: JSON.stringify(clean) },
+  });
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Close registration early, or keep it open past the deadline.
+ *
+ * `null` hands control back to the deadline. `true` closes now. `false` keeps
+ * entries open after the date has passed — the common case, because a deadline
+ * gets extended by a word at the bar long before anyone edits it in software.
+ *
+ * Note what this deliberately does NOT do: stop an organizer adding a player.
+ * `addSignup` is staff-only and stays available whatever this says. Closing
+ * registration is a statement about what members may do, and the organizer
+ * adding a late entry by hand is the normal way a closed event still takes one.
+ * When a self-service signup flow exists, it is this flag it should read.
+ */
+export async function setRegistrationOverride(
+  override: boolean | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { registrationOverride: override },
+  });
+  refresh();
+  return { ok: true };
+}
+
+/** Whether a round's cut is taken across the field or within each flight. */
+export async function setStageCutScope(stageId: string, scope: string): Promise<void> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  await prisma.stage.updateMany({
+    where: { id: stageId, eventId },
+    data: { cutScope: isCutScope(scope) ? scope : "overall" },
+  });
+  refresh();
+}
+
+/**
+ * Close a round early, or extend it past its deadline.
+ *
+ * The same rule as registration, and for the same reason: the completion
+ * deadline was a label that enforced nothing, so a round could be "due
+ * Saturday" and still accept a card on Wednesday with nothing to say so.
+ */
+export async function setStageDeadlineOverride(
+  stageId: string,
+  override: boolean | null,
+): Promise<void> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  await prisma.stage.updateMany({
+    where: { id: stageId, eventId },
+    data: { deadlineOverride: override },
+  });
+  refresh();
+}
+
+export interface ScoreImportOutcome {
+  ok: boolean;
+  written: number;
+  error?: string;
+  /** Rows the server itself refused, on top of anything the parser caught. */
+  problems?: string[];
+}
+
+/**
+ * Apply a parsed bulk import.
+ *
+ * The file was parsed and checked in the browser, but this is a `"use server"`
+ * export — whatever arrives here is arbitrary caller input, so every row is
+ * re-resolved against this event's own field and this round's own matches.
+ * A row naming a player from another tournament, or a match from another
+ * round, is dropped and reported rather than written.
+ *
+ * Staff only. Bulk-writing a field's scores is not something a player does,
+ * whatever the tournament's score-entry setting says.
+ */
+export async function importScores(
+  stageId: string,
+  shape: string,
+  rows: Array<{
+    playerId?: string;
+    strokes?: (number | null)[];
+    aId?: string;
+    bId?: string;
+    holes?: HoleResult[];
+    winner?: "A" | "B" | "H";
+    margin?: string;
+  }>,
+): Promise<ScoreImportOutcome> {
+  const eventId = await requireStaffEvent();
+
+  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
+  if (!stage) return { ok: false, written: 0, error: "That round isn't in this tournament." };
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { ok: false, written: 0, error: "Nothing to import." };
+  }
+  // A field is hundreds at most; anything beyond this is not a tee sheet.
+  if (rows.length > 1000) {
+    return { ok: false, written: 0, error: "That file has too many rows to be a single round." };
+  }
+
+  const field = new Set(
+    (await prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } })).map(
+      (p) => p.id,
+    ),
+  );
+  const matches = await prisma.match.findMany({
+    where: { eventId, stageId },
+    select: { id: true, playerAId: true, playerBId: true, holes: true },
+  });
+
+  const problems: string[] = [];
+  let written = 0;
+
+  for (const row of rows) {
+    if (shape === "strokes") {
+      if (!row.playerId || !field.has(row.playerId)) {
+        problems.push("A row named someone who isn't in this tournament's field.");
+        continue;
+      }
+      const strokes = Array.isArray(row.strokes) ? row.strokes : [];
+      await prisma.scorecard.upsert({
+        where: { stageId_playerId: { stageId, playerId: row.playerId } },
+        update: { strokes: JSON.stringify(strokes) },
+        create: { eventId, stageId, playerId: row.playerId, strokes: JSON.stringify(strokes) },
+      });
+      written += 1;
+      continue;
+    }
+
+    // Match shapes: the pairing has to be one this round actually has, in
+    // either direction — a file listing B before A is still the same match.
+    const found = matches.find(
+      (m) =>
+        (m.playerAId === row.aId && m.playerBId === row.bId) ||
+        (m.playerAId === row.bId && m.playerBId === row.aId),
+    );
+    if (!found) {
+      problems.push("A row described a match this round doesn't have.");
+      continue;
+    }
+    // Flipped rows have their result flipped with them, or the winner lands
+    // on the wrong player.
+    const flipped = found.playerAId === row.bId;
+    const flip = (r: HoleResult): HoleResult => (r === "A" ? "B" : r === "B" ? "A" : r);
+
+    if (shape === "hole-results") {
+      const holes = (Array.isArray(row.holes) ? row.holes : []).map((h) => (flipped ? flip(h) : h));
+      await prisma.match.updateMany({
+        where: { id: found.id, eventId },
+        data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },
+      });
+      written += 1;
+      continue;
+    }
+
+    if (shape === "match-results") {
+      const w: "A" | "B" | "H" =
+        row.winner === "A" || row.winner === "B"
+          ? flipped
+            ? row.winner === "A"
+              ? "B"
+              : "A"
+            : row.winner
+          : "H";
+      // A match has no winner column — the result lives in holes[], and
+      // marginToHoles is what the single-match screen already uses to turn
+      // "3&2" into a card. Reusing it keeps an imported result and a typed one
+      // identical downstream, rather than creating a second kind of result the
+      // leaderboard has to know about.
+      const synth = marginToHoles(w, row.margin ?? "", matchHoleCount(found.holes));
+      await prisma.match.updateMany({
+        where: { id: found.id, eventId },
+        data: { holes: JSON.stringify(synth), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null },
+      });
+      written += 1;
+      continue;
+    }
+
+    problems.push("Unknown import shape.");
+  }
+
+  refresh();
+  return { ok: written > 0, written, problems: problems.length ? problems : undefined };
+}
+
+export interface ClearScoresOutcome {
+  ok: boolean;
+  cleared: number;
+  error?: string;
+}
+
+/**
+ * Clear scores for a round — one card, a selection, or the whole round.
+ *
+ * Deleting a score is not the same as deleting a player, and this only ever
+ * touches the former: the scorecard rows and the match cards for one round.
+ * Registrations, flights, pairings and tee times all survive, so a round can
+ * be re-scored from scratch without rebuilding the draw.
+ *
+ * Match cards are blanked rather than deleted. The pairing is part of the
+ * draw, not part of the score — removing the row would take the fixture with
+ * it and leave the tee sheet pointing at a match that no longer exists.
+ *
+ * Staff only, and never on a locked event.
+ */
+export async function clearRoundScores(
+  stageId: string,
+  /** Empty = the whole round. Otherwise only these players' cards and any
+   *  match they appear in. */
+  playerIds: string[] = [],
+): Promise<ClearScoresOutcome> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+
+  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
+  if (!stage) return { ok: false, cleared: 0, error: "That round isn't in this tournament." };
+
+  const scoped = playerIds.filter((id) => typeof id === "string" && id.length > 0);
+  let cleared = 0;
+
+  // ── Stroke cards ────────────────────────────────────────────────────────
+  const cards = await prisma.scorecard.deleteMany({
+    where: { eventId, stageId, ...(scoped.length ? { playerId: { in: scoped } } : {}) },
+  });
+  cleared += cards.count;
+
+  // ── Match cards ─────────────────────────────────────────────────────────
+  const matches = await prisma.match.findMany({
+    where: {
+      eventId,
+      stageId,
+      ...(scoped.length
+        ? { OR: [{ playerAId: { in: scoped } }, { playerBId: { in: scoped } }] }
+        : {}),
+    },
+    select: { id: true, holes: true },
+  });
+
+  for (const m of matches) {
+    // Same hole count back, so the card keeps its shape — a nine-hole match
+    // must not silently become eighteen empty holes.
+    const empty = new Array(matchHoleCount(m.holes)).fill(null);
+    await prisma.match.updateMany({
+      where: { id: m.id, eventId },
+      data: {
+        holes: JSON.stringify(empty),
+        scoreStatus: "pending",
+        scoredAt: null,
+        confirmedById: null,
+      },
+    });
+    cleared += 1;
+  }
+
+  // Per-player gross cards behind a net match, which would otherwise re-derive
+  // the result the moment anything recalculated.
+  await prisma.matchScorecard.deleteMany({
+    where: {
+      match: { eventId, stageId },
+      ...(scoped.length ? { playerId: { in: scoped } } : {}),
+    },
+  });
+
+  refresh();
+  return { ok: true, cleared };
 }

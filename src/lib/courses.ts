@@ -15,43 +15,45 @@ export interface CoursePreset {
   strokeIndex: number[];
 }
 
-export const COURSES: CoursePreset[] = [
-  {
-    name: "Ridgeline National",
-    city: "Aspen Falls",
-    address: "1 Ridgeline Drive, Aspen Falls",
-    pars: [4, 5, 4, 3, 4, 4, 5, 3, 4, 4, 3, 5, 4, 4, 3, 4, 5, 4],
-    yards: [412, 538, 401, 178, 445, 420, 561, 165, 398, 430, 189, 552, 408, 436, 205, 415, 545, 389],
-    strokeIndex: [5, 15, 3, 17, 1, 7, 9, 13, 11, 6, 18, 2, 8, 4, 16, 10, 12, 14],
-  },
-  {
-    name: "Cedar Hollow Links",
-    city: "Millbrook",
-    address: "88 Cedar Hollow Road, Millbrook",
-    pars: [4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 3, 4, 5, 4, 3, 4, 5],
-    yards: [398, 421, 168, 512, 434, 405, 182, 528, 411, 388, 419, 155, 442, 505, 428, 191, 401, 534],
-    strokeIndex: [3, 9, 17, 1, 11, 5, 15, 7, 13, 4, 14, 2, 18, 6, 10, 16, 8, 12],
-  },
-  {
-    name: "Blackpine Dunes",
-    city: "Harbor Point",
-    address: "500 Dunes Parkway, Harbor Point",
-    pars: [4, 3, 5, 4, 4, 4, 3, 4, 5, 4, 5, 4, 3, 4, 4, 5, 3, 4],
-    yards: [421, 175, 545, 402, 438, 410, 162, 425, 520, 399, 551, 431, 198, 415, 407, 538, 171, 412],
-    strokeIndex: [7, 1, 13, 5, 15, 3, 17, 9, 11, 2, 16, 8, 18, 4, 12, 6, 14, 10],
-  },
-  {
-    name: "Willow Creek CC",
-    city: "Fairhaven",
-    address: "22 Willow Creek Lane, Fairhaven",
-    pars: [4, 4, 4, 3, 5, 4, 4, 3, 5, 4, 3, 4, 5, 4, 4, 3, 4, 5],
-    yards: [405, 418, 396, 185, 522, 428, 412, 168, 508, 401, 178, 435, 531, 409, 421, 192, 398, 519],
-    strokeIndex: [9, 5, 15, 3, 1, 11, 7, 17, 13, 8, 12, 4, 2, 14, 18, 10, 16, 6],
-  },
-];
+/**
+ * No bundled courses.
+ *
+ * This held four invented layouts — Ridgeline National, Cedar Hollow Links,
+ * Blackpine Dunes, Willow Creek CC — with invented pars and stroke indexes,
+ * and the design handoff was explicit that they were placeholder: "Copy
+ * text/sample data (player names, course names) is illustrative demo content
+ * — replace with real data."
+ *
+ * They were worse than unfinished. An organizer picked one from a dropdown
+ * believing it was real, and every net score and every toughest-N tiebreak
+ * was then computed against a card that does not exist. Nothing on screen
+ * said so.
+ *
+ * A club enters its own course once, with tees and ratings, in the course
+ * library. That is real data, and it is the only kind this app should score
+ * against.
+ */
+export const COURSES: CoursePreset[] = [];
+
+/**
+ * A course we know nothing about.
+ *
+ * Empty arrays rather than plausible ones, deliberately: every consumer of
+ * pars or stroke index can tell "unknown" from "a par 72", and the ones that
+ * need real data — net scoring, toughest-N tiebreaks — refuse instead of
+ * inventing an answer.
+ */
+export const UNKNOWN_COURSE: CoursePreset = {
+  name: "",
+  city: "",
+  address: "",
+  pars: [],
+  yards: [],
+  strokeIndex: [],
+};
 
 export function findCourse(name: string): CoursePreset {
-  return COURSES.find((c) => c.name === name) ?? COURSES[0];
+  return COURSES.find((c) => c.name === name) ?? UNKNOWN_COURSE;
 }
 
 /** The subset of Event fields needed to resolve real course data. */
@@ -142,5 +144,7 @@ export function resolveCourse(event: EventCourseFields): CoursePreset {
   if (pars && yards && strokeIndex) {
     return { name: event.course || "Custom course", city: event.city, address: "", pars, yards, strokeIndex };
   }
-  return COURSES[0];
+  // Unknown rather than a stand-in. Falling back to a bundled course meant
+  // scoring a real tournament against a fictional card and never saying so.
+  return { ...UNKNOWN_COURSE, name: event.course, city: event.city };
 }

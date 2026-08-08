@@ -4,8 +4,6 @@ import { usePathname } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
-import { Logo } from "./Logo";
-import { BrandMark } from "./BrandMark";
 import { OrgBrand, type Brand } from "./OrgBrand";
 
 type Role = "admin" | "assistant" | "player";

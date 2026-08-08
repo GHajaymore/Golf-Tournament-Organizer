@@ -13,9 +13,19 @@ import {
 import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS } from "@/lib/formats";
 import { chainIssues, issuesForRound, carryForwardPrompt, type CarryPrompt } from "@/lib/format-chain";
+import {
+  STAGE_TYPE_INFO,
+  STAGE_TYPES,
+  stageTypeInfo,
+  generatesPairings,
+  type StageTypeKey,
+} from "@/lib/stage-types";
 import { ScoringClient } from "./ScoringClient";
+import { MatchTiebreakControl } from "./MatchTiebreakControl";
+import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
 import { QualControl } from "./QualControl";
 import { CutControl } from "./CutControl";
+import { RoundDeadlineControl } from "./RoundDeadlineControl";
 import type { TiebreakerKey } from "@/lib/domain";
 
 export interface StageView {
@@ -35,6 +45,11 @@ export interface StageView {
   cutMode: string;
   cutCount: number;
   cutPercent: number;
+  /** overall | perFlight — whether the cut applies across the field or inside
+   *  each flight. */
+  cutScope: string;
+  /** true = closed by hand, false = extended past the date, null = follow it. */
+  deadlineOverride: boolean | null;
   matchCount: number;
   /** Venue for this round; null means the tournament's own course. */
   courseId: string | null;
@@ -56,7 +71,6 @@ export interface QualValues {
   overall: number;
 }
 
-const STAGE_TYPES = ["Round Robin", "Single Match Stage", "Qualification Stage", "Bracket Stage"];
 
 /** Rotating per-round accent so a page of several round cards reads as distinct at a glance. */
 const ROUND_PALETTE = ["var(--color-accent)", "var(--color-accent-2)", "var(--color-accent-400)", "var(--color-accent-2-400)"];
@@ -67,6 +81,11 @@ const BASIS_OPTIONS: Array<{ key: string; label: string }> = [
   { key: "both", label: "Both" },
   { key: "stableford", label: "Stableford" },
 ];
+
+/** Whether a stored deadline is something a date input can display. */
+function isIsoDate(v: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
+}
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <span className="card-kicker" style={{ display: "block" }}>{children}</span>;
@@ -84,12 +103,15 @@ function NextRoundTransition({
   stageId,
   nextStage,
   confirmedCount,
+  flightCount = 1,
   carry,
 }: {
   /** The current round's id — where a newly-created next round gets appended after. */
   stageId: string;
   nextStage: StageView | undefined;
   confirmedCount: number;
+  /** Number of flights, so a per-flight cut can say what it really advances. */
+  flightCount?: number;
   /** Whether to put the carry-forward question in front of the organizer. */
   carry: CarryPrompt;
 }) {
@@ -200,7 +222,9 @@ function NextRoundTransition({
           mode={nextStage?.cutMode ?? "count"}
           count={nextStage?.cutCount ?? 16}
           percent={nextStage?.cutPercent ?? 50}
+          scope={nextStage?.cutScope ?? "overall"}
           confirmedCount={confirmedCount}
+          flightCount={flightCount}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <button
@@ -240,8 +264,10 @@ function StageCard({
   rrMatchesPerPlayer,
   scoring,
   tiebreakers,
+  matchTiebreakers,
   qual,
   confirmedCount,
+  flightCount,
   venues,
   chainWarnings,
   chainsRounds,
@@ -252,8 +278,12 @@ function StageCard({
   rrMatchesPerPlayer: number;
   scoring: ScoringValues;
   tiebreakers: TiebreakerKey[];
+  /** How an all-square match is decided, in order. */
+  matchTiebreakers: MatchTiebreakKey[];
   qual: QualValues;
   confirmedCount: number;
+  /** Flights the field is split into — decides what a per-flight cut advances. */
+  flightCount: number;
   venues: Array<{ id: string; name: string }>;
   /** Ways this round doesn't fit the one before it. */
   chainWarnings: string[];
@@ -265,8 +295,27 @@ function StageCard({
   const [format, setFormat] = useState(stage.format);
   const [holes, setHoles] = useState(stage.holes);
   const [courseId, setCourseId] = useState<string | null>(stage.courseId);
-  const [nine, setNine] = useState(stage.nine === "back" ? "back" : "front");
-  const [customizeOpen, setCustomizeOpen] = useState(false);
+  // "full" is a real answer for a 9-hole round now ("not fixed"), so it has to
+  // survive here. Collapsing anything-but-back to "front" silently discarded
+  // the organizer's choice the moment the card re-rendered.
+  const [nine, setNine] = useState(
+    stage.nine === "back" || stage.nine === "full" ? stage.nine : "front",
+  );
+  // Carry-forward is the one setting an organizer can't afford to miss, and it
+  // lives inside this panel — which is exactly the "unchecked box halfway down
+  // a collapsed panel" the prompt exists to fix. Asking the question is no use
+  // if the question is hidden, so an unanswered prompt opens the panel.
+  const [customizeOpen, setCustomizeOpen] = useState(
+    () =>
+      carryForwardPrompt({
+        chainsRounds,
+        hasNextRound: !!nextStage,
+        format: stage.format,
+        scoringBasis: stage.scoringBasis,
+        answered: nextStage?.carryAsked ?? false,
+        locked: false,
+      }).ask,
+  );
   const [formatInfoOpen, setFormatInfoOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -469,7 +518,7 @@ function StageCard({
             pars and stroke indexes, so a net round on the back allocates shots
             completely differently — this is not cosmetic. */}
         {holes === 9 && (
-          <div className="field" style={{ width: 130 }}>
+          <div className="field" style={{ width: 168 }}>
             <label>Which nine</label>
             <select
               className="input"
@@ -479,6 +528,14 @@ function StageCard({
             >
               <option value="front">Front nine</option>
               <option value="back">Back nine</option>
+              {/* Front and back was a forced choice, and plenty of rounds
+                  genuinely have no answer: a shotgun start puts groups on
+                  both nines at once, and a round rotating venues has a
+                  different front nine on each. "full" already means "use the
+                  whole card" everywhere downstream, so this needs no new
+                  state — it just stops the screen insisting on a fact the
+                  organizer may not have. */}
+              <option value="full">Not fixed — shotgun or mixed</option>
             </select>
           </div>
         )}
@@ -570,13 +627,47 @@ function StageCard({
               </div>
               <div className="field" style={{ width: 190 }}>
                 <label>Completion deadline</label>
+                {/* A date input, so it opens the platform calendar rather than
+                    asking someone to guess a format. The native picker follows
+                    `color-scheme`, which the app shell now sets from the club's
+                    appearance, so it isn't a white popup on a dark page. */}
                 <input
                   className="input"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  onBlur={() => startTransition(() => setStageDeadline(stage.id, deadline))}
+                  type="date"
+                  value={isIsoDate(deadline) ? deadline : ""}
+                  disabled={pending}
+                  onChange={(e) => {
+                    setDeadline(e.target.value);
+                    startTransition(() => setStageDeadline(stage.id, e.target.value));
+                  }}
                 />
+                {/* Deadlines were free text, so older rounds hold things like
+                    "Sat 14 Jun" that a date input cannot show. Rather than
+                    render an empty box and let the next save quietly erase it,
+                    the old value stays visible until someone picks a date. */}
+                {deadline && !isIsoDate(deadline) && (
+                  <p className="text-muted" style={{ fontSize: 11, margin: "4px 0 0", lineHeight: 1.4 }}>
+                    Currently &ldquo;{deadline}&rdquo; — pick a date to replace it.
+                  </p>
+                )}
               </div>
+            </div>
+
+            {/* Directly under the date, because it is the thing that overrules
+                it. Kept out of the collapsed summary: closing a round early is
+                a decision made on the day, not part of setting one up. */}
+            <div>
+              <SectionLabel>Scoring window</SectionLabel>
+              <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
+                Whether scores can still be entered for this round.
+              </p>
+              <RoundDeadlineControl
+                stageId={stage.id}
+                roundLabel={`Round ${stage.position + 1}`}
+                deadline={deadline}
+                override={stage.deadlineOverride}
+                locked={pending}
+              />
             </div>
 
             {showTransition && (
@@ -585,7 +676,7 @@ function StageCard({
                 <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
                   Carry points forward and/or cut the field before it moves on from this round.
                 </p>
-                <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} confirmedCount={confirmedCount} carry={carryPrompt} />
+                <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} confirmedCount={confirmedCount} flightCount={flightCount} carry={carryPrompt} />
               </div>
             )}
 
@@ -601,13 +692,23 @@ function StageCard({
 
             {stage.type === "Round Robin" && (
               <div>
-                <SectionLabel>Match Points &amp; tiebreakers</SectionLabel>
+                <SectionLabel>Match points &amp; tiebreakers</SectionLabel>
                 {format === "Match Play" ? (
                   <>
                     <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 10px" }}>
                       Points for match results in round-robin play, and the tiebreakers that settle level
                       standings. Shared by all round-robin rounds scored as Match Play.
                     </p>
+                    {/* Two different questions, in the order they are asked.
+                        This one decides a single match; the one below settles
+                        players level on points once every match is decided. */}
+                    <MatchTiebreakControl
+                      selected={matchTiebreakers}
+                      holes={holes}
+                      locked={pending}
+                    />
+                    <div style={{ borderTop: "1px solid var(--color-divider)", margin: "14px 0 12px" }} />
+                    <SectionLabel>If players finish level on points</SectionLabel>
                     <ScoringClient initial={scoring} tiebreakers={tiebreakers} />
                   </>
                 ) : (
@@ -631,8 +732,10 @@ export function StagesClient({
   rrMatchesPerPlayer,
   scoring,
   tiebreakers,
+  matchTiebreakers = [],
   qual,
   confirmedCount,
+  flightCount = 1,
   venues = [],
   chainsRounds = true,
   handicapWarning = null,
@@ -641,8 +744,12 @@ export function StagesClient({
   rrMatchesPerPlayer: number;
   scoring: ScoringValues;
   tiebreakers: TiebreakerKey[];
+  /** How an all-square match is decided, in order. Empty leaves it halved. */
+  matchTiebreakers?: MatchTiebreakKey[];
   qual: QualValues;
   confirmedCount: number;
+  /** Flights the field is split into — decides what a per-flight cut advances. */
+  flightCount?: number;
   /** Courses this tournament may be played on; more than one shows the picker. */
   venues?: Array<{ id: string; name: string }>;
   /** Whether rounds feed each other — false for a single-round tournament. */
@@ -650,7 +757,7 @@ export function StagesClient({
   /** Set when net scoring is running on unrated tees. */
   handicapWarning?: string | null;
 }) {
-  const [newType, setNewType] = useState(STAGE_TYPES[0]);
+  const [newType, setNewType] = useState<StageTypeKey>(STAGE_TYPES[0]);
   const [pending, startTransition] = useTransition();
 
   const rrStages = stages.filter((s) => s.type === "Round Robin");
@@ -700,8 +807,10 @@ export function StagesClient({
             rrMatchesPerPlayer={rrMatchesPerPlayer}
             scoring={scoring}
             tiebreakers={tiebreakers}
+            matchTiebreakers={matchTiebreakers}
             qual={qual}
             confirmedCount={confirmedCount}
+            flightCount={flightCount}
             venues={venues}
             chainWarnings={issuesForRound(chain, s.position).map((w) => w.message)}
             chainsRounds={chainsRounds}
@@ -716,24 +825,72 @@ export function StagesClient({
         </div>
       )}
 
-      <div className="card elev-sm" style={{ flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <span className="card-title" style={{ fontSize: 15 }}>Add a round</span>
-        <select className="input" style={{ width: "auto", minWidth: 190 }} value={newType} onChange={(e) => setNewType(e.target.value)}>
-          {STAGE_TYPES.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={pending}
-          onClick={() => startTransition(async () => { await addStage(newType); })}
-        >
-          <i className="ph ph-plus" /> Add round
-        </button>
-        <span className="text-muted" style={{ fontSize: 12 }}>
-          Sequence any number of rounds: round robin → single match → qualification → bracket.
-        </span>
+      {/* Was a bare select of four raw enum strings — "Single Match Stage"
+          told an organizer nothing about what it would do, and the medal
+          round every club plays wasn't on the list at all. Each option now
+          says what the app will actually generate, because that is the whole
+          difference between the types. */}
+      <div className="card elev-sm" style={{ gap: 12 }}>
+        <div>
+          <span className="card-title" style={{ fontSize: 15 }}>Add a round</span>
+          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+            Sequence as many as you like. The <em>type</em> decides what gets drawn — pairings, a
+            cut, or a bracket. How it&apos;s scored is the <em>format</em> on each round, chosen
+            separately, so a Stableford or four-ball round is a round of one of these types.
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 8 }}>
+          {STAGE_TYPE_INFO.map((t) => {
+            const selected = newType === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setNewType(t.key)}
+                disabled={pending}
+                style={{
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  borderRadius: "var(--radius-md)",
+                  cursor: "pointer",
+                  color: "var(--color-text)",
+                  background: selected
+                    ? "color-mix(in srgb, var(--color-accent) 12%, transparent)"
+                    : "color-mix(in srgb, var(--color-text) 3%, transparent)",
+                  border: `1px solid ${selected ? "var(--color-accent)" : "color-mix(in srgb, var(--color-text) 12%, transparent)"}`,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <i className={t.icon} style={{ fontSize: 15, color: "var(--color-accent-400)" }} />
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</span>
+                </div>
+                <div className="text-muted" style={{ fontSize: 11.5, marginTop: 3, lineHeight: 1.45 }}>
+                  {t.blurb}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={pending}
+            onClick={() => startTransition(async () => { await addStage(newType); })}
+          >
+            <i className="ph ph-plus" /> Add {stageTypeInfo(newType).label.toLowerCase()}
+          </button>
+          {/* The consequence, stated before the click rather than discovered
+              after it. Pairings are the thing an organizer is most often
+              surprised by, in both directions. */}
+          <span className="text-muted" style={{ fontSize: 12 }}>
+            {generatesPairings(newType)
+              ? "Draws a full set of pairings once flights are generated."
+              : "No pairings are drawn — the field returns cards."}
+          </span>
+        </div>
       </div>
     </div>
   );

@@ -1,38 +1,67 @@
 "use client";
 import { useMemo, useState } from "react";
 import { formGroups, type FormationRule, type Player } from "@/lib/domain";
+import {
+  DRAW_ORDERS,
+  groupByStandings,
+  orderGroups,
+  positionLookup,
+  startSlots,
+  type DrawOrder,
+  type Standing,
+  type StartStyle,
+} from "@/lib/domain/draw";
 
-const ALGORITHMS: Array<{ key: FormationRule; label: string; icon: string; desc: string }> = [
+/** How the field is carved into groups. "standings" needs a round played. */
+type Pairing = FormationRule | "standings";
+
+const ALGORITHMS: Array<{ key: Pairing; label: string; icon: string; desc: string; needsStandings?: boolean }> = [
   { key: "random", label: "Random", icon: "ph ph-shuffle", desc: "Completely random groups — shuffle and deal." },
   { key: "handicap", label: "Balanced handicap", icon: "ph ph-chart-bar", desc: "Spread handicaps so each group has a comparable mix." },
   { key: "balanced", label: "Balanced skill", icon: "ph ph-scales", desc: "Combine handicap and ranking so group strengths are even." },
   { key: "seeding", label: "Seeded", icon: "ph ph-list-numbers", desc: "Pair by tournament seed/ranking." },
+  {
+    key: "standings",
+    label: "By position",
+    icon: "ph ph-trophy",
+    desc: "Group by the leaderboard — you play with the players nearest you on the board. The standard re-pairing from round two on.",
+    needsStandings: true,
+  },
 ];
 
 const avg = (nums: number[]) =>
   nums.length ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10 : 0;
 
-/** Add `mins` to an "HH:MM" clock time, returning "H:MM AM/PM". */
-function addMinutes(clock: string, mins: number): string {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(clock.trim());
-  const base = m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : 8 * 60;
-  const t = ((base + mins) % (24 * 60) + 24 * 60) % (24 * 60);
-  let h = Math.floor(t / 60);
-  const mm = String(t % 60).padStart(2, "0");
-  const ap = h < 12 ? "AM" : "PM";
-  h = h % 12 || 12;
-  return `${h}:${mm} ${ap}`;
-}
-
-export function FoursomeMaker({ players }: { players: Player[] }) {
-  const [algo, setAlgo] = useState<FormationRule>("random");
+/**
+ * The tee sheet.
+ *
+ * Three separate decisions, and keeping them separate is the point: who plays
+ * with whom, the order those groups go off, and whether it's one tee, two, or
+ * a shotgun. They used to be one control, which meant a second round could be
+ * grouped off the leaderboard but not *drawn* off it — the leaders came out
+ * wherever the grouping happened to put them.
+ */
+export function FoursomeMaker({
+  players,
+  standings = [],
+  holes = 18,
+}: {
+  players: Player[];
+  /** Current leaderboard, best first. Empty before anyone has posted a score. */
+  standings?: Standing[];
+  holes?: 9 | 18;
+}) {
+  const hasStandings = standings.length > 0;
+  const [algo, setAlgo] = useState<Pairing>("random");
+  const [order, setOrder] = useState<DrawOrder>("as-formed");
   const [size, setSize] = useState(4);
   const [seed, setSeed] = useState(1);
-  const [startType, setStartType] = useState<"tee" | "shotgun">("tee");
+  const [startType, setStartType] = useState<StartStyle>("tee");
   const [firstTee, setFirstTee] = useState("08:00");
   const [interval, setInterval] = useState(10);
 
   const byId = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
+  const positionOf = useMemo(() => positionLookup(standings), [standings]);
   const rng = useMemo(() => {
     let s = seed || 1;
     return () => {
@@ -41,9 +70,17 @@ export function FoursomeMaker({ players }: { players: Player[] }) {
     };
   }, [seed]);
 
-  const groups = useMemo(
-    () => formGroups(players, algo, { mode: "perFlight", value: size }, (i) => `fs-${i}`, rng),
-    [players, algo, size, rng],
+  const groups = useMemo(() => {
+    const formed =
+      algo === "standings"
+        ? groupByStandings(players, positionOf, size, (i) => `fs-${i}`)
+        : formGroups(players, algo, { mode: "perFlight", value: size }, (i) => `fs-${i}`, rng);
+    return orderGroups(formed, order, positionOf, rng);
+  }, [players, algo, order, size, rng, positionOf]);
+
+  const slots = useMemo(
+    () => startSlots(groups, startType, { firstTee, interval, holes }),
+    [groups, startType, firstTee, interval, holes],
   );
 
   // Composition summary, e.g. "7 foursomes · 1 twosome".
@@ -56,26 +93,84 @@ export function FoursomeMaker({ players }: { players: Player[] }) {
     .join(" · ");
 
   const active = ALGORITHMS.find((a) => a.key === algo) ?? ALGORITHMS[0];
+  const activeOrder = DRAW_ORDERS.find((d) => d.key === order) ?? DRAW_ORDERS[2];
 
   return (
     <>
-      <div className="card elev-sm" style={{ marginBottom: 16, gap: 14 }}>
+      <div className="card elev-sm" style={{ marginBottom: 16, gap: 16 }}>
+        {/* Nothing here works off a leaderboard until one exists, and an
+            organizer setting up round one should be told that rather than
+            wondering why half the options are greyed. */}
+        {!hasStandings && (
+          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+            <i className="ph ph-info" /> No scores posted yet, so the leaderboard options are off. They
+            switch on once a round has been played — that&apos;s when re-pairing by position and drawing
+            the leaders out last start to mean something.
+          </p>
+        )}
+
         <div>
-          <div className="text-muted" style={{ fontSize: 12, marginBottom: 6 }}>Pairing algorithm</div>
+          <div className="text-muted" style={{ fontSize: 12, marginBottom: 6 }}>Who plays together</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {ALGORITHMS.map((a) => {
               const on = a.key === algo;
+              const off = a.needsStandings && !hasStandings;
               return (
-                <button key={a.key} type="button" onClick={() => setAlgo(a.key)} className="btn" style={{ border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`, color: on ? "var(--color-accent)" : "var(--color-text)" }}>
+                <button
+                  key={a.key}
+                  type="button"
+                  disabled={off}
+                  onClick={() => setAlgo(a.key)}
+                  className="btn"
+                  title={off ? "Needs a round to have been played." : undefined}
+                  style={{
+                    border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
+                    color: on ? "var(--color-accent)" : "var(--color-text)",
+                    opacity: off ? 0.45 : 1,
+                  }}
+                >
                   <i className={a.icon} /> {a.label}
                 </button>
               );
             })}
           </div>
-          <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0" }}>{active.desc}</p>
+          <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+            {active.desc}
+          </p>
         </div>
+
+        <div>
+          <div className="text-muted" style={{ fontSize: 12, marginBottom: 6 }}>Order off the tee</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {DRAW_ORDERS.map((d) => {
+              const on = d.key === order;
+              const off = d.needsStandings && !hasStandings;
+              return (
+                <button
+                  key={d.key}
+                  type="button"
+                  disabled={off}
+                  onClick={() => setOrder(d.key)}
+                  className="btn"
+                  title={off ? "Needs a round to have been played." : undefined}
+                  style={{
+                    border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
+                    color: on ? "var(--color-accent)" : "var(--color-text)",
+                    opacity: off ? 0.45 : 1,
+                  }}
+                >
+                  {d.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+            {activeOrder.blurb}
+          </p>
+        </div>
+
         <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div className="field" style={{ width: 200 }}>
+          <div className="field" style={{ width: 180 }}>
             <label>Group size</label>
             <div className="seg" style={{ width: "100%" }}>
               {[2, 3, 4].map((n) => (
@@ -85,11 +180,18 @@ export function FoursomeMaker({ players }: { players: Player[] }) {
               ))}
             </div>
           </div>
-          <div className="field" style={{ width: 190 }}>
-            <label>Start type</label>
+          <div className="field" style={{ width: 260 }}>
+            <label>Start</label>
             <div className="seg" style={{ width: "100%" }}>
               <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-                <input type="radio" name="fsstart" checked={startType === "tee"} onChange={() => setStartType("tee")} /> Tee times
+                <input type="radio" name="fsstart" checked={startType === "tee"} onChange={() => setStartType("tee")} /> One tee
+              </label>
+              <label
+                className="seg-opt"
+                style={{ flex: 1, justifyContent: "center" }}
+                title={holes === 9 ? "1st and 5th" : "1st and 10th"}
+              >
+                <input type="radio" name="fsstart" checked={startType === "split"} onChange={() => setStartType("split")} /> Split
               </label>
               <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
                 <input type="radio" name="fsstart" checked={startType === "shotgun"} onChange={() => setStartType("shotgun")} /> Shotgun
@@ -100,7 +202,7 @@ export function FoursomeMaker({ players }: { players: Player[] }) {
             <label>First tee</label>
             <input className="input" type="time" value={firstTee} onChange={(e) => setFirstTee(e.target.value)} />
           </div>
-          {startType === "tee" && (
+          {startType !== "shotgun" && (
             <div className="field" style={{ width: 130 }}>
               <label>Interval (min)</label>
               <input
@@ -115,7 +217,7 @@ export function FoursomeMaker({ players }: { players: Player[] }) {
           )}
           <div style={{ flex: 1 }} />
           <span className="text-muted" style={{ fontSize: 12 }}>{groups.length} groups · {summary}</span>
-          {algo === "random" && (
+          {(algo === "random" || order === "random") && (
             <button type="button" className="btn btn-primary" onClick={() => setSeed((s) => s + 1)}>
               <i className="ph ph-shuffle" /> Reshuffle
             </button>
@@ -126,9 +228,10 @@ export function FoursomeMaker({ players }: { players: Player[] }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12 }}>
         {groups.map((g, i) => {
           const gp = g.playerIds.map((id) => byId.get(id)!).filter(Boolean);
+          const slot = slots[i];
           return (
             <div key={g.id} className="card elev-sm" style={{ gap: 6 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -137,16 +240,25 @@ export function FoursomeMaker({ players }: { players: Player[] }) {
               </div>
               <div className="tag tag-accent" style={{ alignSelf: "flex-start", fontSize: 11 }}>
                 <i className="ph ph-clock" style={{ marginRight: 4 }} />
-                {startType === "shotgun"
-                  ? `Hole ${(i % 18) + 1}${i >= 18 ? "B" : ""} · ${addMinutes(firstTee, 0)}`
-                  : `Tee 1 · ${addMinutes(firstTee, i * interval)}`}
+                {`Hole ${slot.startHole}${slot.half ?? ""} · ${slot.time}`}
               </div>
-              {gp.map((p) => (
-                <div key={p.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "3px 0", borderBottom: "1px solid var(--color-divider)" }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-                  <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{p.handicap}</span>
-                </div>
-              ))}
+              {gp.map((p) => {
+                const pos = positionOf(p.id);
+                const ranked = hasStandings && pos !== Number.MAX_SAFE_INTEGER;
+                return (
+                  <div key={p.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13, padding: "3px 0", borderBottom: "1px solid var(--color-divider)" }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {ranked && (
+                        <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums", marginRight: 6 }}>
+                          {pos}
+                        </span>
+                      )}
+                      {p.name}
+                    </span>
+                    <span className="text-muted" style={{ fontVariantNumeric: "tabular-nums" }}>{p.handicap}</span>
+                  </div>
+                );
+              })}
             </div>
           );
         })}
