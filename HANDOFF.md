@@ -244,3 +244,14 @@ price from priceMonthly to free|one-time|subscription(monthly|annual); (3) add
 feature flags (exports, openRegistration, series, multiRound) beside whiteLabel.
 Then wire enforcement (#87) — catalog exists, most gates not yet enforced.
 Belongs with the payment/registration workstream, after the front-door agent.
+
+## Free-tier model — decided 2026-08-09
+Concurrency, NOT trial. Free = run unlimited events over time, one ACTIVE at a
+time (activeEvents:1, current value — keep it, don't raise to 2). Monetize on
+retention (48h→permanent), branding, seats, season features — never on event
+count, never on players. Per-event $49 = "run this one and KEEP it" (permanent
+history, branding, open registration), not "pay for event #2".
+#87 enforcement MUST handle a stale never-completed active event gracefully:
+message "finish or archive it to start another, or upgrade to run both" + a
+one-tap complete/archive path. A dead-end block would make concurrency=1 feel
+broken.
