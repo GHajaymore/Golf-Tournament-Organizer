@@ -313,7 +313,7 @@ function Hero() {
           color: "var(--color-accent-400)",
         }}
       >
-        For clubs, societies, corporate and charity golf days
+        For clubs, societies, corporate and charity events
       </div>
 
       <h1
