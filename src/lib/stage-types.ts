@@ -144,6 +144,23 @@ export function isPlayingRound(type: string): boolean {
   return lookupStageType(type)?.isPlayingRound ?? false;
 }
 
+/**
+ * The next round the field plays after a given position, of any format.
+ *
+ * The round-config chain used to look only for the next Round Robin, so a
+ * Round Robin whose next round was a stroke-play final reported "No round after
+ * this yet" and offered no way to cut into it. The next round is the next
+ * *playing* stage, whatever its format — that is what a round feeds into.
+ */
+export function nextPlayingStage<T extends { position: number; type: string }>(
+  stages: T[],
+  afterPosition: number,
+): T | undefined {
+  return [...stages]
+    .sort((a, b) => a.position - b.position)
+    .find((s) => s.position > afterPosition && isPlayingRound(s.type));
+}
+
 export const STAGE_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
   STAGE_TYPE_INFO.map((t) => [t.key, t.description]),
 );

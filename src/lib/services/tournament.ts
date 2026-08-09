@@ -1,5 +1,6 @@
 import "server-only";
 import { isPlayingRound } from "../stage-types";
+import { carryUnitsCompatible } from "../format-chain";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { prisma } from "../db";
 import { effectiveAllowance } from "./teams";
@@ -268,9 +269,14 @@ export function chainRoundStandings(
     const overall = computeStandings(domainPlayers, stageMatches, scoring, carryIn, holeDifficulty, matchTiebreakers);
     perStage.push(overall);
     const next = rrStages[i + 1];
-    carried = next?.carryForwardEnabled
-      ? Object.fromEntries(overall.map((rp) => [rp.player.id, rp.stats.totalPoints * (next.carryForwardPct / 100)]))
-      : {};
+    // Points carry only between rounds counted in the same unit. Across a
+    // format boundary the survivors still advance (the cut is taken elsewhere),
+    // but their match points are not scaled into a stroke round's totals — that
+    // would be a meaningless number, and chainIssues surfaces the warning.
+    carried =
+      next?.carryForwardEnabled && carryUnitsCompatible(stage, next)
+        ? Object.fromEntries(overall.map((rp) => [rp.player.id, rp.stats.totalPoints * (next.carryForwardPct / 100)]))
+        : {};
   }
   return perStage;
 }
@@ -361,9 +367,13 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     activeDomainMatches = stageMatches;
 
     const next = rrStages[i + 1];
-    carried = next?.carryForwardEnabled
-      ? Object.fromEntries(overall.map((rp) => [rp.player.id, rp.stats.totalPoints * (next.carryForwardPct / 100)]))
-      : {};
+    // Same rule as chainRoundStandings: carry points only when the two rounds
+    // measure the same thing. Incompatible formats reset to zero here, the cut
+    // having already carried the advancement.
+    carried =
+      next?.carryForwardEnabled && carryUnitsCompatible(stage, next)
+        ? Object.fromEntries(overall.map((rp) => [rp.player.id, rp.stats.totalPoints * (next.carryForwardPct / 100)]))
+        : {};
   }
 
   const rrMatches = activeStage ? matches.filter((m) => m.stageId === activeStage.id) : [];

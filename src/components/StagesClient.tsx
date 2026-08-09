@@ -18,6 +18,7 @@ import {
   STAGE_TYPES,
   stageTypeInfo,
   generatesPairings,
+  nextPlayingStage,
   type StageTypeKey,
 } from "@/lib/stage-types";
 import { ScoringClient } from "./ScoringClient";
@@ -144,6 +145,10 @@ function NextRoundTransition({
   };
 
   const roundLabel = nextStage ? `Round ${nextStage.position + 1}` : "the next round";
+  // A stroke-play / medal next round draws no pairings — the field returns
+  // cards — so it is "generated" by handing the survivors a card, not by
+  // building matches. Before it exists, assume a Round Robin (what gets created).
+  const nextDrawsPairings = nextStage ? generatesPairings(nextStage.type) : true;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -255,16 +260,21 @@ function NextRoundTransition({
               })
             }
           >
-            <i className="ph ph-arrows-clockwise" /> {nextStage?.matchCount ? "Regenerate" : "Generate"} {roundLabel} pairings
+            <i className="ph ph-arrows-clockwise" /> {nextStage?.matchCount ? "Regenerate" : "Generate"} {roundLabel}
+            {nextDrawsPairings ? " pairings" : ""}
           </button>
           <span className="text-muted" style={{ fontSize: 12 }}>
-            {nextStage?.cutEnabled
-              ? `Builds ${roundLabel}'s matches from this round's current standings — run it once this round is complete.`
-              : `Builds ${roundLabel}'s matches for the full field, from the current flights.`}
-            {!!nextStage?.matchCount && " Re-running replaces that round's matches."}
+            {nextDrawsPairings
+              ? nextStage?.cutEnabled
+                ? `Builds ${roundLabel}'s matches from this round's current standings — run it once this round is complete.`
+                : `Builds ${roundLabel}'s matches for the full field, from the current flights.`
+              : nextStage?.cutEnabled
+                ? `Gives each player who advances a card for ${roundLabel} — run it once this round is complete.`
+                : `Gives every player a card for ${roundLabel}.`}
+            {nextDrawsPairings && !!nextStage?.matchCount && " Re-running replaces that round's matches."}
           </span>
         </div>
-        {nextStage && nextStage.matchCount === 0 && (
+        {nextDrawsPairings && nextStage && nextStage.matchCount === 0 && (
           <span className="tag tag-neutral" style={{ alignSelf: "flex-start" }}>
             <i className="ph ph-clock" /> {roundLabel} not generated yet
           </span>
@@ -823,7 +833,6 @@ export function StagesClient({
   const [newType, setNewType] = useState<StageTypeKey>(STAGE_TYPES[0]);
   const [pending, startTransition] = useTransition();
 
-  const rrStages = stages.filter((s) => s.type === "Round Robin");
   const activeIndex = stages.findIndex((s) => s.id === activeStageId);
 
   // Where the rounds don't fit together. Rounds chain — standings carry
@@ -860,8 +869,11 @@ export function StagesClient({
         </div>
       )}
       {stages.map((s, i) => {
-        const rrIdx = rrStages.findIndex((r) => r.id === s.id);
-        const nextStage = rrIdx >= 0 ? rrStages[rrIdx + 1] : undefined;
+        // The next round of any format — a Round Robin whose next round is a
+        // stroke-play final must know a round follows it, so the cut and
+        // carry-forward controls appear and it stops saying "No round after
+        // this yet". Keyed off the play order, not the round-robin chain.
+        const nextStage = nextPlayingStage(stages, s.position);
         return (
           <StageCard
             key={s.id}

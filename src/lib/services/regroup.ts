@@ -261,29 +261,39 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
 }
 
 /**
- * Build a single cut-gated Round Robin round from the previous round's results.
+ * Build a single cut-gated round from the previous round's results.
  *
  * Separate from the global "Generate flights" reset (regenerateGroupsAndSchedule)
  * because it depends on real scores that only exist once the prior round is
- * played, and it touches only this stage's matches — every other round's data
- * and scores are left alone.
+ * played, and it touches only this stage's own data — every other round's is
+ * left alone.
  *
- * The consequential part is how the survivors are flighted. A per-flight cut is
- * a separate race inside each flight, so its survivors stay put. An overall cut
- * ranked everyone against everyone, and its survivors land unevenly across the
- * old flights — a flight can be left with a single survivor, whose round robin
- * is silently no matches at all. So an overall cut reforms the surviving field
- * into fresh balanced flights (see nextRoundFlights): if the cut crossed the
- * flight walls, the next round does too.
+ * The cut chains across a format boundary. The field entering the round is the
+ * standings after the last Round Robin played before it, so a stroke-play final
+ * can be cut from match-play qualifying. What the round is *built as* then
+ * follows its own type:
  *
- * Reforming reuses the existing flight rows rather than recreating them, because
- * a Group's matches cascade-delete with it (schema onDelete: Cascade) and the
- * played rounds must survive. Everyone the cut removed is detached from their
- * flight so a reused row never carries a cut player into the reformed field.
+ *   - a round that draws pairings (Round Robin) gets a schedule. A per-flight
+ *     cut keeps its flights; an overall cut ranked everyone against everyone and
+ *     its survivors land unevenly across the old flights — a flight can be left
+ *     with one player, whose round robin is silently no matches — so it reforms
+ *     the field into fresh balanced flights (see nextRoundFlights). Reforming
+ *     reuses the existing flight rows rather than recreating them, because a
+ *     Group's matches cascade-delete with it (schema onDelete: Cascade) and the
+ *     played rounds must survive; everyone the cut removed is detached so a
+ *     reused row never carries a cut player into the reformed field.
+ *
+ *   - a round that draws no pairings (Stroke Play / medal) gets an empty,
+ *     playable card for each survivor, and none for anyone cut — so the field
+ *     of the round is exactly who advanced. Points are not carried across the
+ *     boundary (see carryUnitsCompatible); the advancement is what chains.
  */
 export async function generateCutRound(eventId: string, stageId: string): Promise<void> {
   const stage = await prisma.stage.findUnique({ where: { id: stageId } });
-  if (!stage || stage.eventId !== eventId || stage.type !== "Round Robin") return;
+  // Any round the field plays can be cut into, not only a Round Robin. The cut
+  // that qualifies a match-play field into a stroke-play final crosses a format
+  // boundary, and keying this off "Round Robin" alone made that impossible.
+  if (!stage || stage.eventId !== eventId || !isPlayingRound(stage.type)) return;
 
   const [event, allStages, confirmed, allMatches, groups] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId } }),
@@ -295,9 +305,6 @@ export async function generateCutRound(eventId: string, stageId: string): Promis
   if (!event) return;
 
   const rrStages = roundRobinStages(allStages);
-  const idx = rrStages.findIndex((s) => s.id === stageId);
-  if (idx <= 0) return; // first Round Robin stage has no predecessor to cut from — use Generate flights instead
-
   // groupId carried through so a per-flight cut can be taken flight by flight.
   const domainPlayers: DomainPlayer[] = confirmed.map((p) => ({
     id: p.id,
@@ -308,17 +315,6 @@ export async function generateCutRound(eventId: string, stageId: string): Promis
   }));
   const scoring = scoringFrom(event);
   const holeDifficulty = resolveCourse(event).strokeIndex;
-  // The cut has to be made on the same standings the leaderboard shows, so it
-  // reads the same match-tiebreak rule.
-  const chain = chainRoundStandings(
-    rrStages.slice(0, idx + 1),
-    allMatches,
-    domainPlayers,
-    scoring,
-    holeDifficulty,
-    parseMatchTiebreakers(event.matchTiebreakers),
-  );
-  const priorStanding = chain[idx - 1];
 
   const scope = stage.cutEnabled
     ? isCutScope(stage.cutScope)
@@ -328,6 +324,21 @@ export async function generateCutRound(eventId: string, stageId: string): Promis
 
   let survivorIds: Set<string>;
   if (stage.cutEnabled) {
+    // The field entering this round is the standings after the last Round Robin
+    // played before it — by position, not by adjacency, so a stroke-play final
+    // still cuts from the match-play qualifying that fed it. (Cutting from a
+    // stroke round is not supported here; the qualifying is a points ladder.)
+    const priorRr = rrStages.filter((s) => s.position < stage.position);
+    if (priorRr.length === 0) return; // nothing to cut from — use Generate flights instead
+    const chain = chainRoundStandings(
+      priorRr,
+      allMatches,
+      domainPlayers,
+      scoring,
+      holeDifficulty,
+      parseMatchTiebreakers(event.matchTiebreakers),
+    );
+    const priorStanding = chain[chain.length - 1];
     // The rule covers both axes — how many, and out of what. A per-flight cut
     // takes N from every flight rather than N from the tournament, which is the
     // difference between a bracket of eight and a bracket of two.
@@ -344,6 +355,26 @@ export async function generateCutRound(eventId: string, stageId: string): Promis
     survivorIds = new Set(confirmed.map((p) => p.id));
   }
 
+  const survivorPlayers = domainPlayers.filter((p) => survivorIds.has(p.id));
+  const holeCount = stage.holes === 9 ? 9 : 18;
+
+  // A stroke or medal round draws no pairings — the survivors advance into it
+  // by each being given an empty, playable card. Non-survivors get none, so the
+  // field of the round is exactly who the cut let through. Match points are not
+  // carried here (see carryUnitsCompatible): the advancement is what chains.
+  if (!generatesPairings(stage.type)) {
+    const emptyStrokes = JSON.stringify(new Array(holeCount).fill(null));
+    await prisma.$transaction(async (tx) => {
+      await tx.scorecard.deleteMany({ where: { eventId, stageId: stage.id } });
+      for (const p of survivorPlayers) {
+        await tx.scorecard.create({
+          data: { eventId, stageId: stage.id, playerId: p.id, strokes: emptyStrokes },
+        });
+      }
+    });
+    return;
+  }
+
   // Reformed against the original players-per-flight, so a rebuilt flight comes
   // out a familiar size rather than one giant round robin.
   const origSizes = groups.map((g) => confirmed.filter((p) => p.groupId === g.id).length);
@@ -351,12 +382,11 @@ export async function generateCutRound(eventId: string, stageId: string): Promis
   const reformed = scope === "overall" && stage.cutEnabled;
   // Seed order in, so a kept flight's pairings match a plain regeneration's; a
   // reform re-sorts by strength internally and ignores the order.
-  const survivorPlayers = domainPlayers.filter((p) => survivorIds.has(p.id));
   const flights = nextRoundFlights(survivorPlayers, scope, targetPerFlight).filter(
     (f) => f.playerIds.length >= 2,
   );
 
-  const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
+  const emptyHoles = JSON.stringify(new Array(holeCount).fill(null));
 
   await prisma.$transaction(async (tx) => {
     await tx.match.deleteMany({ where: { eventId, stageId: stage.id } });

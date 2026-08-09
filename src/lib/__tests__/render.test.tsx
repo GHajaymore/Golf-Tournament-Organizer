@@ -417,6 +417,26 @@ describe("rounds and format", () => {
     expect(one.match(/Bushwood/g)?.length ?? 0).toBeLessThan(two.match(/Bushwood/g)?.length ?? 99);
   });
 
+  it("knows a stroke-play round follows a round robin, whatever the format", () => {
+    // The bug: the chain looked only for the next Round Robin, so a match-play
+    // round feeding a stroke-play final reported "No round after this yet" and
+    // offered no cut into it. The next round is the next round the field plays.
+    const html = render(
+      <StagesClient {...base} chainsRounds
+        stages={[
+          stage({ id: "r1", position: 0, type: "Round Robin" }),
+          stage({ id: "r2", position: 1, type: "Stroke Play Round", format: "Stroke Play", carryAsked: true }),
+        ]} />,
+    );
+    expect(html).not.toContain("No round after this yet");
+    expect(html).toContain("Into Round 2");
+  });
+
+  it("still says so when a round in a chain genuinely has no next round", () => {
+    const html = render(<StagesClient {...base} chainsRounds stages={[stage({ id: "r1", position: 0 })]} />);
+    expect(html).toContain("No round after this yet");
+  });
+
   it("renders a tournament with no rounds at all", () => {
     expect(() => render(<StagesClient {...base} stages={[]} />)).not.toThrow();
   });

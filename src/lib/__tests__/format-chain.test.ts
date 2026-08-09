@@ -5,6 +5,7 @@ import {
   issuesForRound,
   isPointsBased,
   carryForwardPrompt,
+  carryUnitsCompatible,
   type ChainRound,
 } from "../format-chain";
 
@@ -275,5 +276,43 @@ describe("asking about carry-forward", () => {
     const p = carryForwardPrompt({ ...base, answered: true });
     expect(p.unit).toBe("match points");
     expect(p.detail.length).toBeGreaterThan(20);
+  });
+});
+
+describe("whether points may carry across a format boundary", () => {
+  // The cut chains regardless of format (the survivors advance either way), but
+  // points only carry when the two rounds measure the same thing. Match points
+  // scaled into a stroke round's totals is a meaningless number, so it must not
+  // carry silently — the advancement carries, the points reset, chainIssues
+  // warns.
+
+  it("lets two match-play rounds carry", () => {
+    expect(
+      carryUnitsCompatible({ format: "Match Play", scoringBasis: "gross" }, { format: "Match Play", scoringBasis: "gross" }),
+    ).toBe(true);
+  });
+
+  it("refuses match points into a stroke-play round", () => {
+    expect(
+      carryUnitsCompatible({ format: "Match Play", scoringBasis: "gross" }, { format: "Stroke Play", scoringBasis: "gross" }),
+    ).toBe(false);
+  });
+
+  it("lets two Stableford rounds carry, since both are in points", () => {
+    expect(
+      carryUnitsCompatible(
+        { format: "Stroke Play", scoringBasis: "stableford" },
+        { format: "Stroke Play", scoringBasis: "stableford" },
+      ),
+    ).toBe(true);
+  });
+
+  it("reads the basis, not just the format — strokes and Stableford differ", () => {
+    expect(
+      carryUnitsCompatible(
+        { format: "Stroke Play", scoringBasis: "gross" },
+        { format: "Stroke Play", scoringBasis: "stableford" },
+      ),
+    ).toBe(false);
   });
 });

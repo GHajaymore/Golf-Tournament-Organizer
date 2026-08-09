@@ -2,6 +2,7 @@ import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { generateCutRound } from "../services/regroup";
+import { loadEventState } from "../services/tournament";
 
 /**
  * Cutting into the next round, against the real database.
@@ -22,7 +23,9 @@ const TAG = "ZZ-AUDIT-CUT-ROUND";
 
 let orgId = "";
 
-async function seedEvent(): Promise<{
+async function seedEvent(
+  round2: { type: string; format: string } = { type: "Round Robin", format: "Match Play" },
+): Promise<{
   eventId: string;
   r1: string;
   r2: string;
@@ -52,7 +55,7 @@ async function seedEvent(): Promise<{
     data: { eventId, position: 0, type: "Round Robin", format: "Match Play", holes: 18 },
   });
   const r2 = await prisma.stage.create({
-    data: { eventId, position: 1, type: "Round Robin", format: "Match Play", holes: 18 },
+    data: { eventId, position: 1, type: round2.type, format: round2.format, holes: 18 },
   });
 
   // Three flights of four = twelve players.
@@ -203,5 +206,42 @@ describe("generateCutRound with an overall cut", () => {
     // original flight rows.
     expect(r2Matches).toHaveLength(3);
     for (const m of r2Matches) expect(flights).toContain(m.groupId);
+  });
+});
+
+describe("cutting a match-play field into a stroke-play final", () => {
+  it("gives each survivor a playable card and none to anyone cut", async () => {
+    // The cross-format case: qualify by match play, then a stroke-play final.
+    // The cut has to chain across the boundary even though round two draws no
+    // pairings — the survivors advance by each being handed an empty card.
+    const { eventId, r2, players } = await seedEvent({ type: "Stroke Play Round", format: "Stroke Play" });
+    await prisma.stage.update({
+      where: { id: r2 },
+      data: { cutEnabled: true, cutScope: "overall", cutMode: "count", cutCount: 4 },
+    });
+
+    await generateCutRound(eventId, r2);
+
+    // Four survivors, each with an empty, playable card in round two; nobody
+    // else has one, so the field of the final is exactly who advanced.
+    const cards = await prisma.scorecard.findMany({ where: { eventId, stageId: r2 } });
+    expect(cards).toHaveLength(4);
+    for (const c of cards) {
+      const strokes = JSON.parse(c.strokes) as (number | null)[];
+      expect(strokes).toHaveLength(18);
+      expect(strokes.every((s) => s === null)).toBe(true);
+    }
+    // A stroke round draws no matches.
+    const matches = await prisma.match.findMany({ where: { eventId, stageId: r2 } });
+    expect(matches).toHaveLength(0);
+    // The cut removed eight; only survivors carry a card.
+    expect(players.length - cards.length).toBe(8);
+
+    // And the leaderboard is not a wall of zeroes: round one is a fully played
+    // Round Robin, so the standings the console shows still hold its real
+    // results — generating the empty final did not blank them.
+    const state = await loadEventState(eventId);
+    expect(state).not.toBeNull();
+    expect(state!.overall[0].stats.totalPoints).toBeGreaterThan(0);
   });
 });

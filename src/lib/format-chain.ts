@@ -171,6 +171,26 @@ export function isPointsBased(unit: StandingsUnit): boolean {
   return unit !== "strokes";
 }
 
+/**
+ * Whether points may carry from one round into the next.
+ *
+ * Only when both rounds are counted in the same unit. Match points and stroke
+ * (or Stableford) totals measure different things, and scaling one into the
+ * other produces a number that means nothing — the mismatch chainIssues warns
+ * about. So the cut still chains across a format boundary (the survivors
+ * advance either way), but the points do not: the new round starts fresh, and
+ * the warning is left to explain why. Carrying a compatible pair — two match
+ * rounds, two Stableford rounds — is unaffected.
+ */
+export function carryUnitsCompatible(
+  prev: { format: string; scoringBasis: string },
+  next: { format: string; scoringBasis: string },
+): boolean {
+  return (
+    standingsUnit(prev.format, prev.scoringBasis) === standingsUnit(next.format, next.scoringBasis)
+  );
+}
+
 export interface CarryPrompt {
   /** Put the question in front of the organizer rather than defaulting it. */
   ask: boolean;

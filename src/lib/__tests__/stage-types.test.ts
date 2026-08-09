@@ -10,6 +10,7 @@ import {
   lookupStageType,
   generatesPairings,
   isPlayingRound,
+  nextPlayingStage,
 } from "../stage-types";
 
 /**
@@ -21,6 +22,37 @@ import {
  * for a round in which nobody plays anybody — matches that were never played
  * and could still be scored.
  */
+
+describe("the next round the field plays", () => {
+  // A Round Robin followed by a stroke-play final has a next round, of a
+  // different format. Looking only for the next Round Robin missed it, so the
+  // round reported "No round after this yet" and could not be cut into.
+  const stages = [
+    { position: 0, type: "Round Robin" },
+    { position: 1, type: "Qualification Stage" }, // a marker, not a playing round
+    { position: 2, type: "Stroke Play Round" },
+    { position: 3, type: "Bracket Stage" },
+  ];
+
+  it("finds a following round of a different format", () => {
+    // Skips the qualification marker (not a playing round) and lands on the
+    // stroke-play final.
+    expect(nextPlayingStage(stages, 0)?.type).toBe("Stroke Play Round");
+  });
+
+  it("finds the next playing round after the stroke final too", () => {
+    expect(nextPlayingStage(stages, 2)?.type).toBe("Bracket Stage");
+  });
+
+  it("reports none when nothing playable follows", () => {
+    expect(nextPlayingStage(stages, 3)).toBeUndefined();
+  });
+
+  it("ignores play order in the array, going by position", () => {
+    const shuffled = [stages[2], stages[0], stages[3], stages[1]];
+    expect(nextPlayingStage(shuffled, 0)?.type).toBe("Stroke Play Round");
+  });
+});
 
 describe("the catalogue", () => {
   it("has unique keys, and info for every one", () => {
