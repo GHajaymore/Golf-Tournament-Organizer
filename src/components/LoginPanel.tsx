@@ -19,8 +19,11 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 type Mode = "login" | "signup";
 type Extra = null | "claim" | "forgot" | "forgot-sent";
 
-export function LoginPanel() {
-  const [mode, setMode] = useState<Mode>("login");
+export function LoginPanel({
+  initialMode = "login",
+  autoFocusFields = true,
+}: { initialMode?: Mode; autoFocusFields?: boolean } = {}) {
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [extra, setExtra] = useState<Extra>(null);
 
   const [email, setEmail] = useState("");
@@ -184,7 +187,7 @@ export function LoginPanel() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@email.com"
-            autoFocus
+            autoFocus={autoFocusFields}
           />
         </Field>
         {errorBlock}
@@ -222,7 +225,7 @@ export function LoginPanel() {
             onChange={setPassword}
             autoComplete="new-password"
             placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
-            autoFocus
+            autoFocus={autoFocusFields}
           />
         </Field>
         {errorBlock}
@@ -310,7 +313,7 @@ export function LoginPanel() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Full name"
-              autoFocus
+              autoFocus={autoFocusFields}
             />
           </Field>
         )}
@@ -324,7 +327,7 @@ export function LoginPanel() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@email.com"
-            autoFocus={login}
+            autoFocus={autoFocusFields && login}
           />
         </Field>
 
