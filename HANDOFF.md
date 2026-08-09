@@ -58,6 +58,55 @@ Written 2026-08-07. Read this first, then `git log` for detail.
   inverted to real hole scores, and the importer never manufactures golf that
   wasn't played.
 
+## Audit still owed — 2026-08-08
+
+A pass on **authorization only** was completed. All 122 server actions were
+swept; every one is guarded once file-local helpers are counted
+(requireRosterOrg, requireStaff, requireOrg, requireOrganizer,
+currentOrganization, getPlaySession). The unguarded ones are correctly
+public: signUp, signInWithPassword, requestPasswordReset, resetPassword,
+signOutAction, redeemRoundCode.
+
+`setPreviewAction` looks like an escalation and is not — verified. Preview is
+honoured only when the *real* role is admin and can only downgrade:
+`role === "admin" && (preview === "assistant" || preview === "player")`.
+Do not "fix" it.
+
+### Fix first: no rate limiting anywhere
+`redeemRoundCode`, `signInWithPassword` and `requestPasswordReset` accept
+unlimited attempts. Round codes are short, so unlimited guessing means anyone
+can join any round and see a field's names and scores. This is the largest
+known hole.
+
+Design note: in-memory counting is close to useless on Vercel — instances are
+per-request and cold-start constantly. It needs to be DB-backed (a small
+attempt table keyed by identifier + window, pruned on write) or an external
+store. Do not ship an in-memory limiter and call it done.
+
+### Not yet examined — treat as unknown, not clean
+- **IDOR at scale.** The guards exist; it was *not* verified that each of the
+  ~80 actions taking an id scopes its lookup to the caller's tenant. The
+  pattern to copy is `assertOwnMatch` / `ownPlayerIds` in tournament.ts.
+- **The public surface**: `/live/[token]` and the whole round-code `/play`
+  flow, including what a redeemed code can read beyond its own round.
+- XSS/CSP, CSRF on non-action routes, session fixation, secrets handling,
+  file-upload paths.
+- **Functional testing**: only the paths touched this session were exercised.
+  `npm run smoke` proves 26 routes render; it proves nothing about behaviour.
+
+### Known dependency finding
+`sharp` carries 4 high-severity libvips CVEs (CVE-2026-33327/33328/35590/
+35591). `npm audit fix --force` wants Next 16.3.0 — a breaking major — so it
+needs deliberate handling. Exploitability is low: sharp runs only in
+`scripts/gen-icons.mjs`, at author time, against SVGs in this repo. It is
+never in a request path.
+
+### Data-handling rule for whoever picks this up
+Do not test against the CDG Matchplay tournament. Create a throwaway event in
+the same organization and delete it afterwards — the pattern is in
+`scripts/smoke-routes.mjs`. Two demo scorecards were destroyed this session by
+ignoring this, and a truncated backup made one unrecoverable.
+
 ## Environment traps
 
 These have each cost real time. They are not hypothetical.
