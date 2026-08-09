@@ -255,3 +255,38 @@ history, branding, open registration), not "pay for event #2".
 message "finish or archive it to start another, or upgrade to run both" + a
 one-tap complete/archive path. A dead-end block would make concurrency=1 feel
 broken.
+
+## AI roadmap — decided 2026-08-09
+**Discipline (non-negotiable):** AI lives at the EDGES — getting data in,
+words out, narration — NEVER the scoring engine. Handicaps, standings, cuts,
+match results stay deterministic, auditable, exact. AI never auto-saves; a
+human confirms before anything counts. Never fabricate a number (honest-numbers
+principle). Gate AI features to PAID tiers (per-use vision/LLM cost fits the
+plan catalog). Claude is the engine (vision for cards, language for the rest).
+Build AFTER the commercial core (registration, plan enforcement, payments) —
+AI is an accelerant, not a foundation.
+
+**Tier 1 — flagship, build first:**
+- Scorecard photo -> digital card (vision). Snap a paper card; AI reads
+  par/scores into the grid FOR REVIEW, never auto-saved. The missing entry mode
+  beside manual / paste-a-card / voice / CSV. Genuine chore today, real
+  differentiator (Golf Genius / GolfStatus / The Turn don't lead with it).
+- Natural-language event setup. "2-round member-guest, 24 pairs, four-ball 90%,
+  cut top 8 after R1" -> AI produces the config (stages/format/allowance/cut)
+  the organizer REVIEWS and confirms. Attacks setup friction; pairs with
+  templates.
+
+**Tier 2 — approved, include (comms AND reports):**
+- AI-drafted COMMUNICATIONS: pairings announcement, weather/delay notice,
+  results email. Drafts the boilerplate; organizer edits before send. Builds on
+  the existing announcements/player-comms surfaces. Human-in-the-loop, low risk.
+- AI-drafted REPORTS / event recap: a written narrative from the REAL
+  deterministic results ("A. Carter closed 68, two clear of M. Ellis") for the
+  clubhouse screen, a newsletter, and as an addition to the existing Reports
+  export. AI narrates real data, never invents it.
+
+**Tier 3 — later:** self-serve help chatbot; typo/anomaly flags on entry (likely
+heuristics, not AI).
+
+Sequence: commercial core -> Tier 1 (scorecard photo) -> Tier 2. Existing voice
+score-entry / voice-query features are the assistive-input DNA this extends.
