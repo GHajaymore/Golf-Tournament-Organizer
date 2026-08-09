@@ -1,10 +1,13 @@
 import "server-only";
 import { prisma } from "../db";
 import { formGroups, roundRobinSchedule } from "../domain";
+import { survivors, isCutScope, nextRoundFlights } from "../domain/cut";
 import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../domain";
 import { needsTeams } from "../formats";
 import { generatesPairings, isPlayingRound } from "../stage-types";
 import { courseHandicapMap } from "../domain";
+import { resolveCourse } from "../courses";
+import { chainRoundStandings, scoringFrom, parseMatchTiebreakers, roundRobinStages } from "./tournament";
 
 /**
  * Re-form flights for an event from its confirmed players using the stored rule
@@ -222,7 +225,7 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
     }
 
     for (const rrStage of rrStages) {
-      // Cut-gated stages are built separately (generateNextRound), once the
+      // Cut-gated stages are built separately (generateCutRound), once the
       // preceding round's real results decide who's still in the field.
       if (rrStage.cutEnabled) continue;
       // A team round is played side against side, so pairing its players
@@ -252,6 +255,144 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
             },
           });
         }
+      }
+    }
+  });
+}
+
+/**
+ * Build a single cut-gated Round Robin round from the previous round's results.
+ *
+ * Separate from the global "Generate flights" reset (regenerateGroupsAndSchedule)
+ * because it depends on real scores that only exist once the prior round is
+ * played, and it touches only this stage's matches — every other round's data
+ * and scores are left alone.
+ *
+ * The consequential part is how the survivors are flighted. A per-flight cut is
+ * a separate race inside each flight, so its survivors stay put. An overall cut
+ * ranked everyone against everyone, and its survivors land unevenly across the
+ * old flights — a flight can be left with a single survivor, whose round robin
+ * is silently no matches at all. So an overall cut reforms the surviving field
+ * into fresh balanced flights (see nextRoundFlights): if the cut crossed the
+ * flight walls, the next round does too.
+ *
+ * Reforming reuses the existing flight rows rather than recreating them, because
+ * a Group's matches cascade-delete with it (schema onDelete: Cascade) and the
+ * played rounds must survive. Everyone the cut removed is detached from their
+ * flight so a reused row never carries a cut player into the reformed field.
+ */
+export async function generateCutRound(eventId: string, stageId: string): Promise<void> {
+  const stage = await prisma.stage.findUnique({ where: { id: stageId } });
+  if (!stage || stage.eventId !== eventId || stage.type !== "Round Robin") return;
+
+  const [event, allStages, confirmed, allMatches, groups] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId } }),
+    prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
+    prisma.player.findMany({ where: { eventId, status: "confirmed" }, orderBy: { seed: "asc" } }),
+    prisma.match.findMany({ where: { eventId } }),
+    prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
+  ]);
+  if (!event) return;
+
+  const rrStages = roundRobinStages(allStages);
+  const idx = rrStages.findIndex((s) => s.id === stageId);
+  if (idx <= 0) return; // first Round Robin stage has no predecessor to cut from — use Generate flights instead
+
+  // groupId carried through so a per-flight cut can be taken flight by flight.
+  const domainPlayers: DomainPlayer[] = confirmed.map((p) => ({
+    id: p.id,
+    name: p.name,
+    handicap: p.handicap,
+    seed: p.seed,
+    groupId: p.groupId,
+  }));
+  const scoring = scoringFrom(event);
+  const holeDifficulty = resolveCourse(event).strokeIndex;
+  // The cut has to be made on the same standings the leaderboard shows, so it
+  // reads the same match-tiebreak rule.
+  const chain = chainRoundStandings(
+    rrStages.slice(0, idx + 1),
+    allMatches,
+    domainPlayers,
+    scoring,
+    holeDifficulty,
+    parseMatchTiebreakers(event.matchTiebreakers),
+  );
+  const priorStanding = chain[idx - 1];
+
+  const scope = stage.cutEnabled
+    ? isCutScope(stage.cutScope)
+      ? stage.cutScope
+      : "overall"
+    : "perFlight";
+
+  let survivorIds: Set<string>;
+  if (stage.cutEnabled) {
+    // The rule covers both axes — how many, and out of what. A per-flight cut
+    // takes N from every flight rather than N from the tournament, which is the
+    // difference between a bracket of eight and a bracket of two.
+    survivorIds = survivors(
+      priorStanding.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId })),
+      {
+        scope,
+        mode: stage.cutMode === "percent" ? "percent" : "count",
+        count: stage.cutCount,
+        percent: stage.cutPercent,
+      },
+    );
+  } else {
+    survivorIds = new Set(confirmed.map((p) => p.id));
+  }
+
+  // Reformed against the original players-per-flight, so a rebuilt flight comes
+  // out a familiar size rather than one giant round robin.
+  const origSizes = groups.map((g) => confirmed.filter((p) => p.groupId === g.id).length);
+  const targetPerFlight = origSizes.length ? Math.max(...origSizes) : survivorIds.size;
+  const reformed = scope === "overall" && stage.cutEnabled;
+  // Seed order in, so a kept flight's pairings match a plain regeneration's; a
+  // reform re-sorts by strength internally and ignores the order.
+  const survivorPlayers = domainPlayers.filter((p) => survivorIds.has(p.id));
+  const flights = nextRoundFlights(survivorPlayers, scope, targetPerFlight).filter(
+    (f) => f.playerIds.length >= 2,
+  );
+
+  const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.match.deleteMany({ where: { eventId, stageId: stage.id } });
+
+    if (reformed && flights.length) {
+      const placed = flights.flatMap((f) => f.playerIds);
+      await tx.player.updateMany({
+        where: { eventId, status: "confirmed", id: { notIn: placed } },
+        data: { groupId: null },
+      });
+    }
+
+    for (let i = 0; i < flights.length; i += 1) {
+      const flight = flights[i];
+      let groupId = flight.keepGroupId ?? groups[i]?.id ?? null;
+      if (!groupId) {
+        const created = await tx.group.create({
+          data: { eventId, name: flight.name || `Flight ${i + 1}`, position: i },
+        });
+        groupId = created.id;
+      }
+      if (reformed) {
+        await tx.player.updateMany({ where: { id: { in: flight.playerIds } }, data: { groupId } });
+      }
+      for (const pairing of roundRobinSchedule(flight.playerIds)) {
+        await tx.match.create({
+          data: {
+            eventId,
+            stageId: stage.id,
+            groupId,
+            round: pairing.round,
+            playerAId: pairing.aId,
+            playerBId: pairing.bId,
+            holes: emptyHoles,
+          },
+        });
       }
     }
   });

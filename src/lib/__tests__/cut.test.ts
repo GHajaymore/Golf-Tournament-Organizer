@@ -3,11 +3,14 @@ import {
   survivors,
   survivorCount,
   cutAdvancesEveryone,
+  reflightSurvivors,
+  nextRoundFlights,
   describeCut,
   isCutScope,
   type CutCandidate,
   type CutRule,
 } from "../domain/cut";
+import type { Player } from "../domain/types";
 import { deadlineState, deadlinePassed, todayIso, isIsoDate } from "../deadline";
 
 /**
@@ -183,6 +186,80 @@ describe("a cut that cuts nobody", () => {
   it("never reports a no-op for an empty field", () => {
     expect(cutAdvancesEveryone(rule({ count: 16 }), 0)).toBe(false);
     expect(cutAdvancesEveryone(rule({ scope: "perFlight", count: 16 }), 0, [])).toBe(false);
+  });
+});
+
+describe("re-flighting the survivors of a cut", () => {
+  // A flighted field of 24 (three flights of eight) with an overall cut. The
+  // best six across everyone survive, and they happen to come out 4 from flight
+  // A, 1 from B, 1 from C — the shape that strands the two lone survivors when
+  // the next round is drawn inside the old flights.
+  const survivorField = (): Player[] => {
+    const out: Player[] = [];
+    const add = (id: string, group: string, hcp: number, seed: number) =>
+      out.push({ id, name: id, handicap: hcp, seed, groupId: group });
+    add("a1", "A", 2, 1);
+    add("a2", "A", 5, 2);
+    add("a3", "A", 8, 3);
+    add("a4", "A", 11, 4);
+    add("b1", "B", 6, 5);
+    add("c1", "C", 9, 6);
+    return out;
+  };
+
+  it("reforms an overall cut's survivors so every one of them has an opponent", () => {
+    // The bug: b1 and c1 are alone in their old flights, so a round robin drawn
+    // per flight gives them no matches. Pooled and reformed against the
+    // original flight size of eight, six survivors make a single flight — and
+    // everybody in it has five opponents.
+    const flights = nextRoundFlights(survivorField(), "overall", 8);
+    const placed = flights.flatMap((f) => f.playerIds);
+    expect(placed.sort()).toEqual(["a1", "a2", "a3", "a4", "b1", "c1"]);
+    for (const f of flights) {
+      expect(f.playerIds.length, "no flight of one after a reform").toBeGreaterThanOrEqual(2);
+      expect(f.keepGroupId, "a reformed flight is not an old flight").toBeNull();
+    }
+    expect(flights).toHaveLength(1);
+  });
+
+  it("leaves a per-flight cut's flights exactly as they were", () => {
+    // Nobody is stranded by a per-flight cut — survivors keep their flight and
+    // its mates — so the arrangement is untouched: the same players in the same
+    // flights they were already in.
+    const flights = nextRoundFlights(survivorField(), "perFlight", 8);
+    const byGroup = Object.fromEntries(flights.map((f) => [f.keepGroupId, f.playerIds.sort()]));
+    expect(byGroup).toEqual({
+      A: ["a1", "a2", "a3", "a4"],
+      B: ["b1"],
+      C: ["c1"],
+    });
+    for (const f of flights) expect(f.keepGroupId).not.toBeNull();
+  });
+
+  it("splits into several balanced flights when the target size is small", () => {
+    const flights = reflightSurvivors(survivorField(), 2);
+    expect(flights).toHaveLength(3); // six survivors, ~two apiece
+    for (const f of flights) expect(f.playerIds.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("never leaves a flight of one, even at an awkward count", () => {
+    // Five survivors with a target of two would naively be 3,2 → a flight of
+    // one is impossible, but the risk is a 2,2,1 split; the ⌊n/2⌋ cap forbids
+    // it, so the worst case is a flight of three.
+    const five = survivorField().slice(0, 5);
+    for (const f of reflightSurvivors(five, 2)) {
+      expect(f.playerIds.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("falls back to a single flight when too few survive to split", () => {
+    const three = survivorField().slice(0, 3);
+    expect(reflightSurvivors(three, 8)).toHaveLength(1);
+  });
+
+  it("emits nothing when a single player survives — a round robin of one", () => {
+    expect(reflightSurvivors(survivorField().slice(0, 1), 8)).toEqual([]);
+    expect(nextRoundFlights(survivorField().slice(0, 1), "overall", 8)).toEqual([]);
   });
 });
 

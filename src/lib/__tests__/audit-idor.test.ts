@@ -200,6 +200,8 @@ const EXEMPT: Record<string, string> = {
     "the delete is bounded by teamId, which is scoped; a foreign playerId can only fail to match a row inside this event's team",
   "tournament.ts:removeSignups:playerIds":
     "a loop over removeSignup, which refuses any player whose eventId isn't the caller's — the scope check is one frame down",
+  "tournament.ts:generateNextRound:stageId":
+    "a thin call to generateCutRound(eventId, stageId), which bails unless the stage's own eventId matches the caller's — the scope check is one frame down",
   "tournament.ts:clearRoundScores:playerIds":
     "never selects a row, only narrows one: every delete is already bounded by { eventId, stageId }, and the ids just shrink that set further — a foreign id matches nothing",
   "tournament.ts:saveTeamScorecard:playerId":

@@ -3,8 +3,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { regenerateGroupsAndSchedule, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
-import { roundRobinStages, chainRoundStandings, scoringFrom, settingsOf, parseMatchTiebreakers } from "@/lib/services/tournament";
+import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
+import { settingsOf } from "@/lib/services/tournament";
 import {
   canEnterScores,
   canPlayerSavePartial,
@@ -21,14 +21,13 @@ import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-ac
 import { splitCsvLine, matchColumn } from "@/lib/csv";
 import { STAGE_DESCRIPTIONS, isStageType, generatesPairings } from "@/lib/stage-types";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
-import { survivors, isCutScope } from "@/lib/domain/cut";
+import { isCutScope } from "@/lib/domain/cut";
 import { isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
 import {
   marginToHoles,
   resolveMatch,
   deriveNetHoles,
-  roundRobinSchedule,
   TIEBREAKER_KEYS,
   isBracketMode,
   courseHandicapMap,
@@ -676,88 +675,7 @@ export async function regenGroups(
 export async function generateNextRound(stageId: string) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
-
-  const stage = await prisma.stage.findUnique({ where: { id: stageId } });
-  if (!stage || stage.eventId !== eventId || stage.type !== "Round Robin") return;
-
-  const [event, allStages, confirmed, allMatches, groups] = await Promise.all([
-    prisma.event.findUnique({ where: { id: eventId } }),
-    prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
-    prisma.player.findMany({ where: { eventId, status: "confirmed" }, orderBy: { seed: "asc" } }),
-    prisma.match.findMany({ where: { eventId } }),
-    prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
-  ]);
-  if (!event) return;
-
-  const rrStages = roundRobinStages(allStages);
-  const idx = rrStages.findIndex((s) => s.id === stageId);
-  if (idx <= 0) return; // first Round Robin stage has no predecessor to cut from — use Generate flights instead
-
-  // groupId carried through so a per-flight cut can be taken flight by flight.
-  const domainPlayers = confirmed.map((p) => ({
-    id: p.id,
-    name: p.name,
-    handicap: p.handicap,
-    seed: p.seed,
-    groupId: p.groupId,
-  }));
-  const scoring = scoringFrom(event);
-  const holeDifficulty = resolveCourse(event).strokeIndex;
-  // The cut has to be made on the same standings the leaderboard shows, so it
-  // reads the same match-tiebreak rule.
-  const chain = chainRoundStandings(
-    rrStages.slice(0, idx + 1),
-    allMatches,
-    domainPlayers,
-    scoring,
-    holeDifficulty,
-    parseMatchTiebreakers(event.matchTiebreakers),
-  );
-  const priorStanding = chain[idx - 1];
-
-  let survivorIds: Set<string>;
-  if (stage.cutEnabled) {
-    // The rule now covers both axes — how many, and out of what. A per-flight
-    // cut takes N from every flight rather than N from the tournament, which
-    // is the difference between a bracket of eight and a bracket of two.
-    survivorIds = survivors(
-      priorStanding.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId })),
-      {
-        scope: isCutScope(stage.cutScope) ? stage.cutScope : "overall",
-        mode: stage.cutMode === "percent" ? "percent" : "count",
-        count: stage.cutCount,
-        percent: stage.cutPercent,
-      },
-    );
-  } else {
-    survivorIds = new Set(confirmed.map((p) => p.id));
-  }
-
-  const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
-
-  await prisma.$transaction(async (tx) => {
-    await tx.match.deleteMany({ where: { eventId, stageId: stage.id } });
-    for (const g of groups) {
-      const groupPlayerIds = confirmed
-        .filter((p) => p.groupId === g.id && survivorIds.has(p.id))
-        .map((p) => p.id);
-      const schedule = roundRobinSchedule(groupPlayerIds);
-      for (const pairing of schedule) {
-        await tx.match.create({
-          data: {
-            eventId,
-            stageId: stage.id,
-            groupId: g.id,
-            round: pairing.round,
-            playerAId: pairing.aId,
-            playerBId: pairing.bId,
-            holes: emptyHoles,
-          },
-        });
-      }
-    }
-  });
-
+  await generateCutRound(eventId, stageId);
   refresh();
 }
 

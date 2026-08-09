@@ -11,6 +11,9 @@
  * This is the union: how many, and out of what.
  */
 
+import { formGroups } from "./grouping";
+import type { Player } from "./types";
+
 export type CutScope = "overall" | "perFlight";
 export type CutMode = "count" | "percent";
 
@@ -127,4 +130,87 @@ export function describeCut(rule: CutRule, fieldSize: number, flightCount: numbe
     return `Top ${rule.count} from each of the ${flightCount} flights advances — ${total} in total.`;
   }
   return `Top ${survivorCount(rule, fieldSize)} of ${fieldSize} advances.`;
+}
+
+/**
+ * Reform a cut-down field into fresh, balanced flights.
+ *
+ * An overall cut takes the best players across every flight, so survivors land
+ * unevenly — four out of one flight, one out of the next. Left in their old
+ * flights, that lone survivor plays a round robin of one: the scheduler draws
+ * no matches for a flight of one, so the player is in the round with nothing to
+ * play, and nothing says so. If the cut ignored the flight walls, the next
+ * round has to as well.
+ *
+ * So the surviving field is pooled and reformed from scratch, balanced the same
+ * way the tournament was drawn initially, into flights of roughly the original
+ * size. The flight count is capped at ⌊n/2⌋ so no flight can come out with a
+ * single player — better a slightly larger flight than one nobody can play in.
+ * Too few survivors to fill even one pairing yields no flights at all, which
+ * the caller reads as "nothing to schedule" rather than emitting an empty one.
+ */
+export function reflightSurvivors(
+  survivors: Player[],
+  targetPerFlight: number,
+): Array<{ name: string; playerIds: string[] }> {
+  const n = survivors.length;
+  if (n < 2) return [];
+  const per = Math.max(2, Math.round(targetPerFlight) || 2);
+  const desired = Math.max(1, Math.round(n / per));
+  // Never more flights than can hold two apiece — the whole point is to stop a
+  // flight of one, which is exactly what an over-eager split reintroduces.
+  const count = Math.min(desired, Math.floor(n / 2));
+  return formGroups(survivors, "balanced", { mode: "count", value: count }).map((g) => ({
+    name: g.name,
+    playerIds: g.playerIds,
+  }));
+}
+
+export interface NextRoundFlight {
+  /** The existing flight these players stay in, or null when the field was
+   *  pooled and reformed (an overall cut). */
+  keepGroupId: string | null;
+  /** Name for a freshly formed flight; empty when an existing flight is kept. */
+  name: string;
+  playerIds: string[];
+}
+
+/**
+ * How the survivors of a round are arranged into flights for the next one.
+ *
+ * A per-flight cut is a separate race inside each flight, so its survivors stay
+ * exactly where they were — the flights are untouched. An overall cut ranked
+ * everyone against everyone, so it reforms the field (see reflightSurvivors).
+ * The caller keeps the existing flight rows for the first case and reassigns
+ * players for the second; either way it draws a round robin per returned flight
+ * and skips any left with fewer than two players.
+ */
+export function nextRoundFlights(
+  survivors: Player[],
+  scope: CutScope,
+  targetPerFlight: number,
+): NextRoundFlight[] {
+  if (scope === "overall") {
+    return reflightSurvivors(survivors, targetPerFlight).map((f) => ({
+      keepGroupId: null,
+      name: f.name,
+      playerIds: f.playerIds,
+    }));
+  }
+  // Per flight (and a plain regen with no cut): flights are unchanged. Group by
+  // the flight each player already belongs to, preserving the ranking order the
+  // survivors arrived in. A player with no flight was never scheduled, and is
+  // not scheduled now.
+  const byFlight = new Map<string, string[]>();
+  for (const p of survivors) {
+    if (!p.groupId) continue;
+    const list = byFlight.get(p.groupId);
+    if (list) list.push(p.id);
+    else byFlight.set(p.groupId, [p.id]);
+  }
+  return [...byFlight.entries()].map(([groupId, playerIds]) => ({
+    keepGroupId: groupId,
+    name: "",
+    playerIds,
+  }));
 }
