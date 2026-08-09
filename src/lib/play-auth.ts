@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { prisma } from "./db";
 import { sign, verify } from "./auth";
+import { cleanSettings, usesAccessCodes } from "./tournament-settings";
 
 /**
  * The Round Code play session.
@@ -19,6 +20,9 @@ import { sign, verify } from "./auth";
 const PLAY_COOKIE = "ng_play";
 const SECURE_COOKIES = process.env.NODE_ENV === "production";
 
+/** One round of golf, plus enough slack for a slow four-ball and a rain delay. */
+const PLAY_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+
 const PLAY_COOKIE_OPTS = {
   httpOnly: true,
   sameSite: "lax",
@@ -26,7 +30,7 @@ const PLAY_COOKIE_OPTS = {
   path: "/",
   // Short by design. A code is a shared secret for one round of golf; there's
   // no reason for it to still be letting someone in a week later.
-  maxAge: 60 * 60 * 12,
+  maxAge: PLAY_SESSION_TTL_MS / 1000,
 } as const;
 
 export interface PlaySession {
@@ -39,7 +43,12 @@ export interface PlaySession {
 
 export async function createPlaySession(stageId: string, playerId: string): Promise<void> {
   const jar = await cookies();
-  jar.set(PLAY_COOKIE, sign(`${stageId}:${playerId}`), PLAY_COOKIE_OPTS);
+  // The expiry is inside the signed value, not only in the cookie's maxAge.
+  // maxAge is a request the browser may honour; anyone holding the cookie
+  // string can keep replaying it forever, because the signature over
+  // "stage:player" alone never goes stale. Signing the deadline is what makes
+  // "12 hours" a rule the server enforces rather than a hint the client obeys.
+  jar.set(PLAY_COOKIE, sign(`${stageId}:${playerId}:${Date.now() + PLAY_SESSION_TTL_MS}`), PLAY_COOKIE_OPTS);
 }
 
 export async function destroyPlaySession(): Promise<void> {
@@ -60,8 +69,15 @@ export async function getPlaySession(): Promise<PlaySession | null> {
   const raw = verify(jar.get(PLAY_COOKIE)?.value);
   if (!raw) return null;
 
-  const [stageId, playerId] = raw.split(":");
-  if (!stageId || !playerId) return null;
+  const [stageId, playerId, expiresAt] = raw.split(":");
+  if (!stageId || !playerId || !expiresAt) return null;
+
+  // Cookies signed before the deadline joined the payload have no third field
+  // and land here, which is the intended outcome: they are exactly the
+  // never-expiring ones this check exists to retire. The holder re-enters the
+  // code that is already on their tee sheet.
+  const deadline = Number(expiresAt);
+  if (!Number.isFinite(deadline) || Date.now() > deadline) return null;
 
   const stage = await prisma.stage.findUnique({
     where: { id: stageId },
@@ -70,6 +86,11 @@ export async function getPlaySession(): Promise<PlaySession | null> {
   // No code on the round means code access was switched off or the code was
   // reissued — either way this session is no longer valid.
   if (!stage || !stage.accessCode) return null;
+  // And the tournament must still be running on codes at all. Switching
+  // playerAccess away from codes clears them, so this is belt-and-braces —
+  // but it is the setting that actually decides, and a stale accessCode left
+  // behind by any other write path must not keep a session alive.
+  if (!usesAccessCodes(cleanSettings(stage.event))) return null;
 
   const player = await prisma.player.findFirst({
     where: { id: playerId, eventId: stage.eventId },
