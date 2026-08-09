@@ -408,6 +408,30 @@ model PasswordResetToken {
   @@index([userId])
 }
 
+/**
+ * Attempt counters for the endpoints reachable without a session: round-code
+ * redemption, sign-in, and password reset.
+ *
+ * In the database rather than in process memory because the app runs on
+ * serverless instances that are per-request and cold-start constantly — an
+ * in-memory counter gives an attacker a fresh budget every time they land on
+ * a new instance, which is most requests. Shared state is the whole point.
+ *
+ * `key` is `kind:sha256(identifier):window`, so the row holds no readable
+ * email address and no live round code. It is the primary key so the counter
+ * can be incremented with a single atomic upsert; rows past `expiresAt` are
+ * inert and swept on write. Deliberately unrelated to User or Stage: the
+ * limit applies before anything is looked up, including to identifiers that
+ * do not exist, which is what stops a refusal from confirming that one does.
+ */
+model RateLimitHit {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
 model Event {
   id              String   @id @default(cuid())
   /** Owning tenant. Required so no tournament can exist outside a billing

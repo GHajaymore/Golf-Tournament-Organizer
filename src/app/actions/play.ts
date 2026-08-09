@@ -5,7 +5,7 @@ import { normalizeAccessCode, looksLikeAccessCode } from "@/lib/code-format";
 import { createPlaySession, destroyPlaySession, getPlaySession } from "@/lib/play-auth";
 import { settingsOf } from "@/lib/services/tournament";
 import { usesAccessCodes, canPlayerSavePartial } from "@/lib/tournament-settings";
-import { rateLimit, clearRateLimit, retryAfterText } from "@/lib/rate-limit";
+import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { marginToHoles } from "@/lib/domain";
 
 /**
@@ -14,10 +14,12 @@ import { marginToHoles } from "@/lib/domain";
  * The code is a shared secret announced to a field, so the security here rests
  * on rate limiting rather than on the code's length: 27^8 is a large space,
  * but only if an attacker can't sit there trying it.
+ *
+ * The allowance and the wording live in src/lib/domain/rate-limit.ts; the
+ * counters live in Postgres, because until recently they lived in the memory
+ * of a serverless instance and an attacker got a fresh budget every time they
+ * landed on a cold one.
  */
-
-const REDEEM_LIMIT = 10;
-const REDEEM_WINDOW_MS = 15 * 60 * 1000;
 
 export interface RedeemResult {
   ok: boolean;
@@ -39,10 +41,8 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
 
   // Keyed on the code rather than on a caller identity, which we don't have
   // here — this caps how fast any one code can be guessed at.
-  const limit = rateLimit(`redeem:${code}`, REDEEM_LIMIT, REDEEM_WINDOW_MS);
-  if (!limit.ok) {
-    return { ok: false, error: `Too many attempts. Try again in ${retryAfterText(limit.retryAfterSeconds)}.` };
-  }
+  const limit = await checkRateLimit("round-code", code);
+  if (!limit.allowed) return { ok: false, error: limit.message };
 
   const stage = await prisma.stage.findFirst({
     where: { accessCode: code },
@@ -66,7 +66,7 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
     select: { id: true },
   });
 
-  clearRateLimit(`redeem:${code}`);
+  await clearRateLimit("round-code", code);
   return {
     ok: true,
     players,
@@ -97,10 +97,8 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
   // attacker simply guesses codes through this action instead and the limit on
   // the other one counts for nothing. Sharing the key means attempts against a
   // code are capped however they arrive.
-  const limit = rateLimit(`redeem:${code}`, REDEEM_LIMIT, REDEEM_WINDOW_MS);
-  if (!limit.ok) {
-    return { ok: false, error: `Too many attempts. Try again in ${retryAfterText(limit.retryAfterSeconds)}.` };
-  }
+  const limit = await checkRateLimit("round-code", code);
+  if (!limit.allowed) return { ok: false, error: limit.message };
 
   const stage = await prisma.stage.findFirst({
     where: { accessCode: code },
@@ -121,7 +119,7 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
 
   // A genuine claim resets the budget, so a fourball fumbling the code on the
   // first tee doesn't lock the group out of the round they're about to play.
-  clearRateLimit(`redeem:${code}`);
+  await clearRateLimit("round-code", code);
   await createPlaySession(stage.id, player.id);
   revalidatePath("/play");
   return { ok: true };

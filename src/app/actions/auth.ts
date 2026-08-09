@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { randomBytes, createHash } from "node:crypto";
 import { createSession, destroySession, setPreviewRole, setActiveEvent, getSession, hashPassword, verifyPasswordHash } from "@/lib/auth";
 import { sendPasswordResetEmail } from "@/lib/email";
-import { rateLimit, clearRateLimit, retryAfterText } from "@/lib/rate-limit";
+import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 import { prisma } from "@/lib/db";
 
@@ -17,13 +17,6 @@ function passwordProblem(password: string): string | null {
   }
   return null;
 }
-
-// Password guessing throttle: 5 attempts per email per 15 minutes.
-const LOGIN_LIMIT = 5;
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-// Reset requests are cheaper to abuse (they send mail), so cap them too.
-const RESET_LIMIT = 5;
-const RESET_WINDOW_MS = 60 * 60 * 1000;
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -57,10 +50,11 @@ export async function signInWithPassword(
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
   if (!password) return { ok: false, error: "Enter your password." };
 
-  const limit = rateLimit(`login:${clean}`, LOGIN_LIMIT, LOGIN_WINDOW_MS);
-  if (!limit.ok) {
-    return { ok: false, error: `Too many sign-in attempts. Try again in ${retryAfterText(limit.retryAfterSeconds)}.` };
-  }
+  // Counted before the lookup, and keyed on the email rather than the caller,
+  // so the refusal reads the same for an address that has an account and one
+  // that never did.
+  const limit = await checkRateLimit("signin", clean);
+  if (!limit.allowed) return { ok: false, error: limit.message };
 
   const user = await prisma.user.findUnique({ where: { email: clean } });
 
@@ -75,7 +69,7 @@ export async function signInWithPassword(
 
   const signedIn = await startSessionFor(clean);
   if (!signedIn) return { ok: false, error: "Something went wrong." };
-  clearRateLimit(`login:${clean}`);
+  await clearRateLimit("signin", clean);
   redirect("/choose");
 }
 
@@ -93,10 +87,8 @@ export async function claimPassword(email: string, password: string): Promise<{ 
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
 
-  const limit = rateLimit(`claim:${clean}`, LOGIN_LIMIT, LOGIN_WINDOW_MS);
-  if (!limit.ok) {
-    return { ok: false, error: `Too many attempts. Try again in ${retryAfterText(limit.retryAfterSeconds)}.` };
-  }
+  const limit = await checkRateLimit("claim-password", clean);
+  if (!limit.allowed) return { ok: false, error: limit.message };
 
   const weak = passwordProblem(password);
   if (weak) return { ok: false, error: weak };
@@ -117,7 +109,7 @@ export async function claimPassword(email: string, password: string): Promise<{ 
     update: { password: hashPassword(password) },
     create: { email: clean, name: accounts[0].name, password: hashPassword(password) },
   });
-  clearRateLimit(`claim:${clean}`);
+  await clearRateLimit("claim-password", clean);
   const signedIn = await startSessionFor(clean);
   if (!signedIn) return { ok: false, error: "Something went wrong." };
   redirect("/choose");
@@ -134,10 +126,8 @@ export async function requestPasswordReset(email: string): Promise<{ ok: boolean
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
 
-  const limit = rateLimit(`reset:${clean}`, RESET_LIMIT, RESET_WINDOW_MS);
-  if (!limit.ok) {
-    return { ok: false, error: `Too many reset requests. Try again in ${retryAfterText(limit.retryAfterSeconds)}.` };
-  }
+  const limit = await checkRateLimit("password-reset", clean);
+  if (!limit.allowed) return { ok: false, error: limit.message };
 
   const user = await prisma.user.findUnique({ where: { email: clean } });
   if (user && user.password) {

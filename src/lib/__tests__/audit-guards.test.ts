@@ -99,15 +99,26 @@ describe("round code guessing", () => {
     // limit counted for nothing.
     for (const { name, body } of actions("play.ts")) {
       if (!body.includes("accessCode")) continue;
-      expect(body, `${name} looks up a code without rate limiting`).toMatch(/rateLimit\(/);
+      expect(body, `${name} looks up a code without rate limiting`).toMatch(/checkRateLimit\(/);
     }
   });
 
   it("shares one budget across both entry points", () => {
     // Separate keys would give an attacker two budgets per code.
-    const keys = [...play.matchAll(/rateLimit\(`([^`]+)`/g)].map((m) => m[1]);
-    expect(keys.length).toBeGreaterThanOrEqual(2);
-    expect(new Set(keys).size).toBe(1);
+    const kinds = [...play.matchAll(/checkRateLimit\("([^"]+)"/g)].map((m) => m[1]);
+    expect(kinds.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(kinds).size).toBe(1);
+  });
+
+  it("counts the attempts somewhere shared, not in process memory", () => {
+    // The limiter was a Map in the instance's memory, which on serverless
+    // hosting means each cold start handed the attacker a fresh budget — so
+    // the limit that /play's entire security rests on was mostly theatre.
+    const store = readFileSync(join(process.cwd(), "src", "lib", "rate-limit.ts"), "utf8");
+    expect(store).toMatch(/RateLimitHit/);
+    expect(stripComments(store), "counters must not live in a module-level Map").not.toMatch(
+      /new Map\(/,
+    );
   });
 
   it("never confirms that a code was real", () => {
