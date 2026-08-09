@@ -397,7 +397,7 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 16, alignItems: "start" }}>
+        <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
           <div className="card elev-sm">
             {showStandings ? (
               <>

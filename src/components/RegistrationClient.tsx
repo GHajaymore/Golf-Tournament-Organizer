@@ -437,7 +437,7 @@ export function RegistrationClient({
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16, alignItems: "start" }}>
+      <div className="page-split" style={{ display: "grid", gridTemplateColumns: "340px minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <RosterPicker candidates={roster} eventName={event.name} locked={locked} />
         <div className="card elev-sm" style={{ gap: 10 }}>

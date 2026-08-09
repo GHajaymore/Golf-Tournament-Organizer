@@ -66,7 +66,7 @@ export function ReportsClient({
   ];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 16, alignItems: "start" }}>
+    <div className="page-split" style={{ display: "grid", gridTemplateColumns: "360px minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm" style={{ gap: 10 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Exports</span>
         {exports.map((e) => (

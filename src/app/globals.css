@@ -273,6 +273,25 @@ body {
   overflow-x: auto;
 }
 
+/*
+ * A page-level two column layout: the work on one side, a panel on the other.
+ *
+ * Marked with a class so it has a breakpoint of its own. The desktop sidebar
+ * survives down to 821px, and below that everything stacks — but between those
+ * two numbers the sidebar takes 250px, the page padding takes 60, and a 340px
+ * panel beside a sixteen-column table had nowhere to go. It went off the right
+ * edge: Registration & field scrolled sideways by 436px at 882px wide and was
+ * still 118px over at 1200, with two thirds of the field table past the edge
+ * of the window. The columns are written minmax(0, …) at each site so the
+ * grid can never outgrow its container at any width; this stacks them at the
+ * width where sitting side by side stopped being readable.
+ */
+@media (max-width: 1100px) {
+  .page-split {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
 /* ===================== Mobile shell (players) ===================== */
 .mobile-only {
   display: none;

@@ -213,7 +213,7 @@ export function EventSetupClient({
   ];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, alignItems: "start" }}>
+    <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm" style={{ gap: 12 }}>
         <span className="card-kicker">Tournament identity</span>
         <div className="field">

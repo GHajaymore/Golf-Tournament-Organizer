@@ -64,7 +64,7 @@ export function ScoringClient({
     exampleW * values.winPts + exampleT * values.tiePts + exampleH * values.holeRatioPts + values.bonusPts;
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
+    <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm" style={{ gap: 14 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Points {pending && <span className="text-muted" style={{ fontSize: 12 }}>· saving…</span>}</span>
         {FIELDS.map((f) => (

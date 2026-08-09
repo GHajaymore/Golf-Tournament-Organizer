@@ -39,7 +39,7 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16, alignItems: "start" }}>
+    <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
       <div className="card elev-sm">
         <span className="card-title" style={{ fontSize: 15 }}>Accounts</span>
         <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>

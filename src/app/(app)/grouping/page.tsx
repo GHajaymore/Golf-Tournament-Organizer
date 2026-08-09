@@ -88,7 +88,7 @@ export default async function GroupingPage() {
           leadership={settingsOf(state.event).attendanceMode !== "everyone"}
         />
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
           {cards.map((g) => (
             <div key={g.id} className="card elev-sm" style={{ gap: 6 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
