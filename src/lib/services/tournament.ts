@@ -99,6 +99,53 @@ function toDomainPlayer(p: DbPlayer, courseHandicap?: number): Player {
   };
 }
 
+/**
+ * Whether anyone has written a score on this match yet.
+ *
+ * The same test `matchProgress` calls "complete", so "the round being played"
+ * and "N/M matches complete" can never disagree about which round that is.
+ */
+export function hasAnyHole(holesJson: string): boolean {
+  try {
+    const holes = JSON.parse(holesJson) as HoleResultArr;
+    return Array.isArray(holes) && holes.some((h) => h !== null);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Which round is being played now, as an index into the Round Robin stages.
+ *
+ * The EARLIEST generated round that still holds a match nobody has written a
+ * score on. -1 when no round has been generated at all.
+ *
+ * "The latest round that has matches" looked equivalent and isn't. Every round
+ * robin without a cut line is scheduled up front, in one pass, so a two-round
+ * series has both rounds full of empty matches from the moment it is created —
+ * and the latest of those is Round 2. Score entry opened on Round 2, the
+ * dashboard called it the current round, the tee sheet said "no scores posted
+ * yet", and the leaderboard and the printed standings showed its numbers: a
+ * table of zeroes, with a fully played Round 1 one dropdown away. An organizer
+ * reads that as scoring being broken, and from where they stand it is.
+ *
+ * Once every generated round is finished this lands on the last of them, so a
+ * completed tournament still shows its final standings.
+ */
+export function currentRoundIndex(
+  rrStages: Array<{ id: string }>,
+  matches: Array<{ stageId: string; holes: string }>,
+): number {
+  let lastGenerated = -1;
+  for (let i = 0; i < rrStages.length; i += 1) {
+    const own = matches.filter((m) => m.stageId === rrStages[i].id);
+    if (own.length === 0) continue;
+    lastGenerated = i;
+    if (own.some((m) => !hasAnyHole(m.holes))) return i;
+  }
+  return lastGenerated;
+}
+
 function toDomainMatch(m: DbMatch): DomainMatch {
   let holes: HoleResultArr;
   try {
@@ -281,6 +328,15 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const course = resolveCourse(event);
   const holeDifficulty = course.strokeIndex;
 
+  const playRounds = playingStages(stages);
+  const activeRrIdx = currentRoundIndex(rrStages, matches);
+  const activeStage =
+    rrStages[activeRrIdx] ?? rrStages[rrStages.length - 1] ?? playRounds[playRounds.length - 1] ?? null;
+  // The chain runs up to the round being played, not past it. Running it to
+  // the end left `overall` holding the last round's standings, which is why a
+  // played Round 1 showed as zeroes while Round 2 was nominally current.
+  const chainTo = activeRrIdx >= 0 ? activeRrIdx : rrStages.length - 1;
+
   let carried: Record<string, number> = {};
   let overall: RankedPlayer[] = computeStandings(domainPlayers, [], scoring);
   let groupStandings: GroupStanding[] = groups.map((g) => {
@@ -290,7 +346,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   });
   let activeDomainMatches: DomainMatch[] = [];
 
-  for (let i = 0; i < rrStages.length; i += 1) {
+  for (let i = 0; i <= chainTo; i += 1) {
     const stage = rrStages[i];
     const stageMatches = matches.filter((m) => m.stageId === stage.id).map(toDomainMatch);
     const carryIn = i > 0 && stage.carryForwardEnabled ? carried : {};
@@ -309,18 +365,6 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       : {};
   }
 
-  const playRounds = playingStages(stages);
-  // The current round is the latest round that actually has matches to score.
-  // Taking the last stage unconditionally sent score entry to a Round 2 that
-  // existed but hadn't been generated yet — "No matches yet" — while Round 1
-  // sat fully scheduled one dropdown away. An organizer mid-tournament reads
-  // that as the app being broken, because from where they stand it is.
-  const stagesWithMatches = new Set(matches.map((m) => m.stageId));
-  const latestActive = [...rrStages].reverse().find((s) => stagesWithMatches.has(s.id)) ?? null;
-  // Falls back to the last played round so a tournament made only of medal
-  // rounds still has a "current round" for the dashboard and score entry.
-  const activeStage =
-    latestActive ?? rrStages[rrStages.length - 1] ?? playRounds[playRounds.length - 1] ?? null;
   const rrMatches = activeStage ? matches.filter((m) => m.stageId === activeStage.id) : [];
   const domainMatches = activeDomainMatches;
 
@@ -479,14 +523,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
 
 /** Dashboard stat helpers. */
 export function matchProgress(state: EventState): { done: number; total: number; pct: number } {
-  const done = state.rrMatches.filter((m) => {
-    try {
-      const holes = JSON.parse(m.holes) as HoleResultArr;
-      return holes.some((h) => h !== null);
-    } catch {
-      return false;
-    }
-  }).length;
+  const done = state.rrMatches.filter((m) => hasAnyHole(m.holes)).length;
   const total = state.rrMatches.length;
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
   return { done, total, pct };

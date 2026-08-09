@@ -89,6 +89,7 @@ export default async function StagesPage() {
       <StagesClient
         stages={stages}
         venues={venues}
+        activeStageId={state.activeStage?.id ?? null}
         handicapWarning={await unratedWarning(session.eventId, state.stages.find((s) => s.type === "Round Robin")?.scoringBasis ?? "gross")}
         chainsRounds={
           effectiveCapabilities(shapeOf(state.event.shape), {

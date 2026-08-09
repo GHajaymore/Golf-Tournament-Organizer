@@ -196,7 +196,18 @@ function NextRoundTransition({
       <>
       <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-          <input type="checkbox" checked={carryEnabled} onChange={(e) => commitCarry(e.target.checked, carryPct)} />
+          {/* Ticking the box carries the whole total unless a share has
+              already been chosen. It used to commit whatever the slider said,
+              which on a round nobody had touched was 0 — so the switch read as
+              on, the sentence underneath admitted "a player on 12 pts here
+              starts Round 2 with 0 pts", and the organizer had turned on a
+              feature that does nothing. The "Yes, carry them forward" answer
+              directly above already defaults to 100 for the same reason. */}
+          <input
+            type="checkbox"
+            checked={carryEnabled}
+            onChange={(e) => commitCarry(e.target.checked, e.target.checked && carryPct === 0 ? 100 : carryPct)}
+          />
           Carry forward points into {roundLabel}
         </label>
         <input
@@ -266,6 +277,7 @@ function NextRoundTransition({
 function StageCard({
   stage,
   isFirst,
+  standing,
   nextStage,
   rrMatchesPerPlayer,
   scoring,
@@ -280,6 +292,16 @@ function StageCard({
 }: {
   stage: StageView;
   isFirst: boolean;
+  /**
+   * Where this round sits relative to the one being played.
+   *
+   * Was `isFirst ? "Active" : "Upcoming"`, which is only true on day one: once
+   * Round 1 finished, this screen still called it Active and Round 2 Upcoming
+   * while the dashboard, score entry and the leaderboard had all moved on. Two
+   * screens disagreeing about which round is live is the kind of thing an
+   * organizer resolves by trusting the wrong one.
+   */
+  standing: "played" | "active" | "upcoming";
   nextStage: StageView | undefined;
   rrMatchesPerPlayer: number;
   scoring: ScoringValues;
@@ -476,7 +498,9 @@ function StageCard({
             <span style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
               Round {stage.position + 1} · {stage.type}
             </span>
-            <span className="tag tag-neutral">{isFirst ? "Active" : "Upcoming"}</span>
+            <span className="tag tag-neutral">
+              {standing === "active" ? "Active" : standing === "played" ? "Played" : "Upcoming"}
+            </span>
             {notGenerated && (
               <span className="tag tag-neutral"><i className="ph ph-clock" /> Not generated yet</span>
             )}
@@ -774,6 +798,7 @@ export function StagesClient({
   venues = [],
   chainsRounds = true,
   handicapWarning = null,
+  activeStageId = null,
 }: {
   stages: StageView[];
   rrMatchesPerPlayer: number;
@@ -791,11 +816,15 @@ export function StagesClient({
   chainsRounds?: boolean;
   /** Set when net scoring is running on unrated tees. */
   handicapWarning?: string | null;
+  /** The round actually being played, decided on the server so this screen
+   *  and every other one name the same round. */
+  activeStageId?: string | null;
 }) {
   const [newType, setNewType] = useState<StageTypeKey>(STAGE_TYPES[0]);
   const [pending, startTransition] = useTransition();
 
   const rrStages = stages.filter((s) => s.type === "Round Robin");
+  const activeIndex = stages.findIndex((s) => s.id === activeStageId);
 
   // Where the rounds don't fit together. Rounds chain — standings carry
   // forward, cuts pick the next field from the last round's results — and that
@@ -838,6 +867,13 @@ export function StagesClient({
             key={s.id}
             stage={s}
             isFirst={i === 0}
+            standing={
+              activeStageId === s.id
+                ? "active"
+                : activeIndex >= 0 && i < activeIndex
+                  ? "played"
+                  : "upcoming"
+            }
             nextStage={nextStage}
             rrMatchesPerPlayer={rrMatchesPerPlayer}
             scoring={scoring}
