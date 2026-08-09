@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { addAccount, setAccountRole, removeAccount } from "@/app/actions/tournament";
+import { ROLE_OPTS, describeRoleChange, type RoleChange } from "@/lib/access-roles";
 
 interface AccountRow {
   id: string;
@@ -9,24 +10,111 @@ interface AccountRow {
   role: string;
 }
 
-const ROLE_OPTS = [
-  { v: "admin", l: "Organizer" },
-  { v: "assistant", l: "Assistant" },
-  { v: "player", l: "Player" },
-];
+/**
+ * The inline confirmation for a role change.
+ *
+ * A separate press, not a dialog — dialogs get dismissed on reflex, and the
+ * whole point is that a re-role has to be read before it happens. The button
+ * restates the change in full, and a demotion (especially the last organizer's)
+ * says what is being given up rather than just "Confirm".
+ */
+export function RoleChangeConfirm({
+  change,
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  change: RoleChange;
+  pending: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+      <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.45 }}>
+        Change <b>{change.name}</b> from {change.from} to <b>{change.to}</b>?
+        {change.lastAdmin ? (
+          <span style={{ display: "block", color: "var(--color-danger, #e0665a)", marginTop: 2 }}>
+            <i className="ph ph-warning" /> This is the only Organizer on the event — promote someone else first,
+            or this will be refused.
+          </span>
+        ) : change.demotion ? (
+          <span className="text-muted" style={{ display: "block", marginTop: 2 }}>
+            {change.name} loses {change.from} access.
+          </span>
+        ) : null}
+      </p>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className="btn"
+          style={
+            change.demotion
+              ? {
+                  fontSize: 12.5,
+                  color: "var(--color-danger)",
+                  borderColor: "color-mix(in srgb, var(--color-danger) 50%, transparent)",
+                }
+              : { fontSize: 12.5 }
+          }
+          disabled={pending}
+          onClick={onConfirm}
+        >
+          <i className="ph ph-check" /> {pending ? "Saving…" : `Yes — make ${change.name} ${change.to}`}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ fontSize: 12.5 }}
+          disabled={pending}
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("player");
   const [error, setError] = useState("");
+  // The role change awaiting a second, deliberate press. Only ever one at a
+  // time — picking a role on another row moves the confirmation there.
+  const [confirm, setConfirm] = useState<{ accountId: string; next: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const doSetRole = (accountId: string, next: string) => {
+  // Same count the server guards on, so "the only Organizer" reads the same way
+  // in the warning as it does in the refusal.
+  const adminCount = accounts.filter((a) => a.role === "admin").length;
+
+  // The role a row's radios should show: the pending choice if this row is the
+  // one being changed, otherwise the committed role.
+  const shownRole = (a: AccountRow) => (confirm?.accountId === a.id ? confirm.next : a.role);
+
+  const requestRole = (a: AccountRow, next: string) => {
+    setError("");
+    // Re-picking the current role just cancels any pending confirmation.
+    if (a.role === next) {
+      setConfirm(null);
+      return;
+    }
+    setConfirm({ accountId: a.id, next });
+  };
+
+  const commitRole = () => {
+    if (!confirm) return;
+    const { accountId, next } = confirm;
     setError("");
     startTransition(async () => {
       const result = await setAccountRole(accountId, next);
-      if (!result.ok) setError(result.error ?? "Something went wrong.");
+      if (!result.ok) {
+        setError(result.error ?? "Something went wrong.");
+        return;
+      }
+      setConfirm(null);
     });
   };
 
@@ -62,38 +150,50 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
               </tr>
             </thead>
             <tbody>
-              {accounts.map((a) => (
-                <tr key={a.id}>
-                  <td style={{ fontWeight: 500 }}>{a.name}</td>
-                  <td className="text-muted">{a.email}</td>
-                  <td>
-                    <div className="seg">
-                      {ROLE_OPTS.map((o) => (
-                        <label className="seg-opt" key={o.v}>
-                          <input
-                            type="radio"
-                            name={`role-${a.id}`}
-                            checked={a.role === o.v}
-                            disabled={pending}
-                            onChange={() => doSetRole(a.id, o.v)}
-                          />
-                          {o.l}
-                        </label>
-                      ))}
-                    </div>
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    <button
-                      type="button"
-                      className="btn btn-icon"
-                      disabled={pending}
-                      onClick={() => doRemove(a.id)}
-                    >
-                      <i className="ph ph-x" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {accounts.map((a) => {
+                const change =
+                  confirm?.accountId === a.id ? describeRoleChange(a, confirm.next, adminCount) : null;
+                return (
+                  <tr key={a.id}>
+                    <td style={{ fontWeight: 500 }}>{a.name}</td>
+                    <td className="text-muted">{a.email}</td>
+                    <td>
+                      <div className="seg">
+                        {ROLE_OPTS.map((o) => (
+                          <label className="seg-opt" key={o.v}>
+                            <input
+                              type="radio"
+                              name={`role-${a.id}`}
+                              checked={shownRole(a) === o.v}
+                              disabled={pending}
+                              onChange={() => requestRole(a, o.v)}
+                            />
+                            {o.l}
+                          </label>
+                        ))}
+                      </div>
+                      {change && (
+                        <RoleChangeConfirm
+                          change={change}
+                          pending={pending}
+                          onConfirm={commitRole}
+                          onCancel={() => setConfirm(null)}
+                        />
+                      )}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <button
+                        type="button"
+                        className="btn btn-icon"
+                        disabled={pending}
+                        onClick={() => doRemove(a.id)}
+                      >
+                        <i className="ph ph-x" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

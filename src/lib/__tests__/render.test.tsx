@@ -78,6 +78,8 @@ import { StrokePlayEntry } from "@/components/StrokePlayEntry";
 import { RoundDeadlineControl } from "@/components/RoundDeadlineControl";
 import { ScoreEntryClient, defaultEntryMode, type EntryMatch } from "@/components/ScoreEntryClient";
 import { RosterClient, ImportSummary, type RosterRow } from "@/components/RosterClient";
+import { AccessClient, RoleChangeConfirm } from "@/components/AccessClient";
+import { describeRoleChange } from "@/lib/access-roles";
 import type { MemberImportResult } from "@/app/actions/roster";
 import { playSkins } from "@/lib/domain/skins";
 import { playNassau } from "@/lib/domain/nassau";
@@ -645,6 +647,59 @@ describe("roster CSV import", () => {
   it("does not claim success when every row was already present", () => {
     const html = render(<ImportSummary result={result()} onDismiss={() => {}} />);
     expect(html).toContain("Nothing to import");
+  });
+});
+
+describe("access control — no stray re-roles", () => {
+  const accounts = [
+    { id: "a1", name: "Ann Doyle", email: "ann@x.test", role: "admin" },
+    { id: "a2", name: "Rob Ferris", email: "rob@x.test", role: "player" },
+  ];
+
+  it("shows the roles without any pending confirmation on first paint", () => {
+    // The bug was a control that acted on change. On load there is nothing to
+    // confirm and no way it could have already fired.
+    const html = render(<AccessClient accounts={accounts} />);
+    expect(html).toContain("Ann Doyle");
+    expect(html).toContain("Organizer");
+    expect(html).not.toContain("Yes — make");
+    expect(html).not.toContain("Cancel");
+  });
+
+  it("restates a plain change in full, not just 'Confirm'", () => {
+    const change = describeRoleChange({ name: "Rob Ferris", role: "player" }, "assistant", 2);
+    const html = render(
+      <RoleChangeConfirm change={change!} pending={false} onConfirm={() => {}} onCancel={() => {}} />,
+    );
+    expect(html).toContain("Rob Ferris");
+    expect(html).toContain("Yes — make Rob Ferris Assistant");
+    // A promotion is not dressed up as a loss.
+    expect(html).not.toContain("loses");
+  });
+
+  it("says what a demotion gives up", () => {
+    const change = describeRoleChange({ name: "Ann Doyle", role: "admin" }, "player", 2);
+    const html = render(
+      <RoleChangeConfirm change={change!} pending={false} onConfirm={() => {}} onCancel={() => {}} />,
+    );
+    expect(html).toContain("loses Organizer access");
+  });
+
+  it("warns before anyone tries to demote the only organizer", () => {
+    const change = describeRoleChange({ name: "Ann Doyle", role: "admin" }, "assistant", 1);
+    const html = render(
+      <RoleChangeConfirm change={change!} pending={false} onConfirm={() => {}} onCancel={() => {}} />,
+    );
+    expect(html).toContain("only Organizer");
+  });
+
+  it("holds the save while a change is in flight", () => {
+    const change = describeRoleChange({ name: "Rob Ferris", role: "player" }, "admin", 2);
+    const html = render(
+      <RoleChangeConfirm change={change!} pending onConfirm={() => {}} onCancel={() => {}} />,
+    );
+    expect(html).toContain("Saving…");
+    expect(html).toContain("disabled");
   });
 });
 
