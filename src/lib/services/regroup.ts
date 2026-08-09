@@ -51,6 +51,105 @@ export async function scoredMatchCount(eventId: string): Promise<number> {
   }).length;
 }
 
+/**
+ * Repair one player's pairings after they have been moved between flights.
+ *
+ * Moving a player used to change nothing but a foreign key. The round-robin
+ * matches drawn for the old flight stayed exactly where they were, so the
+ * player still had a full card of matches against a flight they were no longer
+ * in — and none at all against the flight they had joined. The flight standings
+ * then showed them in one flight with results earned in another, and the
+ * players who *were* in their new flight were a match short each, for good.
+ * Nothing warned about any of it; the counts still added up.
+ *
+ * Surgical on purpose. Only matches involving this player are touched, so
+ * every other pairing in both flights keeps its result. The moved player's own
+ * results are discarded, because they were played against opponents this
+ * player is no longer scheduled to meet — that is the one thing a move cannot
+ * preserve, and the caller confirms it first.
+ *
+ * Round numbers are chosen per stage as the first round in which neither side
+ * is already playing, so nobody ends up in two matches at once.
+ */
+export async function repairPlayerPairings(eventId: string, playerId: string): Promise<void> {
+  const player = await prisma.player.findFirst({
+    where: { id: playerId, eventId },
+    select: { id: true, groupId: true, status: true },
+  });
+  if (!player) return;
+
+  const stages = await prisma.stage.findMany({
+    where: { eventId, type: "Round Robin" },
+    orderBy: { position: "asc" },
+  });
+  // The same three exclusions regenerateGroupsAndSchedule applies: a cut-gated
+  // round is drawn from results it doesn't have yet, a team round is played
+  // side against side, and a medal round has no opponents at all.
+  const drawable = stages.filter(
+    (s) => !s.cutEnabled && !needsTeams(s.format) && generatesPairings(s.type),
+  );
+  if (drawable.length === 0) return;
+
+  const flightMates =
+    player.groupId && player.status === "confirmed"
+      ? await prisma.player.findMany({
+          where: { eventId, groupId: player.groupId, status: "confirmed", id: { not: playerId } },
+          orderBy: { seed: "asc" },
+          select: { id: true },
+        })
+      : [];
+
+  await prisma.$transaction(async (tx) => {
+    for (const stage of drawable) {
+      await tx.match.deleteMany({
+        where: {
+          eventId,
+          stageId: stage.id,
+          OR: [{ playerAId: playerId }, { playerBId: playerId }],
+        },
+      });
+
+      if (!player.groupId || flightMates.length === 0) continue;
+
+      // Rounds already spoken for, per opponent, so a repaired match never
+      // double-books either side.
+      const rest = await tx.match.findMany({
+        where: { eventId, stageId: stage.id },
+        select: { round: true, playerAId: true, playerBId: true },
+      });
+      const busy = new Map<string, Set<number>>();
+      const mark = (id: string, r: number) => {
+        const set = busy.get(id) ?? new Set<number>();
+        set.add(r);
+        busy.set(id, set);
+      };
+      for (const m of rest) {
+        mark(m.playerAId, m.round);
+        mark(m.playerBId, m.round);
+      }
+
+      const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
+      for (const mate of flightMates) {
+        let round = 1;
+        while (busy.get(playerId)?.has(round) || busy.get(mate.id)?.has(round)) round += 1;
+        mark(playerId, round);
+        mark(mate.id, round);
+        await tx.match.create({
+          data: {
+            eventId,
+            stageId: stage.id,
+            groupId: player.groupId,
+            round,
+            playerAId: playerId,
+            playerBId: mate.id,
+            holes: emptyHoles,
+          },
+        });
+      }
+    }
+  });
+}
+
 export async function regenerateGroupsAndSchedule(eventId: string): Promise<void> {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return;

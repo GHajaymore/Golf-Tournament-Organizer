@@ -220,6 +220,16 @@ export function ScoreEntryClient({
   const [holesById, setHolesById] = useState<Record<string, HoleResult[]>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.holes])),
   );
+  /**
+   * The card as of the last edit, whether or not React has re-rendered yet.
+   *
+   * Every write to `holesById` goes through `writeHoles`, which updates this
+   * first. `setHole` then reads it instead of the array its render closed over
+   * — two taps landing inside one render both started from the same copy, so
+   * the second wrote the first one's hole back to null, on screen and in the
+   * database. A ref is the only thing that is current in the same tick.
+   */
+  const latestHoles = useRef<Record<string, HoleResult[]>>({});
   const [statusById, setStatusById] = useState<Record<string, string>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.status])),
   );
@@ -365,8 +375,13 @@ export function ScoreEntryClient({
   const aStrokes = aStrokesById[active.id] ?? active.aStrokes;
   const bStrokes = bStrokesById[active.id] ?? active.bStrokes;
 
-  const persist = (id: string, next: HoleResult[]) => {
+  const writeHoles = (id: string, next: HoleResult[]) => {
+    latestHoles.current[id] = next;
     setHolesById((prev) => ({ ...prev, [id]: next }));
+  };
+
+  const persist = (id: string, next: HoleResult[]) => {
+    writeHoles(id, next);
     setStatusById((prev) => ({ ...prev, [id]: "pending" }));
     save(() => saveMatchHoles(id, next));
   };
@@ -389,7 +404,7 @@ export function ScoreEntryClient({
   };
 
   const setHole = (index: number, value: "A" | "B" | "H") => {
-    const next = [...holes];
+    const next = [...(latestHoles.current[active.id] ?? holes)];
     next[index] = next[index] === value ? null : value;
     persist(active.id, next);
   };
@@ -398,13 +413,13 @@ export function ScoreEntryClient({
     const total = holes.length || 18;
     save(() => applyMatchResult(active.id, winner, margin));
     import("@/lib/domain").then(({ marginToHoles }) => {
-      setHolesById((prev) => ({ ...prev, [active.id]: marginToHoles(winner, margin, total) }));
+      writeHoles(active.id, marginToHoles(winner, margin, total));
     });
   };
 
   const doClear = () => {
     const empty = new Array(holes.length || 18).fill(null) as HoleResult[];
-    setHolesById((prev) => ({ ...prev, [active.id]: empty }));
+    writeHoles(active.id, empty);
     startTransition(() => {
       void clearMatch(active.id);
     });
@@ -416,7 +431,7 @@ export function ScoreEntryClient({
     setAStrokesById((prev) => ({ ...prev, [active.id]: nextA }));
     setBStrokesById((prev) => ({ ...prev, [active.id]: nextB }));
     const derived = deriveNetHoles(nextA, nextB, effAHandicap, effBHandicap, strokeIndex.length ? strokeIndex : new Array(totalHoles).fill(18));
-    setHolesById((prev) => ({ ...prev, [active.id]: derived }));
+    writeHoles(active.id, derived);
     setStatusById((prev) => ({ ...prev, [active.id]: "pending" }));
     save(() => saveMatchScorecard(active.id, slot, next));
   };

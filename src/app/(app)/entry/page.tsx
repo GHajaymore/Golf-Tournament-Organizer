@@ -10,6 +10,7 @@ import { resolveCourse, hasCourseData, needsCourseData } from "@/lib/courses";
 import { courseForMatch, applyNine, type Nine } from "@/lib/services/course-resolution";
 import type { HoleResult } from "@/lib/domain";
 import { needsTeams, findFormat, entryModeFor } from "@/lib/formats";
+import { generatesPairings } from "@/lib/stage-types";
 import { teamsForStage, effectiveAllowance } from "@/lib/services/teams";
 import { aggregateTeamCard, singleBallTeamCard } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
@@ -360,6 +361,14 @@ export default async function EntryPage() {
         stageId: stage.id,
         label: `Round ${i + 1}`,
         format: stage.format,
+        // A medal round has no opponents, so match entry has nothing to show
+        // for it — and it showed "No matches yet: generate flights on the
+        // Flights screen", advice that can never come true because the
+        // scheduler deliberately draws no pairings for this type. The screen
+        // has to know that from the round's structure, not its format name:
+        // a Stroke Play Round created before this carries the schema's
+        // "Match Play" default and would still be sent to the wrong entry.
+        drawsPairings: generatesPairings(stage.type),
         matches: stageMatches,
         netMode,
         stroke: { holes: holeCount, stageId: stage.id, cardsByPlayer },

@@ -4,6 +4,7 @@ import { importScores } from "@/app/actions/tournament";
 import {
   parseScoreCsv,
   importShapesFor,
+  isStrokeShape,
   templateCsv,
   IMPORT_SHAPES,
   type ScoreImportShape,
@@ -67,8 +68,11 @@ export function ScoreImport({
     if (!parsed || parsed.ready === 0) return;
     setError("");
     startTransition(async () => {
+      // Which list the parser filled, not which literal the shape is: a net
+      // file fills strokeRows exactly as a gross one does, and testing for
+      // "strokes" alone sent the server an empty array.
       const rows =
-        active.key === "strokes"
+        isStrokeShape(active.key)
           ? parsed.strokeRows.map((r) => ({ playerId: r.playerId, strokes: r.strokes }))
           : parsed.matchRows.map((r) => ({
               aId: r.aId,

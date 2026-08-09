@@ -69,6 +69,10 @@ export function GroupingControls({
   const [pending, startTransition] = useTransition();
   /** Number of scored matches a regenerate would destroy, once refused. */
   const [confirmScored, setConfirmScored] = useState<number | null>(null);
+  /** A refusal from the action. Shown rather than swallowed — the action used
+   *  to rewrite an unrecognised rule to "balanced" and return ok, which is how
+   *  a draw could come back under a rule nobody picked. */
+  const [error, setError] = useState("");
 
   const config = { mode, value: value || undefined };
   const flightCount = flightCountFor(players.length, config);
@@ -139,10 +143,12 @@ export function GroupingControls({
             title={locked ? "Configuration is locked. Unlock the tournament to regenerate flights." : undefined}
             onClick={() =>
               startTransition(async () => {
+                setError("");
                 const res = await regenGroups(rule, mode, value);
                 // Refused because rebuilding would throw away real results —
                 // surface what's at stake instead of failing silently.
                 if (res.needsConfirm) setConfirmScored(res.scoredMatches ?? 0);
+                else if (!res.ok) setError(res.error ?? "Couldn't generate flights.");
               })
             }
           >
@@ -150,6 +156,12 @@ export function GroupingControls({
           </button>
         </div>
       </div>
+
+      {error && (
+        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger, #e0665a)" }}>
+          <i className="ph ph-warning-circle" /> {error}
+        </p>
+      )}
 
       {confirmScored !== null && (
         <div
@@ -180,8 +192,9 @@ export function GroupingControls({
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {
-                  await regenGroups(rule, mode, value, true);
+                  const res = await regenGroups(rule, mode, value, true);
                   setConfirmScored(null);
+                  if (!res.ok) setError(res.error ?? "Couldn't generate flights.");
                 })
               }
             >
@@ -199,7 +212,7 @@ export function GroupingControls({
           <span className="card-kicker">Preview</span>
           <span className="text-muted" style={{ fontSize: 12 }}>What “Generate flights” will produce</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
           {preview.map((g, i) => {
             const flightPlayers = g.playerIds.map((id) => byId.get(id)!).filter(Boolean);
             return (

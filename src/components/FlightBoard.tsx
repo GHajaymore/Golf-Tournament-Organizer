@@ -104,9 +104,9 @@ export function FlightBoard({
             {confirming.scored} {confirming.scored === 1 ? "match has" : "matches have"} already been scored
           </span>
           <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
-            Flights decide who plays whom. Moving a player now doesn&apos;t erase those results, but it
-            does change the field they were played in — you may need to regenerate the schedule
-            afterwards.
+            Flights decide who plays whom, so this player is re-drawn against their new flight and any
+            result of theirs against the old one is discarded. Every other pairing in both flights keeps
+            its result.
           </p>
           <div style={{ display: "flex", gap: 8 }}>
             <button
@@ -180,7 +180,10 @@ export function FlightBoard({
         </div>
       )}
 
-      <div className="flight-board" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      {/* Wraps rather than insisting on four across: four fixed tracks could
+          not shrink below the widest player name, so on a narrow window the
+          fourth flight went past the right edge of the page. */}
+      <div className="flight-board" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
         {cards.map((g) => (
           <div
             key={g.id}

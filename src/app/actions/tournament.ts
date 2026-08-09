@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { regenerateGroupsAndSchedule, scoredMatchCount } from "@/lib/services/regroup";
+import { regenerateGroupsAndSchedule, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
 import { roundRobinStages, chainRoundStandings, scoringFrom, settingsOf, parseMatchTiebreakers } from "@/lib/services/tournament";
 import {
   canEnterScores,
@@ -19,9 +19,10 @@ import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { splitCsvLine, matchColumn } from "@/lib/csv";
-import { STAGE_DESCRIPTIONS, isStageType } from "@/lib/stage-types";
+import { STAGE_DESCRIPTIONS, isStageType, generatesPairings } from "@/lib/stage-types";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { survivors, isCutScope } from "@/lib/domain/cut";
+import { isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
 import {
   marginToHoles,
@@ -611,6 +612,11 @@ export async function movePlayerToGroup(
   }
 
   await prisma.player.update({ where: { id: playerId }, data: { groupId } });
+  // The flight decides who they play. Without this the move changed a foreign
+  // key and nothing else: the player kept a full card of matches against their
+  // old flight and had none against their new one, and the standings showed
+  // them under a flight they had never played anybody in.
+  await repairPlayerPairings(eventId, playerId);
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -624,6 +630,21 @@ export async function regenGroups(
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
 
+  // Refused, not quietly rewritten.
+  //
+  // These used to fall back to "balanced" and "auto" for anything they didn't
+  // recognise. The organizer pressed Generate flights with Manual selected,
+  // the screen came back saying Balanced, and nothing anywhere said why — the
+  // exact shape of the standing "manual flights reset to Auto" report. A
+  // silent coercion here can only ever turn a caller's mistake into a
+  // tournament drawn under a rule nobody chose, so it says so instead.
+  if (!FORMATION_RULES.includes(rule)) {
+    return { ok: false, error: `"${rule}" isn't a formation rule this tournament can use.` };
+  }
+  if (!FLIGHT_MODES.includes(mode)) {
+    return { ok: false, error: `"${mode}" isn't a flight-size setting this tournament can use.` };
+  }
+
   const scored = await scoredMatchCount(eventId);
   if (scored > 0 && !force) {
     return { ok: false, needsConfirm: true, scoredMatches: scored };
@@ -632,8 +653,8 @@ export async function regenGroups(
   await prisma.event.update({
     where: { id: eventId },
     data: {
-      formationRule: FORMATION_RULES.includes(rule) ? rule : "balanced",
-      flightMode: FLIGHT_MODES.includes(mode) ? mode : "auto",
+      formationRule: rule,
+      flightMode: mode,
       flightValue: Math.max(0, Math.round(value)),
     },
   });
@@ -889,6 +910,12 @@ export async function addStage(type: string): Promise<string | undefined> {
       description: STAGE_DESCRIPTIONS[stageType] ?? "",
       deadline: "",
       scoringBasis: "gross",
+      // The schema's default is Match Play, which is a contradiction on a
+      // round the scheduler draws no opponents for: "Add stroke play round"
+      // produced a medal round labelled Match Play, and score entry opened it
+      // in match mode with nothing to enter. The format is still the
+      // organizer's to change — this is only a default that isn't nonsense.
+      format: generatesPairings(stageType) ? "Match Play" : "Stroke Play",
     },
   });
   refresh();
@@ -2079,7 +2106,12 @@ export async function importScores(
   let written = 0;
 
   for (const row of rows) {
-    if (shape === "strokes") {
+    // Both stroke shapes, gross and net: they arrive as the same per-player
+    // card and differ only in whether the shots get added back below. Testing
+    // for the literal "strokes" here sent every net row down the match branch,
+    // where it had no pairing to match and was rejected as "a match this round
+    // doesn't have" — with the conversion above it built and never used.
+    if (isStrokeShape(shape as ScoreImportShape)) {
       if (!row.playerId || !field.has(row.playerId)) {
         problems.push("A row named someone who isn't in this tournament's field.");
         continue;

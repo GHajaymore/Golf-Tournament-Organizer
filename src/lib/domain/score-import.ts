@@ -184,6 +184,22 @@ export function isNetShape(shape: ScoreImportShape): boolean {
   return shape === "net-strokes";
 }
 
+/**
+ * Whether a shape carries per-player cards rather than per-match results.
+ *
+ * The one thing every caller has to branch on, and the reason it is a function
+ * rather than `shape === "strokes"` written out at each site: written out, the
+ * net shape fell through the gap. Both the importer's row builder and the
+ * server action tested for the literal "strokes", so a net file parsed
+ * cleanly, reported "1 of 1 row ready to import", and then sent zero rows and
+ * answered "Nothing to import." Every line of the net-to-gross conversion
+ * behind it was unreachable, and 1016 green tests said nothing, because the
+ * only thing that ever called `isNetShape` was the test file.
+ */
+export function isStrokeShape(shape: ScoreImportShape): boolean {
+  return shape === "strokes" || shape === "net-strokes";
+}
+
 export interface ImportProblem {
   /** 1-based row in the file as the person sees it, header included. */
   row: number;

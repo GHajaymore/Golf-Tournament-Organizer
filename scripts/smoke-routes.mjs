@@ -58,6 +58,17 @@ async function main() {
   const made = { orgId: null, eventId: null, userId: null, token: null };
 
   try {
+    // ── Clear anything a previous run left behind ───────────────────────
+    // The cleanup below runs in a `finally`, which a killed process never
+    // reaches. What it leaves is a user holding this script's fixed email, so
+    // the next run dies on a unique-constraint violation before it has tested
+    // anything — a crash once means a red build every time after. Everything
+    // this script creates is named for the mark, so clearing by the mark can
+    // only ever delete its own fixtures.
+    await prisma.event.deleteMany({ where: { name: { startsWith: MARK } } });
+    await prisma.user.deleteMany({ where: { email: { startsWith: MARK } } });
+    await prisma.organization.deleteMany({ where: { name: { startsWith: MARK } } });
+
     // ── Seed ────────────────────────────────────────────────────────────
     // Enough tournament that the screens have something to render: a field,
     // a round, flights and a match. Screens that divide by a player count or

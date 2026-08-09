@@ -6,8 +6,10 @@ import {
   readHoleResult,
   importShapesFor,
   isNetShape,
+  isStrokeShape,
   templateCsv,
   IMPORT_SHAPES,
+  type ScoreImportShape,
 } from "../domain/score-import";
 
 /**
@@ -318,5 +320,42 @@ describe("net cards", () => {
   it("hands out a header its own parser accepts", () => {
     const r = parseScoreCsv(`${templateCsv("net-strokes")}\nAlex Vaughn,${new Array(18).fill(4).join(",")}`, "net-strokes", FIELD);
     expect(r.ready).toBe(1);
+  });
+
+  it("is a stroke shape, so it takes the per-player branch", () => {
+    // The bug this pins: both the importer and the server action branched on
+    // `shape === "strokes"`, so a net file parsed cleanly, said "1 of 1 row
+    // ready", sent zero rows, and answered "Nothing to import." Every row a
+    // net file produces lands in strokeRows — never matchRows — so anything
+    // deciding which list to read has to say yes to both stroke shapes.
+    expect(isStrokeShape("net-strokes")).toBe(true);
+    expect(isStrokeShape("strokes")).toBe(true);
+    expect(isStrokeShape("hole-results")).toBe(false);
+    expect(isStrokeShape("match-results")).toBe(false);
+
+    const r = parseScoreCsv(
+      `${templateCsv("net-strokes")}\nAlex Vaughn,${new Array(18).fill(4).join(",")}`,
+      "net-strokes",
+      FIELD,
+    );
+    expect(r.matchRows).toEqual([]);
+    expect(r.strokeRows).toHaveLength(1);
+  });
+
+  it("routes every offered shape to a list the parser actually fills", () => {
+    // Guards the pairing itself rather than one shape: a fifth shape added
+    // tomorrow fails here unless whoever adds it says which list it fills.
+    const row = (s: ScoreImportShape) =>
+      s === "match-results"
+        ? "Alex Vaughn,Sam Okafor,Alex Vaughn,3&2"
+        : s === "hole-results"
+          ? `Alex Vaughn,Sam Okafor,${new Array(18).fill("A").join(",")}`
+          : `Alex Vaughn,${new Array(18).fill(4).join(",")}`;
+    for (const shape of ["strokes", "net-strokes", "hole-results", "match-results"] as ScoreImportShape[]) {
+      const r = parseScoreCsv(`${templateCsv(shape)}\n${row(shape)}`, shape, FIELD);
+      expect(r.ready, shape).toBe(1);
+      const filled = isStrokeShape(shape) ? r.strokeRows : r.matchRows;
+      expect(filled, shape).toHaveLength(1);
+    }
   });
 });

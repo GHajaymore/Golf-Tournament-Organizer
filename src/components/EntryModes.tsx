@@ -5,6 +5,7 @@ import { ClearScores } from "./ClearScores";
 import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient";
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
 import { VoiceAsk } from "./VoiceAsk";
+import { entryModeFor } from "@/lib/formats";
 import type { VoiceContext } from "@/lib/domain/voice-query";
 import type { VenueCourse } from "./VenuePrompt";
 
@@ -13,6 +14,9 @@ export interface EntryRound {
   label: string;
   /** The round's format. Decides which ways a match may be written down. */
   format: string;
+  /** Whether the scheduler draws pairings for this round's type. False for a
+   *  medal round, which is entered as cards and never has matches. */
+  drawsPairings: boolean;
   matches: EntryMatch[];
   netMode: boolean;
   stroke: {
@@ -67,11 +71,28 @@ export function EntryModes({
   /** This club's saved courses, offered before anyone types a card by hand. */
   courseLibrary?: VenueCourse[];
 }) {
-  const [mode, setMode] = useState<"match" | "stroke">(defaultMode);
   const [importing, setImporting] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [roundIdx, setRoundIdx] = useState(activeIndex);
   const round = rounds[roundIdx] ?? rounds[0];
+
+  // Per round, not once for the screen.
+  //
+  // The mode was set from the active round at mount and then never revisited,
+  // so switching the dropdown to a medal round left match entry on screen —
+  // and match entry for a round the scheduler draws no pairings for says "No
+  // matches yet: generate flights", which is a dead end. The organizer's own
+  // choice still wins, but it wins for the round they made it on.
+  const [modeByRound, setModeByRound] = useState<Record<number, "match" | "stroke">>({});
+  const naturalMode: "match" | "stroke" = !round
+    ? defaultMode
+    : !round.drawsPairings
+      ? "stroke"
+      : entryModeFor(round.format) === "stroke"
+        ? "stroke"
+        : "match";
+  const mode = modeByRound[roundIdx] ?? naturalMode;
+  const setMode = (m: "match" | "stroke") => setModeByRound((prev) => ({ ...prev, [roundIdx]: m }));
 
   return (
     <>
