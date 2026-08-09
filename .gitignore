@@ -45,3 +45,6 @@ tsconfig.tsbuildinfo
 
 .vercel
 .env*
+
+# Throwaway QA scripts written during test passes — never part of the app.
+.qa-*.mjs
