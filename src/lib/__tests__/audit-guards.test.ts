@@ -381,7 +381,9 @@ describe("a player writes their own scores and nobody else's", () => {
       expect(body.slice(0, 400), fn).toMatch(/assertOwnMatch\(session, eventId, matchId\)/);
     }
     const card = src.slice(src.indexOf("export async function saveScorecard"));
-    expect(card.slice(0, 300)).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
+    // Window widened past 300 when the two event-scope assertions landed above
+    // this one — whose-card-is-it now runs after which-tournament-is-it.
+    expect(card.slice(0, 900)).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
   });
 
   it("links the session to its Player rows by registration email", () => {
@@ -503,5 +505,63 @@ describe("net imports are converted where the real handicap lives", () => {
 
   it("refuses rather than spreading shots evenly with no stroke index", () => {
     expect(fn).toMatch(/no stroke index, so net scores can't be converted/);
+  });
+});
+
+describe("a card is written to the round and the player it names, not to an id", () => {
+  const src = read("tournament.ts");
+
+  it("saveScorecard proves both halves of its composite key", () => {
+    // The upsert is keyed on (stageId, playerId). Neither id was checked
+    // against the caller's tournament: assertOwnCard returns immediately for
+    // staff and, for a player, only vouches for the playerId — so a staff
+    // member of any event could post another club's stage and player and
+    // overwrite that tournament's card outright. The `eventId` in the upsert's
+    // `create` branch reads like scoping and is not; it decorates a new row
+    // and constrains nothing about which row the upsert lands on.
+    const fn = src.slice(src.indexOf("export async function saveScorecard"));
+    expect(fn.slice(0, 900)).toMatch(/assertEventStage\(eventId, stageId\)/);
+    expect(fn.slice(0, 900)).toMatch(/assertEventPlayer\(eventId, playerId\)/);
+    expect(fn.slice(0, 900)).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
+  });
+
+  it("both assertions narrow by eventId and refuse rather than fall through", () => {
+    const stage = src.slice(src.indexOf("async function assertEventStage"));
+    expect(stage.slice(0, 400)).toMatch(/stage\.findFirst\(\{ where: \{ id: stageId, eventId \}/);
+    expect(stage.slice(0, 400)).toMatch(/throw new Error/);
+    const player = src.slice(src.indexOf("async function assertEventPlayer"));
+    expect(player.slice(0, 400)).toMatch(/player\.findFirst\(\{ where: \{ id: playerId, eventId \}/);
+    expect(player.slice(0, 400)).toMatch(/throw new Error/);
+  });
+});
+
+describe("naming a venue can only reach this club's own courses", () => {
+  const src = readFileSync(join(process.cwd(), "src/app/actions/courses.ts"), "utf8");
+  const fn = src.slice(src.indexOf("export async function nameMatchVenue"));
+
+  it("checks the course id it was handed against the organization", () => {
+    // Whoever may enter a score may call this, and the courseId arrives inside
+    // an object — so it never appeared in the parameter list the structural
+    // IDOR sweep reads, and went unchecked. Unscoped it did three things at
+    // once with a stranger's course: scored the match against that club's par
+    // and stroke index, added the course to this tournament's venues, and
+    // created a Tee row on a course this organization does not own.
+    expect(fn).toMatch(/course\.findFirst\(\{[\s\S]{0,200}organizationId: event\.organizationId/);
+    expect(fn).toMatch(/isn't in this club's library/);
+  });
+
+  it("runs that check before the tee and venue writes it protects", () => {
+    const check = fn.indexOf("organizationId: event.organizationId");
+    expect(check).toBeGreaterThan(-1);
+    for (const write of ["tee.create", "eventCourse.upsert", "match.update"]) {
+      expect(fn.indexOf(write), write).toBeGreaterThan(check);
+    }
+  });
+
+  it("still lets a genuinely new course be created for the match", () => {
+    // The scope check must not turn "we played somewhere new" into an error —
+    // that path passes no courseId at all and is the reason this action exists.
+    expect(fn).toMatch(/if \(!courseId\) \{/);
+    expect(fn).toMatch(/course\.create/);
   });
 });

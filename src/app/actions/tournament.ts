@@ -138,6 +138,25 @@ async function assertOwnCard(session: Session, eventId: string, playerId: string
   if (!own.has(playerId)) throw new Error("You can only enter your own scorecard.");
 }
 
+/**
+ * The row this id names must belong to the tournament the caller is in.
+ *
+ * `assertOwnMatch`/`assertOwnCard` answer "whose score is this" and only bind
+ * players. They say nothing about which *tournament* an id came from, so on
+ * their own they leave a write keyed on a caller-supplied id pointing wherever
+ * the caller likes. These two close that half: an id is an attacker-chosen row
+ * until something narrows it to this event.
+ */
+async function assertEventStage(eventId: string, stageId: string): Promise<void> {
+  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true } });
+  if (!stage) throw new Error("That round isn't in this tournament.");
+}
+
+async function assertEventPlayer(eventId: string, playerId: string): Promise<void> {
+  const player = await prisma.player.findFirst({ where: { id: playerId, eventId }, select: { id: true } });
+  if (!player) throw new Error("That player isn't in this tournament.");
+}
+
 /** Block structural changes once the tournament is live/completed, unless unlocked. */
 async function assertUnlocked(eventId: string): Promise<void> {
   const e = await prisma.event.findUnique({
@@ -1004,6 +1023,14 @@ export async function saveCustomCourse(
 
 export async function saveScorecard(stageId: string, playerId: string, strokes: (number | null)[]) {
   const { eventId, session, settings } = await requireScoreEntry();
+  // Both ids, not just the player's. The upsert below is keyed on
+  // (stageId, playerId) — the `eventId` in its `create` branch decorates a new
+  // row and constrains nothing — so an unscoped pair let a staff member of any
+  // tournament overwrite another club's card outright. assertOwnCard doesn't
+  // catch it: it returns immediately for staff, and for a player it only
+  // checks the playerId, leaving the round free to point anywhere.
+  await assertEventStage(eventId, stageId);
+  await assertEventPlayer(eventId, playerId);
   await assertOwnCard(session, eventId, playerId);
   if (session.role === "player" && !canPlayerSavePartial(settings)) {
     const filled = strokes.filter((s) => typeof s === "number" && s > 0).length;

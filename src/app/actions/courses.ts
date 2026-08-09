@@ -564,6 +564,23 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
 
   let courseId = input.courseId ?? "";
 
+  // A course id off the wire is an arbitrary row until this narrows it. The
+  // prompt only ever offers this club's library, but that is a fact about the
+  // component, not about the endpoint — and unscoped this did three things at
+  // once with another organization's course: pinned the match to it (so the
+  // round scored against a stranger's par and stroke index), added it to this
+  // tournament's venue list, and — via the tee block below — wrote a Tee row
+  // onto a course this club does not own. Scoped to the organization rather
+  // than to `eventCourse`, because adding a venue to the event is precisely
+  // what this action is for; the club boundary is the one that matters.
+  if (courseId) {
+    const owned = await prisma.course.findFirst({
+      where: { id: courseId, organizationId: event.organizationId },
+      select: { id: true },
+    });
+    if (!owned) return { ok: false, error: "That course isn't in this club's library." };
+  }
+
   if (!courseId) {
     const c = input.newCourse;
     if (!c || !c.name.trim()) return { ok: false, error: "Give the course a name." };
