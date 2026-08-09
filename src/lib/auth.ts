@@ -12,7 +12,30 @@ import { accessibleEvents, effectiveAccess } from "./services/access";
 const COOKIE = "ng_session";
 const PREVIEW_COOKIE = "ng_preview_player";
 const ACTIVE_COOKIE = "ng_active_event";
-const SECRET = process.env.AUTH_SECRET ?? "dev-secret";
+const DEV_SECRET = "dev-secret";
+
+/**
+ * The cookie-signing key.
+ *
+ * Resolved per call rather than at module load, and deliberately not a
+ * constant: `next build` runs with NODE_ENV=production and no AUTH_SECRET, so
+ * a module-level throw would break the build rather than the deploy.
+ *
+ * A missing AUTH_SECRET in production used to fall through to a literal that
+ * is published in this repository. Anyone reading it could mint an `ng_session`
+ * for any user id and an `ng_play` for any player — the whole console, from a
+ * public source file. Refusing to sign is the only safe answer: a deploy that
+ * is missing its key must fail loudly at the first request, not run on a key
+ * the internet already has.
+ */
+function secret(): string {
+  const configured = process.env.AUTH_SECRET;
+  if (configured) return configured;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("AUTH_SECRET is not set. Refusing to sign cookies with the development fallback.");
+  }
+  return DEV_SECRET;
+}
 
 // Session cookies must never travel over plain HTTP in production. Local dev
 // runs on http://localhost, where `secure` cookies are rejected, so the flag
@@ -31,7 +54,7 @@ const COOKIE_OPTS = {
 /** Exported so the Round Code play session can sign its own cookie with the
  *  same secret and scheme, rather than growing a second implementation. */
 export function sign(value: string): string {
-  const mac = createHmac("sha256", SECRET).update(value).digest("base64url");
+  const mac = createHmac("sha256", secret()).update(value).digest("base64url");
   return `${value}.${mac}`;
 }
 
@@ -41,7 +64,7 @@ export function verify(signed: string | undefined): string | null {
   if (idx < 0) return null;
   const value = signed.slice(0, idx);
   const mac = signed.slice(idx + 1);
-  const expected = createHmac("sha256", SECRET).update(value).digest("base64url");
+  const expected = createHmac("sha256", secret()).update(value).digest("base64url");
   const a = Buffer.from(mac);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
