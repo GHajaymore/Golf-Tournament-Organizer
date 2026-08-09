@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
 import { enterTournament, signOutAction } from "@/app/actions/auth";
@@ -141,6 +142,36 @@ export default async function ChooseTournamentPage({
             first tournament exists, instead of staying open from its initial
             "no tournaments yet" state. */}
         <CreateFirstTournament key={accounts.length} first={accounts.length === 0} />
+
+        {/* A player given a round code but never added by email lands here with
+            nothing to enter — accessibleEvents only knows people an organizer
+            put on the roster. This is their way in: the existing /play code
+            entry, not a new sign-up path. Shown only in the empty state, where
+            "I was sent a code" is the likeliest reason someone sees no events. */}
+        {accounts.length === 0 && (
+          <div
+            style={{
+              marginTop: 18,
+              paddingTop: 18,
+              borderTop: "1px solid var(--color-divider)",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Given a round code?</div>
+              <div className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>
+                Playing today but not on the list yet — enter the code from your organizer.
+              </div>
+            </div>
+            <Link href="/play" className="btn btn-secondary" style={{ flex: "none" }}>
+              <i className="ph ph-flag" /> Join with a round code
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
