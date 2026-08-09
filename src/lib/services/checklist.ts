@@ -1,4 +1,22 @@
 import type { ChecklistItem } from "@/components/SetupChecklist";
+import { DEFAULT_THEME } from "@/lib/themes";
+
+/**
+ * Whether a club has put its own stamp on the app yet.
+ *
+ * "Colours" means a real choice, not the stock default: a fresh organization
+ * carries themeKey = DEFAULT_THEME and an empty themeHex, and that must read as
+ * "not set" so the branding nudge still appears. A custom hex or any non-default
+ * preset counts as set.
+ */
+export function clubBrandingState(
+  org: { logoUrl?: string | null; themeKey?: string | null; themeHex?: string | null } | null | undefined,
+): { hasLogo: boolean; hasColours: boolean } {
+  return {
+    hasLogo: !!org?.logoUrl,
+    hasColours: !!org?.themeHex || (!!org?.themeKey && org.themeKey !== DEFAULT_THEME),
+  };
+}
 
 /**
  * What still has to happen before a tournament can be played.
@@ -18,11 +36,15 @@ export interface ChecklistState {
   groups: unknown[];
   matches: unknown[];
   accounts: unknown[];
+  /** The owning organization's branding, when the caller has loaded it. Drives
+   *  the optional "add your logo & colours" nudge. Absent means "don't ask" —
+   *  so existing callers that pass none simply never show the item. */
+  branding?: { hasLogo: boolean; hasColours: boolean };
 }
 
 export function setupChecklist(state: ChecklistState): ChecklistItem[] {
   const hasSchedule = state.matches.length > 0;
-  return [
+  const items: ChecklistItem[] = [
     {
       label: "Registration & field",
       detail:
@@ -61,6 +83,23 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
       optional: true,
     },
   ];
+
+  // A nudge, never a gate: only offered while the club has set neither a logo
+  // nor colours, and marked optional like "Access & staff" so it never blocks
+  // a tournament from being played. Deep-links to Club settings, where both
+  // live. Once either is set it drops off — this is a first-run prompt, not a
+  // permanent line item.
+  if (state.branding && !state.branding.hasLogo && !state.branding.hasColours) {
+    items.push({
+      label: "Add your club's logo & colours",
+      detail: "Put your club's badge and colours on the leaderboard and player screens.",
+      done: false,
+      href: "/organization",
+      optional: true,
+    });
+  }
+
+  return items;
 }
 
 /**

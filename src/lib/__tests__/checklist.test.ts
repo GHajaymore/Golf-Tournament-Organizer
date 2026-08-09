@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { setupChecklist, isUnstarted, type ChecklistState } from "../services/checklist";
+import { setupChecklist, isUnstarted, clubBrandingState, type ChecklistState } from "../services/checklist";
 
 /**
  * The setup checklist, and the question it answers on the dashboard: is this
@@ -91,5 +91,61 @@ describe("what the checklist says", () => {
       "/grouping",
       "/access",
     ]);
+  });
+});
+
+describe("the branding nudge", () => {
+  it("is absent when the caller passes no branding — existing callers unchanged", () => {
+    expect(setupChecklist(empty).some((i) => i.href === "/organization")).toBe(false);
+  });
+
+  it("appears, optional, only while the club has set neither logo nor colours", () => {
+    const items = setupChecklist({ ...empty, branding: { hasLogo: false, hasColours: false } });
+    const brand = items.find((i) => i.href === "/organization");
+    expect(brand).toBeDefined();
+    expect(brand?.optional).toBe(true);
+    expect(brand?.done).toBe(false);
+    expect(brand?.label).toContain("logo");
+  });
+
+  it("drops off once a logo or colours are set", () => {
+    expect(
+      setupChecklist({ ...empty, branding: { hasLogo: true, hasColours: false } }).some((i) => i.href === "/organization"),
+    ).toBe(false);
+    expect(
+      setupChecklist({ ...empty, branding: { hasLogo: false, hasColours: true } }).some((i) => i.href === "/organization"),
+    ).toBe(false);
+  });
+
+  it("never blocks: it is the last item and the required steps come first", () => {
+    const items = setupChecklist({ ...empty, branding: { hasLogo: false, hasColours: false } });
+    // The four setup steps still lead; the nudge is appended after them.
+    expect(items[items.length - 1].href).toBe("/organization");
+    expect(items.slice(0, 4).map((i) => i.href)).toEqual([
+      "/registration",
+      "/stages",
+      "/grouping",
+      "/access",
+    ]);
+  });
+});
+
+describe("clubBrandingState", () => {
+  it("treats a fresh organization (default preset, no hex, no logo) as unbranded", () => {
+    // A new org carries themeKey = the default preset and an empty hex.
+    expect(clubBrandingState({ logoUrl: "", themeKey: "sunset", themeHex: "" })).toEqual({
+      hasLogo: false,
+      hasColours: false,
+    });
+  });
+
+  it("counts a logo, a custom hex, or a non-default preset as set", () => {
+    expect(clubBrandingState({ logoUrl: "/x.png", themeKey: "sunset", themeHex: "" }).hasLogo).toBe(true);
+    expect(clubBrandingState({ logoUrl: "", themeKey: "sunset", themeHex: "#0a5" }).hasColours).toBe(true);
+    expect(clubBrandingState({ logoUrl: "", themeKey: "ocean", themeHex: "" }).hasColours).toBe(true);
+  });
+
+  it("is unbranded for a missing organization", () => {
+    expect(clubBrandingState(null)).toEqual({ hasLogo: false, hasColours: false });
   });
 });

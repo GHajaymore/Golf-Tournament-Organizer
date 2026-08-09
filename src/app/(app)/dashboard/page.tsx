@@ -16,7 +16,7 @@ import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-s
 import { navForRole } from "@/lib/nav";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
-import { setupChecklist, isUnstarted } from "@/lib/services/checklist";
+import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
 
 /**
  * Shortcuts into the sidebar, with the dashboard's own shorter labels.
@@ -114,7 +114,18 @@ export default async function DashboardPage() {
   // true but useless. Someone who just created a tournament lands here, so
   // this is the one place the next step has to be spelled out.
   const unstarted = isUnstarted(state) && isStaff;
-  const checklist = unstarted ? setupChecklist(state) : [];
+  // The club's branding, loaded only for the first-run checklist, so it can
+  // nudge (never gate) an organizer to add a logo and colours before they've
+  // set either.
+  const brandingOrg = unstarted
+    ? await prisma.organization.findUnique({
+        where: { id: event.organizationId },
+        select: { logoUrl: true, themeKey: true, themeHex: true },
+      })
+    : null;
+  const checklist = unstarted
+    ? setupChecklist({ ...state, branding: clubBrandingState(brandingOrg) })
+    : [];
 
   const rows = standingRows(state).slice(0, 8);
   const advancingIds = state.advancingIds;

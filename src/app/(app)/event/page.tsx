@@ -11,7 +11,7 @@ import { EventSetupClient } from "@/components/EventSetupClient";
 import { EventSwitcher } from "@/components/EventSwitcher";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { SetupChecklist } from "@/components/SetupChecklist";
-import { setupChecklist } from "@/lib/services/checklist";
+import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
 
 
 export default async function EventPage() {
@@ -26,7 +26,7 @@ export default async function EventPage() {
   const courses = await clubCourses(e.organizationId, e.id);
   const org = await prisma.organization.findUnique({
     where: { id: e.organizationId },
-    select: { defaultCourseId: true },
+    select: { defaultCourseId: true, logoUrl: true, themeKey: true, themeHex: true },
   });
   const homeCourseId = org?.defaultCourseId ?? null;
 
@@ -60,7 +60,7 @@ export default async function EventPage() {
     isOrganizer: accessible.get(ev.id) === "admin",
   }));
 
-  const checklist = setupChecklist(state);
+  const checklist = setupChecklist({ ...state, branding: clubBrandingState(org) });
 
   return (
     <>
