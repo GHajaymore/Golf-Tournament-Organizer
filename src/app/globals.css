@@ -1,4 +1,4 @@
-@import "./nocturne.css";
+@import "./design-system.css";
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -11,8 +11,8 @@
 
    NOTE: doubled to `:root:root` deliberately — Next.js's CSS chunk bundler
    does not preserve `@import`-first cascade order (the imported
-   nocturne.css rules land AFTER this file's own rules in the compiled
-   stylesheet), so a plain `:root` block here loses to nocturne.css's
+   design-system.css rules land AFTER this file's own rules in the compiled
+   stylesheet), so a plain `:root` block here loses to design-system.css's
    tokens despite appearing later in source. The doubled selector raises
    specificity so this override wins regardless of bundler ordering.
    ────────────────────────────────────────────────────────────────────────── */
@@ -132,7 +132,7 @@ a.card:active, button.card:active, .card-hover:active {
   line-height: 1;
 }
 
-/* App-shell layout on top of the Nocturne design system. */
+/* App-shell layout on top of the design system. */
 html {
   scroll-behavior: smooth;
   /* Tells the browser to render native form-control chrome (the date-input

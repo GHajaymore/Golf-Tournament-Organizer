@@ -8,22 +8,22 @@ A console for running a multi-stage golf event end to end: registration →
 flights → round-robin/stroke rounds → qualification → brackets → live standings.
 
 Built with **Next.js (App Router) + TypeScript**, **Prisma + SQLite**, a pure
-(dependency-free, unit-tested) **tournament engine**, and the **Nocturne** design
-system ported verbatim from the handoff.
+(dependency-free, unit-tested) **tournament engine**, and the **design system**
+(`src/app/design-system.css`) ported verbatim from the handoff.
 
 ## Quick start
 
 ```bash
 npm install
 npm run db:push      # create the SQLite schema
-npm run db:seed      # load the Nocturne Cup pilot (32 players, 8 groups)
+npm run db:seed      # load the Demo Cup pilot (32 players, 8 groups)
 npm run dev          # http://localhost:3000
 ```
 
 Sign-in is real email + password (`src/app/actions/auth.ts`), not a demo
 picker. From a fresh seed:
 
-- **alex@nocturnegolf.test** — organizer, pre-provisioned but with no password
+- **alex@demogolf.test** — organizer, pre-provisioned but with no password
   set yet, so the landing page will walk you through the "claim your account
   with a password" flow the first time.
 - Anyone with no existing account anywhere can self-serve **create a brand
@@ -46,7 +46,7 @@ sidebar, and switch between every tournament their email has access to from
 | `npm test` | Run the tournament-engine unit tests (Vitest) |
 | `npm run typecheck` | `tsc --noEmit` across the app |
 | `npm run db:push` | Push the Prisma schema to the database |
-| `npm run db:seed` | Seed the Nocturne Cup pilot data |
+| `npm run db:seed` | Seed the Demo Cup pilot data |
 | `npm run db:reset` | Reset + reseed |
 | `npm run db:studio` | Open Prisma Studio |
 
@@ -74,7 +74,7 @@ src/
 prisma/
   schema.prisma       Data model (Event, Account, User, Player, Group, Stage, Match,
                        Scorecard, MatchScorecard, PasswordResetToken, …)
-  seed.ts             Nocturne Cup seed
+  seed.ts             Demo Cup seed
 ```
 
 **Standings are always derived**, never stored: every screen recomputes from the
@@ -134,3 +134,7 @@ events; `/choose` lists every event a signed-in email has access to.
 
 See [`design_handoff_golf_tournament_console/README.md`](./design_handoff_golf_tournament_console/README.md)
 for the full domain spec this build implements.
+
+---
+
+An AJAI Labs creation.

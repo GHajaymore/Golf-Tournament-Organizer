@@ -1,5 +1,5 @@
 /**
- * Seed the Nocturne Cup pilot: 32 players, 8 snake-drafted groups, a four-stage
+ * Seed the Demo Cup pilot: 32 players, 8 snake-drafted groups, a four-stage
  * sequence, and a round-robin match pool that is mostly played so the dashboard
  * and leaderboard show live standings. Uses the real domain engine for grouping
  * and scheduling so the seed matches production behavior.
@@ -40,18 +40,18 @@ function seededResult(
 }
 
 async function main() {
-  console.log("Resetting Nocturne Cup seed data…");
+  console.log("Resetting Demo Cup seed data…");
   // Clean any prior seed of this event (cascade handles children).
-  await prisma.event.deleteMany({ where: { name: "Nocturne Cup" } });
+  await prisma.event.deleteMany({ where: { name: "Demo Cup" } });
 
   // Every tournament belongs to an organization (the billing tenant), so the
   // seed creates one to own this event.
   const org = await prisma.organization.upsert({
-    where: { id: "seed-org-nocturne" },
+    where: { id: "seed-org-demo" },
     update: {},
     create: {
-      id: "seed-org-nocturne",
-      name: "Nocturne Golf Club",
+      id: "seed-org-demo",
+      name: "Demo Golf Club",
       kind: "club",
       subscription: { create: { plan: "free", status: "active" } },
     },
@@ -60,7 +60,7 @@ async function main() {
   const event = await prisma.event.create({
     data: {
       organizationId: org.id,
-      name: "Nocturne Cup",
+      name: "Demo Cup",
       dates: "May 14–16, 2026",
       format: "match",
       course: "Ridgeline National",
@@ -73,21 +73,21 @@ async function main() {
       formationRule: "balanced",
       qualifyPerGroup: 2,
       inviteMessage:
-        "You're invited to the Nocturne Cup — May 14–16, 2026 at Ridgeline National, Aspen Falls. " +
+        "You're invited to the Demo Cup — May 14–16, 2026 at Ridgeline National, Aspen Falls. " +
         "Match-play, round-robin groups into brackets. 32 spots, reply to claim yours.",
       // Fixed rather than random so reseeding is deterministic; real
       // tournaments get one from generateShareToken().
-      shareToken: "SEEDNOCTURNECUPSHARETOKEN",
+      shareToken: "SEEDDEMOCUPSHARETOKEN",
     },
   });
 
   // Accounts (roles). Alex Rourke is the head organizer.
   await prisma.account.createMany({
     data: [
-      { eventId: event.id, name: "Alex Rourke", email: "alex@nocturnegolf.test", role: "admin" },
-      { eventId: event.id, name: "Marcus Webb", email: "marcus@nocturnegolf.test", role: "player" },
-      { eventId: event.id, name: "Priya Nair", email: "priya@nocturnegolf.test", role: "player" },
-      { eventId: event.id, name: "Jordan Blake", email: "jordan@nocturnegolf.test", role: "admin" },
+      { eventId: event.id, name: "Alex Rourke", email: "alex@demogolf.test", role: "admin" },
+      { eventId: event.id, name: "Marcus Webb", email: "marcus@demogolf.test", role: "player" },
+      { eventId: event.id, name: "Priya Nair", email: "priya@demogolf.test", role: "player" },
+      { eventId: event.id, name: "Jordan Blake", email: "jordan@demogolf.test", role: "admin" },
     ],
   });
 

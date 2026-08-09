@@ -86,7 +86,7 @@ const ENTRY_MODES: Array<{ key: "holes" | "result" | "handicap"; domain: MatchEn
   blurb: MATCH_ENTRY_MODES.find((d) => d.key === m.domain)?.blurb ?? "",
 }));
 
-/** Where .entry-grid in nocturne.css collapses to a single column. Kept in
+/** Where .entry-grid in design-system.css collapses to a single column. Kept in
  *  both places because CSS cannot tell JavaScript its breakpoints; if one
  *  moves, the other has to move with it. */
 const ENTRY_STACK_WIDTH = 900;
@@ -306,7 +306,7 @@ export function ScoreEntryClient({
   // Whenever the card is stacked under the list rather than beside it, jump to
   // it — otherwise picking a match silently changes something off-screen.
   //
-  // 900px is the breakpoint in nocturne.css where .entry-grid drops to one
+  // 900px is the breakpoint in design-system.css where .entry-grid drops to one
   // column, and the two have to agree. They didn't: this said 820, so between
   // 821 and 900 the layout stacked but nothing scrolled, and the screen looked
   // completely unresponsive to a click.

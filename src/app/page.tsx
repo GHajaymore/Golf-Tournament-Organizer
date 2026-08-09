@@ -706,6 +706,10 @@ function Footer() {
       <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
         <Logo size={13} style={{ color: "var(--color-accent)" }} />
         &copy; {new Date().getFullYear()} TourneyHQ
+        {/* Who made it, on the public page only. Deliberately not in the
+            console: the sidebar credit line is the club's white-label slot,
+            and a second brand beside it defeats the point of that slot. */}
+        <span style={{ opacity: 0.6 }}>&middot; An AJAI Labs creation</span>
       </div>
       {/* Stated on the way in rather than discovered on the way out. A club
           that loses its member-guest results the morning after was not

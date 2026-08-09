@@ -20,7 +20,7 @@ import { ScoreImport } from "@/components/ScoreImport";
  * invisible. All three were mine, and all three were obvious the moment
  * anything rendered.
  *
- * It renders the real classes from nocturne.css and globals.css, themed with
+ * It renders the real classes from design-system.css and globals.css, themed with
  * the real `themeCss()` output, so it cannot quietly become a picture of
  * something the app doesn't look like.
  */
@@ -106,7 +106,7 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
         <div className="page-kicker">{appearance} ground</div>
         <h1 className="page-title" style={{ margin: "2px 0 0" }}>Spring Medal</h1>
         <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
-          Real classes from nocturne.css and globals.css, themed by the same themeCss() the app
+          Real classes from design-system.css and globals.css, themed by the same themeCss() the app
           renders with.
         </p>
       </div>
