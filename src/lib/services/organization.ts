@@ -7,6 +7,7 @@ import {
 } from "../themes";
 import { cleanSettings } from "../tournament-settings";
 import { generateShareToken } from "../codes";
+import { newOrganizationName } from "../org-naming";
 
 /**
  * Resolve the organization a new tournament should belong to for this person,
@@ -19,9 +20,18 @@ import { generateShareToken } from "../codes";
  * Preference order:
  *   1. an organization they already own or administer (their club, if any)
  *   2. their personal organization
- *   3. a newly created personal organization
+ *   3. a newly created organization, named `orgName` when the organizer gave
+ *      one, else after the person (the behaviour before that field existed)
+ *
+ * `orgName` only ever names a *new* organization. An organizer who already
+ * owns a club falls into case 1 and keeps that club untouched — typing a
+ * different name on a later event must never rename it.
  */
-export async function organizationForNewEvent(email: string, displayName: string): Promise<string> {
+export async function organizationForNewEvent(
+  email: string,
+  displayName: string,
+  orgName?: string,
+): Promise<string> {
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (user) {
@@ -37,7 +47,7 @@ export async function organizationForNewEvent(email: string, displayName: string
 
   const org = await prisma.organization.create({
     data: {
-      name: displayName.trim() || email,
+      name: newOrganizationName(orgName, displayName, email),
       kind: "personal",
       subscription: { create: { plan: DEFAULT_PLAN, status: "active" } },
       ...(user ? { members: { create: { userId: user.id, role: "owner" } } } : {}),

@@ -1566,6 +1566,7 @@ export async function createEvent(
   name: string,
   templateKey?: string,
   shapeKey?: string,
+  orgName?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
@@ -1577,8 +1578,10 @@ export async function createEvent(
   const template = templateKey ? templateFor(templateKey) : null;
   const templated = template && template.key !== DEFAULT_TEMPLATE_KEY ? template : null;
   // Every tournament belongs to a billing tenant; this creates the organizer's
-  // personal organization on their first event.
-  const organizationId = await organizationForNewEvent(session.email, session.name);
+  // organization on their first event, named after their club/society/company
+  // when they said who runs it (else after them). An organizer who already owns
+  // one keeps it — orgName never renames an existing organization.
+  const organizationId = await organizationForNewEvent(session.email, session.name, orgName);
   // Plan limits bite only once billing is connected — see services/limits.ts.
   const refusal = await refusalFor(organizationId, "activeEvents");
   if (refusal) return { ok: false, error: refusal };

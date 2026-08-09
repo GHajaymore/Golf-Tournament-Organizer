@@ -21,6 +21,7 @@ export function CreateFirstTournament({
   const retention = retentionNotice(plan);
   const planName = planFor(plan).name;
   const [name, setName] = useState("");
+  const [orgName, setOrgName] = useState("");
   const [open, setOpen] = useState(first);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE_KEY);
   const [shape, setShape] = useState<TournamentShape>(DEFAULT_SHAPE);
@@ -29,7 +30,7 @@ export function CreateFirstTournament({
   const submit = () => {
     if (!name.trim()) return;
     startTransition(async () => {
-      await createEvent(name, template, shape);
+      await createEvent(name, template, shape, orgName);
     });
   };
 
@@ -113,6 +114,24 @@ export function CreateFirstTournament({
           {templateFor(template).blurb} Every setting stays editable afterwards.
         </p>
       </div>
+      {/* Names the organization created for this organizer's first tournament,
+          so a club's events read under the club rather than under a person.
+          Only shown on the first tournament — once an organization exists it is
+          never renamed, so the field would do nothing on later events. */}
+      {first && (
+        <div className="field">
+          <label>Who&rsquo;s running this? <span className="text-muted" style={{ fontWeight: 400 }}>— club, society or company (optional)</span></label>
+          <input
+            className="input"
+            value={orgName}
+            onChange={(e) => setOrgName(e.target.value)}
+            placeholder="e.g. Cedar Dunes Golf Club"
+          />
+          <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+            Leave blank to run it under your own name. You can set this later in Club settings.
+          </p>
+        </div>
+      )}
       {/* Said before the tournament exists, not after it finishes. A club that
           loses its member-guest results the next morning was not warned
           enough, and burying this in a settings screen would be the same as
