@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   survivors,
   survivorCount,
+  cutAdvancesEveryone,
   describeCut,
   isCutScope,
   type CutCandidate,
@@ -140,6 +141,48 @@ describe("describing the cut before it happens", () => {
 
   it("gives the number for an overall percentage", () => {
     expect(describeCut(rule({ mode: "percent", percent: 25 }), 32, 4)).toContain("8 of 32");
+  });
+});
+
+describe("a cut that cuts nobody", () => {
+  // The default cut count is a fixed 16, so a club that enables a cut on a
+  // field of 16 or fewer advances everyone and reads "16 of 16 advance" — a
+  // cut line that does nothing. The number is deliberately left as-is; this is
+  // the flag that lets the screen say so.
+
+  it("flags an overall count cut as big as the field", () => {
+    expect(cutAdvancesEveryone(rule({ count: 16 }), 16)).toBe(true);
+    expect(cutAdvancesEveryone(rule({ count: 16 }), 15)).toBe(true); // clamped, still everyone
+  });
+
+  it("does not flag an overall cut that actually removes players", () => {
+    expect(cutAdvancesEveryone(rule({ count: 16 }), 32)).toBe(false);
+  });
+
+  it("flags a percentage of 100 or more, which keeps the whole field", () => {
+    expect(cutAdvancesEveryone(rule({ mode: "percent", percent: 100 }), 40)).toBe(true);
+    expect(cutAdvancesEveryone(rule({ mode: "percent", percent: 50 }), 40)).toBe(false);
+  });
+
+  it("measures a per-flight cut against the largest flight, not the whole field", () => {
+    // Overall the field is 24, so a top-16 count looks like a real cut — but
+    // per flight it is applied inside each flight, and no flight has 16, so
+    // every flight advances everyone.
+    const rule16 = rule({ scope: "perFlight", count: 16 });
+    expect(cutAdvancesEveryone(rule16, 24, [8, 8, 8])).toBe(true);
+    // A top-4 per-flight cut on flights of eight removes half of each.
+    expect(cutAdvancesEveryone(rule({ scope: "perFlight", count: 4 }), 24, [8, 8, 8])).toBe(false);
+  });
+
+  it("uses the biggest flight, so an uneven draw still counts as cutting", () => {
+    // Flights of 9 and 3: top-5 per flight advances all of the small flight
+    // but only five of the large one — it still cuts, so it is not a no-op.
+    expect(cutAdvancesEveryone(rule({ scope: "perFlight", count: 5 }), 12, [9, 3])).toBe(false);
+  });
+
+  it("never reports a no-op for an empty field", () => {
+    expect(cutAdvancesEveryone(rule({ count: 16 }), 0)).toBe(false);
+    expect(cutAdvancesEveryone(rule({ scope: "perFlight", count: 16 }), 0, [])).toBe(false);
   });
 });
 

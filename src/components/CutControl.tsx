@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { setStageCut, setStageCutScope } from "@/app/actions/tournament";
+import { cutAdvancesEveryone } from "@/lib/domain/cut";
 
 export function CutControl({
   formId,
@@ -71,6 +72,19 @@ export function CutControl({
   const survivors = perFlight
     ? Math.min(confirmedCount || bucketSurvivors * flights, bucketSurvivors * flights)
     : bucketSurvivors;
+
+  // A cut whose number is as large as the field it filters passes everyone —
+  // the organizer sees "16 of 16 advance" and has drawn a cut line that cuts
+  // nobody. The default count is a fixed 16, so this is easy to hit on a small
+  // field without noticing. For a per-flight cut the relevant size is the
+  // largest flight, which an even split makes `fieldPerBucket`.
+  const noOp =
+    on &&
+    cutAdvancesEveryone(
+      { scope: perFlight ? "perFlight" : "overall", mode: m === "percent" ? "percent" : "count", count: n, percent: pct },
+      confirmedCount,
+      perFlight ? [fieldPerBucket] : undefined,
+    );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -152,6 +166,30 @@ export function CutControl({
             {perFlight
               ? `${bucketSurvivors} from each of ${flights} flights — ${survivors} of ${confirmedCount} advance into ${roundLabel}.`
               : `${survivors} of ${confirmedCount} advance into ${roundLabel}.`}
+          </span>
+        </div>
+      )}
+      {noOp && (
+        // The cut is on but advances the whole field, so it does nothing. Said
+        // plainly here rather than left for the organizer to infer from an
+        // "N of N advance" line that reads like a working cut.
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 6,
+            fontSize: 12,
+            padding: "8px 10px",
+            borderRadius: 8,
+            background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
+          }}
+        >
+          <i className="ph ph-warning" style={{ marginTop: 1 }} />
+          <span>
+            This cut advances the whole {perFlight ? "flight" : "field"} — everyone gets through, so{" "}
+            {roundLabel} plays the same field with or without it. Lower the {m === "percent" ? "percentage" : "number"} to
+            cut anyone.
           </span>
         </div>
       )}

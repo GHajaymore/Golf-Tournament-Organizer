@@ -80,6 +80,38 @@ export function survivors(rankedInOrder: CutCandidate[], rule: CutRule): Set<str
   return out;
 }
 
+/**
+ * Would enabling this cut change who plays the next round?
+ *
+ * A cut set to pass at least as many players as the field it filters is a
+ * no-op: "top 16" of a 16-player flight advances all 16, and the round after
+ * it plays with exactly the field that would have played anyway. The default
+ * cut count is a fixed 16, so turning a cut *on* for a 16-player event quietly
+ * advances everyone — the organizer configures a cut line, reads "16 of 16
+ * advance", and nothing is actually cut. That is worth a warning wherever the
+ * cut is set or its result shown, because the screen otherwise looks like a
+ * working cut.
+ *
+ * Scope decides what "the field" is. An overall cut filters the whole entry,
+ * so the relevant size is the field. A per-flight cut filters each flight
+ * independently, so the relevant size is the largest flight — clear everyone
+ * in the biggest flight and every smaller flight is cleared too. The absolute
+ * number is deliberately left alone; this only reports whether it bites.
+ */
+export function cutAdvancesEveryone(
+  rule: CutRule,
+  fieldSize: number,
+  /** Sizes of the individual flights; only consulted for a per-flight cut. */
+  flightSizes?: number[],
+): boolean {
+  const relevant =
+    rule.scope === "perFlight" && flightSizes && flightSizes.length
+      ? Math.max(...flightSizes)
+      : fieldSize;
+  if (relevant <= 0) return false;
+  return survivorCount(rule, relevant) >= relevant;
+}
+
 /** One line describing what the rule will do, for the setup screen. */
 export function describeCut(rule: CutRule, fieldSize: number, flightCount: number): string {
   const perFlight = rule.scope === "perFlight" && flightCount > 0;

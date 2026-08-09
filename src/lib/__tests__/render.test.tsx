@@ -922,6 +922,20 @@ describe("cut line scope", () => {
     const html = render(<CutControl {...base} scope="overall" flightCount={1} />);
     expect(html).toContain("Only one flight");
   });
+
+  it("warns when the cut number is as big as the field, so it cuts nobody", () => {
+    // The default cut count is 16. Enabling a cut on a field of 16 advances
+    // everyone — a cut line that cuts nobody — and the screen has to say so
+    // rather than leave it as an "16 of 16 advance" line that looks fine.
+    const html = render(<CutControl {...base} scope="overall" count={16} confirmedCount={16} flightCount={1} />);
+    expect(html).toContain("16 of 16 advance");
+    expect(html).toContain("advances the whole field");
+  });
+
+  it("does not warn when the cut actually removes players", () => {
+    const html = render(<CutControl {...base} scope="overall" count={16} confirmedCount={32} flightCount={1} />);
+    expect(html).not.toContain("advances the whole field");
+  });
 });
 
 describe("round scoring window", () => {
