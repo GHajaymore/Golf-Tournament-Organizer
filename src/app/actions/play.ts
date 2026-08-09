@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { normalizeAccessCode, looksLikeAccessCode } from "@/lib/code-format";
 import { createPlaySession, destroyPlaySession, getPlaySession } from "@/lib/play-auth";
 import { settingsOf } from "@/lib/services/tournament";
-import { usesAccessCodes, canPlayerSavePartial } from "@/lib/tournament-settings";
+import { usesAccessCodes, canPlayerSavePartial, canEnterScores } from "@/lib/tournament-settings";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { marginToHoles } from "@/lib/domain";
 
@@ -151,6 +151,21 @@ export async function savePlayMatchHoles(
   ]);
   if (!event || !match) return { ok: false, error: "Match not found." };
 
+  const settings = settingsOf(event);
+  // The tournament decides who reports scores, and this surface has to ask the
+  // same question the console does — see requireScoreEntry in
+  // actions/tournament.ts and the same check in actions/courses.ts.
+  //
+  // A round code identifies a player and never staff, so a committee-scored
+  // tournament must refuse it outright. Without this, an organizer who handed
+  // out round codes purely so the field could sign in believed nobody but the
+  // committee could touch a result, while any code holder could overwrite a
+  // card and — because a score edit always resets approval — send one the
+  // committee had already confirmed back to pending with nobody told.
+  if (!canEnterScores(settings, "player")) {
+    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
+  }
+
   // Scoped three ways: the right tournament, the right round, and a match this
   // player is actually in.
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
@@ -175,7 +190,6 @@ export async function savePlayMatchHoles(
     return { ok: false, error: "You can only enter scores for your own match." };
   }
 
-  const settings = settingsOf(event);
   const complete = holes.every((h) => h !== null);
   if (!complete && !canPlayerSavePartial(settings)) {
     return { ok: false, error: "Enter the full round, then submit it." };
@@ -212,6 +226,13 @@ export async function savePlayMatchHoles(
  * membership guard as savePlayMatchHoles, and the same refusal of margins
  * that describe no possible match. It reconstructs holes via marginToHoles so
  * a phoned-in result and a tapped-in card are identical downstream.
+ *
+ * No canPlayerSavePartial check here, unlike the hole-by-hole path: a result
+ * IS the finished round arriving in one submission, which is precisely what
+ * `scoreEntryWindow: "after"` asks for. The nulls marginToHoles leaves for a
+ * closed-out "3&2" are holes nobody played, not holes nobody has reached yet,
+ * so reading them as a partial card would refuse the most common real result
+ * in match play.
  */
 /** Hole count from the stored holes array (9 or 18 depending on the round). */
 function matchHoleCount(holesJson: string): number {
@@ -236,6 +257,14 @@ export async function savePlayMatchResult(
     prisma.match.findUnique({ where: { id: matchId } }),
   ]);
   if (!event || !match) return { ok: false, error: "Match not found." };
+
+  // Same entry gate as savePlayMatchHoles. Both write a result, so a guard on
+  // only one of them protects nothing: phoning in "3&2" overwrites the card
+  // just as completely as tapping eighteen holes.
+  if (!canEnterScores(settingsOf(event), "player")) {
+    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
+  }
+
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
     return { ok: false, error: "That match isn't in your round." };
   }

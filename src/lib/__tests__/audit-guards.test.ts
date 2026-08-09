@@ -476,6 +476,70 @@ describe("the round-code result path carries every guard the hole path has", () 
   });
 });
 
+describe("a round code obeys the tournament's score-entry setting", () => {
+  const play = stripComments(read("play.ts"));
+
+  it("gates both write actions on canEnterScores, as every other path does", () => {
+    // Neither one asked. A tournament set to `scoreEntryBy: "staff"` that
+    // hands out round codes purely for sign-in believed the committee held
+    // the cards, while any code holder could write a full result — and since
+    // a score edit resets approval, un-confirm a card the committee had
+    // already signed off, leaving no sign on any screen that it happened.
+    for (const fn of ["savePlayMatchHoles", "savePlayMatchResult"]) {
+      const body = actions("play.ts").find((a) => a.name === fn)!.body;
+      expect(body, fn).toMatch(/canEnterScores\(/);
+      expect(body, fn).toMatch(/entered by the organizer/);
+    }
+  });
+
+  it("asks as a player, because a code is never a staff credential", () => {
+    // A play session carries no role: the holder typed a code that was read
+    // out to the field. Passing anything staff-shaped here would pass every
+    // check by definition.
+    expect(play.match(/canEnterScores\(\s*settings(Of\(event\))?,\s*"player"\)/g)?.length).toBe(2);
+  });
+
+  it("refuses by returning, not by throwing", () => {
+    // These actions are called straight from the client component, which
+    // renders res.error. A thrown error reaches the player as an unhandled
+    // server-action failure with no wording of its own.
+    for (const fn of ["savePlayMatchHoles", "savePlayMatchResult"]) {
+      const body = actions("play.ts").find((a) => a.name === fn)!.body;
+      expect(body, fn).not.toMatch(/throw new Error/);
+    }
+  });
+
+  it("checks before it writes anything", () => {
+    for (const fn of ["savePlayMatchHoles", "savePlayMatchResult"]) {
+      const body = actions("play.ts").find((a) => a.name === fn)!.body;
+      const gate = body.indexOf("canEnterScores(");
+      expect(gate, fn).toBeGreaterThan(-1);
+      for (const write of ["match.update", "auditLog.create"]) {
+        expect(body.indexOf(write), `${fn} / ${write}`).toBeGreaterThan(gate);
+      }
+    }
+  });
+
+  it("still honours the entry window on the hole-by-hole path", () => {
+    // `scoreEntryWindow: "after"` means the organizer does not want partial
+    // cards on the leaderboard as a group plays. Only this path can produce
+    // one — a phoned-in result is a finished round by definition.
+    const holes = actions("play.ts").find((a) => a.name === "savePlayMatchHoles")!.body;
+    expect(holes).toMatch(/canPlayerSavePartial\(settings\)/);
+    expect(holes).toMatch(/Enter the full round, then submit it/);
+  });
+
+  it("leaves signing in ungated, so the code still gets a player to their round", () => {
+    // The gate belongs on the write. Refusing the code itself would break
+    // every staff-scored tournament that uses codes for sign-in, which is
+    // precisely the tournament this whole guard exists to protect.
+    for (const fn of ["redeemRoundCode", "claimPlayerSlot", "leavePlay"]) {
+      const body = actions("play.ts").find((a) => a.name === fn)!.body;
+      expect(body, fn).not.toMatch(/canEnterScores\(/);
+    }
+  });
+});
+
 describe("the tee sheet is the organizer's to save and announce", () => {
   const src = readFileSync(join(process.cwd(), "src/app/actions/tee-sheet.ts"), "utf8");
 
