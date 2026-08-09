@@ -44,7 +44,13 @@
  */
 
 /** The throttled entry points. One budget per kind, per identifier. */
-export type RateLimitKind = "signin" | "claim-password" | "password-reset" | "round-code";
+export type RateLimitKind =
+  | "signin"
+  | "claim-password"
+  | "password-reset"
+  | "round-code"
+  | "register-token"
+  | "register-email";
 
 export interface RateLimitPolicy {
   /** Attempts allowed inside one window. The (limit + 1)th is refused. */
@@ -70,6 +76,27 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    *  ten wrong entries is a group that needs to ask, not an attack. It still
    *  turns "a thousand guesses a second" into "forty an hour". */
   "round-code": { limit: 10, windowMs: 15 * MINUTE },
+  /**
+   * Open registration, keyed on the shared link's token — the coarse flood cap.
+   *
+   * A public sign-up form invites two abuses: one script hammering a single
+   * link, and a slow trickle of junk entries. This budget caps the first. It is
+   * deliberately roomy — a society outing where forty people sign up in the hour
+   * after the link goes out is the whole point of the feature, not an attack —
+   * so the number is set well above a realistic burst and only bites a scripted
+   * flood. The per-email budget below is what stops one person submitting over
+   * and over; the two together are the "token and/or email" the design asks for.
+   */
+  "register-token": { limit: 60, windowMs: 15 * MINUTE },
+  /**
+   * Open registration, keyed on the entrant's email — the per-person cap.
+   *
+   * One address has no reason to register many times: the action de-duplicates,
+   * so a second attempt with the same email is already a no-op. A handful an
+   * hour absorbs a genuine double-tap or a typo-and-retry; beyond that it is
+   * someone poking at the form, and they wait.
+   */
+  "register-email": { limit: 6, windowMs: 60 * MINUTE },
 };
 
 /**
@@ -208,5 +235,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
       return `Too many reset requests. Try again in ${wait}.`;
     case "round-code":
       return `Too many code attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
+    case "register-token":
+    case "register-email":
+      return `Too many registration attempts. Wait ${wait} and try again.`;
   }
 }

@@ -31,6 +31,9 @@ export default async function RegistrationPage() {
         dates: state.event.dates,
         course: state.event.course,
         city: state.event.city,
+        registrationOpen: state.event.registrationOpen,
+        registrationApproval: state.event.registrationApproval,
+        registrationToken: state.event.registrationToken,
       }}
       confirmed={state.confirmed.map((p) => ({
         id: p.id,
@@ -43,6 +46,9 @@ export default async function RegistrationPage() {
         flight: flightByPlayer.get(p.id),
       }))}
       waitlist={state.waitlist.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, seed: p.seed, email: p.email, phone: p.phone }))}
+      pendingEntries={state.players
+        .filter((p) => p.status === "pending")
+        .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, seed: p.seed, email: p.email, phone: p.phone }))}
       locked={locked}
       isAdmin={session.viewRole === "admin"}
       roster={roster}

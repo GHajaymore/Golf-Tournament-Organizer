@@ -24,6 +24,7 @@ import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/mat
 import { isCutScope } from "@/lib/domain/cut";
 import { isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
+import { placementOnApproval } from "@/lib/domain/registration-intake";
 import {
   marginToHoles,
   resolveMatch,
@@ -1884,6 +1885,75 @@ export async function setRegistrationOverride(
     where: { id: eventId },
     data: { registrationOverride: override },
   });
+  refresh();
+  return { ok: true };
+}
+
+/* ── Open (self-service) registration ─────────────────────────────────────
+ *
+ * The switch, the mode, and the two actions that clear a pending queue. The
+ * public sign-up flow (src/app/actions/register.ts) reads the state these set;
+ * these are the organizer's side of the same feature and are staff-only.
+ */
+
+/**
+ * Turn the public registration link on or off.
+ *
+ * Minting the token lazily — on first open, never before — is deliberate. Every
+ * event that predates this feature has an empty token and no public page; only
+ * an organizer choosing to open registration brings one into existence. The
+ * token is then kept forever, so a link already shared keeps working across an
+ * off/on cycle: closing registration must not silently invalidate a URL that's
+ * already in fifty inboxes.
+ */
+export async function setRegistrationOpen(open: boolean): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { registrationToken: true },
+  });
+  if (!event) return { ok: false, error: "Event not found." };
+  const data: { registrationOpen: boolean; registrationToken?: string } = { registrationOpen: open };
+  if (open && !event.registrationToken) data.registrationToken = generateShareToken();
+  await prisma.event.update({ where: { id: eventId }, data });
+  refresh();
+  return { ok: true };
+}
+
+/** auto — fill to capacity, overflow to the waitlist. approve — every entry
+ *  lands pending for the organizer. Anything else is coerced to auto rather
+ *  than stored, since an unknown mode would decide where every entry goes. */
+export async function setRegistrationApproval(mode: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { registrationApproval: mode === "approve" ? "approve" : "auto" },
+  });
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Accept a pending self-service entry into the field.
+ *
+ * Placement is decided here, at accept time — confirmed if there's room, else
+ * the waitlist — which is the whole reason approve mode holds entries as pending
+ * rather than placing them on arrival. Scoped to the caller's event, and a no-op
+ * on anything that isn't actually pending, so this can only ever move an entry
+ * forward.
+ */
+export async function approveSignup(playerId: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
+  if (!player) return { ok: false, error: "Entry not found." };
+  if (player.status !== "pending") return { ok: true };
+  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { capacity: true } });
+  const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
+  const status = placementOnApproval(event?.capacity ?? 0, confirmedCount);
+  await prisma.player.update({ where: { id: playerId }, data: { status } });
   refresh();
   return { ok: true };
 }

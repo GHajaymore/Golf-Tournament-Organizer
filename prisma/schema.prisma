@@ -535,6 +535,32 @@ model Event {
    */
   registrationOverride Boolean?
 
+  /**
+   * Self-service (open) registration — people register themselves from a link
+   * the organizer shares, no account required.
+   *
+   * `registrationToken` is an unguessable id for the public /register/[token]
+   * page, minted the same way as shareToken (CSPRNG, see src/lib/codes.ts) and
+   * kept stable so the link an organizer has already sent keeps working. Empty
+   * until registration is first opened — existing events were never on a public
+   * link and must not become reachable by a backfilled token. Enforced unique
+   * by a PARTIAL index in the migration (unique where <> ''), which Prisma's
+   * schema language can't express: a plain @@unique would make the empty
+   * default collide for every event that has never opened registration.
+   *
+   * `registrationOpen` is the switch. While false the link resolves to the same
+   * neutral "not open" page a bogus token gets — closing it must not become an
+   * oracle that a tournament exists (same discipline as /live).
+   *
+   * `registrationApproval` is auto (fill to capacity as confirmed, overflow to
+   * the waitlist) or approve (every entry lands pending for the organizer to
+   * accept). Reuses Event.capacity, regDeadline and Player.status rather than
+   * inventing parallel state.
+   */
+  registrationToken    String  @default("")
+  registrationOpen     Boolean @default(false)
+  registrationApproval String  @default("auto") // auto | approve
+
   inviteMessage String @default("")
 
   // How players see standings and report scores. Copied from the owning

@@ -83,6 +83,12 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
     "the copy has not finished — and inheriting it would start the retention clock in the past, making a brand-new tournament immediately eligible for deletion",
   shareToken:
     "unique, so copying collides — and it would hand the copy the original's public link",
+  registrationToken:
+    "the public sign-up link. Unique (partial index), so copying collides, and it would point last year's shared URL at this year's field — the copy mints its own when its organizer opens registration",
+  registrationOpen:
+    "a copy starts with sign-ups closed, whatever the original ended at — opening a brand-new draft to the public the moment it's created is never what a copy wants",
+  registrationApproval:
+    "travels with registrationOpen: a closed copy has no entries to auto-confirm or approve, so it starts at the default and the organizer chooses when they open it",
 };
 
 /**

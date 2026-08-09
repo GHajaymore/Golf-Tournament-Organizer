@@ -87,3 +87,40 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     return { ok: false, error: message };
   }
 }
+
+/**
+ * Best-effort "you're registered" confirmation for open registration.
+ *
+ * Deliberately fire-and-forget: registration is confirmed on-screen the moment
+ * it succeeds, so email is a nicety, not the receipt. Without RESEND_API_KEY it
+ * no-ops (dev, and any deploy that hasn't wired mail yet — decision #83), and a
+ * send that fails is logged and swallowed. Nothing here may ever throw into the
+ * registration path — a bounced confirmation must not undo a real entry.
+ */
+export async function sendRegistrationEmail(
+  to: string,
+  opts: { eventName: string; status: "confirmed" | "waitlisted" | "pending" },
+): Promise<void> {
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping registration email to ${to} (${opts.status}).`);
+    return;
+  }
+  const line =
+    opts.status === "confirmed"
+      ? "You're confirmed in the field."
+      : opts.status === "waitlisted"
+        ? "The field is full, so you're on the waitlist — we'll be in touch if a place opens."
+        : "Your entry has been received and is waiting for the organizer to confirm it.";
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to,
+      subject: `You're registered — ${opts.eventName}`,
+      html: `<p>Thanks for registering for <strong>${opts.eventName}</strong>.</p><p>${line}</p>`,
+    });
+    if (error) console.error(`[email] Resend rejected the registration email for ${to}: ${error.message}`);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "unknown error";
+    console.error(`[email] Failed sending registration email to ${to}: ${message}`);
+  }
+}

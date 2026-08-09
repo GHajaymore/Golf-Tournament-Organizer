@@ -1,6 +1,6 @@
 "use client";
 import { registrationStatus } from "@/lib/registration";
-import { setRegistrationOverride } from "@/app/actions/tournament";
+import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, approveSignup } from "@/app/actions/tournament";
 import { useState, useRef, useTransition } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SetupLockBanner } from "./SetupLockBanner";
@@ -29,12 +29,19 @@ interface EventInfo {
   dates: string;
   course: string;
   city: string;
+  /** Self-service registration: whether the public link is live. */
+  registrationOpen: boolean;
+  /** auto | approve — whether entries land confirmed or wait for the organizer. */
+  registrationApproval: string;
+  /** Opaque token for the public /register/[token] link. Empty until first opened. */
+  registrationToken: string;
 }
 
 export function RegistrationClient({
   event,
   confirmed,
   waitlist,
+  pendingEntries,
   locked,
   isAdmin,
   roster,
@@ -42,6 +49,8 @@ export function RegistrationClient({
   event: EventInfo;
   confirmed: Signup[];
   waitlist: Signup[];
+  /** Self-service entries awaiting the organizer's approval (approve mode). */
+  pendingEntries: Signup[];
   locked: boolean;
   isAdmin: boolean;
   /** The club's members, for filling the field without retyping anyone. */
@@ -151,6 +160,10 @@ export function RegistrationClient({
   };
 
   const registrationLink = typeof window !== "undefined" ? window.location.origin : "";
+  // The public self-service sign-up link. Empty until registration has been
+  // opened at least once (the token is minted then).
+  const registerUrl = event.registrationToken ? `${registrationLink}/register/${event.registrationToken}` : "";
+  const approveMode = event.registrationApproval === "approve";
   // Sign the invitation with the club's name so the recipient recognises who
   // it's from — a bare link from an unknown app reads like spam.
   const signature = event.organizationName ? `\n— ${event.organizationName}` : "";
@@ -418,6 +431,75 @@ export function RegistrationClient({
         )}
       </div>
 
+      {/* Self-service registration: share a link and people register themselves.
+          Separate from the invite message above — that hands someone this
+          console's sign-up; this hands anyone a public, no-account entry form. */}
+      <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <div>
+            <span className="card-title" style={{ fontSize: 15 }}>Open registration</span>
+            <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
+              Share a link and people sign themselves up — no account needed. Entries appear in the field below.
+            </p>
+          </div>
+          <button
+            type="button"
+            className={event.registrationOpen ? "btn btn-secondary" : "btn btn-primary"}
+            disabled={pending || locked}
+            onClick={() => startTransition(() => void setRegistrationOpen(!event.registrationOpen))}
+          >
+            <i className={event.registrationOpen ? "ph ph-lock-simple" : "ph ph-door-open"} />
+            {event.registrationOpen ? "Close sign-ups" : "Open registration"}
+          </button>
+        </div>
+
+        {event.registrationOpen && (
+          <>
+            {registerUrl && (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <input
+                  className="input"
+                  readOnly
+                  value={registerUrl}
+                  onFocus={(e) => e.currentTarget.select()}
+                  style={{ flex: 1, minWidth: 220, fontSize: 12.5, fontFamily: "var(--font-mono, monospace)" }}
+                />
+                <button type="button" className="btn btn-secondary" onClick={() => copy(registerUrl, "reg")}>
+                  <i className="ph ph-copy" /> {copied === "reg" ? "Copied" : "Copy link"}
+                </button>
+              </div>
+            )}
+
+            {/* Auto-confirm vs approve-each-entry. */}
+            <div className="field" style={{ marginTop: 2 }}>
+              <label>When someone registers</label>
+              <div className="seg" style={{ width: "100%" }}>
+                {[
+                  ["auto", "Auto-confirm to capacity"],
+                  ["approve", "Approve each entry"],
+                ].map(([v, l]) => (
+                  <label className="seg-opt" key={v} style={{ flex: 1, justifyContent: "center" }}>
+                    <input
+                      type="radio"
+                      name="regapproval"
+                      checked={approveMode ? v === "approve" : v === "auto"}
+                      disabled={pending || locked}
+                      onChange={() => startTransition(() => void setRegistrationApproval(v))}
+                    />
+                    {l}
+                  </label>
+                ))}
+              </div>
+              <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+                {approveMode
+                  ? "Every entry lands in “Pending approval” below for you to accept — nobody joins the field until you do."
+                  : "Entries fill the field up to capacity and confirm automatically; once full, further entries go to the waitlist."}
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+
       <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Invite players</span>
         <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0" }}>
@@ -520,6 +602,61 @@ export function RegistrationClient({
             <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger, #e0665a)" }}>
               <i className="ph ph-warning-circle" /> {rowError}
             </p>
+          )}
+          {pendingEntries.length > 0 && (
+            <div className="card elev-sm" style={{ borderColor: "var(--color-accent)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="ph ph-hourglass-medium" style={{ color: "var(--color-accent)" }} />
+                <span className="card-title" style={{ fontSize: 15 }}>Pending approval ({pendingEntries.length})</span>
+              </div>
+              <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 2px" }}>
+                Self-service entries waiting for you. Accepting one puts it in the field (or the waitlist if full).
+              </p>
+              <div className="table-scroll">
+                <table className="table" style={{ fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th style={{ width: 70, textAlign: "right" }}>Hcp</th>
+                      <th>Email</th>
+                      <th style={{ width: 150 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingEntries.map((p) => (
+                      <tr key={p.id}>
+                        <td style={{ fontWeight: 500 }}>{p.name}</td>
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                          {p.handicap}
+                          {p.handicapType === "9" ? " (9h)" : ""}
+                        </td>
+                        <td className="text-muted" style={{ fontSize: 12 }}>{p.email || "—"}</td>
+                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            style={{ fontSize: 12, padding: "4px 10px", marginRight: 6 }}
+                            disabled={pending || locked}
+                            onClick={() => startTransition(() => void approveSignup(p.id))}
+                          >
+                            <i className="ph ph-check" /> Accept
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ fontSize: 12, padding: "4px 10px" }}
+                            disabled={pending || locked}
+                            onClick={() => startTransition(() => removeSignup(p.id))}
+                          >
+                            Decline
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
           {table(confirmed, "Confirmed field", true)}
           {table(waitlist, "Waitlist", false)}
