@@ -216,3 +216,31 @@ be sequential, not parallel). Build a shareable entry link `/register/[token]`:
 **Payment model** — owner asked me to think it through and review together AFTER
 the queued items land. Bring options (per-event fee / subscription tiers /
 freemium with plan limits (#87) / entry-fee collection with a platform cut).
+
+## Pricing architecture — already centralized; keep it that way (2026-08-09)
+
+`src/lib/plans.ts` is the single source of truth: PLANS catalog with per-tier
+price/limits/retention/features; only the plan KEY is stored (Subscription.plan);
+enforcement reads it via `limitCheck`/`refusalFor` (services/limits.ts),
+`retention.ts`, and the upgrade copy. Changing a price/limit/feature = one file,
+no migration — by design. DO NOT scatter pricing constants elsewhere.
+
+Recommended 3-way model (researched vs Golf Genius $1,300/yr, GolfStatus
+free+3–5% or $299/event, The Turn $199/event / $499-3):
+- Free $0 — 1 active event, 48h retention, "Powered by TourneyHQ". NEVER cap
+  players (existing principle: players are the distribution, never charged).
+- Per event ~$49 (opt $29/$79 by size) — unlimited field, permanent history +
+  exports, custom branding/remove "Powered by", multi-round, open registration,
+  staff seats.
+- Club/Season ~$199/yr (~$25/mo) — unlimited events, roster+branding, season
+  order-of-merit, multiple seats.
+- Strategic lean: stay OUT of the money flow (The Turn model — organizer
+  collects fees with own processor; we charge per-event/subscription). Add
+  optional in-app payment + small fee later only if asked.
+
+To realize it, EXTEND the catalog (not rebuild): (1) add a one-time per-event
+purchase shape attached to the EVENT, not the org subscription; (2) generalize
+price from priceMonthly to free|one-time|subscription(monthly|annual); (3) add
+feature flags (exports, openRegistration, series, multiRound) beside whiteLabel.
+Then wire enforcement (#87) — catalog exists, most gates not yet enforced.
+Belongs with the payment/registration workstream, after the front-door agent.
