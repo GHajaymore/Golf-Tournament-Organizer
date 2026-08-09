@@ -256,3 +256,77 @@ export function groupCutoff(ranked: RankedPlayer[], qualifyPerGroup: number): nu
   const idx = Math.min(qualifyPerGroup, ranked.length) - 1;
   return ranked[idx].stats.totalPoints;
 }
+
+export interface BubblePlayer {
+  id: string;
+  /** Ranking value. Read as points (higher is better) or strokes (lower is
+   *  better) per `higherIsBetter` — the caller decides which its format uses. */
+  score: number;
+  /** The flight this player is in; used only for a per-flight cut. */
+  groupId?: string | null;
+  /** Whether they are currently inside the cut. */
+  advancing: boolean;
+}
+
+/** The cut line's closest race: who holds the last spot and who just misses. */
+export interface Bubble {
+  lastIn: BubblePlayer;
+  firstOut: BubblePlayer;
+  /** Distance from the first player out to the cut line, never negative. */
+  gap: number;
+}
+
+/**
+ * The bubble to watch, measured against the line that actually applies.
+ *
+ * "Bubble watch" reported how far the first player out was from the last player
+ * in. Under a per-flight cut it compared each near-miss against the *overall*
+ * standings — so a flight winner sitting well down the combined list looked
+ * "behind" a stronger player in a deeper flight, and the gap came out negative:
+ * a player safe in their own flight was told they were points outside
+ * qualification. The two are not on the same ladder. A per-flight cut is a
+ * separate race inside every flight, so the only meaningful comparison is
+ * within a flight.
+ *
+ * Per flight, this finds each flight's own bubble — its worst qualifier against
+ * its best near-miss — and surfaces the tightest of them, the race actually
+ * worth watching. Because a flight's qualifiers are by definition its better
+ * scores, the last-in always outranks the first-out and the gap is never
+ * negative. Overall, the whole field is one flight and the behaviour is
+ * unchanged.
+ */
+export function qualificationBubble(
+  players: BubblePlayer[],
+  scope: "overall" | "perFlight",
+  higherIsBetter: boolean,
+): Bubble | null {
+  const better = (a: number, b: number) => (higherIsBetter ? a > b : a < b);
+  const gapOf = (lastIn: BubblePlayer, firstOut: BubblePlayer) =>
+    higherIsBetter ? lastIn.score - firstOut.score : firstOut.score - lastIn.score;
+
+  const buckets = new Map<string, BubblePlayer[]>();
+  for (const p of players) {
+    const key = scope === "perFlight" ? p.groupId ?? "" : "__all__";
+    const list = buckets.get(key);
+    if (list) list.push(p);
+    else buckets.set(key, [p]);
+  }
+
+  let tightest: Bubble | null = null;
+  for (const list of buckets.values()) {
+    // The worst-placed player still inside, and the best-placed one outside.
+    let lastIn: BubblePlayer | null = null;
+    let firstOut: BubblePlayer | null = null;
+    for (const p of list) {
+      if (p.advancing) {
+        if (!lastIn || better(lastIn.score, p.score)) lastIn = p;
+      } else if (!firstOut || better(p.score, firstOut.score)) {
+        firstOut = p;
+      }
+    }
+    if (!lastIn || !firstOut) continue;
+    const gap = gapOf(lastIn, firstOut);
+    if (!tightest || gap < tightest.gap) tightest = { lastIn, firstOut, gap };
+  }
+  return tightest;
+}

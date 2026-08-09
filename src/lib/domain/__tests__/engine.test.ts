@@ -6,6 +6,8 @@ import {
   aggregateStats,
   computeStandings,
   groupCutoff,
+  qualificationBubble,
+  type BubblePlayer,
   formGroups,
   flightCountFor,
   roundRobinSchedule,
@@ -158,6 +160,76 @@ describe("standings", () => {
     const ranked = computeStandings(players, matches, DEFAULT_SCORING);
     const cutoff = groupCutoff(ranked, 2);
     expect(cutoff).toBe(ranked[1].stats.totalPoints);
+  });
+});
+
+describe("qualification bubble", () => {
+  // A flighted field with a per-flight cut, taking the top 2 of each flight.
+  // Flight A is deep (high points), flight B is shallow. The overall list
+  // interleaves them, so B's second qualifier sits well below A's third player
+  // in the combined ranking.
+  const perFlightField: BubblePlayer[] = [
+    { id: "a1", score: 30, groupId: "A", advancing: true },
+    { id: "a2", score: 28, groupId: "A", advancing: true },
+    { id: "a3", score: 26, groupId: "A", advancing: false }, // out, but strong
+    { id: "b1", score: 12, groupId: "B", advancing: true },
+    { id: "b2", score: 10, groupId: "B", advancing: true }, // in, but low
+    { id: "b3", score: 8, groupId: "B", advancing: false },
+  ];
+
+  it("never reports a negative gap for a player safe above their flight's line", () => {
+    // The bug: comparing b2 (last in, 10 pts) against a3 (first out overall,
+    // 26 pts) gave 10 − 26 = −16, telling a safe qualifier they were sixteen
+    // points outside. Per flight, a3's bubble is inside flight A (28 − 26 = 2),
+    // and every reported gap is against the correct line.
+    const bubble = qualificationBubble(perFlightField, "perFlight", true);
+    expect(bubble).not.toBeNull();
+    expect(bubble!.gap).toBeGreaterThanOrEqual(0);
+  });
+
+  it("surfaces the tightest flight race, measured inside that flight", () => {
+    // Flight A's bubble is 2 pts (a2 in at 28, a3 out at 26); flight B's is
+    // also 2 (b2 in at 10, b3 out at 8). A ties, and the first flight seen
+    // wins — either way the first-out is compared to its own flight's last-in.
+    const bubble = qualificationBubble(perFlightField, "perFlight", true)!;
+    expect(bubble.gap).toBe(2);
+    expect(["a3", "b3"]).toContain(bubble.firstOut.id);
+    expect(bubble.lastIn.groupId).toBe(bubble.firstOut.groupId);
+  });
+
+  it("compares against the whole field for an overall cut", () => {
+    // Same players, but now the cut is overall: only the top four by points go
+    // through, so a3 (26) is in and b1/b2 are out. The bubble is a3 (last in)
+    // against b1 (first out): 26 − 12 = 14.
+    const overall: BubblePlayer[] = perFlightField.map((p) => ({
+      ...p,
+      advancing: p.score >= 26,
+    }));
+    const bubble = qualificationBubble(overall, "overall", true)!;
+    expect(bubble.lastIn.id).toBe("a3");
+    expect(bubble.firstOut.id).toBe("b1");
+    expect(bubble.gap).toBe(14);
+  });
+
+  it("reads a lower score as better when higherIsBetter is false", () => {
+    // Stroke net: fewer shots is better, so the gap is firstOut − lastIn.
+    const net: BubblePlayer[] = [
+      { id: "x", score: 68, groupId: null, advancing: true },
+      { id: "y", score: 70, groupId: null, advancing: true }, // last in
+      { id: "z", score: 73, groupId: null, advancing: false }, // first out
+    ];
+    const bubble = qualificationBubble(net, "overall", false)!;
+    expect(bubble.lastIn.id).toBe("y");
+    expect(bubble.firstOut.id).toBe("z");
+    expect(bubble.gap).toBe(3);
+  });
+
+  it("has no bubble when nobody is cut", () => {
+    const allIn: BubblePlayer[] = [
+      { id: "p", score: 5, advancing: true },
+      { id: "q", score: 4, advancing: true },
+    ];
+    expect(qualificationBubble(allIn, "overall", true)).toBeNull();
   });
 });
 

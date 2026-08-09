@@ -11,6 +11,7 @@ import type { StandingRow } from "@/components/LeaderboardTable";
 import {
   computeStandings,
   groupCutoff,
+  qualificationBubble,
   buildBracket,
   drawBrackets,
   firstRoundLosers,
@@ -603,9 +604,7 @@ export function computeHighlights(state: EventState): Highlight[] {
       out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads at ${par} (net ${lead.net}).` });
     }
     const advancing = scored.filter((s) => state.advancingIds.has(s.player.id));
-    const nonAdv = scored.filter((s) => !state.advancingIds.has(s.player.id));
     const lastIn = advancing[advancing.length - 1];
-    const firstOut = nonAdv[0];
     if (lastIn) {
       out.push({
         icon: "🎯",
@@ -615,13 +614,29 @@ export function computeHighlights(state: EventState): Highlight[] {
           : `${lastIn.player.name} holds the final qualifying spot at net ${lastIn.net}.`,
       });
     }
-    if (firstOut && lastIn) {
+    // Measured against the line that applies: each flight's own bubble under a
+    // per-flight cut, the whole field under an overall one. Comparing a flight
+    // qualifier against the overall list reported them "outside" by a negative
+    // number of shots even while they were safe in their flight. Stableford
+    // ranks by points (higher better); every other basis by net (lower better).
+    const bubble = qualificationBubble(
+      scored.map((s) => ({
+        id: s.player.id,
+        score: stableford ? s.points : s.net,
+        groupId: s.player.groupId,
+        advancing: state.advancingIds.has(s.player.id),
+      })),
+      state.event.qualifyMode === "overall" ? "overall" : "perFlight",
+      stableford,
+    );
+    if (bubble) {
+      const outName = scored.find((s) => s.player.id === bubble.firstOut.id)!.player.name;
       out.push({
         icon: "🚨",
         title: "Bubble watch",
         text: stableford
-          ? `${firstOut.player.name} is ${lastIn.points - firstOut.points} points outside qualification.`
-          : `${firstOut.player.name} is ${firstOut.net - lastIn.net} shots outside qualification.`,
+          ? `${outName} is ${bubble.gap} points outside qualification.`
+          : `${outName} is ${bubble.gap} shots outside qualification.`,
       });
     }
     return out;
@@ -654,15 +669,28 @@ export function computeHighlights(state: EventState): Highlight[] {
 
   // Qualification bubble.
   const advancing = state.overall.filter((rp) => state.advancingIds.has(rp.player.id));
-  const nonAdvancing = state.overall.filter((rp) => !state.advancingIds.has(rp.player.id));
   const lastIn = advancing[advancing.length - 1];
-  const firstOut = nonAdvancing[0];
   if (lastIn) {
     out.push({ icon: "🎯", title: "Qualification watch", text: `${lastIn.player.name} holds the final qualifying spot on ${fmt(lastIn.stats.totalPoints)} pts.` });
   }
-  if (firstOut && lastIn) {
-    const gap = lastIn.stats.totalPoints - firstOut.stats.totalPoints;
-    out.push({ icon: "🚨", title: "Bubble watch", text: `${firstOut.player.name} is ${fmt(gap)} pts outside qualification.` });
+  // Against the applicable line: the player's own flight under a per-flight
+  // cut, the whole field under an overall one. The overall comparison put a
+  // safe flight qualifier "behind" a stronger player in a deeper flight and
+  // reported a negative points gap — telling someone who was through that they
+  // were outside.
+  const bubble = qualificationBubble(
+    state.overall.map((rp) => ({
+      id: rp.player.id,
+      score: rp.stats.totalPoints,
+      groupId: rp.player.groupId,
+      advancing: state.advancingIds.has(rp.player.id),
+    })),
+    state.event.qualifyMode === "overall" ? "overall" : "perFlight",
+    true,
+  );
+  if (bubble) {
+    const outName = state.overall.find((rp) => rp.player.id === bubble.firstOut.id)!.player.name;
+    out.push({ icon: "🚨", title: "Bubble watch", text: `${outName} is ${fmt(bubble.gap)} pts outside qualification.` });
   }
 
   return out;
