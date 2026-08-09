@@ -190,3 +190,29 @@ canonical production domain.
 - The clone-policy test forces every new `Event` column to be classified as
   inherited or reset. If it fails after a schema change, that is by design.
 - `DEFAULT_SETTINGS` is pinned by a test so a new setting cannot slip in unnoticed.
+
+## Front-door workstream — decisions locked 2026-08-09
+
+**Onboarding + landing port** — in progress (agent). Landing = the approved
+fairway-green design (mockup at scratchpad/landing.html). Onboarding: optional
+"club/society/company" name at first-tournament creation (names the org, never
+renames an existing one); role-based routing verified; "join with a round code"
+on the empty state; branding as an optional checklist nudge, never a gate.
+
+**Open registration ("email a broad group, they self-register")** — APPROVED,
+queued to start after the front-door agent finishes (shares tournament.ts, must
+be sequential, not parallel). Build a shareable entry link `/register/[token]`:
+- Account **optional** to register — capture name/email/handicap; email is the
+  identity key (consistent with existing invite-by-email access).
+- **Auto-confirm up to capacity, overflow to waitlist**; organizer toggle to
+  switch to "approve each". Reuses Event.capacity, regDeadline, Player.status.
+- **Free entry in v1** — no payments; collect fees offline for now.
+- Public action must sit behind the rate limiter added this session, and must
+  not leak PII (same discipline as /live).
+- Existing user clicking the link: pre-fill from profile/roster, one-tap join.
+- Automated confirmation EMAIL depends on the parked Resend decision (#83); the
+  on-screen confirmation and the whole flow work without it.
+
+**Payment model** — owner asked me to think it through and review together AFTER
+the queued items land. Bring options (per-event fee / subscription tiers /
+freemium with plan limits (#87) / entry-fee collection with a platform cut).
