@@ -13,7 +13,7 @@ import type { Player as DomainPlayer } from "../src/lib/domain/types";
 const prisma = new PrismaClient();
 
 const ROSTER: Array<[string, number]> = [
-  ["Marcus Webb", 2.1], ["Diego Alvarez", 3.4], ["Priya Nair", 4.0], ["Tom Halloran", 4.6],
+  ["Aj More", 2.1], ["Diego Alvarez", 3.4], ["Priya Nair", 4.0], ["Tom Halloran", 4.6],
   ["Sang-woo Kim", 5.2], ["Elena Petrova", 5.8], ["Jack Mercer", 6.1], ["Aisha Rahman", 6.7],
   ["Ben Carter", 7.3], ["Noah Fischer", 7.9], ["Grace Okafor", 8.4], ["Liam Doyle", 8.9],
   ["Sofia Marchetti", 9.5], ["Owen Barnes", 10.1], ["Yuki Tanaka", 10.6], ["Hannah Voss", 11.2],
@@ -85,7 +85,7 @@ async function main() {
   await prisma.account.createMany({
     data: [
       { eventId: event.id, name: "Alex Rourke", email: "alex@demogolf.test", role: "admin" },
-      { eventId: event.id, name: "Marcus Webb", email: "marcus@demogolf.test", role: "player" },
+      { eventId: event.id, name: "Aj More", email: "aj@demogolf.test", role: "player" },
       { eventId: event.id, name: "Priya Nair", email: "priya@demogolf.test", role: "player" },
       { eventId: event.id, name: "Jordan Blake", email: "jordan@demogolf.test", role: "admin" },
     ],
