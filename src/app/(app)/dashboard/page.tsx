@@ -207,29 +207,53 @@ export default async function DashboardPage() {
         };
       });
 
-      // The flights this player captains, resolved for the current round.
+      // The flights this player captains or deputises for. Vice-captains were
+      // left out, though the schema promises them the same read-only view —
+      // so a deputy standing in saw nothing at all.
+      const ownIds = own.map((o) => o.id);
       const captained = await prisma.group.findMany({
-        where: { eventId: session.eventId, captainId: { in: own.map((o) => o.id) } },
-        select: { id: true, name: true },
+        where: {
+          eventId: session.eventId,
+          OR: [{ captainId: { in: ownIds } }, { viceCaptainId: { in: ownIds } }],
+        },
+        select: { id: true, name: true, captainId: true },
       });
-      if (captained.length && state.activeStage) {
-        const stageExplicit = explicit.filter((e) => e.stageId === state.activeStage!.id);
-        const roundLabel = `Round ${Math.max(1, leagueRounds.findIndex((r) => r.id === state.activeStage!.id) + 1)}`;
+      if (captained.length) {
+        // Every round, not just the active one. A captain works out who they
+        // can field over the coming weeks; one round at a time hides exactly
+        // the thing worth seeing — three players out on the same night.
+        const roundCols = leagueRounds.map((r, i) => ({ stageId: r.id, label: `R${i + 1}` }));
+        // Resolve each round once for the whole field rather than per flight,
+        // so a twelve-flight league doesn't repeat the work twelve times.
+        const resolvedByStage = new Map(
+          leagueRounds.map((r) => [
+            r.id,
+            resolveAttendance(
+              attendanceMode,
+              state.confirmed.map((p) => p.id),
+              explicit
+                .filter((e) => e.stageId === r.id)
+                .map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
+            ),
+          ]),
+        );
         captainFlights = captained.map((g) => {
           const members = state.confirmed.filter((pl) => pl.groupId === g.id);
-          const resolved = resolveAttendance(
-            attendanceMode,
-            members.map((m) => m.id),
-            stageExplicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
-          );
           return {
             flightName: g.name,
-            roundLabel,
-            rows: resolved.rows.map((row) => ({
-              playerId: row.playerId,
-              name: members.find((m) => m.id === row.playerId)?.name ?? "",
-              status: row.status,
-              explicit: row.explicit,
+            deputy: !ownIds.includes(g.captainId ?? ""),
+            rounds: roundCols,
+            rows: members.map((m) => ({
+              playerId: m.id,
+              name: m.name,
+              cells: leagueRounds.map((r) => {
+                const row = resolvedByStage.get(r.id)?.rows.find((x) => x.playerId === m.id);
+                return {
+                  stageId: r.id,
+                  status: row?.status ?? "out",
+                  explicit: row?.explicit ?? false,
+                };
+              }),
             })),
           };
         });

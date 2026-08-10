@@ -15,17 +15,37 @@ export interface AvailabilityRound {
   locked: boolean;
 }
 
-export interface CaptainFlightRow {
-  playerId: string;
-  name: string;
+export interface CaptainFlightCell {
+  stageId: string;
   status: "in" | "out";
+  /** Whether that answer was stated, or is the league's default. */
   explicit: boolean;
 }
 
+export interface CaptainFlightRow {
+  playerId: string;
+  name: string;
+  /** One cell per round, in the same order as the flight's `rounds`. */
+  cells: CaptainFlightCell[];
+}
+
+/**
+ * A flight a player captains, across every round still to be played.
+ *
+ * This was one round wide — the current one — while the player's own view
+ * below it already spanned the season. A captain working out who they can
+ * field needs the weeks together: three players out on the same night is the
+ * thing worth spotting, and it is invisible one round at a time.
+ *
+ * Read-only by design. Captains do not set other players' availability;
+ * that stays with the organizer, from whatever the captain tells them.
+ */
 export interface CaptainFlight {
   flightName: string;
-  roundLabel: string;
+  rounds: { stageId: string; label: string }[];
   rows: CaptainFlightRow[];
+  /** True when this player deputises rather than captains. */
+  deputy?: boolean;
 }
 
 /**
@@ -142,28 +162,77 @@ export function RoundAvailability({
       )}
 
       {captainOf.map((f) => (
-        <div key={f.flightName + f.roundLabel} style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
+        <div key={f.flightName} style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
           <span className="card-kicker">
-            {f.flightName} — {f.roundLabel} (you&rsquo;re captain)
+            {f.flightName} (you&rsquo;re {f.deputy ? "vice-captain" : "captain"})
           </span>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
-              gap: 4,
-              marginTop: 6,
-            }}
-          >
-            {f.rows.map((row) => (
-              <span key={row.playerId} style={{ fontSize: 12.5, display: "flex", gap: 6, alignItems: "center" }}>
-                <i
-                  className={row.status === "in" ? "ph ph-check-circle" : "ph ph-x-circle"}
-                  style={{ color: row.status === "in" ? "var(--color-accent-2)" : "var(--color-neutral-500)" }}
-                />
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
-                {!row.explicit && <span className="text-muted" style={{ fontSize: 10.5 }}>(default)</span>}
-              </span>
-            ))}
+          <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 8px", lineHeight: 1.5 }}>
+            Who your side has available, week by week. To change someone&rsquo;s answer, ask
+            the organizer &mdash; captains don&rsquo;t set other players&rsquo; availability.
+          </p>
+          {/* A table, because this is a grid of two variables — who, and which
+              week — and any other shape makes the reader hold one of them in
+              their head. It scrolls sideways rather than squeezing the names. */}
+          <div style={{ overflowX: "auto" }}>
+            <table className="table" style={{ fontSize: 12.5, minWidth: 260 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left" }}>Player</th>
+                  {f.rounds.map((r) => (
+                    <th key={r.stageId} style={{ textAlign: "center", whiteSpace: "nowrap" }}>{r.label}</th>
+                  ))}
+                  <th style={{ textAlign: "center", whiteSpace: "nowrap" }}>In</th>
+                </tr>
+              </thead>
+              <tbody>
+                {f.rows.map((row) => (
+                  <tr key={row.playerId}>
+                    <td style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160 }}>
+                      {row.name}
+                    </td>
+                    {row.cells.map((c) => (
+                      <td key={c.stageId} style={{ textAlign: "center" }}>
+                        <i
+                          className={c.status === "in" ? "ph ph-check-circle" : "ph ph-x-circle"}
+                          style={{ color: c.status === "in" ? "var(--color-accent-2)" : "var(--color-neutral-500)" }}
+                          // The distinction the whole feature turns on: "in"
+                          // and "in because nobody said otherwise" are
+                          // different promises, and a captain counting heads
+                          // deserves to know which one they are looking at.
+                          title={`${c.status === "in" ? "In" : "Out"}${c.explicit ? "" : " (by default)"}`}
+                          aria-label={`${c.status === "in" ? "In" : "Out"}${c.explicit ? "" : " by default"}`}
+                        />
+                        {!c.explicit && (
+                          <span className="text-muted" style={{ fontSize: 9.5, display: "block", lineHeight: 1 }}>
+                            default
+                          </span>
+                        )}
+                      </td>
+                    ))}
+                    <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+                      {row.cells.filter((c) => c.status === "in").length}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td style={{ fontWeight: 500 }}>Available</td>
+                  {f.rounds.map((r, i) => {
+                    const n = f.rows.filter((row) => row.cells[i]?.status === "in").length;
+                    return (
+                      <td
+                        key={r.stageId}
+                        style={{ textAlign: "center", fontWeight: 500, fontVariantNumeric: "tabular-nums" }}
+                      >
+                        {n}
+                      </td>
+                    );
+                  })}
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
       ))}

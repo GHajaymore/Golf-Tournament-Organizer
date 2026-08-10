@@ -1329,3 +1329,81 @@ describe("the field info control", () => {
     expect(html).not.toContain("title=");
   });
 });
+
+describe("the captain's availability grid", () => {
+  const flight = (over: Record<string, unknown> = {}) => ({
+    flightName: "Flight 1",
+    rounds: [
+      { stageId: "s1", label: "R1" },
+      { stageId: "s2", label: "R2" },
+    ],
+    rows: [
+      {
+        playerId: "p1", name: "Ann Doyle",
+        cells: [
+          { stageId: "s1", status: "in" as const, explicit: true },
+          { stageId: "s2", status: "out" as const, explicit: true },
+        ],
+      },
+      {
+        playerId: "p2", name: "Rob Ferris",
+        cells: [
+          { stageId: "s1", status: "in" as const, explicit: false },
+          { stageId: "s2", status: "in" as const, explicit: true },
+        ],
+      },
+    ],
+    ...over,
+  });
+
+  it("shows every round at once, not just the current one", async () => {
+    // The point of the change: three players out on the same night is the
+    // thing a captain needs to spot, and it is invisible one round at a time.
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(<RoundAvailability playerId="p9" rounds={[]} captainOf={[flight()]} />);
+    expect(html).toContain("R1");
+    expect(html).toContain("R2");
+    expect(html).toContain("Ann Doyle");
+    expect(html).toContain("Rob Ferris");
+  });
+
+  it("keeps the difference between a stated answer and the league's default", async () => {
+    // "In" and "in because nobody said otherwise" are different promises.
+    // A captain counting heads deserves to know which one they are reading.
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(<RoundAvailability playerId="p9" rounds={[]} captainOf={[flight()]} />);
+    expect(html).toContain("default");
+    // Rob is in for R1 only because nobody said otherwise; Ann stated hers.
+    expect(html).toContain("In by default");
+    expect(html).toContain('aria-label="Out"');
+  });
+
+  it("is read-only: a captain cannot change anyone's answer from here", async () => {
+    // Deliberate. Captains talk to the organizer, who makes the change —
+    // so there is no write-on-behalf-of surface to get wrong.
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(<RoundAvailability playerId="p9" rounds={[]} captainOf={[flight()]} />);
+    const captainPart = html.slice(html.indexOf("Flight 1"));
+    expect(captainPart).not.toContain("<input");
+    expect(captainPart).not.toContain("<button");
+  });
+
+  it("counts how many are available each round", async () => {
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(<RoundAvailability playerId="p9" rounds={[]} captainOf={[flight()]} />);
+    expect(html).toContain("Available");
+  });
+
+  it("names a deputy correctly rather than calling them the captain", async () => {
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(
+      <RoundAvailability playerId="p9" rounds={[]} captainOf={[flight({ deputy: true })]} />,
+    );
+    expect(html).toContain("vice-captain");
+  });
+
+  it("renders nothing at all when there is neither a round nor a flight", async () => {
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    expect(render(<RoundAvailability playerId="p9" rounds={[]} captainOf={[]} />)).toBe("");
+  });
+});
