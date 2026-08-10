@@ -53,6 +53,22 @@ export function aggregateStats(
   const stats = new Map<string, PlayerStats>();
   for (const p of players) stats.set(p.id, emptyStats(p.id));
 
+  /**
+   * Points earned match by match, so a cap has something to cap.
+   *
+   * The totals below used to be worked out from season aggregates —
+   * wins × winPts plus holesWon × holeRatioPts — which cannot express "no
+   * more than N from any one match". Summing per match instead gives exactly
+   * the same number when no cap is set (the sum of the parts is the whole),
+   * and gives the cap somewhere to bite when there is one.
+   */
+  const earned = new Map<string, number>();
+  const take = (playerId: string, outcomePts: number, holesWon: number) => {
+    const raw = outcomePts + holesWon * scoring.holeRatioPts;
+    const capped = scoring.maxPerMatch > 0 ? Math.min(raw, scoring.maxPerMatch) : raw;
+    earned.set(playerId, (earned.get(playerId) ?? 0) + capped);
+  };
+
   for (const m of matches) {
     const a = stats.get(m.playerAId);
     const b = stats.get(m.playerBId);
@@ -90,16 +106,25 @@ export function aggregateStats(
         if (b) b.wins += 1;
         if (a) a.losses += 1;
       }
+
+      const ptsFor = (side: "A" | "B") =>
+        outcome === "H" ? scoring.tiePts : outcome === side ? scoring.winPts : scoring.lossPts;
+      if (a) take(m.playerAId, ptsFor("A"), r.holesWonA);
+      if (b) take(m.playerBId, ptsFor("B"), r.holesWonB);
+    } else {
+      // A match still being played pays nothing for an outcome it hasn't had,
+      // but its holes already count — that is what makes the board move during
+      // the round. Capped the same way, so a live blowout can't sail past the
+      // limit and then fall back to it when the match finishes.
+      if (a) take(m.playerAId, 0, r.holesWonA);
+      if (b) take(m.playerBId, 0, r.holesWonB);
     }
   }
 
   for (const s of stats.values()) {
-    s.points =
-      s.wins * scoring.winPts +
-      s.losses * scoring.lossPts +
-      s.ties * scoring.tiePts +
-      s.holesWon * scoring.holeRatioPts +
-      scoring.bonusPts;
+    // The bonus sits outside the cap: it is awarded for taking part, not
+    // earned from any one match.
+    s.points = (earned.get(s.playerId) ?? 0) + scoring.bonusPts;
     s.totalPoints = s.points + (carriedPoints[s.playerId] ?? 0);
   }
 

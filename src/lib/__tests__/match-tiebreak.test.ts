@@ -193,7 +193,7 @@ describe("a decided match changes the points", () => {
     { id: "b", name: "B", handicap: 0, seed: 2 },
   ];
   const scoring: ScoringRules = {
-    winPts: 3, tiePts: 1, lossPts: 0, holeRatioPts: 0, bonusPts: 0,
+    winPts: 3, tiePts: 1, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0,
     tiebreakers: ["head-to-head"],
   };
   // All square overall, but A won the 18th and B the 16th — level on the last

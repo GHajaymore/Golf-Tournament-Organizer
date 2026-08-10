@@ -111,6 +111,15 @@ model Organization {
   defaultVoiceEntry            Boolean @default(true)
   defaultPlayerAccess          String  @default("email")
   defaultScoreApproval         String  @default("staff")
+  /**
+   * House default for the per-match points cap. Zero is no cap.
+   *
+   * A club that always runs its member-guest capped shouldn't have to set it
+   * on every event, and an organizer running something different that week
+   * shouldn't be stuck with the house rule — so this seeds a new tournament
+   * and the tournament can then be changed on its own.
+   */
+  defaultMaxPerMatch           Float   @default(0)
 
   /**
    * The club's own course.
@@ -515,6 +524,16 @@ model Event {
   lossPts       Float  @default(0)
   holeRatioPts  Float  @default(0.5)
   bonusPts      Float  @default(0)
+  /**
+   * The most a player or side can take from any single match. Zero is no cap,
+   * which is what every existing tournament has and keeps.
+   *
+   * Without one a flight can be settled by a single thrashing: holes won feed
+   * into points, so a 7&6 pays several times what a 1-up win pays, and by the
+   * last match of the week there is nothing left to play for. Capping the
+   * take is standard in member-guest invitationals for exactly that reason.
+   */
+  maxPerMatch   Float  @default(0)
   tiebreakers   String @default("[\"head-to-head\",\"holes-won-ratio\",\"fewest-holes-lost\",\"lower-handicap\"]")
   /**
    * How an ALL-SQUARE MATCH is decided — a different question from

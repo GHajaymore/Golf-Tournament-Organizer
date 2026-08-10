@@ -75,6 +75,7 @@ export async function settingsForNewEvent(organizationId: string) {
       defaultVoiceEntry: true,
       defaultPlayerAccess: true,
       defaultScoreApproval: true,
+      defaultMaxPerMatch: true,
     },
   });
 
@@ -87,7 +88,9 @@ export async function settingsForNewEvent(organizationId: string) {
     scoreApproval: org?.defaultScoreApproval,
   });
 
-  return { ...settings, shareToken: generateShareToken() };
+  // Not a member of TournamentSettings — it is a scoring rule, so it rides
+  // alongside rather than through cleanSettings().
+  return { ...settings, maxPerMatch: org?.defaultMaxPerMatch ?? 0, shareToken: generateShareToken() };
 }
 
 export interface EventBrand {

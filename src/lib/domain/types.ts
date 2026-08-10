@@ -73,6 +73,19 @@ export interface ScoringRules {
   holeRatioPts: number;
   /** Flat bonus added per player. */
   bonusPts: number;
+  /**
+   * The most a player or side can take from any single match. Zero is no cap.
+   *
+   * Without one, a flight can be decided by a single thrashing: holes won
+   * count toward points, so a 7&6 pays several times what a 1-up win pays and
+   * the last match of the week is played for nothing. Capping the take keeps
+   * a flight live to the end, which is why it is standard in member-guest
+   * invitationals.
+   *
+   * The bonus sits outside the cap — it is a flat award for turning up, not
+   * something earned from a match.
+   */
+  maxPerMatch: number;
   tiebreakers: TiebreakerKey[];
 }
 
@@ -132,5 +145,8 @@ export const DEFAULT_SCORING: ScoringRules = {
   lossPts: 0,
   holeRatioPts: 0.5,
   bonusPts: 0,
+  // Off by default. A cap is a deliberate choice about how a flight should
+  // feel, not something to impose on every tournament that never asked.
+  maxPerMatch: 0,
   tiebreakers: DEFAULT_TIEBREAKERS,
 };

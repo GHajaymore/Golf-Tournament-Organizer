@@ -77,6 +77,7 @@ export function scoringFrom(event: Event): ScoringRules {
   }
   return {
     winPts: event.winPts,
+    maxPerMatch: event.maxPerMatch,
     tiePts: event.tiePts,
     lossPts: event.lossPts,
     holeRatioPts: event.holeRatioPts,

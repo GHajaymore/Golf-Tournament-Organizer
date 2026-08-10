@@ -37,6 +37,10 @@ export const CLONED_EVENT_FIELDS = [
   "lossPts",
   "holeRatioPts",
   "bonusPts",
+  // A cap is part of how the club decided its flights should feel, and it
+  // belongs with the rest of the scoring rules: last year's member-guest
+  // copied forward should still be capped.
+  "maxPerMatch",
   "tiebreakers",
   "matchTiebreakers",
   "inviteMessage",

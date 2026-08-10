@@ -495,3 +495,60 @@ describe("margins on a nine-hole card", () => {
     expect(resolveMatch(holes).resultText).toBe("AS");
   });
 });
+
+describe("a per-match points cap", () => {
+  const players = [player("p1", "Alice", 4, 1), player("p2", "Bob", 8, 2)];
+  /** One thrashing and one narrow win — the shape a cap exists to flatten. */
+  const matches = [
+    { id: "m1", stageId: "s1", groupId: "g", round: 1, playerAId: "p1", playerBId: "p2", holes: marginToHoles("A", "7&6", 18) },
+    { id: "m2", stageId: "s1", groupId: "g", round: 2, playerAId: "p1", playerBId: "p2", holes: marginToHoles("A", "1UP", 18) },
+  ];
+
+  it("changes nothing when no cap is set", () => {
+    // Every existing tournament stores zero and must keep its numbers. The
+    // engine now sums match by match rather than from season totals, and this
+    // is what proves the two agree.
+    const uncapped = aggregateStats(players, matches, { ...DEFAULT_SCORING, maxPerMatch: 0 });
+    const p1 = uncapped.get("p1")!;
+    expect(p1.points).toBe(
+      p1.wins * DEFAULT_SCORING.winPts +
+        p1.losses * DEFAULT_SCORING.lossPts +
+        p1.ties * DEFAULT_SCORING.tiePts +
+        p1.holesWon * DEFAULT_SCORING.holeRatioPts +
+        DEFAULT_SCORING.bonusPts,
+    );
+  });
+
+  it("stops one thrashing from being worth several wins", () => {
+    // The whole point: uncapped, the 7&6 pays far more than the 1-up, so a
+    // flight can be settled before the last match is played.
+    const capped = aggregateStats(players, matches, { ...DEFAULT_SCORING, maxPerMatch: 4 });
+    const uncapped = aggregateStats(players, matches, { ...DEFAULT_SCORING, maxPerMatch: 0 });
+    expect(capped.get("p1")!.points).toBeLessThan(uncapped.get("p1")!.points);
+    // Two matches, no more than 4 from either.
+    expect(capped.get("p1")!.points).toBeLessThanOrEqual(8);
+  });
+
+  it("leaves a modest win untouched — the cap only bites the outliers", () => {
+    // A 1-up win pays 3 + a hole or two; a cap of 4 should not reach it.
+    const oneUp = [matches[1]];
+    const capped = aggregateStats(players, oneUp, { ...DEFAULT_SCORING, maxPerMatch: 8 });
+    const uncapped = aggregateStats(players, oneUp, { ...DEFAULT_SCORING, maxPerMatch: 0 });
+    expect(capped.get("p1")!.points).toBe(uncapped.get("p1")!.points);
+  });
+
+  it("keeps the participation bonus outside the cap", () => {
+    // The bonus is for turning up, not earned from a match, so capping it
+    // would quietly punish playing.
+    const scoring = { ...DEFAULT_SCORING, bonusPts: 10, maxPerMatch: 1 };
+    expect(aggregateStats(players, matches, scoring).get("p1")!.points).toBeGreaterThanOrEqual(10);
+  });
+
+  it("records the same wins and holes either way — only points move", () => {
+    // A cap changes what a match is worth, never what happened on the course.
+    const capped = aggregateStats(players, matches, { ...DEFAULT_SCORING, maxPerMatch: 2 });
+    const uncapped = aggregateStats(players, matches, { ...DEFAULT_SCORING, maxPerMatch: 0 });
+    expect(capped.get("p1")!.wins).toBe(uncapped.get("p1")!.wins);
+    expect(capped.get("p1")!.holesWon).toBe(uncapped.get("p1")!.holesWon);
+  });
+});
