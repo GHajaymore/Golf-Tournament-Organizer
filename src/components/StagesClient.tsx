@@ -324,9 +324,14 @@ function StageCard({
   venues,
   chainWarnings,
   chainsRounds,
+  expanded,
+  onToggle,
 }: {
   stage: StageView;
   isFirst: boolean;
+  /** Whether this round's configuration is open. */
+  expanded: boolean;
+  onToggle: () => void;
   /**
    * Where this round sits relative to the one being played.
    *
@@ -534,10 +539,31 @@ function StageCard({
         >
           {stage.position + 1}
         </div>
-        <div style={{ flex: 1, minWidth: 160 }}>
+        {/* The whole card in one line when it is closed. A ten-week league
+            used to render ten copies of every control on this screen — about
+            six hundred lines of form — and adding a run of weeks in one click
+            made that far worse. Closed, a round is a row you can scan; open,
+            it is everything it always was. */}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          style={{
+            flex: 1,
+            minWidth: 160,
+            textAlign: "left",
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            color: "var(--color-text)",
+            font: "inherit",
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
-              Round {stage.position + 1} · {stage.type}
+              Round {stage.position + 1}
+              {stage.playedOn ? ` · ${shortDate(stage.playedOn)}` : ` · ${stage.type}`}
             </span>
             <span className="tag tag-neutral">
               {standing === "active" ? "Active" : standing === "played" ? "Played" : "Upcoming"}
@@ -545,8 +571,25 @@ function StageCard({
             {notGenerated && (
               <span className="tag tag-neutral"><i className="ph ph-clock" /> Not generated yet</span>
             )}
+            <i
+              className={expanded ? "ph ph-caret-up" : "ph ph-caret-down"}
+              style={{ fontSize: 13, color: "var(--color-neutral-500)" }}
+            />
           </div>
-        </div>
+          {!expanded && (
+            // Everything the closed row needs to be useful: what it plays,
+            // over how many holes, and the settings summary the card already
+            // computed for the "Customize" panel.
+            <div className="text-muted" style={{ fontSize: 12, marginTop: 3, lineHeight: 1.5 }}>
+              {stage.format} · {stage.holes} holes · {summaryLine}
+            </div>
+          )}
+        </button>
+        {/* `display: contents` rather than a conditional render: these fields
+            are flex children of the header row, and wrapping them in an
+            ordinary div when open would change the layout. Contents makes the
+            wrapper vanish from the box tree; none takes the lot away. */}
+        <div style={{ display: expanded ? "contents" : "none" }}>
         <div className="field" style={{ width: 200 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 5 }}>
             Format
@@ -684,9 +727,10 @@ function StageCard({
         >
           <i className="ph ph-trash" />
         </button>
+        </div>
       </div>
 
-      {formatInfoOpen && (
+      {expanded && formatInfoOpen && (
         <div className="text-muted" style={{ fontSize: 12, margin: "-8px 0 0 60px", display: "flex", flexDirection: "column", gap: 4 }}>
           <p style={{ margin: 0 }}>{description}</p>
           {activeFormat && (
@@ -696,6 +740,12 @@ function StageCard({
           )}
         </div>
       )}
+
+      {/* Everything below is the round's configuration, folded away when the
+          card is closed. The chain warnings above stay visible either way:
+          "this round doesn't follow on from the last one" is the one thing an
+          organizer must see without opening anything. */}
+      <div style={{ display: expanded ? "contents" : "none" }}>
 
       {/* What the format costs the sides in strokes. On the round,
           beside the format it belongs to — this used to live on the
@@ -920,6 +970,7 @@ function StageCard({
           </div>
         )}
       </div>
+      </div>
     </div>
   );
 }
@@ -958,6 +1009,17 @@ export function StagesClient({
    *  and every other one name the same round. */
   activeStageId?: string | null;
 }) {
+  /**
+   * Which round is open. One at a time, and none when there are several.
+   *
+   * A tournament with one or two rounds opens the first: there is nothing to
+   * scroll past, and making somebody click to see the only round would be
+   * officious. A league opens none, because ten expanded rounds is the wall
+   * this replaced.
+   */
+  const [openRound, setOpenRound] = useState<string | null>(
+    stages.length > 0 && stages.length <= 2 ? stages[0].id : null,
+  );
   const [newType, setNewType] = useState<StageTypeKey>(STAGE_TYPES[0]);
   // Resets to 1 after each add: "add 10 weeks" is a deliberate act, and
   // leaving the box on 10 would make the next click a nasty surprise.
@@ -1016,6 +1078,8 @@ export function StagesClient({
           <StageCard
             key={s.id}
             stage={s}
+            expanded={openRound === s.id}
+            onToggle={() => setOpenRound((cur) => (cur === s.id ? null : s.id))}
             isFirst={i === 0}
             standing={
               activeStageId === s.id
