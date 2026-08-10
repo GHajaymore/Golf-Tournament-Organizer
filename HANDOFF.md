@@ -290,3 +290,22 @@ heuristics, not AI).
 
 Sequence: commercial core -> Tier 1 (scorecard photo) -> Tier 2. Existing voice
 score-entry / voice-query features are the assistive-input DNA this extends.
+
+## Formats — approved additions 2026-08-09 (queued after the dashboard/tee-sheet agent)
+Current list is comprehensive (14: Match Play, Stroke Play, Stableford, Modified
+Stableford, Skins, Nassau, Four-Ball, Best Ball, Shamble, Foursomes, Alternate
+Shot, Chapman/Pinehurst, Scramble, Texas Scramble). Each has its own engine.
+
+NO arbitrary "custom scoring" format — it would let users invent unscoreable
+rules and produce wrong results (same discipline as AI-never-touches-scoring).
+Instead build:
+1. GREENSOMES — new format on the EXISTING team-single engine (both drive, best
+   drive, then alternate = one team ball/score per hole, like Foursomes). Set the
+   correct greensomes handicap allowance. Low risk, mostly a formats.ts entry.
+2. "BEST BALLS THAT COUNT" config for team-aggregate (Four-Ball/Best Ball) — a
+   Stage field + engine change so "2 best of 4", "3 of 4" score correctly, plus a
+   UI control. The real work; needs tests.
+3. "OTHER / MANUAL" format — clearly labeled "you keep the scoring; TourneyHQ
+   records the totals and ranks them." Honest escape hatch, NO fake engine, never
+   masquerades as auto-scoring.
+Must run AFTER the dashboard/tee-sheet agent — both touch StagesClient.
