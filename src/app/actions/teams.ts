@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { sideSizeRange, needsTeams } from "@/lib/formats";
+import { sideSizeRange, needsTeams, findFormat } from "@/lib/formats";
 import { snakeDraw } from "@/lib/services/teams";
 import { roundRobinSchedule } from "@/lib/domain";
 
@@ -300,6 +300,58 @@ export async function setStageAllowance(stageId: string, percent: number): Promi
   await prisma.stage.update({
     where: { id: stageId },
     data: { handicapAllowance: Math.round(percent) },
+  });
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Set the committee's per-player allowance shares for a team round.
+ *
+ * Greensomes is 60% of the lower handicap plus 40% of the higher — the
+ * published WHS recommendation — but clubs play 50/50 and 55/45 too, and
+ * `handicapAllowance` is a single number that cannot say any of them.
+ *
+ * An empty list clears the setting and returns the round to the split its
+ * format recommends, the same way zero does for the flat allowance.
+ *
+ * The length is checked against the format's own side size rather than
+ * accepted loosely: `sideHandicap` gives a position with no weight a share of
+ * zero, so a list one short would quietly drop a player's handicap out of the
+ * calculation instead of failing. Better to refuse it here and say why.
+ */
+export async function setStageAllowanceWeights(
+  stageId: string,
+  weights: number[],
+): Promise<TeamResult> {
+  const eventId = await requireStaff();
+  await stageInEvent(eventId, stageId);
+
+  if (weights.length === 0) {
+    await prisma.stage.update({ where: { id: stageId }, data: { allowanceWeights: [] } });
+    refresh();
+    return { ok: true };
+  }
+
+  if (weights.some((w) => !Number.isFinite(w) || w < 0 || w > 100)) {
+    return { ok: false, error: "Each share must be between 0 and 100 percent." };
+  }
+  if (weights.every((w) => w === 0)) {
+    return { ok: false, error: "At least one share has to be above zero." };
+  }
+
+  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { format: true } });
+  const expected = findFormat(stage?.format ?? "").sideSize;
+  if (weights.length !== expected) {
+    return {
+      ok: false,
+      error: `${stage?.format} plays ${expected} to a side, so it needs ${expected} shares.`,
+    };
+  }
+
+  await prisma.stage.update({
+    where: { id: stageId },
+    data: { allowanceWeights: weights.map((w) => Math.round(w)) },
   });
   refresh();
   return { ok: true };

@@ -212,10 +212,13 @@ export async function teamStandings(
   strokeIndex: number[],
   basis: string,
   allowanceOverride = 0,
+  weightsOverride?: number[] | null,
 ): Promise<TeamStanding[]> {
   const f = findFormat(format);
   const [teams, cards] = await Promise.all([
-    teamsForStage(eventId, stageId, format, allowanceOverride),
+    // `holes` is left at its default rather than derived from pars.length, to
+    // keep this call behaving exactly as it did before weights were added.
+    teamsForStage(eventId, stageId, format, allowanceOverride, 18, weightsOverride),
     prisma.teamScorecard.findMany({ where: { eventId, stageId } }),
   ]);
 

@@ -22,7 +22,7 @@ export default async function TeamsPage({
   const stages = await prisma.stage.findMany({
     where: { eventId: session.eventId },
     orderBy: { position: "asc" },
-    select: { id: true, position: true, type: true, format: true, description: true, handicapAllowance: true },
+    select: { id: true, position: true, type: true, format: true, description: true, handicapAllowance: true, allowanceWeights: true },
   });
 
   const teamStages = stages.filter((s) => TEAM_FORMAT_NAMES.includes(s.format));
@@ -45,7 +45,7 @@ export default async function TeamsPage({
     );
   }
 
-  const teams = await teamsForStage(session.eventId, active.id, active.format, active.handicapAllowance);
+  const teams = await teamsForStage(session.eventId, active.id, active.format, active.handicapAllowance, 18, active.allowanceWeights);
   const matchCount = await prisma.match.count({ where: { eventId: session.eventId, stageId: active.id } });
   const unassigned = await unassignedPlayers(session.eventId, teams);
   const format = findFormat(active.format);
@@ -72,6 +72,15 @@ export default async function TeamsPage({
           recommendedAllowance: format.allowance,
           allowanceOverridden: active.handicapAllowance > 0,
           allowanceIsConvention: !!format.allowanceIsConvention,
+          // Only formats scored by a per-player split (greensomes' 60/40) get
+          // the split control at all; for everything else it would be a
+          // control with nothing behind it.
+          recommendedShares: format.weightsBySideSize?.[format.sideSize] ?? null,
+          shares:
+            active.allowanceWeights.length === format.sideSize
+              ? active.allowanceWeights
+              : (format.weightsBySideSize?.[format.sideSize] ?? null),
+          sharesOverridden: active.allowanceWeights.length === format.sideSize,
         }}
         teams={teams}
         problems={teamProblems(teams, active.format)}

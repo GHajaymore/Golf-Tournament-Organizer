@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import FieldInfo from "@/components/FieldInfo";
 import {
   createTeam,
   deleteTeam,
@@ -9,6 +10,7 @@ import {
   autoDrawTeams,
   generateTeamMatches,
   setStageAllowance,
+  setStageAllowanceWeights,
 } from "@/app/actions/teams";
 
 export interface TeamMemberRow {
@@ -43,6 +45,12 @@ export interface FormatInfo {
   /** What the format recommends, when a committee has overridden it. */
   recommendedAllowance: number;
   allowanceOverridden: boolean;
+  /** The per-player shares in force, best player first, or null for a format
+   *  that isn't scored by a split at all. */
+  shares: number[] | null;
+  /** The split the format itself recommends. */
+  recommendedShares: number[] | null;
+  sharesOverridden: boolean;
   allowanceIsConvention: boolean;
 }
 
@@ -78,6 +86,8 @@ export function TeamsClient({
   const [confirmMatches, setConfirmMatches] = useState(false);
   const [editingAllowance, setEditingAllowance] = useState(false);
   const [allowance, setAllowance] = useState("");
+  const [editingShares, setEditingShares] = useState(false);
+  const [shares, setShares] = useState<string[]>([]);
   const [addingTo, setAddingTo] = useState("");
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
@@ -201,6 +211,95 @@ export function TeamsClient({
                 }}
               >
                 Back to {format.recommendedAllowance}%
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Formats scored by a per-player split get their own control. A flat
+            percentage cannot express greensomes' 60/40, and clubs genuinely
+            differ — 50/50 and 55/45 are both played. */}
+        {format.shares && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+              Handicap split{" "}
+              <b style={{ color: "var(--color-text)" }}>{format.shares.join(" / ")}</b>
+              {format.sharesOverridden
+                ? ` — set by your committee, in place of the usual ${format.recommendedShares?.join(" / ")}.`
+                : " — the recommended split for this format."}
+              <FieldInfo label="the handicap split">
+                <p>
+                  The shares are applied best player first: the first number is the
+                  percentage of the <b>lower</b> handicap, the second the percentage of
+                  the <b>higher</b>.
+                </p>
+                <p>
+                  Greensomes is 60 / 40 because taking the better of two drives is an
+                  advantage, so the side plays off fewer strokes than an alternate-shot
+                  pair of the same two players.
+                </p>
+                <p>The shares do not have to add up to 100.</p>
+              </FieldInfo>
+            </p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: "2px 10px", fontSize: 12 }}
+              onClick={() => {
+                setShares(format.shares!.map(String));
+                setEditingShares((o) => !o);
+              }}
+            >
+              {editingShares ? "Cancel" : "Change"}
+            </button>
+          </div>
+        )}
+
+        {editingShares && format.shares && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {shares.map((v, i) => (
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <input
+                  className="input"
+                  inputMode="numeric"
+                  style={{ width: 70 }}
+                  value={v}
+                  onChange={(e) =>
+                    setShares((prev) => prev.map((p, j) => (j === i ? e.target.value : p)))
+                  }
+                  aria-label={i === 0 ? "Share of the lower handicap, percent" : `Share ${i + 1}, percent`}
+                />
+                <span className="text-muted" style={{ fontSize: 12 }}>%</span>
+              </span>
+            ))}
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={pending}
+              onClick={() => {
+                const nums = shares.map((s) => parseInt(s, 10));
+                run(() =>
+                  setStageAllowanceWeights(
+                    activeRoundId,
+                    nums.map((n) => (Number.isFinite(n) ? n : -1)),
+                  ),
+                );
+                setEditingShares(false);
+              }}
+            >
+              Save
+            </button>
+            {format.sharesOverridden && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={pending}
+                onClick={() => {
+                  run(() => setStageAllowanceWeights(activeRoundId, []));
+                  setEditingShares(false);
+                }}
+              >
+                Back to {format.recommendedShares?.join(" / ")}
               </button>
             )}
           </div>

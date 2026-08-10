@@ -64,6 +64,7 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
         liveCourse.strokeIndex.slice(0, holeCount),
         activeStage!.scoringBasis,
         activeStage!.handicapAllowance,
+        activeStage!.allowanceWeights,
       )
     : [];
 

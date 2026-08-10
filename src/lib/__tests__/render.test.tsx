@@ -214,6 +214,9 @@ describe("team screens", () => {
     name: "Four-Ball", desc: "Two against two.", min: 2, max: 2,
     sharesOneCard: false, allowance: 90, recommendedAllowance: 90,
     allowanceOverridden: false, allowanceIsConvention: false,
+    // Four-Ball takes a flat percentage of the combined handicaps, so it has
+    // no per-player split and the split control must not appear.
+    shares: null, recommendedShares: null, sharesOverridden: false,
   };
 
   it("renders the teams screen with no sides drawn", () => {
@@ -247,6 +250,37 @@ describe("team screens", () => {
         teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
     );
     expect(html).toContain("not a published standard");
+  });
+
+  it("shows the split for a format scored by one, and not for one that isn't", () => {
+    // Greensomes is 60% of the lower handicap plus 40% of the higher, which a
+    // single percentage cannot express — so it gets its own control.
+    const greensomes = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Greensomes" }]} activeRoundId="r1"
+        format={{ ...format, name: "Greensomes", sharesOneCard: true,
+          shares: [60, 40], recommendedShares: [60, 40] }}
+        teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(greensomes).toContain("Handicap split");
+    expect(greensomes).toContain("60 / 40");
+    // Four-Ball takes a flat percentage, so offering a split would be a
+    // control with nothing behind it.
+    const fourBall = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+        format={format} teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(fourBall).not.toContain("Handicap split");
+  });
+
+  it("says when a committee has replaced the recommended split", () => {
+    const html = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Greensomes" }]} activeRoundId="r1"
+        format={{ ...format, name: "Greensomes", sharesOneCard: true,
+          shares: [50, 50], recommendedShares: [60, 40], sharesOverridden: true }}
+        teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(html).toContain("50 / 50");
+    expect(html).toContain("set by your committee");
   });
 
   it("renders team score entry for both card shapes", () => {
