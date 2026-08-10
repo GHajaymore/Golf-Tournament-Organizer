@@ -1,4 +1,6 @@
 "use server";
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { PLAYABLE_FORMAT_NAMES } from "@/lib/formats";
@@ -106,4 +108,45 @@ export async function suggestSetup(description: string): Promise<SetupSuggestRes
   } catch {
     return { ok: false, configured: true, error: "Couldn't reach the assistant. Build it with the controls." };
   }
+}
+
+/**
+ * Create the rounds an organizer accepted from a proposal.
+ *
+ * The separation matters: suggestSetup produces words, this writes rounds, and
+ * only a person's click connects them. There is no path from the model
+ * straight to the database.
+ *
+ * Everything is validated AGAIN here. The proposal went out to a browser and
+ * came back, so it is untrusted input on the way in exactly as the model's
+ * reply was — the client could send any format string it liked. Re-running
+ * the same parser means one set of rules rather than two that can drift.
+ */
+export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestResult> {
+  const { eventId } = await requireStaff();
+
+  const checked = parseSetupProposal({ rounds }, PLAYABLE_FORMAT_NAMES, STAGE_TYPES);
+  if (checked.rounds.length === 0) {
+    return { ok: false, error: "Nothing there the app can run." };
+  }
+
+  // Appended after whatever exists, never replacing it. An organizer who has
+  // already built something and then tries a description should not lose it.
+  const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
+  const from = (agg._max.position ?? -1) + 1;
+
+  await prisma.stage.createMany({
+    data: checked.rounds.map((r, i) => ({
+      eventId,
+      position: from + i,
+      type: r.type,
+      format: r.format,
+      holes: r.holes,
+      scoringBasis: r.scoringBasis,
+      description: r.description,
+    })),
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true, proposal: checked };
 }

@@ -7,6 +7,7 @@ import { StagesClient } from "@/components/StagesClient";
 import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { DescribeTournament } from "@/components/DescribeTournament";
 import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
 import { effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import type { RoundScoringInfo } from "@/components/RoundTeamScoring";
@@ -127,6 +128,10 @@ export default async function StagesPage() {
         </p>
       </div>
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
+      {/* Above the builder, because it is a way IN to the builder rather than
+          an alternative to it — whatever it proposes lands as ordinary rounds
+          on the cards below, editable like any other. */}
+      {!locked && <DescribeTournament />}
       <StagesClient
         stages={stages}
         venues={venues}
