@@ -4,7 +4,10 @@
  * Three endpoints in this app are reachable with no session at all, and each
  * one of them checks a secret that a computer can simply try over and over:
  *
- *   - a Round Code, which is 8 characters from a 27-symbol alphabet
+ *  | "register-email"
+  | "card-photo";
+| "register-email"
+  | "card-photo"; - a Round Code, which is 8 characters from a 27-symbol alphabet
  *   - a password
  *   - an email address, for "send me a reset link"
  *
@@ -50,7 +53,8 @@ export type RateLimitKind =
   | "password-reset"
   | "round-code"
   | "register-token"
-  | "register-email";
+  | "register-email"
+  | "card-photo";
 
 export interface RateLimitPolicy {
   /** Attempts allowed inside one window. The (limit + 1)th is refused. */
@@ -97,6 +101,11 @@ export const RATE_LIMITS: Record<RateLimitKind, RateLimitPolicy> = {
    * someone poking at the form, and they wait.
    */
   "register-email": { limit: 6, windowMs: 60 * MINUTE },
+  /** Reading a scorecard photograph costs money per call, so this is a
+   *  spend limit as much as an abuse one. Forty an hour covers a full field
+   *  entered in one sitting, with re-takes, and stops a stuck loop running up
+   *  a bill nobody authorised. */
+  "card-photo": { limit: 40, windowMs: 60 * MINUTE },
 };
 
 /**
@@ -236,6 +245,8 @@ export function throttleMessage(kind: RateLimitKind, retryAfterSeconds: number):
     case "round-code":
       return `Too many code attempts. Wait ${wait} and try again, or ask your organizer to read the code out.`;
     case "register-token":
+    case "card-photo":
+      return "Too many card readings just now. Wait a few minutes, or type the scores in.";
     case "register-email":
       return `Too many registration attempts. Wait ${wait} and try again.`;
   }
