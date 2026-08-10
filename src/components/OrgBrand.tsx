@@ -1,4 +1,4 @@
-import { Logo } from "./Logo";
+import { Logo, LOGO_SIZE } from "./Logo";
 import { BrandMark } from "./BrandMark";
 
 export interface Brand {
@@ -19,12 +19,14 @@ export interface Brand {
  * set branding, so the header is never empty — and a club that has set a logo
  * sees its own identity on every screen its members open.
  */
-export function OrgBrand({ brand, size = 22 }: { brand?: Brand | null; size?: number }) {
+export function OrgBrand({ brand, size = LOGO_SIZE.md }: { brand?: Brand | null; size?: number }) {
   if (!brand?.name) {
     return (
       <>
         <Logo size={size} />
-        <BrandMark />
+        {/* Sized from the same number as the mark beside it, so a caller that
+            shrinks one shrinks both. They used to drift apart. */}
+        <BrandMark size={size} />
       </>
     );
   }

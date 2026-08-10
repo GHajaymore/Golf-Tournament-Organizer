@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
+import { Logo, LOGO_SIZE } from "@/components/Logo";
 
 /**
  * The front door.
@@ -204,15 +205,34 @@ const LANDING_CSS = `
 }
 `;
 
-/** Reused wordmark; `aria-hidden` because the "TourneyHQ" text sits beside it. */
-function FlagMark({ size = 23 }: { size?: number }) {
+/**
+ * The app's mark, wearing the programme palette.
+ *
+ * This used to be a second hand-drawn copy of the logo — same idea, a slightly
+ * bigger cup and a thinner flagstick — so the mark above the sign-in button
+ * was not quite the mark inside the app. It now maps the page's own colours
+ * onto the real component, which is the point of the --logo-* variables: one
+ * drawing, two palettes.
+ *
+ * The cup is left unfilled here because it sits on the fairway-green ground
+ * rather than on a flat surface.
+ */
+function FlagMark({ size = LOGO_SIZE.md }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
-      <path d="M20 4 V18" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
-      <path d="M20 4.5 L27.5 7.5 L20 10.5 Z" fill="var(--flag)" />
-      <ellipse cx="16" cy="22.5" rx="8" ry="3.2" fill="none" stroke="var(--line-2)" strokeWidth="1.1" />
-      <circle cx="12" cy="20" r="3.1" fill="currentColor" />
-    </svg>
+    <Logo
+      size={size}
+      style={
+        {
+          // Pennant orange, stick in ink — the programme's two-tone. The app
+          // draws both in one colour; this is the difference the variables
+          // exist to carry.
+          "--logo-flag": "var(--flag)",
+          "--logo-stick": "currentColor",
+          "--logo-rim": "var(--line-2)",
+          "--logo-cup": "transparent",
+        } as React.CSSProperties
+      }
+    />
   );
 }
 
@@ -242,7 +262,7 @@ export default async function LoginPage() {
       <nav className="nav">
         <div className="wrap nav-in">
           <div className="brand">
-            <FlagMark size={23} />
+            <FlagMark size={LOGO_SIZE.md} />
             Tourney<span className="hq">HQ</span>
           </div>
           <div className="nav-actions">
@@ -449,7 +469,7 @@ export default async function LoginPage() {
       <footer>
         <div className="wrap foot-in">
           <div className="foot-brand">
-            <FlagMark size={19} />
+            <FlagMark size={LOGO_SIZE.sm} />
             Tourney<span className="hq">HQ</span>
           </div>
           <div className="foot-meta">

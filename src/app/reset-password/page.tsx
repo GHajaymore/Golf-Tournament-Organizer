@@ -1,4 +1,4 @@
-import { Logo } from "@/components/Logo";
+import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 import { ResetPasswordForm } from "@/components/ResetPasswordForm";
 
@@ -35,9 +35,9 @@ export default async function ResetPasswordPage({
             background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
           }}
         >
-          <Logo size={22} style={{ color: "var(--color-accent)" }} />
+          <Logo size={LOGO_SIZE.md} style={{ color: "var(--color-accent)" }} />
         </div>
-        <BrandMark style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 22, letterSpacing: "-0.01em" }} />
+        <BrandMark />
       </div>
       <ResetPasswordForm token={token ?? ""} />
     </div>

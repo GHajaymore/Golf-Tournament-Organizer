@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useTransition } from "react";
 import type { NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
-import { Logo } from "@/components/Logo";
+import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 import { OrgBrand, type Brand } from "@/components/OrgBrand";
 
@@ -70,9 +70,9 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand }: Pro
                 background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
               }}
             >
-              <Logo size={17} style={{ color: "var(--color-accent)" }} />
+              <Logo size={LOGO_SIZE.sm} style={{ color: "var(--color-accent)" }} />
             </div>
-            <BrandMark />
+            <BrandMark size={LOGO_SIZE.sm} />
           </>
         )}
       </div>

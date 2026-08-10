@@ -5,7 +5,7 @@ import { enterTournament, signOutAction } from "@/app/actions/auth";
 import { prisma } from "@/lib/db";
 import { accessibleEvents } from "@/lib/services/access";
 import { ROLE_LABEL } from "@/lib/roles";
-import { Logo } from "@/components/Logo";
+import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
 
@@ -75,9 +75,9 @@ export default async function ChooseTournamentPage({
                 background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
               }}
             >
-              <Logo size={22} style={{ color: "var(--color-accent)" }} />
+              <Logo size={LOGO_SIZE.md} style={{ color: "var(--color-accent)" }} />
             </div>
-            <BrandMark style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 22, letterSpacing: "-0.01em" }} />
+            <BrandMark />
           </div>
           <form action={signOutAction}>
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 12 }}>
