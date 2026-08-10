@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { snakeDraw, teamProblems, sidePlayingHandicap, effectiveAllowance } from "../services/teams";
+import { snakeDraw, teamProblems, sidePlayingHandicap, effectiveAllowance, effectiveCountBest } from "../services/teams";
 import type { TeamView } from "../services/teams";
 
 const player = (id: string, handicap: number) => ({ id, handicap });
@@ -199,5 +199,28 @@ describe("a committee's own allowance split", () => {
   it("does not require the shares to add up to 100", () => {
     // Greensomes' 60/40 does; a scramble's 25/20/15/10 sums to 70. Both real.
     expect(sidePlayingHandicap([10, 20], "Greensomes", 0, [30, 20])).toBe(7);
+  });
+});
+
+describe("how many scores count", () => {
+  it("counts one when nothing is set — how four-ball is normally played", () => {
+    // A stored zero means "no opinion". Reading it as zero would score every
+    // hole blank, which is the failure worth guarding.
+    expect(effectiveCountBest("Four-Ball", 0)).toBe(1);
+  });
+
+  it("takes the committee's count when they have set one", () => {
+    expect(effectiveCountBest("Best Ball", 2)).toBe(2);
+  });
+
+  it("never counts more scores than a side can hold", () => {
+    // "Best 6 of 4" is not a format; it is a confusing way of writing
+    // "everyone counts".
+    expect(effectiveCountBest("Four-Ball", 6)).toBe(2);
+    expect(effectiveCountBest("Best Ball", 9)).toBe(4);
+  });
+
+  it("treats a negative as no opinion rather than inverting anything", () => {
+    expect(effectiveCountBest("Four-Ball", -3)).toBe(1);
   });
 });

@@ -43,6 +43,7 @@ export default async function LeaderboardPage() {
       activeStage.scoringBasis,
       activeStage.handicapAllowance,
       activeStage.allowanceWeights,
+      activeStage.countBest,
     );
     return (
       <TeamLeaderboard

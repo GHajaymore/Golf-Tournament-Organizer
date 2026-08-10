@@ -11,6 +11,7 @@ import {
   generateTeamMatches,
   setStageAllowance,
   setStageAllowanceWeights,
+  setStageCountBest,
 } from "@/app/actions/teams";
 
 export interface TeamMemberRow {
@@ -51,6 +52,11 @@ export interface FormatInfo {
   /** The split the format itself recommends. */
   recommendedShares: number[] | null;
   sharesOverridden: boolean;
+  /** How many partners' scores count on a hole, or null for a format that
+   *  doesn't aggregate separate balls. */
+  countBest: number | null;
+  countBestOverridden: boolean;
+  maxCountBest: number;
   allowanceIsConvention: boolean;
 }
 
@@ -88,6 +94,8 @@ export function TeamsClient({
   const [allowance, setAllowance] = useState("");
   const [editingShares, setEditingShares] = useState(false);
   const [shares, setShares] = useState<string[]>([]);
+  const [editingCount, setEditingCount] = useState(false);
+  const [countBest, setCountBest] = useState("");
   const [addingTo, setAddingTo] = useState("");
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
@@ -300,6 +308,86 @@ export function TeamsClient({
                 }}
               >
                 Back to {format.recommendedShares?.join(" / ")}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* How many balls count, for the formats that aggregate separate ones.
+            A scramble already plays a single ball, so the question doesn't
+            arise and the control isn't offered. */}
+        {format.countBest !== null && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+              Scores that count{" "}
+              <b style={{ color: "var(--color-text)" }}>
+                best {format.countBest} of {format.max}
+              </b>
+              {format.countBestOverridden ? " — set by your committee." : " — how this format is normally played."}
+              <FieldInfo label="how many scores count">
+                <p>
+                  On each hole the side&rsquo;s best {format.countBest === 1 ? "score counts" : `${format.countBest} scores count`} and
+                  the rest are set aside.
+                </p>
+                <p>
+                  Counting more than one keeps everybody involved: with only the best
+                  ball counting, three of a four have nothing to play for once a partner
+                  makes par. &ldquo;Best 2 of 4&rdquo; is the usual society choice.
+                </p>
+              </FieldInfo>
+            </p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: "2px 10px", fontSize: 12 }}
+              onClick={() => {
+                setCountBest(String(format.countBest ?? 1));
+                setEditingCount((o) => !o);
+              }}
+            >
+              {editingCount ? "Cancel" : "Change"}
+            </button>
+          </div>
+        )}
+
+        {editingCount && format.countBest !== null && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <select
+              className="input"
+              style={{ width: 150 }}
+              value={countBest}
+              onChange={(e) => setCountBest(e.target.value)}
+              aria-label="How many scores count on each hole"
+            >
+              {Array.from({ length: format.max }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={String(n)}>
+                  best {n} of {format.max}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={pending}
+              onClick={() => {
+                const n = parseInt(countBest, 10);
+                run(() => setStageCountBest(activeRoundId, Number.isFinite(n) ? n : 0));
+                setEditingCount(false);
+              }}
+            >
+              Save
+            </button>
+            {format.countBestOverridden && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={pending}
+                onClick={() => {
+                  run(() => setStageCountBest(activeRoundId, 0));
+                  setEditingCount(false);
+                }}
+              >
+                Back to best 1
               </button>
             )}
           </div>

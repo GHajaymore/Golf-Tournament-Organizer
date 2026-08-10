@@ -42,7 +42,7 @@ import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
 import { findFormat } from "@/lib/formats";
 import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
-import { sidePlayingHandicap } from "@/lib/services/teams";
+import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 
 async function requireEvent(): Promise<string> {
   const session = await getSession();
@@ -1184,6 +1184,15 @@ async function recomputeTeamMatch(
   if (!event) return;
   const course = resolveCourse(event);
   const format = findFormat(formatName);
+  // The round's own handicap settings, not just the format's defaults. This
+  // used to score off `format.allowance` and an unoverridden side handicap,
+  // which meant a committee that set its own allowance saw it honoured on the
+  // leaderboard and ignored here — the same round settled two ways.
+  const stage = await prisma.stage.findUnique({
+    where: { id: match.stageId },
+    select: { handicapAllowance: true, allowanceWeights: true, countBest: true },
+  });
+  const allowance = effectiveAllowance(formatName, stage?.handicapAllowance ?? 0);
 
   const sideCard = async (teamId: string) => {
     const [cards, members] = await Promise.all([
@@ -1202,7 +1211,12 @@ async function recomputeTeamMatch(
     };
     if (format.ball === "single") {
       const one = cards.find((c) => c.playerId === "");
-      const hcp = sidePlayingHandicap(members.map((m) => m.player.handicap), formatName);
+      const hcp = sidePlayingHandicap(
+        members.map((m) => m.player.handicap),
+        formatName,
+        stage?.handicapAllowance ?? 0,
+        stage?.allowanceWeights,
+      );
       return singleBallTeamCard(one ? parse(one.strokes) : [], course.pars, hcp, course.strokeIndex);
     }
     return aggregateTeamCard(
@@ -1213,7 +1227,8 @@ async function recomputeTeamMatch(
       })),
       course.pars.slice(0, holeCount),
       course.strokeIndex.slice(0, holeCount),
-      format.allowance,
+      allowance,
+      effectiveCountBest(formatName, stage?.countBest ?? 0),
     );
   };
 

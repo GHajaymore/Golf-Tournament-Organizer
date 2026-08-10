@@ -306,6 +306,40 @@ export async function setStageAllowance(stageId: string, percent: number): Promi
 }
 
 /**
+ * Set how many partners' scores count on each hole.
+ *
+ * Four-ball and best ball count one. Counting the best two or three of four
+ * is a common club and society variation, and it is the same engine with a
+ * different count — not a different format.
+ *
+ * Zero clears the setting and returns the round to counting one.
+ */
+export async function setStageCountBest(stageId: string, count: number): Promise<TeamResult> {
+  const eventId = await requireStaff();
+  await stageInEvent(eventId, stageId);
+
+  if (!Number.isFinite(count) || count < 0) {
+    return { ok: false, error: "Enter how many scores count, or 0 to use the format's default." };
+  }
+
+  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { format: true } });
+  const max = sideSizeRange(stage?.format ?? "").max;
+  if (count > max) {
+    return {
+      ok: false,
+      error: `${stage?.format} plays at most ${max} a side, so no more than ${max} scores can count.`,
+    };
+  }
+
+  await prisma.stage.update({
+    where: { id: stageId },
+    data: { countBest: Math.round(count) },
+  });
+  refresh();
+  return { ok: true };
+}
+
+/**
  * Set the committee's per-player allowance shares for a team round.
  *
  * Greensomes is 60% of the lower handicap plus 40% of the higher — the

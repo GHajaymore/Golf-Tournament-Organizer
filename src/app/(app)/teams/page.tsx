@@ -1,7 +1,7 @@
 import { requireScreen } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { TeamsClient } from "@/components/TeamsClient";
-import { teamsForStage, unassignedPlayers, teamProblems, effectiveAllowance } from "@/lib/services/teams";
+import { teamsForStage, unassignedPlayers, teamProblems, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
 
 /**
@@ -22,7 +22,7 @@ export default async function TeamsPage({
   const stages = await prisma.stage.findMany({
     where: { eventId: session.eventId },
     orderBy: { position: "asc" },
-    select: { id: true, position: true, type: true, format: true, description: true, handicapAllowance: true, allowanceWeights: true },
+    select: { id: true, position: true, type: true, format: true, description: true, handicapAllowance: true, allowanceWeights: true, countBest: true },
   });
 
   const teamStages = stages.filter((s) => TEAM_FORMAT_NAMES.includes(s.format));
@@ -81,6 +81,11 @@ export default async function TeamsPage({
               ? active.allowanceWeights
               : (format.weightsBySideSize?.[format.sideSize] ?? null),
           sharesOverridden: active.allowanceWeights.length === format.sideSize,
+          // Only formats that aggregate separate balls have a "how many
+          // count" question at all — a scramble already plays one ball.
+          countBest: format.engine === "team-aggregate" ? effectiveCountBest(active.format, active.countBest) : null,
+          countBestOverridden: active.countBest > 0,
+          maxCountBest: range.max,
         }}
         teams={teams}
         problems={teamProblems(teams, active.format)}

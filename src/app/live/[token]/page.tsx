@@ -65,6 +65,7 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
         activeStage!.scoringBasis,
         activeStage!.handicapAllowance,
         activeStage!.allowanceWeights,
+        activeStage!.countBest,
       )
     : [];
 

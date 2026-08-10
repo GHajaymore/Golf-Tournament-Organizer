@@ -137,6 +137,22 @@ export function effectiveAllowance(format: string, override: number): number {
   return override > 0 ? override : findFormat(format).allowance;
 }
 
+/**
+ * How many partners' scores count on each hole for this round.
+ *
+ * Zero means the organizer has said nothing, which is one — the single best
+ * ball, as four-ball and best ball are normally played. A stored zero must
+ * never read as "count none", which would score every hole as blank.
+ *
+ * Capped at the number of players a side can hold: "best 6 of 4" is not a
+ * format, and letting it through would just be a confusing way of writing
+ * "everyone counts".
+ */
+export function effectiveCountBest(format: string, override: number): number {
+  if (!Number.isFinite(override) || override <= 0) return 1;
+  return Math.min(Math.round(override), sideSizeRange(format).max);
+}
+
 export interface TeamProblem {
   teamId: string;
   teamName: string;
@@ -213,6 +229,7 @@ export async function teamStandings(
   basis: string,
   allowanceOverride = 0,
   weightsOverride?: number[] | null,
+  countBestOverride = 0,
 ): Promise<TeamStanding[]> {
   const f = findFormat(format);
   const [teams, cards] = await Promise.all([
@@ -249,6 +266,7 @@ export async function teamStandings(
             pars,
             strokeIndex,
             effectiveAllowance(format, allowanceOverride),
+            effectiveCountBest(format, countBestOverride),
           );
     return {
       teamId: t.id,

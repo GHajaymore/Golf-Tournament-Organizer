@@ -217,6 +217,8 @@ describe("team screens", () => {
     // Four-Ball takes a flat percentage of the combined handicaps, so it has
     // no per-player split and the split control must not appear.
     shares: null, recommendedShares: null, sharesOverridden: false,
+    // It does aggregate separate balls, so it does have a "how many count".
+    countBest: 1, countBestOverridden: false, maxCountBest: 2,
   };
 
   it("renders the teams screen with no sides drawn", () => {
@@ -280,6 +282,34 @@ describe("team screens", () => {
         teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
     );
     expect(html).toContain("50 / 50");
+    expect(html).toContain("set by your committee");
+  });
+
+  it("offers how-many-count only where separate balls are aggregated", () => {
+    // Four-Ball aggregates two balls, so "best 1 of 2" is a real question.
+    const fourBall = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+        format={format} teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(fourBall).toContain("Scores that count");
+    expect(fourBall).toContain("best 1 of 2");
+    // A scramble already plays one ball, so the question doesn't arise.
+    const scramble = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Scramble" }]} activeRoundId="r1"
+        format={{ ...format, name: "Scramble", min: 4, max: 4, sharesOneCard: true, countBest: null }}
+        teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(scramble).not.toContain("Scores that count");
+  });
+
+  it("shows a society's best-2-of-4 as the committee's choice", () => {
+    const html = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Best Ball" }]} activeRoundId="r1"
+        format={{ ...format, name: "Best Ball", min: 4, max: 4,
+          countBest: 2, countBestOverridden: true, maxCountBest: 4 }}
+        teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(html).toContain("best 2 of 4");
     expect(html).toContain("set by your committee");
   });
 

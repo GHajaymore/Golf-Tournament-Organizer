@@ -814,6 +814,21 @@ model Stage {
   allowanceWeights Int[]
 
   /**
+   * How many partners' scores count on each hole, for the formats that
+   * aggregate separate balls.
+   *
+   * Four-ball and ordinary best ball count one — the single best score on the
+   * hole. Plenty of club and society days count the best two or three of
+   * four instead, which keeps everyone involved on every hole rather than
+   * leaving three players spectating once someone makes par.
+   *
+   * Zero means "use what the format counts", which is one, so every round
+   * that existed before this field scores exactly as it did. The scoring
+   * engine has always taken this as a parameter; only the setting is new.
+   */
+  countBest Int @default(0)
+
+  /**
    * Round Code — the shared code players enter to report scores for this
    * round, modelled on the GGID golfers already know from Golf Genius.
    *

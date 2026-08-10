@@ -11,7 +11,7 @@ import { courseForMatch, applyNine, type Nine } from "@/lib/services/course-reso
 import type { HoleResult } from "@/lib/domain";
 import { needsTeams, findFormat, entryModeFor } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
-import { teamsForStage, effectiveAllowance } from "@/lib/services/teams";
+import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import { aggregateTeamCard, singleBallTeamCard } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
 import { courseHandicapMap, playingHandicapFrom } from "@/lib/domain/handicap";
@@ -134,6 +134,7 @@ export default async function EntryPage() {
               teamCourse.pars.slice(0, holeCount),
               teamCourse.strokeIndex.slice(0, holeCount),
               effectiveAllowance(activeStage.format, activeStage.handicapAllowance),
+              effectiveCountBest(activeStage.format, activeStage.countBest),
             );
       rows.push({
         teamId,
