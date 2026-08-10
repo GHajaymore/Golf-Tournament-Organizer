@@ -131,5 +131,11 @@ jobs:
             node scripts/verify-round-controls.mjs
             STATUS=$?
           fi
+          # And this proves the drafting panel is on the announcements screen
+          # and still promises, on the page itself, that it sends nothing.
+          if [ "$STATUS" -eq 0 ]; then
+            node scripts/verify-drafting.mjs
+            STATUS=$?
+          fi
           kill "$SERVER_PID" 2>/dev/null || true
           exit $STATUS

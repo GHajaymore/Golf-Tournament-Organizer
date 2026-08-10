@@ -138,6 +138,16 @@ export default function PrivacyPage() {
                 <em>AI-written commentary.</em> Current standings, which include player names, are
                 sent to generate a line of text.
               </li>
+              <li>
+                <em>Describing a tournament in words.</em> Only the sentence the organizer types is
+                sent. No player data is included.
+              </li>
+              <li>
+                <em>Drafting an announcement.</em> A summary of the event is sent: its name, the
+                size of the field, the rounds, the leading players by name with their scores or
+                points, and, where a league runs skins, who is up or down on the season and by how
+                much. Contact details are never included.
+              </li>
             </ul>
             Nothing is sent unless the feature is enabled and someone uses it. Photographs are sent
             to be read and are not stored by us; only the scores a person confirms are kept.

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { addAnnouncement, toggleAnnouncementPin, removeAnnouncement } from "@/app/actions/tournament";
+import { DraftAssistant } from "@/components/DraftAssistant";
 
 export interface AnnouncementRow {
   id: string;
@@ -59,6 +60,20 @@ export function AnnouncementsClient({ items }: { items: AnnouncementRow[] }) {
           </button>
         </div>
       </div>
+
+      {/* Below the composer, not above it. Writing the announcement yourself
+          stays the obvious path; drafting is the shortcut you reach for when
+          you don't fancy writing it. */}
+      <DraftAssistant
+        onUse={(text, suggested) => {
+          setBody(text);
+          // Only fills an empty title. An organizer who already typed one has
+          // said what this post is about, and overwriting it would be the tool
+          // deciding it knows better.
+          if (!title.trim()) setTitle(suggested);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+      />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {items.map((a) => (
