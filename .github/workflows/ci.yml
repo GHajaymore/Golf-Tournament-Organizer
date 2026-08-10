@@ -123,5 +123,13 @@ jobs:
           done
           node scripts/smoke-routes.mjs
           STATUS=$?
+          # The smoke test proves every screen renders; this proves the round
+          # configuration controls are still on the ones that need them, and
+          # still absent from the ones that don't. Runs against the same
+          # server so it costs one boot, not two.
+          if [ "$STATUS" -eq 0 ]; then
+            node scripts/verify-round-controls.mjs
+            STATUS=$?
+          fi
           kill "$SERVER_PID" 2>/dev/null || true
           exit $STATUS

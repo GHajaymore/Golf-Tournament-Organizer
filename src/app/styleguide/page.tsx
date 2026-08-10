@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { themeCss, DEFAULT_CLUB_THEME, THEME_PRESETS, type Appearance, type ClubTheme } from "@/lib/themes";
 import { NAV } from "@/lib/nav";
 import { ScoreImport } from "@/components/ScoreImport";
+import FieldInfo from "@/components/FieldInfo";
 
 /**
  * Every component class, on both grounds, side by side.
@@ -161,6 +162,31 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
           <span className="dot" />
           Net scoring
         </label>
+      </Section>
+
+      <Section title="Field info">
+        {/* The explanation control, on both grounds. It lives here as well as
+            on the setup screens because the screens that use it sit behind a
+            login and inside a collapsed panel, which made "does the popover
+            actually open?" a question nobody could answer without seeding a
+            tournament first. Here it is one click. */}
+        <div className="field">
+          <label>
+            Handicap allowance
+            <FieldInfo label="the handicap allowance">
+              <p>
+                The share of a player&rsquo;s course handicap that counts in this format.
+                Four-ball is 90%, foursomes 50% of the combined.
+              </p>
+              <p>A committee may set its own; these are recommendations, not rules.</p>
+            </FieldInfo>
+          </label>
+          <input className="input" defaultValue="90" style={{ maxWidth: 120 }} />
+        </div>
+        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          Opens on tap, not hover — the app is used one-handed on a phone. Escape or a
+          tap outside closes it.
+        </p>
       </Section>
 
       <Section title="Tags">
