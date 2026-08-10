@@ -309,3 +309,8 @@ Instead build:
    records the totals and ranks them." Honest escape hatch, NO fake engine, never
    masquerades as auto-scoring.
 Must run AFTER the dashboard/tee-sheet agent — both touch StagesClient.
+
+## Parked — landing page mobile polish (deprioritized 2026-08-09)
+User: landing "not coming great on mobile (font, color, spacing)". Explicitly
+PARKED to keep focus on functional/operational, accuracy, and security. Revisit
+after the current functional work. Not a bug — cosmetic/responsive polish only.
