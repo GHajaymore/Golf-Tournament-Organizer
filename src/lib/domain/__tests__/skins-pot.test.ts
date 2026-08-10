@@ -79,19 +79,22 @@ describe("a week's skins pot", () => {
     expect(pot.stakeCents).toBe(500);
   });
 
-  it("pays out and carries exactly the pot between them", () => {
-    // The invariant that matters: every penny is either won or carried.
+  it("pays out the whole pot, to the penny", () => {
+    // The invariant that matters: a week goes out in full. Nothing is held
+    // back and nothing rolls into next week.
     const pot = skinsPot(card(), 500, ["p1", "p2", "p3"]);
     const paid = pot.shares.reduce((a, s) => a + s.wonCents, 0);
-    expect(paid + pot.carryCents).toBe(pot.potCents);
+    expect(paid).toBe(pot.potCents);
+    expect(pot.carryCents).toBe(0);
   });
 
-  it("leaves unclaimed skins in the pot rather than sharing them out", () => {
-    // Two of three holes tied, so a third of the value was never won. Handing
-    // it to the one player who did win a hole would be inventing a result.
+  it("shares the whole week among whoever won a hole", () => {
+    // Two of three holes tied. Their value is not held back — it widens the
+    // slice of the player who did win one, and the week settles in full.
     const pot = skinsPot(card(), 500, ["p1", "p2", "p3"]);
     expect(pot.unclaimedSkins).toBeGreaterThan(0);
-    expect(pot.carryCents).toBeGreaterThan(0);
+    expect(pot.carryCents).toBe(0);
+    expect(pot.shares.find((s) => s.playerId === "p1")!.wonCents).toBe(pot.potCents);
   });
 
   it("nets a player's stake off what they won", () => {
@@ -102,8 +105,10 @@ describe("a week's skins pot", () => {
     expect(p2.netCents).toBe(-500);
   });
 
-  it("keeps the whole pot as carry when nobody wins a hole at all", () => {
-    // Every hole tied. Paying anybody would be fabricating a winner.
+  it("gives everyone their stake back when nobody wins a hole at all", () => {
+    // Every hole tied. There is nothing to divide by, and a week settles on
+    // its own — so the money goes back to the people who put it in rather
+    // than being held over or handed to somebody who won nothing.
     const allTied = playSkins(
       [
         { playerId: "p1", strokes: [4, 4], courseHandicap: 0 },
@@ -114,8 +119,10 @@ describe("a week's skins pot", () => {
     );
     const pot = skinsPot(allTied, 500, ["p1", "p2"]);
     expect(pot.claimedSkins).toBe(0);
-    expect(pot.carryCents).toBe(pot.potCents);
-    expect(pot.shares.every((s) => s.wonCents === 0)).toBe(true);
+    expect(pot.carryCents).toBe(0);
+    // Everyone square: what they took out is what they put in.
+    expect(pot.shares.every((s) => s.wonCents === s.stakeCents)).toBe(true);
+    expect(pot.shares.every((s) => s.netCents === 0)).toBe(true);
   });
 
   it("says so when holes are still unplayed", () => {
@@ -189,7 +196,7 @@ describe("settling up", () => {
 
 describe("a season's running position", () => {
   const week = (netByPlayer: Record<string, number>) => ({
-    potCents: 0, carryInCents: 0, stakeCents: 0, playerCount: 0, claimedSkins: 0, unclaimedSkins: 0,
+    potCents: 0, stakeCents: 0, playerCount: 0, claimedSkins: 0, unclaimedSkins: 0,
     carryCents: 0, provisional: false,
     shares: Object.entries(netByPlayer).map(([playerId, netCents]) => ({
       playerId, skins: 0, wonCents: 0, stakeCents: 0, netCents,
@@ -212,50 +219,6 @@ describe("a season's running position", () => {
   });
 });
 
-describe("a carry from last week", () => {
-  const oneWinner = () =>
-    playSkins(
-      [
-        { playerId: "p1", strokes: [3, 4], courseHandicap: 0 },
-        { playerId: "p2", strokes: [4, 4], courseHandicap: 0 },
-      ],
-      2,
-      { net: false, strokeIndex: [1, 2] },
-    );
-
-  it("adds last week's leftovers to this week's pot", () => {
-    // The whole reason a league skins game stays interesting: a week where
-    // everything tied makes the next week worth playing for twice over.
-    const pot = skinsPot(oneWinner(), 500, ["p1", "p2"], 0, 1000);
-    expect(pot.carryInCents).toBe(1000);
-    expect(pot.potCents).toBe(500 * 2 + 1000);
-  });
-
-  it("still pays out and carries exactly the pot, carry included", () => {
-    const pot = skinsPot(oneWinner(), 500, ["p1", "p2"], 0, 1000);
-    const paid = pot.shares.reduce((a, s) => a + s.wonCents, 0);
-    expect(paid + pot.carryCents).toBe(pot.potCents);
-  });
-
-  it("does not hand the carry to anyone before a hole is won outright", () => {
-    // Everything tied again: the carry grows rather than being shared out.
-    const allTied = playSkins(
-      [
-        { playerId: "p1", strokes: [4, 4], courseHandicap: 0 },
-        { playerId: "p2", strokes: [4, 4], courseHandicap: 0 },
-      ],
-      2,
-      { net: false, strokeIndex: [1, 2] },
-    );
-    const pot = skinsPot(allTied, 500, ["p1", "p2"], 0, 1000);
-    expect(pot.carryCents).toBe(pot.potCents);
-    expect(pot.shares.every((s) => s.wonCents === 0)).toBe(true);
-  });
-
-  it("treats a negative carry as none rather than taking money out", () => {
-    expect(skinsPot(oneWinner(), 500, ["p1"], 0, -999).carryInCents).toBe(0);
-  });
-});
 
 describe("which holes a pot is played over", () => {
   it("slices the front and back of an eighteen-hole round", () => {

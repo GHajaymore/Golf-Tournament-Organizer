@@ -47,27 +47,25 @@ function refresh() {
  */
 export async function saveSkinsPot(
   stageId: string,
-  input: { buyInCents: number; net: boolean; scope: string; carryInCents: number },
+  input: { buyInCents: number; net: boolean; scope: string },
 ): Promise<SkinsResult> {
   const eventId = await requireStaff();
   await stageInEvent(eventId, stageId);
 
   const buyIn = Math.round(input.buyInCents);
-  const carryIn = Math.round(input.carryInCents);
   if (!Number.isFinite(buyIn) || buyIn < 0) {
     return { ok: false, error: "A buy-in cannot be negative." };
-  }
-  if (!Number.isFinite(carryIn) || carryIn < 0) {
-    return { ok: false, error: "A carry-in cannot be negative." };
   }
   if (!isSkinsScope(input.scope)) {
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }
 
-  const data = { buyInCents: buyIn, net: input.net, scope: input.scope, carryInCents: carryIn };
+  // Keyed on the round AND the scoring, because a club can run a gross pot
+  // and a net one on the same night — two games, two lots of money.
+  const data = { buyInCents: buyIn, scope: input.scope };
   await prisma.skinsPot.upsert({
-    where: { stageId },
-    create: { eventId, stageId, ...data },
+    where: { stageId_net: { stageId, net: input.net } },
+    create: { eventId, stageId, net: input.net, ...data },
     update: data,
   });
   refresh();
@@ -86,7 +84,12 @@ export async function saveSkinsPot(
  * Replaces the whole list rather than adding one at a time, because the screen
  * is a set of tick-boxes confirmed in one go.
  */
-export async function setSkinsEntrants(stageId: string, playerIds: string[]): Promise<SkinsResult> {
+export async function setSkinsEntrants(
+  stageId: string,
+  /** Which pot: the gross game or the net one. A club may run both. */
+  net: boolean,
+  playerIds: string[],
+): Promise<SkinsResult> {
   const eventId = await requireStaff();
   await stageInEvent(eventId, stageId);
 
@@ -103,8 +106,8 @@ export async function setSkinsEntrants(stageId: string, playerIds: string[]): Pr
   const ids = valid.map((p) => p.id);
 
   const pot = await prisma.skinsPot.upsert({
-    where: { stageId },
-    create: { eventId, stageId },
+    where: { stageId_net: { stageId, net } },
+    create: { eventId, stageId, net },
     update: {},
   });
 
@@ -125,10 +128,11 @@ export async function setSkinsEntrants(stageId: string, playerIds: string[]): Pr
  * Not the same as emptying it: a round with no pot never had a game, while a
  * pot with nobody in it is a game nobody joined. Entries go with it.
  */
-export async function removeSkinsPot(stageId: string): Promise<SkinsResult> {
+export async function removeSkinsPot(stageId: string, net: boolean): Promise<SkinsResult> {
   const eventId = await requireStaff();
   await stageInEvent(eventId, stageId);
-  await prisma.skinsPot.deleteMany({ where: { stageId, eventId } });
+  // Only the pot named — a club running both keeps the other one.
+  await prisma.skinsPot.deleteMany({ where: { stageId, eventId, net } });
   refresh();
   return { ok: true };
 }

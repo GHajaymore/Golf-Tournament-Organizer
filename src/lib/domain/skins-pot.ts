@@ -27,17 +27,16 @@ export interface PotShare {
 }
 
 export interface PotResult {
-  /** (buyIn x players in) + anything carried in from last week. */
+  /** buyIn x players in. A week stands alone: nothing joins it from last week. */
   potCents: number;
-  /** What last week left on the table and this week is playing for. */
-  carryInCents: number;
   stakeCents: number;
   playerCount: number;
   /** Skins actually claimed by somebody. */
   claimedSkins: number;
-  /** Skins nobody won — a tie on the last hole leaves value on the table. */
+  /** Skins nobody won outright. Their value is already inside the pot the
+   *  winners share, so this is for display rather than money set aside. */
   unclaimedSkins: number;
-  /** The value of those unclaimed skins: stays in the pot. */
+  /** Always zero. Kept so a reader does not go looking for a carry. */
   carryCents: number;
   shares: PotShare[];
   /** True while any hole is still unplayed, so the sheet is provisional. */
@@ -81,12 +80,23 @@ export function splitExactly(totalCents: number, weights: number[]): number[] {
 /**
  * Turn a played skins game into money.
  *
- * The pot is divided by TOTAL skins, claimed and unclaimed alike, not just
- * the ones somebody won. That is what makes the carry real: if nine skins
- * were available and only seven were claimed, two skins' worth genuinely
- * stays in the pot rather than being quietly shared out among the winners.
- * A league carries it to next week; a one-off returns it. Either way the
- * money is accounted for rather than vanishing.
+ * EACH WEEK SETTLES ON ITS OWN. Nothing rolls into next week: the pot goes
+ * out to whoever won a hole that day, and the players settle before they
+ * leave. A league that carried money forward would be asking this week's
+ * field to play for last week's stake money, some of which was put in by
+ * people who are not there.
+ *
+ * So the pot divides by the skins actually WON, not by every skin available.
+ * If nine holes were played and only seven were won outright, those seven
+ * share the lot.
+ *
+ * Note this is not the same as the carry *inside* a week, which is the whole
+ * character of skins and is untouched: tie a hole and its value rolls into
+ * the next one until somebody wins a hole alone. That happens in playSkins.
+ *
+ * If nobody wins a single hole all day, there is nothing to divide by, and
+ * inventing a winner would be worse than the obvious answer: everyone gets
+ * their own stake back.
  */
 export function skinsPot(
   outcome: SkinsOutcome,
@@ -94,32 +104,28 @@ export function skinsPot(
   playerIds: string[],
   /** Holes with no score anywhere yet — the sheet cannot be final. */
   holesUnplayed = 0,
-  /**
-   * Money last week left on the table.
-   *
-   * The carry is the whole reason a league skins game stays interesting: a
-   * week where everything tied makes the next week worth double. It joins the
-   * pot and is won like any other part of it — it does not belong to anybody
-   * until somebody wins a hole outright.
-   */
-  carryInCents = 0,
 ): PotResult {
   const stake = Math.max(0, Math.round(buyInCents));
   const players = [...new Set(playerIds)];
-  const carriedIn = Math.max(0, Math.round(carryInCents));
-  const potCents = stake * players.length + carriedIn;
+  const potCents = stake * players.length;
 
   const claimedSkins = outcome.standings.reduce((a, s) => a + s.skins, 0);
   const unclaimedSkins = Math.max(0, outcome.unclaimed);
-  const totalSkins = claimedSkins + unclaimedSkins;
-
-  // One weight per player, plus a final weight standing for the carry, so a
-  // single exact split covers both and the cents cannot go missing between
-  // two separate roundings.
   const skinsByPlayer = new Map(outcome.standings.map((s) => [s.playerId, s.skins]));
-  const weights = [...players.map((id) => skinsByPlayer.get(id) ?? 0), unclaimedSkins];
+
+  // Divided by the skins actually WON, so the week goes out in full. Holes
+  // that were tied and never won are not a share of the pot going begging —
+  // their value is already in the hands of whoever won the hole it carried
+  // into, and any left at the end simply widen everyone else's slice.
+  //
+  // Nobody won a hole all day is the one case with nothing to divide by.
+  // Inventing a winner would be worse than the obvious answer: each player
+  // takes back exactly what they put in.
+  const weights =
+    claimedSkins > 0
+      ? players.map((id) => skinsByPlayer.get(id) ?? 0)
+      : players.map(() => 1);
   const amounts = splitExactly(potCents, weights);
-  const carryCents = amounts[amounts.length - 1] ?? 0;
 
   const shares: PotShare[] = players.map((id, i) => {
     const wonCents = amounts[i] ?? 0;
@@ -134,12 +140,12 @@ export function skinsPot(
 
   return {
     potCents,
-    carryInCents: carriedIn,
     stakeCents: stake,
     playerCount: players.length,
     claimedSkins,
     unclaimedSkins,
-    carryCents: totalSkins > 0 ? carryCents : potCents,
+    /** Always zero: a week settles on its own and carries nothing forward. */
+    carryCents: 0,
     shares,
     provisional: holesUnplayed > 0,
   };

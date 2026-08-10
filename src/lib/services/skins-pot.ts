@@ -26,7 +26,6 @@ export interface SkinsPotView {
   buyInCents: number;
   net: boolean;
   scope: SkinsScope;
-  carryInCents: number;
   /** Players staff have entered into the pot. */
   entrantIds: string[];
   /** Everyone who could be entered, for the picker. */
@@ -45,9 +44,16 @@ export interface SkinsPotView {
  * Returns a view even when no pot exists yet, so the screen can offer to
  * start one without a separate "does it exist" round-trip.
  */
-export async function skinsPotFor(eventId: string, stageId: string): Promise<SkinsPotView | null> {
+export async function skinsPotFor(
+  eventId: string,
+  stageId: string,
+  /** Which game: gross for the low handicaps, net so everybody has a chance.
+   *  A club commonly runs both on the same night, so they are separate pots
+   *  with separate entrants and separate money. */
+  net: boolean,
+): Promise<SkinsPotView | null> {
   const [pot, stage, event] = await Promise.all([
-    prisma.skinsPot.findUnique({ where: { stageId }, include: { entrants: true } }),
+    prisma.skinsPot.findUnique({ where: { stageId_net: { stageId, net } }, include: { entrants: true } }),
     prisma.stage.findUnique({ where: { id: stageId }, select: { id: true, eventId: true, holes: true } }),
     prisma.event.findUnique({ where: { id: eventId } }),
   ]);
@@ -91,7 +97,7 @@ export async function skinsPotFor(eventId: string, stageId: string): Promise<Ski
       courseHandicap: p.handicap,
     })),
     holeCount,
-    { net: pot?.net ?? true, strokeIndex },
+    { net, strokeIndex },
   );
 
   // A hole nobody has returned a score for hasn't been played yet, and a
@@ -102,15 +108,14 @@ export async function skinsPotFor(eventId: string, stageId: string): Promise<Ski
 
   const result =
     inPot.length > 0
-      ? skinsPot(outcome, pot?.buyInCents ?? 0, inPot.map((p) => p.id), unplayed, pot?.carryInCents ?? 0)
+      ? skinsPot(outcome, pot?.buyInCents ?? 0, inPot.map((p) => p.id), unplayed)
       : null;
 
   return {
     potId: pot?.id ?? null,
     buyInCents: pot?.buyInCents ?? 0,
-    net: pot?.net ?? true,
+    net,
     scope,
-    carryInCents: pot?.carryInCents ?? 0,
     entrantIds,
     field: players.map((p) => ({ id: p.id, name: p.name, playing: returned(p.id) })),
     result,

@@ -885,7 +885,7 @@ model Stage {
   matches    Match[]
   teams      Team[]
   attendance RoundAttendance[]
-  skinsPot   SkinsPot?
+  skinsPots  SkinsPot[]
 
   @@index([eventId])
   // Redemption looks a code up on its own, so codes must be unique across
@@ -1202,8 +1202,12 @@ model MatchScorecard {
 model SkinsPot {
   id      String @id @default(cuid())
   eventId String
-  /** One pot per round. */
-  stageId String @unique
+  /**
+   * A club often runs BOTH on the same night: a gross pot for the low
+   * handicaps and a net one so everybody has a chance. They are separate
+   * games with separate money, so a round can hold one of each.
+   */
+  stageId String
 
   /** Stake per player, in whole cents, so no total is ever a rounded float. */
   buyInCents Int @default(0)
@@ -1213,15 +1217,6 @@ model SkinsPot {
   /** full | front | back. A league playing 18 may run skins on the front only,
    *  so this is independent of the round's own hole count. */
   scope String @default("full")
-  /**
-   * What last week left on the table.
-   *
-   * The carry is why a league skins game stays interesting: a week where
-   * everything tied makes the next one worth playing for twice over. Recorded
-   * rather than recomputed, because a week already settled must not change
-   * when a later one is played.
-   */
-  carryInCents Int @default(0)
 
   /** Players who paid in. Entered by club staff, never inferred. */
   entrants SkinsEntry[]
@@ -1232,6 +1227,7 @@ model SkinsPot {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
 
+  @@unique([stageId, net])
   @@index([eventId])
 }
 
