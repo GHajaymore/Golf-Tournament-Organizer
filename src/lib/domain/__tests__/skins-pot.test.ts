@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { splitExactly, skinsPot, settle, seasonPosition } from "../skins-pot";
+import {
+  splitExactly,
+  skinsPot,
+  settle,
+  seasonPosition,
+  scopeRange,
+  isSkinsScope,
+} from "../skins-pot";
 import { playSkins } from "../skins";
 
 /**
@@ -247,5 +254,41 @@ describe("a carry from last week", () => {
 
   it("treats a negative carry as none rather than taking money out", () => {
     expect(skinsPot(oneWinner(), 500, ["p1"], 0, -999).carryInCents).toBe(0);
+  });
+});
+
+describe("which holes a pot is played over", () => {
+  it("slices the front and back of an eighteen-hole round", () => {
+    expect(scopeRange("front", 18)).toEqual({ from: 0, to: 9 });
+    expect(scopeRange("back", 18)).toEqual({ from: 9, to: 18 });
+    expect(scopeRange("full", 18)).toEqual({ from: 0, to: 18 });
+  });
+
+  it("plays the whole card on a nine-hole round, whatever the scope says", () => {
+    // A nine-hole card has no back nine to slice. Reading "back" as holes
+    // 10-18 there would select nothing and score no skins at all — the pot
+    // would silently pay nobody.
+    for (const scope of ["full", "front", "back"] as const) {
+      expect(scopeRange(scope, 9), scope).toEqual({ from: 0, to: 9 });
+    }
+  });
+
+  it("recognises the three scopes and nothing else", () => {
+    expect(isSkinsScope("full")).toBe(true);
+    expect(isSkinsScope("front")).toBe(true);
+    expect(isSkinsScope("back")).toBe(true);
+    expect(isSkinsScope("middle")).toBe(false);
+    expect(isSkinsScope("")).toBe(false);
+  });
+
+  it("covers every hole exactly once across front and back", () => {
+    // Nine plus nine is eighteen, with nothing counted twice and nothing
+    // missed — the property that makes two half-pots equal one whole one.
+    const f = scopeRange("front", 18);
+    const b = scopeRange("back", 18);
+    expect(f.to - f.from).toBe(9);
+    expect(b.to - b.from).toBe(9);
+    expect(f.to).toBe(b.from);
+    expect(b.to).toBe(scopeRange("full", 18).to);
   });
 });

@@ -207,3 +207,33 @@ export function seasonPosition(weeks: PotResult[]): Array<{ playerId: string; ne
     .map(([playerId, netCents]) => ({ playerId, netCents }))
     .sort((a, b) => b.netCents - a.netCents || a.playerId.localeCompare(b.playerId));
 }
+
+export type SkinsScope = "full" | "front" | "back";
+
+export function isSkinsScope(v: string): v is SkinsScope {
+  return v === "full" || v === "front" || v === "back";
+}
+
+export const SCOPE_LABEL: Record<SkinsScope, string> = {
+  full: "All 18",
+  front: "Front 9",
+  back: "Back 9",
+};
+
+/**
+ * Which holes a pot is played over, as an index range into the round's card.
+ *
+ * A league playing eighteen may run its skins on the front only, so the scope
+ * is the pot's own decision rather than the round's hole count.
+ *
+ * On a NINE-hole round the card already is the nine being played — a
+ * nine-hole card has no back nine to slice, and treating "back" as holes
+ * 10-18 there would select nothing and score no skins at all. So a nine-hole
+ * round ignores the scope and plays the card it has.
+ */
+export function scopeRange(scope: SkinsScope, roundHoles: number): { from: number; to: number } {
+  if (roundHoles === 9) return { from: 0, to: 9 };
+  if (scope === "front") return { from: 0, to: 9 };
+  if (scope === "back") return { from: 9, to: 18 };
+  return { from: 0, to: 18 };
+}
