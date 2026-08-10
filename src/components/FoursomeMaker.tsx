@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { formGroups, type FormationRule, type Player } from "@/lib/domain";
 import { useTransition } from "react";
-import { saveTeeSheet } from "@/app/actions/tee-sheet";
+import { saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
 import {
   DRAW_ORDERS,
   groupByStandings,
@@ -70,6 +70,11 @@ export function FoursomeMaker({
   const [saveState, setSaveState] = useState<{ savedAt: string; published: boolean }>({ savedAt, published });
   const [saveError, setSaveError] = useState("");
   const [savePending, startSaveTransition] = useTransition();
+  // Publishing shows the draw to every player, so it is a two-step, deliberate
+  // act rather than one blue button next to Save. The confirm follows the app's
+  // pattern (see ClearScores): a control that changes what it says has to be
+  // read, where a dialog gets dismissed on reflex.
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [firstTee, setFirstTee] = useState("08:00");
   const [interval, setInterval] = useState(10);
 
@@ -128,6 +133,20 @@ export function FoursomeMaker({
         return;
       }
       setSaveState({ savedAt: new Date().toISOString(), published: publish });
+    });
+  };
+
+  // Pull a published sheet back without touching the draw — the survivors' cards
+  // and times stay saved, players just stop seeing it on their dashboard.
+  const unpublish = () => {
+    setSaveError("");
+    startSaveTransition(async () => {
+      const res = await setTeeSheetPublished(stageId, false);
+      if (!res.ok) {
+        setSaveError(res.error ?? "Couldn't unpublish the sheet.");
+        return;
+      }
+      setSaveState((s) => ({ savedAt: s.savedAt || new Date().toISOString(), published: false }));
     });
   };
 
@@ -262,30 +281,81 @@ export function FoursomeMaker({
             </button>
           )}
           {/* Saving turns the draw on screen into the round's sheet of
-              record; publishing is the separate act of telling the field.
-              Until saved, this screen is a sketch that vanishes on refresh —
-              which is exactly what it did for the app's whole life. */}
+              record; publishing is the separate, outward-facing act of telling
+              the field. Saving a draft is the safe primary action — publishing
+              is deliberate and confirmed, because a work-in-progress draw saved
+              by reflex must not land on every player's dashboard. Until saved,
+              this screen is a sketch that vanishes on refresh. */}
           {stageId && (
             <>
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="btn btn-primary"
                 disabled={savePending || groups.length === 0}
-                onClick={() => persist(false)}
+                onClick={() => { setConfirmPublish(false); persist(false); }}
               >
                 <i className="ph ph-floppy-disk" /> {savePending ? "Saving…" : "Save sheet"}
               </button>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-secondary"
                 disabled={savePending || groups.length === 0}
-                onClick={() => persist(true)}
+                onClick={() => setConfirmPublish(true)}
               >
                 <i className="ph ph-megaphone" /> Save &amp; publish
               </button>
+              {saveState.published && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={savePending}
+                  onClick={() => { setConfirmPublish(false); unpublish(); }}
+                >
+                  <i className="ph ph-eye-slash" /> Unpublish
+                </button>
+              )}
             </>
           )}
         </div>
+
+        {/* The confirmation lives here, below the toolbar, so the sentence and
+            the button that acts on it are read together. */}
+        {confirmPublish && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+              fontSize: 13,
+              padding: "10px 12px",
+              borderRadius: 8,
+              background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 220 }}>
+              <i className="ph ph-megaphone" style={{ marginRight: 6 }} />
+              This shows the draw to every player. Publish the tee sheet?
+            </span>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={savePending || groups.length === 0}
+              onClick={() => { setConfirmPublish(false); persist(true); }}
+            >
+              {savePending ? "Publishing…" : "Publish the tee sheet"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={savePending}
+              onClick={() => setConfirmPublish(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
 
       {(saveState.savedAt || saveError) && (
