@@ -103,7 +103,11 @@ describe("every engine receives a Course Handicap, not an Index", () => {
   });
 
   it("feeds stroke standings the resolved map rather than raw handicaps", () => {
-    expect(service).toMatch(/const handicapById = courseHcp;/);
+    // The pricing of a stroke card moved into strokeHandicapResolver so the
+    // weekly league view could share it instead of growing a second copy.
+    // Same property, one function further down: the fallback the resolver is
+    // handed is the RESOLVED course-handicap map, never the raw indexes.
+    expect(service).toMatch(/fallback:\s*courseHcp,/);
     expect(service).not.toMatch(/new Map\(players\.map\(\(p\) => \[p\.id, p\.handicap\]\)\)/);
   });
 
@@ -137,8 +141,10 @@ describe("individual standings play off the Playing Handicap", () => {
     // individual standings used the raw Course Handicap, so every medal ran
     // off 100% and nobody could see why the numbers differed from the sheet.
     const src = read("src/lib/services/tournament.ts");
-    expect(src).toMatch(/effectiveAllowance\(cardStage\.format, cardStage\.handicapAllowance\)/);
-    expect(src).toMatch(/playingHandicapFrom\(chByRound\.get\(sc\.playerId\) \?\? handicapById\.get\(sc\.playerId\) \?\? 0, allowance\)/);
+    expect(src).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance\)/);
+    expect(src).toMatch(
+      /playingHandicapFrom\(byRound\.get\(playerId\) \?\? ctx\.fallback\.get\(playerId\) \?\? 0, allowance\)/,
+    );
   });
 
   it("leaves flight formation on the Course Handicap", () => {
@@ -157,6 +163,16 @@ describe("handicap conversion follows each round's own hole count", () => {
     const src = read("src/lib/services/tournament.ts");
     expect(src).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId, 18\)/);
     expect(src).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId, 9\)/);
-    expect(src).toMatch(/cardStage\?\.holes === 9 \? courseHcp9 : courseHcp18/);
+    expect(src).toMatch(/stage\?\.holes === 9 \? ctx\.courseHcp9 : ctx\.courseHcp18/);
+  });
+
+  it("gives the weekly view the same resolver rather than its own", () => {
+    // The whole reason the pricing was extracted. A league night and the
+    // event totals reading a player's net score differently is the worst
+    // possible bug here: both look right, and only the member notices.
+    const week = read("src/lib/services/week-view.ts");
+    expect(week).toMatch(/state\.strokeHandicapFor/);
+    // Rebuilding any of these here means it has started pricing cards itself.
+    expect(week).not.toMatch(/playingHandicapFrom|effectiveAllowance|courseHandicapMap/);
   });
 });

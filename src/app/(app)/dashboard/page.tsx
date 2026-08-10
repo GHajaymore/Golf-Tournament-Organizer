@@ -15,6 +15,7 @@ import { RoundAvailability, type AvailabilityRound, type CaptainFlight } from "@
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { currentRoundCut } from "@/lib/domain/cut";
 import { navForRole } from "@/lib/nav";
+import { isWeeklyRound } from "@/lib/stage-types";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
@@ -107,6 +108,7 @@ export default async function DashboardPage() {
     navForRole(session.viewRole, settings, {
       hasTeamRound: state.stages.some((s) => TEAM_FORMAT_NAMES.includes(s.format)),
       hasKnockout,
+      isLeague: state.stages.filter((s) => isWeeklyRound(s.type)).length > 1,
     })
       .flatMap((section) => section.items)
       .map((item) => item.href),

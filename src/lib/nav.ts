@@ -23,6 +23,7 @@ export const NAV: NavSection[] = [
     items: [
       { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: "ph ph-squares-four" },
       { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking" },
+      { key: "week", label: "This week", href: "/week", icon: "ph ph-calendar-check" },
     ],
   },
   {
@@ -79,7 +80,7 @@ export const NAV: NavSection[] = [
 export function navForRole(
   viewRole: Role,
   settings?: TournamentSettings,
-  opts: { hasTeamRound?: boolean; hasKnockout?: boolean } = {},
+  opts: { hasTeamRound?: boolean; hasKnockout?: boolean; isLeague?: boolean } = {},
 ): NavSection[] {
   const allowed = (key: string): boolean => {
     if (!canAccessScreen(viewRole, key)) return false;
@@ -99,6 +100,11 @@ export function navForRole(
     // the sidebar link never was, so every tournament carried a permanent
     // door to an empty screen.
     if (key === "bracket" && !opts.hasKnockout) return false;
+    // "This week" only means something where there are weeks. A one-day medal
+    // has a single round, and a link reading "This week" next to it would be
+    // a second name for the leaderboard — the kind of duplicate door that
+    // makes an app feel bigger and worse.
+    if (key === "week" && !opts.isLeague) return false;
     if (!settings) return true;
     // The bracket is seeded from live standings, so showing it in a blind
     // event would give away the order the leaderboard is hiding.

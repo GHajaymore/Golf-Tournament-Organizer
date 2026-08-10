@@ -34,6 +34,11 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   // Overview — everyone in the tournament.
   dashboard: ["admin", "assistant", "player"],
   leaderboard: ["admin", "assistant", "player"],
+  // The weekly league sheet — results, the table and the skins for one night.
+  // Players see it because it is the thing a league member actually wants,
+  // and it is read-only for everybody: the money is managed on Prizes, which
+  // stays staff-only. A captain reading the week is not a captain editing it.
+  week: ["admin", "assistant", "player"],
 
   // Set up — defining the event. Assistants run it but don't reshape it.
   event: ["admin"],

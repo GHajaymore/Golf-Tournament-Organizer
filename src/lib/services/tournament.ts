@@ -7,6 +7,7 @@ import { prisma } from "../db";
 import { effectiveAllowance } from "./teams";
 import {
   holeStrokesReceived, stablefordPointsForHole, allocationHoles, playingHandicapFrom } from "../domain";
+import { aggregateStroke, emptyAgg, netOf, type StrokeCard } from "../domain/stroke-agg";
 import { resolveCourse } from "../courses";
 import { pts as fmtPts, record as fmtRecord, diff as fmtDiff } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
@@ -209,6 +210,13 @@ export interface EventState {
   groupStandings: GroupStanding[];
   isStroke: boolean;
   strokeStandings: StrokeStanding[];
+  /**
+   * Playing handicap for a player on a given round, allowance and hole count
+   * already applied. Exposed so the weekly league view prices a card through
+   * the identical function these totals used, rather than rebuilding the tee
+   * maps and drifting.
+   */
+  strokeHandicapFor: (playerId: string, stageId: string) => number;
   advancingCount: number;
   advancingIds: Set<string>;
   pendingConfirmations: number;
@@ -281,6 +289,44 @@ export function chainRoundStandings(
         : {};
   }
   return perStage;
+}
+
+/** Cards come out of the database with strokes as a JSON string; unparseable
+ *  ones are dropped rather than guessed at. */
+export function parseStrokeCards(
+  rows: Array<{ playerId: string; stageId: string; strokes: string }>,
+): StrokeCard[] {
+  const out: StrokeCard[] = [];
+  for (const r of rows) {
+    try {
+      out.push({ playerId: r.playerId, stageId: r.stageId, strokes: JSON.parse(r.strokes) });
+    } catch {
+      // A corrupt card is skipped, not treated as a round of zeros.
+    }
+  }
+  return out;
+}
+
+/**
+ * Price a card the way its own round says it should be priced.
+ *
+ * The round's setup decides whether it is nine holes or eighteen and what
+ * allowance applies — not whichever round happened to come first in the
+ * tournament. Exported so the weekly league view resolves handicaps through
+ * exactly this function rather than a second copy of the rule.
+ */
+export function strokeHandicapResolver(ctx: {
+  stageById: Map<string, DbStage>;
+  courseHcp9: Map<string, number>;
+  courseHcp18: Map<string, number>;
+  fallback: Map<string, number>;
+}): (playerId: string, stageId: string) => number {
+  return (playerId, stageId) => {
+    const stage = ctx.stageById.get(stageId);
+    const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance) : 100;
+    const byRound = stage?.holes === 9 ? ctx.courseHcp9 : ctx.courseHcp18;
+    return playingHandicapFrom(byRound.get(playerId) ?? ctx.fallback.get(playerId) ?? 0, allowance);
+  };
 }
 
 export async function loadEventState(eventId: string): Promise<EventState | null> {
@@ -384,52 +430,38 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // Stroke-play standings (from submitted scorecards), used when the event format is stroke.
   const isStroke = event.format === "stroke";
   const pars = course.pars;
-  const handicapById = courseHcp;
   const stageById = new Map(stages.map((s) => [s.id, s]));
-  const strokeAgg = new Map<string, { gross: number; thru: number; parThru: number; strokesReceived: number; points: number }>();
-  for (const sc of scorecards) {
-    let strokes: (number | null)[];
-    try {
-      strokes = JSON.parse(sc.strokes) as (number | null)[];
-    } catch {
-      continue;
-    }
-    // Playing Handicap, not Course Handicap: the format's allowance — 95% for
-    // an individual medal or Stableford under WHS Appendix C, or whatever the
-    // committee set on the round — applied to the strokes this card receives.
-    // The allowance existed in the format table and on the stage, and the team
-    // engines honoured it; the individual standings never did, so every medal
-    // was quietly played off 100%.
-    const cardStage = stageById.get(sc.stageId);
-    const allowance = cardStage ? effectiveAllowance(cardStage.format, cardStage.handicapAllowance) : 100;
-    // The round's own setup says whether it is nine holes or eighteen, and the
-    // handicap conversion goes with the round — not with whichever round
-    // happened to come first in the tournament.
-    const chByRound = cardStage?.holes === 9 ? courseHcp9 : courseHcp18;
-    const handicap = playingHandicapFrom(chByRound.get(sc.playerId) ?? handicapById.get(sc.playerId) ?? 0, allowance);
-    const a = strokeAgg.get(sc.playerId) ?? { gross: 0, thru: 0, parThru: 0, strokesReceived: 0, points: 0 };
-    strokes.forEach((s, i) => {
-      if (typeof s === "number" && s > 0) {
-        a.gross += s;
-        a.thru += 1;
-        a.parThru += pars[i] ?? 0;
-        // Strokes are allocated per hole actually played (not the full
-        // handicap against a partial gross), so "net" is accurate thru any
-        // number of holes, not just once the round is complete.
-        const holeStrokes = holeStrokesReceived(handicap, holeDifficulty[i] ?? 18, allocationHoles(holeDifficulty.length));
-        a.strokesReceived += holeStrokes;
-        a.points += stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes);
-      }
-    });
-    strokeAgg.set(sc.playerId, a);
-  }
+
+  /**
+   * Playing Handicap, not Course Handicap: the format's allowance — 95% for an
+   * individual medal or Stableford under WHS Appendix C, or whatever the
+   * committee set on the round — applied to the strokes this card receives.
+   *
+   * Shared with the weekly view via strokeHandicapResolver so a league night
+   * and the event totals can never price the same card differently.
+   */
+  const handicapFor = strokeHandicapResolver({
+    stageById,
+    courseHcp9,
+    courseHcp18,
+    fallback: courseHcp,
+  });
+
+  const strokeAgg = aggregateStroke(parseStrokeCards(scorecards), {
+    pars,
+    holeDifficulty,
+    handicapFor,
+    holeStrokesReceived,
+    stablefordPointsForHole,
+    allocationHoles,
+  });
   // Stableford ranks by points descending (higher is better); every other
   // basis ranks by net strokes ascending (lower is better).
   const stableford = activeStage?.scoringBasis === "stableford";
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
-      const a = strokeAgg.get(p.id) ?? { gross: 0, thru: 0, parThru: 0, strokesReceived: 0, points: 0 };
-      return { player: p, gross: a.gross, net: a.gross - Math.round(a.strokesReceived), toPar: a.gross - a.parThru, points: a.points, thru: a.thru, rank: 0 };
+      const a = strokeAgg.get(p.id) ?? emptyAgg();
+      return { player: p, gross: a.gross, net: netOf(a), toPar: a.gross - a.parThru, points: a.points, thru: a.thru, rank: 0 };
     })
     .sort((x, y) => {
       const started = (y.thru > 0 ? 1 : 0) - (x.thru > 0 ? 1 : 0);
@@ -555,6 +587,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     groupStandings,
     isStroke,
     strokeStandings,
+    strokeHandicapFor: handicapFor,
     advancingCount,
     advancingIds,
     pendingConfirmations,

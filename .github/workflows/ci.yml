@@ -137,5 +137,12 @@ jobs:
             node scripts/verify-drafting.mjs
             STATUS=$?
           fi
+          # And this seeds two real weeks and checks the movement column says
+          # somebody climbed exactly when they did. The arithmetic has unit
+          # tests; this proves it survives the trip to the screen.
+          if [ "$STATUS" -eq 0 ]; then
+            node scripts/verify-week-view.mjs
+            STATUS=$?
+          fi
           kill "$SERVER_PID" 2>/dev/null || true
           exit $STATUS

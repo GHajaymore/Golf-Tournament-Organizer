@@ -114,6 +114,21 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
   },
 ];
 
+/**
+ * The round types that make up a league's weeks.
+ *
+ * Narrower than isPlayingRound, deliberately. A bracket round and a play-off
+ * are rounds the field plays, but they are not "week 4" — they are the end of
+ * the thing. A league is a sequence of scheduled rounds where everyone goes
+ * out and comes back, which is these two.
+ */
+export const WEEKLY_ROUND_TYPES: readonly StageTypeKey[] = ["Round Robin", "Stroke Play Round"];
+
+/** Whether this round is one of a league's weeks. */
+export function isWeeklyRound(type: string): boolean {
+  return (WEEKLY_ROUND_TYPES as readonly string[]).includes(type);
+}
+
 export function isStageType(v: string): v is StageTypeKey {
   return (STAGE_TYPES as readonly string[]).includes(v);
 }

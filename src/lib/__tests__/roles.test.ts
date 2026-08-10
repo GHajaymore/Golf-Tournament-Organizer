@@ -49,7 +49,11 @@ describe("role boundaries", () => {
 
   it("gives players exactly their own screens", () => {
     const allowed = ALL_NAV_KEYS.filter((k) => canAccessScreen("player", k));
-    expect(allowed.sort()).toEqual(["bracket", "dashboard", "entry", "leaderboard"].sort());
+    // "week" is the league sheet — results, table and skins for one night. A
+    // player sees it because it is the thing a league member came for; it is
+    // read-only for every role, and the money is still managed on Prizes,
+    // which stays staff-only.
+    expect(allowed.sort()).toEqual(["bracket", "dashboard", "entry", "leaderboard", "week"].sort());
   });
 
   it("keeps assistants out of admin-only screens but in operational ones", () => {
@@ -88,7 +92,9 @@ describe("sidebar matches the guards", () => {
     // Conditional on the tournament's shape rather than the role: teams only
     // once a round plays a team format, qualification only when there is a
     // knockout to qualify for.
-    const CONDITIONAL = ["teams", "qualification", "bracket"];
+    // ...and "This week" only once there is more than one round to be a week
+    // of; a one-day medal would just have a second name for the leaderboard.
+    const CONDITIONAL = ["teams", "qualification", "bracket", "week"];
     for (const role of ROLES) {
       const shown = navForRole(role, undefined, { hasTeamRound: true, hasKnockout: true }).flatMap((s) =>
         s.items.map((i) => i.key),
@@ -109,6 +115,27 @@ describe("sidebar matches the guards", () => {
     );
     expect(without).not.toContain("teams");
     expect(with_).toContain("teams");
+  });
+
+  it("hides This week until there is more than one week", () => {
+    // Marking a link "conditional" in the list above excuses it from the
+    // reachability check, so it needs its own proof that it appears at all —
+    // otherwise CONDITIONAL is just where links go to quietly vanish.
+    const medal = navForRole("admin").flatMap((s) => s.items.map((i) => i.key));
+    const league = navForRole("admin", undefined, { isLeague: true }).flatMap((s) =>
+      s.items.map((i) => i.key),
+    );
+    expect(medal).not.toContain("week");
+    expect(league).toContain("week");
+  });
+
+  it("shows a league player their week", () => {
+    // The whole point of the screen: a member of a Tuesday league opens the
+    // app to find out what happened on Tuesday.
+    const shown = navForRole("player", undefined, { isLeague: true }).flatMap((s) =>
+      s.items.map((i) => i.key),
+    );
+    expect(shown).toContain("week");
   });
 
   it("never shows an empty section", () => {
