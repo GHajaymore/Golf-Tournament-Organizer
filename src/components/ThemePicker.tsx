@@ -2,8 +2,10 @@
 import { useState, useTransition } from "react";
 import { saveOrganizationTheme } from "@/app/actions/organization";
 import {
-  THEME_PRESETS,
+  ACCENT_PRESETS,
   SECONDARY_PRESETS,
+  THEME_PAIRS,
+  hslToHex,
   APPEARANCES,
   themeScale,
   themeVarsFor,
@@ -221,10 +223,70 @@ export function ThemePicker({
         </div>
       </div>
 
+      {/* Ready-made pairs first. Choosing two colours that work together is a
+          design job, and a club secretary opening this on a Tuesday evening
+          didn't sign up for one — one click here sets both, and every pair is
+          checked to hold apart. The individual pickers stay below for a club
+          with its own crest colours. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <span className="card-kicker">Colour scheme</span>
+        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+          {THEME_PAIRS.map((pair) => {
+            const accent = ACCENT_PRESETS.find((p) => p.key === pair.accentKey)!;
+            const secondary = SECONDARY_PRESETS.find((p) => p.key === pair.secondaryKey)!;
+            const on = draft.accentKey === pair.accentKey && draft.secondaryKey === pair.secondaryKey;
+            return (
+              <button
+                key={pair.key}
+                type="button"
+                className="card"
+                onClick={() =>
+                  set({
+                    accentKey: pair.accentKey,
+                    accentHex: "",
+                    secondaryKey: pair.secondaryKey,
+                    secondaryHex: "",
+                  })
+                }
+                style={{
+                  cursor: "pointer",
+                  textAlign: "left",
+                  gap: 6,
+                  padding: "10px 12px",
+                  border: on
+                    ? "1px solid var(--color-accent)"
+                    : "1px solid var(--color-divider)",
+                }}
+                aria-pressed={on}
+              >
+                <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 22, height: 22, borderRadius: 999,
+                      background: hslToHex(accent.hue, accent.saturation, 0.5),
+                    }}
+                  />
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 22, height: 22, borderRadius: 999, marginLeft: -8,
+                      background: hslToHex(secondary.hue, secondary.saturation, 0.5),
+                    }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 500, marginLeft: 4 }}>{pair.name}</span>
+                </span>
+                <span className="text-muted" style={{ fontSize: 11 }}>{pair.blurb}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <span className="card-kicker">Main colour</span>
         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-          {THEME_PRESETS.map((p) => (
+          {ACCENT_PRESETS.map((p) => (
             <Swatch
               key={p.key}
               preset={p}

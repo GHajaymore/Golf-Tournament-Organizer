@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   THEME_PRESETS,
+  ACCENT_PRESETS,
+  THEME_PAIRS,
+  MIN_HUE_SEPARATION,
+  pairFor,
   DEFAULT_THEME,
   themeFor,
   isThemeKey,
@@ -688,5 +692,48 @@ describe("two colours have to read as two colours", () => {
     const src = readFileSync(join(process.cwd(), "src/app/actions/organization.ts"), "utf8");
     expect(src).toMatch(/pairVerdict\(/);
     expect(src).toMatch(/pair\.kind === "indistinct"/);
+  });
+});
+
+describe("ready-made palette pairs", () => {
+  it("offers every palette for either role", () => {
+    // Fairway used to be a second colour only, so a club whose identity is
+    // green could not lead with it — the wrong way round for a golf club.
+    expect(ACCENT_PRESETS.map((p) => p.key).sort()).toEqual(
+      SECONDARY_PRESETS.map((p) => p.key).sort(),
+    );
+    expect(ACCENT_PRESETS.some((p) => p.key === "fairway")).toBe(true);
+  });
+
+  it("keeps both colours of every pair far enough apart to read as two", () => {
+    // The guard that lets an organizer trust these without judging colour
+    // themselves: a pair that clashes fails here rather than shipping.
+    for (const pair of THEME_PAIRS) {
+      const accent = ACCENT_PRESETS.find((p) => p.key === pair.accentKey);
+      const secondary = SECONDARY_PRESETS.find((p) => p.key === pair.secondaryKey);
+      expect(accent, `${pair.key}: unknown accent ${pair.accentKey}`).toBeDefined();
+      expect(secondary, `${pair.key}: unknown secondary ${pair.secondaryKey}`).toBeDefined();
+      expect(
+        hueDistance(accent!.hue, secondary!.hue),
+        `${pair.name} (${pair.accentKey} + ${pair.secondaryKey}) reads as one colour`,
+      ).toBeGreaterThanOrEqual(MIN_HUE_SEPARATION);
+    }
+  });
+
+  it("never lists the same palette twice in one pair", () => {
+    for (const pair of THEME_PAIRS) {
+      expect(pair.accentKey, `${pair.name}`).not.toBe(pair.secondaryKey);
+    }
+  });
+
+  it("gives every pair a distinct key, so one can't shadow another", () => {
+    const keys = THEME_PAIRS.map((p) => p.key);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("recognises a club sitting on a pair, and one that has gone its own way", () => {
+    expect(pairFor("sunset", "fairway")?.key).toBe("classic");
+    // Two colours that match no pair are not wrong — just not a preset.
+    expect(pairFor("claret", "ivy")).toBeNull();
   });
 });

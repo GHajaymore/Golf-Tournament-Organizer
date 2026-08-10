@@ -455,6 +455,95 @@ export const FAIRWAY: ThemePreset = {
 
 export const SECONDARY_PRESETS: ThemePreset[] = [FAIRWAY, ...THEME_PRESETS];
 
+/**
+ * Every palette, offered for either role.
+ *
+ * Fairway used to be a second colour only, so a club whose identity *is*
+ * green could pick it as their supporting colour and not their main one —
+ * which is the wrong way round for most golf clubs. Both lists are the same
+ * list now; which one leads is the club's decision, not ours.
+ */
+export const ACCENT_PRESETS: ThemePreset[] = [...THEME_PRESETS, FAIRWAY];
+
+/**
+ * How far apart two hues must sit to read as two colours rather than one
+ * slightly-off colour. Below this a leaderboard's accent and its "advancing"
+ * marker start to look like a rendering fault.
+ */
+export const MIN_HUE_SEPARATION = 24;
+
+export interface ThemePair {
+  key: string;
+  name: string;
+  blurb: string;
+  accentKey: string;
+  secondaryKey: string;
+}
+
+/**
+ * Ready-made two-colour schemes.
+ *
+ * Picking two colours that work together is a design job, and an organizer
+ * opening the club settings on a Tuesday evening did not sign up for one.
+ * These are pairs that are known to hold apart — every one is checked against
+ * MIN_HUE_SEPARATION by a test, so a combination that clashes cannot ship.
+ *
+ * They are a starting point, never a restriction: the individual pickers stay,
+ * and a club with its own crest colours can still set both by hand, including
+ * a custom hex.
+ */
+export const THEME_PAIRS: ThemePair[] = [
+  {
+    key: "classic",
+    name: "Classic",
+    blurb: "Warm orange on clubhouse green. The app's own colours.",
+    accentKey: "sunset",
+    secondaryKey: "fairway",
+  },
+  {
+    key: "championship",
+    name: "Championship",
+    blurb: "Claret and gold, after the jug.",
+    accentKey: "claret",
+    secondaryKey: "bunker",
+  },
+  {
+    key: "coastal",
+    name: "Coastal",
+    blurb: "Links blue with sand.",
+    accentKey: "links",
+    secondaryKey: "bunker",
+  },
+  {
+    key: "parkland",
+    name: "Parkland",
+    blurb: "Deep green led, warmed with orange.",
+    accentKey: "fairway",
+    secondaryKey: "sunset",
+  },
+  {
+    key: "heathland",
+    name: "Heathland",
+    blurb: "Heather purple over ivy.",
+    accentKey: "heather",
+    secondaryKey: "ivy",
+  },
+  {
+    key: "morning",
+    name: "Morning",
+    blurb: "Sand gold against coastal blue.",
+    accentKey: "bunker",
+    secondaryKey: "links",
+  },
+];
+
+/** The pair a club's current two colours match, or null if they've gone their own way. */
+export function pairFor(accentKey: string, secondaryKey: string): ThemePair | null {
+  return (
+    THEME_PAIRS.find((p) => p.accentKey === accentKey && p.secondaryKey === secondaryKey) ?? null
+  );
+}
+
 export function secondaryFor(key: string | null | undefined): ThemePreset {
   return SECONDARY_PRESETS.find((t) => t.key === key) ?? FAIRWAY;
 }
