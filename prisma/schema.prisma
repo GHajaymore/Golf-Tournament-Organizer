@@ -6,9 +6,24 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Two URLs, because runtime queries and migrations want different things.
+//
+// `url` is the POOLED connection. Every Vercel function is its own short-lived
+// process, and each one opening a raw TCP connection to Postgres exhausts the
+// connection ceiling and produces intermittent P1001 "Can't reach database
+// server" — which is exactly what production was doing: a couple of failures
+// per hundred requests, scattered across routes, recovering on their own.
+//
+// `directUrl` is the unpooled one, used only by `prisma migrate deploy` in
+// vercel-build. Migrations take advisory locks and run DDL, neither of which
+// can go through a query pooler.
+//
+// Locally both point at the same Postgres, so nothing about development
+// changes.
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("PRISMA_DATABASE_URL")
+  directUrl = env("DATABASE_URL")
 }
 
 // A person's login identity — separate from Account, which is their
