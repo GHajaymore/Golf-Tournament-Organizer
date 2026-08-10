@@ -221,6 +221,18 @@ function NextRoundTransition({
             onChange={(e) => commitCarry(e.target.checked, e.target.checked && carryPct === 0 ? 100 : carryPct)}
           />
           Carry forward points into {roundLabel}
+          <FieldInfo label="carrying points forward">
+            <p>
+              At 100% a player takes their whole total into {roundLabel}, so a strong first round
+              still counts at the end. At 50% it is halved — the lead narrows but does not vanish.
+              At 0% every player starts level and the earlier round decides only who is still in.
+            </p>
+            <p>
+              This only works between rounds measuring the same thing. Carrying match points into a
+              stroke-play round produces a number that means nothing, and the app says so when the
+              rounds don&rsquo;t line up.
+            </p>
+          </FieldInfo>
         </label>
         <input
           type="range"
@@ -685,7 +697,22 @@ function StageCard({
           <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
               <div className="field" style={{ width: 320 }}>
-                <label>Result calculation</label>
+                <label>
+                  Result calculation
+                  <FieldInfo label="result calculation">
+                    <p>
+                      <b>Gross</b> ranks the strokes actually taken. <b>Net</b> takes handicap
+                      strokes off first, so a 20-handicap can win. <b>Both</b> keeps two orders of
+                      merit from one card.
+                    </p>
+                    <p>
+                      <b>Stableford</b> scores points per hole instead of counting strokes, so a
+                      blow-up costs one hole rather than the round. It is set here, on a stroke-play
+                      round, rather than picked as its own format &mdash; there is one engine, and
+                      offering two doors to it would leave one of them not opening.
+                    </p>
+                  </FieldInfo>
+                </label>
                 <div className="seg" style={{ width: "100%" }}>
                   {BASIS_OPTIONS.map((o) => (
                     <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
