@@ -6,6 +6,7 @@ import {
   setStageScoringBasis,
   setStageFormat,
   setStageHoles,
+  setStagePlayedOn,
   addStage,
   removeStage,
   generateNextRound,
@@ -13,6 +14,7 @@ import {
 import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS } from "@/lib/formats";
 import { isTeamFormat } from "@/lib/side-style";
+import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-dates";
 import FieldInfo from "@/components/FieldInfo";
 import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP } from "@/lib/domain/cut";
 import { chainIssues, issuesForRound, carryForwardPrompt, type CarryPrompt } from "@/lib/format-chain";
@@ -42,6 +44,8 @@ export interface StageView {
   description: string;
   format: string;
   holes: number;
+  /** ISO date this round is played, or "" for no fixed day. */
+  playedOn: string;
   deadline: string;
   scoringBasis: string;
   carryEnabled: boolean;
@@ -353,6 +357,7 @@ function StageCard({
   const [basis, setBasis] = useState(stage.scoringBasis);
   const [format, setFormat] = useState(stage.format);
   const [holes, setHoles] = useState(stage.holes);
+  const [playedOn, setPlayedOn] = useState(stage.playedOn);
   const [courseId, setCourseId] = useState<string | null>(stage.courseId);
   // "full" is a real answer for a 9-hole round now ("not fixed"), so it has to
   // survive here. Collapsing anything-but-back to "front" silently discarded
@@ -382,6 +387,11 @@ function StageCard({
     setFormat(v);
     startTransition(() => setStageFormat(stage.id, v));
   };
+  const commitPlayedOn = (v: string) => {
+    setPlayedOn(v);
+    startTransition(() => setStagePlayedOn(stage.id, v));
+  };
+
   const commitHoles = (v: number) => {
     setHoles(v);
     startTransition(() => setStageHoles(stage.id, v));
@@ -586,6 +596,39 @@ function StageCard({
               <input type="radio" name={`holes-${stage.id}`} checked={holes === 9} disabled={pending} onChange={() => commitHoles(9)} />9
             </label>
           </div>
+        </div>
+
+        {/* The day this round is played — and, when a week is rained off, the
+            one field the committee needs. Changing it moves this round only;
+            the rest of the season and every score already entered stay put. */}
+        <div className="field" style={{ width: 172 }}>
+          <label>
+            Played on
+            <FieldInfo label="the day this round is played">
+              <p>
+                The day the field actually goes out. A fixed-day league plays <i>on</i> a day; the
+                deadline below is for rounds where players arrange their own match and must finish
+                by a date.
+              </p>
+              <p>
+                <b>Rained off?</b> Change the date here. It moves this round alone — the other
+                weeks and any scores already entered are untouched.
+              </p>
+            </FieldInfo>
+          </label>
+          <input
+            className="input"
+            type="date"
+            value={playedOn}
+            disabled={pending}
+            onChange={(e) => commitPlayedOn(e.target.value)}
+            aria-label={`Date round ${stage.position + 1} is played`}
+          />
+          {playedOn && (
+            <span className="text-muted" style={{ fontSize: 11.5, marginTop: 3, display: "block" }}>
+              {shortDate(playedOn)}
+            </span>
+          )}
         </div>
 
         {/* Which nine, when the round is 9 holes. Front and back have their own
@@ -919,6 +962,13 @@ export function StagesClient({
   // Resets to 1 after each add: "add 10 weeks" is a deliberate act, and
   // leaving the box on 10 would make the next click a nasty surprise.
   const [howMany, setHowMany] = useState(1);
+  // Settings that apply to EVERY round in the run. They live here rather than
+  // being warned about afterwards, because the alternative to configuring ten
+  // rounds up front is configuring ten cards one at a time.
+  const [bulkFormat, setBulkFormat] = useState("");
+  const [bulkHoles, setBulkHoles] = useState(18);
+  const [startDate, setStartDate] = useState("");
+  const [interval, setInterval] = useState(7);
   const [pending, startTransition] = useTransition();
 
   const activeIndex = stages.findIndex((s) => s.id === activeStageId);
@@ -1083,10 +1133,11 @@ export function StagesClient({
           })}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {/* A weekly league is not built one round at a time. Ten weeks meant
-              ten clicks and then ten format changes, each of them a chance to
-              set one week differently from the rest by accident. */}
+        {/* Everything below applies to every round in the run. Set here rather
+            than flagged as homework: the alternative to configuring ten rounds
+            up front is configuring ten cards one at a time, which is the very
+            thing "how many" exists to avoid. */}
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}>
             <span className="text-muted">How many?</span>
             <input
@@ -1101,11 +1152,96 @@ export function StagesClient({
               aria-label="How many rounds to add"
             />
           </label>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12 }}>
+            <span className="text-muted">Format</span>
+            <select
+              className="input"
+              value={bulkFormat}
+              disabled={pending}
+              onChange={(e) => setBulkFormat(e.target.value)}
+              style={{ minWidth: 150 }}
+              aria-label="Format for every round added"
+            >
+              <option value="">Default for this event</option>
+              <optgroup label="Played on your own">
+                {GOLF_FORMATS.filter((f) => f.playable && !isTeamFormat(f.name)).map((f) => (
+                  <option key={f.name} value={f.name}>{f.name}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Played as a side">
+                {GOLF_FORMATS.filter((f) => f.playable && isTeamFormat(f.name)).map((f) => (
+                  <option key={f.name} value={f.name}>{f.name}</option>
+                ))}
+              </optgroup>
+            </select>
+          </label>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12 }}>
+            <span className="text-muted">Holes</span>
+            <select
+              className="input"
+              value={bulkHoles}
+              disabled={pending}
+              onChange={(e) => setBulkHoles(parseInt(e.target.value, 10) === 9 ? 9 : 18)}
+              style={{ width: 82 }}
+              aria-label="Holes for every round added"
+            >
+              <option value={18}>18</option>
+              <option value={9}>9</option>
+            </select>
+          </label>
+
+          {/* A fixed-day league plays ON a day; it does not "play by" one.
+              Leaving this blank keeps the old behaviour of no fixed date. */}
+          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12 }}>
+            <span className="text-muted">First round played</span>
+            <input
+              className="input"
+              type="date"
+              value={startDate}
+              disabled={pending}
+              onChange={(e) => setStartDate(e.target.value)}
+              style={{ width: 160 }}
+              aria-label="Date the first round is played"
+            />
+          </label>
+
+          {howMany > 1 && startDate && (
+            <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12 }}>
+              <span className="text-muted">Then</span>
+              <select
+                className="input"
+                value={interval}
+                disabled={pending}
+                onChange={(e) => setInterval(parseInt(e.target.value, 10))}
+                style={{ minWidth: 160 }}
+                aria-label="How often the rounds repeat"
+              >
+                {INTERVAL_OPTIONS.map((o) => (
+                  <option key={o.days} value={o.days}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
           <button
             type="button"
             className="btn btn-primary"
             disabled={pending}
-            onClick={() => startTransition(async () => { await addStage(newType, howMany); setHowMany(1); })}
+            onClick={() =>
+              startTransition(async () => {
+                await addStage(newType, {
+                  count: howMany,
+                  format: bulkFormat || undefined,
+                  holes: bulkHoles,
+                  startDate: startDate || undefined,
+                  intervalDays: interval,
+                });
+                setHowMany(1);
+                setStartDate("");
+              })
+            }
           >
             <i className="ph ph-plus" />{" "}
             {howMany === 1
@@ -1121,6 +1257,40 @@ export function StagesClient({
               : "No pairings are drawn — the field returns cards."}
           </span>
         </div>
+
+        {/* Said before the click, not discovered after it. Deliberately NOT a
+            blocked button: "have you looked at everything" cannot be defined
+            honestly, and the defaults above are real choices, so refusing to
+            proceed would only teach people to click through a gate. What it
+            does instead is name exactly what is shared and what is not. */}
+        {howMany > 1 && (
+          <div
+            style={{
+              padding: "10px 12px",
+              borderRadius: 10,
+              background: "color-mix(in srgb, var(--color-accent) 10%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
+            }}
+          >
+            <span style={{ fontSize: 12.5, fontWeight: 600 }}>
+              All {howMany} rounds will be created the same
+            </span>
+            <p style={{ margin: "5px 0 0", fontSize: 12, lineHeight: 1.6 }}>
+              They share the format, holes{startDate ? " and dates" : ""} set above. Everything
+              else — the handicap allowance, the cut line, carry-forward, round codes — is set on
+              each round, so changing one of those afterwards means editing {howMany} cards.
+              {" "}Worth setting the format here rather than there.
+            </p>
+            {startDate && (
+              <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 11.5, lineHeight: 1.55 }}>
+                {interval === 0
+                  ? `All ${howMany} on ${shortDate(startDate)}.`
+                  : `${shortDate(startDate)}, then ${INTERVAL_OPTIONS.find((o) => o.days === interval)?.label.toLowerCase()} — last round ${shortDate(roundDates(startDate, howMany, interval)[howMany - 1])}.`}
+                {" "}Any one of them can be moved later if it rains off.
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

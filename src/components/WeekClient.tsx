@@ -128,7 +128,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
               style={{ whiteSpace: "nowrap", flexShrink: 0, fontSize: 12.5 }}
               aria-current={active ? "true" : undefined}
             >
-              {w.label}
+              {w.date || w.label}
               {!w.played && (
                 <span style={{ opacity: 0.6, marginLeft: 6, fontSize: 11 }} title="No scores yet">
                   ·
@@ -141,7 +141,16 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
 
       <div style={{ marginBottom: 18 }}>
         <div className="page-kicker">League</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>{view.label}</h2>
+        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>
+          {view.label}
+          {view.date && (
+            // The night a member recognises. "Week 4" is the app's word for it;
+            // "Tue 19 May" is the club's.
+            <span className="text-muted" style={{ fontSize: 17, fontWeight: 400, marginLeft: 10 }}>
+              {view.date}
+            </span>
+          )}
+        </h2>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           {view.format} · {view.holes} holes · {view.stableford ? "Stableford points" : "net strokes"}
         </p>

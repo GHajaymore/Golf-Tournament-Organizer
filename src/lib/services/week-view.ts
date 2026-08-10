@@ -13,6 +13,7 @@ import {
 } from "./tournament";
 import { movementBetween, type WeekRow } from "../domain/week-movement";
 import { isManualFormat } from "../formats";
+import { cleanIsoDate, shortDate } from "../domain/round-dates";
 
 /**
  * One week of a league, gathered in the order a member reads it.
@@ -41,9 +42,11 @@ export interface WeekResult {
 }
 
 export interface WeekView {
-  weeks: Array<{ stageId: string; label: string; format: string; holes: number; played: boolean }>;
+  weeks: Array<{ stageId: string; label: string; date: string; format: string; holes: number; played: boolean }>;
   stageId: string;
   label: string;
+  /** "Tue 19 May", or "" when the round has no fixed day. */
+  date: string;
   format: string;
   holes: number;
   /** Ranked by the round's own basis: Stableford by points, otherwise by net. */
@@ -162,12 +165,16 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     weeks: weeks.map((s, i) => ({
       stageId: s.id,
       label: `Week ${i + 1}`,
+      // The date a member recognises the night by. A league is "Tuesday the
+      // 19th" long before it is "week 4".
+      date: shortDate(cleanIsoDate(s.playedOn)),
       format: s.format,
       holes: s.holes,
       played: cards.some((c) => c.stageId === s.id),
     })),
     stageId: stage.id,
     label: `Week ${idx + 1}`,
+    date: shortDate(cleanIsoDate(stage.playedOn)),
     format: stage.format,
     holes: stage.holes,
     results,

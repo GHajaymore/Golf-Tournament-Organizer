@@ -791,6 +791,23 @@ model Stage {
   description         String  @default("")
   format              String  @default("Match Play") // golf format (see src/lib/formats.ts)
   holes               Int     @default(18)           // 9 | 18
+  /**
+   * The day this round is actually played, as an ISO date ("2026-05-19").
+   * Empty means no fixed day.
+   *
+   * Distinct from `deadline`, and the distinction is the point: a Tuesday
+   * league PLAYS on Tuesday, it does not "play by" Tuesday. A knockout round
+   * where players arrange their own match still wants a deadline; a fixed-day
+   * league wants a date, and had no field to put one in.
+   *
+   * A plain date string rather than DateTime deliberately. This is a calendar
+   * day, not an instant — storing it as a timestamp means a club in one
+   * timezone can see "Mon 18 May" for a round everyone played on Tuesday.
+   *
+   * Per round, so a rained-off week can be moved on its own without touching
+   * the rest of the season.
+   */
+  playedOn            String  @default("")
   deadline            String  @default("")
   /**
    * The organizer closing this round early or extending it past its date.

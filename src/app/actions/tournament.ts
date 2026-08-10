@@ -17,6 +17,7 @@ import { refusalFor } from "@/lib/services/limits";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
+import { cleanIsoDate, roundDates } from "@/lib/domain/round-dates";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { splitCsvLine, matchColumn } from "@/lib/csv";
@@ -41,7 +42,7 @@ import type { FormationRule, HoleResult } from "@/lib/domain";
 import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
-import { findFormat } from "@/lib/formats";
+import { findFormat, isPlayable } from "@/lib/formats";
 import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 
@@ -731,6 +732,27 @@ export async function setStageDeadline(stageId: string, deadline: string) {
   refresh();
 }
 
+/**
+ * Move one round to a different day.
+ *
+ * The rain-out. A league night gets called off and the committee replays it a
+ * fortnight later; nothing about the other weeks changes, and nothing about
+ * the scores already entered changes either — this is a date, not a reset.
+ *
+ * Empty clears the date back to "no fixed day". Anything unparseable is
+ * treated as empty rather than stored, so a bad value can never render as a
+ * confidently wrong date on every player's phone.
+ */
+export async function setStagePlayedOn(stageId: string, date: string) {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  await prisma.stage.updateMany({
+    where: { id: stageId, eventId },
+    data: { playedOn: cleanIsoDate(date) },
+  });
+  refresh();
+}
+
 export async function setStageCarry(stageId: string, enabled: boolean, pct: number) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
@@ -841,13 +863,28 @@ export async function setQualifyMode(mode: string, overall: number) {
  * the ordinary per-round edit, which is the point: same format by default,
  * overridable individually.
  */
-export async function addStage(type: string, count = 1): Promise<string | undefined> {
+export interface AddStageOptions {
+  count?: number;
+  /** Applies to every round created. Ignored if the app cannot run it. */
+  format?: string;
+  holes?: number;
+  /** ISO date for the first round; the rest follow at `intervalDays`. */
+  startDate?: string;
+  intervalDays?: number;
+}
+
+export async function addStage(
+  type: string,
+  countOrOpts: number | AddStageOptions = 1,
+): Promise<string | undefined> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   const stageType = isStageType(type) ? type : "Round Robin";
-  // Clamped, not trusted: this is a public server action and the number comes
+  const opts: AddStageOptions =
+    typeof countOrOpts === "number" ? { count: countOrOpts } : countOrOpts;
+  // Clamped, not trusted: this is a public server action and the numbers come
   // off a form.
-  const howMany = Math.min(MAX_ROUNDS_AT_ONCE, Math.max(1, Math.round(Number(count) || 1)));
+  const howMany = Math.min(MAX_ROUNDS_AT_ONCE, Math.max(1, Math.round(Number(opts.count) || 1)));
   const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
   const position = (agg._max.position ?? -1) + 1;
   // What the organizer said at setup about how people play. A starting point
@@ -883,13 +920,28 @@ export async function addStage(type: string, count = 1): Promise<string | undefi
         : defaultFormatFor(style, scoring),
   };
 
+  // A format chosen in the create step applies to every round in the run —
+  // that is the point of choosing it there rather than on N cards afterwards.
+  // Only honoured when the app can actually run it, so a stale or hand-crafted
+  // value cannot create rounds with nowhere to enter a card.
+  if (opts.format && isPlayable(opts.format)) common.format = opts.format;
+  const holes = Number(opts.holes);
+  if (holes === 9 || holes === 18) (common as { holes?: number }).holes = holes;
+
+  // Dates for the run. An unparseable start date yields no dates rather than a
+  // wrong one — see cleanIsoDate.
+  const start = cleanIsoDate(opts.startDate);
+  const dates = start
+    ? roundDates(start, howMany, Number(opts.intervalDays) || 0)
+    : [];
+
   // Created one at a time rather than with createMany so the first round's id
   // can be returned — the screen scrolls to and opens the round it just made,
   // and losing that would make adding a round feel like nothing happened.
   let firstId: string | undefined;
   for (let i = 0; i < howMany; i += 1) {
     const created = await prisma.stage.create({
-      data: { ...common, position: position + i },
+      data: { ...common, position: position + i, playedOn: dates[i] ?? "" },
     });
     if (i === 0) firstId = created.id;
   }

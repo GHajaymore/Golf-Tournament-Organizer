@@ -69,6 +69,7 @@ export default async function StagesPage() {
     description: s.description,
     format: s.format,
     holes: s.holes,
+    playedOn: s.playedOn,
     deadline: s.deadline,
     scoringBasis: s.scoringBasis,
     carryEnabled: s.carryForwardEnabled,
