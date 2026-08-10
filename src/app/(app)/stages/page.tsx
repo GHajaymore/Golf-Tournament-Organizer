@@ -7,6 +7,42 @@ import { StagesClient } from "@/components/StagesClient";
 import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
+import { effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
+import type { RoundScoringInfo } from "@/components/RoundTeamScoring";
+
+/**
+ * What a team round costs its sides in strokes, or null where the question
+ * doesn't arise — an individual round has no side to price.
+ *
+ * Each control appears only for a format that actually uses it: the split for
+ * formats scored by per-player shares, the count only where separate balls
+ * are aggregated. Offering either to a format that ignores it would be a
+ * control with nothing behind it.
+ */
+function teamScoringFor(s: {
+  format: string;
+  handicapAllowance: number;
+  allowanceWeights: number[];
+  countBest: number;
+}): RoundScoringInfo | null {
+  if (!needsTeams(s.format)) return null;
+  const f = findFormat(s.format);
+  const declared = f.weightsBySideSize?.[f.sideSize] ?? null;
+  return {
+    name: f.name,
+    allowance: effectiveAllowance(s.format, s.handicapAllowance),
+    recommendedAllowance: f.allowance,
+    allowanceOverridden: s.handicapAllowance > 0,
+    allowanceIsConvention: !!f.allowanceIsConvention,
+    recommendedShares: declared,
+    shares: s.allowanceWeights.length === f.sideSize ? s.allowanceWeights : declared,
+    sharesOverridden: s.allowanceWeights.length === f.sideSize,
+    countBest: f.engine === "team-aggregate" ? effectiveCountBest(s.format, s.countBest) : null,
+    countBestOverridden: s.countBest > 0,
+    maxSide: sideSizeRange(s.format).max,
+  };
+}
 
 export default async function StagesPage() {
   const session = await requireScreen("stages");
@@ -44,6 +80,11 @@ export default async function StagesPage() {
     cutScope: s.cutScope,
     deadlineOverride: s.deadlineOverride,
     optDeadline: s.optDeadline,
+    // What a team round costs its sides in strokes. Computed here, on the
+    // round, because these are settings *of the round* — they used to sit on
+    // the Teams screen behind a second round selector, so a format was chosen
+    // in one place and priced in another.
+    teamScoring: teamScoringFor(s),
     attendance:
       attendanceMode === "everyone"
         ? null

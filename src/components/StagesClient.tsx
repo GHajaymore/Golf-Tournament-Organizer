@@ -24,6 +24,7 @@ import {
   type StageTypeKey,
 } from "@/lib/stage-types";
 import { ScoringClient } from "./ScoringClient";
+import { RoundTeamScoring, type RoundScoringInfo } from "./RoundTeamScoring";
 import { MatchTiebreakControl } from "./MatchTiebreakControl";
 import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
 import { QualControl } from "./QualControl";
@@ -64,6 +65,8 @@ export interface StageView {
   courseId: string | null;
   /** full | front | back — which nine, when the round is 9 holes. */
   nine: string;
+  /** How this round prices its sides, or null for an individual format. */
+  teamScoring: RoundScoringInfo | null;
 }
 
 export interface ScoringValues {
@@ -624,6 +627,29 @@ function StageCard({
         </div>
       )}
 
+      {/* What the format costs the sides in strokes. On the round,
+          beside the format it belongs to — this used to live on the
+          Teams screen behind a second round selector, so an organizer
+          chose Four-Ball here and discovered what it played off
+          somewhere else, with nothing on either screen saying so. */}
+      {stage.teamScoring && (
+        <div>
+          <SectionLabel>
+            Handicaps for {stage.teamScoring.name}
+            <FieldInfo label="team handicaps">
+              <p>
+                What each side plays off in this round. The allowance is the share of a
+                player&rsquo;s course handicap that counts; some formats also split it between
+                partners, and some let you choose how many balls count on a hole.
+              </p>
+              <p>Every one of these is the format&rsquo;s recommendation until you change it.</p>
+            </FieldInfo>
+          </SectionLabel>
+          <div style={{ marginTop: 6 }}>
+            <RoundTeamScoring stageId={stage.id} info={stage.teamScoring} />
+          </div>
+        </div>
+      )}
       <div>
         <button
           type="button"
@@ -725,6 +751,7 @@ function StageCard({
                 </p>
               </div>
             )}
+
 
             {/* Directly under the date, because it is the thing that overrules
                 it. Kept out of the collapsed summary: closing a round early is

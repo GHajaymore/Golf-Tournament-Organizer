@@ -119,31 +119,38 @@ async function main() {
 
     console.log(`Verifying against ${BASE}\n`);
 
-    console.log("Greensomes round — /teams");
-    const g = await get(`/teams?round=${greensomes.id}`);
-    console.log(`  status ${g.status}`);
-    check("split control", g.html, "Handicap split");
-    check("recommended split", g.html, "60 / 40");
-    check("info button", g.html, "More about the handicap split");
-    check("no count control (one ball)", g.html, "Scores that count", false);
-
-    console.log("\nFour-Ball round — /teams");
-    const f = await get(`/teams?round=${fourBall.id}`);
-    console.log(`  status ${f.status}`);
-    check("count control", f.html, "Scores that count");
-    check("default count", f.html, "best 1 of 2");
-    check("info button", f.html, "More about how many scores count");
-    check("no split control (flat allowance)", f.html, "Handicap split", false);
-
-    // /stages is deliberately not asserted for the cut-line info button. That
-    // section lives inside the "Customize this round" panel, which is closed
-    // until someone opens it, so it is correctly absent from the first render
-    // — asserting it here would only encode a misunderstanding. The component
-    // itself is covered by the styleguide and by render.test.tsx.
-    console.log("\nRounds & format — /stages");
+    // Both rounds render as cards on the SAME page now. These settings used to
+    // live on /teams, which had its own round selector — so a round's format
+    // was chosen in one place and priced in another, with neither screen
+    // mentioning the other. One page, one round selector, one home.
+    console.log("Rounds & formats — /stages (both rounds on one page)");
     const s = await get("/stages");
     console.log(`  status ${s.status}`);
+
+    // Greensomes: scored by a per-player split, one ball.
+    check("split control", s.html, "Handicap split");
+    check("recommended split", s.html, "60 / 40");
+    check("split info button", s.html, "More about the handicap split");
+
+    // Four-Ball: flat allowance, two balls aggregated.
+    check("count control", s.html, "Scores that count");
+    check("default count", s.html, "best 1 of 2");
+    check("count info button", s.html, "More about how many scores count");
+
+    // Every team round is priced somehow, so the allowance is never hidden.
+    check("allowance", s.html, "Handicap allowance");
+    // On the card face, not behind "Customize this round" — that panel is
+    // closed until opened, and what a round plays off is not an advanced tweak.
     check("round card renders", s.html, "Customize this round");
+
+    // Teams keeps who-is-on-which-side, and points at where the terms are set
+    // rather than pretending they are not set anywhere.
+    console.log("\nTeams & pairs — /teams (no longer edits round settings)");
+    const t = await get(`/teams?round=${fourBall.id}`);
+    console.log(`  status ${t.status}`);
+    check("summary of the terms", t.html, "Handicap allowance");
+    check("points at the round", t.html, 'href="/stages"');
+    check("no editing here", t.html, 'aria-label="Handicap allowance percent"', false);
 
     console.log(`\n${failures === 0 ? "All checks passed." : `${failures} check(s) FAILED.`}`);
   } finally {

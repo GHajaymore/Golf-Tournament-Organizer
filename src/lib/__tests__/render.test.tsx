@@ -244,73 +244,22 @@ describe("team screens", () => {
     expect(html).toContain("Bob");
   });
 
-  it("says when an allowance is club convention rather than a standard", () => {
+  it("states the round's handicap terms and points at where they are set", () => {
+    // The controls themselves moved onto the round card, because they are
+    // settings of the round and this screen had its own round selector — the
+    // same round was being configured in two places. What stays is a summary
+    // so nobody has to guess what the sides are playing off, and a link.
     const html = render(
       <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Scramble" }]} activeRoundId="r1"
         format={{ ...format, name: "Scramble", min: 4, max: 4, sharesOneCard: true,
           allowance: 25, recommendedAllowance: 25, allowanceIsConvention: true }}
         teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
     );
-    expect(html).toContain("not a published standard");
-  });
-
-  it("shows the split for a format scored by one, and not for one that isn't", () => {
-    // Greensomes is 60% of the lower handicap plus 40% of the higher, which a
-    // single percentage cannot express — so it gets its own control.
-    const greensomes = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Greensomes" }]} activeRoundId="r1"
-        format={{ ...format, name: "Greensomes", sharesOneCard: true,
-          shares: [60, 40], recommendedShares: [60, 40] }}
-        teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
-    );
-    expect(greensomes).toContain("Handicap split");
-    expect(greensomes).toContain("60 / 40");
-    // Four-Ball takes a flat percentage, so offering a split would be a
-    // control with nothing behind it.
-    const fourBall = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
-        format={format} teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
-    );
-    expect(fourBall).not.toContain("Handicap split");
-  });
-
-  it("says when a committee has replaced the recommended split", () => {
-    const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Greensomes" }]} activeRoundId="r1"
-        format={{ ...format, name: "Greensomes", sharesOneCard: true,
-          shares: [50, 50], recommendedShares: [60, 40], sharesOverridden: true }}
-        teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
-    );
-    expect(html).toContain("50 / 50");
-    expect(html).toContain("set by your committee");
-  });
-
-  it("offers how-many-count only where separate balls are aggregated", () => {
-    // Four-Ball aggregates two balls, so "best 1 of 2" is a real question.
-    const fourBall = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
-        format={format} teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
-    );
-    expect(fourBall).toContain("Scores that count");
-    expect(fourBall).toContain("best 1 of 2");
-    // A scramble already plays one ball, so the question doesn't arise.
-    const scramble = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Scramble" }]} activeRoundId="r1"
-        format={{ ...format, name: "Scramble", min: 4, max: 4, sharesOneCard: true, countBest: null }}
-        teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
-    );
-    expect(scramble).not.toContain("Scores that count");
-  });
-
-  it("shows a society's best-2-of-4 as the committee's choice", () => {
-    const html = render(
-      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Best Ball" }]} activeRoundId="r1"
-        format={{ ...format, name: "Best Ball", min: 4, max: 4,
-          countBest: 2, countBestOverridden: true, maxCountBest: 4 }}
-        teams={[]} problems={[]} unassigned={[]} matchCount={0} />,
-    );
-    expect(html).toContain("best 2 of 4");
-    expect(html).toContain("set by your committee");
+    expect(html).toContain("Handicap allowance");
+    expect(html).toContain("25%");
+    expect(html).toContain('href="/stages"');
+    // No editing here any more — one home, not two.
+    expect(html).not.toContain("aria-label=\"Handicap allowance percent\"");
   });
 
   it("renders team score entry for both card shapes", () => {
@@ -416,7 +365,7 @@ describe("rounds and format", () => {
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
     holes: 18, deadline: "", scoringBasis: "gross", carryEnabled: false, carryPct: 0,
     carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
-    matchCount: 0, courseId: null, nine: "full", ...over,
+    matchCount: 0, courseId: null, nine: "full", teamScoring: null, ...over,
   });
   const base = {
     rrMatchesPerPlayer: 3,
@@ -824,7 +773,7 @@ describe("round card — which nine and the deadline", () => {
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
     holes: 18, deadline: "", scoringBasis: "gross", carryEnabled: false, carryPct: 0,
     carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
-    matchCount: 0, courseId: null, nine: "full", ...over,
+    matchCount: 0, courseId: null, nine: "full", teamScoring: null, ...over,
   });
   const base = {
     rrMatchesPerPlayer: 3,
@@ -1405,5 +1354,78 @@ describe("the captain's availability grid", () => {
   it("renders nothing at all when there is neither a round nor a flight", async () => {
     const { RoundAvailability } = await import("@/components/RoundAvailability");
     expect(render(<RoundAvailability playerId="p9" rounds={[]} captainOf={[]} />)).toBe("");
+  });
+});
+
+describe("round handicap controls", () => {
+  const info = (over: Record<string, unknown> = {}) => ({
+    name: "Four-Ball",
+    allowance: 90, recommendedAllowance: 90,
+    allowanceOverridden: false, allowanceIsConvention: false,
+    shares: null as number[] | null, recommendedShares: null as number[] | null,
+    sharesOverridden: false,
+    countBest: 1 as number | null, countBestOverridden: false, maxSide: 2,
+    ...over,
+  });
+
+  it("shows the split only for a format scored by one", async () => {
+    const { RoundTeamScoring } = await import("@/components/RoundTeamScoring");
+    // Greensomes is 60% of the lower handicap plus 40% of the higher, which a
+    // single percentage cannot express — so it gets its own control.
+    const greensomes = render(
+      <RoundTeamScoring stageId="s1"
+        info={info({ name: "Greensomes", shares: [60, 40], recommendedShares: [60, 40], countBest: null })} />,
+    );
+    expect(greensomes).toContain("Handicap split");
+    expect(greensomes).toContain("60 / 40");
+    // Four-Ball takes a flat percentage, so a split would be a control with
+    // nothing behind it.
+    expect(render(<RoundTeamScoring stageId="s1" info={info()} />)).not.toContain("Handicap split");
+  });
+
+  it("shows how many count only where separate balls are aggregated", async () => {
+    const { RoundTeamScoring } = await import("@/components/RoundTeamScoring");
+    const fourBall = render(<RoundTeamScoring stageId="s1" info={info()} />);
+    expect(fourBall).toContain("Scores that count");
+    expect(fourBall).toContain("best 1 of 2");
+    // A scramble already plays one ball, so the question doesn't arise.
+    const scramble = render(
+      <RoundTeamScoring stageId="s1" info={info({ name: "Scramble", countBest: null })} />,
+    );
+    expect(scramble).not.toContain("Scores that count");
+  });
+
+  it("says when a committee has replaced a recommendation", async () => {
+    const { RoundTeamScoring } = await import("@/components/RoundTeamScoring");
+    const html = render(
+      <RoundTeamScoring stageId="s1"
+        info={info({ name: "Best Ball", maxSide: 4, countBest: 2, countBestOverridden: true,
+          allowance: 80, allowanceOverridden: true })} />,
+    );
+    expect(html).toContain("best 2 of 4");
+    expect(html).toContain("set by your committee");
+  });
+
+  it("always offers the allowance, whatever the format", async () => {
+    // Every team format prices its sides somehow, so this one is never hidden.
+    const { RoundTeamScoring } = await import("@/components/RoundTeamScoring");
+    expect(render(<RoundTeamScoring stageId="s1" info={info()} />)).toContain("Handicap allowance");
+  });
+});
+
+describe("club convention vs published allowance", () => {
+  it("says when a recommendation is convention rather than a standard", async () => {
+    // A scramble has no published WHS allowance — only what clubs do. Saying
+    // so is the difference between citing a rule and admitting a custom.
+    const { RoundTeamScoring } = await import("@/components/RoundTeamScoring");
+    const html = render(
+      <RoundTeamScoring stageId="s1" info={{
+        name: "Scramble", allowance: 25, recommendedAllowance: 25,
+        allowanceOverridden: false, allowanceIsConvention: true,
+        shares: null, recommendedShares: null, sharesOverridden: false,
+        countBest: null, countBestOverridden: false, maxSide: 4,
+      }} />,
+    );
+    expect(html).toContain("not a published standard");
   });
 });

@@ -1,7 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import FieldInfo from "@/components/FieldInfo";
 import {
   createTeam,
   deleteTeam,
@@ -9,9 +8,6 @@ import {
   removeTeamMember,
   autoDrawTeams,
   generateTeamMatches,
-  setStageAllowance,
-  setStageAllowanceWeights,
-  setStageCountBest,
 } from "@/app/actions/teams";
 
 export interface TeamMemberRow {
@@ -90,12 +86,6 @@ export function TeamsClient({
   const [error, setError] = useState("");
   const [confirmDraw, setConfirmDraw] = useState(false);
   const [confirmMatches, setConfirmMatches] = useState(false);
-  const [editingAllowance, setEditingAllowance] = useState(false);
-  const [allowance, setAllowance] = useState("");
-  const [editingShares, setEditingShares] = useState(false);
-  const [shares, setShares] = useState<string[]>([]);
-  const [editingCount, setEditingCount] = useState(false);
-  const [countBest, setCountBest] = useState("");
   const [addingTo, setAddingTo] = useState("");
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
@@ -160,238 +150,17 @@ export function TeamsClient({
         </div>
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{format.desc}</p>
 
-        {/* The allowance is a committee decision, not a rule, but almost every
-            round wants the recommended one — so it reads as a plain statement
-            until someone chooses to change it. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-            Handicap allowance <b style={{ color: "var(--color-text)" }}>{format.allowance}%</b>
-            {format.allowanceOverridden
-              ? ` — set by your committee, in place of the usual ${format.recommendedAllowance}%.`
-              : format.allowanceIsConvention
-                ? " — the common club convention for this format, not a published standard."
-                : " — the recommended allowance for this format."}
-          </p>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            style={{ padding: "2px 10px", fontSize: 12 }}
-            onClick={() => {
-              setAllowance(String(format.allowance));
-              setEditingAllowance((o) => !o);
-            }}
-          >
-            {editingAllowance ? "Cancel" : "Change"}
-          </button>
-        </div>
-
-        {editingAllowance && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <input
-              className="input"
-              inputMode="numeric"
-              style={{ width: 90 }}
-              value={allowance}
-              onChange={(e) => setAllowance(e.target.value)}
-              aria-label="Handicap allowance percent"
-            />
-            <span className="text-muted" style={{ fontSize: 12 }}>% of course handicap</span>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={pending}
-              onClick={() => {
-                const n = parseInt(allowance, 10);
-                run(() => setStageAllowance(activeRoundId, Number.isFinite(n) ? n : -1));
-                setEditingAllowance(false);
-              }}
-            >
-              Save
-            </button>
-            {format.allowanceOverridden && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={pending}
-                onClick={() => {
-                  run(() => setStageAllowance(activeRoundId, 0));
-                  setEditingAllowance(false);
-                }}
-              >
-                Back to {format.recommendedAllowance}%
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Formats scored by a per-player split get their own control. A flat
-            percentage cannot express greensomes' 60/40, and clubs genuinely
-            differ — 50/50 and 55/45 are both played. */}
-        {format.shares && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-              Handicap split{" "}
-              <b style={{ color: "var(--color-text)" }}>{format.shares.join(" / ")}</b>
-              {format.sharesOverridden
-                ? ` — set by your committee, in place of the usual ${format.recommendedShares?.join(" / ")}.`
-                : " — the recommended split for this format."}
-              <FieldInfo label="the handicap split">
-                <p>
-                  The shares are applied best player first: the first number is the
-                  percentage of the <b>lower</b> handicap, the second the percentage of
-                  the <b>higher</b>.
-                </p>
-                <p>
-                  Greensomes is 60 / 40 because taking the better of two drives is an
-                  advantage, so the side plays off fewer strokes than an alternate-shot
-                  pair of the same two players.
-                </p>
-                <p>The shares do not have to add up to 100.</p>
-              </FieldInfo>
-            </p>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              style={{ padding: "2px 10px", fontSize: 12 }}
-              onClick={() => {
-                setShares(format.shares!.map(String));
-                setEditingShares((o) => !o);
-              }}
-            >
-              {editingShares ? "Cancel" : "Change"}
-            </button>
-          </div>
-        )}
-
-        {editingShares && format.shares && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {shares.map((v, i) => (
-              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <input
-                  className="input"
-                  inputMode="numeric"
-                  style={{ width: 70 }}
-                  value={v}
-                  onChange={(e) =>
-                    setShares((prev) => prev.map((p, j) => (j === i ? e.target.value : p)))
-                  }
-                  aria-label={i === 0 ? "Share of the lower handicap, percent" : `Share ${i + 1}, percent`}
-                />
-                <span className="text-muted" style={{ fontSize: 12 }}>%</span>
-              </span>
-            ))}
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={pending}
-              onClick={() => {
-                const nums = shares.map((s) => parseInt(s, 10));
-                run(() =>
-                  setStageAllowanceWeights(
-                    activeRoundId,
-                    nums.map((n) => (Number.isFinite(n) ? n : -1)),
-                  ),
-                );
-                setEditingShares(false);
-              }}
-            >
-              Save
-            </button>
-            {format.sharesOverridden && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={pending}
-                onClick={() => {
-                  run(() => setStageAllowanceWeights(activeRoundId, []));
-                  setEditingShares(false);
-                }}
-              >
-                Back to {format.recommendedShares?.join(" / ")}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* How many balls count, for the formats that aggregate separate ones.
-            A scramble already plays a single ball, so the question doesn't
-            arise and the control isn't offered. */}
-        {format.countBest !== null && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-              Scores that count{" "}
-              <b style={{ color: "var(--color-text)" }}>
-                best {format.countBest} of {format.max}
-              </b>
-              {format.countBestOverridden ? " — set by your committee." : " — how this format is normally played."}
-              <FieldInfo label="how many scores count">
-                <p>
-                  On each hole the side&rsquo;s best {format.countBest === 1 ? "score counts" : `${format.countBest} scores count`} and
-                  the rest are set aside.
-                </p>
-                <p>
-                  Counting more than one keeps everybody involved: with only the best
-                  ball counting, three of a four have nothing to play for once a partner
-                  makes par. &ldquo;Best 2 of 4&rdquo; is the usual society choice.
-                </p>
-              </FieldInfo>
-            </p>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              style={{ padding: "2px 10px", fontSize: 12 }}
-              onClick={() => {
-                setCountBest(String(format.countBest ?? 1));
-                setEditingCount((o) => !o);
-              }}
-            >
-              {editingCount ? "Cancel" : "Change"}
-            </button>
-          </div>
-        )}
-
-        {editingCount && format.countBest !== null && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <select
-              className="input"
-              style={{ width: 150 }}
-              value={countBest}
-              onChange={(e) => setCountBest(e.target.value)}
-              aria-label="How many scores count on each hole"
-            >
-              {Array.from({ length: format.max }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={String(n)}>
-                  best {n} of {format.max}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={pending}
-              onClick={() => {
-                const n = parseInt(countBest, 10);
-                run(() => setStageCountBest(activeRoundId, Number.isFinite(n) ? n : 0));
-                setEditingCount(false);
-              }}
-            >
-              Save
-            </button>
-            {format.countBestOverridden && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={pending}
-                onClick={() => {
-                  run(() => setStageCountBest(activeRoundId, 0));
-                  setEditingCount(false);
-                }}
-              >
-                Back to best 1
-              </button>
-            )}
-          </div>
-        )}
+        {/* Handicaps, the split and how many balls count moved onto the round
+            card in Rounds & formats. They are settings of the round, and this
+            screen had its own round selector — so the same round was being
+            configured in two places, neither mentioning the other. */}
+        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          Handicap allowance <b style={{ color: "var(--color-text)" }}>{format.allowance}%</b>
+          {format.shares ? ` · split ${format.shares.join(" / ")}` : ""}
+          {format.countBest !== null ? ` · best ${format.countBest} of ${format.max}` : ""}
+          {" — set on "}
+          <a href="/stages">Rounds &amp; formats</a>.
+        </p>
       </div>
 
       {problems.length > 0 && (
