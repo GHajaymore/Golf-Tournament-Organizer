@@ -13,6 +13,7 @@ import { playingStages } from "@/lib/services/tournament";
 import { resolveAttendance, effectiveStatus, playerMayChange, type AttendanceMode } from "@/lib/domain/attendance";
 import { RoundAvailability, type AvailabilityRound, type CaptainFlight } from "@/components/RoundAvailability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
+import { currentRoundCut } from "@/lib/domain/cut";
 import { navForRole } from "@/lib/nav";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
@@ -95,12 +96,17 @@ export default async function DashboardPage() {
   // sidebar the layout renders. A shortcut to a door the sidebar has closed is
   // still a door to an empty room, so the quick actions are an intersection
   // rather than a second opinion.
+  // Whether the field advances into a knockout at all. The "Advancing" stat and
+  // the "Qualification cutoff" card read event-level qualifyPerGroup/advancing,
+  // which only mean something when there is a Bracket/Qualification stage to
+  // qualify into — a tournament that instead cuts round to round has neither.
+  const hasKnockout = state.stages.some(
+    (s) => s.type === "Bracket Stage" || s.type === "Qualification Stage",
+  );
   const navHrefs = new Set(
     navForRole(session.viewRole, settings, {
       hasTeamRound: state.stages.some((s) => TEAM_FORMAT_NAMES.includes(s.format)),
-      hasKnockout: state.stages.some(
-        (s) => s.type === "Bracket Stage" || s.type === "Qualification Stage",
-      ),
+      hasKnockout,
     })
       .flatMap((section) => section.items)
       .map((item) => item.href),
@@ -129,6 +135,15 @@ export default async function DashboardPage() {
 
   const rows = standingRows(state).slice(0, 8);
   const advancingIds = state.advancingIds;
+
+  // With no knockout to qualify into, the field advances by a per-round cut
+  // instead — the cut out of the current round is the next round's, if it has
+  // one. This replaces the qualification card, which would otherwise show an
+  // event-level "top N/flight" that doesn't match how this tournament cuts.
+  const activeRoundIdx = state.activeStage
+    ? state.playRounds.findIndex((s) => s.id === state.activeStage!.id)
+    : -1;
+  const roundCut = hasKnockout ? null : currentRoundCut(state.playRounds, activeRoundIdx);
 
   // ── Published tee sheet ─────────────────────────────────────────────────
   // The player's answer to the only question that matters on the morning:
@@ -402,8 +417,10 @@ export default async function DashboardPage() {
           {isStaff && (
             <StatCard label="Awaiting review" value={state.pendingConfirmations} sub={state.pendingConfirmations === 1 ? "score to confirm" : "scores to confirm"} icon="ph ph-seal-check" />
           )}
-          {/* Who's advancing is derived from the standings, so it follows them. */}
-          {showStandings && (
+          {/* Who's advancing is a live read on the standings, so it follows them
+              — and only counts when there's a knockout to advance into; a
+              round-to-round cut has no single event-level "advancing" number. */}
+          {hasKnockout && showStandings && (
             <StatCard label="Advancing" value={advancingCount} sub={`of ${state.confirmed.length} players`} icon="ph ph-flag-checkered" />
           )}
         </div>
@@ -478,9 +495,12 @@ export default async function DashboardPage() {
             </div>
             )}
 
-            {/* The cutoff line is a live read on the standings — in a blind
-                event it would give away exactly what the leaderboard hides. */}
-            {showStandings && (
+            {/* Only when the field qualifies into a knockout: this card reads
+                event-level qualifyPerGroup/advancing, which mean nothing when a
+                tournament cuts round to round instead. The cutoff line is also a
+                live read on the standings — in a blind event it would give away
+                exactly what the leaderboard hides, hence the showStandings gate. */}
+            {hasKnockout && showStandings && (
               <div className="card elev-sm">
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span className="card-title">Qualification cutoff</span>
@@ -491,6 +511,25 @@ export default async function DashboardPage() {
                 </div>
                 <div className="text-muted" style={{ fontSize: 12 }}>
                   Cutoff line ≈ {overallCutoff === null ? "—" : pts(overallCutoff)} pts · updates live with scores
+                </div>
+              </div>
+            )}
+
+            {/* No knockout, but the current round cuts into the next: show that
+                round's own cut instead of the generic qualification card. This
+                is a configured "top N advance", not a standings read, so it
+                needs no showStandings gate — it reveals nothing about who leads. */}
+            {!hasKnockout && roundCut && (
+              <div className="card elev-sm">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span className="card-title">Round cut</span>
+                  <span className="tag tag-accent">Round {roundCut.fromRound} → {roundCut.toRound}</span>
+                </div>
+                <div style={{ fontFamily: "var(--font-heading)", fontSize: 20, marginTop: 2, textTransform: "capitalize" }}>
+                  {roundCut.advance}
+                </div>
+                <div className="text-muted" style={{ fontSize: 12 }}>
+                  Survivors of Round {roundCut.fromRound} play Round {roundCut.toRound}.
                 </div>
               </div>
             )}

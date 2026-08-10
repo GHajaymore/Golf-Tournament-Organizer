@@ -1,6 +1,7 @@
 import "server-only";
 import { isPlayingRound } from "../stage-types";
 import { carryUnitsCompatible } from "../format-chain";
+import { survivors, currentRoundCutRule, type CutCandidate } from "../domain/cut";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { prisma } from "../db";
 import { effectiveAllowance } from "./teams";
@@ -462,8 +463,38 @@ export async function loadEventState(eventId: string): Promise<EventState | null
           );
   }
 
-  const advancingIds = qualifierIds;
-  const advancingCount = qualifierIds.size;
+  // Which players the standings highlight as advancing — the lit rows on the
+  // dashboard flight standings and on the live leaderboard everyone watches.
+  //
+  // A knockout advances into a bracket, so its qualifiers are the event-level
+  // qualification set (qualifyPerGroup / qualifyOverall) that seeds it. A
+  // tournament that cuts round to round has no such stage: who advances is the
+  // survivors of the ACTIVE round's own cut, so the lit rows match the number
+  // set in Round setup rather than the qualifyPerGroup default (2/flight = 8
+  // across four flights, which highlighted the wrong players on every board).
+  // With neither a knockout nor a round cut, nobody is advancing yet.
+  const hasKnockout = stages.some(
+    (s) => s.type === "Bracket Stage" || s.type === "Qualification Stage",
+  );
+  let advancingIds: Set<string>;
+  if (hasKnockout) {
+    advancingIds = qualifierIds;
+  } else {
+    const activePlayIdx = activeStage ? playRounds.findIndex((s) => s.id === activeStage.id) : -1;
+    const cutRule = currentRoundCutRule(playRounds, activePlayIdx);
+    if (!cutRule) {
+      advancingIds = new Set<string>();
+    } else {
+      // Ranked in finishing order, which survivors() takes the front of — per
+      // flight or overall as the cut's scope dictates. Stroke ranks by returned
+      // cards (only those who've posted), match by the chained standings.
+      const ranked: CutCandidate[] = isStroke
+        ? strokeStandings.filter((s) => s.thru > 0).map((s) => ({ id: s.player.id, groupId: s.player.groupId }))
+        : overall.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId }));
+      advancingIds = survivors(ranked, cutRule);
+    }
+  }
+  const advancingCount = advancingIds.size;
 
   // Completed matches still awaiting sign-off. Under staff approval nothing
   // auto-confirms, so this is the organizer's review queue.

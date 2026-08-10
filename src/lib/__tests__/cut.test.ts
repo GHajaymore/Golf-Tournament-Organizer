@@ -6,9 +6,12 @@ import {
   reflightSurvivors,
   nextRoundFlights,
   describeCut,
+  currentRoundCut,
+  currentRoundCutRule,
   isCutScope,
   type CutCandidate,
   type CutRule,
+  type RoundCutFields,
 } from "../domain/cut";
 import type { Player } from "../domain/types";
 import { deadlineState, deadlinePassed, todayIso, isIsoDate } from "../deadline";
@@ -260,6 +263,77 @@ describe("re-flighting the survivors of a cut", () => {
   it("emits nothing when a single player survives — a round robin of one", () => {
     expect(reflightSurvivors(survivorField().slice(0, 1), 8)).toEqual([]);
     expect(nextRoundFlights(survivorField().slice(0, 1), "overall", 8)).toEqual([]);
+  });
+});
+
+describe("the cut line for the current round", () => {
+  // The dashboard shows this for a tournament that cuts round to round with no
+  // knockout to qualify into. The cut lives on the round it feeds, so the cut
+  // out of the active round is the NEXT round's.
+  const round = (over: Partial<RoundCutFields> = {}): RoundCutFields => ({
+    cutEnabled: false,
+    cutMode: "count",
+    cutCount: 16,
+    cutPercent: 50,
+    cutScope: "overall",
+    ...over,
+  });
+
+  it("reads the cut from the round the survivors advance into", () => {
+    const rounds = [round(), round({ cutEnabled: true, cutCount: 8 })];
+    const line = currentRoundCut(rounds, 0);
+    expect(line).not.toBeNull();
+    expect(line).toMatchObject({ fromRound: 1, toRound: 2 });
+    expect(line!.label).toBe("Round 1 → Round 2 · top 8 advance");
+  });
+
+  it("phrases a percentage cut", () => {
+    const rounds = [round(), round({ cutEnabled: true, cutMode: "percent", cutPercent: 25 })];
+    expect(currentRoundCut(rounds, 0)!.label).toBe("Round 1 → Round 2 · top 25% advance");
+  });
+
+  it("names the per-flight scope so 'top N' isn't read as the whole field", () => {
+    const rounds = [round(), round({ cutEnabled: true, cutCount: 4, cutScope: "perFlight" })];
+    expect(currentRoundCut(rounds, 0)!.advance).toBe("top 4 per flight advance");
+  });
+
+  it("numbers the rounds from the active one, not always 1→2", () => {
+    const rounds = [round(), round(), round({ cutEnabled: true, cutCount: 6 })];
+    expect(currentRoundCut(rounds, 1)!.label).toBe("Round 2 → Round 3 · top 6 advance");
+  });
+
+  it("shows nothing when the next round has no cut", () => {
+    expect(currentRoundCut([round(), round()], 0)).toBeNull();
+  });
+
+  it("shows nothing on the last round — there is nothing to advance into", () => {
+    expect(currentRoundCut([round(), round({ cutEnabled: true })], 1)).toBeNull();
+  });
+
+  it("shows nothing when there is no active round", () => {
+    expect(currentRoundCut([round({ cutEnabled: true })], -1)).toBeNull();
+  });
+
+  it("exposes the receiving round's config as a CutRule for the highlight", () => {
+    const rounds = [round(), round({ cutEnabled: true, cutMode: "percent", cutPercent: 30, cutScope: "perFlight" })];
+    expect(currentRoundCutRule(rounds, 0)).toEqual({ scope: "perFlight", mode: "percent", count: 16, percent: 30 });
+  });
+
+  it("gives the highlight and the label the same rule — the CDG shape cuts to top 4, not 8", () => {
+    // The bug this closes: a 4-flight event highlighted qualifyPerGroup (2/flight
+    // = 8) regardless of the top-4 the organizer set. The rule that labels the
+    // card must be the one that picks the surviving players.
+    const rounds = [round(), round({ cutEnabled: true, cutCount: 4, cutScope: "overall" })];
+    const rule = currentRoundCutRule(rounds, 0)!;
+    const ranked: CutCandidate[] = Array.from({ length: 20 }, (_, i) => ({ id: `p${i}`, groupId: `g${i % 4}` }));
+    expect(survivors(ranked, rule).size).toBe(4);
+    expect(currentRoundCut(rounds, 0)!.advance).toBe("top 4 advance");
+  });
+
+  it("returns no rule when there is nothing to cut into", () => {
+    expect(currentRoundCutRule([round(), round()], 0)).toBeNull();
+    expect(currentRoundCutRule([round(), round({ cutEnabled: true })], 1)).toBeNull();
+    expect(currentRoundCutRule([round({ cutEnabled: true })], -1)).toBeNull();
   });
 });
 

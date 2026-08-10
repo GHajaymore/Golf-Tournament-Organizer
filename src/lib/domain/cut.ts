@@ -115,6 +115,74 @@ export function cutAdvancesEveryone(
   return survivorCount(rule, relevant) >= relevant;
 }
 
+/** A round's own cut fields, as stored on the Stage it feeds. */
+export interface RoundCutFields {
+  cutEnabled: boolean;
+  /** "count" | "percent". */
+  cutMode: string;
+  cutCount: number;
+  cutPercent: number;
+  /** "overall" | "perFlight". */
+  cutScope: string;
+}
+
+export interface RoundCutLine {
+  /** 1-based number of the round whose field is being cut down. */
+  fromRound: number;
+  /** 1-based number of the round the survivors advance into. */
+  toRound: number;
+  /** The advance clause alone, e.g. "top 8 advance" or "top 25% per flight advance". */
+  advance: string;
+  /** The whole line, e.g. "Round 1 → Round 2 · top 8 advance". */
+  label: string;
+}
+
+/**
+ * The cut rule that decides who advances OUT of the active round, or null.
+ *
+ * The cut is a property of the round it feeds: Stage N's cutEnabled means the
+ * field entering N is the top of N-1's standings (the schema and CutControl
+ * both read the *receiving* round's fields). So the cut that thins the active
+ * round's field is the next round's, and it exists only when there is a next
+ * round and its cut is on.
+ *
+ * This is the single source of truth for a round-to-round cut: the standings
+ * highlight resolves who survives with it (via `survivors`), and the dashboard
+ * card labels it (via `currentRoundCut`). A knockout uses event-level
+ * qualification instead, which is why the caller only asks here when there is
+ * no bracket/qualification stage to advance into.
+ */
+export function currentRoundCutRule(
+  rounds: RoundCutFields[],
+  activeIndex: number,
+): CutRule | null {
+  if (activeIndex < 0) return null;
+  const next = rounds[activeIndex + 1];
+  if (!next || !next.cutEnabled) return null;
+  return {
+    scope: next.cutScope === "perFlight" ? "perFlight" : "overall",
+    mode: next.cutMode === "percent" ? "percent" : "count",
+    count: next.cutCount,
+    percent: next.cutPercent,
+  };
+}
+
+/** The current round's cut as a one-line dashboard label, or null. */
+export function currentRoundCut(
+  rounds: RoundCutFields[],
+  activeIndex: number,
+): RoundCutLine | null {
+  const rule = currentRoundCutRule(rounds, activeIndex);
+  if (!rule) return null;
+
+  const perFlight = rule.scope === "perFlight";
+  const amount = rule.mode === "percent" ? `${rule.percent}%` : `${rule.count}`;
+  const advance = `top ${amount}${perFlight ? " per flight" : ""} advance`;
+  const fromRound = activeIndex + 1;
+  const toRound = activeIndex + 2;
+  return { fromRound, toRound, advance, label: `Round ${fromRound} → Round ${toRound} · ${advance}` };
+}
+
 /** One line describing what the rule will do, for the setup screen. */
 export function describeCut(rule: CutRule, fieldSize: number, flightCount: number): string {
   const perFlight = rule.scope === "perFlight" && flightCount > 0;
