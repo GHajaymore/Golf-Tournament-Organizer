@@ -525,6 +525,25 @@ model Event {
    */
   shape           String   @default("series") // single | series | knockout
   /**
+   * Whether people play as individuals or as a side — asked once, at setup.
+   *
+   * A DEFAULT, NEVER A CONSTRAINT. Nothing that scores a round may read this.
+   * Team-ness is a property of each round's format, because it genuinely
+   * varies: a member-guest plays four-ball on Saturday and foursomes on
+   * Sunday, and a league changes weekly. Storing "this is a team tournament"
+   * as a fact would either block that or be quietly ignored, and an ignored
+   * setting is worse than no setting.
+   *
+   * What it is for is ROUTING. It picks the format a new round starts on, and
+   * it lets "Teams & pairs" appear before any team round exists — which it
+   * previously could not, so the one screen explaining how to set up team golf
+   * was unreachable from the navigation.
+   *
+   * Defaults to "individual": the common case, and what every existing
+   * tournament already behaves as.
+   */
+  sideStyle       String   @default("individual") // individual | pairs | teams | varies
+  /**
    * The season this tournament counts towards, if any.
    *
    * Null is the ordinary case: most tournaments stand alone. Setting it makes

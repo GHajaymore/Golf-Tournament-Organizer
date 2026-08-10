@@ -10,6 +10,7 @@ import { themeCss, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { settingsOf } from "@/lib/services/tournament";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { WEEKLY_ROUND_TYPES } from "@/lib/stage-types";
+import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -46,6 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     hasTeamRound: teamRounds > 0,
     hasKnockout: knockoutRounds > 0,
     isLeague: playingRounds > 1,
+    wantsTeams: event ? wantsTeams(cleanSideStyle(event.sideStyle)) : false,
   });
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).

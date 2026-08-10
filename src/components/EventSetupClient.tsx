@@ -1,6 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
 import { saveEvent, applyManualCount } from "@/app/actions/tournament";
+import { SIDE_STYLE_OPTIONS } from "@/lib/side-style";
+import FieldInfo from "@/components/FieldInfo";
 
 interface EventForm {
   name: string;
@@ -14,6 +16,8 @@ interface EventForm {
   capacity: number;
   playerCountMode: string;
   manualPlayerCount: number;
+  /** Routing only — see src/lib/side-style.ts. Never read while scoring. */
+  sideStyle: string;
 }
 
 interface CourseOption {
@@ -240,11 +244,86 @@ export function EventSetupClient({
             {f.dates && <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>{f.dates}</p>}
           </div>
           <div className="field">
-            <label>Format</label>
+            {/* "Scoring", not "Format". It used to say Format, and every round
+                ALSO has a format — Four-Ball, Foursomes, Scramble. An organizer
+                who answered this one reasonably believed they had answered the
+                format question and never went looking for the other, which is
+                where team golf actually lives. */}
+            <label>
+              Scoring
+              <FieldInfo label="scoring">
+                <p>
+                  How a result is decided: <b>match play</b> counts holes won, <b>stroke play</b>
+                  {" "}counts strokes.
+                </p>
+                <p>
+                  Separate from what each round <i>plays</i> — four-ball, foursomes, a scramble.
+                  That is set per round on Rounds &amp; formats, because it can differ from one
+                  round to the next.
+                </p>
+              </FieldInfo>
+            </label>
             <div className="seg">
               <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "match"} onChange={() => set("format", "match")} />Match play</label>
               <label className="seg-opt"><input type="radio" name="fmt" checked={f.format === "stroke"} onChange={() => set("format", "stroke")} />Stroke play</label>
             </div>
+          </div>
+        </div>
+
+        {/* The question nothing used to ask. Answering it decides which format
+            new rounds start on and puts Teams & pairs in the sidebar — it locks
+            nothing, and every round can still be set to anything. */}
+        <div className="field" style={{ marginTop: 4 }}>
+          <label>
+            How do people play?
+            <FieldInfo label="how people play">
+              <p>
+                A starting point, not a rule. It picks what a new round opens on and brings up the
+                Teams &amp; pairs screen — every round can still be set to anything you like.
+              </p>
+              <p>
+                Team golf lives on the round, not the tournament, because it genuinely changes: a
+                member-guest plays four-ball on Saturday and foursomes on Sunday.
+              </p>
+            </FieldInfo>
+          </label>
+          <div style={{ display: "grid", gap: 6 }}>
+            {SIDE_STYLE_OPTIONS.map((o) => (
+              <label
+                key={o.key}
+                className="seg-opt"
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 9,
+                  padding: "9px 11px",
+                  borderRadius: 9,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  border: "1px solid var(--color-divider)",
+                  background:
+                    f.sideStyle === o.key
+                      ? "color-mix(in srgb, var(--color-accent) 12%, transparent)"
+                      : "transparent",
+                  borderColor:
+                    f.sideStyle === o.key
+                      ? "color-mix(in srgb, var(--color-accent) 45%, transparent)"
+                      : "var(--color-divider)",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="sideStyle"
+                  checked={f.sideStyle === o.key}
+                  onChange={() => set("sideStyle", o.key)}
+                  style={{ marginTop: 3, flex: "none" }}
+                />
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 600, display: "block" }}>{o.label}</span>
+                  <span className="text-muted" style={{ fontSize: 12, lineHeight: 1.55 }}>{o.blurb}</span>
+                </span>
+              </label>
+            ))}
           </div>
         </div>
 
@@ -414,7 +493,7 @@ export function EventSetupClient({
                 saveEvent({
                   name: f.name, dates: f.dates, format: f.format, course: f.course, city: f.city,
                   address: f.address, regDeadline: f.regDeadline, capacity: f.capacity, playerCountMode: f.playerCountMode,
-                  courseMode: f.courseMode,
+                  courseMode: f.courseMode, sideStyle: f.sideStyle,
                 }),
               );
               setSavedSnapshot(f);

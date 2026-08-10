@@ -80,14 +80,25 @@ export const NAV: NavSection[] = [
 export function navForRole(
   viewRole: Role,
   settings?: TournamentSettings,
-  opts: { hasTeamRound?: boolean; hasKnockout?: boolean; isLeague?: boolean } = {},
+  opts: {
+    hasTeamRound?: boolean;
+    hasKnockout?: boolean;
+    isLeague?: boolean;
+    /** The organizer said at setup that people play in pairs or teams. */
+    wantsTeams?: boolean;
+  } = {},
 ): NavSection[] {
   const allowed = (key: string): boolean => {
     if (!canAccessScreen(viewRole, key)) return false;
     // Teams only matter to a tournament that has a team round in it. Most
     // don't, and a permanent link to an empty screen is just clutter — the
     // link appears the moment a round is set to a team format.
-    if (key === "teams" && !opts.hasTeamRound) return false;
+    // ...or once the organizer has said at setup that people play as a side.
+    //
+    // Gating on hasTeamRound alone created a dead end: the Teams screen's own
+    // empty state is what explains how to set a round to a team format, and it
+    // was unreachable until you had already done the thing it explains.
+    if (key === "teams" && !opts.hasTeamRound && !opts.wantsTeams) return false;
     // Qualification answers one question — who goes through to the knockout —
     // so it only earns a slot when there is a knockout to go through to. Its
     // configuration moved into the round builder, and a tournament that ends

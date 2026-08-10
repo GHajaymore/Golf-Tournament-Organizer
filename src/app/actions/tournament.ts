@@ -16,6 +16,7 @@ import { effectiveAccess } from "@/lib/services/access";
 import { refusalFor } from "@/lib/services/limits";
 import { generateShareToken } from "@/lib/codes";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
+import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { splitCsvLine, matchColumn } from "@/lib/csv";
@@ -455,6 +456,7 @@ export async function saveEvent(data: {
   capacity: number;
   playerCountMode: string;
   courseMode: string;
+  sideStyle: string;
 }) {
   const eventId = await requireAdminEvent();
   await assertUnlocked(eventId);
@@ -477,6 +479,10 @@ export async function saveEvent(data: {
       // silently converting "open" into "capacity 1" the moment anyone hit Save.
       capacity: data.capacity <= 0 ? 0 : Math.max(1, Math.round(data.capacity)),
       playerCountMode: data.playerCountMode === "manual" ? "manual" : "registration",
+      // Narrowed to the known set rather than trusted: this comes off a public
+      // server action, and an unrecognised value would sit in the database
+      // deciding which format new rounds start on.
+      sideStyle: cleanSideStyle(data.sideStyle),
     },
   });
   refresh();
@@ -823,6 +829,16 @@ export async function addStage(type: string): Promise<string | undefined> {
   const stageType = isStageType(type) ? type : "Round Robin";
   const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
   const position = (agg._max.position ?? -1) + 1;
+  // What the organizer said at setup about how people play. A starting point
+  // they can see and change on the round card — not a decision taken behind
+  // them, which is why defaultFormatFor returns the most ordinary format for
+  // the shape rather than anything clever.
+  const ev = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { sideStyle: true, format: true },
+  });
+  const style = cleanSideStyle(ev?.sideStyle);
+  const scoring = ev?.format === "stroke" ? "stroke" : "match";
   const created = await prisma.stage.create({
     data: {
       eventId,
@@ -836,7 +852,16 @@ export async function addStage(type: string): Promise<string | undefined> {
       // produced a medal round labelled Match Play, and score entry opened it
       // in match mode with nothing to enter. The format is still the
       // organizer's to change — this is only a default that isn't nonsense.
-      format: generatesPairings(stageType) ? "Match Play" : "Stroke Play",
+      //
+      // A round that draws pairings keeps the scoring the event chose; one
+      // that does not takes whatever "how do people play" implies, which is
+      // how a society day now opens on Scramble instead of on a medal the
+      // organizer would have had to notice and change.
+      format: generatesPairings(stageType)
+        ? scoring === "stroke"
+          ? "Stroke Play"
+          : "Match Play"
+        : defaultFormatFor(style, scoring),
     },
   });
   refresh();

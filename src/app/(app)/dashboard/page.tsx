@@ -16,6 +16,7 @@ import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-s
 import { currentRoundCut } from "@/lib/domain/cut";
 import { navForRole } from "@/lib/nav";
 import { isWeeklyRound } from "@/lib/stage-types";
+import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
@@ -109,6 +110,7 @@ export default async function DashboardPage() {
       hasTeamRound: state.stages.some((s) => TEAM_FORMAT_NAMES.includes(s.format)),
       hasKnockout,
       isLeague: state.stages.filter((s) => isWeeklyRound(s.type)).length > 1,
+      wantsTeams: wantsTeams(cleanSideStyle(state.event.sideStyle)),
     })
       .flatMap((section) => section.items)
       .map((item) => item.href),

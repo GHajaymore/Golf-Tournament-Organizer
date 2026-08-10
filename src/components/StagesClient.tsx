@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/tournament";
 import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS } from "@/lib/formats";
+import { isTeamFormat } from "@/lib/side-style";
 import FieldInfo from "@/components/FieldInfo";
 import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP } from "@/lib/domain/cut";
 import { chainIssues, issuesForRound, carryForwardPrompt, type CarryPrompt } from "@/lib/format-chain";
@@ -547,12 +548,25 @@ function StageCard({
               <i className="ph ph-info" style={{ fontSize: 13 }} />
             </button>
           </label>
+          {/* Grouped, because this is where team golf actually lives and a flat
+              list of fifteen names does not say which of them need a partner.
+              An organizer scanning for "how do we play four-ball" now finds a
+              heading rather than having to recognise the name. */}
           <select className="input" value={format} disabled={pending} onChange={(e) => commitFormat(e.target.value)}>
-            {formatOptions.map((o) => (
-              <option key={o.name} value={o.name} disabled={o.disabled}>
-                {o.disabled && o.note ? `${o.name} — ${o.note}` : o.name}
-              </option>
-            ))}
+            <optgroup label="Played on your own">
+              {formatOptions.filter((o) => !isTeamFormat(o.name)).map((o) => (
+                <option key={o.name} value={o.name} disabled={o.disabled}>
+                  {o.disabled && o.note ? `${o.name} — ${o.note}` : o.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Played as a side">
+              {formatOptions.filter((o) => isTeamFormat(o.name)).map((o) => (
+                <option key={o.name} value={o.name} disabled={o.disabled}>
+                  {o.disabled && o.note ? `${o.name} — ${o.note}` : o.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
           {activePending && (
             <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>

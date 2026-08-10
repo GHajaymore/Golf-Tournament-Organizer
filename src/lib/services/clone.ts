@@ -32,6 +32,11 @@ export const CLONED_EVENT_FIELDS = [
   // A copy of last year's knockout is a knockout. Dropping this would silently
   // reopen every control the shape exists to hide.
   "shape",
+  // Last year's member-guest was played in pairs and this year's is too. It
+  // describes how the club runs the event, not anything that happened at one
+  // — and since it only picks a default and reveals a screen, inheriting it
+  // costs nothing even where the organizer changes their mind.
+  "sideStyle",
   "winPts",
   "tiePts",
   "lossPts",
