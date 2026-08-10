@@ -105,6 +105,7 @@ export default async function StagesPage() {
           lossPts: state.scoring.lossPts,
           holeRatioPts: state.scoring.holeRatioPts,
           bonusPts: state.scoring.bonusPts,
+          maxPerMatch: state.scoring.maxPerMatch,
         }}
         tiebreakers={state.scoring.tiebreakers}
         qual={{

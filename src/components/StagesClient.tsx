@@ -72,6 +72,8 @@ export interface ScoringValues {
   lossPts: number;
   holeRatioPts: number;
   bonusPts: number;
+  /** The most a player can take from one match. Zero is no limit. */
+  maxPerMatch: number;
 }
 
 export interface QualValues {

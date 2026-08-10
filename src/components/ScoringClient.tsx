@@ -10,6 +10,7 @@ interface Values {
   lossPts: number;
   holeRatioPts: number;
   bonusPts: number;
+  maxPerMatch: number;
 }
 
 const FIELDS: Array<{ key: keyof Values; label: string; hint: string; step: number }> = [
@@ -18,6 +19,12 @@ const FIELDS: Array<{ key: keyof Values; label: string; hint: string; step: numb
   { key: "lossPts", label: "Loss", hint: "Points for losing a match", step: 0.5 },
   { key: "holeRatioPts", label: "Hole-win ratio", hint: "Points per net hole won", step: 0.1 },
   { key: "bonusPts", label: "Bonus", hint: "Flat bonus per player", step: 0.5 },
+  {
+    key: "maxPerMatch",
+    label: "Most from one match",
+    hint: "0 for no limit",
+    step: 0.5,
+  },
 ];
 
 export function ScoringClient({
@@ -58,10 +65,21 @@ export function ScoringClient({
     save({ ...values, [key]: Number.isFinite(n) ? n : 0 });
   };
 
-  // Worked example: 2 wins, 1 halve, 12 net holes won.
+  // Worked example: 2 wins, 1 halve, 12 net holes won — four holes a match
+  // across the three, so the cap has something to apply to. Written per match
+  // rather than from the totals because that is how the engine now counts,
+  // and an example that ignored the cap would show a number the tournament
+  // would never award.
   const exampleW = 2, exampleT = 1, exampleH = 12;
-  const total =
-    exampleW * values.winPts + exampleT * values.tiePts + exampleH * values.holeRatioPts + values.bonusPts;
+  const holesPerMatch = exampleH / (exampleW + exampleT);
+  const cap = (n: number) => (values.maxPerMatch > 0 ? Math.min(n, values.maxPerMatch) : n);
+  const perWin = cap(values.winPts + holesPerMatch * values.holeRatioPts);
+  const perHalve = cap(values.tiePts + holesPerMatch * values.holeRatioPts);
+  const total = exampleW * perWin + exampleT * perHalve + values.bonusPts;
+  const capBites =
+    values.maxPerMatch > 0 &&
+    (values.winPts + holesPerMatch * values.holeRatioPts > values.maxPerMatch ||
+      values.tiePts + holesPerMatch * values.holeRatioPts > values.maxPerMatch);
 
   return (
     <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
@@ -167,10 +185,16 @@ export function ScoringClient({
           <span className="card-kicker">Worked example</span>
           <p className="card-body" style={{ fontSize: 13 }}>
             A player with {exampleW} wins, {exampleT} halve and {exampleH} net holes won scores{" "}
-            {exampleW}×{pts(values.winPts)} + {exampleT}×{pts(values.tiePts)} + {exampleH}×
-            {pts(values.holeRatioPts)}
+            {exampleW}×{pts(perWin)} + {exampleT}×{pts(perHalve)}
             {values.bonusPts ? ` + ${pts(values.bonusPts)} bonus` : ""} = <strong>{pts(total)} pts</strong>.
           </p>
+          {capBites && (
+            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
+              The {pts(values.maxPerMatch)}-point limit is doing something here: a match worth more
+              than that only counts {pts(values.maxPerMatch)}. That is the point of it — one runaway
+              result can&rsquo;t settle a flight before the last match is played.
+            </p>
+          )}
         </div>
       </div>
     </div>

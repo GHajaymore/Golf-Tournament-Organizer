@@ -420,7 +420,7 @@ describe("rounds and format", () => {
   });
   const base = {
     rrMatchesPerPlayer: 3,
-    scoring: { winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0 },
+    scoring: { winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 },
     tiebreakers: [] as never[],
     qual: { mode: "overall", perFlight: 2, overall: 8 },
     confirmedCount: 32,
@@ -828,7 +828,7 @@ describe("round card — which nine and the deadline", () => {
   });
   const base = {
     rrMatchesPerPlayer: 3,
-    scoring: { winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0 },
+    scoring: { winPts: 1, tiePts: 0.5, lossPts: 0, holeRatioPts: 0, bonusPts: 0, maxPerMatch: 0 },
     tiebreakers: [] as never[],
     qual: { mode: "overall", perFlight: 2, overall: 8 },
     confirmedCount: 32,

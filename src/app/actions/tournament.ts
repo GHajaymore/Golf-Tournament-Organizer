@@ -688,6 +688,7 @@ export async function saveScoring(data: {
   lossPts: number;
   holeRatioPts: number;
   bonusPts: number;
+  maxPerMatch: number;
 }) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
@@ -699,6 +700,7 @@ export async function saveScoring(data: {
       lossPts: data.lossPts,
       holeRatioPts: data.holeRatioPts,
       bonusPts: data.bonusPts,
+      maxPerMatch: data.maxPerMatch,
     },
   });
   refresh();
