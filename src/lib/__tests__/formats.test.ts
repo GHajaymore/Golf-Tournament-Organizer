@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
+  isManualFormat,
   GOLF_FORMATS,
   FORMAT_NAMES,
   SCORED_FORMAT_NAMES,
@@ -63,9 +66,29 @@ describe("the catalog", () => {
   it("never claims a format is playable without an engine", () => {
     // playable is the stronger claim: engine *and* score entry *and* a
     // leaderboard. The reverse is allowed and currently common.
+    //
+    // The one exemption is a MANUAL format, which is playable precisely
+    // because it makes no scoring claim at all — the app holds the round and
+    // the committee works out the result. It is exempt from needing an engine
+    // and only from that; the tests below stop the exemption from becoming a
+    // way to ship a half-built format.
     for (const f of GOLF_FORMATS) {
-      if (f.playable) expect(f.scored, `${f.name} is playable but unscored`).toBe(true);
+      if (f.playable && !f.manual) expect(f.scored, `${f.name} is playable but unscored`).toBe(true);
     }
+  });
+
+  it("keeps the manual escape hatch to exactly one format", () => {
+    // "We can't score this" is an escape hatch, not a category. A second one
+    // would mean somebody used it to avoid writing an engine.
+    const manual = GOLF_FORMATS.filter((f) => f.manual);
+    expect(manual).toHaveLength(1);
+    expect(manual[0].name).toBe("Other (scored by hand)");
+  });
+
+  it("keeps the manual format out of the scored list", () => {
+    // If it ever appeared here, something would try to rank it.
+    expect(SCORED_FORMAT_NAMES).not.toContain("Other (scored by hand)");
+    expect(findFormat("Other (scored by hand)").scored).toBe(false);
   });
 
   it("gives a reason for every format that is scored but not playable", () => {
@@ -97,11 +120,46 @@ describe("the catalog", () => {
     expect(isPlayable("Some Future Format")).toBe(false);
   });
 
-  it("keeps playable a strict subset of scored", () => {
+  it("keeps playable a strict subset of scored, bar the manual hatch", () => {
     for (const name of PLAYABLE_FORMAT_NAMES) {
+      if (isManualFormat(name)) continue;
       expect(SCORED_FORMAT_NAMES, `${name} must also be scored`).toContain(name);
     }
-    expect(PLAYABLE_FORMAT_NAMES.length).toBeLessThan(SCORED_FORMAT_NAMES.length);
+    // Some formats have an engine but no way to run them yet, so the scored
+    // list stays ahead of the playable one. Counted without the manual hatch,
+    // which is playable while deliberately unscored and would otherwise mask
+    // the day those two lists converge.
+    const playableScored = PLAYABLE_FORMAT_NAMES.filter((n) => !isManualFormat(n));
+    expect(playableScored.length).toBeLessThan(SCORED_FORMAT_NAMES.length);
+  });
+
+  it("stops a manual round reaching a scoring engine", () => {
+    // The failure this prevents: a hand-scored round falling through to the
+    // stroke engine and producing a leaderboard that ranks the field on
+    // strokes nobody was playing for — indistinguishable, on screen, from a
+    // real result. So the check has to come FIRST, before the team branch and
+    // before anything reads .engine.
+    const board = readFileSync(
+      join(process.cwd(), "src/app/(app)/leaderboard/page.tsx"),
+      "utf8",
+    );
+    const manualAt = board.indexOf("isManualFormat");
+    const teamsAt = board.indexOf("needsTeams(activeStage.format)");
+    const engineAt = board.indexOf("findFormat(activeStage.format).engine");
+    expect(manualAt).toBeGreaterThan(-1);
+    expect(manualAt, "manual check must precede the team branch").toBeLessThan(teamsAt);
+    expect(manualAt, "manual check must precede any engine read").toBeLessThan(engineAt);
+  });
+
+  it("stops the weekly league sheet ranking a manual round either", () => {
+    // Found the hard way: the leaderboard refused to rank a hand-scored round
+    // while /week happily aggregated the same cards and ranked a Flag day on
+    // net strokes. Every surface that produces an ordering needs the check,
+    // not just the one named "leaderboard".
+    const week = readFileSync(join(process.cwd(), "src/lib/services/week-view.ts"), "utf8");
+    expect(week).toMatch(/isManualFormat\(stage\.format\)/);
+    // The cards must not be aggregated at all for such a round.
+    expect(week).toMatch(/manual \? \[\] : parseStrokeCards/);
   });
 
   it("points Stableford at the scoring basis rather than the format", () => {

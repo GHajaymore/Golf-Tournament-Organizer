@@ -156,6 +156,30 @@ async function main() {
     assert("no movement claimed in week one", !/up \d+ place|down \d+ place/.test(w1.html));
     check("does not flag the whole field as new", w1.html, ">new<", false);
 
+    // A hand-scored week, with real cards sitting in the database. The app
+    // must refuse to rank them rather than quietly totalling them up — this
+    // is the case that caught /week out when the manual format was added.
+    console.log("\nA hand-scored week — the app must not rank it");
+    const week3 = await prisma.stage.create({
+      data: {
+        eventId: event.id, position: 2, description: "",
+        type: "Stroke Play Round", format: "Other (scored by hand)", holes: 18,
+      },
+    });
+    await prisma.scorecard.createMany({
+      data: [
+        { eventId: event.id, stageId: week3.id, playerId: one.id, strokes: flat(4) },
+        { eventId: event.id, stageId: week3.id, playerId: two.id, strokes: flat(6) },
+      ],
+    });
+    const w3 = await get(`/week?round=${week3.id}`);
+    console.log(`  status ${w3.status}`);
+    if (w3.status !== 200) failures += 1;
+    check("says who scores it", w3.html, "scored by hand");
+    check("shows no results table", w3.html, "Standings after this week", false);
+    // 4 x 18 = 72 would be One's total if it had been ranked anyway.
+    assert("does not total the cards it was given", !/>72</.test(w3.html));
+
     console.log(`\n${failures === 0 ? "All checks passed." : `${failures} check(s) FAILED.`}`);
   } finally {
     if (made.eventId) await prisma.event.deleteMany({ where: { id: made.eventId } });

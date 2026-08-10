@@ -12,6 +12,7 @@ import {
   parseMatchTiebreakers,
 } from "./tournament";
 import { movementBetween, type WeekRow } from "../domain/week-movement";
+import { isManualFormat } from "../formats";
 
 /**
  * One week of a league, gathered in the order a member reads it.
@@ -54,6 +55,14 @@ export interface WeekView {
   netSkins: SkinsPotView | null;
   /** True when no score has been entered for this week yet. */
   empty: boolean;
+  /**
+   * This week's round is scored by hand, so there is no ranking to show.
+   *
+   * The leaderboard has refused to rank these since the format was added; this
+   * screen had to be taught the same thing, because it aggregates cards
+   * directly and would otherwise have ranked a Flag day on net strokes.
+   */
+  manual: boolean;
 }
 
 /**
@@ -92,7 +101,11 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   // both screens would look right and quietly disagree about a net score.
   const handicapFor = state.strokeHandicapFor;
 
-  const thisWeek = parseStrokeCards(cards.filter((c) => c.stageId === stage.id));
+  // Checked before anything is aggregated. A hand-scored round has cards, and
+  // adding them up would produce a ranking the club never played for.
+  const manual = isManualFormat(stage.format);
+
+  const thisWeek = manual ? [] : parseStrokeCards(cards.filter((c) => c.stageId === stage.id));
   const agg = aggregateStroke(thisWeek, {
     pars,
     holeDifficulty,
@@ -128,12 +141,17 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   // Standings after this week against standings after the one before, so the
   // movement column means "because of last night" and nothing else.
   const idx = weeks.findIndex((s) => s.id === stage.id);
-  const standings = await standingsWithMovement(state, weeks, idx, cards, {
-    pars,
-    holeDifficulty,
-    handicapFor,
-    stableford,
-  });
+  // A hand-scored week has no table of its own to show either: the standings
+  // "after this week" would be the standings after the week before, presented
+  // as though this one had been counted.
+  const standings = manual
+    ? []
+    : await standingsWithMovement(state, weeks, idx, cards, {
+        pars,
+        holeDifficulty,
+        handicapFor,
+        stableford,
+      });
 
   const [grossSkins, netSkins] = await Promise.all([
     skinsPotFor(eventId, stage.id, false),
@@ -157,7 +175,10 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     standings,
     grossSkins,
     netSkins,
-    empty: results.length === 0,
+    // A manual week is not "empty" — it has a result, just not one this app
+    // knows. The screen says which, and they read differently.
+    empty: !manual && results.length === 0,
+    manual,
   };
 }
 

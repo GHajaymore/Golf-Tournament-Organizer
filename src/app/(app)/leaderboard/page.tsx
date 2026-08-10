@@ -8,7 +8,8 @@ import { LeaderboardBoard } from "@/components/LeaderboardBoard";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
-import { needsTeams, findFormat } from "@/lib/formats";
+import { needsTeams, findFormat, isManualFormat } from "@/lib/formats";
+import { ManualRoundBoard } from "@/components/ManualRoundBoard";
 import { teamStandings } from "@/lib/services/teams";
 import { resolveCourse } from "@/lib/courses";
 
@@ -31,6 +32,15 @@ export default async function LeaderboardPage() {
   // individual score to rank at all, and in a four-ball an individual score is
   // only half the story — so this is a different board, not a column change.
   const activeStage = state.activeStage ?? state.stages[0] ?? null;
+
+  // Checked FIRST, before teams and before any engine. A round the app does
+  // not score must never reach a scoring path: it would rank the field on
+  // strokes nobody was playing for and look exactly as authoritative as a
+  // real board.
+  if (activeStage && isManualFormat(activeStage.format)) {
+    return <ManualRoundBoard format={activeStage.format} />;
+  }
+
   if (activeStage && needsTeams(activeStage.format)) {
     const holeCount = activeStage.holes === 9 ? 9 : 18;
     const course = resolveCourse(event);

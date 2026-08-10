@@ -88,6 +88,18 @@ export interface GolfFormat {
   playable: boolean;
   /** Why a scored format isn't playable yet. Shown in the picker. */
   pendingReason?: string;
+  /**
+   * The app holds this round but does not score it.
+   *
+   * The one honest way to support the formats clubs invent. Everything
+   * organisational still works — field, tee sheet, announcements, prizes —
+   * and every screen that would otherwise rank the round says who is working
+   * out the result instead of showing a number it made up.
+   *
+   * Checked BEFORE `engine` everywhere it matters, so a manual round can
+   * never fall through to a scoring engine.
+   */
+  manual?: boolean;
 }
 
 /**
@@ -285,6 +297,37 @@ export const GOLF_FORMATS: GolfFormat[] = [
     scored: true,
     playable: true,
   },
+
+  /* ── The escape hatch ──────────────────────────────────────────────── */
+  {
+    // Clubs invent formats. Somebody runs a Flag day, a Bingo Bango Bongo, a
+    // six-six-six, or a local thing with a name only their members use, and
+    // the honest answer is that this app cannot score it.
+    //
+    // The dishonest answers are worse. Making them pick Stroke Play produces
+    // a leaderboard that is confidently wrong, and offering a "custom scoring"
+    // builder promises an engine that would have to be written for every
+    // invention anybody has. So this format says plainly: the app will hold
+    // your round, your field, your tee sheet and your announcements, and the
+    // committee works out the result.
+    name: "Other (scored by hand)",
+    family: "stroke",
+    desc: "A format this app doesn't score — a club invention, a Flag day, anything unusual. The round, the field and the tee sheet are kept here; the committee works out the result and posts it.",
+    sideSize: 1,
+    ball: "individual",
+    // Never consulted: isManualFormat is checked before any engine runs. A
+    // value is required by the type, and "stroke" is the least surprising
+    // thing for anything that reads it without checking.
+    engine: "stroke",
+    allowance: 100,
+    // False, and it means it: no engine computes this. That is the point.
+    scored: false,
+    // Selectable all the same — an organizer genuinely needs this round to
+    // exist. `playable` means "the app can run the round", and it can: it
+    // just cannot rank it.
+    playable: true,
+    manual: true,
+  },
 ];
 
 export const FORMAT_NAMES = GOLF_FORMATS.map((f) => f.name);
@@ -390,6 +433,17 @@ export function entryModeFor(formatName: string): EntryMode {
 
 /** Formats played by teams rather than individuals. */
 export const TEAM_FORMAT_NAMES = GOLF_FORMATS.filter((f) => f.sideSize > 1).map((f) => f.name);
+
+/**
+ * True when the app holds this round but does not rank it.
+ *
+ * Call this before reading `engine` on any path that produces a result. A
+ * manual round reaching a scoring engine would produce a confident, wrong
+ * leaderboard — the exact outcome this format exists to avoid.
+ */
+export function isManualFormat(formatName: string): boolean {
+  return findFormat(formatName).manual === true;
+}
 
 /** True when this format needs teams to exist before a round can be scheduled. */
 export function needsTeams(formatName: string): boolean {

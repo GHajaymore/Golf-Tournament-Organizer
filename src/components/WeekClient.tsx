@@ -147,7 +147,23 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
         </p>
       </div>
 
-      {view.empty ? (
+      {view.manual ? (
+        /* No table at all, deliberately. Anything tabular on this screen reads
+           as the result, whatever the caption says — and the whole point of a
+           hand-scored round is that the app does not know the result. */
+        <div className="card elev-sm" style={{ gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <i className="ph ph-clipboard-text" style={{ fontSize: 19, opacity: 0.7 }} />
+            <span className="card-title" style={{ fontSize: 15.5 }}>
+              This week is scored by hand
+            </span>
+          </div>
+          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.7 }}>
+            {view.format} isn&rsquo;t a format this app works out — the committee does. The field,
+            the tee sheet and the skins are still here; the result goes up as an announcement.
+          </p>
+        </div>
+      ) : view.empty ? (
         <div className="card elev-sm">
           <span className="text-muted" style={{ fontSize: 13 }}>
             No scores are in for {view.label.toLowerCase()} yet. Once cards are entered, the night&rsquo;s
