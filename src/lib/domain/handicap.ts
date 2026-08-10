@@ -166,6 +166,24 @@ export interface IndexHolder {
  * Unrounded on purpose: courseHandicap() rounds once at the end, and rounding
  * the half-index first would lose the .5 that decides a stroke.
  */
+/**
+ * How many holes a round is actually played over: 9 or 18, never anything else.
+ *
+ * The app stores a round's length as a plain integer, and a dozen and a half
+ * call sites each write `holes === 9 ? 9 : 18` to normalise it. That is fine
+ * until one of them forgets — and one did. Every path that priced a *team*
+ * round passed a hard 18, so a nine-hole four-ball was scored with eighteen
+ * -hole handicaps: `courseHandicapMap` uses this number both to convert the
+ * index and to pick a nine-hole tee rating, so the sides were given roughly
+ * twice the strokes they were owed, on a card that only had nine holes.
+ *
+ * Naming it makes the intent testable and gives the mistake somewhere to be
+ * caught once rather than eighteen times.
+ */
+export function holesPlayed(holes: number | null | undefined): 9 | 18 {
+  return holes === 9 ? 9 : 18;
+}
+
 export function indexForHoles(handicap: number, handicapType: string | undefined, holes: number): number {
   if (!Number.isFinite(handicap)) return 0;
   const isNineIndex = handicapType === "9";

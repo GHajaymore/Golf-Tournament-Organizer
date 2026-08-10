@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { TeamsClient } from "@/components/TeamsClient";
 import { teamsForStage, unassignedPlayers, teamProblems, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import { TEAM_FORMAT_NAMES, findFormat, sideSizeRange } from "@/lib/formats";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 /**
  * Drawing sides for the team formats.
@@ -22,7 +23,7 @@ export default async function TeamsPage({
   const stages = await prisma.stage.findMany({
     where: { eventId: session.eventId },
     orderBy: { position: "asc" },
-    select: { id: true, position: true, type: true, format: true, description: true, handicapAllowance: true, allowanceWeights: true, countBest: true },
+    select: { id: true, position: true, type: true, format: true, description: true, handicapAllowance: true, allowanceWeights: true, countBest: true, holes: true },
   });
 
   const teamStages = stages.filter((s) => TEAM_FORMAT_NAMES.includes(s.format));
@@ -45,7 +46,7 @@ export default async function TeamsPage({
     );
   }
 
-  const teams = await teamsForStage(session.eventId, active.id, active.format, active.handicapAllowance, 18, active.allowanceWeights);
+  const teams = await teamsForStage(session.eventId, active.id, active.format, active.handicapAllowance, holesPlayed(active.holes), active.allowanceWeights);
   const matchCount = await prisma.match.count({ where: { eventId: session.eventId, stageId: active.id } });
   const unassigned = await unassignedPlayers(session.eventId, teams);
   const format = findFormat(active.format);

@@ -83,7 +83,7 @@ export default async function EntryPage() {
   if (activeStage && needsTeams(activeStage.format)) {
     const format = findFormat(activeStage.format);
     const holeCount = activeStage.holes === 9 ? 9 : 18;
-    const teams = await teamsForStage(session.eventId, activeStage.id, activeStage.format, activeStage.handicapAllowance, 18, activeStage.allowanceWeights);
+    const teams = await teamsForStage(session.eventId, activeStage.id, activeStage.format, activeStage.handicapAllowance, holeCount, activeStage.allowanceWeights);
     const teamById = new Map(teams.map((t) => [t.id, t]));
     const stageMatches = state.matches.filter(
       (m) => m.stageId === activeStage.id && m.teamAId && m.teamBId,

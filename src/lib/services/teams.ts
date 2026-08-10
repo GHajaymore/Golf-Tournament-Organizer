@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
-import { courseHandicapMap } from "../domain/handicap";
+import { courseHandicapMap, holesPlayed } from "../domain/handicap";
 import {
   sideHandicap,
   committeeWeights,
@@ -233,9 +233,9 @@ export async function teamStandings(
 ): Promise<TeamStanding[]> {
   const f = findFormat(format);
   const [teams, cards] = await Promise.all([
-    // `holes` is left at its default rather than derived from pars.length, to
-    // keep this call behaving exactly as it did before weights were added.
-    teamsForStage(eventId, stageId, format, allowanceOverride, 18, weightsOverride),
+    // The card's own length. This passed a hard 18 until 2026-08-09, which
+    // priced a nine-hole team round off eighteen-hole handicaps.
+    teamsForStage(eventId, stageId, format, allowanceOverride, holesPlayed(pars.length), weightsOverride),
     prisma.teamScorecard.findMany({ where: { eventId, stageId } }),
   ]);
 

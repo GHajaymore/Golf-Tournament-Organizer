@@ -6,6 +6,8 @@ import {
   nineHoleTee,
   isRated,
   explainHandicap,
+  holesPlayed,
+  indexForHoles,
   STANDARD_SLOPE,
   MIN_SLOPE,
   MAX_SLOPE,
@@ -182,5 +184,32 @@ describe("explaining the number to a golfer who asks", () => {
     expect(e.rated).toBe(false);
     expect(e.detail).toMatch(/No course rating/);
     expect(e.courseHandicap).toBe(14);
+  });
+});
+
+describe("holesPlayed", () => {
+  it("normalises a round's length to 9 or 18 and nothing else", () => {
+    expect(holesPlayed(9)).toBe(9);
+    expect(holesPlayed(18)).toBe(18);
+    // Anything that isn't a nine is a full round, including the values a
+    // half-filled form can produce.
+    expect(holesPlayed(0)).toBe(18);
+    expect(holesPlayed(null)).toBe(18);
+    expect(holesPlayed(undefined)).toBe(18);
+  });
+
+  it("is the number that decides a nine-hole side's strokes", () => {
+    // This is what the team paths got wrong: they passed a hard 18 for a
+    // nine-hole round, so the index was never halved and the eighteen-hole
+    // tee rating was used. A 20-index off a rated tee ends up with roughly
+    // twice the strokes it should have on a card with nine holes.
+    const tee = { courseRating: 71.2, slopeRating: 125, par: 72 };
+    const nine = courseHandicap(indexForHoles(20, "18", holesPlayed(9)), nineHoleTee(tee));
+    const full = courseHandicap(indexForHoles(20, "18", holesPlayed(18)), tee);
+    expect(nine).toBeLessThan(full);
+    // Close to half, not equal to it — the rating differential doesn't halve
+    // exactly, which is precisely why this is a conversion and not a divide.
+    expect(nine).toBeGreaterThan(full / 2 - 3);
+    expect(nine).toBeLessThan(full / 2 + 3);
   });
 });
