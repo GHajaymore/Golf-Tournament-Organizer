@@ -20,7 +20,7 @@ import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { splitCsvLine, matchColumn } from "@/lib/csv";
-import { STAGE_DESCRIPTIONS, isStageType, generatesPairings } from "@/lib/stage-types";
+import { STAGE_DESCRIPTIONS, isStageType, generatesPairings, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { isCutScope } from "@/lib/domain/cut";
 import { isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
@@ -823,10 +823,31 @@ export async function setQualifyMode(mode: string, overall: number) {
    from the validator here silently becomes a Round Robin on save. */
 
 /** Returns the new stage's id so callers can act on it immediately (e.g. set a cut line before the page revalidates). */
-export async function addStage(type: string): Promise<string | undefined> {
+/**
+ * The most weeks one click may create.
+ *
+ * A season, generously. High enough that no real league is refused, low enough
+ * that a mistyped number cannot fill a tournament with hundreds of rounds
+ * somebody then has to delete one at a time.
+ */
+/**
+ * Add one round, or a run of them.
+ *
+ * `count` exists because a weekly league is not built one round at a time. A
+ * ten-week season meant ten clicks and then ten format changes, each of which
+ * is a chance to set one week differently from the rest by accident.
+ *
+ * Every round is created identically. Changing any one of them afterwards is
+ * the ordinary per-round edit, which is the point: same format by default,
+ * overridable individually.
+ */
+export async function addStage(type: string, count = 1): Promise<string | undefined> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   const stageType = isStageType(type) ? type : "Round Robin";
+  // Clamped, not trusted: this is a public server action and the number comes
+  // off a form.
+  const howMany = Math.min(MAX_ROUNDS_AT_ONCE, Math.max(1, Math.round(Number(count) || 1)));
   const agg = await prisma.stage.aggregate({ where: { eventId }, _max: { position: true } });
   const position = (agg._max.position ?? -1) + 1;
   // What the organizer said at setup about how people play. A starting point
@@ -839,10 +860,8 @@ export async function addStage(type: string): Promise<string | undefined> {
   });
   const style = cleanSideStyle(ev?.sideStyle);
   const scoring = ev?.format === "stroke" ? "stroke" : "match";
-  const created = await prisma.stage.create({
-    data: {
+  const common = {
       eventId,
-      position,
       type: stageType,
       description: STAGE_DESCRIPTIONS[stageType] ?? "",
       deadline: "",
@@ -862,10 +881,21 @@ export async function addStage(type: string): Promise<string | undefined> {
           ? "Stroke Play"
           : "Match Play"
         : defaultFormatFor(style, scoring),
-    },
-  });
+  };
+
+  // Created one at a time rather than with createMany so the first round's id
+  // can be returned — the screen scrolls to and opens the round it just made,
+  // and losing that would make adding a round feel like nothing happened.
+  let firstId: string | undefined;
+  for (let i = 0; i < howMany; i += 1) {
+    const created = await prisma.stage.create({
+      data: { ...common, position: position + i },
+    });
+    if (i === 0) firstId = created.id;
+  }
+
   refresh();
-  return created.id;
+  return firstId;
 }
 
 export async function removeStage(stageId: string) {

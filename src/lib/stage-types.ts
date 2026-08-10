@@ -124,6 +124,18 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
  */
 export const WEEKLY_ROUND_TYPES: readonly StageTypeKey[] = ["Round Robin", "Stroke Play Round"];
 
+/**
+ * The most rounds one click may create.
+ *
+ * A season, generously. High enough that no real league is refused, low enough
+ * that a mistyped number cannot fill a tournament with hundreds of rounds
+ * somebody then deletes one at a time.
+ *
+ * Lives here rather than beside addStage because a "use server" module may
+ * only export async functions.
+ */
+export const MAX_ROUNDS_AT_ONCE = 40;
+
 /** Whether this round is one of a league's weeks. */
 export function isWeeklyRound(type: string): boolean {
   return (WEEKLY_ROUND_TYPES as readonly string[]).includes(type);

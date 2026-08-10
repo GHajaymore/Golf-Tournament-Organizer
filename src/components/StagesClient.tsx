@@ -22,6 +22,7 @@ import {
   stageTypeInfo,
   generatesPairings,
   nextPlayingStage,
+  MAX_ROUNDS_AT_ONCE,
   type StageTypeKey,
 } from "@/lib/stage-types";
 import { ScoringClient } from "./ScoringClient";
@@ -915,6 +916,9 @@ export function StagesClient({
   activeStageId?: string | null;
 }) {
   const [newType, setNewType] = useState<StageTypeKey>(STAGE_TYPES[0]);
+  // Resets to 1 after each add: "add 10 weeks" is a deliberate act, and
+  // leaving the box on 10 would make the next click a nasty surprise.
+  const [howMany, setHowMany] = useState(1);
   const [pending, startTransition] = useTransition();
 
   const activeIndex = stages.findIndex((s) => s.id === activeStageId);
@@ -1007,8 +1011,47 @@ export function StagesClient({
           </p>
         </div>
 
+        {/* Two groups rather than five equal cards. Nearly every round an
+            organizer adds is one the field plays; a cut and a bracket are
+            structure, added once if at all. Showing them as peers made the
+            common choice a five-way decision every time. */}
+        <span className="card-kicker">Rounds the field plays</span>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 8 }}>
-          {STAGE_TYPE_INFO.map((t) => {
+          {STAGE_TYPE_INFO.filter((t) => t.isPlayingRound && t.key !== "Single Match Stage" && t.key !== "Bracket Stage").map((t) => {
+            const selected = newType === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setNewType(t.key)}
+                disabled={pending}
+                style={{
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  borderRadius: "var(--radius-md)",
+                  cursor: "pointer",
+                  color: "var(--color-text)",
+                  background: selected
+                    ? "color-mix(in srgb, var(--color-accent) 12%, transparent)"
+                    : "color-mix(in srgb, var(--color-text) 3%, transparent)",
+                  border: `1px solid ${selected ? "var(--color-accent)" : "color-mix(in srgb, var(--color-text) 12%, transparent)"}`,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <i className={t.icon} style={{ fontSize: 15, color: "var(--color-accent-400)" }} />
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</span>
+                </div>
+                <div className="text-muted" style={{ fontSize: 11.5, marginTop: 3, lineHeight: 1.45 }}>
+                  {t.blurb}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <span className="card-kicker" style={{ marginTop: 4 }}>Structure</span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 8 }}>
+          {STAGE_TYPE_INFO.filter((t) => !t.isPlayingRound || t.key === "Single Match Stage" || t.key === "Bracket Stage").map((t) => {
             const selected = newType === t.key;
             return (
               <button
@@ -1041,13 +1084,33 @@ export function StagesClient({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {/* A weekly league is not built one round at a time. Ten weeks meant
+              ten clicks and then ten format changes, each of them a chance to
+              set one week differently from the rest by accident. */}
+          <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}>
+            <span className="text-muted">How many?</span>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={MAX_ROUNDS_AT_ONCE}
+              value={howMany}
+              disabled={pending}
+              onChange={(e) => setHowMany(Math.max(1, Math.min(MAX_ROUNDS_AT_ONCE, parseInt(e.target.value, 10) || 1)))}
+              style={{ width: 72, textAlign: "center" }}
+              aria-label="How many rounds to add"
+            />
+          </label>
           <button
             type="button"
             className="btn btn-primary"
             disabled={pending}
-            onClick={() => startTransition(async () => { await addStage(newType); })}
+            onClick={() => startTransition(async () => { await addStage(newType, howMany); setHowMany(1); })}
           >
-            <i className="ph ph-plus" /> Add {stageTypeInfo(newType).label.toLowerCase()}
+            <i className="ph ph-plus" />{" "}
+            {howMany === 1
+              ? `Add ${stageTypeInfo(newType).label.toLowerCase()}`
+              : `Add ${howMany} ${stageTypeInfo(newType).label.toLowerCase()}s`}
           </button>
           {/* The consequence, stated before the click rather than discovered
               after it. Pairings are the thing an organizer is most often
