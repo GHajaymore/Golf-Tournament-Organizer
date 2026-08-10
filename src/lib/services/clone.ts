@@ -114,6 +114,11 @@ export const CLONE_IGNORED_RELATIONS = [
   // Weekly in/out answers are the record of who played which week — a copy
   // for next season starts with nobody asked.
   "attendance",
+  // A skins pot is cash: real people who really paid, and a carry someone is
+  // owed. Copying last season's pots forward would enter players who have
+  // handed over nothing and assert debts nobody agreed to. A new season starts
+  // with an empty pot and, deliberately, no carry.
+  "skinsPots",
   "players",
   "groups",
   "stages",

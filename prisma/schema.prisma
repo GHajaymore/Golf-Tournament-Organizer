@@ -643,6 +643,7 @@ model Event {
   stages         Stage[]
   matches        Match[]
   attendance     RoundAttendance[]
+  skinsPots      SkinsPot[]
   bracketWinners BracketWinner[]
   commentary     Commentary[]
   scorecards     Scorecard[]
@@ -720,6 +721,7 @@ model Player {
   attendance      RoundAttendance[]
   captainOf       Group[] @relation("FlightCaptain")
   viceCaptainOf   Group[] @relation("FlightViceCaptain")
+  skinsEntries    SkinsEntry[]
 
   @@index([eventId])
   @@index([groupId])
@@ -883,6 +885,7 @@ model Stage {
   matches    Match[]
   teams      Team[]
   attendance RoundAttendance[]
+  skinsPot   SkinsPot?
 
   @@index([eventId])
   // Redemption looks a code up on its own, so codes must be unique across
@@ -1179,4 +1182,68 @@ model MatchScorecard {
 
   @@unique([matchId, slot])
   @@index([eventId])
+}
+
+/**
+ * A skins pot on one round of a league.
+ *
+ * Attached to a round rather than the event because a league runs one a week,
+ * and each week stands alone: its own entrants, its own pot, its own result.
+ *
+ * Entrants are stored explicitly rather than derived from who is playing.
+ * Attendance answers "are you here this week"; this answers "did you put money
+ * in", which is a cash transaction at the first tee that only the person
+ * collecting it knows about. Plenty of players play the round and stay out of
+ * the skins, and entering them anyway would produce a settlement sheet that is
+ * wrong in the way that loses a club's trust.
+ *
+ * Money is only ever CALCULATED and RECORDED here. TourneyHQ does not move it.
+ */
+model SkinsPot {
+  id      String @id @default(cuid())
+  eventId String
+  /** One pot per round. */
+  stageId String @unique
+
+  /** Stake per player, in whole cents, so no total is ever a rounded float. */
+  buyInCents Int @default(0)
+  /** Net applies handicap strokes per hole — what makes skins playable in a
+   *  mixed-ability club field. Gross is a scratch player's game. */
+  net Boolean @default(true)
+  /** full | front | back. A league playing 18 may run skins on the front only,
+   *  so this is independent of the round's own hole count. */
+  scope String @default("full")
+  /**
+   * What last week left on the table.
+   *
+   * The carry is why a league skins game stays interesting: a week where
+   * everything tied makes the next one worth playing for twice over. Recorded
+   * rather than recomputed, because a week already settled must not change
+   * when a later one is played.
+   */
+  carryInCents Int @default(0)
+
+  /** Players who paid in. Entered by club staff, never inferred. */
+  entrants SkinsEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+/** One player's stake in one week's pot. */
+model SkinsEntry {
+  id       String @id @default(cuid())
+  potId    String
+  playerId String
+
+  pot    SkinsPot @relation(fields: [potId], references: [id], onDelete: Cascade)
+  player Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([potId, playerId])
+  @@index([playerId])
 }

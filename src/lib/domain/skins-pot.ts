@@ -27,8 +27,10 @@ export interface PotShare {
 }
 
 export interface PotResult {
-  /** buyIn x players in. */
+  /** (buyIn x players in) + anything carried in from last week. */
   potCents: number;
+  /** What last week left on the table and this week is playing for. */
+  carryInCents: number;
   stakeCents: number;
   playerCount: number;
   /** Skins actually claimed by somebody. */
@@ -92,10 +94,20 @@ export function skinsPot(
   playerIds: string[],
   /** Holes with no score anywhere yet — the sheet cannot be final. */
   holesUnplayed = 0,
+  /**
+   * Money last week left on the table.
+   *
+   * The carry is the whole reason a league skins game stays interesting: a
+   * week where everything tied makes the next week worth double. It joins the
+   * pot and is won like any other part of it — it does not belong to anybody
+   * until somebody wins a hole outright.
+   */
+  carryInCents = 0,
 ): PotResult {
   const stake = Math.max(0, Math.round(buyInCents));
   const players = [...new Set(playerIds)];
-  const potCents = stake * players.length;
+  const carriedIn = Math.max(0, Math.round(carryInCents));
+  const potCents = stake * players.length + carriedIn;
 
   const claimedSkins = outcome.standings.reduce((a, s) => a + s.skins, 0);
   const unclaimedSkins = Math.max(0, outcome.unclaimed);
@@ -122,6 +134,7 @@ export function skinsPot(
 
   return {
     potCents,
+    carryInCents: carriedIn,
     stakeCents: stake,
     playerCount: players.length,
     claimedSkins,
