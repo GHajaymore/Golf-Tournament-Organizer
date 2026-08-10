@@ -96,8 +96,11 @@ export default async function PublicRegisterPage({ params }: { params: Promise<{
           prefill={prefill}
         />
 
+        {/* The one place a member of the public hands us their own details, so
+            it is the one place the notice has to be — not buried in a footer. */}
         <p className="text-muted" style={{ fontSize: 11, marginTop: 18, textAlign: "center" }}>
-          No account needed — just your details.
+          No account needed — just your details. The organizer uses them to run this event; see how
+          they are handled in our <a href="/privacy">privacy notice</a>.
         </p>
       </div>
     </div>

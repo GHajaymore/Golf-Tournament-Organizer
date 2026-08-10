@@ -453,6 +453,7 @@ export default async function LoginPage() {
             Tourney<span className="hq">HQ</span>
           </div>
           <div className="foot-meta">
+            <a href="/privacy">Privacy</a>
             <span className="cred">An AJAI Labs creation</span>
             <span>© {new Date().getFullYear()} TourneyHQ</span>
           </div>
