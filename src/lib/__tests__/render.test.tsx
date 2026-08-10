@@ -1233,3 +1233,35 @@ describe("the ask-a-question mic", () => {
     ).not.toThrow();
   });
 });
+
+describe("the field info control", () => {
+  it("starts closed, and keeps the explanation out of the markup until asked", async () => {
+    const { default: FieldInfo } = await import("@/components/FieldInfo");
+    const html = renderToStaticMarkup(
+      <FieldInfo label="the cut line">the top players carry on</FieldInfo>,
+    );
+    expect(html).toContain('aria-expanded="false"');
+    // Closed means closed: the panel is not merely hidden with CSS, so a
+    // screen reader doesn't read out every explanation on the page at once.
+    expect(html).not.toContain("the top players carry on");
+  });
+
+  it("names what it explains, because the visible label is one glyph", async () => {
+    // "info" tells someone using a screen reader nothing about which of the
+    // dozen controls on a setup screen they have just landed on.
+    const { default: FieldInfo } = await import("@/components/FieldInfo");
+    const html = renderToStaticMarkup(<FieldInfo label="the cut line">why</FieldInfo>);
+    expect(html).toContain('aria-label="More about the cut line"');
+    expect(html).toContain("aria-controls=");
+  });
+
+  it("is a real button, not a hoverable span", async () => {
+    // The app is used one-handed on a phone. A hover-only affordance — or a
+    // native title attribute — is invisible to exactly the people who need
+    // it, so this must stay focusable and tappable.
+    const { default: FieldInfo } = await import("@/components/FieldInfo");
+    const html = renderToStaticMarkup(<FieldInfo label="x">why</FieldInfo>);
+    expect(html).toContain('<button type="button"');
+    expect(html).not.toContain("title=");
+  });
+});

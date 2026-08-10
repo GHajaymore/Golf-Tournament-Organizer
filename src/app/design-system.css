@@ -730,3 +730,47 @@ textarea.input { min-height: 90px; resize: vertical; }
   border-radius: 3px;
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-danger, #e0665a) 65%, transparent), inset 0 0 0 4px var(--color-surface), inset 0 0 0 6px color-mix(in srgb, var(--color-danger, #e0665a) 65%, transparent);
 }
+
+/* — field info — */
+/* The "i" beside a label that isn't self-explanatory. It sits in the text
+   flow next to the label, so it is sized in em and aligned to the text
+   baseline rather than given a fixed box that would drift as labels change
+   size. Quiet by default: this is an offer, not a warning. */
+.field-info { position: relative; display: inline-flex; vertical-align: middle; margin-left: var(--space-1); }
+.field-info-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  /* 26px, not the 14px glyph: a tap target on a phone has to be bigger than
+     the thing drawn inside it, and this control exists for phone users. */
+  width: 26px; height: 26px; padding: 0; margin: -6px 0;
+  background: transparent; border: 0; border-radius: 50%;
+  cursor: pointer;
+  color: color-mix(in srgb, var(--color-text) 52%, transparent);
+  transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.field-info-btn:hover { color: var(--color-text); background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.field-info-btn[aria-expanded="true"] { color: var(--color-accent); }
+
+.field-info-panel {
+  position: absolute; z-index: 40; top: calc(100% + 6px); left: 50%;
+  /* Anchored to the icon but clamped to the viewport: at mobile width the
+     icon is often near an edge, and a panel that runs off-screen is the same
+     as no panel at all. */
+  transform: translateX(-50%);
+  max-width: min(300px, calc(100vw - 2 * var(--space-4)));
+  width: max-content;
+  display: block;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-body);
+  font-size: 12.5px; line-height: 1.5; font-weight: 400;
+  letter-spacing: 0;
+  /* Explanations run to a couple of sentences; keep them left-aligned and
+     in sentence case whatever the label above happens to be. */
+  text-align: left; text-transform: none;
+  color: color-mix(in srgb, var(--color-text) 82%, transparent);
+  white-space: normal;
+}
+.field-info-panel p { margin: 0 0 var(--space-2); }
+.field-info-panel p:last-child { margin-bottom: 0; }

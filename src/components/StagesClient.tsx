@@ -12,6 +12,8 @@ import {
 } from "@/app/actions/tournament";
 import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS } from "@/lib/formats";
+import FieldInfo from "@/components/FieldInfo";
+import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP } from "@/lib/domain/cut";
 import { chainIssues, issuesForRound, carryForwardPrompt, type CarryPrompt } from "@/lib/format-chain";
 import {
   STAGE_TYPE_INFO,
@@ -741,7 +743,13 @@ function StageCard({
 
             {showTransition && (
               <div>
-                <SectionLabel>Cut line &amp; carry-forward — before the next round</SectionLabel>
+                <SectionLabel>
+                  Cut line &amp; carry-forward — before the next round
+                  <FieldInfo label="the cut line and carry-forward">
+                    <p>{ROUND_CUT_HELP}</p>
+                    <p>{CUT_SCOPE_HELP}</p>
+                  </FieldInfo>
+                </SectionLabel>
                 <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
                   Carry points forward and/or cut the field before it moves on from this round.
                 </p>
@@ -751,7 +759,13 @@ function StageCard({
 
             {stage.type === "Qualification Stage" && (
               <div>
-                <SectionLabel>Qualification cut</SectionLabel>
+                <SectionLabel>
+                  Qualification cut
+                  <FieldInfo label="the qualification cut">
+                    <p>{QUALIFICATION_CUT_HELP}</p>
+                    <p>{CUT_SCOPE_HELP}</p>
+                  </FieldInfo>
+                </SectionLabel>
                 <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
                   How many players advance from this cut — top N per flight, or top N overall.
                 </p>

@@ -17,6 +17,26 @@ import type { Player } from "./types";
 export type CutScope = "overall" | "perFlight";
 export type CutMode = "count" | "percent";
 
+/**
+ * Long-form explanations for the two cut settings, shown behind the info
+ * control beside each field.
+ *
+ * They live here, next to the logic, because the difference between them is
+ * subtle enough to have already caused a real bug: the dashboard highlighted
+ * players using the qualification number when the tournament was actually
+ * being decided by each round's own cut. An explanation kept in a component
+ * can drift from the behaviour it describes; one kept here cannot go stale
+ * without someone editing this file.
+ */
+export const CUT_SCOPE_HELP =
+  "Overall takes the top players from the whole field, so one strong flight can fill most of the places. Per flight takes the same number out of each flight, so every flight sends someone through regardless of how the others scored.";
+
+export const ROUND_CUT_HELP =
+  "This trims the field on the way out of this round: whoever survives plays the next one. It is set on each round, so a league can cut differently week to week.";
+
+export const QUALIFICATION_CUT_HELP =
+  "This decides who reaches the knockout bracket, and it is a property of the tournament rather than of one round. A tournament that runs straight through from round to round does not need it — use the cut line on each round instead.";
+
 export interface CutRule {
   scope: CutScope;
   mode: CutMode;
