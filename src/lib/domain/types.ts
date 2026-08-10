@@ -56,6 +56,34 @@ export const TIEBREAKER_LABELS: Record<TiebreakerKey, string> = {
   "lower-handicap": "Lower handicap",
 };
 
+/**
+ * What each tiebreaker actually does, in the words a committee would use.
+ *
+ * Kept beside the labels — and so beside compareByTiebreak, which implements
+ * them — because the failure mode here is an explanation that describes what
+ * somebody assumed the app does rather than what it does. Two of these have a
+ * genuine catch that only shows up on the day, and both are stated plainly:
+ * head-to-head does nothing between players who never met, and the countbacks
+ * do nothing on a course with no stroke index entered.
+ */
+export const TIEBREAKER_HELP: Record<TiebreakerKey, string> = {
+  "head-to-head":
+    "Whoever won when these two played each other. If they never met, or their match was halved, this decides nothing and the next tiebreaker is used.",
+  "most-wins": "Most matches won outright. Halved matches don't count either way.",
+  "win-percentage":
+    "Matches won as a share of matches played. Ranks a player who won 3 of 4 above one who won 3 of 6 — worth having where players have played different numbers of matches.",
+  "holes-won-ratio":
+    "Holes won minus holes lost across every match. The usual first countback in match play: it rewards winning holes rather than winning narrowly.",
+  "fewest-holes-lost":
+    "Fewest holes dropped across every match — the defensive twin of hole differential.",
+  "toughest-6":
+    "Record on the six hardest holes, taken from the card's stroke index. Needs a stroke index on the course; without one it decides nothing and the next tiebreaker is used.",
+  "toughest-3":
+    "As above, on the three hardest holes. A tighter countback where the six-hole one still leaves players level.",
+  "lower-handicap":
+    "The lower handicap ranks first. Traditional, and a definite answer — worth keeping last in the list so a tie always resolves.",
+};
+
 export interface Player {
   id: string;
   name: string;

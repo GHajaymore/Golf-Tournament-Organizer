@@ -23,6 +23,11 @@ export function QualControl({
 
   return (
     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+      {/* No info button here on purpose. The "Qualification cut" heading
+          immediately above this control already carries CUT_SCOPE_HELP, which
+          explains per-flight versus overall in the same words. A second icon
+          an inch away, saying the same thing, teaches people the icons are
+          noise. */}
       <div className="seg">
         <label className="seg-opt">
           <input type="radio" name="qmode" checked={m === "perFlight"} disabled={pending} onChange={() => switchMode("perFlight")} />

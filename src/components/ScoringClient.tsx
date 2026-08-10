@@ -2,7 +2,8 @@
 import { useState, useTransition } from "react";
 import { saveScoring, saveTiebreakers } from "@/app/actions/tournament";
 import { pts } from "@/lib/format";
-import { TIEBREAKER_LABELS, TIEBREAKER_KEYS, type TiebreakerKey } from "@/lib/domain";
+import { TIEBREAKER_LABELS, TIEBREAKER_HELP, TIEBREAKER_KEYS, type TiebreakerKey } from "@/lib/domain";
+import FieldInfo from "@/components/FieldInfo";
 
 interface Values {
   winPts: number;
@@ -141,6 +142,9 @@ export function ScoringClient({
                 {i + 1}
               </span>
               <span style={{ flex: 1 }}>{TIEBREAKER_LABELS[t]}</span>
+              <FieldInfo label={TIEBREAKER_LABELS[t]}>
+                <p>{TIEBREAKER_HELP[t]}</p>
+              </FieldInfo>
               <button type="button" className="btn btn-icon" disabled={pending || i === 0} onClick={() => move(i, -1)} title="Move up" style={{ width: 28, height: 28 }}>
                 <i className="ph ph-caret-up" />
               </button>
@@ -160,7 +164,11 @@ export function ScoringClient({
                 Available
               </div>
               {available.map((t) => (
-                <label
+                // The info button sits OUTSIDE the label. Inside it, a tap on
+                // "what does this mean" would also switch the tiebreaker on —
+                // which is the opposite of what somebody asking the question
+                // wants.
+                <div
                   key={t}
                   style={{
                     display: "flex",
@@ -170,13 +178,17 @@ export function ScoringClient({
                     padding: "6px 10px",
                     borderRadius: 6,
                     marginBottom: 5,
-                    cursor: "pointer",
                     color: "var(--color-neutral-400)",
                   }}
                 >
-                  <input type="checkbox" checked={false} disabled={pending} onChange={() => toggle(t, true)} />
-                  {TIEBREAKER_LABELS[t]}
-                </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, cursor: "pointer" }}>
+                    <input type="checkbox" checked={false} disabled={pending} onChange={() => toggle(t, true)} />
+                    {TIEBREAKER_LABELS[t]}
+                  </label>
+                  <FieldInfo label={TIEBREAKER_LABELS[t]}>
+                    <p>{TIEBREAKER_HELP[t]}</p>
+                  </FieldInfo>
+                </div>
               ))}
             </>
           )}
