@@ -55,6 +55,20 @@ export interface GolfFormat {
    *  recommendation — the UI says so rather than implying a standard. */
   allowanceIsConvention?: boolean;
   /**
+   * Per-player allowance shares, best player first, keyed by how many are
+   * actually on the side.
+   *
+   * Some shared-ball formats don't take a flat percentage of the combined
+   * handicaps: greensomes is 60% of the lower plus 40% of the higher, and a
+   * scramble uses a descending table. Both are the *shape* of the allowance,
+   * not a number, so `allowance` alone cannot express them.
+   *
+   * Keyed by side size because a scramble is playable 2 to 4 and the table
+   * differs. Absent means the flat `allowance` against the combined
+   * handicaps, which is how foursomes' 50% is meant to work.
+   */
+  weightsBySideSize?: Record<number, number[]>;
+  /**
    * A real scoring engine computes this format's result.
    *
    * Necessary but *not* sufficient for an organizer to run it — see `playable`.
@@ -225,6 +239,22 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "team-single",
     allowance: 50,
     allowanceIsConvention: true,
+    scored: true,
+    playable: true,
+  },
+  {
+    name: "Greensomes",
+    family: "team",
+    desc: "Both partners drive, the side plays on with the better drive, then alternates shots to the hole.",
+    sideSize: 2,
+    ball: "single",
+    engine: "team-single",
+    // 60% of the lower handicap plus 40% of the higher — the standard
+    // greensomes split, and deliberately *not* foursomes' flat 50% of the
+    // combined: picking the better of two drives is an advantage, so the
+    // side gets fewer shots than an alternate-shot pair of the same pair.
+    allowance: 100,
+    weightsBySideSize: { 2: [60, 40] },
     scored: true,
     playable: true,
   },

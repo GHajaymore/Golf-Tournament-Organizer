@@ -104,6 +104,28 @@ describe("sidePlayingHandicap", () => {
     expect(sidePlayingHandicap([10, 20], "Four-Ball")).toBe(27);
   });
 
+  it("splits greensomes 60/40, lower handicap first", () => {
+    // 60% of 10 + 40% of 20 = 6 + 8 = 14.
+    expect(sidePlayingHandicap([10, 20], "Greensomes")).toBe(14);
+  });
+
+  it("gives a greensomes pair fewer shots than the same pair at foursomes", () => {
+    // The point of the split: picking the better of two drives is an
+    // advantage, so the side plays off less than an alternate-shot pair.
+    // Falling through to the flat allowance would hand them the combined
+    // handicap instead — the failure this guards.
+    expect(sidePlayingHandicap([10, 20], "Greensomes")).toBeLessThan(
+      sidePlayingHandicap([10, 20], "Four-Ball"),
+    );
+    expect(sidePlayingHandicap([10, 20], "Greensomes")).toBeLessThan(30);
+  });
+
+  it("lets a committee override greensomes, replacing the split entirely", () => {
+    // Consistent with the scramble rule: an override means that percentage of
+    // the combined handicaps, not a percentage layered on the 60/40 table.
+    expect(sidePlayingHandicap([10, 20], "Greensomes", 50)).toBe(15);
+  });
+
   it("returns zero for a side with nobody in it", () => {
     expect(sidePlayingHandicap([], "Scramble")).toBe(0);
   });

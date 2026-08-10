@@ -111,6 +111,11 @@ export function sidePlayingHandicap(
   // weights: a committee that says "40%" means 40% of the combined handicaps,
   // not 40% layered on top of a descending table they never mentioned.
   if (allowanceOverride > 0) return sideHandicap(courseHandicaps, allowanceOverride);
+  // A format that declares per-player shares (greensomes' 60/40) is scored by
+  // that split, not by a flat percentage of the combined handicaps — applying
+  // `allowance` here instead would hand the side far too many shots.
+  const declared = f.weightsBySideSize?.[courseHandicaps.length];
+  if (declared) return sideHandicap(courseHandicaps, 0, declared);
   if (/scramble/i.test(f.name)) {
     const weights = courseHandicaps.length > 2 ? SCRAMBLE_WEIGHTS_4 : SCRAMBLE_WEIGHTS_2;
     return sideHandicap(courseHandicaps, 0, weights);
