@@ -1,0 +1,11 @@
+-- Per-round handicap allowance shares, best player first.
+--
+-- Greensomes is conventionally 60% of the lower handicap plus 40% of the
+-- higher, but clubs play 50/50 and 55/45 too, and a scramble uses a longer
+-- descending table. handicapAllowance is a single percentage and cannot say
+-- any of that.
+--
+-- Additive and empty by default. An empty array means "use the split the
+-- format recommends", which is what every existing round gets, so no
+-- tournament already in progress changes how it is scored.
+ALTER TABLE "Stage" ADD COLUMN "allowanceWeights" INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[];

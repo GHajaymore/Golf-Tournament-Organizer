@@ -798,6 +798,22 @@ model Stage {
   handicapAllowance Int @default(0)
 
   /**
+   * Per-player allowance shares for this round, best player first — the
+   * committee's version of greensomes' 60/40 or a scramble's descending
+   * table.
+   *
+   * Some shared-ball formats don't take a flat percentage of the combined
+   * handicaps, and the split itself varies by club: 60/40 is the common
+   * greensomes convention, but 50/50 and 55/45 are all played. `handicapAllowance`
+   * is a single number and cannot express any of them.
+   *
+   * Empty means "use the split the format recommends", exactly as zero does
+   * for handicapAllowance — so every round that existed before this field
+   * keeps scoring the way it always did.
+   */
+  allowanceWeights Int[]
+
+  /**
    * Round Code — the shared code players enter to report scores for this
    * round, modelled on the GGID golfers already know from Golf Genius.
    *

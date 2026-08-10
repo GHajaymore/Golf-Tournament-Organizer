@@ -162,3 +162,42 @@ describe("committee allowance override", () => {
     expect(effectiveAllowance("Scramble", 0)).toBe(25);
   });
 });
+
+describe("a committee's own allowance split", () => {
+  it("uses the split the committee typed, in place of the format's", () => {
+    // 50/50 on 10 and 20 = 5 + 10 = 15, where greensomes' own 60/40 gives 14.
+    expect(sidePlayingHandicap([10, 20], "Greensomes", 0, [50, 50])).toBe(15);
+  });
+
+  it("applies shares best player first, however the handicaps arrive", () => {
+    // The larger share belongs to the lower handicap whichever order the pair
+    // is listed in — otherwise the same two people get different strokes
+    // depending on who happened to be entered first.
+    expect(sidePlayingHandicap([20, 10], "Greensomes", 0, [60, 40])).toBe(
+      sidePlayingHandicap([10, 20], "Greensomes", 0, [60, 40]),
+    );
+  });
+
+  it("beats a flat override, being the more specific instruction", () => {
+    expect(sidePlayingHandicap([10, 20], "Greensomes", 50, [60, 40])).toBe(14);
+  });
+
+  it("ignores a split that doesn't cover the side, rather than dropping a player", () => {
+    // sideHandicap gives an unlisted position a weight of zero, so a short
+    // list would quietly leave someone's handicap out of the calculation.
+    // Falling back to the format's own split is the safe reading.
+    expect(sidePlayingHandicap([10, 20], "Greensomes", 0, [60])).toBe(14);
+  });
+
+  it("ignores nonsense shares rather than scoring the round with them", () => {
+    expect(sidePlayingHandicap([10, 20], "Greensomes", 0, [-10, 40])).toBe(14);
+    expect(sidePlayingHandicap([10, 20], "Greensomes", 0, [140, 40])).toBe(14);
+    expect(sidePlayingHandicap([10, 20], "Greensomes", 0, [0, 0])).toBe(14);
+    expect(sidePlayingHandicap([10, 20], "Greensomes", 0, [])).toBe(14);
+  });
+
+  it("does not require the shares to add up to 100", () => {
+    // Greensomes' 60/40 does; a scramble's 25/20/15/10 sums to 70. Both real.
+    expect(sidePlayingHandicap([10, 20], "Greensomes", 0, [30, 20])).toBe(7);
+  });
+});

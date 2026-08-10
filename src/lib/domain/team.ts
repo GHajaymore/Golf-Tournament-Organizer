@@ -154,6 +154,28 @@ export function sideHandicap(
   return Math.round(total);
 }
 
+/**
+ * A committee's allowance shares, cleaned up, or null if they don't apply.
+ *
+ * These arrive from a form, so they are checked rather than trusted: a share
+ * outside 0–100 is not a preference, and a list that doesn't match the number
+ * of players on the side would silently drop somebody's handicap from the
+ * calculation — `sideHandicap` gives absent positions a weight of zero. Both
+ * fall back to the format's own split instead of scoring the round wrong.
+ *
+ * Shares are deliberately *not* required to sum to 100. Greensomes' 60/40
+ * does, but a scramble's 25/20/15/10 sums to 70, and both are real.
+ */
+export function committeeWeights(weights: number[] | undefined | null, sideSize: number): number[] | null {
+  if (!weights || weights.length === 0) return null;
+  if (weights.length !== sideSize) return null;
+  if (weights.some((w) => !Number.isFinite(w) || w < 0 || w > 100)) return null;
+  // All zeroes would hand the side a scratch handicap by arithmetic rather
+  // than by anyone's intent.
+  if (weights.every((w) => w === 0)) return null;
+  return weights.map((w) => Math.round(w));
+}
+
 /** The common 4-person scramble allowance table, best player first. */
 export const SCRAMBLE_WEIGHTS_4 = [25, 20, 15, 10];
 /** The common 2-person scramble allowance table. */

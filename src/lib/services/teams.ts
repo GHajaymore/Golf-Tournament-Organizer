@@ -4,6 +4,7 @@ import { findFormat, sideSizeRange } from "../formats";
 import { courseHandicapMap } from "../domain/handicap";
 import {
   sideHandicap,
+  committeeWeights,
   aggregateTeamCard,
   singleBallTeamCard,
   SCRAMBLE_WEIGHTS_2,
@@ -42,6 +43,7 @@ export async function teamsForStage(
   format: string,
   allowanceOverride = 0,
   holes = 18,
+  weightsOverride?: number[] | null,
 ): Promise<TeamView[]> {
   // Side handicaps are built from Course Handicaps, not roster Indexes — a
   // foursomes pair off the blues receives different strokes to the same pair
@@ -87,7 +89,7 @@ export async function teamsForStage(
       seed: t.seed,
       stageId: t.stageId,
       members,
-      playingHandicap: sidePlayingHandicap(members.map((m) => m.handicap), format, allowanceOverride),
+      playingHandicap: sidePlayingHandicap(members.map((m) => m.handicap), format, allowanceOverride, weightsOverride),
     };
   });
 }
@@ -105,9 +107,15 @@ export function sidePlayingHandicap(
   courseHandicaps: number[],
   format: string,
   allowanceOverride = 0,
+  weightsOverride?: number[] | null,
 ): number {
   const f = findFormat(format);
-  // A committee override replaces the whole scheme, including the scramble
+  // A committee's own split is the most specific thing they can say, so it
+  // wins: it is only ever settable on formats that use one, and a club that
+  // has typed "55 / 45" has said something a single percentage cannot.
+  const committee = committeeWeights(weightsOverride, courseHandicaps.length);
+  if (committee) return sideHandicap(courseHandicaps, 0, committee);
+  // A flat override replaces the whole scheme, including the scramble
   // weights: a committee that says "40%" means 40% of the combined handicaps,
   // not 40% layered on top of a descending table they never mentioned.
   if (allowanceOverride > 0) return sideHandicap(courseHandicaps, allowanceOverride);
