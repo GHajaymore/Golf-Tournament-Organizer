@@ -129,3 +129,47 @@ export async function skinsPotFor(
     })),
   };
 }
+
+export interface SkinsSeasonRow {
+  playerId: string;
+  name: string;
+  netCents: number;
+  weeksPlayed: number;
+}
+
+/**
+ * Where everybody stands across the season's skins.
+ *
+ * A league plays weekly and settles weekly, so this is a record of what
+ * happened rather than a debt: the money has already changed hands each week.
+ * It answers the question a league actually asks in the bar — who is up on
+ * the year — and nothing more.
+ *
+ * Summed from each week's own result rather than recomputed from scratch, so
+ * a week already settled cannot change because a later one was played.
+ */
+export async function skinsSeasonFor(eventId: string): Promise<SkinsSeasonRow[]> {
+  const pots = await prisma.skinsPot.findMany({
+    where: { eventId },
+    select: { stageId: true, net: true },
+  });
+  if (pots.length === 0) return [];
+
+  const weeks = await Promise.all(pots.map((p) => skinsPotFor(eventId, p.stageId, p.net)));
+  const results = weeks.filter((w): w is SkinsPotView => !!w && !!w.result).map((w) => w.result!);
+  const nameById = weeks.find((w) => w)?.nameById ?? {};
+
+  const totals = new Map<string, { netCents: number; weeksPlayed: number }>();
+  for (const week of results) {
+    for (const s of week.shares) {
+      const t = totals.get(s.playerId) ?? { netCents: 0, weeksPlayed: 0 };
+      t.netCents += s.netCents;
+      t.weeksPlayed += 1;
+      totals.set(s.playerId, t);
+    }
+  }
+
+  return [...totals.entries()]
+    .map(([playerId, t]) => ({ playerId, name: nameById[playerId] ?? "—", ...t }))
+    .sort((a, b) => b.netCents - a.netCents || a.name.localeCompare(b.name));
+}

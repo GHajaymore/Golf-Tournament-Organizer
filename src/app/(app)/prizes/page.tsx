@@ -1,7 +1,8 @@
 import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
-import { skinsPotFor } from "@/lib/services/skins-pot";
+import { skinsPotFor, skinsSeasonFor } from "@/lib/services/skins-pot";
 import { SkinsPotClient } from "@/components/SkinsPotClient";
+import { SkinsSeason } from "@/components/SkinsSeason";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PrizesClient } from "@/components/PrizesClient";
@@ -30,6 +31,7 @@ export default async function PrizesPage({
         skinsPotFor(session.eventId, week.id, true),
       ])
     : [null, null];
+  const skinsSeason = await skinsSeasonFor(session.eventId);
 
   const prizes = await prisma.prize.findMany({
     where: { eventId: session.eventId },
@@ -72,6 +74,7 @@ export default async function PrizesPage({
           view={grossSkins}
         />
       )}
+      <SkinsSeason rows={skinsSeason} />
     </>
   );
 }
