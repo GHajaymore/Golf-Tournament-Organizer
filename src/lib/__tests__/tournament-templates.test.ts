@@ -23,16 +23,40 @@ describe("template catalogue", () => {
     // never drop someone into a round that can be configured but not scored.
     // This is the stricter of the two lists on purpose.
     for (const t of TOURNAMENT_TEMPLATES) {
-      expect(PLAYABLE_FORMAT_NAMES, `${t.key} uses a format that can't be run yet`).toContain(
-        t.round.format,
-      );
+      for (const r of t.rounds) {
+        expect(PLAYABLE_FORMAT_NAMES, `${t.key} uses a format that can't be run yet`).toContain(
+          r.format,
+        );
+      }
     }
   });
 
   it("uses a sane number of holes", () => {
     for (const t of TOURNAMENT_TEMPLATES) {
-      expect([9, 18], `${t.key} has an odd hole count`).toContain(t.round.holes);
+      for (const r of t.rounds) {
+        expect([9, 18], `${t.key} has an odd hole count`).toContain(r.holes);
+      }
     }
+  });
+
+  it("every template starts at least one round", () => {
+    // A tournament with no rounds has nowhere to enter a score, and the
+    // creation path builds exactly what the template lists.
+    for (const t of TOURNAMENT_TEMPLATES) {
+      expect(t.rounds.length, `${t.key} starts no rounds`).toBeGreaterThan(0);
+    }
+  });
+
+  it("lays out a member-guest as five nine-hole matches", () => {
+    // The shape of the event, not a detail of it: six pairs to a flight, each
+    // playing the other five once. Building it by hand meant five trips
+    // through the round builder, which is the assembly work that keeps clubs
+    // on whatever they already use.
+    const mg = TOURNAMENT_TEMPLATES.find((t) => t.key === "member-guest-rr")!;
+    expect(mg.rounds).toHaveLength(5);
+    expect(mg.rounds.every((r) => r.holes === 9)).toBe(true);
+    expect(mg.rounds.every((r) => r.type === "Round Robin")).toBe(true);
+    expect(mg.rounds[0].description).toContain("Match 1");
   });
 
   it("never leaves players with no way to sign in", () => {
@@ -80,16 +104,26 @@ describe("individual templates", () => {
     // scoringBasis while the format stays Stroke Play. Setting it as a format
     // would produce a round the format picker never offers.
     const t = byKey("charity-day");
-    expect(t.round.format).toBe("Stroke Play");
-    expect(t.round.scoringBasis).toBe("stableford");
+    expect(t.rounds[0].format).toBe("Stroke Play");
+    expect(t.rounds[0].scoringBasis).toBe("stableford");
   });
 
-  it("no template picks a team format while there is no team model", () => {
+  it("a template may pick a team format, now that sides can actually be drawn", () => {
+    // This used to forbid team formats outright, because they were named in
+    // formats.ts with no team model behind them — a template choosing one was
+    // a promise that broke on the first tee. Sides, team score entry and team
+    // leaderboards all exist now, so the ban is lifted and replaced by the
+    // condition that actually matters: whatever a template picks must be a
+    // format the app can run end to end.
     for (const t of TOURNAMENT_TEMPLATES) {
-      expect(t.round.format, `${t.key} picks a team format`).not.toMatch(
-        /scramble|best ball|four-?ball|shamble|foursomes|alternate shot/i,
-      );
+      for (const r of t.rounds) {
+        expect(PLAYABLE_FORMAT_NAMES, `${t.key} picks a format that can't be run`).toContain(
+          r.format,
+        );
+      }
     }
+    // And the member-guest round robin is the reason it was lifted.
+    expect(byKey("member-guest-rr").rounds.every((r) => r.format === "Four-Ball")).toBe(true);
   });
 
   it("start-from-scratch is exactly the plain defaults", () => {
@@ -104,7 +138,7 @@ describe("course requirements implied by templates", () => {
     // championship that cannot.
     const needs = (k: string) => {
       const t = TOURNAMENT_TEMPLATES.find((x) => x.key === k)!;
-      return needsCourseData([{ format: t.round.format, scoringBasis: t.round.scoringBasis }]);
+      return needsCourseData([{ format: t.rounds[0].format, scoringBasis: t.rounds[0].scoringBasis }]);
     };
     expect(needs("league-round")).toBe(false); // gross match play
     expect(needs("club-championship")).toBe(true); // stroke play

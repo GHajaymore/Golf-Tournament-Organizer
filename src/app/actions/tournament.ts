@@ -1633,18 +1633,31 @@ export async function createEvent(
     });
   }
 
-  await prisma.stage.create({
-    data: {
+  // A template can describe a whole sequence, not just an opening round —
+  // a member-guest IS five nine-hole matches, and leaving four of them to be
+  // built by hand is the assembly work that keeps clubs on what they know.
+  // Without a template, the shape still decides the single opening round.
+  const plannedRounds = templated?.rounds.length
+    ? templated.rounds
+    : [
+        {
+          type: shapeStart.type,
+          format: shapeStart.format,
+          holes: shapeStart.holes,
+          scoringBasis: shapeStart.scoringBasis,
+          description: "",
+        },
+      ];
+  await prisma.stage.createMany({
+    data: plannedRounds.map((r, position) => ({
       eventId: event.id,
-      position: 0,
-      description: "",
-      // A template is a deliberate choice and outranks the shape default;
-      // otherwise the shape decides what the opening round looks like.
-      type: templated?.round.type ?? shapeStart.type,
-      format: templated?.round.format ?? shapeStart.format,
-      holes: templated?.round.holes ?? shapeStart.holes,
-      scoringBasis: templated?.round.scoringBasis ?? shapeStart.scoringBasis,
-    },
+      position,
+      description: r.description ?? "",
+      type: r.type,
+      format: r.format,
+      holes: r.holes,
+      scoringBasis: r.scoringBasis,
+    })),
   });
   await prisma.account.create({
     data: { eventId: event.id, name: session.name, email: session.email, role: "admin" },

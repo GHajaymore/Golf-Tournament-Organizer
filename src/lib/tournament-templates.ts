@@ -16,19 +16,33 @@ import { DEFAULT_SETTINGS, type TournamentSettings } from "./tournament-settings
  * worse than no preset at all.
  */
 
+export interface TemplateRound {
+  type: string;
+  format: string;
+  scoringBasis: string;
+  holes: number;
+  /** Shown on the round card so the sequence explains itself. */
+  description?: string;
+}
+
 export interface TournamentTemplate {
   key: string;
   name: string;
   /** Who this is for, in the organizer's own terms. */
   blurb: string;
   settings: TournamentSettings;
-  /** What the opening round looks like. */
-  round: {
-    type: string;
-    format: string;
-    scoringBasis: string;
-    holes: number;
-  };
+  /**
+   * The rounds this tournament starts with, in order.
+   *
+   * A list rather than a single round because the shape of some events *is*
+   * the sequence. A member-guest is five nine-hole matches; describing only
+   * the first one leaves an organizer to build the other four by hand, which
+   * is the assembly work that keeps clubs on whatever they already use.
+   *
+   * Rounds stay editable afterwards, and nothing reads the template later —
+   * it is what the tournament started as, not a rule it must obey.
+   */
+  rounds: TemplateRound[];
 }
 
 const ROUND_ROBIN_GROSS = {
@@ -55,7 +69,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       attestBy: "marker",
       attendanceMode: "everyone",
     },
-    round: { type: "Round Robin", format: "Stroke Play", scoringBasis: "gross", holes: 18 },
+    rounds: [{ type: "Round Robin", format: "Stroke Play", scoringBasis: "gross", holes: 18 }],
   },
   {
     key: "league-round",
@@ -76,7 +90,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       // A weekly league's whole premise: regulars are in unless they say.
       attendanceMode: "opt-out",
     },
-    round: ROUND_ROBIN_GROSS,
+    rounds: [ROUND_ROBIN_GROSS],
   },
   {
     key: "member-guest",
@@ -92,7 +106,43 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       attestBy: "marker",
       attendanceMode: "everyone",
     },
-    round: { type: "Round Robin", format: "Match Play", scoringBasis: "net", holes: 18 },
+    rounds: [{ type: "Round Robin", format: "Match Play", scoringBasis: "net", holes: 18 }],
+  },
+  {
+    key: "member-guest-rr",
+    name: "Member-guest — round robin",
+    blurb:
+      "The classic invitational: pairs in flights of six, five nine-hole matches, everyone plays everyone.",
+    settings: {
+      leaderboardVisibility: "public",
+      scoreEntryBy: "players",
+      scoreEntryWindow: "during",
+      voiceEntry: true,
+      playerAccess: "both",
+      scoreApproval: "staff",
+      attestBy: "marker",
+      attendanceMode: "everyone",
+    },
+    /*
+     * Five nine-hole matches, which is the shape of the event rather than a
+     * detail of it: six pairs in a flight, each playing the other five once.
+     *
+     * Building this by hand meant five trips through the round builder, and
+     * that assembly work is the main reason a club stays on whatever it
+     * already uses. Four-Ball because a member and a guest each play their own
+     * ball, and net because the pair are rarely of similar standard.
+     *
+     * The nines alternate only in the sense that a club rotates tees on the
+     * day; the app records nine holes per match and the organizer sets which
+     * nine per round if it matters.
+     */
+    rounds: Array.from({ length: 5 }, (_, i) => ({
+      type: "Round Robin",
+      format: "Four-Ball",
+      scoringBasis: "net",
+      holes: 9,
+      description: `Match ${i + 1} of 5`,
+    })),
   },
   {
     key: "charity-day",
@@ -118,14 +168,14 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
     // And not a scramble because team formats are named in formats.ts with no
     // team model behind them; a template choosing one would be a promise that
     // breaks on the first tee. The scramble variant belongs with the team work.
-    round: { type: "Round Robin", format: "Stroke Play", scoringBasis: "stableford", holes: 18 },
+    rounds: [{ type: "Round Robin", format: "Stroke Play", scoringBasis: "stableford", holes: 18 }],
   },
   {
     key: "custom",
     name: "Start from scratch",
     blurb: "The plain defaults. Set everything yourself.",
     settings: DEFAULT_SETTINGS,
-    round: ROUND_ROBIN_GROSS,
+    rounds: [ROUND_ROBIN_GROSS],
   },
 ];
 
