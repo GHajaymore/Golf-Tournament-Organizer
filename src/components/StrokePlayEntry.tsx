@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { CardPhotoReader } from "@/components/CardPhotoReader";
 import { computeStrokeCard, toParText, parseStrokesTranscript } from "@/lib/domain";
 import { saveScorecard } from "@/app/actions/tournament";
 
@@ -175,6 +176,31 @@ export function StrokePlayEntry({
         </button>
         <span className="text-muted" style={{ fontSize: 12 }}>{listenHint}</span>
       </div>
+
+      {/* Beside the mic because it answers the same question — how do I get
+          this card in without typing it. Both fill the grid below and neither
+          saves; the organizer's own submit is still what writes anything. */}
+      {player && (
+        <div style={{ marginTop: 10 }}>
+          <CardPhotoReader
+            stageId={stageId}
+            playerId={player.id}
+            playerName={player.name}
+            holeCount={holes}
+            onReading={(read) =>
+              setCards((prev) => {
+                // Merge rather than replace: a hole the reader could not make
+                // out must not wipe a score already typed in by hand.
+                const current = prev[player.id] ?? new Array(holes).fill(null);
+                return {
+                  ...prev,
+                  [player.id]: current.map((existing, i) => read[i] ?? existing ?? null),
+                };
+              })
+            }
+          />
+        </div>
+      )}
 
       <div className="sc-wrap" style={{ marginTop: 12 }}>
         <table className="sc" style={{ minWidth: isEighteen ? 960 : 560 }}>

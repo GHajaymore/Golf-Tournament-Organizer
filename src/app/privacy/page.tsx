@@ -126,9 +126,21 @@ export default function PrivacyPage() {
             tournament data.
           </li>
           <li>
-            <strong>Anthropic</strong> — only if your club switches on AI-written commentary. Current
-            standings, which include player names, are sent to generate a line of text. If the
-            feature is not enabled, nothing is sent.
+            <strong>Anthropic</strong> — only for the features your club switches on, and only when
+            someone uses them:
+            <ul>
+              <li>
+                <em>Reading a scorecard from a photo.</em> The photograph is sent, along with the
+                name of the player whose scores are being read. A photograph of a card may also show
+                other players&rsquo; names and scores, and handwriting.
+              </li>
+              <li>
+                <em>AI-written commentary.</em> Current standings, which include player names, are
+                sent to generate a line of text.
+              </li>
+            </ul>
+            Nothing is sent unless the feature is enabled and someone uses it. Photographs are sent
+            to be read and are not stored by us; only the scores a person confirms are kept.
           </li>
         </ul>
         <p>We do not sell personal data, and we do not share it for advertising.</p>
