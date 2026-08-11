@@ -649,6 +649,42 @@ export function themeCss(theme: ClubTheme, selector = "[data-club-theme]"): stri
   return `${selector}{${dark}}@media(prefers-color-scheme:light){${selector}{${light}}}`;
 }
 
+/**
+ * The same theme, for a screen someone is holding on the 14th tee.
+ *
+ * Identical to `themeCss` except in what "auto" means. In the console, auto
+ * resolves dark-first and light only if the device asks. That is the wrong way
+ * round outdoors: a dark screen in direct sun is the hardest thing to read on a
+ * phone, and a device set to follow daylight is in light mode *precisely* when
+ * the sun is the problem. `outdoorBar` already assumes this — it grades `auto`
+ * against the light ground — so the console's default was quietly contradicting
+ * the app's own sunlight model.
+ *
+ * So here auto is light-first, and dark applies only when the device explicitly
+ * asks for it (dusk, an evening scramble, a player who has pinned dark).
+ *
+ * A club that has *chosen* light or dark still gets exactly what it chose; this
+ * only decides the undecided case.
+ */
+export function playerThemeCss(theme: ClubTheme, selector = "[data-club-theme]"): string {
+  const dark = declarations(themeVarsFor(theme, DARK_GROUND));
+  const light = declarations(themeVarsFor(theme, LIGHT_GROUND));
+
+  if (theme.appearance === "light") return `${selector}{${light}}`;
+  if (theme.appearance === "dark") return `${selector}{${dark}}`;
+  return `${selector}{${light}}@media(prefers-color-scheme:dark){${selector}{${dark}}}`;
+}
+
+/**
+ * What `color-scheme` a player-facing surface should declare, so native chrome
+ * (scrollbars, form controls) matches the ground chosen above.
+ */
+export function playerColorScheme(theme: ClubTheme): string {
+  if (theme.appearance === "light") return "light";
+  if (theme.appearance === "dark") return "dark";
+  return "light dark";
+}
+
 /* ── Readability on a phone, in the sun, on the 14th tee ─────────────────── */
 
 /**

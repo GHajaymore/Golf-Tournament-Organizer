@@ -114,8 +114,14 @@ model Organization {
    * dark | light | auto. Light is not just taste: a bright screen is far
    * easier to read at arm's length in direct sun, which is where scores are
    * actually entered.
+   *
+   * Defaults to `auto` so a new club follows the device. The console reads
+   * auto as dark-first and the player-facing board as light-first, which is
+   * the point: the same setting resolves to whichever ground suits the screen
+   * it is on. Existing clubs keep whatever they already store — this changes
+   * the default for new rows only, deliberately not a backfill.
    */
-  themeAppearance   String @default("dark")
+  themeAppearance   String @default("auto")
 
   // House defaults for new tournaments. Communities often have several
   // organizers who each run their events differently, so these are only a
@@ -883,7 +889,12 @@ model Stage {
    * for handicapAllowance — so every round that existed before this field
    * keeps scoring the way it always did.
    */
-  allowanceWeights Int[]
+  // `@default([])` states what migration 36 already gave the column in the
+  // database. Without it the schema and the database disagree, and the next
+  // unrelated `migrate dev` silently emits a DROP DEFAULT — which is how it
+  // nearly rode along with a theme change. The column is NOT NULL, so losing
+  // the default would break any INSERT that omits it.
+  allowanceWeights Int[] @default([])
 
   /**
    * How many partners' scores count on each hole, for the formats that
