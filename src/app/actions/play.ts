@@ -202,7 +202,7 @@ export async function savePlayMatchHoles(
   });
   const clean = cleanHoleResults(holes, stage?.holes === 9 ? 9 : 18);
   if (!clean) {
-    return { ok: false, error: "That scorecard doesn't match this round. Reload and try again." };
+    return { ok: false, error: "Those scores aren't valid. Reload the round and try again." };
   }
 
   const complete = clean.every((h) => h !== null);

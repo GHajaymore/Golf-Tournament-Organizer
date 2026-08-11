@@ -32,19 +32,45 @@ export const MAX_HOLES = 18;
 export const MAX_STROKES_PER_HOLE = 30;
 
 /**
+ * Cap and pad to the round's own hole count.
+ *
+ * TOO LONG is refused, because that is the whole finding: extra entries are
+ * read by nassau segmentation and by the tiebreakers, so a longer array
+ * changes the result rather than the row.
+ *
+ * TOO SHORT is padded with nulls, not refused — and getting this wrong once
+ * already broke something. Requiring an exact length looks stricter and is
+ * simply incorrect, because short cards legitimately exist: a CSV imported
+ * with nine columns, and more commonly a round set to nine holes, scored, and
+ * then changed to eighteen. Every one of those cards is loaded into the editor
+ * exactly as stored (see strokesFor in the entry page, which does not pad), so
+ * an exact-length rule would make them permanently unsaveable — an organizer
+ * hitting Save on a real card and being told it "doesn't match this round",
+ * with no way to fix it.
+ *
+ * Padding also normalises storage, which is better than merely tolerating the
+ * short array: the card comes back the right length for its round.
+ */
+function fit<T>(raw: unknown[], expected: number, pad: T): unknown[] {
+  const want = Math.min(MAX_HOLES, Math.max(1, Math.round(expected)));
+  const out = raw.slice(0, want);
+  while (out.length < want) out.push(pad);
+  return out;
+}
+
+/**
  * A hole-by-hole match result, or null when the payload is not one.
  *
- * `expected` is the round's own hole count. The array must match it exactly:
- * a nine-hole round scored over eighteen entries is not a long round, it is a
- * different round, and accepting it would let the tiebreakers read holes that
- * were never played.
+ * Null means "this is not a card": a non-array, or an entry that is not a
+ * result. A wrong length is a shape problem and is corrected; a wrong VALUE is
+ * a content problem and is refused, because there is no honest way to guess
+ * what "X" on the seventh was meant to be.
  */
 export function cleanHoleResults(raw: unknown, expected: number): HoleResult[] | null {
   if (!Array.isArray(raw)) return null;
-  const want = Math.min(MAX_HOLES, Math.max(1, Math.round(expected)));
-  if (raw.length !== want) return null;
+  const sized = fit<HoleResult>(raw, expected, null);
   const out: HoleResult[] = [];
-  for (const v of raw) {
+  for (const v of sized) {
     if (v === null || v === undefined) {
       out.push(null);
       continue;
@@ -64,10 +90,9 @@ export function cleanHoleResults(raw: unknown, expected: number): HoleResult[] |
  */
 export function cleanStrokes(raw: unknown, expected: number): (number | null)[] | null {
   if (!Array.isArray(raw)) return null;
-  const want = Math.min(MAX_HOLES, Math.max(1, Math.round(expected)));
-  if (raw.length !== want) return null;
+  const sized = fit<number | null>(raw, expected, null);
   const out: (number | null)[] = [];
-  for (const v of raw) {
+  for (const v of sized) {
     if (v === null || v === undefined) {
       out.push(null);
       continue;

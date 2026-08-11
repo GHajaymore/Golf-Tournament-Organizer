@@ -1096,7 +1096,7 @@ export async function saveScorecard(stageId: string, playerId: string, strokes: 
   // in a column, it lands on the leaderboard.
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { holes: true } });
   const clean = cleanStrokes(strokes, stage?.holes === 9 ? 9 : 18);
-  if (!clean) throw new Error("That scorecard doesn't match this round. Reload and try again.");
+  if (!clean) throw new Error("Those scores aren't valid. Reload the round and try again.");
 
   if (session.role === "player" && !canPlayerSavePartial(settings)) {
     const filled = clean.filter((s) => typeof s === "number" && s > 0).length;
@@ -1135,7 +1135,7 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     select: { holes: true },
   });
   const clean = cleanStrokes(strokes, cardStage?.holes === 9 ? 9 : 18);
-  if (!clean) throw new Error("That scorecard doesn't match this round. Reload and try again.");
+  if (!clean) throw new Error("Those scores aren't valid. Reload the round and try again.");
 
   if (session.role === "player" && !canPlayerSavePartial(settings)) {
     const filled = clean.filter((s) => typeof s === "number" && s > 0).length;
@@ -1292,7 +1292,7 @@ export async function saveTeamScorecard(
   // result and the match with it. `stage.holes` is already loaded above.
   const cleanCard = cleanStrokes(strokes, stage.holes === 9 ? 9 : 18);
   if (!cleanCard) {
-    return { ok: false, error: "That scorecard doesn't match this round. Reload and try again." };
+    return { ok: false, error: "Those scores aren't valid. Reload the round and try again." };
   }
 
   if (session.role === "player" && !canPlayerSavePartial(settings)) {

@@ -23,16 +23,22 @@ describe("hole-by-hole results", () => {
     expect(cleanHoleResults(card, 9)).toEqual(card);
   });
 
-  it("refuses an array longer than the round", () => {
+  it("caps an array longer than the round", () => {
     // The finding this module exists for: holes.length drives nassau
     // segmentation and tiebreak hole selection, so forty entries on an
     // eighteen-hole round produces a result the course cannot generate.
-    expect(cleanHoleResults(Array(40).fill("A"), 18)).toBeNull();
-    expect(cleanHoleResults(Array(19).fill("A"), 18)).toBeNull();
+    expect(cleanHoleResults(Array(40).fill("A"), 18)).toHaveLength(18);
+    expect(cleanHoleResults(Array(19).fill("A"), 18)).toHaveLength(18);
   });
 
-  it("refuses an array shorter than the round", () => {
-    expect(cleanHoleResults(nine("A"), 18)).toBeNull();
+  it("pads a short card rather than refusing it", () => {
+    // A short card is legitimate and common: a round set to nine holes,
+    // scored, then changed to eighteen. The editor loads it exactly as stored,
+    // so refusing here would make a real card permanently unsaveable.
+    const padded = cleanHoleResults(nine("A"), 18);
+    expect(padded).toHaveLength(18);
+    expect(padded?.slice(0, 9)).toEqual(nine("A"));
+    expect(padded?.slice(9)).toEqual(Array(9).fill(null));
   });
 
   it("refuses values outside A, B and H", () => {
@@ -60,9 +66,21 @@ describe("stroke cards", () => {
     expect(cleanStrokes(card, 9)).toEqual(card);
   });
 
-  it("refuses a wrong length", () => {
-    expect(cleanStrokes(Array(30).fill(4), 18)).toBeNull();
-    expect(cleanStrokes([4, 4], 9)).toBeNull();
+  it("caps a long card and pads a short one", () => {
+    expect(cleanStrokes(Array(30).fill(4), 18)).toHaveLength(18);
+    const partial = cleanStrokes([4, 4], 9);
+    expect(partial).toEqual([4, 4, null, null, null, null, null, null, null]);
+  });
+
+  it("keeps a nine-hole card saveable after the round becomes eighteen", () => {
+    // The regression this rule exists to prevent. An exact-length check made
+    // every card written before the change permanently unsaveable, with the
+    // organizer told their real card "doesn't match this round".
+    const card = [4, 5, 3, 4, 4, 4, 3, 4, 5];
+    const after = cleanStrokes(card, 18);
+    expect(after).not.toBeNull();
+    expect(after?.slice(0, 9)).toEqual(card);
+    expect(after).toHaveLength(18);
   });
 
   it("refuses a score nobody wrote on a card", () => {
