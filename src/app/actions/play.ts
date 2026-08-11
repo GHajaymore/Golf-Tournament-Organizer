@@ -6,6 +6,7 @@ import { createPlaySession, destroyPlaySession, getPlaySession } from "@/lib/pla
 import { settingsOf } from "@/lib/services/tournament";
 import { usesAccessCodes, canPlayerSavePartial, canEnterScores } from "@/lib/tournament-settings";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
+import { cleanHoleResults } from "@/lib/domain/score-payload";
 import { marginToHoles } from "@/lib/domain";
 
 /**
@@ -190,7 +191,21 @@ export async function savePlayMatchHoles(
     return { ok: false, error: "You can only enter scores for your own match." };
   }
 
-  const complete = holes.every((h) => h !== null);
+  // The payload itself, which nothing checked until now. The signature says
+  // Array<"A"|"B"|"H"|null> and that type is erased at runtime, so what
+  // arrives is whatever was posted. It is not inert once stored: holes.length
+  // decides how nassau segments a match and which holes the tiebreakers read,
+  // so a wrong-length array changes the RESULT rather than just the row.
+  const stage = await prisma.stage.findUnique({
+    where: { id: match.stageId },
+    select: { holes: true },
+  });
+  const clean = cleanHoleResults(holes, stage?.holes === 9 ? 9 : 18);
+  if (!clean) {
+    return { ok: false, error: "That scorecard doesn't match this round. Reload and try again." };
+  }
+
+  const complete = clean.every((h) => h !== null);
   if (!complete && !canPlayerSavePartial(settings)) {
     return { ok: false, error: "Enter the full round, then submit it." };
   }
@@ -198,7 +213,7 @@ export async function savePlayMatchHoles(
   await prisma.match.update({
     where: { id: matchId },
     data: {
-      holes: JSON.stringify(holes),
+      holes: JSON.stringify(clean),
       scoreStatus: "pending",
       scoredAt: complete ? new Date() : null,
       confirmedById: null,

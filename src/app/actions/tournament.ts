@@ -18,6 +18,7 @@ import { generateShareToken } from "@/lib/codes";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates } from "@/lib/domain/round-dates";
+import { cleanStrokes } from "@/lib/domain/score-payload";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { splitCsvLine, matchColumn } from "@/lib/csv";
@@ -1087,14 +1088,24 @@ export async function saveScorecard(stageId: string, playerId: string, strokes: 
   await assertEventStage(eventId, stageId);
   await assertEventPlayer(eventId, playerId);
   await assertOwnCard(session, eventId, playerId);
+
+  // The card itself. The guards above answer "may this person write here";
+  // this answers "is this a scorecard at all". The (number | null)[] on the
+  // signature is erased at runtime, and these strokes are summed straight into
+  // gross, net and Stableford totals — so an out-of-range value does not sit
+  // in a column, it lands on the leaderboard.
+  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { holes: true } });
+  const clean = cleanStrokes(strokes, stage?.holes === 9 ? 9 : 18);
+  if (!clean) throw new Error("That scorecard doesn't match this round. Reload and try again.");
+
   if (session.role === "player" && !canPlayerSavePartial(settings)) {
-    const filled = strokes.filter((s) => typeof s === "number" && s > 0).length;
-    if (filled < strokes.length) throw new Error("Enter the full round, then submit it.");
+    const filled = clean.filter((s) => typeof s === "number" && s > 0).length;
+    if (filled < clean.length) throw new Error("Enter the full round, then submit it.");
   }
   await prisma.scorecard.upsert({
     where: { stageId_playerId: { stageId, playerId } },
-    update: { strokes: JSON.stringify(strokes) },
-    create: { eventId, stageId, playerId, strokes: JSON.stringify(strokes) },
+    update: { strokes: JSON.stringify(clean) },
+    create: { eventId, stageId, playerId, strokes: JSON.stringify(clean) },
   });
   refresh();
 }
