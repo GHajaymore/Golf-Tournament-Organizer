@@ -31,13 +31,30 @@ function allTsx(dir: string, out: string[] = []): string[] {
 describe("the brand mark is drawn once", () => {
   const files = allTsx("src");
 
-  it("has exactly one copy of the flagstick geometry", () => {
+  it("has exactly one copy of the flagstick geometry in the app", () => {
     // The flagstick path is the mark's signature. A second file containing it
     // means somebody drew the logo again instead of importing it.
     const drawing = files.filter((f) => read(f).includes('d="M20 4 V18"'));
     expect(drawing, `logo geometry duplicated in: ${drawing.join(", ")}`).toEqual([
       "src/components/Logo.tsx",
     ]);
+  });
+
+  it("keeps the icon generator's copy in step with the component", () => {
+    // This test used to walk .tsx only, so scripts/gen-icons.mjs — which
+    // carries its own copy of the mark for the PWA tiles and the favicon —
+    // escaped it entirely, and did not receive the centring fix. The icons
+    // were shipping with the artwork sitting high in the tile.
+    //
+    // The duplicate is legitimate: those files are built by sharp at a
+    // different scale, outside React, and cannot import a component. So the
+    // rule is that it must carry the SAME optical correction, not that it must
+    // not exist.
+    const gen = readFileSync(join(root, "scripts/gen-icons.mjs"), "utf8");
+    expect(gen, "512-grid mark is not nudged").toContain('transform="translate(0,24)"');
+    expect(gen, "favicon mark is not nudged").toContain('transform="translate(0,1.5)"');
+    // 24 on the 512 grid is 1.5 on the 32 grid, which is Logo.tsx's shift.
+    expect(read("src/components/Logo.tsx")).toContain('viewBox="0 -1.5 32 32"');
   });
 
   it("lets a different palette re-skin the one drawing", () => {

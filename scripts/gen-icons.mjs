@@ -29,12 +29,21 @@ const EDGE = "#55605a"; // green's rim, brightened for small sizes
 /**
  * The mark on a 512 grid — Logo.tsx's 32-unit viewBox scaled 16x.
  * Flagstick and flag top-right, putting surface below, ball on the green.
+ *
+ * Nudged down 24 units, which is Logo.tsx's 1.5 at this scale, and for the
+ * same reason: the drawing spans y 49.6 (flagstick cap) to 414 (cup with its
+ * stroke), an optical centre of ~232 against a box centre of 256. Left alone
+ * it sits high in every tile.
+ *
+ * The shift is on the mark alone rather than the viewBox, because these tiles
+ * have a background rect at 0,0 — moving the viewBox would drag the
+ * background with it and open a gap along one edge.
  */
-const mark = `
+const mark = `<g transform="translate(0,24)">
   <path d="M320 64 V288" stroke="${FLAG}" stroke-width="28.8" stroke-linecap="round"/>
   <path d="M320 72 L440 120 L320 168 Z" fill="${FLAG}"/>
   <ellipse cx="256" cy="352" rx="128" ry="54.4" fill="${GROUND}" stroke="${EDGE}" stroke-width="16"/>
-  <circle cx="192" cy="312" r="54.4" fill="${BALL}"/>`;
+  <circle cx="192" cy="312" r="54.4" fill="${BALL}"/></g>`;
 
 const svg = (body, size = 512) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512">${body}</svg>`;
@@ -55,10 +64,12 @@ const adaptiveFg = svg(`<g transform="translate(87,87) scale(0.66)">${mark}</g>`
 /** The favicon, at the component's own scale so it stays crisp at 16px. */
 const favicon = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
   <rect width="32" height="32" rx="7" fill="${GROUND}"/>
-  <path d="M20 4 V18" stroke="${FLAG}" stroke-width="1.8" stroke-linecap="round"/>
-  <path d="M20 4.5 L27.5 7.5 L20 10.5 Z" fill="${FLAG}"/>
-  <ellipse cx="16" cy="22" rx="8" ry="3.4" fill="${GROUND}" stroke="${EDGE}" stroke-width="1"/>
-  <circle cx="12" cy="19.5" r="3.4" fill="${BALL}"/>
+  <g transform="translate(0,1.5)">
+    <path d="M20 4 V18" stroke="${FLAG}" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M20 4.5 L27.5 7.5 L20 10.5 Z" fill="${FLAG}"/>
+    <ellipse cx="16" cy="22" rx="8" ry="3.4" fill="${GROUND}" stroke="${EDGE}" stroke-width="1"/>
+    <circle cx="12" cy="19.5" r="3.4" fill="${BALL}"/>
+  </g>
 </svg>
 `;
 
