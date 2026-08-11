@@ -1121,15 +1121,31 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   await assertOwnMatch(session, eventId, matchId);
   const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match || match.eventId !== eventId) return;
+
+  // `slot` is half the unique key this upserts on, and its "A" | "B" type is
+  // erased at runtime — an unrecognised value would not overwrite a card, it
+  // would create a third one that nothing reads and nothing cleans up.
+  if (slot !== "A" && slot !== "B") throw new Error("Unknown side.");
+
+  // The card, checked the same way the stroke path is: these numbers are
+  // re-derived into the match result below, so a bad one does not sit in a
+  // row — it decides who won the hole.
+  const cardStage = await prisma.stage.findUnique({
+    where: { id: match.stageId },
+    select: { holes: true },
+  });
+  const clean = cleanStrokes(strokes, cardStage?.holes === 9 ? 9 : 18);
+  if (!clean) throw new Error("That scorecard doesn't match this round. Reload and try again.");
+
   if (session.role === "player" && !canPlayerSavePartial(settings)) {
-    const filled = strokes.filter((s) => typeof s === "number" && s > 0).length;
-    if (filled < strokes.length) throw new Error("Enter the full round, then submit it.");
+    const filled = clean.filter((s) => typeof s === "number" && s > 0).length;
+    if (filled < clean.length) throw new Error("Enter the full round, then submit it.");
   }
 
   await prisma.matchScorecard.upsert({
     where: { matchId_slot: { matchId, slot } },
-    update: { strokes: JSON.stringify(strokes) },
-    create: { eventId, matchId, slot, strokes: JSON.stringify(strokes) },
+    update: { strokes: JSON.stringify(clean) },
+    create: { eventId, matchId, slot, strokes: JSON.stringify(clean) },
   });
 
   const [cardA, cardB, playerA, playerB, event, stage] = await Promise.all([
@@ -1270,17 +1286,26 @@ export async function saveTeamScorecard(
     return { ok: false, error: "You can only enter your own card." };
   }
 
+  // Same boundary as the individual paths. A side's card is aggregated into
+  // the team's score — best ball, combined, best N of four — so an
+  // out-of-range stroke does not affect one player, it decides the side's
+  // result and the match with it. `stage.holes` is already loaded above.
+  const cleanCard = cleanStrokes(strokes, stage.holes === 9 ? 9 : 18);
+  if (!cleanCard) {
+    return { ok: false, error: "That scorecard doesn't match this round. Reload and try again." };
+  }
+
   if (session.role === "player" && !canPlayerSavePartial(settings)) {
-    const filled = strokes.filter((s) => typeof s === "number" && s > 0).length;
-    if (filled < strokes.length) {
+    const filled = cleanCard.filter((s) => typeof s === "number" && s > 0).length;
+    if (filled < cleanCard.length) {
       return { ok: false, error: "Enter the full round, then submit it." };
     }
   }
 
   await prisma.teamScorecard.upsert({
     where: { stageId_matchId_teamId_playerId: { stageId, matchId, teamId, playerId } },
-    update: { strokes: JSON.stringify(strokes) },
-    create: { eventId, stageId, matchId, teamId, playerId, strokes: JSON.stringify(strokes) },
+    update: { strokes: JSON.stringify(cleanCard) },
+    create: { eventId, stageId, matchId, teamId, playerId, strokes: JSON.stringify(cleanCard) },
   });
 
   // Team match play: recompute the match from both sides' cards, so the same

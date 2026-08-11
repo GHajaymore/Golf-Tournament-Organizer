@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import {
   cleanHoleResults,
   cleanStrokes,
@@ -102,5 +104,75 @@ describe("winner and margin", () => {
     expect(cleanMargin("x".repeat(500))).toHaveLength(24);
     expect(cleanMargin(null)).toBe("");
     expect(cleanMargin({})).toBe("");
+  });
+});
+
+/**
+ * The pattern, not just the four instances.
+ *
+ * This gap appeared in four separate actions written months apart, each with
+ * careful authorisation and no payload check — which makes it a habit rather
+ * than an oversight. A fifth score-writing action would very likely repeat it,
+ * so the rule is enforced instead of remembered: anything persisting a card
+ * must persist a value that came out of a cleaner.
+ */
+describe("no action stores a card it did not validate", () => {
+  const root = process.cwd();
+
+  function walk(dir: string, out: string[] = []): string[] {
+    for (const e of readdirSync(join(root, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${e.name}`;
+      if (e.isDirectory()) walk(rel, out);
+      else if (e.name.endsWith(".ts")) out.push(rel);
+    }
+    return out;
+  }
+
+  /**
+   * Named actions rather than a scan of every JSON.stringify.
+   *
+   * The broad version flagged eight lines and six were server-DERIVED locals
+   * that merely share the name — play.ts stores `marginToHoles(...)` into a
+   * variable called `holes`, which is exactly right. A guard with that
+   * false-positive rate gets switched off, and then the real one is gone too.
+   *
+   * These four are the actions that take a card straight from the client.
+   */
+  const TAKES_A_CARD_FROM_THE_CLIENT = [
+    ["src/app/actions/play.ts", "savePlayMatchHoles", "cleanHoleResults"],
+    ["src/app/actions/tournament.ts", "saveScorecard", "cleanStrokes"],
+    ["src/app/actions/tournament.ts", "saveMatchScorecard", "cleanStrokes"],
+    ["src/app/actions/tournament.ts", "saveTeamScorecard", "cleanStrokes"],
+  ] as const;
+
+  it("cleans the payload in every action that accepts one", () => {
+    const missing: string[] = [];
+    for (const [file, fn, cleaner] of TAKES_A_CARD_FROM_THE_CLIENT) {
+      const src = readFileSync(join(root, file), "utf8");
+      const start = src.indexOf(`export async function ${fn}`);
+      if (start === -1) {
+        missing.push(`${fn} not found in ${file}`);
+        continue;
+      }
+      // To the next top-level export, which is this function's whole body.
+      const rest = src.slice(start + 1);
+      const end = rest.indexOf("\nexport ");
+      const body = end === -1 ? rest : rest.slice(0, end);
+      if (!body.includes(cleaner)) missing.push(`${fn} never calls ${cleaner}`);
+    }
+    expect(missing, missing.join("; ")).toEqual([]);
+  });
+
+  it("still has a cleaner to call", () => {
+    // Guards the guard: if score-payload.ts were deleted the test above would
+    // keep passing on the import line alone.
+    const src = readFileSync(join(root, "src/lib/domain/score-payload.ts"), "utf8");
+    expect(src).toMatch(/export function cleanStrokes/);
+    expect(src).toMatch(/export function cleanHoleResults/);
+  });
+
+  it("has a file walker that finds the action directory", () => {
+    // Cheap sanity check: an empty walk would make any scan vacuously pass.
+    expect(walk("src/app/actions").length).toBeGreaterThan(5);
   });
 });
