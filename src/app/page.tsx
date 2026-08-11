@@ -328,7 +328,7 @@ export default async function LoginPage() {
                 <tr><th className="l">Pos</th><th className="l">Player</th><th>Thru</th><th>To par</th><th>Total</th></tr>
               </thead>
               <tbody>
-                <tr className="lead"><td className="pos">1</td><td className="name">A. More</td><td className="num">F</td><td className="par under">&minus;6</td><td className="num">138</td></tr>
+                <tr className="lead"><td className="pos">1</td><td className="name">A. Moore</td><td className="num">F</td><td className="par under">&minus;6</td><td className="num">138</td></tr>
                 <tr><td className="pos">2</td><td className="name">M. Ellis</td><td className="num">F</td><td className="par under">&minus;4</td><td className="num">140</td></tr>
                 <tr><td className="pos">T3</td><td className="name">T. Brooks</td><td className="num">F</td><td className="par under">&minus;2</td><td className="num">142</td></tr>
                 <tr><td className="pos">T3</td><td className="name">D. Warren</td><td className="num">F</td><td className="par under">&minus;2</td><td className="num">142</td></tr>
