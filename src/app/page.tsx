@@ -8,12 +8,20 @@ import { Logo, LOGO_SIZE } from "@/components/Logo";
 /**
  * The front door.
  *
- * A faithful port of the approved "championship programme on fairway green"
- * landing design. Everything visual is scoped under the `.thq` wrapper and its
- * own `--flag/--ground/--paper` palette, defined in the page-local stylesheet
- * below — deliberately NOT the app's `--color-*` tokens, so this identity never
- * leaks into the authenticated console chrome and the console theme never
- * bleeds in here.
+ * Direction 02, "The Board" — standing in front of the leaderboard in the
+ * clubhouse. The board is the hero and type does the work: a grotesque set very
+ * large and tracked tight, night ground, fairway green for anything live or
+ * under par, and exactly one amber, spent on the last word of the headline.
+ *
+ * It replaced a serif "championship programme" treatment. The problem with that
+ * one was not that it was ugly — it read editorial, and this app's claim is that
+ * it is LIVE.
+ *
+ * Everything visual is scoped under the `.thq` wrapper and its own
+ * `--flag/--ground/--paper` palette, defined in the page-local stylesheet below
+ * — deliberately NOT the app's `--color-*` tokens, so this identity never leaks
+ * into the authenticated console chrome and the console theme never bleeds in
+ * here.
  *
  * The one thing not hard-coded is the worked handicap example: it is computed
  * from the same engine the app scores with, so the number a visitor is shown on
@@ -37,23 +45,28 @@ const EXAMPLE = (() => {
 const LANDING_CSS = `
 .thq, .thq * { box-sizing: border-box; }
 .thq {
-  --ground:#0E231A; --ground-2:#123026; --panel:#14342785;
+  /* Direction 02, "The Board": standing in front of the clubhouse leaderboard.
+     Night ground, fairway green for anything live or under par, and exactly one
+     amber — spent on the last word of the headline and nowhere else. */
+  --ground:#0C100E; --ground-2:#121815; --panel:#141A1785;
   --paper:#F1EDE1; --paper-2:#E9E4D4; --paper-ink:#1B2A22; --paper-soft:#5A6B5E;
-  --ink:#EFEEE4; --ink-soft:#A6B8AC; --ink-faint:#6E8378;
-  --line:rgba(239,238,228,0.12); --line-2:rgba(239,238,228,0.22);
-  --flag:#F2862E; --flag-soft:#F6A468; --under:#E36B5C; --brass:#C7A45E;
-  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
-  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
-  --mono:"SFMono-Regular","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --ink:#E8ECE9; --ink-soft:#94A29C; --ink-faint:#6F807A;
+  --line:rgba(232,236,233,0.10); --line-2:rgba(232,236,233,0.20);
+  --flag:#4FA97C; --flag-soft:#63BE90; --under:#4FA97C; --brass:#E8A33D;
+  --sans:var(--font-geist-sans),-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  --mono:var(--font-geist-mono),ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
   font-family:var(--sans); background:var(--ground); color:var(--ink);
   line-height:1.6; -webkit-font-smoothing:antialiased;
 }
 @media (prefers-color-scheme: light) {
   .thq {
-    --ground:#F1EDE1; --ground-2:#E9E4D4; --panel:#FBF9F1;
-    --ink:#182A20; --ink-soft:#4E5E52; --ink-faint:#86928A;
-    --line:rgba(20,35,25,0.12); --line-2:rgba(20,35,25,0.22);
-    --flag:#C56A10; --flag-soft:#B85F0C; --under:#C0453B; --brass:#997633;
+    /* The board seen in daylight rather than a different design. Green and
+       amber both darken so they still carry on paper-white; a board is only
+       readable if under-par reads instantly, and #4FA97C on white does not. */
+    --ground:#F6F5F1; --ground-2:#EDEBE4; --panel:#FFFFFF;
+    --ink:#14181A; --ink-soft:#55605B; --ink-faint:#7C8781;
+    --line:rgba(18,24,21,0.11); --line-2:rgba(18,24,21,0.20);
+    --flag:#1F7A50; --flag-soft:#186541; --under:#1F7A50; --brass:#A8701A;
     --paper:#10251B; --paper-2:#0C1F16; --paper-ink:#EDEBE0; --paper-soft:#9FB1A5;
   }
 }
@@ -64,13 +77,13 @@ const LANDING_CSS = `
 .thq .nav { position:sticky; top:0; z-index:20; background:color-mix(in srgb, var(--ground) 84%, transparent); backdrop-filter:blur(14px); border-bottom:1px solid var(--line); transition:box-shadow .25s ease, background .25s ease; }
 .thq .nav.scrolled { background:color-mix(in srgb, var(--ground) 94%, transparent); box-shadow:0 10px 34px -24px rgba(0,0,0,0.6); }
 .thq .nav-in { display:flex; align-items:center; justify-content:space-between; height:64px; }
-.thq .brand { display:flex; align-items:center; gap:11px; font-family:var(--serif); font-size:20px; font-weight:600; letter-spacing:-0.01em; }
-.thq .brand .hq { color:var(--flag); font-style:italic; }
+.thq .brand { display:flex; align-items:center; gap:11px; font-family:var(--sans); font-size:19px; font-weight:700; letter-spacing:-0.025em; }
+.thq .brand .hq { color:var(--brass); font-style:italic; }
 .thq .nav-actions { display:flex; align-items:center; gap:10px; }
 .thq .btn { font-family:var(--sans); font-size:13.5px; font-weight:560; cursor:pointer; border-radius:8px; padding:9px 16px; border:1px solid transparent; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:transform .16s ease, background .16s ease, border-color .16s ease, color .16s ease; letter-spacing:-0.005em; }
 .thq .btn-ghost { color:var(--ink-soft); border-color:var(--line-2); }
 .thq .btn-ghost:hover { color:var(--ink); border-color:var(--ink-faint); }
-.thq .btn-solid { background:var(--flag); color:#17130C; font-weight:640; }
+.thq .btn-solid { background:var(--brass); color:#17130C; font-weight:640; }
 @media (prefers-color-scheme: light) { .thq .btn-solid { color:#FFF7EE; } }
 .thq .btn-solid:hover { transform:translateY(-1px); background:var(--flag-soft); }
 .thq .btn-lg { padding:13px 22px; font-size:15px; }
@@ -80,11 +93,20 @@ const LANDING_CSS = `
 .thq .hero { position:relative; overflow:hidden; border-bottom:1px solid var(--line); }
 .thq .hero::before { content:""; position:absolute; inset:-40% -20% auto 40%; height:720px; z-index:0; background:radial-gradient(50% 60% at 70% 10%, color-mix(in srgb, var(--flag) 14%, transparent), transparent 70%); pointer-events:none; }
 .thq .hero::after { content:""; position:absolute; inset:0; z-index:0; pointer-events:none; background:repeating-linear-gradient(90deg, transparent 0 72px, color-mix(in srgb, var(--ink) 3%, transparent) 72px 144px); -webkit-mask-image:linear-gradient(180deg, #000, transparent 78%); mask-image:linear-gradient(180deg, #000, transparent 78%); }
-.thq .hero-in { position:relative; z-index:1; display:grid; grid-template-columns:1.02fr 0.98fr; gap:56px; align-items:center; padding:96px 0 88px; }
+.thq .hero-in { position:relative; z-index:1; display:grid; grid-template-columns:1.02fr 0.98fr; gap:56px; align-items:center; padding:76px 0 68px; }
 .thq .eyebrow { display:inline-flex; align-items:center; gap:10px; font-size:11.5px; text-transform:uppercase; letter-spacing:0.18em; font-weight:650; color:var(--brass); }
 .thq .eyebrow::before { content:""; width:22px; height:1px; background:var(--brass); }
-.thq h1 { font-family:var(--serif); font-weight:600; font-size:clamp(2.6rem, 5.4vw, 4.3rem); line-height:1.03; letter-spacing:-0.02em; margin:22px 0 0; text-wrap:balance; }
-.thq h1 em { font-style:italic; color:var(--flag); }
+/* Type IS the hero in this direction: a grotesque set very large and tracked
+   tight, the way a board reads across a room. Not the serif — that belonged to
+   the programme direction, and a serif at this size reads editorial rather
+   than live. */
+.thq h1 { font-family:var(--sans); font-weight:700; font-size:clamp(2.7rem, 6.2vw, 5rem); line-height:0.96; letter-spacing:-0.035em; margin:20px 0 0; text-wrap:balance; }
+.thq h1 em { font-style:normal; color:var(--brass); }
+/* The four verbs. Spaced and uppercase so they read as a sequence — which is
+   what they are: the organizer's actual path through the app. */
+.thq .verbs { display:flex; flex-wrap:wrap; gap:8px 18px; margin:22px 0 0; font-size:12px; font-weight:650; letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-soft); }
+.thq .verbs span { display:inline-flex; align-items:center; gap:9px; }
+.thq .verbs span::before { content:""; width:5px; height:5px; border-radius:50%; background:var(--brass); flex:none; }
 .thq .lede { font-size:clamp(1.02rem, 1.4vw, 1.16rem); color:var(--ink-soft); margin:24px 0 0; max-width:40ch; line-height:1.6; }
 .thq .cta-row { display:flex; gap:12px; margin-top:32px; flex-wrap:wrap; }
 .thq .proof { display:flex; gap:8px 22px; margin-top:34px; flex-wrap:wrap; font-size:12.5px; color:var(--ink-soft); }
@@ -93,7 +115,7 @@ const LANDING_CSS = `
 
 .thq .board { background:var(--panel); border:1px solid var(--line-2); border-radius:16px; overflow:hidden; box-shadow:0 30px 70px -34px rgba(0,0,0,0.6); }
 .thq .board-top { display:flex; align-items:center; justify-content:space-between; padding:15px 18px; border-bottom:1px solid var(--line); }
-.thq .board-top .t { font-family:var(--serif); font-size:15px; font-weight:600; }
+.thq .board-top .t { font-family:var(--sans); font-size:15px; font-weight:600; }
 .thq .board-top .t small { display:block; font-family:var(--sans); font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-faint); font-weight:600; margin-top:2px; }
 .thq .live { display:inline-flex; align-items:center; gap:7px; font-size:10.5px; font-weight:650; letter-spacing:0.12em; text-transform:uppercase; color:var(--under); }
 .thq .live b { width:7px; height:7px; border-radius:50%; background:var(--under); animation:thqpulse 2s infinite; }
@@ -119,29 +141,29 @@ const LANDING_CSS = `
 .thq .band .sec-kick { color:var(--brass); }
 .thq .band .sec-h { color:var(--paper-ink); }
 .thq .band .sec-sub { color:var(--paper-soft); }
-.thq .cardgrid { display:grid; grid-template-columns:1.05fr 0.95fr; gap:40px; align-items:center; margin-top:44px; }
+.thq .cardgrid { display:grid; grid-template-columns:1.05fr 0.95fr; gap:40px; align-items:center; margin-top:32px; }
 .thq .scard { background:var(--paper-2); border:1px solid color-mix(in srgb, var(--paper-ink) 12%, transparent); border-radius:14px; padding:6px; }
 .thq .scard-in { border:1px dashed color-mix(in srgb, var(--paper-ink) 22%, transparent); border-radius:10px; padding:18px 20px; }
-.thq .band h3.big { font-family:var(--serif); font-size:clamp(1.5rem, 2.6vw, 2rem); font-weight:600; letter-spacing:-0.02em; margin:0; color:var(--paper-ink); text-wrap:balance; }
+.thq .band h3.big { font-family:var(--sans); font-size:clamp(1.5rem, 2.6vw, 2rem); font-weight:700; letter-spacing:-0.02em; margin:0; color:var(--paper-ink); text-wrap:balance; }
 .thq .band .body { color:var(--paper-soft); margin:16px 0 0; font-size:14.5px; line-height:1.6; }
 .thq .band .body b { color:var(--paper-ink); font-weight:600; }
 
-.thq section { padding:100px 0; }
+.thq section { padding:72px 0; }
 .thq .sec-kick { font-size:11.5px; text-transform:uppercase; letter-spacing:0.16em; font-weight:650; color:var(--brass); }
-.thq .sec-h { font-family:var(--serif); font-size:clamp(1.7rem, 3vw, 2.4rem); font-weight:600; letter-spacing:-0.02em; margin:12px 0 0; text-wrap:balance; }
+.thq .sec-h { font-family:var(--sans); font-size:clamp(1.7rem, 3vw, 2.4rem); font-weight:700; letter-spacing:-0.02em; margin:12px 0 0; text-wrap:balance; }
 .thq .sec-sub { color:var(--ink-soft); margin:14px 0 0; max-width:54ch; line-height:1.6; }
 
-.thq .features { display:grid; grid-template-columns:repeat(3, 1fr); gap:1px; margin-top:50px; background:var(--line); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+.thq .features { display:grid; grid-template-columns:repeat(3, 1fr); gap:1px; margin-top:36px; background:var(--line); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
 .thq .feat { background:var(--ground); padding:30px 28px; display:flex; flex-direction:column; gap:13px; min-height:190px; transition:background .18s ease; }
 .thq .feat:hover { background:var(--ground-2); }
 .thq .feat .ic { width:28px; height:28px; color:var(--brass); }
-.thq .feat h4 { font-family:var(--serif); font-size:17px; font-weight:600; letter-spacing:-0.01em; margin:0; }
+.thq .feat h4 { font-family:var(--sans); font-size:17px; font-weight:600; letter-spacing:-0.01em; margin:0; }
 .thq .feat p { font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.56; }
 
-.thq .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:40px; margin-top:50px; }
+.thq .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:40px; margin-top:36px; }
 .thq .step { padding-top:22px; border-top:1px solid var(--line-2); }
 .thq .step .n { font-family:var(--mono); font-size:11.5px; color:var(--flag); letter-spacing:0.08em; }
-.thq .step h4 { font-family:var(--serif); font-size:19px; font-weight:600; margin:12px 0 8px; letter-spacing:-0.01em; }
+.thq .step h4 { font-family:var(--sans); font-size:19px; font-weight:600; margin:12px 0 8px; letter-spacing:-0.01em; }
 .thq .step p { font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.56; }
 
 .thq .chips { display:flex; flex-wrap:wrap; gap:10px; margin-top:36px; }
@@ -151,7 +173,7 @@ const LANDING_CSS = `
 
 .thq .faq { margin-top:44px; border-top:1px solid var(--line); }
 .thq .faq details { border-bottom:1px solid var(--line); }
-.thq .faq summary { list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:24px; padding:24px 4px; font-family:var(--serif); font-size:clamp(1rem, 1.6vw, 1.18rem); font-weight:600; letter-spacing:-0.012em; color:var(--ink); transition:color .16s ease; }
+.thq .faq summary { list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:24px; padding:24px 4px; font-family:var(--sans); font-size:clamp(1rem, 1.6vw, 1.18rem); font-weight:600; letter-spacing:-0.012em; color:var(--ink); transition:color .16s ease; }
 .thq .faq summary:hover { color:var(--flag-soft); }
 .thq .faq summary::-webkit-details-marker { display:none; }
 .thq .faq .chev { flex:none; width:19px; height:19px; color:var(--brass); transition:transform .22s cubic-bezier(.2,.7,.2,1); }
@@ -177,12 +199,12 @@ const LANDING_CSS = `
 
 .thq .close { text-align:center; padding:108px 0; border-top:1px solid var(--line); position:relative; overflow:hidden; }
 .thq .close::before { content:""; position:absolute; inset:auto 0 -50% 0; height:460px; background:radial-gradient(50% 100% at 50% 100%, color-mix(in srgb, var(--flag) 12%, transparent), transparent 72%); pointer-events:none; }
-.thq .close h2 { font-family:var(--serif); position:relative; font-size:clamp(2rem, 4vw, 3rem); font-weight:600; letter-spacing:-0.025em; margin:0; text-wrap:balance; }
+.thq .close h2 { font-family:var(--sans); position:relative; font-size:clamp(2rem, 4vw, 3rem); font-weight:700; letter-spacing:-0.025em; margin:0; text-wrap:balance; }
 .thq .close p { position:relative; color:var(--ink-soft); margin:18px auto 32px; max-width:46ch; }
 
 .thq footer { border-top:1px solid var(--line); padding:34px 0 44px; }
 .thq .foot-in { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
-.thq .foot-brand { font-family:var(--serif); font-size:17px; font-weight:600; display:flex; align-items:center; gap:10px; }
+.thq .foot-brand { font-family:var(--sans); font-size:17px; font-weight:600; display:flex; align-items:center; gap:10px; }
 .thq .foot-brand .hq { color:var(--flag); font-style:italic; }
 .thq .foot-meta { font-size:12.5px; color:var(--ink-faint); display:flex; gap:18px; flex-wrap:wrap; }
 .thq .foot-meta .cred { color:var(--ink-soft); }
@@ -201,7 +223,7 @@ const LANDING_CSS = `
   .thq .steps { grid-template-columns:1fr; gap:30px; }
   .thq .authwrap { grid-template-columns:1fr; gap:34px; }
   .thq .lede { max-width:none; }
-  .thq section { padding:72px 0; }
+  .thq section { padding:54px 0; }
 }
 `;
 
@@ -276,8 +298,15 @@ export default async function LoginPage() {
         <div className="wrap hero-in" id="thq-hero">
           <div>
             <div className="eyebrow rise">For clubs, societies, corporate &amp; charity events</div>
-            <h1 className="rise">Signed. Attested.<br /><em>Settled.</em></h1>
-            <p className="lede rise">From the first tee to the trophy, TourneyHQ scores every format to the book, carries the cut round to round, and puts a live leaderboard on every phone at the tee.</p>
+            <h1 className="rise">From Registration<br />to <em>Recognition.</em></h1>
+            {/* The four verbs are the organizer's real path through the app —
+                registration, flights and pairings, rounds and scoring, prizes
+                and the champion — which is why they earn the sequence
+                treatment rather than being decoration. */}
+            <div className="verbs rise">
+              <span>Plan it</span><span>Pair it</span><span>Play it</span><span>Crown it</span>
+            </div>
+            <p className="lede rise">Every format scored to the book, the cut carried round to round, the skins settled to the penny — and a live leaderboard on every phone at the tee.</p>
             <div className="cta-row rise">
               <a className="btn btn-solid btn-lg" href="#signup" role="button">Set up your first event</a>
               <a className="btn btn-ghost btn-lg" href="#board" role="button">See a live leaderboard</a>

@@ -48,7 +48,13 @@ export function Logo({
     <svg
       width={size}
       height={size}
-      viewBox="0 0 32 32"
+      /* Shifted 1.5 units so the ARTWORK is centred in the box, not merely the
+         box in its container. The drawing spans y 3.1 (flagstick cap) to 25.9
+         (cup including stroke) — an optical centre of 14.5 against a box centre
+         of 16 — so every flex-centred lockup rendered the mark slightly high
+         beside its wordmark. Corrected here rather than nudged per call site,
+         so the landing page and the app sidebar cannot disagree. */
+      viewBox="0 -1.5 32 32"
       fill="none"
       aria-hidden="true"
       style={style}
