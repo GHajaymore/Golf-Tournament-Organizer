@@ -397,8 +397,12 @@ export function ThemePicker({
 
       {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
 
+      {/* The button row wraps, because it holds up to three buttons and one of
+          them says "Back to default (Sunset + Fairway)" — 241px that will not
+          break. On a phone the row pushed the page 4px wide, which the fixed
+          tab bar then stretched to match. */}
       {!readOnly && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button
             type="button"
             className="btn btn-primary"

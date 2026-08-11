@@ -292,6 +292,22 @@ body {
   }
 }
 
+/*
+ * ...and the same guarantee for the ITEMS, which the track rule above does not
+ * give them.
+ *
+ * A grid item defaults to `min-width: auto`, meaning it refuses to shrink below
+ * its own content's intrinsic width. So minmax(0, 1fr) correctly held the
+ * TRACK at 347px on a 375px phone while the panel inside it sat at 661px and
+ * pushed the whole document sideways — Registration & field scrolled the body
+ * to 694px, which is the one thing a layout must never do.
+ *
+ * The track rule and this one are a pair; neither is sufficient alone.
+ */
+.page-split > * {
+  min-width: 0;
+}
+
 /* ===================== Mobile shell (players) ===================== */
 .mobile-only {
   display: none;

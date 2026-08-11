@@ -191,45 +191,56 @@ export function CourseSetupPrompt({
         <summary style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 600, marginBottom: 10 }}>
           Or type the card in by hand
         </summary>
+        {/* Each nine gets its own scroller.
+            `width: 100%` sounds like it bounds the table and does not: a table's
+            intrinsic minimum is the sum of what its cells need, and ten columns
+            of number inputs need about 418px. On a 375px phone the row simply
+            ran past the edge — and because no ancestor scrolled, the last holes
+            were not merely awkward to reach, they were unreachable. Nobody could
+            type a score into the 8th or 9th.
+            The overflow lives on a wrapper rather than the table so the header
+            row scrolls with its own columns. */}
         {[0, 9].map((offset) => (
-          <table key={offset} className="sc" style={{ width: "100%", marginBottom: 10 }}>
-            <thead>
-              <tr>
-                <th>{offset === 0 ? "Front" : "Back"}</th>
-                {Array.from({ length: 9 }, (_, i) => (
-                  <th key={i}>{offset + i + 1}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(
-                [
-                  ["Par", pars, setPars, "4"],
-                  ["Yards", yards, setYards, "400"],
-                  ["S.I.", strokeIndex, setStrokeIndex, String(offset + 1)],
-                ] as const
-              ).map(([label, values, setter, hint]) => (
-                <tr key={label}>
-                  <td>{label}</td>
-                  {Array.from({ length: 9 }, (_, i) => {
-                    const idx = offset + i;
-                    return (
-                      <td key={idx} style={{ padding: 2 }}>
-                        <input
-                          className="input sc-score"
-                          inputMode="numeric"
-                          value={values[idx] ?? ""}
-                          placeholder={hint}
-                          aria-label={`${label}, hole ${idx + 1}`}
-                          onChange={(e) => setCell(values, setter, idx, e.target.value)}
-                        />
-                      </td>
-                    );
-                  })}
+          <div key={offset} style={{ overflowX: "auto", marginBottom: 10 }}>
+            <table className="sc" style={{ width: "100%", minWidth: 430 }}>
+              <thead>
+                <tr>
+                  <th>{offset === 0 ? "Front" : "Back"}</th>
+                  {Array.from({ length: 9 }, (_, i) => (
+                    <th key={i}>{offset + i + 1}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {(
+                  [
+                    ["Par", pars, setPars, "4"],
+                    ["Yards", yards, setYards, "400"],
+                    ["S.I.", strokeIndex, setStrokeIndex, String(offset + 1)],
+                  ] as const
+                ).map(([label, values, setter, hint]) => (
+                  <tr key={label}>
+                    <td>{label}</td>
+                    {Array.from({ length: 9 }, (_, i) => {
+                      const idx = offset + i;
+                      return (
+                        <td key={idx} style={{ padding: 2 }}>
+                          <input
+                            className="input sc-score"
+                            inputMode="numeric"
+                            value={values[idx] ?? ""}
+                            placeholder={hint}
+                            aria-label={`${label}, hole ${idx + 1}`}
+                            onChange={(e) => setCell(values, setter, idx, e.target.value)}
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ))}
       </details>
 

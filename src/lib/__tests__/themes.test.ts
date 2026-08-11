@@ -737,3 +737,53 @@ describe("ready-made palette pairs", () => {
     expect(pairFor("claret", "ivy")).toBeNull();
   });
 });
+
+describe("the neutral ramps are readable on their own ground", () => {
+  /**
+   * The accent ramps are *solved* against `contrastFloors`, so they cannot
+   * drift. The neutrals are hand-picked constants and were never measured —
+   * which is how the light ground shipped `--color-neutral-500` at 4.46:1,
+   * just under the bar, carrying the 10px page kicker ("Overview", "Set-up")
+   * on every screen. Small muted text on a pale ground is the easiest thing
+   * in an interface to get wrong by eye and the hardest to read outdoors.
+   *
+   * Steps 100–500 are the foreground half of the ramp on either ground; the
+   * 600–900 end is background tint and carries no text, so it is not held to
+   * a text ratio.
+   */
+  const FOREGROUND_STEPS = [100, 200, 300, 400, 500];
+  const STEPS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+
+  for (const ground of [DARK_GROUND, LIGHT_GROUND]) {
+    for (const step of FOREGROUND_STEPS) {
+      const shade = ground.neutrals[STEPS.indexOf(step)];
+
+      it(`${ground.key}: neutral-${step} is readable on the page`, () => {
+        expect(
+          contrastRatio(shade, ground.bg),
+          `${ground.key} neutral-${step} (${shade}) on bg ${ground.bg}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      });
+
+      it(`${ground.key}: neutral-${step} is readable on a card`, () => {
+        expect(
+          contrastRatio(shade, ground.surface),
+          `${ground.key} neutral-${step} (${shade}) on surface ${ground.surface}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+
+    it(`${ground.key}: the ramp still darkens step by step`, () => {
+      // Fixing a contrast failure by dragging one step toward its neighbour
+      // would pass the check above and quietly flatten the ramp.
+      const lums = STEPS.map((s) => relativeLuminance(ground.neutrals[STEPS.indexOf(s)]));
+      const rising = ground.key === "light";
+      for (let i = 1; i < lums.length; i++) {
+        expect(
+          rising ? lums[i] > lums[i - 1] : lums[i] < lums[i - 1],
+          `${ground.key} neutral-${STEPS[i]} is not distinct from neutral-${STEPS[i - 1]}`,
+        ).toBe(true);
+      }
+    });
+  }
+});

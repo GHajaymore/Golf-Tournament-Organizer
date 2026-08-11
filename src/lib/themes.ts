@@ -163,7 +163,14 @@ export const LIGHT_GROUND: Ground = {
   // Darker through the middle than a straight reversal would give: neutral-500
   // carries muted labels and icons, and the dark ramp's mid greys are far too
   // pale to read on paper.
-  neutrals: ["#1f2126", "#2b2d33", "#3f424d", "#565a68", "#6b6f80", "#9297a8", "#b8bccd", "#d7dae7", "#eceef7"],
+  //
+  // Step 500 was #6b6f80, which measured 4.46:1 on this ground — under the bar
+  // it is held to, and it carries the smallest text in the app (the 10px page
+  // kicker). It is darkened just far enough to clear with margin. The floors in
+  // `contrastFloors` never caught this because they govern the *solved* accent
+  // steps; these neutrals are constants and were checked by eye. There is now a
+  // test that measures them.
+  neutrals: ["#1f2126", "#2b2d33", "#3f424d", "#565a68", "#666a7a", "#9297a8", "#b8bccd", "#d7dae7", "#eceef7"],
   // The dark theme's salmon red only manages about 3:1 on white, so light mode
   // takes a deeper one. Error text is the last thing that should be hard to
   // read.
