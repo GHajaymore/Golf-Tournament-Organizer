@@ -8,16 +8,36 @@ import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
 import { resolveAttendance, type AttendanceMode } from "@/lib/domain/attendance";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { shortDate } from "@/lib/domain/round-dates";
 import { TeeSheetPrint } from "@/components/TeeSheetPrint";
 import { resolveCourse } from "@/lib/courses";
 import { brandForEvent } from "@/lib/services/organization";
 
-export default async function FoursomesPage() {
+export default async function FoursomesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ round?: string }>;
+}) {
   await requireScreen("foursomes");
   const session = await getSession();
   if (!session) redirect("/");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
+  const params = await searchParams;
+
+  /**
+   * Which round's sheet is being drawn.
+   *
+   * This screen used to read state.activeStage and nothing else, alone among
+   * every round-scoped screen in the app — score entry, prizes, teams and the
+   * weekly view all let an organizer choose. Three things followed: next
+   * week's sheet could not be drawn ahead, last week's could not be reopened,
+   * and — the real fault — activeStage is DERIVED, so as a tournament advanced
+   * the page silently changed which round it was editing, with nothing on
+   * screen to say so.
+   */
+  const rounds = playingStages(state.stages);
+  const stage = rounds.find((s) => s.id === params.round) ?? state.activeStage ?? rounds[0] ?? null;
 
   /**
    * The current leaderboard, for re-pairing and for drawing the leaders out
@@ -42,7 +62,7 @@ export default async function FoursomesPage() {
   // Printed cards come from the SAVED sheet, never the on-screen preview —
   // the preview reshuffles on every visit, and a card has to match what was
   // announced. No saved sheet, no print button.
-  const savedSheet = state.activeStage ? parseTeeSheet(state.activeStage.teeSheet) : null;
+  const savedSheet = stage ? parseTeeSheet(stage.teeSheet) : null;
   const course = resolveCourse(state.event);
   const brand = await brandForEvent(session.eventId);
   const nameOf = new Map(state.confirmed.map((p) => [p.id, p]));
@@ -63,9 +83,9 @@ export default async function FoursomesPage() {
   const attendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
   let field = state.confirmed;
   let attendanceNote = "";
-  if (attendanceMode !== "everyone" && state.activeStage) {
+  if (attendanceMode !== "everyone" && stage) {
     const explicit = await prisma.roundAttendance.findMany({
-      where: { eventId: session.eventId, stageId: state.activeStage.id },
+      where: { eventId: session.eventId, stageId: stage.id },
     });
     const resolved = resolveAttendance(
       attendanceMode,
@@ -96,16 +116,21 @@ export default async function FoursomesPage() {
         players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }))}
         standings={standings}
         holes={holes}
-        stageId={state.activeStage?.id ?? ""}
-        savedAt={state.activeStage ? parseTeeSheet(state.activeStage.teeSheet)?.savedAt ?? "" : ""}
-        published={state.activeStage?.teeSheetPublished ?? false}
+        stageId={stage?.id ?? ""}
+        savedAt={stage ? parseTeeSheet(stage.teeSheet)?.savedAt ?? "" : ""}
+        published={stage?.teeSheetPublished ?? false}
+        rounds={rounds.map((r, i) => ({
+          id: r.id,
+          label: r.playedOn ? `Round ${i + 1} · ${shortDate(r.playedOn)}` : `Round ${i + 1}`,
+        }))}
+        activeRoundId={stage?.id ?? ""}
       />
       <TeeSheetPrint
         groups={printGroups}
         clubName={brand?.name ?? ""}
         courseName={course.name || state.event.course}
         dates={state.event.dates}
-        roundLabel={`Round ${Math.max(1, playingStages(state.stages).findIndex((r) => r.id === state.activeStage?.id) + 1)}`}
+        roundLabel={`Round ${Math.max(1, rounds.findIndex((r) => r.id === stage?.id) + 1)}`}
         pars={course.pars}
         strokeIndex={course.strokeIndex}
         holes={holes}

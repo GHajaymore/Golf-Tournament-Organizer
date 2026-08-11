@@ -328,11 +328,16 @@ export default async function LoginPage() {
                 <tr><th className="l">Pos</th><th className="l">Player</th><th>Thru</th><th>To par</th><th>Total</th></tr>
               </thead>
               <tbody>
-                <tr className="lead"><td className="pos">1</td><td className="name">A. Moore</td><td className="num">F</td><td className="par under">&minus;6</td><td className="num">138</td></tr>
+                {/* Half the field still out. The badge says LIVE, so the board
+                    has to look live: every row reading F described a finished
+                    round, which quietly contradicted the one claim this page
+                    is making. Totals are blank for anyone mid-round, because a
+                    total before the 18th is not a thing. */}
+                <tr className="lead"><td className="pos">1</td><td className="name">A. Moore</td><td className="num">14</td><td className="par under">&minus;6</td><td className="num">&mdash;</td></tr>
                 <tr><td className="pos">2</td><td className="name">M. Ellis</td><td className="num">F</td><td className="par under">&minus;4</td><td className="num">140</td></tr>
-                <tr><td className="pos">T3</td><td className="name">T. Brooks</td><td className="num">F</td><td className="par under">&minus;2</td><td className="num">142</td></tr>
+                <tr><td className="pos">T3</td><td className="name">T. Brooks</td><td className="num">16</td><td className="par under">&minus;2</td><td className="num">&mdash;</td></tr>
                 <tr><td className="pos">T3</td><td className="name">D. Warren</td><td className="num">F</td><td className="par under">&minus;2</td><td className="num">142</td></tr>
-                <tr><td className="pos">5</td><td className="name">A. Reid</td><td className="num">F</td><td className="par even">E</td><td className="num">144</td></tr>
+                <tr><td className="pos">5</td><td className="name">A. Reid</td><td className="num">11</td><td className="par even">E</td><td className="num">&mdash;</td></tr>
                 <tr><td className="pos">6</td><td className="name">S. Hayes</td><td className="num">F</td><td className="par even">+2</td><td className="num">146</td></tr>
               </tbody>
             </table>

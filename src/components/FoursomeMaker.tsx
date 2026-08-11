@@ -50,6 +50,8 @@ export function FoursomeMaker({
   stageId = "",
   savedAt = "",
   published = false,
+  rounds = [],
+  activeRoundId = "",
 }: {
   players: Player[];
   /** Current leaderboard, best first. Empty before anyone has posted a score. */
@@ -60,6 +62,9 @@ export function FoursomeMaker({
   /** When a sheet was last saved for this round, ISO. Empty = never. */
   savedAt?: string;
   published?: boolean;
+  /** Every round the field plays, so a sheet can be drawn ahead or reopened. */
+  rounds?: Array<{ id: string; label: string }>;
+  activeRoundId?: string;
 }) {
   const hasStandings = standings.length > 0;
   const [algo, setAlgo] = useState<Pairing>("random");
@@ -155,6 +160,35 @@ export function FoursomeMaker({
 
   return (
     <>
+      {/* Which round's sheet this is — the one thing this screen never said.
+          It read the active round and nothing else, so next week's sheet could
+          not be drawn ahead, last week's could not be reopened, and the page
+          quietly changed subject as the tournament advanced. */}
+      {rounds.length > 1 && (
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            overflowX: "auto",
+            paddingBottom: 6,
+            marginBottom: 14,
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          {rounds.map((r) => (
+            <a
+              key={r.id}
+              href={`/foursomes?round=${r.id}`}
+              className={r.id === activeRoundId ? "btn btn-primary" : "btn btn-ghost"}
+              style={{ whiteSpace: "nowrap", flexShrink: 0, fontSize: 12.5, textDecoration: "none" }}
+              aria-current={r.id === activeRoundId ? "true" : undefined}
+            >
+              {r.label}
+            </a>
+          ))}
+        </div>
+      )}
+
       <div className="card elev-sm" style={{ marginBottom: 16, gap: 16 }}>
         {/* Nothing here works off a leaderboard until one exists, and an
             organizer setting up round one should be told that rather than
