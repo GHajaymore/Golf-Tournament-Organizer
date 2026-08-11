@@ -1,7 +1,8 @@
 "use client";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { CardPhotoReader } from "@/components/CardPhotoReader";
+import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { computeStrokeCard, toParText, parseStrokesTranscript } from "@/lib/domain";
 import { saveScorecard } from "@/app/actions/tournament";
 
@@ -40,6 +41,20 @@ export function StrokePlayEntry({
     for (const p of players) init[p.id] = cardsByPlayer[p.id] ?? new Array(holes).fill(null);
     return init;
   });
+  /**
+   * Hole-at-a-time or the whole grid.
+   *
+   * Server-rendered as the grid and switched on mount, rather than read from
+   * `window` in the initialiser: this is a client component, so it renders on
+   * the server too, and touching `window` there is a hydration mismatch. The
+   * cost is one re-render on a phone; the alternative is a console error and a
+   * tree React re-creates from scratch.
+   */
+  const [view, setView] = useState<"hole" | "card">("card");
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) setView("hole");
+  }, []);
+
   const [listening, setListening] = useState(false);
   const [listenHint, setListenHint] = useState("Tap the mic and read scores in order, e.g. “four, par, birdie, six”.");
   const recognitionRef = useRef<unknown>(null);
@@ -202,6 +217,47 @@ export function StrokePlayEntry({
         </div>
       )}
 
+      {/* Two windows onto one card. The grid is for a desk and a stack of
+          returned cards; the hole view is for a phone on the course. Both write
+          to the same state, so switching never loses a score. */}
+      <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
+        {(["hole", "card"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setView(v)}
+            aria-pressed={view === v}
+            style={
+              view === v
+                ? { color: "var(--color-accent)", borderColor: "var(--color-accent)", fontSize: 12.5 }
+                : { fontSize: 12.5 }
+            }
+          >
+            <i className={v === "hole" ? "ph ph-flag" : "ph ph-table"} />{" "}
+            {v === "hole" ? "Hole by hole" : "Full card"}
+          </button>
+        ))}
+      </div>
+
+      {view === "hole" ? (
+        <div style={{ marginTop: 14 }}>
+          <HoleByHoleCard
+            strokes={strokes}
+            pars={pars}
+            yards={yards}
+            strokeIndex={strokeIndex}
+            holes={holes}
+            onSet={(i, v) =>
+              setCards((prev) => {
+                const next = [...(prev[playerId] ?? new Array(holes).fill(null))];
+                next[i] = v;
+                return { ...prev, [playerId]: next };
+              })
+            }
+          />
+        </div>
+      ) : (
       <div className="sc-wrap" style={{ marginTop: 12 }}>
         <table className="sc" style={{ minWidth: isEighteen ? 960 : 560 }}>
           <thead>
@@ -250,6 +306,7 @@ export function StrokePlayEntry({
           </tbody>
         </table>
       </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--color-divider)", flexWrap: "wrap", gap: 8 }}>
         <span className="text-muted" style={{ fontSize: 12 }}>
