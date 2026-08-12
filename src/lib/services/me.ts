@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { needsTeams } from "@/lib/formats";
+import { generatesPairings } from "@/lib/stage-types";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows, type EventState } from "@/lib/services/tournament";
 import { filledHoles } from "@/lib/domain/card-approval";
@@ -33,10 +35,22 @@ export interface MyRound {
   stageId: string;
   label: string;
   holes: number;
+  /**
+   * Whether this round is scored on a card that is mine alone.
+   *
+   * False for match play (scored against an opponent) and for team formats
+   * (scored on the side's card). Decided here rather than on each screen so
+   * Today cannot offer a card that My card then refuses to show — the two
+   * would be reading the same round and disagreeing about it.
+   */
+  ownCard: boolean;
   /** The tee group I am in, if a sheet has been drawn. */
   group: { name: string; time: string; startHole: number; partners: string[] } | null;
-  /** My card for this round: how far round I am, and where it has got to. */
-  card: { filled: number; status: string } | null;
+  /** My card for this round: the strokes themselves, how far round I am, and
+   *  where it has got to. The strokes are returned, not just the count,
+   *  because the entry screen has to open on what is already there — a card
+   *  that opens blank and then saves is a card that erases a round. */
+  card: { strokes: (number | null)[]; filled: number; status: string } | null;
 }
 
 export interface Me {
@@ -93,9 +107,15 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
     try {
       strokes = JSON.parse(row.strokes) as (number | null)[];
     } catch {
+      // Unreadable strokes are treated as an empty card rather than throwing:
+      // a player should still be able to open the screen and re-enter the
+      // round. The count below then honestly reports 0 of 18.
       strokes = [];
     }
-    card = { filled: filledHoles(strokes, holes), status: row.status };
+    // Normalised to the round's length so the entry grid and the saved array
+    // always agree — a 9-hole round must not be handed an 18-slot card.
+    const sized: (number | null)[] = Array.from({ length: holes }, (_, i) => strokes[i] ?? null);
+    card = { strokes: sized, filled: filledHoles(sized, holes), status: row.status };
   }
 
   // Position from the same standingRows the leaderboard renders — never a
@@ -113,6 +133,9 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       stageId: stage.id,
       label: stage.description?.trim() || stage.type || "This round",
       holes,
+      // A match is scored against an opponent and a team round on the side's
+      // card; neither is a card this player owns or can return alone.
+      ownCard: !needsTeams(stage.format) && !generatesPairings(stage.type),
       group,
       card,
     },

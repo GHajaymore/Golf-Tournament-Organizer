@@ -1429,3 +1429,91 @@ describe("club convention vs published allowance", () => {
     expect(html).toContain("not a published standard");
   });
 });
+
+describe("the player's own card opens on what is already there", () => {
+  /**
+   * The regression this exists for was a data-loss bug, not a cosmetic one.
+   *
+   * PlayerCard seeded its state with `new Array(holes).fill(null)` and ignored
+   * the card the player had already returned. So a player who entered nine
+   * holes at the turn, closed the app, and reopened it saw an empty grid — and
+   * the Save button under it would have written that empty grid over the nine
+   * holes they had played.
+   *
+   * Typecheck passed. All 1383 unit tests passed. The production build passed.
+   * None of them render a component with state, which is the entire reason
+   * this file exists and the reason this test is here rather than in a
+   * comment.
+   */
+  const nine = (): (number | null)[] =>
+    Array.from({ length: 18 }, (_, i) => (i < 9 ? 4 : null));
+
+  it("shows the holes already returned rather than a blank round", async () => {
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    const html = render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        status="entered" initialStrokes={nine()}
+      />,
+    );
+    // The hole strip marks a hole as scored, so nine of them must read back.
+    const scored = html.match(/aria-label="Hole \d+, complete"/g) ?? [];
+    expect(scored.length, "nine returned holes should show as scored").toBe(9);
+    expect(html).toContain("9 of 18 holes in");
+  });
+
+  it("does not offer to certify a round that is not finished", async () => {
+    // Certifying is the claim that these hole scores are correct. Half a card
+    // cannot be correct, and the committee then approves what was certified.
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    const html = render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        status="entered" initialStrokes={nine()}
+      />,
+    );
+    // The Certify button is the only btn-primary on the screen, so finding it
+    // and checking it carries `disabled` is enough — and does not depend on
+    // how React happens to serialise the icon element inside it.
+    const certify = html.match(/<button[^>]*btn-primary[^>]*>/)?.[0] ?? "";
+    expect(certify, "Certify must be disabled on a half-finished card").toContain("disabled");
+  });
+
+  it("normalises a card longer than the round", async () => {
+    // A round shortened from 18 to 9 leaves 18-slot cards behind. Rendering
+    // all eighteen would invite a player to score holes that are not played.
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    const html = render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Front nine"
+        holes={9} pars={new Array(9).fill(4)} yards={new Array(9).fill(400)}
+        strokeIndex={Array.from({ length: 9 }, (_, i) => i + 1)}
+        status="entered" initialStrokes={new Array(18).fill(5)}
+      />,
+    );
+    // Nine holes in the strip and no tenth. (The "x of y holes in" line is
+    // absent here because a full card shows the certify wording instead —
+    // which is itself correct: an 18-slot card trimmed to 9 IS complete.)
+    const strip = html.match(/aria-label="Hole \d+, (complete|partly scored|not scored)"/g) ?? [];
+    expect(strip.length, "a 9-hole round renders nine holes").toBe(9);
+    expect(html, "a 9-hole round must not show a 10th").not.toContain('aria-label="Hole 10');
+  });
+
+  it("locks an approved card instead of letting it be edited", async () => {
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    const html = render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        status="approved" initialStrokes={new Array(18).fill(4)}
+      />,
+    );
+    expect(html).toContain("approved by the committee");
+    expect(html, "an approved card must not render an entry pad").not.toContain("Certify");
+  });
+});

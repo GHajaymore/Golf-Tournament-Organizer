@@ -132,10 +132,18 @@ export default async function PlayTodayPage() {
           )}
 
           {/* What is outstanding. Stated plainly, because "why is my score not
-              on the board" is otherwise a phone call to the organizer. */}
+              on the board" is otherwise a phone call to the organizer.
+              Only for rounds scored on a card this player owns — offering
+              "Start my card" for a match or a team round would promise a screen
+              that then has to explain itself. */}
           <section className="card elev-sm" style={{ marginTop: 12 }}>
             <span className="card-title" style={{ fontSize: 14 }}>Your card</span>
-            {card ? (
+            {!round?.ownCard ? (
+              <p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+                This round is scored by your organizer — a match is recorded against your opponent, and a
+                team round on your side&rsquo;s card. It appears on the board as soon as it&rsquo;s in.
+              </p>
+            ) : card ? (
               <>
                 <p style={{ margin: "4px 0 10px", fontSize: 14, lineHeight: 1.6 }}>
                   {card.filled} of {round?.holes} holes in.

@@ -27,6 +27,7 @@ export function PlayerCard({
   yards,
   strokeIndex,
   status,
+  initialStrokes,
 }: {
   stageId: string;
   playerId: string;
@@ -37,8 +38,13 @@ export function PlayerCard({
   yards: number[];
   strokeIndex: number[];
   status: string;
+  /** The card as already returned. Opening blank and then saving would erase
+   *  a round that was half entered on the ninth tee. */
+  initialStrokes: (number | null)[];
 }) {
-  const [strokes, setStrokes] = useState<(number | null)[]>(new Array(holes).fill(null));
+  const [strokes, setStrokes] = useState<(number | null)[]>(() =>
+    Array.from({ length: holes }, (_, i) => initialStrokes[i] ?? null),
+  );
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState("");
   const [state, setState] = useState(status);
