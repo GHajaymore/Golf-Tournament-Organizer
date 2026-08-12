@@ -12,7 +12,18 @@ describe("screen access map", () => {
   });
 
   it("has no access rules for screens that don't exist in the sidebar", () => {
-    const orphans = Object.keys(SCREEN_ACCESS).filter((k) => !ALL_NAV_KEYS.includes(k));
+    // Screens that are real and guarded but deliberately absent from the
+    // console's sidebar. Listed rather than exempted by pattern, so adding one
+    // stays a decision: an access rule with nothing behind it is dead, and a
+    // dead rule is how a screen ends up reachable by the wrong role.
+    //
+    // "me" is the player shell's root. It has its own four-tab navigation and
+    // must never appear in the organizer's sidebar — an organizer reaching it
+    // does so to play, not to administer.
+    const OFF_SIDEBAR = ["me"];
+    const orphans = Object.keys(SCREEN_ACCESS).filter(
+      (k) => !ALL_NAV_KEYS.includes(k) && !OFF_SIDEBAR.includes(k),
+    );
     expect(orphans, `access rules with no matching screen: ${orphans.join(", ")}`).toEqual([]);
   });
 
@@ -58,6 +69,11 @@ describe("role boundaries", () => {
     // app makes comes from. Deliberately open to players — the person most
     // likely to ask why a tie broke a particular way is the player it broke
     // against, and it carries no tournament data, only citations and links.
+    //
+    // "me" — the player shell they now land on at sign-in — is deliberately
+    // absent: this list is drawn from the sidebar's keys, and the shell has
+    // its own navigation and never appears there. It is covered by the
+    // OFF_SIDEBAR list above instead.
     expect(allowed.sort()).toEqual(
       ["bracket", "dashboard", "entry", "leaderboard", "rules", "week"].sort(),
     );

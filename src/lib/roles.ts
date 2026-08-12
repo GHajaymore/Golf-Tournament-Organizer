@@ -42,6 +42,11 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   // The rules reference is for anyone in the tournament. A player querying how
   // a tie broke has as much reason to look it up as the organizer who set it.
   rules: ["admin", "assistant", "player"],
+  // The player shell — a player's whole app: where they stand, who they are out
+  // with, their own card, and the rules in force. Open to staff as well, so an
+  // organizer who is also in the field can use it to play rather than signing
+  // out of their own tournament.
+  me: ["admin", "assistant", "player"],
 
   // Set up — defining the event. Assistants run it but don't reshape it.
   event: ["admin"],
@@ -86,9 +91,15 @@ export function canAccessScreen(role: Role, screenKey: string): boolean {
  */
 export function landingScreenFor(role: Role): string {
   switch (role) {
+    // Players land in the play shell, not the console. The console is built
+    // for a desk — a sidebar of fifteen screens, dense tables, 34px controls —
+    // and a player has four things to do, on a phone, outdoors. Sending them
+    // to /dashboard was what made the mobile app feel like a shrunken console:
+    // it was one.
+    case "player":
+      return "/me";
     case "admin":
     case "assistant":
-    case "player":
     default:
       return "/dashboard";
   }
