@@ -188,6 +188,20 @@ model Course {
   address String @default("")
 
   /**
+   * The club's Local Rules for this course, as it publishes them.
+   *
+   * Free text on purpose. Local Rules are about internal out of bounds, ground
+   * under repair, a drop zone short of the 12th — no schema will anticipate
+   * them, and one that tried would only prevent a club recording the rule it
+   * actually plays. Optional: a course with none simply shows nothing.
+   *
+   * Belongs to the course rather than the event because that is what they
+   * describe. A club running four tournaments on the same course should write
+   * them once.
+   */
+  localRules String @default("")
+
+  /**
    * Where this card came from, and whether anyone has checked it.
    *
    * manual   — typed in by the club. Trusted.
