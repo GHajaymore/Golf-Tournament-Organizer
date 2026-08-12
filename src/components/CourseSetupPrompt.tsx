@@ -246,7 +246,7 @@ export function CourseSetupPrompt({
 
 
       {error && (
-        <p style={{ fontSize: 13, margin: "10px 0 0", color: "var(--color-danger, #e0665a)" }}>
+        <p style={{ fontSize: 13, margin: "10px 0 0", color: "var(--color-danger)" }}>
           <i className="ph ph-warning-circle" /> {error}
         </p>
       )}

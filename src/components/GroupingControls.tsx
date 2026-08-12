@@ -158,7 +158,7 @@ export function GroupingControls({
       </div>
 
       {error && (
-        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger, #e0665a)" }}>
+        <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
           <i className="ph ph-warning-circle" /> {error}
         </p>
       )}
@@ -168,8 +168,8 @@ export function GroupingControls({
           style={{
             padding: "12px 14px",
             borderRadius: "var(--radius-md)",
-            border: "1px solid var(--color-danger, #e0665a)",
-            background: "color-mix(in srgb, var(--color-danger, #e0665a) 10%, transparent)",
+            border: "1px solid var(--color-danger)",
+            background: "color-mix(in srgb, var(--color-danger) 10%, transparent)",
             display: "flex",
             flexDirection: "column",
             gap: 10,

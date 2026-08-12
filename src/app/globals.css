@@ -30,10 +30,16 @@
   --color-accent-800: #6c3c18;
   --color-accent-900: #38230f;
 
-  /* Errors and destructive confirmations. Nineteen components referenced
-     var(--color-danger, #e0665a) while the token itself was never declared,
-     so the hardcoded fallback was what actually rendered — making error red
-     the one colour a club palette could never touch. */
+  /* Errors and destructive confirmations. Nineteen components referenced this
+     token WITH A HARD-CODED FALLBACK while the token itself was never
+     declared, so the fallback was what actually rendered — making error red
+     the one colour a club palette could never touch.
+
+     The token is declared here and emitted by themeVarsFor for both grounds
+     (the light one needs a deeper red; the dark salmon manages about 3:1 on
+     white). The fallbacks are gone, and brand-consistency.test.ts fails if one
+     comes back: a fallback on a token that exists is a second source of truth
+     nobody would think to update. */
   --color-danger: #e0665a;
   --color-danger-bg: #2a1512;
 

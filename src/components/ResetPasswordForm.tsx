@@ -64,7 +64,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         />
       </div>
       {error && (
-        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger, #e0665a)" }}>
+        <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
           <i className="ph ph-warning-circle" /> {error}
         </p>
       )}

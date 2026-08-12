@@ -34,7 +34,7 @@ export function RoleChangeConfirm({
       <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.45 }}>
         Change <b>{change.name}</b> from {change.from} to <b>{change.to}</b>?
         {change.lastAdmin ? (
-          <span style={{ display: "block", color: "var(--color-danger, #e0665a)", marginTop: 2 }}>
+          <span style={{ display: "block", color: "var(--color-danger)", marginTop: 2 }}>
             <i className="ph ph-warning" /> This is the only Organizer on the event — promote someone else first,
             or this will be refused.
           </span>
@@ -135,7 +135,7 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
           scores), but not event setup, access, or deletion. <b>Player</b> — schedule, scores, leaderboard.
         </p>
         {error && (
-          <p style={{ fontSize: 13, margin: "0 0 4px", color: "var(--color-danger, #e0665a)" }}>
+          <p style={{ fontSize: 13, margin: "0 0 4px", color: "var(--color-danger)" }}>
             <i className="ph ph-warning-circle" /> {error}
           </p>
         )}

@@ -244,9 +244,9 @@ ${active.sampleRow}`}
             background:
               parsed.ready > 0
                 ? "color-mix(in srgb, var(--color-accent-2) 12%, transparent)"
-                : "color-mix(in srgb, var(--color-danger, #e0665a) 12%, transparent)",
+                : "color-mix(in srgb, var(--color-danger) 12%, transparent)",
             boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${
-              parsed.ready > 0 ? "var(--color-accent-2)" : "var(--color-danger, #e0665a)"
+              parsed.ready > 0 ? "var(--color-accent-2)" : "var(--color-danger)"
             } 30%, transparent)`,
           }}
         >

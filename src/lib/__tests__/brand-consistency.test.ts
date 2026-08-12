@@ -114,3 +114,117 @@ describe("the wordmark is written once too", () => {
     expect(landing, "landing must map the tokens BrandMark reads").toContain('"--color-accent": "var(--brass)"');
   });
 });
+
+describe("colour comes from the theme, not from the component", () => {
+  const files = allTsx("src");
+
+  /**
+   * A club's palette is only as themeable as its least disciplined component.
+   *
+   * `--color-danger` went undeclared for a long time while nineteen components
+   * wrote `var(--color-danger, #e0665a)`. The fallback is what actually
+   * rendered, so error red was the one colour a club could never change — and
+   * once the token WAS declared the fallbacks became twenty-five copies of a
+   * value nobody would think to update.
+   *
+   * The rule is not "no hex anywhere": a few places legitimately hold one.
+   * They are listed, so each is a decision rather than a habit.
+   */
+  const ALLOWED = [
+    // The mark itself is artwork, drawn once, re-skinned by variables.
+    "src/components/Logo.tsx",
+    // The colour picker: a placeholder and a sample the club types over.
+    "src/components/ThemePicker.tsx",
+    // The landing page owns a separate identity on purpose — its palette must
+    // not leak into the console, nor the console's into it.
+    "src/app/page.tsx",
+    // The status-bar colour. A <meta name="theme-color"> cannot reference a
+    // CSS variable, so these two values are unavoidably literal — and are
+    // checked against the grounds they mirror in the test below.
+    "src/app/layout.tsx",
+    // The styleguide's whole job is to show the palette.
+    "src/app/styleguide/page.tsx",
+    // Test fixtures, not shipped UI.
+    "src/lib/__tests__/render.test.tsx",
+  ];
+
+  it("has no hard-coded hex colours outside the places that own one", () => {
+    const offenders = files
+      .filter((f) => !ALLOWED.includes(f))
+      .filter((f) => /#[0-9a-fA-F]{6}\b/.test(read(f)));
+    expect(
+      offenders,
+      `hard-coded colour in: ${offenders.join(", ")} — use a --color-* token`,
+    ).toEqual([]);
+  });
+
+  it("never re-adds a fallback to the danger token", () => {
+    // The specific shape that hid the missing token for so long. A fallback
+    // reads as caution and behaves as a second source of truth.
+    const offenders = files.filter((f) => /var\(--color-danger,/.test(read(f)));
+    expect(offenders, `--color-danger given a fallback in: ${offenders.join(", ")}`).toEqual([]);
+  });
+});
+
+describe("the status bar matches the app behind it", () => {
+  it("keeps themeColor in step with the two grounds", async () => {
+    /**
+     * `<meta name="theme-color">` cannot reference a CSS variable, so the two
+     * values in layout.tsx are a hand-copy of DARK_GROUND.bg and
+     * LIGHT_GROUND.bg. Unavoidable duplication — but duplication that drifts
+     * silently gives you a dark bar above a light app, which is the tell that
+     * a web view has been wrapped rather than an app built.
+     *
+     * Checked rather than trusted, so changing a ground fails here instead of
+     * on somebody's phone.
+     */
+    const { DARK_GROUND, LIGHT_GROUND } = await import("../themes");
+    const layout = read("src/app/layout.tsx");
+    expect(layout, `light themeColor should be ${LIGHT_GROUND.bg}`).toContain(LIGHT_GROUND.bg);
+    expect(layout, `dark themeColor should be ${DARK_GROUND.bg}`).toContain(DARK_GROUND.bg);
+  });
+});
+
+describe("nothing is set smaller than it can be read", () => {
+  const files = allTsx("src");
+
+  it("has no text below 10px anywhere in the app", () => {
+    /**
+     * This app is read on a phone, held at arm's length, outdoors, by a
+     * membership that skews older than most software's. `.tag` is designed at
+     * 11px and two call sites had shrunk it to 9 and 9.5 — a size that is
+     * marginal on a desk and gone entirely in sunlight.
+     *
+     * A floor rather than a scale: the codebase has 877 inline font sizes
+     * across twenty distinct values and genuinely needs a type scale, but
+     * that is a migration to make in daylight with someone looking at the
+     * screens. This only stops the bottom falling out in the meantime.
+     */
+    const SKIP = [
+      // Its own type system, expressed in a CSS string rather than as React
+      // style numbers.
+      "src/app/page.tsx",
+      // Paper, not a screen: 9pt on a printed tee sheet is read at desk
+      // distance and is entirely normal.
+      "src/components/TeeSheetPrint.tsx",
+      // Demonstrating sizes is the page's whole purpose.
+      "src/app/styleguide/page.tsx",
+    ];
+
+    const offenders: string[] = [];
+    for (const f of files) {
+      if (SKIP.includes(f)) continue;
+      const src = read(f);
+      for (const m of src.matchAll(/fontSize: (\d+(?:\.\d+)?)/g)) {
+        if (Number(m[1]) >= 10) continue;
+        // An icon font's `fontSize` is the glyph's diameter, not a reading
+        // size — the live-status dot is drawn as a 6px filled circle and is
+        // not text at all. Judged by what the size is applied TO.
+        const context = src.slice(Math.max(0, m.index - 140), m.index);
+        if (/<i\b[^>]*$/.test(context)) continue;
+        offenders.push(`${f} (${m[1]}px)`);
+      }
+    }
+    expect(offenders, `text below 10px in: ${offenders.join(", ")}`).toEqual([]);
+  });
+});

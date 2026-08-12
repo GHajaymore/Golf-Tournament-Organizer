@@ -217,7 +217,7 @@ export function RosterClient({ clubName, isClub, eventName, fieldLocked, members
       </div>
 
       {error && (
-        <p style={{ fontSize: 13, margin: "0 0 12px", color: "var(--color-danger, #e0665a)" }}>
+        <p style={{ fontSize: 13, margin: "0 0 12px", color: "var(--color-danger)" }}>
           <i className="ph ph-warning-circle" /> {error}
         </p>
       )}

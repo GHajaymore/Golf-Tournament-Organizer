@@ -202,8 +202,11 @@ export function RoundAvailability({
                           title={`${c.status === "in" ? "In" : "Out"}${c.explicit ? "" : " (by default)"}`}
                           aria-label={`${c.status === "in" ? "In" : "Out"}${c.explicit ? "" : " by default"}`}
                         />
+                        {/* 10.5, not 9.5. Nothing in this app should be set
+                            below ten: it is read on a phone, outdoors, by
+                            people who mostly do not have young eyes. */}
                         {!c.explicit && (
-                          <span className="text-muted" style={{ fontSize: 9.5, display: "block", lineHeight: 1 }}>
+                          <span className="text-muted" style={{ fontSize: 10.5, display: "block", lineHeight: 1 }}>
                             default
                           </span>
                         )}

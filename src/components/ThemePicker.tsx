@@ -380,10 +380,10 @@ export function ThemePicker({
             padding: "10px 12px",
             borderRadius: 8,
             background: pair.kind === "indistinct"
-              ? "color-mix(in srgb, var(--color-danger, #e0665a) 10%, transparent)"
+              ? "color-mix(in srgb, var(--color-danger) 10%, transparent)"
               : "color-mix(in srgb, var(--color-accent) 10%, transparent)",
             border: pair.kind === "indistinct"
-              ? "1px solid color-mix(in srgb, var(--color-danger, #e0665a) 35%, transparent)"
+              ? "1px solid color-mix(in srgb, var(--color-danger) 35%, transparent)"
               : "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
           }}
         >

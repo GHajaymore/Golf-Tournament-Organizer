@@ -31,7 +31,7 @@ export default async function AccessPage() {
           className="card elev-sm"
           style={{
             marginBottom: 16,
-            borderLeft: `3px solid ${mail.configured ? "var(--color-accent)" : "var(--color-danger, #e0665a)"}`,
+            borderLeft: `3px solid ${mail.configured ? "var(--color-accent)" : "var(--color-danger)"}`,
             gap: 4,
           }}
         >

@@ -70,7 +70,10 @@ export function CommentaryPanel({ items, canPost }: { items: CommentaryItem[]; c
             <div style={{ flex: 1 }}>
               <div>{c.text}</div>
               <div className="text-muted" style={{ fontSize: 11, marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
-                {c.source === "ai" && <span className="tag tag-accent" style={{ fontSize: 9, padding: "1px 6px" }}>AI</span>}
+                {/* 10.5px, not 9. `.tag` is designed at 11 and this shrank it
+                    to nine — small enough to be unreadable outdoors, on the one
+                    label that tells a reader a machine wrote the line. */}
+                {c.source === "ai" && <span className="tag tag-accent" style={{ fontSize: 10.5, padding: "1px 6px" }}>AI</span>}
                 {c.author} · {c.when}
               </div>
             </div>
