@@ -9,7 +9,7 @@ import { isLeaderboardPublic } from "@/lib/tournament-settings";
 import { brandForEvent, themeForEvent } from "@/lib/services/organization";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { OrgBrand } from "@/components/OrgBrand";
-import { playerThemeCss, playerColorScheme } from "@/lib/themes";
+import { themeCss, playerColorScheme } from "@/lib/themes";
 
 /**
  * The public read-only leaderboard.
@@ -74,13 +74,15 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
   const brand = await brandForEvent(event.id);
   const venue = [event.course, event.city].filter(Boolean).join(", ");
 
-  // This page is read outdoors, so it does not inherit the console's dark-first
-  // "auto". See `playerThemeCss`. Until now it applied no club theme at all —
-  // it read `var(--color-bg)` off the stylesheet default and was therefore
-  // pinned to dark, on the one screen in the product that is looked at in
-  // direct sun.
+  // The club's own theme, the same one the console renders. This page applied
+  // no theme at all until recently — it read `var(--color-bg)` off the
+  // stylesheet default, so a club that had chosen light still got a dark board
+  // on the one screen in the product that is looked at in direct sun.
+  //
+  // `auto` resolves dark unless the device asks for light, which is the same
+  // rule everywhere: one club, one ground, whichever screen you are on.
   const theme = await themeForEvent(event.id);
-  const themeStyleSheet = playerThemeCss(theme, "#player-theme");
+  const themeStyleSheet = themeCss(theme, "#player-theme");
 
   // How far the field has actually got, which is the first thing anyone asks.
   const started = rows.filter((r) => r.thru > 0);

@@ -70,10 +70,15 @@ fix the *schema* so it matches the database rather than accepting the drop.
   Components read `--color-*` custom properties and never hard-code a colour.
 - The ramp reverses between grounds, so low steps are always foreground and high steps always
   background, whichever ground you are on.
+- **One ground everywhere, from the club's one setting.** `themeCss` is the only theme
+  stylesheet: the console, the play shell and the public board all use it, so a club that picks
+  its look gets that look on every screen. `auto` resolves dark unless the device asks for light.
+  There was briefly a `playerThemeCss` resolving auto light-first; it made one club look like two
+  products. If the two ever need to diverge again, diverge on something a club can see and set.
 - **Outdoor legibility is a product requirement, not a nicety.** Scores are read on a phone in
-  direct sun. `SUNLIGHT_RATIO` is 7:1 on the dark ground. Player-facing surfaces use
-  `playerThemeCss`, which resolves `auto` light-first — the console uses `themeCss`, which
-  resolves it dark-first.
+  direct sun, and `SUNLIGHT_RATIO` is 7:1 on the dark ground against 4.5 on the light one.
+  `sunlightVerdict` grades whatever ground the theme actually renders — so `auto` is graded as
+  dark, and a club failing the bar is told that switching to Light is the remedy.
 - Grid and flex children need `min-width: 0` to be allowed to shrink; `minmax(0, 1fr)`
   constrains the track, not the item. Anything wide (tables, scorecards) gets its own
   `overflow-x: auto` wrapper, so the page body never scrolls sideways.

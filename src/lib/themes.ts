@@ -650,30 +650,21 @@ export function themeCss(theme: ClubTheme, selector = "[data-club-theme]"): stri
 }
 
 /**
- * The same theme, for a screen someone is holding on the 14th tee.
+ * There is deliberately no separate player-facing variant of the above.
  *
- * Identical to `themeCss` except in what "auto" means. In the console, auto
- * resolves dark-first and light only if the device asks. That is the wrong way
- * round outdoors: a dark screen in direct sun is the hardest thing to read on a
- * phone, and a device set to follow daylight is in light mode *precisely* when
- * the sun is the problem. `outdoorBar` already assumes this — it grades `auto`
- * against the light ground — so the console's default was quietly contradicting
- * the app's own sunlight model.
+ * There was one — `playerThemeCss` — which resolved `auto` light-first on the
+ * argument that a dark screen in direct sun is the hardest thing to read on a
+ * phone. That reasoning still holds, but it produced two products: the console
+ * dark and the play shell light, from one club's single theme setting.
  *
- * So here auto is light-first, and dark applies only when the device explicitly
- * asks for it (dusk, an evening scramble, a player who has pinned dark).
+ * One ground, chosen by the club, everywhere. `auto` means dark unless the
+ * DEVICE asks for light — and a player whose phone follows daylight still gets
+ * the light ground on the course, which is the case the sunlight argument was
+ * really about. A club that wants light on both simply chooses light.
  *
- * A club that has *chosen* light or dark still gets exactly what it chose; this
- * only decides the undecided case.
+ * If the two ever need to diverge again, they should diverge on something a
+ * club can see and set, not on which function a screen happened to import.
  */
-export function playerThemeCss(theme: ClubTheme, selector = "[data-club-theme]"): string {
-  const dark = declarations(themeVarsFor(theme, DARK_GROUND));
-  const light = declarations(themeVarsFor(theme, LIGHT_GROUND));
-
-  if (theme.appearance === "light") return `${selector}{${light}}`;
-  if (theme.appearance === "dark") return `${selector}{${dark}}`;
-  return `${selector}{${light}}@media(prefers-color-scheme:dark){${selector}{${dark}}}`;
-}
 
 /**
  * What `color-scheme` a player-facing surface should declare, so native chrome
@@ -780,10 +771,16 @@ export function sunlightCheckFor(
  * How a whole theme behaves outdoors — the thing an organizer actually wants
  * to know before a tournament.
  *
- * Judged on the ground the phone will really be in: `auto` is checked as light,
- * because a device that follows daylight is in light mode exactly when the sun
- * is the problem. Reporting a dark-mode number there would be reassuring and
- * wrong.
+ * Judged on the ground the phone will really be in, which means `auto` is
+ * checked as DARK — that is what `themeCss` resolves it to unless the device
+ * asks otherwise. It was checked as light while a separate player-facing
+ * stylesheet resolved auto light-first; that stylesheet is gone, and grading
+ * against a ground the app no longer renders would be reassuring and wrong in
+ * exactly the way this function exists to prevent.
+ *
+ * The stricter bar comes with it: 7:1 on the dark ground against 4.5 on the
+ * light one. So a club on `auto` is now told the truth about the harder case,
+ * and the suggestion below — switch to light — remains the honest remedy.
  */
 export function sunlightVerdict(theme: ClubTheme): {
   ok: boolean;
@@ -794,7 +791,10 @@ export function sunlightVerdict(theme: ClubTheme): {
   /** Set when switching appearance would fix it on its own. */
   suggestion: string | null;
 } {
-  const ground = theme.appearance === "dark" ? DARK_GROUND : LIGHT_GROUND;
+  // `light` is the only value that renders the light ground unconditionally.
+  // Both `dark` and `auto` put a phone with no stated preference on the dark
+  // one, so both are judged there.
+  const ground = theme.appearance === "light" ? LIGHT_GROUND : DARK_GROUND;
   const accent = sunlightCheck(resolveTheme(theme.accentKey, theme.accentHex), ground);
   const secondary = sunlightCheck(resolveSecondary(theme.secondaryKey, theme.secondaryHex), ground);
   const worst = accent.worstRatio <= secondary.worstRatio ? accent : secondary;
@@ -805,9 +805,13 @@ export function sunlightVerdict(theme: ClubTheme): {
   // at the readable minimum by construction. What helps outdoors is the bright
   // page behind it, and saying that is honest where "these colours hold up in
   // light mode" would not be.
+  // Fires for `auto` as well as `dark`, because both land on the dark ground
+  // and both therefore have the same problem. And it no longer offers "Follow
+  // the device" as the remedy: auto resolves dark unless the phone asks
+  // otherwise, so recommending it would be recommending the thing that failed.
   const suggestion =
-    !worst.ok && theme.appearance === "dark"
-      ? "A light screen is easier to read at arm's length in direct sun, whatever the accent colour. Switching appearance to Light — or Follow the device — helps more here than changing the club's colours would."
+    !worst.ok && theme.appearance !== "light"
+      ? "A light screen is easier to read at arm's length in direct sun, whatever the accent colour. Switching appearance to Light helps more here than changing the club's colours would."
       : null;
 
   return {

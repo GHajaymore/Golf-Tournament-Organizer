@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/page-helpers";
 import { brandForEvent, themeForEvent } from "@/lib/services/organization";
-import { playerThemeCss, playerColorScheme } from "@/lib/themes";
+import { themeCss, playerColorScheme } from "@/lib/themes";
 import { OrgBrand } from "@/components/OrgBrand";
 import { PlayTabs } from "@/components/PlayTabs";
 
@@ -19,8 +19,10 @@ import { PlayTabs } from "@/components/PlayTabs";
  * scoring engine — the split is in presentation only, which is what keeps the
  * two from disagreeing about who is winning.
  *
- * Light-first, via playerThemeCss: this is the surface that gets looked at
- * outdoors, and `auto` resolving to dark in daylight is the wrong way round.
+ * Same ground as the console, from the club's one theme setting. The shells
+ * differ in structure — four tabs against fifteen screens — and not in
+ * palette, so a club that has picked its look gets that look wherever anyone
+ * opens the app. `auto` resolves dark unless the device asks for light.
  */
 export default async function PlayLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -40,7 +42,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
         flexDirection: "column",
       }}
     >
-      <style dangerouslySetInnerHTML={{ __html: playerThemeCss(theme, "#player-theme") }} />
+      <style dangerouslySetInnerHTML={{ __html: themeCss(theme, "#player-theme") }} />
 
       <header
         style={{

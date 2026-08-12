@@ -462,12 +462,19 @@ describe("themeCss", () => {
 describe("sunlightVerdict", () => {
   const theme = (over: Partial<ClubTheme> = {}): ClubTheme => ({ ...DEFAULT_CLUB_THEME, ...over });
 
-  it("judges 'auto' as light, because that is when the sun is the problem", () => {
-    // A device following daylight is in light mode exactly when it is bright
-    // out. Reporting the dark-mode number there would be reassuring and wrong.
+  it("judges 'auto' as dark, because that is what auto renders", () => {
+    // This used to assert the opposite, and was right at the time: a separate
+    // player-facing stylesheet resolved `auto` light-first, so the sun case
+    // really was the light ground. That stylesheet is gone — one club, one
+    // ground, everywhere — and `themeCss` resolves auto to DARK unless the
+    // device asks otherwise.
+    //
+    // The verdict has to follow the render. Grading against a ground the app
+    // no longer shows would be reassuring and wrong, which is the exact
+    // failure this function exists to prevent.
     const c = theme({ accentKey: "custom", accentHex: "#0b3d91" });
     expect(sunlightVerdict({ ...c, appearance: "auto" })).toEqual(
-      sunlightVerdict({ ...c, appearance: "light" }),
+      sunlightVerdict({ ...c, appearance: "dark" }),
     );
   });
 
@@ -488,9 +495,25 @@ describe("sunlightVerdict", () => {
   });
 
   it("never suggests switching to a mode that is already selected", () => {
-    for (const appearance of ["light", "auto"] as const) {
-      const v = sunlightVerdict(theme({ appearance, accentKey: "custom", accentHex: "#0000cc" }));
-      expect(v.suggestion, appearance).toBeNull();
+    // The principle is unchanged and still worth holding: telling a club to
+    // pick the thing it has already picked is noise that teaches people to
+    // ignore the notice.
+    //
+    // What changed is which modes that covers. `auto` no longer resolves to
+    // light, so light IS a real change for an auto club and is offered — only
+    // an explicit `light` gets silence.
+    const v = sunlightVerdict(theme({ appearance: "light", accentKey: "custom", accentHex: "#0000cc" }));
+    expect(v.suggestion, "light must not be told to switch to light").toBeNull();
+  });
+
+  it("offers light to an auto club, because auto is not light", () => {
+    // The counterpart to the rule above: an auto club sits on the dark ground
+    // and has the dark ground's problem, so the remedy applies to it.
+    const v = sunlightVerdict(theme({ appearance: "auto", accentKey: "custom", accentHex: "#0000cc" }));
+    if (!v.ok) {
+      expect(v.suggestion).toMatch(/Switching appearance to Light/);
+      // ...and must not recommend "follow the device", which is what it is.
+      expect(v.suggestion).not.toMatch(/Follow the device/i);
     }
   });
 
