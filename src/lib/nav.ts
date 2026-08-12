@@ -25,6 +25,10 @@ export const NAV: NavSection[] = [
       { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking" },
       { key: "week", label: "This week", href: "/week", icon: "ph ph-calendar-check" },
       { key: "rules", label: "Rules reference", href: "/rules", icon: "ph ph-book-open" },
+      // The way into the play shell, for staff who are also in the field.
+      // Conditional on actually being entered — an organizer who does not play
+      // would only reach a screen telling them so.
+      { key: "me", label: "My round", href: "/me", icon: "ph ph-golf" },
     ],
   },
   {
@@ -87,6 +91,15 @@ export function navForRole(
     isLeague?: boolean;
     /** The organizer said at setup that people play in pairs or teams. */
     wantsTeams?: boolean;
+    /**
+     * This staff member is also in the field.
+     *
+     * Club golf is mostly run by people who are playing in the thing they are
+     * running. Without this they had to sign out of their own tournament to
+     * fill in their own card, which is absurd — and the play shell's only door
+     * pointed outwards.
+     */
+    isPlayerToo?: boolean;
   } = {},
 ): NavSection[] {
   const allowed = (key: string): boolean => {
@@ -106,6 +119,10 @@ export function navForRole(
     // at the last round already has the cut line and the leaderboard saying
     // the same thing in the place the decision is made.
     if (key === "qualification" && !opts.hasKnockout) return false;
+    // "My round" is the play shell. It belongs to whoever is entered, not to a
+    // role — an organizer who plays needs it, and one who does not would find
+    // nothing there.
+    if (key === "me" && !opts.isPlayerToo) return false;
     // Same rule, same reason: a bracket is a knockout draw, so a league or a
     // medal that ends at the last round has nothing to show. The dashboard
     // tile has been gated on this since it existed (bracket-visibility.ts);

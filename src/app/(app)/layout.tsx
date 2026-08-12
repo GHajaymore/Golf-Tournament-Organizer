@@ -11,6 +11,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { WEEKLY_ROUND_TYPES } from "@/lib/stage-types";
 import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
+import { myPlayerIds } from "@/lib/services/me";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -43,11 +44,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         where: { eventId: event.id, type: { in: [...WEEKLY_ROUND_TYPES] } },
       })
     : 0;
+  // Whether this person is also in the field, which decides whether the play
+  // shell is offered. Most club tournaments are run by someone playing in them.
+  const ownEntries = event ? (await myPlayerIds(event.id, session.email)).size : 0;
+
   const sections = navForRole(session.viewRole, event ? settingsOf(event) : undefined, {
     hasTeamRound: teamRounds > 0,
     hasKnockout: knockoutRounds > 0,
     isLeague: playingRounds > 1,
     wantsTeams: event ? wantsTeams(cleanSideStyle(event.sideStyle)) : false,
+    isPlayerToo: ownEntries > 0,
   });
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).

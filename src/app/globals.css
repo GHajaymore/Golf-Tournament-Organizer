@@ -620,3 +620,19 @@ body {
     min-height: 44px;
   }
 }
+
+/* Two fields side by side, until there isn't room for two.
+   `1fr 1fr` is a promise the container cannot keep: at 320px each column is
+   about 145px, and a pair of native date inputs will not shrink below their
+   own chrome however hard the track is squeezed — so the row simply ran past
+   the edge of the screen. `auto-fit` with a `min()` floor stacks them instead,
+   and `min-width: 0` lets the items themselves shrink, which constraining the
+   track alone never does. */
+.pair-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+}
+.pair-grid > * {
+  min-width: 0;
+}

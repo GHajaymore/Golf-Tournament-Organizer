@@ -41,11 +41,13 @@ test("controls are thumb-sized on a phone and dense on a desktop", async ({ page
 
   expect(height, "no visible button found to measure").not.toBeNull();
 
-  if (testInfo.project.name === "phone") {
-    expect(coarse, "a phone profile must report a coarse pointer").toBe(true);
-    expect(height!, `phone button is ${height}px; iOS asks 44pt and Android 48dp`).toBeGreaterThanOrEqual(44);
+  // Branch on the pointer the browser actually reports, not on the project's
+  // name. Naming one project "phone" and matching that string meant a second
+  // touch profile — the 320px one — silently took the desktop branch and
+  // asserted the opposite of what it should have.
+  if (coarse) {
+    expect(height!, `touch button is ${height}px; iOS asks 44pt and Android 48dp`).toBeGreaterThanOrEqual(44);
   } else {
-    expect(coarse, "a desktop profile must not report a coarse pointer").toBe(false);
     expect(
       height!,
       `desktop button is ${height}px — the console's density must not follow the phone`,
@@ -55,7 +57,8 @@ test("controls are thumb-sized on a phone and dense on a desktop", async ({ page
 });
 
 test("nothing tappable is smaller than the platform minimum", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "phone", "a touch-size rule only applies to touch");
+  const isTouch = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+  test.skip(!isTouch, "a touch-size rule only applies to touch");
 
   await page.goto("/dashboard");
   await page.waitForLoadState("networkidle");

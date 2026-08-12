@@ -233,13 +233,19 @@ export function EventSetupClient({
             style={!f.name.trim() ? { borderColor: "var(--color-accent)" } : undefined}
           />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="pair-grid">
           <div className="field">
             <label>Tournament dates</label>
+            {/* `minWidth: 0` on the inputs, not just `flex: 1`.
+                A native date input's intrinsic minimum is its own chrome — the
+                spinners and separators the browser draws — and a flex item
+                will not shrink below that unless it is told it may. Two of
+                them plus a dash could not fit a 320px screen, so the row ran
+                off the edge even after the field above it learned to stack. */}
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <input className="input" type="date" value={startDate} onChange={(e) => onStartDate(e.target.value)} style={{ flex: 1 }} />
+              <input className="input" type="date" value={startDate} onChange={(e) => onStartDate(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
               <span className="text-muted">–</span>
-              <input className="input" type="date" value={endDate} min={startDate || undefined} onChange={(e) => onEndDate(e.target.value)} style={{ flex: 1 }} />
+              <input className="input" type="date" value={endDate} min={startDate || undefined} onChange={(e) => onEndDate(e.target.value)} style={{ flex: 1, minWidth: 0 }} />
             </div>
             {f.dates && <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>{f.dates}</p>}
           </div>
@@ -386,7 +392,7 @@ export function EventSetupClient({
         </div>
 
         <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Registration &amp; field</span>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="pair-grid">
           <div className="field">
             <label>Registration deadline</label>
             <input className="input" type="date" value={deadlineDate} max={startDate || undefined} onChange={(e) => onDeadlineDate(e.target.value)} />

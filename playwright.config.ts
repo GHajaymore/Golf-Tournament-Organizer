@@ -63,6 +63,17 @@ export default defineConfig({
       use: { ...devices["Pixel 5"] },
     },
     {
+      name: "small-phone",
+      // 320px — an iPhone SE, and still the width everything breaks at first.
+      // The Pixel 5 profile above is 393px and comfortably wide enough to hide
+      // an overflow that a 320px screen would show, so testing only the larger
+      // one proves less than it appears to.
+      use: {
+        ...devices["Pixel 5"],
+        viewport: { width: 320, height: 568 },
+      },
+    },
+    {
       name: "desktop",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 } },
     },
@@ -73,6 +84,14 @@ export default defineConfig({
     // different order and would not catch a cascade bug that only appears
     // once the chunker has run — which is exactly how the 44px touch rule
     // silently lost to design-system.css.
+    //
+    // `next start` warns because next.config sets output:"standalone". That
+    // output exists for the ELECTRON shell, which needs a self-contained
+    // server bundle; the web app deploys to Vercel, which uses neither. So
+    // `next start` is the closer match to what actually ships on the web, and
+    // the warning is noise here rather than a defect to chase. If the desktop
+    // build ever needs covering, it wants its own project running
+    // `node <distDir>/standalone/server.js` — not a change to this one.
     command: `npm run build && npx next start --port ${PORT}`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,

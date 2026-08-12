@@ -93,3 +93,34 @@ test("the rules a player sees lead with this tournament, not the rule book", asy
   await expect(page.getByText(/Internal out of bounds/)).toBeVisible();
   expect(headings).toContain("The Rules of Golf");
 });
+
+test("a blind tournament hides the board from its players", async ({ page }) => {
+  /**
+   * A privacy rule, not a layout one, and the reason it is tested here rather
+   * than asserted about the sidebar: hiding a link stops nobody from typing
+   * the URL. The screen itself has to refuse.
+   *
+   * The tournament is flipped to staff-only for the length of this test and
+   * put back afterwards, so the rest of the suite still sees a published one.
+   */
+  const setVisibility = async (value: string) => {
+    const { PrismaClient } = await import("@prisma/client");
+    const prisma = new PrismaClient();
+    try {
+      await prisma.event.update({ where: { id: data.eventId }, data: { leaderboardVisibility: value } });
+    } finally {
+      await prisma.$disconnect();
+    }
+  };
+
+  await setVisibility("staff");
+  try {
+    await page.goto("/me/board");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByText(/hasn.t published standings/i)).toBeVisible();
+    // And no standings leaked underneath the message.
+    await expect(page.locator("ol li")).toHaveCount(0);
+  } finally {
+    await setVisibility("public");
+  }
+});

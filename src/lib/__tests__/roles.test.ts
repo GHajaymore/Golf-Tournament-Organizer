@@ -12,18 +12,7 @@ describe("screen access map", () => {
   });
 
   it("has no access rules for screens that don't exist in the sidebar", () => {
-    // Screens that are real and guarded but deliberately absent from the
-    // console's sidebar. Listed rather than exempted by pattern, so adding one
-    // stays a decision: an access rule with nothing behind it is dead, and a
-    // dead rule is how a screen ends up reachable by the wrong role.
-    //
-    // "me" is the player shell's root. It has its own four-tab navigation and
-    // must never appear in the organizer's sidebar — an organizer reaching it
-    // does so to play, not to administer.
-    const OFF_SIDEBAR = ["me"];
-    const orphans = Object.keys(SCREEN_ACCESS).filter(
-      (k) => !ALL_NAV_KEYS.includes(k) && !OFF_SIDEBAR.includes(k),
-    );
+    const orphans = Object.keys(SCREEN_ACCESS).filter((k) => !ALL_NAV_KEYS.includes(k));
     expect(orphans, `access rules with no matching screen: ${orphans.join(", ")}`).toEqual([]);
   });
 
@@ -70,12 +59,11 @@ describe("role boundaries", () => {
     // likely to ask why a tie broke a particular way is the player it broke
     // against, and it carries no tournament data, only citations and links.
     //
-    // "me" — the player shell they now land on at sign-in — is deliberately
-    // absent: this list is drawn from the sidebar's keys, and the shell has
-    // its own navigation and never appears there. It is covered by the
-    // OFF_SIDEBAR list above instead.
+    // "me" is the play shell they land on at sign-in. It is in the nav so that
+    // staff who are ALSO in the field have a door into it, gated on actually
+    // being entered — a player reaching it is simply reaching their own app.
     expect(allowed.sort()).toEqual(
-      ["bracket", "dashboard", "entry", "leaderboard", "rules", "week"].sort(),
+      ["bracket", "dashboard", "entry", "leaderboard", "me", "rules", "week"].sort(),
     );
   });
 
@@ -117,7 +105,10 @@ describe("sidebar matches the guards", () => {
     // knockout to qualify for.
     // ...and "This week" only once there is more than one round to be a week
     // of; a one-day medal would just have a second name for the leaderboard.
-    const CONDITIONAL = ["teams", "qualification", "bracket", "week"];
+    // ...and "My round" only for someone who is actually in the field, which
+    // is a fact about the person rather than about the tournament — an
+    // organizer who does not play would only reach a screen saying so.
+    const CONDITIONAL = ["teams", "qualification", "bracket", "week", "me"];
     for (const role of ROLES) {
       const shown = navForRole(role, undefined, { hasTeamRound: true, hasKnockout: true }).flatMap((s) =>
         s.items.map((i) => i.key),
@@ -269,5 +260,28 @@ describe("the sidebar only offers screens with something on them", () => {
       .flatMap((s) => s.items)
       .map((i) => i.key);
     expect(shown).not.toContain("scorecard");
+  });
+});
+
+describe("the play shell's door", () => {
+  it("offers My round only to someone actually in the field", () => {
+    // A conditional link excused from the reachability check needs its own
+    // proof that it appears at all — CONDITIONAL is otherwise just where
+    // links go to quietly vanish.
+    const notPlaying = navForRole("admin").flatMap((s) => s.items.map((i) => i.key));
+    const playing = navForRole("admin", undefined, { isPlayerToo: true }).flatMap((s) =>
+      s.items.map((i) => i.key),
+    );
+    expect(notPlaying).not.toContain("me");
+    expect(playing).toContain("me");
+  });
+
+  it("offers it to an assistant who plays too", () => {
+    // Club golf is run by people playing in the thing they are running, and
+    // that is as true of an assistant as of the organizer.
+    const playing = navForRole("assistant", undefined, { isPlayerToo: true }).flatMap((s) =>
+      s.items.map((i) => i.key),
+    );
+    expect(playing).toContain("me");
   });
 });
