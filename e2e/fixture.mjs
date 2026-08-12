@@ -26,6 +26,19 @@ const sign = (v) => {
   return `${v}.${createHmac("sha256", secret).update(v).digest("base64url")}`;
 };
 
+/**
+ * A calendar day N days from today, as the yyyy-mm-dd the app stores.
+ *
+ * Relative rather than fixed, because the availability card's whole job is to
+ * split the season around *today*: hard-coded dates would quietly stop
+ * exercising the split the moment they all fell into the past.
+ */
+const dayOffset = (n) => {
+  const t = new Date();
+  t.setDate(t.getDate() + n);
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+};
+
 export async function teardown() {
   const prisma = new PrismaClient();
   try {
@@ -92,6 +105,10 @@ export async function seed() {
         customYards: JSON.stringify(YARDS),
         customStrokeIndex: JSON.stringify(SI),
         tiebreakers: JSON.stringify(["toughest-6", "toughest-3", "lower-handicap"]),
+        // A weekly league, so the availability card renders at all. With the
+        // default "everyone" there is no question to ask and the whole feature
+        // is invisible to the suite.
+        attendanceMode: "opt-out",
       },
     });
     await prisma.eventCourse.create({ data: { eventId: event.id, courseId: course.id } });
@@ -118,17 +135,53 @@ export async function seed() {
       startType: "tee",
       groups: [{ name: "Group 1", startHole: 1, time: "08:10", playerIds: players.map((p) => p.id) }],
     });
+    // Three earlier weeks, straddling today: one already played, one imminent
+    // (the "next round" the availability card must lift out and emphasise) and
+    // one beyond it. Dates are relative to the day the suite runs, so the split
+    // around today stays real however long this fixture lives.
+    for (const [i, offset] of [-7, 3, 10].entries()) {
+      await prisma.stage.create({
+        data: {
+          eventId: event.id,
+          position: i,
+          description: `Round ${i + 1}`,
+          type: "Stroke Play Round",
+          format: "Individual Stroke Play",
+          holes: 18,
+          scoringBasis: "net",
+          handicapAllowance: 95,
+          playedOn: dayOffset(offset),
+          optDeadline: dayOffset(offset - 1),
+        },
+      });
+    }
+
+    /**
+     * The round the play screens open on — deliberately LAST.
+     *
+     * loadEventState picks the active stage as the final playing round when a
+     * tournament has no Round Robin stages, so the round carrying the tee sheet
+     * and the part-finished card has to be the last one or /me opens on an
+     * empty week. Adding league rounds after it is what broke the card specs
+     * the first time.
+     *
+     * (That rule is worth revisiting on its own: for a multi-week league the
+     * round being played is the next unplayed one, not the last on the
+     * calendar. Out of scope here, and it needs its own change.)
+     */
     const stage = await prisma.stage.create({
       data: {
         eventId: event.id,
-        position: 0,
-        description: "Round 1",
+        position: 3,
+        description: "Round 4",
         type: "Stroke Play Round",
         format: "Individual Stroke Play",
         holes: 18,
         scoringBasis: "net",
         handicapAllowance: 95,
         teeSheet,
+        playedOn: dayOffset(17),
+        optDeadline: dayOffset(16),
       },
     });
 

@@ -9,9 +9,8 @@ import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
 import { showBracket, bracketBadge, feederFraction } from "@/lib/bracket-visibility";
 import { matchProgress, standingRows } from "@/lib/services/tournament";
 import { pts, shortName } from "@/lib/format";
-import { playingStages } from "@/lib/services/tournament";
-import { resolveAttendance, effectiveStatus, playerMayChange, type AttendanceMode } from "@/lib/domain/attendance";
-import { RoundAvailability, type AvailabilityRound, type CaptainFlight } from "@/components/RoundAvailability";
+import { RoundAvailability } from "@/components/RoundAvailability";
+import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { currentRoundCut } from "@/lib/domain/cut";
 import { navForRole } from "@/lib/nav";
@@ -183,87 +182,10 @@ export default async function DashboardPage() {
   // to a player. Captains additionally see their own flight's list — theirs,
   // and nobody else's; staff see everything on the Flights and Tee sheet
   // screens instead of here.
-  const attendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
-  let availabilityRounds: AvailabilityRound[] = [];
-  let captainFlights: CaptainFlight[] = [];
-  let ownPlayerId = "";
-  if (attendanceMode !== "everyone") {
-    const own = await prisma.player.findMany({
-      where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" }, status: "confirmed" },
-      select: { id: true, groupId: true },
-    });
-    ownPlayerId = own[0]?.id ?? "";
-    if (ownPlayerId) {
-      const leagueRounds = playingStages(state.stages);
-      const explicit = await prisma.roundAttendance.findMany({
-        where: { eventId: session.eventId, stageId: { in: leagueRounds.map((r) => r.id) } },
-      });
-      availabilityRounds = leagueRounds.map((r, i) => {
-        const mine = explicit.find((e) => e.stageId === r.id && e.playerId === ownPlayerId);
-        const chosen = mine && (mine.status === "in" || mine.status === "out") ? (mine.status as "in" | "out") : null;
-        return {
-          stageId: r.id,
-          label: `Round ${i + 1}`,
-          optDeadline: r.optDeadline,
-          status: effectiveStatus(attendanceMode, chosen),
-          explicit: chosen !== null,
-          locked: !playerMayChange(r.optDeadline),
-        };
-      });
-
-      // The flights this player captains or deputises for. Vice-captains were
-      // left out, though the schema promises them the same read-only view —
-      // so a deputy standing in saw nothing at all.
-      const ownIds = own.map((o) => o.id);
-      const captained = await prisma.group.findMany({
-        where: {
-          eventId: session.eventId,
-          OR: [{ captainId: { in: ownIds } }, { viceCaptainId: { in: ownIds } }],
-        },
-        select: { id: true, name: true, captainId: true },
-      });
-      if (captained.length) {
-        // Every round, not just the active one. A captain works out who they
-        // can field over the coming weeks; one round at a time hides exactly
-        // the thing worth seeing — three players out on the same night.
-        const roundCols = leagueRounds.map((r, i) => ({ stageId: r.id, label: `R${i + 1}` }));
-        // Resolve each round once for the whole field rather than per flight,
-        // so a twelve-flight league doesn't repeat the work twelve times.
-        const resolvedByStage = new Map(
-          leagueRounds.map((r) => [
-            r.id,
-            resolveAttendance(
-              attendanceMode,
-              state.confirmed.map((p) => p.id),
-              explicit
-                .filter((e) => e.stageId === r.id)
-                .map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
-            ),
-          ]),
-        );
-        captainFlights = captained.map((g) => {
-          const members = state.confirmed.filter((pl) => pl.groupId === g.id);
-          return {
-            flightName: g.name,
-            deputy: !ownIds.includes(g.captainId ?? ""),
-            rounds: roundCols,
-            rows: members.map((m) => ({
-              playerId: m.id,
-              name: m.name,
-              cells: leagueRounds.map((r) => {
-                const row = resolvedByStage.get(r.id)?.rows.find((x) => x.playerId === m.id);
-                return {
-                  stageId: r.id,
-                  status: row?.status ?? "out",
-                  explicit: row?.explicit ?? false,
-                };
-              }),
-            })),
-          };
-        });
-      }
-    }
-  }
+  // Assembled by the availability service, which the player shell at /me also
+  // calls. It used to be built inline here — and only here, which is why the
+  // one screen players actually land on never showed it.
+  const availability = await availabilityFor(state, session.email);
 
   const announcements = await prisma.announcement.findMany({
     where: { eventId: session.eventId },
@@ -313,9 +235,15 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {ownPlayerId && (availabilityRounds.length > 0 || captainFlights.length > 0) && (
+      {availability.playerId && (
         <div style={{ marginBottom: 16 }}>
-          <RoundAvailability playerId={ownPlayerId} rounds={availabilityRounds} captainOf={captainFlights} />
+          <RoundAvailability
+            playerId={availability.playerId}
+            next={availability.next}
+            future={availability.future}
+            past={availability.past}
+            captainOf={availability.captainOf}
+          />
         </div>
       )}
       <div

@@ -154,3 +154,65 @@ test("the score pad is a keypad, not a scrolling list", async ({ page }, testInf
   const rows = new Set(tops!);
   expect(rows.size, `pad rendered in ${rows.size} rows — expected 2`).toBe(2);
 });
+
+test("availability is on the player's own screen, grouped and dated", async ({ page }) => {
+  /**
+   * The weekly sign-up question used to live only on /dashboard — the console
+   * screen players are routed away from by landingScreenFor. It was a feature
+   * whose entire audience could not reach it, and no test noticed because
+   * every test that touched it was signed in as the organizer.
+   */
+  await page.goto("/me");
+  await page.waitForLoadState("networkidle");
+
+  const card = page.locator(".card").filter({ hasText: "Your availability" });
+  await expect(card).toBeVisible();
+
+  // Grouped: the imminent round is lifted out of the list.
+  await expect(card.getByText("Next round")).toBeVisible();
+  await expect(card.getByText(/Future rounds/)).toBeVisible();
+
+  // Dated. The fixture plays its next round three days out, so the card must
+  // say so in words as well as showing the date.
+  await expect(card.getByText("in 3 days")).toBeVisible();
+
+  // Played rounds are kept but collapsed, not deleted and not in the way.
+  await expect(card.getByText(/Earlier rounds \(1\)/)).toBeVisible();
+});
+
+test("the next round comes before the future ones on screen", async ({ page }) => {
+  // Not merely first in the data — first where the eye lands. A flat list is
+  // what this replaced.
+  await page.goto("/me");
+  await page.waitForLoadState("networkidle");
+
+  const card = page.locator(".card").filter({ hasText: "Your availability" });
+  const next = await card.getByText("Next round").boundingBox();
+  const future = await card.getByText(/Future rounds/).boundingBox();
+  expect(next, "no Next round heading").not.toBeNull();
+  expect(future, "no Future rounds heading").not.toBeNull();
+  expect(next!.y).toBeLessThan(future!.y);
+});
+
+test("In / Out is big enough to hit with a thumb", async ({ page }, testInfo) => {
+  // The control a league player taps most, and the one segmented control that
+  // never got sized for touch: it shipped at 34px while every button around it
+  // was 44. Branching on the reported pointer, not the project name — the
+  // 320px profile is a phone too.
+  await page.goto("/me");
+  await page.waitForLoadState("networkidle");
+
+  const coarse = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+  const opt = page.locator(".seg-opt").first();
+  await expect(opt).toBeVisible();
+  const box = await opt.boundingBox();
+  expect(box, "no In/Out control found").not.toBeNull();
+
+  if (coarse) {
+    expect(box!.height, `In/Out was ${box!.height}px on a touch screen`).toBeGreaterThanOrEqual(44);
+  } else {
+    // Desktop keeps its compact control — the phone fix must not coarsen it.
+    expect(box!.height, `In/Out grew to ${box!.height}px on desktop`).toBeLessThan(44);
+  }
+  expect(testInfo.project.name).toBeTruthy();
+});

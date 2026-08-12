@@ -1309,7 +1309,7 @@ describe("the captain's availability grid", () => {
     // The point of the change: three players out on the same night is the
     // thing a captain needs to spot, and it is invisible one round at a time.
     const { RoundAvailability } = await import("@/components/RoundAvailability");
-    const html = render(<RoundAvailability playerId="p9" rounds={[]} captainOf={[flight()]} />);
+    const html = render(<RoundAvailability playerId="p9" next={null} future={[]} past={[]} captainOf={[flight()]} />);
     expect(html).toContain("R1");
     expect(html).toContain("R2");
     expect(html).toContain("Ann Doyle");
@@ -1320,7 +1320,7 @@ describe("the captain's availability grid", () => {
     // "In" and "in because nobody said otherwise" are different promises.
     // A captain counting heads deserves to know which one they are reading.
     const { RoundAvailability } = await import("@/components/RoundAvailability");
-    const html = render(<RoundAvailability playerId="p9" rounds={[]} captainOf={[flight()]} />);
+    const html = render(<RoundAvailability playerId="p9" next={null} future={[]} past={[]} captainOf={[flight()]} />);
     expect(html).toContain("default");
     // Rob is in for R1 only because nobody said otherwise; Ann stated hers.
     expect(html).toContain("In by default");
@@ -1331,7 +1331,7 @@ describe("the captain's availability grid", () => {
     // Deliberate. Captains talk to the organizer, who makes the change —
     // so there is no write-on-behalf-of surface to get wrong.
     const { RoundAvailability } = await import("@/components/RoundAvailability");
-    const html = render(<RoundAvailability playerId="p9" rounds={[]} captainOf={[flight()]} />);
+    const html = render(<RoundAvailability playerId="p9" next={null} future={[]} past={[]} captainOf={[flight()]} />);
     const captainPart = html.slice(html.indexOf("Flight 1"));
     expect(captainPart).not.toContain("<input");
     expect(captainPart).not.toContain("<button");
@@ -1339,21 +1339,126 @@ describe("the captain's availability grid", () => {
 
   it("counts how many are available each round", async () => {
     const { RoundAvailability } = await import("@/components/RoundAvailability");
-    const html = render(<RoundAvailability playerId="p9" rounds={[]} captainOf={[flight()]} />);
+    const html = render(<RoundAvailability playerId="p9" next={null} future={[]} past={[]} captainOf={[flight()]} />);
     expect(html).toContain("Available");
   });
 
   it("names a deputy correctly rather than calling them the captain", async () => {
     const { RoundAvailability } = await import("@/components/RoundAvailability");
     const html = render(
-      <RoundAvailability playerId="p9" rounds={[]} captainOf={[flight({ deputy: true })]} />,
+      <RoundAvailability playerId="p9" next={null} future={[]} past={[]} captainOf={[flight({ deputy: true })]} />,
     );
     expect(html).toContain("vice-captain");
   });
 
   it("renders nothing at all when there is neither a round nor a flight", async () => {
     const { RoundAvailability } = await import("@/components/RoundAvailability");
-    expect(render(<RoundAvailability playerId="p9" rounds={[]} captainOf={[]} />)).toBe("");
+    expect(render(<RoundAvailability playerId="p9" next={null} future={[]} past={[]} captainOf={[]} />)).toBe("");
+  });
+});
+
+describe("a player's own availability", () => {
+  const round = (over: Record<string, unknown> = {}) => ({
+    stageId: "s1",
+    label: "Round 3",
+    playedOn: "2026-05-19",
+    dateLabel: "Tue 19 May",
+    whenLabel: "in 5 days",
+    optDeadline: "2026-05-18",
+    deadlineLabel: "Answer by Mon 18 May",
+    status: "in" as const,
+    explicit: true,
+    locked: false,
+    ...over,
+  });
+
+  it("shows the day each round is played, not just its number", async () => {
+    // "Round 7" tells a player nothing about whether they are free. The date
+    // was the one thing this card never carried.
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(<RoundAvailability playerId="p9" next={round()} future={[]} past={[]} />);
+    expect(html).toContain("Tue 19 May");
+    expect(html).toContain("in 5 days");
+    expect(html).toContain("Answer by Mon 18 May");
+  });
+
+  it("separates the next round from the ones after it", async () => {
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(
+      <RoundAvailability
+        playerId="p9"
+        next={round()}
+        future={[round({ stageId: "s2", label: "Round 4", dateLabel: "Tue 26 May", whenLabel: "" })]}
+        past={[]}
+      />,
+    );
+    expect(html).toContain("Next round");
+    expect(html).toContain("Future rounds");
+    // The next round comes first on the page, not merely first in the data.
+    expect(html.indexOf("Next round")).toBeLessThan(html.indexOf("Future rounds"));
+  });
+
+  it("collapses played rounds instead of throwing them away", async () => {
+    // What you answered is a record. It just isn't what you came to do.
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(
+      <RoundAvailability
+        playerId="p9"
+        next={round()}
+        future={[]}
+        past={[round({ stageId: "s0", label: "Round 2" }), round({ stageId: "sx", label: "Round 1" })]}
+      />,
+    );
+    expect(html).toContain("<details");
+    expect(html).toContain("Earlier rounds (2)");
+  });
+
+  it("still asks the question when every round has been played", async () => {
+    // Nothing to answer, but a captain may still have a flight to read, and
+    // the player may want to check what they said.
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(
+      <RoundAvailability playerId="p9" next={null} future={[]} past={[round({ locked: true })]} />,
+    );
+    expect(html).not.toContain("Next round");
+    expect(html).toContain("Earlier rounds (1)");
+  });
+
+  it("disables the choice once sign-up has closed", async () => {
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(
+      <RoundAvailability
+        playerId="p9"
+        next={round({ locked: true, deadlineLabel: "Sign-up closed" })}
+        future={[]}
+        past={[]}
+      />,
+    );
+    expect(html).toContain("Sign-up closed");
+    expect(html).toContain("disabled");
+  });
+
+  it("says when an answer is only the league's default", async () => {
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(
+      <RoundAvailability playerId="p9" next={round({ explicit: false })} future={[]} past={[]} />,
+    );
+    expect(html).toContain("by default");
+  });
+
+  it("omits the date line entirely for a round with no fixed day", async () => {
+    // Rather than printing an empty chip or inventing a date.
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(
+      <RoundAvailability
+        playerId="p9"
+        next={round({ playedOn: "", dateLabel: "", whenLabel: "", deadlineLabel: "Open" })}
+        future={[]}
+        past={[]}
+      />,
+    );
+    expect(html).toContain("Round 3");
+    expect(html).not.toContain("May");
   });
 });
 

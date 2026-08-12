@@ -119,7 +119,13 @@ describe("cloneEvent authorization", () => {
   /** cloneEvent's body with comments stripped — the guard comment names the
    *  very anti-pattern being asserted against, so prose would false-positive. */
   const cloneBody = () => {
-    const m = /export async function cloneEvent[\s\S]*?\n\}\n/.exec(action());
+    // `\r?\n`, not `\n`. git is configured with core.autocrlf=true here, so a
+    // fresh checkout writes every source file with CRLF — and this regex then
+    // matched nothing, failing three tests with "cloneEvent not found" while
+    // the function sat right there. A source-scanning test that depends on the
+    // checkout's line endings is a test that reports a security hole it cannot
+    // actually see.
+    const m = /export async function cloneEvent[\s\S]*?\r?\n\}\r?\n/.exec(action());
     if (!m) throw new Error("cloneEvent not found");
     return m[0].replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   };
@@ -153,7 +159,8 @@ describe("clone never carries a Round Code", () => {
       join(process.cwd(), "src", "app", "actions", "tournament.ts"),
       "utf8",
     );
-    const clone = /export async function cloneEvent[\s\S]*?\n\}\n/.exec(action);
+    // `\r?\n` for the same reason as above: CRLF checkouts.
+    const clone = /export async function cloneEvent[\s\S]*?\r?\n\}\r?\n/.exec(action);
     expect(clone, "cloneEvent not found").toBeTruthy();
     expect(clone![0]).not.toMatch(/accessCode/);
     expect(clone![0]).not.toMatch(/shareToken:\s*source\./);

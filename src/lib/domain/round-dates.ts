@@ -83,6 +83,38 @@ export function shortDate(date: IsoDate): string {
   return `${wd} ${d} ${month}`;
 }
 
+/**
+ * Whole days from one calendar date to another; negative when `to` is earlier.
+ *
+ * Through UTC noon like everything else here, so a date range spanning a
+ * daylight-saving change doesn't come back an hour — and therefore, after
+ * rounding, a day — short.
+ */
+export function daysBetween(from: IsoDate, to: IsoDate): number | null {
+  if (!isIsoDate(from) || !isIsoDate(to)) return null;
+  const at = (d: IsoDate) => {
+    const [y, m, dd] = d.split("-").map(Number);
+    return Date.UTC(y, m - 1, dd, 12);
+  };
+  return Math.round((at(to) - at(from)) / 86_400_000);
+}
+
+/**
+ * "Today" / "Tomorrow" / "in 5 days" — the part of a date a player actually
+ * acts on.
+ *
+ * Empty beyond a fortnight, and empty for anything past: "in 34 days" is worse
+ * than the date itself, and how long ago a round was is not what the reader
+ * needs. Empty is a real answer here, not a failure.
+ */
+export function relativeDay(date: IsoDate, today: IsoDate): string {
+  const n = daysBetween(today, date);
+  if (n === null || n < 0 || n >= 14) return "";
+  if (n === 0) return "Today";
+  if (n === 1) return "Tomorrow";
+  return `in ${n} days`;
+}
+
 /** Common cadences, in the words a club uses. */
 export const INTERVAL_OPTIONS = [
   { days: 7, label: "Every week" },

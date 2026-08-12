@@ -225,6 +225,52 @@ const LANDING_CSS = `
 .thq .foot-meta { font-size:12.5px; color:var(--ink-faint); display:flex; gap:18px; flex-wrap:wrap; }
 .thq .foot-meta .cred { color:var(--ink-soft); }
 
+/* The AjAi mark: orange capitals, green stems, orange tittles.
+   A tittle — the dot over an i or a j — is part of the glyph, so CSS cannot
+   colour it apart from the stem it sits on. The only honest way to get an
+   orange dot over a green stem is to use the DOTLESS letters (ı U+0131,
+   ȷ U+0237) and draw the dots as pseudo-elements.
+   That swap is invisible to the eye and very visible to a screen reader, which
+   would read "AȷAı" — so the decorative version is aria-hidden and the real
+   word is supplied beside it for assistive tech only. */
+/* The rule: ORANGE for the capitals and the tittles, GREEN for the lowercase
+   stems and the "Labs" that follows. Two brand colours, one statable rule.
+
+   Every number below is MEASURED off Geist's own i and j — rasterized and
+   pixel-scanned — rather than eyeballed, so a replacement tittle is
+   indistinguishable from the real one except in colour:
+
+     tittle box      0.1575 x 0.1225em   (wider than tall — it is a rounded
+                                          RECTANGLE, not a dot; a circle here
+                                          reads as a different typeface)
+     corner radius   ~0.028em            (measured 96.4% box fill)
+     tittle top      0.725em above the baseline
+     ink left edge   0.06em (i) / 0.11em (j) from the glyph origin — the j's
+                     stem sits right of its advance centre because the
+                     descender hooks left, so left:50% would misplace it
+     font ascent     1.005em  -> top = 1.005 - 0.725 = 0.28em from the inline
+                     content box, which is what an absolutely positioned child
+                     of an inline element is measured against.
+
+   These are Geist's metrics. If the display face ever changes, re-measure. */
+.thq .ajai { font-weight:700; }
+.thq .ajai-cap { color:var(--brass); }
+.thq .ajai-stem { position:relative; color:var(--flag); }
+.thq .ajai-stem::after {
+  content:""; position:absolute; top:0.28em;
+  width:0.1575em; height:0.1225em; border-radius:0.028em;
+  background:var(--brass);
+}
+.thq .ajai-stem.is-i::after { left:0.06em; }
+.thq .ajai-stem.is-j::after { left:0.11em; }
+/* The qualifier, tied to the stems and one weight quieter so it reads as the
+   suffix to the mark rather than a fifth letter competing with it. */
+.thq .ajai-labs { color:var(--flag); font-weight:600; }
+.thq .sr-only {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+
 .thq-js .rise { opacity:0; transform:translateY(15px); }
 .thq-js .in .rise { opacity:1; transform:none; transition:opacity .75s ease, transform .75s cubic-bezier(.2,.7,.2,1); }
 .thq-js .in .rise:nth-child(2){transition-delay:.07s} .thq-js .in .rise:nth-child(3){transition-delay:.14s} .thq-js .in .rise:nth-child(4){transition-delay:.2s}
@@ -540,7 +586,18 @@ export default async function LoginPage() {
           </div>
           <div className="foot-meta">
             <a href="/privacy">Privacy</a>
-            <span className="cred">An AjAi Labs creation</span>
+            <span className="cred">
+              An{" "}
+              {/* aria-hidden because the dotless letters below are a drawing,
+                  not spelling. The real word follows for screen readers. */}
+              <span className="ajai" aria-hidden="true">
+                <span className="ajai-cap">A</span>
+                <span className="ajai-stem is-j">{"ȷ"}</span>
+                <span className="ajai-cap">A</span>
+                <span className="ajai-stem is-i">{"ı"}</span>
+              </span>
+              <span className="sr-only">AjAi</span> <span className="ajai-labs">Labs</span> creation
+            </span>
             <span>© {new Date().getFullYear()} TourneyHQ</span>
           </div>
         </div>

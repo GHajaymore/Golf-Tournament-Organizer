@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState } from "@/lib/services/tournament";
 import { meFor } from "@/lib/services/me";
+import { availabilityFor } from "@/lib/services/availability";
+import { RoundAvailability } from "@/components/RoundAvailability";
 import { toParText } from "@/lib/domain";
 
 /**
@@ -30,6 +32,7 @@ export default async function PlayTodayPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const me = await meFor(state, session.email);
+  const availability = await availabilityFor(state, session.email);
 
   const round = me.round;
   const card = round?.card ?? null;
@@ -183,6 +186,22 @@ export default async function PlayTodayPage() {
               </>
             )}
           </section>
+
+          {/* Am I playing, and when. Last because it is about weeks to come
+              rather than this morning — but present at all for the first time:
+              the weekly sign-up lived only on /dashboard, which is precisely
+              the screen players are routed away from. */}
+          {availability.playerId && (
+            <div style={{ marginTop: 12 }}>
+              <RoundAvailability
+                playerId={availability.playerId}
+                next={availability.next}
+                future={availability.future}
+                past={availability.past}
+                captainOf={availability.captainOf}
+              />
+            </div>
+          )}
         </>
       )}
     </div>

@@ -574,6 +574,10 @@ body {
   .btn.btn,
   .input.input,
   select.input.input,
+  /* In / Out on the weekly sign-up is the control a player taps most, and it
+     was 34px — the one segmented control in the app that never got sized for a
+     thumb. Doubled like the rest: its base rule is in design-system.css. */
+  .seg-opt.seg-opt,
   .m-tab {
     min-height: 44px;
   }

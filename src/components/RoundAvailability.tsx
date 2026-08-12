@@ -1,82 +1,54 @@
 "use client";
 import { useState, useTransition } from "react";
 import { setAttendance } from "@/app/actions/attendance";
+import type { AvailabilityRound, AvailabilityView, CaptainFlight } from "@/lib/services/availability";
 
-export interface AvailabilityRound {
-  stageId: string;
-  label: string;
-  /** ISO date, or "" for an open window. */
-  optDeadline: string;
-  /** The signed-in player's effective answer. */
-  status: "in" | "out";
-  /** Whether that answer was stated, or is the league's default. */
-  explicit: boolean;
-  /** True once the window has closed for players. */
-  locked: boolean;
-}
-
-export interface CaptainFlightCell {
-  stageId: string;
-  status: "in" | "out";
-  /** Whether that answer was stated, or is the league's default. */
-  explicit: boolean;
-}
-
-export interface CaptainFlightRow {
-  playerId: string;
-  name: string;
-  /** One cell per round, in the same order as the flight's `rounds`. */
-  cells: CaptainFlightCell[];
-}
-
-/**
- * A flight a player captains, across every round still to be played.
- *
- * This was one round wide — the current one — while the player's own view
- * below it already spanned the season. A captain working out who they can
- * field needs the weeks together: three players out on the same night is the
- * thing worth spotting, and it is invisible one round at a time.
- *
- * Read-only by design. Captains do not set other players' availability;
- * that stays with the organizer, from whatever the captain tells them.
- */
-export interface CaptainFlight {
-  flightName: string;
-  rounds: { stageId: string; label: string }[];
-  rows: CaptainFlightRow[];
-  /** True when this player deputises rather than captains. */
-  deputy?: boolean;
-}
+export type { AvailabilityRound, CaptainFlight } from "@/lib/services/availability";
 
 /**
  * The weekly question, asked where a player already looks.
  *
- * One row per round: In / Out, the deadline, and — the honest part — whether
- * the current answer is theirs or just the league's default. "In (by
- * default)" and "In" are different promises, and a tee sheet built on the
- * difference deserves to show it.
+ * One row per round: In / Out, the day it is played, the deadline, and — the
+ * honest part — whether the current answer is theirs or just the league's
+ * default. "In (by default)" and "In" are different promises, and a tee sheet
+ * built on the difference deserves to show it.
  *
- * The captain's section is read-only on purpose. Seeing your flight's list
- * is an appointment; changing someone's answer stays between the player and
- * the committee, so the row shows who is in without offering a way to flip
- * anyone else.
+ * Grouped rather than listed. A twelve-week league is twelve identical rows,
+ * and the one that matters is the next one; a flat list makes the reader find
+ * it every time. Next round is separated and emphasised, the rest sit under
+ * "Future rounds", and rounds already played collapse out of the way without
+ * being thrown away — what you answered is a record, not clutter to delete.
+ *
+ * Dates arrive pre-formatted from the server. A round is a calendar day, and a
+ * browser asked to format one is a browser that will occasionally disagree
+ * about which day it is.
+ *
+ * The captain's section is read-only on purpose. Seeing your flight's list is
+ * an appointment; changing someone's answer stays between the player and the
+ * committee, so the row shows who is in without offering a way to flip anyone
+ * else.
  */
 export function RoundAvailability({
   playerId,
-  rounds,
+  next,
+  future,
+  past,
   captainOf = [],
 }: {
   /** The signed-in player's entry in this tournament. */
   playerId: string;
-  rounds: AvailabilityRound[];
-  /** Flights this player captains, resolved for the current round. */
+  next: AvailabilityView["next"];
+  future: AvailabilityRound[];
+  past: AvailabilityRound[];
+  /** Flights this player captains, across the season. */
   captainOf?: CaptainFlight[];
 }) {
+  const all = [...(next ? [next] : []), ...future, ...past];
   const [byStage, setByStage] = useState<Record<string, "in" | "out">>(() =>
-    Object.fromEntries(rounds.map((r) => [r.stageId, r.status])),
+    Object.fromEntries(all.map((r) => [r.stageId, r.status])),
   );
   const [explicitByStage, setExplicitByStage] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(rounds.map((r) => [r.stageId, r.explicit])),
+    Object.fromEntries(all.map((r) => [r.stageId, r.explicit])),
   );
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
@@ -97,63 +69,63 @@ export function RoundAvailability({
     });
   };
 
-  if (rounds.length === 0 && captainOf.length === 0) return null;
+  if (all.length === 0 && captainOf.length === 0) return null;
+
+  const row = (r: AvailabilityRound, emphasis: boolean) => (
+    <Round
+      key={r.stageId}
+      round={r}
+      emphasis={emphasis}
+      status={byStage[r.stageId]}
+      explicit={explicitByStage[r.stageId]}
+      pending={pending}
+      onAnswer={answer}
+    />
+  );
 
   return (
-    <div className="card elev-sm" style={{ gap: 12 }}>
+    <div className="card elev-sm" style={{ gap: 14 }}>
       <div>
-        <span className="card-title" style={{ fontSize: 15 }}>Playing this week?</span>
+        <span className="card-title" style={{ fontSize: 15 }}>
+          Your availability
+        </span>
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
-          Answer per round. After a round&rsquo;s sign-up deadline the organizer makes changes.
+          Say whether you&rsquo;re playing, round by round. You can change your answer until each
+          round&rsquo;s sign-up deadline; after that the organizer makes changes.
         </p>
       </div>
 
-      {rounds.map((r) => {
-        const status = byStage[r.stageId];
-        const explicit = explicitByStage[r.stageId];
-        return (
-          <div
-            key={r.stageId}
-            style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
+      {next && (
+        <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <span className="card-kicker">Next round</span>
+          {row(next, true)}
+        </section>
+      )}
+
+      {future.length > 0 && (
+        <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <span className="card-kicker">
+            Future rounds <span style={{ opacity: 0.7 }}>({future.length})</span>
+          </span>
+          {future.map((r) => row(r, false))}
+        </section>
+      )}
+
+      {/* Collapsed, not dropped. A player who wants to check what they said
+          about a week that has been and gone can still open it. */}
+      {past.length > 0 && (
+        <details>
+          <summary
+            className="card-kicker touch-target"
+            style={{ cursor: "pointer", display: "flex", alignItems: "center" }}
           >
-            <span style={{ minWidth: 90, fontSize: 13, fontWeight: 500 }}>{r.label}</span>
-            <div className="seg">
-              <label className="seg-opt" style={{ opacity: r.locked ? 0.5 : 1 }}>
-                <input
-                  type="radio"
-                  name={`avail-${r.stageId}`}
-                  checked={status === "in"}
-                  disabled={pending || r.locked}
-                  onChange={() => answer(r.stageId, "in")}
-                />
-                In
-              </label>
-              <label className="seg-opt" style={{ opacity: r.locked ? 0.5 : 1 }}>
-                <input
-                  type="radio"
-                  name={`avail-${r.stageId}`}
-                  checked={status === "out"}
-                  disabled={pending || r.locked}
-                  onChange={() => answer(r.stageId, "out")}
-                />
-                Out
-              </label>
-            </div>
-            {!explicit && (
-              <span className="tag tag-neutral" style={{ fontSize: 10.5 }}>
-                by default
-              </span>
-            )}
-            <span className="text-muted" style={{ fontSize: 11.5 }}>
-              {r.locked
-                ? "Sign-up closed"
-                : r.optDeadline
-                  ? `Answer by ${r.optDeadline}`
-                  : "Open"}
-            </span>
+            Earlier rounds ({past.length})
+          </summary>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
+            {past.map((r) => row(r, false))}
           </div>
-        );
-      })}
+        </details>
+      )}
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
@@ -185,12 +157,12 @@ export function RoundAvailability({
                 </tr>
               </thead>
               <tbody>
-                {f.rows.map((row) => (
-                  <tr key={row.playerId}>
+                {f.rows.map((r) => (
+                  <tr key={r.playerId}>
                     <td style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160 }}>
-                      {row.name}
+                      {r.name}
                     </td>
-                    {row.cells.map((c) => (
+                    {r.cells.map((c) => (
                       <td key={c.stageId} style={{ textAlign: "center" }}>
                         <i
                           className={c.status === "in" ? "ph ph-check-circle" : "ph ph-x-circle"}
@@ -213,7 +185,7 @@ export function RoundAvailability({
                       </td>
                     ))}
                     <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
-                      {row.cells.filter((c) => c.status === "in").length}
+                      {r.cells.filter((c) => c.status === "in").length}
                     </td>
                   </tr>
                 ))}
@@ -222,7 +194,7 @@ export function RoundAvailability({
                 <tr>
                   <td style={{ fontWeight: 500 }}>Available</td>
                   {f.rounds.map((r, i) => {
-                    const n = f.rows.filter((row) => row.cells[i]?.status === "in").length;
+                    const n = f.rows.filter((x) => x.cells[i]?.status === "in").length;
                     return (
                       <td
                         key={r.stageId}
@@ -239,6 +211,94 @@ export function RoundAvailability({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * One round's question.
+ *
+ * The next round is drawn as a panel rather than a list row — an accent rule
+ * down its edge and a tinted ground — because it is the only one most players
+ * will answer on any given visit, and everything below it is a list they scroll
+ * past.
+ */
+function Round({
+  round: r,
+  emphasis,
+  status,
+  explicit,
+  pending,
+  onAnswer,
+}: {
+  round: AvailabilityRound;
+  emphasis: boolean;
+  status: "in" | "out";
+  explicit: boolean;
+  pending: boolean;
+  onAnswer: (stageId: string, status: "in" | "out") => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        ...(emphasis
+          ? {
+              padding: 12,
+              borderRadius: "var(--radius-md)",
+              borderLeft: "3px solid var(--color-accent)",
+              background: "color-mix(in srgb, var(--color-accent) 8%, transparent)",
+            }
+          : {}),
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "row", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: emphasis ? 15 : 13.5, fontWeight: 600 }}>{r.label}</span>
+        {/* The date, which the row never carried — "Round 7" tells a player
+            nothing about whether they are free. */}
+        {r.dateLabel && (
+          <span style={{ fontSize: emphasis ? 14 : 13, color: "var(--color-text-muted)" }}>{r.dateLabel}</span>
+        )}
+        {r.whenLabel && (
+          <span className="tag tag-accent" style={{ fontSize: 10.5 }}>
+            {r.whenLabel}
+          </span>
+        )}
+      </div>
+      <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div className="seg">
+          <label className="seg-opt" style={{ opacity: r.locked ? 0.5 : 1 }}>
+            <input
+              type="radio"
+              name={`avail-${r.stageId}`}
+              checked={status === "in"}
+              disabled={pending || r.locked}
+              onChange={() => onAnswer(r.stageId, "in")}
+            />
+            In
+          </label>
+          <label className="seg-opt" style={{ opacity: r.locked ? 0.5 : 1 }}>
+            <input
+              type="radio"
+              name={`avail-${r.stageId}`}
+              checked={status === "out"}
+              disabled={pending || r.locked}
+              onChange={() => onAnswer(r.stageId, "out")}
+            />
+            Out
+          </label>
+        </div>
+        {!explicit && (
+          <span className="tag tag-neutral" style={{ fontSize: 10.5 }}>
+            by default
+          </span>
+        )}
+        <span className="text-muted" style={{ fontSize: 11.5 }}>
+          {r.deadlineLabel}
+        </span>
+      </div>
     </div>
   );
 }
