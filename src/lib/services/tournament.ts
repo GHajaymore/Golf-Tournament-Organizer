@@ -9,6 +9,8 @@ import {
   holeStrokesReceived, stablefordPointsForHole, allocationHoles, playingHandicapFrom } from "../domain";
 import { aggregateStroke, emptyAgg, netOf, type StrokeCard } from "../domain/stroke-agg";
 import { resolveCourse } from "../courses";
+import { todayIso } from "../deadline";
+import { cleanIsoDate } from "../domain/round-dates";
 import { pts as fmtPts, record as fmtRecord, diff as fmtDiff } from "../format";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import {
@@ -137,6 +139,48 @@ export function hasAnyHole(holesJson: string): boolean {
  * Once every generated round is finished this lands on the last of them, so a
  * completed tournament still shows its final standings.
  */
+/**
+ * Which round a tournament with no Round Robin stages is on, read off the
+ * calendar.
+ *
+ * The rule above needs matches to reason about, and a stroke-play league has
+ * none — so the fallback was simply "the last playing round", which is right
+ * for the one-round tournament this app started as and wrong for every league
+ * since. A twelve-week league in week two opened every screen on week twelve:
+ * an empty tee sheet, an empty card, and standings drawn from a round nobody
+ * had played.
+ *
+ * The answer is the round most recently PLAYED, not the one coming next. The
+ * day after a league night the organizer is entering scores and a player is
+ * finishing a card, and both of those belong to the round just played; sending
+ * them forward a week would put an unreturned card out of reach. Looking
+ * forward is what the tee sheet and the availability card are for — and note
+ * the player's "next round" there is deliberately a different question from
+ * this one.
+ *
+ * Returns -1 when no round carries a date, which keeps every undated
+ * tournament on exactly the behaviour it has always had.
+ */
+export function currentDatedRoundIndex(
+  playRounds: Array<{ playedOn: string }>,
+  now: Date = new Date(),
+): number {
+  const today = todayIso(now);
+  let lastPlayed = -1;
+  let firstDated = -1;
+  for (let i = 0; i < playRounds.length; i += 1) {
+    const day = cleanIsoDate(playRounds[i].playedOn);
+    if (!day) continue;
+    if (firstDated < 0) firstDated = i;
+    // Today counts as played: a round is "current" from the moment it starts,
+    // not from the day after.
+    if (day <= today) lastPlayed = i;
+  }
+  // Before the season opens there is nothing played, and the round everyone is
+  // preparing for is the first — never the last.
+  return lastPlayed >= 0 ? lastPlayed : firstDated;
+}
+
 export function currentRoundIndex(
   rrStages: Array<{ id: string }>,
   matches: Array<{ stageId: string; holes: string }>,
@@ -385,8 +429,15 @@ export async function loadEventState(eventId: string): Promise<EventState | null
 
   const playRounds = playingStages(stages);
   const activeRrIdx = currentRoundIndex(rrStages, matches);
+  // A dated stroke-play league is read off the calendar; an undated one keeps
+  // the old "last round" answer, which is correct for a single-round event and
+  // is all there is to go on without dates.
+  const datedIdx = currentDatedRoundIndex(playRounds);
   const activeStage =
-    rrStages[activeRrIdx] ?? rrStages[rrStages.length - 1] ?? playRounds[playRounds.length - 1] ?? null;
+    rrStages[activeRrIdx] ??
+    rrStages[rrStages.length - 1] ??
+    (datedIdx >= 0 ? playRounds[datedIdx] : playRounds[playRounds.length - 1]) ??
+    null;
   // The chain runs up to the round being played, not past it. Running it to
   // the end left `overall` holding the last round's standings, which is why a
   // played Round 1 showed as zeroes while Round 2 was nominally current.

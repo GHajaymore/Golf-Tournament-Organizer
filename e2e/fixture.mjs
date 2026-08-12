@@ -135,16 +135,41 @@ export async function seed() {
       startType: "tee",
       groups: [{ name: "Group 1", startHole: 1, time: "08:10", playerIds: players.map((p) => p.id) }],
     });
-    // Three earlier weeks, straddling today: one already played, one imminent
-    // (the "next round" the availability card must lift out and emphasise) and
-    // one beyond it. Dates are relative to the day the suite runs, so the split
-    // around today stays real however long this fixture lives.
-    for (const [i, offset] of [-7, 3, 10].entries()) {
+    /**
+     * The round the play screens open on: the most recent one PLAYED.
+     *
+     * A week ago, carrying the drawn sheet and the cards — which is what a
+     * round that has been played looks like. loadEventState reads the current
+     * round off the calendar for a dated stroke-play league, so this is the
+     * round /me and the console open on while the weeks ahead sit in front of
+     * it on the availability card.
+     */
+    const stage = await prisma.stage.create({
+      data: {
+        eventId: event.id,
+        position: 0,
+        description: "Round 1",
+        type: "Stroke Play Round",
+        format: "Individual Stroke Play",
+        holes: 18,
+        scoringBasis: "net",
+        handicapAllowance: 95,
+        teeSheet,
+        playedOn: dayOffset(-7),
+        optDeadline: dayOffset(-8),
+      },
+    });
+
+    // Three weeks still to come: one imminent — the "next round" the
+    // availability card must lift out and emphasise — and two beyond it. Dates
+    // are relative to the day the suite runs, so the split around today stays
+    // real however long this fixture lives.
+    for (const [i, offset] of [3, 10, 17].entries()) {
       await prisma.stage.create({
         data: {
           eventId: event.id,
-          position: i,
-          description: `Round ${i + 1}`,
+          position: i + 1,
+          description: `Round ${i + 2}`,
           type: "Stroke Play Round",
           format: "Individual Stroke Play",
           holes: 18,
@@ -155,35 +180,6 @@ export async function seed() {
         },
       });
     }
-
-    /**
-     * The round the play screens open on — deliberately LAST.
-     *
-     * loadEventState picks the active stage as the final playing round when a
-     * tournament has no Round Robin stages, so the round carrying the tee sheet
-     * and the part-finished card has to be the last one or /me opens on an
-     * empty week. Adding league rounds after it is what broke the card specs
-     * the first time.
-     *
-     * (That rule is worth revisiting on its own: for a multi-week league the
-     * round being played is the next unplayed one, not the last on the
-     * calendar. Out of scope here, and it needs its own change.)
-     */
-    const stage = await prisma.stage.create({
-      data: {
-        eventId: event.id,
-        position: 3,
-        description: "Round 4",
-        type: "Stroke Play Round",
-        format: "Individual Stroke Play",
-        holes: 18,
-        scoringBasis: "net",
-        handicapAllowance: 95,
-        teeSheet,
-        playedOn: dayOffset(17),
-        optDeadline: dayOffset(16),
-      },
-    });
 
     // One card per approval state, plus the part-finished one that the card
     // screen must open on rather than blanking.

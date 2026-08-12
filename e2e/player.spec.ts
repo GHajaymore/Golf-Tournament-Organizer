@@ -216,3 +216,19 @@ test("In / Out is big enough to hit with a thumb", async ({ page }, testInfo) =>
   }
   expect(testInfo.project.name).toBeTruthy();
 });
+
+test("a multi-week league opens on the round played, not the last on the calendar", async ({ page }) => {
+  /**
+   * With no Round Robin stages the current round used to be "the last playing
+   * round", which for a league is the final week of the season. The fixture
+   * plays Round 1 a week ago and has three weeks still to come, so under the
+   * old rule this screen opened on Round 4: no tee sheet, no card, nothing.
+   *
+   * Every card test above passes only because this is right — but none of them
+   * says so, and a rule nobody states is a rule that gets changed back.
+   */
+  await page.goto("/me");
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("Round 1", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("08:10")).toBeVisible();
+});
