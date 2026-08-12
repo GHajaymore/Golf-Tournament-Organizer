@@ -521,3 +521,91 @@ body {
     page-break-before: always;
   }
 }
+
+/* ── Running as an app, not a page in a wrapper ────────────────────────────
+   The native shells (Capacitor, iOS and Android) load this same CSS in a web
+   view, so everything that makes a hybrid app feel bolted together is a
+   stylesheet problem rather than a native one. Four of them, in order of how
+   much they give away. */
+
+/* 1. Safe areas.
+      `viewportFit: "cover"` in layout.tsx deliberately draws into the notch,
+      the Dynamic Island and the home-indicator strip. That is opt-in, and the
+      price is that every fixed or sticky edge has to pay the inset back. The
+      tab bar already did; the top bar did not, so on every notched iPhone the
+      brand lockup sat underneath the island. Nothing paid the side insets, so
+      landscape clipped content behind the rounded corners. */
+.m-topbar {
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-left: calc(16px + env(safe-area-inset-left, 0px));
+  padding-right: calc(16px + env(safe-area-inset-right, 0px));
+}
+.m-tabbar {
+  padding-left: calc(4px + env(safe-area-inset-left, 0px));
+  padding-right: calc(4px + env(safe-area-inset-right, 0px));
+}
+/* The scrolling body between them. `env()` resolves to 0 everywhere it does
+   not apply, so this is inert on a desktop browser and on Android phones
+   without cutouts. */
+.app-main {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* 2. Touch targets.
+      34px is the deliberate desktop density — a row of controls reads as a row
+      at that height. It is also below both published minimums (44pt on iOS,
+      48dp on Android), and on a phone that is the single most-felt difference
+      between an app and a website. Raised only where the pointer is coarse, so
+      the desktop console is untouched. */
+@media (pointer: coarse) {
+  /* Selectors doubled for the same reason `:root:root` is doubled at the top
+     of this file: Next's CSS chunker does not preserve `@import`-first order,
+     so design-system.css — which owns `.btn` and `.input` at 34px — lands
+     AFTER this file in the compiled sheet and wins at equal specificity.
+     Measured: without the doubling `.m-tab` took the 44px (its base rule is
+     in this file) and `.btn` silently did not. */
+  .btn.btn,
+  .input.input,
+  select.input.input,
+  .m-tab {
+    min-height: 44px;
+  }
+  /* Inline text links that act as buttons get the height without the box. */
+  .btn-link,
+  .m-topbar a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* 3. The tap flash.
+      Both platforms paint a translucent grey box over whatever was touched,
+      which appears on top of our own :active styling and reads as a web page.
+      `touch-action: manipulation` additionally drops the 300ms wait for a
+      possible double-tap-to-zoom. */
+a,
+button,
+[role="button"],
+.m-tab,
+.btn {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* 4. Overscroll and text inflation.
+      Rubber-banding past the end of the page exposes whatever is behind the
+      document — white, against a dark app. `overscroll-behavior-y: none` also
+      stops a pull-down at the top being read as pull-to-refresh, which would
+      reload a scorecard mid-entry.
+      `text-size-adjust` stops iOS inflating body text when a phone is turned
+      to landscape, which silently breaks every column that was measured in
+      portrait. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  overscroll-behavior-y: none;
+}

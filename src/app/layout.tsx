@@ -34,9 +34,22 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#16181a",
+  /**
+   * The status bar and, on Android, the task-switcher chrome.
+   *
+   * Two entries rather than one: a single dark value painted a dark bar above
+   * a light-mode app, which is the tell that a web view has been wrapped
+   * rather than built. These match --color-bg on each ground.
+   */
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f2ee" },
+    { media: "(prefers-color-scheme: dark)", color: "#16181a" },
+  ],
   width: "device-width",
   initialScale: 1,
+  // Draw into the notch and the home-indicator area. This is opt-in, and the
+  // price of opting in is that every fixed or sticky edge has to pay the inset
+  // back by hand — see the safe-area block in globals.css.
   viewportFit: "cover",
 };
 
