@@ -306,7 +306,17 @@ function SoloPad({
           {"•".repeat(shots)} {shots === 1 ? "1 shot" : `${shots} shots`} on this hole
         </p>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 16 }}>
+      {/* `keep-grid` is not decoration. globals.css stacks every inline grid
+          inside <main> on phones — `main [style*="grid-template-columns"]` with
+          !important — because most two-column layouts have no business staying
+          side by side at 375px. This one does: six par-relative picks in a
+          single column is a scrolling list, not a keypad. The rule's own
+          comment says the hole grid opts out; it simply never did, so the pad
+          shipped as six stacked full-width buttons. */}
+      <div
+        className="keep-grid"
+        style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 16 }}
+      >
         {RELATIVE.map((rel) => {
           const n = (par ?? 4) + rel;
           if (n < 1) return null;

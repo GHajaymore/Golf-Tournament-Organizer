@@ -124,3 +124,33 @@ test("a blind tournament hides the board from its players", async ({ page }) => 
     await setVisibility("public");
   }
 });
+
+test("the score pad is a keypad, not a scrolling list", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "desktop", "the stacking rule only applies on phones");
+
+  /**
+   * globals.css stacks every inline grid inside <main> on phones — an
+   * !important attribute selector — because most two-column layouts have no
+   * business staying side by side at 375px. The par-relative pad does, and it
+   * had not opted in to `keep-grid`, so six picks shipped as six stacked
+   * full-width buttons: a scrolling list where a keypad was designed.
+   *
+   * Every other test passed throughout, because they counted scored holes and
+   * checked the certify button. None of them looked at where anything WAS.
+   */
+  await page.goto("/me/card");
+  await page.waitForLoadState("networkidle");
+
+  const tops = await page.evaluate(() => {
+    const btn = [...document.querySelectorAll("button")].find((b) => /Birdie/.test(b.textContent ?? ""));
+    const grid = btn?.parentElement;
+    if (!grid) return null;
+    return [...grid.children].map((k) => Math.round(k.getBoundingClientRect().top));
+  });
+
+  expect(tops, "no score pad found").not.toBeNull();
+  // Three picks share the first row; a single-column stack would give six
+  // distinct tops.
+  const rows = new Set(tops!);
+  expect(rows.size, `pad rendered in ${rows.size} rows — expected 2`).toBe(2);
+});

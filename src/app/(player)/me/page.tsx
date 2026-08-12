@@ -73,7 +73,12 @@ export default async function PlayTodayPage() {
               screen, and the only place this screen shouts. */}
           <section
             className="card elev-sm"
-            style={{ marginTop: 18, display: "flex", alignItems: "center", gap: 18 }}
+            // `flexDirection: "row"` explicitly: `.card` sets column, and an
+            // inline `display: flex` does not override a direction it never
+            // mentions. Without it the position and the score stacked and
+            // centred instead of sitting at either end of the card — which
+            // looked deliberate enough that only opening the screen caught it.
+            style={{ marginTop: 18, display: "flex", flexDirection: "row", alignItems: "center", gap: 18 }}
           >
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 11.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>
