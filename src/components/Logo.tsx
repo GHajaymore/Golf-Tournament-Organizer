@@ -13,12 +13,18 @@
  * Colours come from variables so the marketing page can keep its own palette
  * without keeping its own drawing:
  *
- *   --logo-flag   the pennant
+ *   --logo-flag   the pennant, and the stick unless overridden — ORANGE
  *   --logo-stick  the flagstick; defaults to the pennant's colour
+ *   --logo-ball   the ball — GREEN
  *   --logo-rim    the cup's outline
  *   --logo-cup    the cup's fill; transparent where the ground is not flat
  *
- * The ball is always `currentColor`, so `color:` alone re-themes the mark.
+ * Orange flag, green ball. It was the other way round, and the ball was not a
+ * variable at all — it was `currentColor`, so it took whatever text colour it
+ * happened to sit in. That made it near-white in the sidebar and on the
+ * landing page while the generated app icons drew it in orange: the icon on a
+ * home screen did not match the app it opened. A part of the mark that cannot
+ * be set is a part of the mark that drifts.
  */
 
 /**
@@ -66,11 +72,11 @@ export function Logo({
         // stick and pennant in one colour; the programme palette draws the
         // stick in ink and lets only the pennant carry the orange. Collapsing
         // the two lost that two-tone the first time this was unified.
-        stroke="var(--logo-stick, var(--logo-flag, var(--color-accent-2, currentColor)))"
+        stroke="var(--logo-stick, var(--logo-flag, var(--color-accent, currentColor)))"
         strokeWidth="1.8"
         strokeLinecap="round"
       />
-      <path d="M20 4.5 L27.5 7.5 L20 10.5 Z" fill="var(--logo-flag, var(--color-accent-2, currentColor))" />
+      <path d="M20 4.5 L27.5 7.5 L20 10.5 Z" fill="var(--logo-flag, var(--color-accent, currentColor))" />
       {/* the cup */}
       <ellipse
         cx="16"
@@ -82,7 +88,7 @@ export function Logo({
         strokeWidth="1"
       />
       {/* ball dropping in */}
-      <circle cx="12" cy="19.5" r="3.4" fill="currentColor" />
+      <circle cx="12" cy="19.5" r="3.4" fill="var(--logo-ball, var(--color-accent-2, currentColor))" />
     </svg>
   );
 }

@@ -21,10 +21,14 @@ const iosIcons = join(root, "ios/App/App/Assets.xcassets/AppIcon.appiconset");
 // Brand colours, resolved. The component uses CSS custom properties, which an
 // SVG rasterizer cannot see, so the values are written out here.
 const GROUND = "#16181a"; // --color-bg
-const FLAG = "#5fb484"; // --color-accent-2-400: lifted one step off the
-//                          in-app green, which goes muddy at 48px
-const BALL = "#f2862e"; // --color-accent
-const EDGE = "#55605a"; // green's rim, brightened for small sizes
+// Orange flag, green ball — matching Logo.tsx's --logo-flag / --logo-ball
+// defaults. These two were the other way round, and the ball was orange here
+// while the component drew it in currentColor: the home-screen icon did not
+// match the app it opened.
+const FLAG = "#f2862e"; // --color-accent, as the ramp actually resolves it
+const BALL = "#5fb484"; // --color-accent-2-400: lifted one step off the in-app
+//                         green, which goes muddy at 48px
+const EDGE = "#55605a"; // the cup's rim, brightened for small sizes
 
 /**
  * The mark on a 512 grid — Logo.tsx's 32-unit viewBox scaled 16x.

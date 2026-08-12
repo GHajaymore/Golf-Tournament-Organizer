@@ -64,7 +64,7 @@ describe("the brand mark is drawn once", () => {
     expect(logo).toContain("--logo-flag");
     expect(logo).toContain("--logo-rim");
     expect(logo).toContain("--logo-cup");
-    expect(read("src/app/page.tsx")).toContain('"--logo-flag": "var(--flag)"');
+    expect(read("src/app/page.tsx")).toContain('"--logo-flag": "var(--brass)"');
   });
 });
 
@@ -226,5 +226,64 @@ describe("nothing is set smaller than it can be read", () => {
       }
     }
     expect(offenders, `text below 10px in: ${offenders.join(", ")}`).toEqual([]);
+  });
+});
+
+describe("the mark is the same colour in both renderings", () => {
+  /**
+   * The geometry test above proves the component and the icon generator draw
+   * the same SHAPES. Nothing proved they filled them the same way, and they
+   * did not: the generator drew an orange ball while the component drew it in
+   * `currentColor` — near-white wherever it actually sat. The icon on a home
+   * screen did not match the app it opened, and the flag and ball were the
+   * reverse of the intended mark in both.
+   *
+   * Orange flag, green ball. Asserted against the palette rather than against
+   * literal hex, so changing the club ramp cannot leave the icons behind.
+   */
+  const logo = read("src/components/Logo.tsx");
+  const gen = readFileSync(join(root, "scripts/gen-icons.mjs"), "utf8");
+
+  it("draws the flag from the accent (orange) in the component", () => {
+    // Both the pennant and the stick fall back to --color-accent, the orange.
+    expect(logo).toContain("var(--logo-flag, var(--color-accent, currentColor))");
+  });
+
+  it("draws the ball from accent-2 (green), and as a variable at all", () => {
+    // `currentColor` is not a colour decision, it is the absence of one.
+    expect(logo).toContain("var(--logo-ball, var(--color-accent-2, currentColor))");
+    expect(logo, "the ball must not be currentColor again").not.toMatch(
+      /<circle[^>]*fill="currentColor"/,
+    );
+  });
+
+  it("uses the same two colours in the generated icons", async () => {
+    // The rasterizer cannot read custom properties, so these are written out —
+    // which is exactly why they drifted. FLAG must be the accent orange and
+    // BALL the secondary green, matching the component's fallbacks above.
+    const { THEME_PRESETS, themeScale, SECONDARY_PRESETS, themeFor } = await import("../themes");
+    void THEME_PRESETS;
+    void SECONDARY_PRESETS;
+    const orange = themeScale(themeFor("sunset"))[500].toLowerCase();
+
+    const flag = /const FLAG = "(#[0-9a-fA-F]{6})"/.exec(gen)?.[1]?.toLowerCase();
+    const ball = /const BALL = "(#[0-9a-fA-F]{6})"/.exec(gen)?.[1]?.toLowerCase();
+
+    expect(flag, "FLAG should be the accent orange").toBe(orange);
+    // The ball is lifted one step off the in-app green, which goes muddy at
+    // 48px — so it is checked as "a green", not as an exact token.
+    expect(ball, "BALL should be a green, not the orange").not.toBe(orange);
+    expect(ball).toMatch(/^#[0-9a-f]{6}$/);
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(ball!.slice(i, i + 2), 16));
+    expect(g, `BALL ${ball} should be green-dominant`).toBeGreaterThan(r);
+    expect(g, `BALL ${ball} should be green-dominant`).toBeGreaterThan(b);
+  });
+
+  it("keeps the landing page's mapping honest", () => {
+    // This page has its own palette, and its mapping said "pennant orange"
+    // while pointing at --flag, which is its green.
+    const landing = read("src/app/page.tsx");
+    expect(landing).toContain('"--logo-flag": "var(--brass)"');
+    expect(landing).toContain('"--logo-ball": "var(--flag)"');
   });
 });

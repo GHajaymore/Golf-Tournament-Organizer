@@ -261,10 +261,16 @@ function FlagMark({ size = LOGO_SIZE.md }: { size?: number }) {
       size={size}
       style={
         {
-          // Pennant orange, stick in ink — the programme's two-tone. The app
-          // draws both in one colour; this is the difference the variables
-          // exist to carry.
-          "--logo-flag": "var(--flag)",
+          // Pennant orange, ball green, stick in ink — the programme's
+          // two-tone. The app draws stick and pennant in one colour; this is
+          // the difference the variables exist to carry.
+          //
+          // The comment above said "pennant orange" while the line below
+          // mapped it to --flag, which is this page's GREEN. The mark rendered
+          // green-on-green and the ball took the ink colour, because it was
+          // not a variable at all.
+          "--logo-flag": "var(--brass)",
+          "--logo-ball": "var(--flag)",
           "--logo-stick": "currentColor",
           "--logo-rim": "var(--line-2)",
           "--logo-cup": "transparent",
