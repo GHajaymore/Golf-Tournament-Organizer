@@ -540,7 +540,7 @@ export default async function LoginPage() {
           </div>
           <div className="foot-meta">
             <a href="/privacy">Privacy</a>
-            <span className="cred">An AJAI Labs creation</span>
+            <span className="cred">An AjAi Labs creation</span>
             <span>© {new Date().getFullYear()} TourneyHQ</span>
           </div>
         </div>

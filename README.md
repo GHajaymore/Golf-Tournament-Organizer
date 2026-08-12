@@ -137,4 +137,4 @@ for the full domain spec this build implements.
 
 ---
 
-An AJAI Labs creation.
+An AjAi Labs creation.
