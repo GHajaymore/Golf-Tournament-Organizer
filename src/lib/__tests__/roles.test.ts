@@ -53,7 +53,14 @@ describe("role boundaries", () => {
     // player sees it because it is the thing a league member came for; it is
     // read-only for every role, and the money is still managed on Prizes,
     // which stays staff-only.
-    expect(allowed.sort()).toEqual(["bracket", "dashboard", "entry", "leaderboard", "week"].sort());
+    //
+    // "rules" is the reference index: which published rule each decision this
+    // app makes comes from. Deliberately open to players — the person most
+    // likely to ask why a tie broke a particular way is the player it broke
+    // against, and it carries no tournament data, only citations and links.
+    expect(allowed.sort()).toEqual(
+      ["bracket", "dashboard", "entry", "leaderboard", "rules", "week"].sort(),
+    );
   });
 
   it("keeps assistants out of admin-only screens but in operational ones", () => {

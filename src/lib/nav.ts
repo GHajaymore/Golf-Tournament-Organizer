@@ -24,6 +24,7 @@ export const NAV: NavSection[] = [
       { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: "ph ph-squares-four" },
       { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking" },
       { key: "week", label: "This week", href: "/week", icon: "ph ph-calendar-check" },
+      { key: "rules", label: "Rules reference", href: "/rules", icon: "ph ph-book-open" },
     ],
   },
   {

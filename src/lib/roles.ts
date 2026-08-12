@@ -39,6 +39,9 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   // and it is read-only for everybody: the money is managed on Prizes, which
   // stays staff-only. A captain reading the week is not a captain editing it.
   week: ["admin", "assistant", "player"],
+  // The rules reference is for anyone in the tournament. A player querying how
+  // a tie broke has as much reason to look it up as the organizer who set it.
+  rules: ["admin", "assistant", "player"],
 
   // Set up — defining the event. Assistants run it but don't reshape it.
   event: ["admin"],

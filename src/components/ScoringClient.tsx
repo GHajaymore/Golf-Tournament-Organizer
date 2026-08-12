@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { saveScoring, saveTiebreakers } from "@/app/actions/tournament";
 import { pts } from "@/lib/format";
 import { TIEBREAKER_LABELS, TIEBREAKER_HELP, TIEBREAKER_KEYS, type TiebreakerKey } from "@/lib/domain";
+import { RuleCite } from "./RuleCite";
 import FieldInfo from "@/components/FieldInfo";
 
 interface Values {
@@ -108,6 +109,12 @@ export function ScoringClient({
           <span className="card-title" style={{ fontSize: 15 }}>Tiebreakers</span>
           <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
             Switch on the ones you want, applied in order when points are level. Reorder the active ones with the arrows.
+          </p>
+          {/* Cited here rather than anywhere else on the screen because this is
+              the setting whose timing is governed: the method has to be settled
+              before play, not chosen once there is a tie to break. */}
+          <p style={{ margin: "0 0 8px" }}>
+            <RuleCite rule="decidingTies" />
           </p>
           {order.map((t, i) => (
             <div
