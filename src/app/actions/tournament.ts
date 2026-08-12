@@ -18,6 +18,7 @@ import { generateShareToken } from "@/lib/codes";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates } from "@/lib/domain/round-dates";
+import { reviewCards } from "@/lib/domain/card-approval";
 import { cleanStrokes } from "@/lib/domain/score-payload";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
@@ -2444,4 +2445,182 @@ export async function clearRoundScores(
 
   refresh();
   return { ok: true, cleared };
+}
+
+/* ── Scorecard certification and approval ──────────────────────────────────
+   Rule 3.3b in two steps: the marker and player certify the hole scores, then
+   the committee accepts the card. Stroke play had neither until now — a card
+   went from a text box to the leaderboard with nothing in between, which
+   mattered far more once one person in a fourball could enter three other
+   people's rounds. See lib/domain/card-approval.ts for what a blanket
+   approval may and may not take. */
+
+/**
+ * The marker's step: these hole scores are right.
+ *
+ * Allowed to anyone who may enter this card — including the player, who under
+ * the Rules certifies their own — so it follows requireScoreEntry and
+ * assertOwnCard rather than staff-only. Certifying is not accepting; it makes
+ * no result.
+ */
+export async function certifyScorecard(stageId: string, playerId: string) {
+  const { eventId, session } = await requireScoreEntry();
+  await assertEventStage(eventId, stageId);
+  await assertEventPlayer(eventId, playerId);
+  await assertOwnCard(session, eventId, playerId);
+
+  // Scoped on eventId as well as the pair: the (stageId, playerId) unique key
+  // is caller-supplied, and without the event in the filter it would name a
+  // row in any tournament. Same hole that saveScorecard had.
+  const card = await prisma.scorecard.findFirst({
+    where: { eventId, stageId, playerId },
+    select: { id: true, status: true },
+  });
+  if (!card) throw new Error("There's no card to certify yet.");
+  // An approved card is the committee's, not the marker's, to change.
+  if (card.status === "approved") throw new Error("That card has already been approved.");
+
+  await prisma.scorecard.update({
+    where: { id: card.id },
+    data: { status: "certified", certifiedBy: session.email, certifiedAt: new Date() },
+  });
+  refresh();
+  return { ok: true };
+}
+
+/** Someone says this card is wrong. Never silently approved afterwards. */
+export async function disputeScorecard(stageId: string, playerId: string) {
+  const { eventId, session } = await requireScoreEntry();
+  await assertEventStage(eventId, stageId);
+  await assertEventPlayer(eventId, playerId);
+  await assertOwnCard(session, eventId, playerId);
+
+  const card = await prisma.scorecard.findFirst({
+    where: { eventId, stageId, playerId },
+    select: { id: true },
+  });
+  if (!card) throw new Error("There's no card to dispute yet.");
+
+  await prisma.scorecard.update({ where: { id: card.id }, data: { status: "disputed" } });
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * The committee's step, on one card. Staff only — this is the act that turns
+ * strokes into a result.
+ */
+export async function approveScorecard(stageId: string, playerId: string) {
+  const eventId = await requireStaffEvent();
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  await assertEventStage(eventId, stageId);
+  await assertEventPlayer(eventId, playerId);
+
+  const card = await prisma.scorecard.findFirst({
+    where: { eventId, stageId, playerId },
+    select: { id: true },
+  });
+  if (!card) throw new Error("There's no card to approve yet.");
+
+  await prisma.scorecard.update({
+    where: { id: card.id },
+    data: { status: "approved", approvedBy: session.email, approvedAt: new Date() },
+  });
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Accept a whole round — but only the cards that are clean.
+ *
+ * The exception list is computed here rather than trusted from the caller.
+ * A client that sent its own list of ids would be the rubber stamp this was
+ * written to prevent: the one control that is supposed to be unable to sweep
+ * a disputed or half-finished card would sweep whatever it was handed.
+ *
+ * Returns what it did and what it left, so the screen can say so.
+ */
+export async function approveRound(stageId: string) {
+  const eventId = await requireStaffEvent();
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  await assertEventStage(eventId, stageId);
+
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { holes: true },
+  });
+  const holes = stage?.holes === 9 ? 9 : 18;
+
+  const rows = await prisma.scorecard.findMany({
+    where: { eventId, stageId },
+    select: { id: true, playerId: true, strokes: true, status: true },
+  });
+  const names = new Map(
+    (
+      await prisma.player.findMany({
+        where: { eventId, id: { in: rows.map((r) => r.playerId) } },
+        select: { id: true, name: true },
+      })
+    ).map((p) => [p.id, p.name]),
+  );
+
+  const review = reviewCards(
+    rows.map((r) => {
+      let strokes: (number | null)[] = [];
+      try {
+        strokes = JSON.parse(r.strokes) as (number | null)[];
+      } catch {
+        // Unparseable strokes cannot be complete, so this card lands in the
+        // exception list rather than being approved on a technicality.
+        strokes = [];
+      }
+      return {
+        id: r.id,
+        playerId: r.playerId,
+        playerName: names.get(r.playerId) ?? "Unknown player",
+        status: r.status,
+        strokes,
+        holes,
+      };
+    }),
+  );
+
+  if (review.ready.length) {
+    await prisma.scorecard.updateMany({
+      where: { id: { in: review.ready.map((c) => c.id) } },
+      data: { status: "approved", approvedBy: session.email, approvedAt: new Date() },
+    });
+  }
+
+  refresh();
+  return {
+    ok: true,
+    approved: review.ready.length,
+    exceptions: review.exceptions,
+  };
+}
+
+/**
+ * Put an approved card back for correction.
+ *
+ * Organizer only, and deliberately keeps approvedBy/approvedAt: "who signed
+ * this off" has to survive the card changing, or the audit trail is only ever
+ * as good as the last edit.
+ */
+export async function reopenScorecard(stageId: string, playerId: string) {
+  const eventId = await requireAdminEvent();
+  await assertEventStage(eventId, stageId);
+  await assertEventPlayer(eventId, playerId);
+
+  const card = await prisma.scorecard.findFirst({
+    where: { eventId, stageId, playerId },
+    select: { id: true },
+  });
+  if (!card) throw new Error("There's no card to reopen.");
+
+  await prisma.scorecard.update({ where: { id: card.id }, data: { status: "entered" } });
+  refresh();
+  return { ok: true };
 }

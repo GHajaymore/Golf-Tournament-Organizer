@@ -1231,6 +1231,32 @@ model Scorecard {
   // JSON array of per-hole gross strokes (number | null), one per hole.
   strokes  String @default("[]")
 
+  /**
+   * Where this card is in the two steps Rule 3.3b describes.
+   *
+   *   entered   — written down. Not yet claimed to be right by anyone.
+   *   certified — the marker and player say the hole scores are correct. This
+   *               is the card being returned.
+   *   approved  — the committee has accepted it. Only now is it a result.
+   *   disputed  — someone has said it is wrong. Never silently becomes
+   *               approved; a blanket approval must step around it.
+   *
+   * Match play has had this since the start, on Match.scoreStatus. Stroke play
+   * did not, so a card went straight from a text box to the leaderboard with
+   * nothing in between — which mattered much more once one person in a
+   * fourball could enter three other people's rounds.
+   */
+  status String @default("entered")
+
+  /** Who certified the hole scores, and when. The marker, in Rule terms. */
+  certifiedBy String   @default("")
+  certifiedAt DateTime?
+
+  /** Who accepted it for the committee, and when. Kept even after a reopen:
+   *  the question "who signed this off" must survive the card changing. */
+  approvedBy String   @default("")
+  approvedAt DateTime?
+
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([stageId, playerId])

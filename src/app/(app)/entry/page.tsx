@@ -293,12 +293,16 @@ export default async function EntryPage() {
 
       const cards = await prisma.scorecard.findMany({ where: { eventId: session.eventId, stageId: stage.id } });
       const cardsByPlayer: Record<string, (number | null)[]> = {};
+      // Where each card is between "written down" and "accepted". Sent so the
+      // approval panel can show the split without a second round trip.
+      const cardStatus: Record<string, string> = {};
       for (const c of cards) {
         try {
           cardsByPlayer[c.playerId] = JSON.parse(c.strokes) as (number | null)[];
         } catch {
           cardsByPlayer[c.playerId] = [];
         }
+        cardStatus[c.playerId] = c.status;
       }
 
       const stageMatchIds = state.matches.filter((m) => m.stageId === stage.id).map((m) => m.id);
@@ -391,6 +395,7 @@ export default async function EntryPage() {
           holes: holeCount,
           stageId: stage.id,
           cardsByPlayer,
+          cardStatus,
           // Who shares a card. Entry follows the tee group; the flight is a
           // different axis and decides who you are compared against, not who
           // is standing next to you writing the scores down.

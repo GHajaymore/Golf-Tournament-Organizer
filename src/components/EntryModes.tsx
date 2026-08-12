@@ -4,6 +4,7 @@ import { ScoreImport } from "./ScoreImport";
 import { ClearScores } from "./ClearScores";
 import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient";
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
+import { RoundApproval } from "@/components/RoundApproval";
 import { VoiceAsk } from "./VoiceAsk";
 import { entryModeFor } from "@/lib/formats";
 import type { VoiceContext } from "@/lib/domain/voice-query";
@@ -23,6 +24,8 @@ export interface EntryRound {
     holes: number;
     stageId: string;
     cardsByPlayer: Record<string, (number | null)[]>;
+    /** Where each returned card sits between "entered" and "approved". */
+    cardStatus: Record<string, string>;
     /** This round's tee sheet — who shares a card. Empty if none is drawn. */
     teeGroups: Array<{ name: string; time: string; playerIds: string[] }>;
     /** Handicap strokes per hole, per player, allocated on the server so the
@@ -219,6 +222,24 @@ export function EntryModes({
           cardsByPlayer={round.stroke.cardsByPlayer}
           teeGroups={round.stroke.teeGroups}
           shotsByPlayer={round.stroke.shotsByPlayer}
+        />
+      )}
+
+      {/* The committee's step, staff only. Sits under entry because that is
+          where the cards are, and because approving is the thing you do once
+          the group in front of you has finished. */}
+      {mode === "stroke" && isStaff && (
+        <RoundApproval
+          stageId={round.stroke.stageId}
+          isAdmin={isAdmin}
+          cards={Object.entries(round.stroke.cardsByPlayer).map(([playerId, strokes]) => ({
+            id: playerId,
+            playerId,
+            playerName: players.find((p) => p.id === playerId)?.name ?? "Unknown player",
+            status: round.stroke.cardStatus[playerId] ?? "entered",
+            strokes,
+            holes: round.stroke.holes,
+          }))}
         />
       )}
     </>
