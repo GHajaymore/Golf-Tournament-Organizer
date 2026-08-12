@@ -73,7 +73,7 @@ export const RULES: Record<string, RuleRef> = {
   },
   decidingTies: {
     key: "decidingTies",
-    number: "Committee Procedures 5A",
+    number: "5A",
     title: "Deciding Ties",
     source: "committee-procedures",
     url: "https://www.usga.org/rules/rules-and-decisions.html#!ruletype=co",
@@ -119,7 +119,7 @@ export const RULES: Record<string, RuleRef> = {
   },
   handicapAllowance: {
     key: "handicapAllowance",
-    number: "Rules of Handicapping, Appendix C",
+    number: "Appendix C",
     title: "Handicap Allowances",
     source: "handicapping",
     url: "https://www.usga.org/handicapping/roh/2020-rules-of-handicapping.html",
@@ -129,7 +129,7 @@ export const RULES: Record<string, RuleRef> = {
   },
   courseHandicap: {
     key: "courseHandicap",
-    number: "Rules of Handicapping, Rule 6",
+    number: "Rule 6",
     title: "Course Handicap and Playing Handicap",
     source: "handicapping",
     url: "https://www.usga.org/handicapping/roh/2020-rules-of-handicapping.html",

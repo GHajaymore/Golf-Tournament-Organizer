@@ -4,6 +4,23 @@ import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
+import { BrandMark } from "@/components/BrandMark";
+
+/**
+ * The app's wordmark tokens, expressed in this page's palette.
+ *
+ * BrandMark reads --color-accent* and --color-bg, which the landing page does
+ * not define — it has its own ground. Mapping them here is what lets one
+ * component serve both, exactly as --logo-flag does for the mark itself, and
+ * is why there is no second copy of the lockup to drift.
+ */
+const BRAND_TOKENS = {
+  "--color-accent": "var(--brass)",
+  "--color-accent-200": "var(--brass)",
+  "--color-accent-300": "var(--brass)",
+  "--color-accent-600": "var(--flag-soft)",
+  "--color-bg": "var(--ground)",
+} as React.CSSProperties;
 
 /**
  * The front door.
@@ -78,7 +95,6 @@ const LANDING_CSS = `
 .thq .nav.scrolled { background:color-mix(in srgb, var(--ground) 94%, transparent); box-shadow:0 10px 34px -24px rgba(0,0,0,0.6); }
 .thq .nav-in { display:flex; align-items:center; justify-content:space-between; height:64px; }
 .thq .brand { display:flex; align-items:center; gap:11px; font-family:var(--sans); font-size:19px; font-weight:700; letter-spacing:-0.025em; }
-.thq .brand .hq { color:var(--brass); font-style:italic; }
 .thq .nav-actions { display:flex; align-items:center; gap:10px; }
 .thq .btn { font-family:var(--sans); font-size:13.5px; font-weight:560; cursor:pointer; border-radius:8px; padding:9px 16px; border:1px solid transparent; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:transform .16s ease, background .16s ease, border-color .16s ease, color .16s ease; letter-spacing:-0.005em; }
 .thq .btn-ghost { color:var(--ink-soft); border-color:var(--line-2); }
@@ -205,7 +221,6 @@ const LANDING_CSS = `
 .thq footer { border-top:1px solid var(--line); padding:34px 0 44px; }
 .thq .foot-in { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
 .thq .foot-brand { font-family:var(--sans); font-size:17px; font-weight:600; display:flex; align-items:center; gap:10px; }
-.thq .foot-brand .hq { color:var(--flag); font-style:italic; }
 .thq .foot-meta { font-size:12.5px; color:var(--ink-faint); display:flex; gap:18px; flex-wrap:wrap; }
 .thq .foot-meta .cred { color:var(--ink-soft); }
 
@@ -285,7 +300,12 @@ export default async function LoginPage() {
         <div className="wrap nav-in">
           <div className="brand">
             <FlagMark size={LOGO_SIZE.md} />
-            Tourney<span className="hq">HQ</span>
+            {/* The same lockup the app uses, re-skinned by variables — the
+                pattern FlagMark above already follows. It used to be written
+                out here by hand in the sans face with an italic "HQ", so the
+                wordmark above the sign-in button was not the wordmark inside
+                the product. */}
+            <BrandMark size={19} style={BRAND_TOKENS} />
           </div>
           <div className="nav-actions">
             <a className="btn btn-ghost" href="#signin" role="button">Sign in</a>
@@ -504,7 +524,7 @@ export default async function LoginPage() {
         <div className="wrap foot-in">
           <div className="foot-brand">
             <FlagMark size={LOGO_SIZE.sm} />
-            Tourney<span className="hq">HQ</span>
+            <BrandMark size={16} style={BRAND_TOKENS} />
           </div>
           <div className="foot-meta">
             <a href="/privacy">Privacy</a>

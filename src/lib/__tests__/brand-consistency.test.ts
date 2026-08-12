@@ -88,3 +88,29 @@ describe("the mark is drawn at a chosen size", () => {
     expect(read("src/components/BrandMark.tsx")).toContain("var(--font-heading)");
   });
 });
+
+describe("the wordmark is written once too", () => {
+  const files = allTsx("src");
+
+  it("has exactly one copy of the TourneyHQ lockup", () => {
+    // The landing page carried its own: "Tourney" in the sans face with an
+    // italic "HQ", against the app's Fraunces "Tourney" in gradient foil beside
+    // a solid "HQ" badge chip. Not a near-miss — two different marks, one above
+    // the sign-in button and one inside the product a click later.
+    //
+    // The geometry test above caught the same thing for the flagstick. This is
+    // the wordmark half of it: the lockup's letters may be assembled in
+    // BrandMark and nowhere else.
+    const offenders = files.filter((f) => /Tourney<span/.test(read(f)));
+    expect(offenders, `wordmark rebuilt by hand in: ${offenders.join(", ")}`).toEqual([]);
+  });
+
+  it("lets a different palette re-skin the one lockup", () => {
+    // Why the duplicate existed: the landing page has its own ground and does
+    // not define --color-*. Mapping those tokens is what makes one component
+    // serve both, exactly as --logo-flag does for the mark.
+    const landing = read("src/app/page.tsx");
+    expect(landing).toContain("<BrandMark");
+    expect(landing, "landing must map the tokens BrandMark reads").toContain('"--color-accent": "var(--brass)"');
+  });
+});
