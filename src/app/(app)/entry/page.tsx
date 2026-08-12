@@ -15,6 +15,8 @@ import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/ser
 import { aggregateTeamCard, singleBallTeamCard } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
 import { courseHandicapMap, playingHandicapFrom } from "@/lib/domain/handicap";
+import { holeStrokesReceived } from "@/lib/domain/stroke";
+import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows } from "@/lib/services/tournament";
 import type { VoiceContext } from "@/lib/domain/voice-query";
 import { courseModeOf, needsVenue } from "@/lib/domain/venue";
@@ -270,6 +272,19 @@ export default async function EntryPage() {
   // round has no pairings but very much has cards to enter, and keying this
   // off rrStages alone made it unreachable from score entry.
   const rrStages = state.playRounds.length ? state.playRounds : state.stages.slice(0, 1);
+
+  // Tee ratings, once, for the whole screen. Needed here — not only in the
+  // player-specific block further down — because the hole-by-hole card shows
+  // each player's handicap strokes, and those have to be the same allocation
+  // the round is actually scored with rather than a second, simpler one.
+  const entryTees = await prisma.tee.findMany({
+    where: { course: { events: { some: { eventId: session.eventId } } } },
+    orderBy: [{ position: "asc" }],
+  });
+  const entryTeeRatings = new Map(
+    entryTees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+  );
+
   const rounds: EntryRound[] = await Promise.all(
     rrStages.map(async (stage, i) => {
       const holeCount = stage.holes === 9 ? 9 : 18;
@@ -372,7 +387,41 @@ export default async function EntryPage() {
         drawsPairings: generatesPairings(stage.type),
         matches: stageMatches,
         netMode,
-        stroke: { holes: holeCount, stageId: stage.id, cardsByPlayer },
+        stroke: {
+          holes: holeCount,
+          stageId: stage.id,
+          cardsByPlayer,
+          // Who shares a card. Entry follows the tee group; the flight is a
+          // different axis and decides who you are compared against, not who
+          // is standing next to you writing the scores down.
+          teeGroups: (parseTeeSheet(stage.teeSheet)?.groups ?? []).map((g) => ({
+            name: g.name,
+            time: g.time,
+            playerIds: g.playerIds,
+          })),
+          // Strokes received per hole, allocated on the server from the real
+          // course handicap and this round's allowance — the same numbers the
+          // scoring engine uses, so the dots on the card cannot disagree with
+          // the result.
+          shotsByPlayer: (() => {
+            if (!courseKnown) return {};
+            const ch = courseHandicapMap(
+              state.confirmed,
+              entryTeeRatings,
+              entryTees[0]?.id ?? null,
+              holeCount,
+            );
+            const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
+            const out: Record<string, number[]> = {};
+            for (const p of state.confirmed) {
+              const playing = playingHandicapFrom(ch.get(p.id) ?? 0, allowance);
+              out[p.id] = Array.from({ length: holeCount }, (_, h) =>
+                holeStrokesReceived(playing, strokeIndex[h] ?? 18, holeCount),
+              );
+            }
+            return out;
+          })(),
+        },
       };
     }),
   );

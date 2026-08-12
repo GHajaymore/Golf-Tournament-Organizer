@@ -26,6 +26,8 @@ export function StrokePlayEntry({
   holes,
   stageId,
   cardsByPlayer,
+  teeGroups = [],
+  shotsByPlayer = {},
 }: {
   players: StrokePlayer[];
   pars: number[];
@@ -34,6 +36,12 @@ export function StrokePlayEntry({
   holes: number;
   stageId: string;
   cardsByPlayer: Record<string, (number | null)[]>;
+  /** The round's tee sheet: who is sharing a card with whom. Empty when no
+   *  sheet has been drawn, in which case entry falls back to one player. */
+  teeGroups?: Array<{ name: string; time: string; playerIds: string[] }>;
+  /** Handicap strokes per hole, per player, from the real course-handicap
+   *  allocation on the server. Absent for an event with no tee ratings. */
+  shotsByPlayer?: Record<string, number[]>;
 }) {
   const [playerId, setPlayerId] = useState(players[0]?.id ?? "");
   const [cards, setCards] = useState<Record<string, (number | null)[]>>(() => {
@@ -55,6 +63,23 @@ export function StrokePlayEntry({
     if (window.matchMedia("(max-width: 767px)").matches) setView("hole");
   }, []);
 
+  /**
+   * Which tee group is being scored — the card, not the player.
+   *
+   * Defaults to the group containing the selected player, so arriving from
+   * anywhere that already picked a player lands on the right card. `-1` means
+   * "just this player", which is the only option when no sheet has been drawn
+   * and the right one for a player posting their own round.
+   */
+  const [groupIdx, setGroupIdx] = useState(-1);
+  useEffect(() => {
+    const i = teeGroups.findIndex((g) => g.playerIds.includes(playerId));
+    if (i !== -1) setGroupIdx(i);
+    // Only when the player changes: re-running on teeGroups identity would
+    // fight an organizer who has deliberately switched to another group.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerId]);
+
   const [listening, setListening] = useState(false);
   const [listenHint, setListenHint] = useState("Tap the mic and read scores in order, e.g. “four, par, birdie, six”.");
   const recognitionRef = useRef<unknown>(null);
@@ -69,13 +94,58 @@ export function StrokePlayEntry({
   const parTotal = pars.slice(0, holes).reduce((a, b) => a + b, 0);
   const isEighteen = holes > 9;
 
+  /**
+   * Who is on the card being scored.
+   *
+   * Kept in tee-sheet order rather than field order — that is the order the
+   * scorer reads names off the paper sheet, and matching it is the difference
+   * between checking and searching. Ids the sheet lists but the field no longer
+   * has (a withdrawal after the draw) are dropped rather than rendered blank.
+   */
+  const cardPlayers = useMemo(() => {
+    const group = groupIdx >= 0 ? teeGroups[groupIdx] : null;
+    const chosen = group
+      ? group.playerIds
+          .map((id) => players.find((p) => p.id === id))
+          .filter((p): p is StrokePlayer => !!p)
+      : players.filter((p) => p.id === playerId);
+    return chosen.map((p) => ({
+      id: p.id,
+      name: p.name,
+      shotsOn: (hole: number) => shotsByPlayer[p.id]?.[hole] ?? 0,
+    }));
+  }, [groupIdx, teeGroups, players, playerId, shotsByPlayer]);
+
   const setHole = (i: number, val: string) => {
     const n = parseInt(val, 10);
     const next = [...strokes];
     next[i] = Number.isFinite(n) && n > 0 ? n : null;
     setCards((prev) => ({ ...prev, [playerId]: next }));
   };
-  const save = () => startTransition(() => saveScorecard(stageId, playerId, strokes));
+  /**
+   * Saves the cards that actually have scores on them.
+   *
+   * Two ways to get this wrong, and they pull in opposite directions. Saving
+   * only the selected player drops the other three rounds the scorer just
+   * entered, with a confirmation that said it worked. Saving everyone on the
+   * tee sheet writes an empty card for each player who has not reported —
+   * which is worse, because an empty card is not nothing: it marks a player as
+   * having returned a round, and the approval step then has something to
+   * approve that nobody wrote.
+   *
+   * So: a card is saved when it has at least one score on it. Scoring is
+   * allowed to be partial — one player in a fourball entering their own round
+   * is a normal thing to do, not an incomplete version of a group entry.
+   */
+  const save = () =>
+    startTransition(async () => {
+      const targets = (view === "hole" ? cardPlayers.map((p) => p.id) : [playerId]).filter((id) =>
+        (cards[id] ?? []).some((s) => s != null),
+      );
+      for (const id of targets) {
+        await saveScorecard(stageId, id, cards[id] ?? new Array(holes).fill(null));
+      }
+    });
 
   const toggleListen = () => {
     const SpeechRecognition =
@@ -242,17 +312,36 @@ export function StrokePlayEntry({
 
       {view === "hole" ? (
         <div style={{ marginTop: 14 }}>
+          {teeGroups.length > 0 && (
+            <div className="field" style={{ marginBottom: 14 }}>
+              <label>Scoring</label>
+              <select
+                className="input"
+                value={groupIdx}
+                onChange={(e) => setGroupIdx(Number(e.target.value))}
+              >
+                <option value={-1}>{player ? `${player.name} only` : "One player"}</option>
+                {teeGroups.map((g, i) => (
+                  <option key={i} value={i}>
+                    {[g.name || `Group ${i + 1}`, g.time].filter(Boolean).join(" · ")} —{" "}
+                    {g.playerIds.length} players
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <HoleByHoleCard
-            strokes={strokes}
+            players={cardPlayers}
+            cards={cards}
             pars={pars}
             yards={yards}
             strokeIndex={strokeIndex}
             holes={holes}
-            onSet={(i, v) =>
+            onSet={(pid, i, v) =>
               setCards((prev) => {
-                const next = [...(prev[playerId] ?? new Array(holes).fill(null))];
+                const next = [...(prev[pid] ?? new Array(holes).fill(null))];
                 next[i] = v;
-                return { ...prev, [playerId]: next };
+                return { ...prev, [pid]: next };
               })
             }
           />

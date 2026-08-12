@@ -23,6 +23,11 @@ export interface EntryRound {
     holes: number;
     stageId: string;
     cardsByPlayer: Record<string, (number | null)[]>;
+    /** This round's tee sheet — who shares a card. Empty if none is drawn. */
+    teeGroups: Array<{ name: string; time: string; playerIds: string[] }>;
+    /** Handicap strokes per hole, per player, allocated on the server so the
+     *  dots on the card agree with how the round is actually scored. */
+    shotsByPlayer: Record<string, number[]>;
   };
 }
 
@@ -212,6 +217,8 @@ export function EntryModes({
           holes={round.stroke.holes}
           stageId={round.stroke.stageId}
           cardsByPlayer={round.stroke.cardsByPlayer}
+          teeGroups={round.stroke.teeGroups}
+          shotsByPlayer={round.stroke.shotsByPlayer}
         />
       )}
     </>
