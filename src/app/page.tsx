@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { landingScreenFor } from "@/lib/roles";
 import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
@@ -285,7 +286,12 @@ export default async function LoginPage() {
   const session = await getSession();
   // Straight after sign-up there is no tournament yet, and the dashboard has
   // nothing to render without one — it would only bounce to /choose anyway.
-  if (session) redirect(session.eventId ? "/dashboard" : "/choose");
+  // Via landingScreenFor, not a hard-coded /dashboard. This is where signing
+  // in actually lands, and it was sending players into the organizer's console
+  // no matter what that function said — the function was only ever consulted
+  // by requireScreen as somewhere to BOUNCE to, so changing it had no effect
+  // on the one journey it is named after.
+  if (session) redirect(session.eventId ? landingScreenFor(session.viewRole) : "/choose");
 
   const paperInk = { color: "var(--paper-ink)" } as const;
   const paperSoft = { color: "var(--paper-soft)" } as const;

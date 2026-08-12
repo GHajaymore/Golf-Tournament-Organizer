@@ -25,7 +25,9 @@
     "cap:open:android": "cap open android",
     "electron:dev": "electron .",
     "electron:build": "next build && node electron/prepare-standalone.js && electron-builder",
-    "smoke": "node scripts/smoke-routes.mjs"
+    "smoke": "node scripts/smoke-routes.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -80,6 +82,7 @@
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
     "@eslint/eslintrc": "^3.3.6",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",

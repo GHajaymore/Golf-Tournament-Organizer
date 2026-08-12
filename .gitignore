@@ -48,3 +48,10 @@ tsconfig.tsbuildinfo
 
 # Throwaway QA scripts written during test passes — never part of the app.
 .qa-*.mjs
+
+# End-to-end runs: signed-in browser state (real session cookies), the
+# fixture's ids, the separate build dir and Playwright's own output.
+/.e2e
+/.next-e2e
+/test-results
+/playwright-report

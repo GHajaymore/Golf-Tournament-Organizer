@@ -32,10 +32,11 @@
     "**/*.ts",
     "**/*.tsx",
     ".next-ci/types/**/*.ts",
+    ".next-playfix/types/**/*.ts",
     ".next-pubaudit/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-playfix/types/**/*.ts"
+    ".next-e2e/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

@@ -49,7 +49,11 @@ export function EventContextBar({
       {canSwitch && (
         <Link
           href="/event"
-          className="text-muted"
+          // `touch-target` gives it 44px of height on a coarse pointer without
+          // changing how it looks: it is a navigational control, not a link
+          // inside a sentence, and at 19px it was the last thing on the
+          // dashboard a thumb could miss.
+          className="text-muted touch-target"
           style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}
         >
           <i className="ph ph-arrows-left-right" /> Switch event

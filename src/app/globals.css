@@ -609,3 +609,14 @@ html {
 body {
   overscroll-behavior-y: none;
 }
+
+/* A text link that is really a control.
+   Opts a link into the touch minimum without giving it a button's box — for
+   the handful of navigational links that are styled as text ("Switch event")
+   and would otherwise be a 19px target. Deliberately opt-in: applying this to
+   every link would wreck the ones that sit inside a sentence. */
+@media (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+  }
+}
