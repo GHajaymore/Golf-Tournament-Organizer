@@ -317,7 +317,7 @@ export default async function LoginPage() {
       <header className="hero">
         <div className="wrap hero-in" id="thq-hero">
           <div>
-            <div className="eyebrow rise">For clubs, societies, corporate &amp; charity events</div>
+            <div className="eyebrow rise">For clubs, societies, corporate &amp; charity golf events</div>
             <h1 className="rise">From Registration<br />to <em>Recognition.</em></h1>
             {/* The four verbs are the organizer's real path through the app —
                 registration, flights and pairings, rounds and scoring, prizes
