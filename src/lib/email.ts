@@ -62,7 +62,25 @@ export function emailConfig(): EmailConfig {
  */
 export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<{ ok: boolean; error?: string }> {
   if (!resend) {
-    console.warn(`[email] RESEND_API_KEY not set — password reset link for ${to}:\n${resetUrl}`);
+    /**
+     * The link is a live credential. Never print it outside development.
+     *
+     * This logged the address AND the reset URL unconditionally, and
+     * RESEND_API_KEY being unset is a state the app fully supports — it shows
+     * a "not set up" banner rather than failing. So on any deployment without
+     * a key, every password reset token in the club was written to the
+     * platform log in plaintext next to the account it belonged to, for the
+     * fifteen minutes it stayed valid. Anyone who could read the logs could
+     * take over any account, organizers included.
+     *
+     * Development still prints it, because there is no other way to complete a
+     * reset locally. Production gets the fact and nothing identifying.
+     */
+    if (process.env.NODE_ENV === "development") {
+      console.warn(`[email] RESEND_API_KEY not set — password reset link for ${to}:\n${resetUrl}`);
+    } else {
+      console.warn("[email] RESEND_API_KEY not set — password reset email not sent.");
+    }
     return { ok: false, error: "Email isn't configured on this server." };
   }
   try {
