@@ -110,18 +110,40 @@ describe("nine selection", () => {
     expect(r.name).toMatch(/front nine/);
   });
 
-  it("takes the back nine, with its own pars and indexes", () => {
-    // This is the case that would silently mis-score: a net match on the back
-    // nine allocates strokes by the back nine's indexes, not the front's.
+  it("takes the back nine, and re-ranks its indexes to 1..9", () => {
+    // CHANGED, deliberately. This used to expect [10..18] — the raw slice —
+    // and that expectation was the bug: every consumer allocates strokes on a
+    // base of nine, so nine holes numbered 10..18 put a five-stroke player's
+    // shots on no holes at all. A nine is ranked 1..9 within itself.
     const r = applyNine(indexed, "back", 9);
     expect(r.pars).toEqual([5, 5, 5, 5, 5, 5, 5, 5, 5]);
-    expect(r.strokeIndex).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18]);
+    expect(r.strokeIndex).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(r.name).toMatch(/back nine/);
   });
 
-  it("front and back genuinely differ", () => {
-    const front = applyNine(indexed, "front", 9);
-    const back = applyNine(indexed, "back", 9);
+  it("keeps each nine's own order of difficulty", () => {
+    // A real card, where the stroke index does NOT ascend with hole number.
+    // This is what "the back nine allocates differently from the front"
+    // actually means — and the property the old sequential fixture could not
+    // express, because on it both nines genuinely do rank 1..9 in hole order.
+    const real = {
+      ...full,
+      pars: [4, 5, 3, 4, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 4],
+      strokeIndex: [5, 11, 1, 15, 3, 17, 7, 13, 9, 10, 2, 16, 6, 12, 4, 18, 8, 14],
+    };
+    const front = applyNine(real, "front", 9);
+    const back = applyNine(real, "back", 9);
+
+    // Relative difficulty preserved: SI 1 on the front was hole 3, and it is
+    // still the hardest of that nine.
+    expect(front.strokeIndex).toEqual([3, 6, 1, 8, 2, 9, 4, 7, 5]);
+    // The back's hardest is its second hole (SI 2 of the eighteen).
+    expect(back.strokeIndex).toEqual([5, 1, 8, 3, 6, 2, 9, 4, 7]);
     expect(front.strokeIndex).not.toEqual(back.strokeIndex);
+
+    // Both are a genuine 1..9 — nine holes, nine ranks, no gaps or repeats.
+    for (const nine of [front, back]) {
+      expect([...nine.strokeIndex].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    }
   });
 });

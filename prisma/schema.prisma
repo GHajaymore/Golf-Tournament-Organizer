@@ -579,6 +579,19 @@ model Event {
   holeRatioPts  Float  @default(0.5)
   bonusPts      Float  @default(0)
   /**
+   * Points for playing a match, awarded once per match contested.
+   *
+   * Not the same as `bonusPts`, which is a single flat award per player no
+   * matter how many matches they play. In a weekly league that difference is
+   * the whole point: a regular who plays eight and a stand-in who plays one
+   * collected the same bonus, so turning up paid nothing.
+   *
+   * A player who forfeits does not collect it — see Match.forfeitedBy. Zero by
+   * default, so no tournament starts paying an appearance point it never
+   * asked for.
+   */
+  playPts       Float  @default(0)
+  /**
    * The most a player or side can take from any single match. Zero is no cap,
    * which is what every existing tournament has and keeps.
    *
@@ -1022,6 +1035,26 @@ model Match {
   teamBId   String @default("")
   // JSON array of 'A' | 'B' | 'H' | null, one per hole.
   holes     String @default("[]")
+
+  /**
+   * The side that forfeited, when the match was not played out.
+   *
+   * Covers the concession of a match (Rule 3.2b(1)), a no-show and a
+   * withdrawal — all of which end a match without a card, and none of which
+   * could be recorded at all. An organizer's only options were to invent a
+   * scoreline or leave the match Live forever.
+   *
+   * Holds a player id in an individual round and a team id in a team round,
+   * mirroring whichever pair of columns above the round uses. Empty means the
+   * match was played.
+   *
+   * When set it OVERRIDES `holes`: the opponent takes the win however many
+   * holes were entered before the player walked in, because a conceded match
+   * is won rather than led. Those holes are also kept out of the standings —
+   * crediting a conceder the holes he was up would flatter him in the hole
+   * differential his flight is ranked on.
+   */
+  forfeitedBy String @default("")
 
   /**
    * The venue this particular match was played at.

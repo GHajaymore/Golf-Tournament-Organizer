@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8"));
@@ -19,22 +19,34 @@ test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
  * screen rather than the three that happened to be looked at.
  */
 
-const SCREENS = [
-  "/dashboard",
-  "/leaderboard",
-  "/registration",
-  "/organization",
-  "/event",
-  "/stages",
-  "/entry",
-  "/reports",
-  "/roster",
-  "/rules",
-  "/prizes",
-  "/foursomes",
-  "/teams",
-  "/announcements",
-];
+/**
+ * Every console screen, read off the filesystem rather than listed by hand.
+ *
+ * The hand-written list held fourteen of the twenty-two routes that exist —
+ * /bracket, /qualification, /grouping, /scoring, /series, /week, /scorecard
+ * and /access had no layout assertion at all. That is the failure mode of a
+ * curated list: it covers the screens somebody thought about, which are never
+ * the ones that break.
+ *
+ * Deriving it means a new screen is swept the day it is added, without anyone
+ * remembering to come back here.
+ */
+const SCREENS = readdirSync(join(process.cwd(), "src", "app", "(app)"), { withFileTypes: true })
+  .filter((e) => e.isDirectory())
+  // Route groups, private folders, and dynamic segments that need a param.
+  .filter((e) => !e.name.startsWith("[") && !e.name.startsWith("_") && !e.name.startsWith("("))
+  .filter((e) => existsSync(join(process.cwd(), "src", "app", "(app)", e.name, "page.tsx")))
+  // Legacy redirect stubs — /scorecard sends you to /foursomes, /scoring to
+  // /stages. They have a page.tsx and no page: asserting the URL afterwards
+  // fails on the redirect, and there is no layout of their own to measure.
+  // Detected rather than listed, so a route that stops being a stub rejoins
+  // the sweep on its own.
+  .filter((e) => {
+    const src = readFileSync(join(process.cwd(), "src", "app", "(app)", e.name, "page.tsx"), "utf8");
+    return !/^\s*redirect\(/m.test(src);
+  })
+  .map((e) => `/${e.name}`)
+  .sort();
 
 /** Elements sticking out past the viewport with nothing able to scroll them. */
 async function overflowing(page: Page) {

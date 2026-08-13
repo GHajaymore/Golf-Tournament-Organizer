@@ -22,6 +22,7 @@ export interface RankedPlayer {
 const emptyStats = (playerId: string): PlayerStats => ({
   playerId,
   played: 0,
+  playedForPoints: 0,
   wins: 0,
   losses: 0,
   ties: 0,
@@ -73,6 +74,36 @@ export function aggregateStats(
     const a = stats.get(m.playerAId);
     const b = stats.get(m.playerBId);
     if (!a && !b) continue;
+
+    /**
+     * A forfeited match is decided by the forfeit, not by the card.
+     *
+     * The opponent takes the win and the configured win points; the player who
+     * forfeited takes the configured loss points and nothing else — no holes,
+     * and no point for playing, because they did not play it. Whatever holes
+     * were entered before they walked in are discarded rather than counted:
+     * crediting a conceder the three holes he was up would flatter him in
+     * hole differential, which is what the flight is ranked on.
+     */
+    const forfeitedBy = m.forfeitedBy ?? "";
+    if (forfeitedBy && (forfeitedBy === m.playerAId || forfeitedBy === m.playerBId)) {
+      const loser = forfeitedBy === m.playerAId ? a : b;
+      const winner = forfeitedBy === m.playerAId ? b : a;
+      const winnerId = forfeitedBy === m.playerAId ? m.playerBId : m.playerAId;
+      if (loser) {
+        loser.played += 1;
+        loser.losses += 1;
+      }
+      if (winner) {
+        winner.played += 1;
+        winner.wins += 1;
+        winner.playedForPoints += 1;
+      }
+      if (loser) take(forfeitedBy, scoring.lossPts, 0);
+      if (winner) take(winnerId, scoring.winPts, 0);
+      continue;
+    }
+
     const r = resolveMatch(m.holes);
 
     if (a) {
@@ -85,6 +116,8 @@ export function aggregateStats(
     }
 
     if (r.complete) {
+      if (a) a.playedForPoints += 1;
+      if (b) b.playedForPoints += 1;
       if (a) a.played += 1;
       if (b) b.played += 1;
       // A halved match is only halved if nothing decides it. The countback
@@ -122,9 +155,13 @@ export function aggregateStats(
   }
 
   for (const s of stats.values()) {
-    // The bonus sits outside the cap: it is awarded for taking part, not
-    // earned from any one match.
-    s.points = (earned.get(s.playerId) ?? 0) + scoring.bonusPts;
+    // The bonus and the appearance points sit outside the cap: both are
+    // awarded for taking part, not earned from any one match. `playPts` is per
+    // match contested, which is what makes it different from the flat bonus —
+    // in a league where availability varies, turning up eight times should not
+    // pay the same as turning up once.
+    s.points =
+      (earned.get(s.playerId) ?? 0) + scoring.bonusPts + scoring.playPts * s.playedForPoints;
     s.totalPoints = s.points + (carriedPoints[s.playerId] ?? 0);
   }
 

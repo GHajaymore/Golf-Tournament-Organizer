@@ -330,10 +330,41 @@ export async function generateCutRound(eventId: string, stageId: string): Promis
     // stroke round is not supported here; the qualifying is a points ladder.)
     const priorRr = rrStages.filter((s) => s.position < stage.position);
     if (priorRr.length === 0) return; // nothing to cut from — use Generate flights instead
+
+    /**
+     * Only the players who actually contested the round being cut from.
+     *
+     * This was every confirmed player in the event, which broke a second cut
+     * in two ways at once. A 28-player field cut to 24 still produced 28
+     * standings rows, so:
+     *
+     *   - a percent cut sized itself against 28 rather than the 24 still in —
+     *     "top 66%" of a 24-player round let 19 through;
+     *   - the four already eliminated sat at 0 points with a hole differential
+     *     of 0, which RANKS ABOVE a survivor who played and lost (negative
+     *     differential). They were advanced again, and real survivors were cut
+     *     in their place.
+     *
+     * Membership of a match in the last qualifying round is the honest test of
+     * who was still in it. Falling back to the whole field when no matches
+     * exist keeps a first cut — where nobody has been eliminated yet — working
+     * exactly as before.
+     */
+    const lastPrior = priorRr[priorRr.length - 1];
+    const contestedIds = new Set(
+      allMatches
+        .filter((m) => m.stageId === lastPrior.id)
+        .flatMap((m) => [m.playerAId, m.playerBId])
+        .filter((id): id is string => !!id),
+    );
+    const contenders = contestedIds.size
+      ? domainPlayers.filter((p) => contestedIds.has(p.id))
+      : domainPlayers;
+
     const chain = chainRoundStandings(
       priorRr,
       allMatches,
-      domainPlayers,
+      contenders,
       scoring,
       holeDifficulty,
       parseMatchTiebreakers(event.matchTiebreakers),

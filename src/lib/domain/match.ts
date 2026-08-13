@@ -21,13 +21,48 @@ export interface MatchResolution {
   resultText: string;
 }
 
+/**
+ * Find the hole at which the match was decided, if it was.
+ *
+ * Rule 3.2a(3): a match ends when one side leads by more holes than remain.
+ * That is a moment DURING the round, not a property of the final card — and
+ * reading only the final state is how a match that ended 3&2 came to be
+ * reported as "1 UP" because the players carried on and lost 17 and 18.
+ *
+ * The scan runs over the contiguous run of decided holes from the first. It
+ * stops at the first undecided hole on purpose: nothing past a hole with no
+ * result is known, so a match cannot be proven closed out beyond it.
+ */
+function closeoutOf(holes: HoleResult[]): { atIndex: number; remaining: number } | null {
+  const total = holes.length;
+  let a = 0;
+  let b = 0;
+  for (let i = 0; i < total; i += 1) {
+    const h = holes[i];
+    if (h === null) return null;
+    if (h === "A") a += 1;
+    else if (h === "B") b += 1;
+    const remaining = total - (i + 1);
+    if (Math.abs(a - b) > remaining) return { atIndex: i, remaining };
+  }
+  return null;
+}
+
 export function resolveMatch(holes: HoleResult[]): MatchResolution {
   const total = holes.length;
+
+  // Holes played after the match was already won are not part of the result,
+  // and must not be part of the record either: they were feeding holesWon into
+  // the standings, which is what `holes-won-ratio` and `fewest-holes-lost`
+  // rank on. A player beaten 3&2 was being credited the 17th and 18th.
+  const closeout = closeoutOf(holes);
+  const counted = closeout ? holes.slice(0, closeout.atIndex + 1) : holes;
+
   let holesWonA = 0;
   let holesWonB = 0;
   let played = 0;
 
-  for (const h of holes) {
+  for (const h of counted) {
     if (h === null) continue;
     played += 1;
     if (h === "A") holesWonA += 1;
@@ -35,12 +70,12 @@ export function resolveMatch(holes: HoleResult[]): MatchResolution {
     // 'H' (halved) counts as played but awards no hole to either side.
   }
 
-  const remaining = total - played;
+  const remaining = closeout ? closeout.remaining : total - played;
   const lead = holesWonA - holesWonB;
   const absLead = Math.abs(lead);
 
-  // Complete when closed out early (|lead| > remaining) or all holes are played.
-  const complete = remaining === 0 || absLead > remaining;
+  // Complete when closed out early, or when every hole has been played.
+  const complete = closeout !== null || remaining === 0;
 
   let winner: MatchResolution["winner"] = null;
   let resultText = "";
@@ -104,18 +139,25 @@ export function marginToHoles(
   }
 
   const played = totalHoles - remaining;
-  // Assign `lead` holes to the winner, the remaining played holes are halved,
-  // and unplayed holes stay null.
-  let assignedWin = 0;
+  /**
+   * The winner's holes go at the END of the played stretch, halved before.
+   *
+   * They used to go at the start, which reconstructed a card that contradicts
+   * the result it was built from. "2 UP" over 18 became: win 1 and 2, halve
+   * the rest — but that card is 2 up with one to play at the 17th, which is a
+   * match that ENDED 2&1. The margin said one thing and the holes said
+   * another, and resolveMatch now reads the holes.
+   *
+   * Building the lead as late as legally possible is the only reconstruction
+   * consistent with the stated margin: the lead reaches `lead` exactly at the
+   * final played hole, which is where a match that finished on that margin
+   * actually reached it.
+   */
+  const firstWin = Math.max(0, played - lead);
   for (let i = 0; i < totalHoles; i += 1) {
-    if (i >= played) {
-      holes[i] = null; // unplayed
-    } else if (assignedWin < lead) {
-      holes[i] = winSym;
-      assignedWin += 1;
-    } else {
-      holes[i] = "H";
-    }
+    if (i >= played) holes[i] = null; // unplayed
+    else if (i >= firstWin) holes[i] = winSym;
+    else holes[i] = "H";
   }
   // `loseSym` is intentionally unused for played holes — the net margin is what
   // matters; halved filler preserves the correct lead without inventing losses.
@@ -223,9 +265,26 @@ export function deriveNetHoles(
   handicapA: number,
   handicapB: number,
   strokeIndex: number[],
+  /**
+   * How many holes this match is played over. Pass it.
+   *
+   * Without it the length is taken from the longest of the two cards and the
+   * stroke index — and a nine-hole match handed an eighteen-hole index came
+   * back as an eighteen-hole match with nine holes unplayed. `remaining` never
+   * fell below the lead, so `absLead > remaining` was never true and a
+   * nine-hole match could NEVER be completed: no result, no standings, live
+   * forever. That is what killed the nine-hole member-guest shape.
+   *
+   * Sizing from the cards alone would be worse: a part-entered card is short,
+   * and a match would report itself complete at the turn.
+   */
+  holeCount?: number,
 ): HoleResult[] {
   const { toA, toB } = matchStrokesGiven(handicapA, handicapB, strokeIndex);
-  const total = Math.max(strokesA.length, strokesB.length, strokeIndex.length);
+  const total =
+    holeCount && holeCount > 0
+      ? Math.round(holeCount)
+      : Math.max(strokesA.length, strokesB.length, strokeIndex.length);
   const holes: HoleResult[] = new Array(total).fill(null);
   for (let i = 0; i < total; i += 1) {
     const a = strokesA[i];

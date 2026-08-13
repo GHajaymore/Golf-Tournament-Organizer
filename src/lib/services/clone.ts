@@ -42,6 +42,9 @@ export const CLONED_EVENT_FIELDS = [
   "lossPts",
   "holeRatioPts",
   "bonusPts",
+  // The appearance point is part of how a league rewards turning up, and a
+  // league copied for next season rewards it the same way.
+  "playPts",
   // A cap is part of how the club decided its flights should feel, and it
   // belongs with the rest of the scoring rules: last year's member-guest
   // copied forward should still be capped.

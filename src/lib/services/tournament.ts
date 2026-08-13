@@ -85,6 +85,7 @@ export function scoringFrom(event: Event): ScoringRules {
     lossPts: event.lossPts,
     holeRatioPts: event.holeRatioPts,
     bonusPts: event.bonusPts,
+    playPts: event.playPts,
     tiebreakers,
   };
 }
@@ -210,6 +211,9 @@ function toDomainMatch(m: DbMatch): DomainMatch {
     playerAId: m.playerAId,
     playerBId: m.playerBId,
     holes,
+    // Carried through so the standings can decide a conceded or walked-over
+    // match by the forfeit rather than by whatever holes were on the card.
+    forfeitedBy: m.forfeitedBy ?? "",
   };
 }
 

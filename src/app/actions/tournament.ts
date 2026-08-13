@@ -44,6 +44,7 @@ import type { FormationRule, HoleResult } from "@/lib/domain";
 import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
+import { applyNine, cleanNine } from "@/lib/services/course-resolution";
 import { findFormat, isPlayable } from "@/lib/formats";
 import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
@@ -984,6 +985,11 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
     where: { id: matchId, eventId },
     data: {
       holes: JSON.stringify(holes),
+      // A real result supersedes a forfeit. Without this, an organizer who
+      // forfeited against the wrong name and then entered the true card would
+      // see the card on screen and the forfeit in the standings — the entered
+      // result silently discarded.
+      forfeitedBy: "",
       scoreStatus: "pending",
       scoredAt: complete ? new Date() : null,
       confirmedById: null,
@@ -1028,9 +1034,79 @@ export async function applyMatchResult(
   const holes = marginToHoles(winner, margin, total);
   await prisma.match.update({
     where: { id: matchId },
-    data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: session.name },
+    data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: session.name },
   });
   refresh();
+}
+
+/**
+ * Record a match as forfeited, or take a forfeit back.
+ *
+ * Covers the three ways a match ends without being played out: a player
+ * concedes it (Rule 3.2b(1)), a player does not appear, or a player withdraws.
+ * None of these could be recorded at all — the organizer's only options were to
+ * invent a scoreline, which then decided the flight on fictional holes, or to
+ * leave the match Live forever, which kept it out of the standings entirely.
+ *
+ * Pass an empty `forfeitedBy` to undo. The holes are left exactly as they were
+ * in both directions: a player who walked in after nine holes has those nine
+ * on the card, and if the organizer entered the forfeit against the wrong name
+ * the correction restores the real position rather than a blank.
+ *
+ * Staff only. A player conceding a match tells the organizer, who records it —
+ * the same rule the rest of the app follows for anything that decides a
+ * result, and the reason there is no self-service path here.
+ */
+export async function forfeitMatch(matchId: string, forfeitedBy: string) {
+  /**
+   * Admin only, and audited — because UNDOING a forfeit is a reopen.
+   *
+   * The first cut of this took staff and wrote `scoreStatus: "pending"`,
+   * `confirmedById: null` and `confirmedBy: ""` on BOTH paths. That made
+   * `forfeitMatch(id, "")` an unaudited assistant-accessible `reopenMatch`:
+   * it stripped a player's sign-off from a confirmed match and left no trace
+   * of who did it. `reopenMatch` is deliberately admin-only and logged, with
+   * the note that "an assistant reversing that quietly would hollow the
+   * guarantee out" — and this handed the same power to a lower role through a
+   * different door.
+   */
+  const eventId = await requireAdminEvent();
+  const session = await getSession();
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
+  if (!match || match.eventId !== eventId) return { ok: false, error: "That match isn't in this tournament." };
+
+  // Only one of the two sides can forfeit, and only a side actually in this
+  // match. An unchecked id here would decide a match in favour of somebody who
+  // never played in it. Checked on the undo path too: an empty string is the
+  // only value that may name nobody.
+  const sides = [match.playerAId, match.playerBId, match.teamAId, match.teamBId].filter(Boolean);
+  if (forfeitedBy && !sides.includes(forfeitedBy)) {
+    return { ok: false, error: "That player isn't in this match." };
+  }
+  if (forfeitedBy && match.forfeitedBy === forfeitedBy) return { ok: true };
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: {
+      forfeitedBy,
+      // Recording a forfeit settles the match, so it is scored and dated like
+      // any other result. UNDOING one restores the card's own state rather
+      // than wiping it: the confirmation columns are left exactly as they
+      // were, because a forfeit entered against the wrong name and corrected a
+      // minute later must not cost a player the sign-off they gave.
+      ...(forfeitedBy
+        ? { scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: session?.name ?? "" }
+        : {}),
+    },
+  });
+  await logAudit(
+    eventId,
+    matchId,
+    forfeitedBy ? "match.forfeit" : "match.forfeit.undo",
+    forfeitedBy ? `Forfeited by ${forfeitedBy}` : `Forfeit removed (was ${match.forfeitedBy || "none"})`,
+  );
+  refresh();
+  return { ok: true };
 }
 
 export async function clearMatch(matchId: string) {
@@ -1041,7 +1117,9 @@ export async function clearMatch(matchId: string) {
   const empty = new Array(matchHoleCount(match.holes)).fill(null);
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
-    data: { holes: JSON.stringify(empty), scoreStatus: "pending", scoredAt: null, confirmedById: null },
+    // Clearing a match clears the forfeit too: "no result" has to mean no
+    // result, or a cleared match would keep paying out a win nobody can see.
+    data: { holes: JSON.stringify(empty), forfeitedBy: "", scoreStatus: "pending", scoredAt: null, confirmedById: null },
   });
   refresh();
 }
@@ -1186,18 +1264,24 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     netTees[0]?.id ?? null,
     holeCount,
   );
+  // The card the round is actually played on: the round's nine, with its
+  // stroke indexes re-ranked 1..9. Passing the full eighteen allocated strokes
+  // off the wrong holes AND sized the match at eighteen holes, so a nine-hole
+  // match could never be closed out.
+  const roundCard = applyNine(course, cleanNine(stage?.nine), holeCount);
   const holes = deriveNetHoles(
     strokesA,
     strokesB,
     netMode && playerA ? netHcp.get(playerA.id) ?? playerA.handicap : 0,
     netMode && playerB ? netHcp.get(playerB.id) ?? playerB.handicap : 0,
-    course.strokeIndex,
+    roundCard.strokeIndex,
+    holeCount,
   );
   const complete = resolveMatch(holes).complete;
 
   await prisma.match.update({
     where: { id: matchId },
-    data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: session.name },
+    data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: session.name },
   });
   refresh();
 }
@@ -1386,6 +1470,11 @@ async function recomputeTeamMatch(
     where: { id: match.id },
     data: {
       holes: JSON.stringify(holes),
+      // A real result supersedes a forfeit. Without this, an organizer who
+      // forfeited against the wrong name and then entered the true card would
+      // see the card on screen and the forfeit in the standings — the entered
+      // result silently discarded.
+      forfeitedBy: "",
       scoreStatus: "pending",
       scoredAt: complete ? new Date() : null,
       confirmedById: null,
@@ -2329,7 +2418,7 @@ export async function importScores(
         .map((h) => (h === "A" || h === "B" || h === "H" ? (flipped ? flip(h) : h) : null));
       await prisma.match.updateMany({
         where: { id: found.id, eventId },
-        data: { holes: JSON.stringify(holes), scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: importedBy },
+        data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: importedBy },
       });
       written += 1;
       continue;

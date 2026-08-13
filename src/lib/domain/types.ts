@@ -102,6 +102,19 @@ export interface ScoringRules {
   /** Flat bonus added per player. */
   bonusPts: number;
   /**
+   * Points for playing a match — awarded once per match contested.
+   *
+   * Distinct from `bonusPts`, which is a single flat award per player however
+   * many matches they play. In a league where availability varies week to week
+   * that difference is the whole point: a regular who plays eight matches and
+   * a stand-in who plays one both collected the same bonus, so turning up paid
+   * nothing.
+   *
+   * A player who forfeits does not collect it. They take the configured loss
+   * points and nothing else — they did not play the match.
+   */
+  playPts: number;
+  /**
    * The most a player or side can take from any single match. Zero is no cap.
    *
    * Without one, a flight can be decided by a single thrashing: holes won
@@ -126,6 +139,22 @@ export interface Match {
   playerBId: string;
   /** One entry per hole: 'A' | 'B' | 'H' | null. All match logic derives from this. */
   holes: HoleResult[];
+  /**
+   * The player who forfeited, when the match was not played out.
+   *
+   * Covers the concession of a match (Rule 3.2b(1)), a no-show, and a
+   * withdrawal — all of which end a match without a card, and none of which
+   * the app could previously record at all. A conceded match had to be entered
+   * as a fabricated scoreline or left Live forever.
+   *
+   * Empty means the match was played. When set it OVERRIDES the holes: the
+   * opponent takes the win however few holes were entered before the player
+   * walked in, because a conceded match is won, not led.
+   *
+   * Holds a player id in an individual match and a team id in a team match,
+   * matching whichever pair of columns the round uses.
+   */
+  forfeitedBy?: string;
 }
 
 export interface Group {
@@ -149,6 +178,14 @@ export interface Stage {
 export interface PlayerStats {
   playerId: string;
   played: number;
+  /**
+   * Matches that earn the appearance point — see ScoringRules.playPts.
+   *
+   * Separate from `played` because a forfeited match counts as played for both
+   * sides (it is a win and a loss, and belongs in the record) but only the
+   * player who turned up is paid for turning up.
+   */
+  playedForPoints: number;
   wins: number;
   losses: number;
   ties: number;
@@ -173,6 +210,9 @@ export const DEFAULT_SCORING: ScoringRules = {
   lossPts: 0,
   holeRatioPts: 0.5,
   bonusPts: 0,
+  // Off by default: a tournament that never asked for an appearance point
+  // should not suddenly start paying one.
+  playPts: 0,
   // Off by default. A cap is a deliberate choice about how a flight should
   // feel, not something to impose on every tournament that never asked.
   maxPerMatch: 0,

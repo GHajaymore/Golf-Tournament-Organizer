@@ -88,3 +88,46 @@ fix the *schema* so it matches the database rather than accepting the drop.
 Windows. Both PowerShell and Git Bash are available and take different syntax — do not mix them
 (a PowerShell here-string in bash silently becomes part of the string). Node needs
 `PATH="/c/Program Files/nodejs:$PATH"` under Git Bash.
+
+## Testing: the combination sweep
+
+The 2026-08-12 audit found ~80 defects against a suite of 1400 passing tests.
+Almost none were in a function that was individually wrong — they were in
+COMBINATIONS nobody had a test for: a nine-hole round inside an eighteen-hole
+tournament, a format on a stage type with no engine, a cut sized against a
+field that no longer exists, a two-player event drawn into two flights of one.
+Unit tests cannot find that class of bug, because every part behaves correctly
+on its own.
+
+So, for any change to scoring, draw, cut, bracket or handicap code:
+
+1. **Add the cell to `src/lib/__tests__/matrix.test.ts`, not a bespoke test.**
+   It enumerates format x stage type and runs brackets, cuts, flights and
+   standings at 1, 2, 3, 4, 5, 6, 7, 8, 16 and 28 players, asserting
+   INVARIANTS rather than features — ranks contiguous, no NaN, a cut never
+   exceeds the field, a bracket winner is in its own match, no flight of one.
+   A new format is then swept the day it is added.
+
+2. **Field sizes start at ONE.** A one-player tournament, a two-player round
+   robin and a three-player knockout are where the off-by-ones live, and the
+   suite went no lower than a comfortable eight for a year.
+
+3. **Assert against the Rules of Golf, not against current behaviour**, and put
+   the citation in the comment. Several bugs survived because a test asserted
+   what the code did. Two fixtures encoded matches that cannot happen —
+   `H("AAAAABBBB")` is A five up with four to play, so the match ended 5&4 and
+   B cannot then win four holes.
+
+4. **Layout is swept from the filesystem** (`e2e/layout.spec.ts`), not a
+   curated list. The hand-written list covered 14 of 22 routes; the eight it
+   missed had no layout assertion at all. Do not reintroduce a hand list.
+
+5. **A guard you must remember to call is a guard that will be forgotten.**
+   `isManualFormat` is the only thing between the hand-scored format and a
+   scoring engine, and one result path forgets it. Prefer making the wrong
+   thing unrepresentable over documenting that callers must check.
+
+The multi-agent exploratory audit that produced all this is a RELEASE GATE or
+post-feature pass, not a per-change step — it costs over a million tokens. Use
+it to find unknown classes of bug; use the sweep above to stop known ones
+coming back.

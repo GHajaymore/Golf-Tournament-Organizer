@@ -9,17 +9,42 @@ export interface FlightConfig {
   value?: number;
 }
 
-/** Number of flights for a field, honoring the organizer's configuration. */
+/**
+ * Number of flights for a field, honoring the organizer's configuration.
+ *
+ * Never more flights than the field can fill two-a-side. A flight of one is a
+ * player with nobody to play, and a round robin drawn across such flights
+ * produces NO MATCHES AT ALL — silently, with nothing on any screen to say so.
+ *
+ * The auto rule was `max(2, round(n / 4))`: a floor of two flights that never
+ * checked there were two players. Two entrants became two flights of one and
+ * zero matches; three became flights of 2 and 1, with the odd player stranded
+ * for the whole tournament. Small fields are not exotic — a four-ball, a
+ * play-off, a society's first outing all start here.
+ *
+ * `cut.ts` already refuses to leave a flight of one when it reforms the field
+ * after a cut, on the stated grounds that a slightly larger flight beats one
+ * nobody can play in. This is that same rule, applied where the field is first
+ * drawn rather than only where it is redrawn.
+ */
 export function flightCountFor(playerCount: number, config: FlightConfig = { mode: "auto" }): number {
   if (playerCount <= 0) return 0;
+
+  let requested: number;
   if (config.mode === "count" && config.value) {
-    return Math.max(1, Math.min(playerCount, Math.round(config.value)));
-  }
-  if (config.mode === "perFlight" && config.value) {
+    requested = Math.max(1, Math.min(playerCount, Math.round(config.value)));
+  } else if (config.mode === "perFlight" && config.value) {
     const per = Math.max(2, Math.round(config.value));
-    return Math.max(1, Math.ceil(playerCount / per));
+    requested = Math.max(1, Math.ceil(playerCount / per));
+  } else {
+    requested = Math.max(2, Math.round(playerCount / 4));
   }
-  return Math.max(2, Math.round(playerCount / 4));
+
+  // At most one flight per pair of players. A lone entrant still gets a single
+  // flight — there is nowhere else to put them — but nobody else is ever left
+  // in one on their own.
+  const playable = Math.max(1, Math.floor(playerCount / 2));
+  return Math.max(1, Math.min(requested, playable));
 }
 
 /** Legacy alias. */

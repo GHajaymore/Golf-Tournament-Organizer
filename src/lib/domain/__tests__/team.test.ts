@@ -196,7 +196,13 @@ describe("team match play", () => {
     expect(res.holesWonA).toBe(2);
     expect(res.holesWonB).toBe(0);
     expect(res.winner).toBe("A");
-    expect(res.resultText).toBe("2 UP");
+    // CHANGED from "2 UP", which was wrong golf. A wins the first two and the
+    // rest are halved, so at the 8th A is two up with one to play — the match
+    // is over there and the margin is 2&1. resolveMatch now finds the hole the
+    // match was decided on (Rule 3.2a(3)) instead of reading only the final
+    // state, which is what used to report a closed-out match as "N UP".
+    expect(res.resultText).toBe("2&1");
+    expect(res.remaining).toBe(1);
   });
 
   it("leaves a hole unplayed when either side has no score", () => {

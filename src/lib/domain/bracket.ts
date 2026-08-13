@@ -213,6 +213,29 @@ export function roundLabels(size: number): string[] {
  * winning playerId (organizer picks). Rounds after the first are populated by
  * advancing chosen winners.
  */
+/**
+ * A stored winner, honoured only if that player is actually in the match.
+ *
+ * Winners are keyed positionally (`consolation-0-1`), and a plate field is
+ * rebuilt from the losers known so far — so the field GROWS as results come
+ * in, and slot `consolation-0-1` can be a semi-final between two players one
+ * minute and a quarter-final between two different players the next. The
+ * stored winner was applied regardless, so a player advanced out of a match he
+ * was not in while his real match read unplayed.
+ *
+ * Discarding a winner that no longer matches its slot is the conservative
+ * answer: the organizer is shown an unrecorded match and can enter it again,
+ * which is recoverable. Advancing the wrong player is not.
+ */
+function claimedWinner(
+  stored: string | undefined,
+  aId: string | null,
+  bId: string | null,
+): string | null {
+  if (!stored) return null;
+  return stored === aId || stored === bId ? stored : null;
+}
+
 export function buildBracket(
   kind: BracketKind,
   seededPlayers: Player[],
@@ -244,7 +267,7 @@ export function buildBracket(
     const aId = seedSlot(order[i * 2]);
     const bId = seedSlot(order[i * 2 + 1]);
     const key = `${kind}-0-${i}`;
-    let winnerId = winners[key] ?? null;
+    let winnerId = claimedWinner(winners[key], aId, bId);
     if (!winnerId) {
       if (aId && !bId) winnerId = aId;
       else if (bId && !aId) winnerId = bId;
@@ -261,7 +284,7 @@ export function buildBracket(
       const aId = prev[i * 2].winnerId;
       const bId = prev[i * 2 + 1].winnerId;
       const key = `${kind}-${round}-${i}`;
-      let winnerId = winners[key] ?? null;
+      let winnerId = claimedWinner(winners[key], aId, bId);
       // Only auto-advance a bye once the other feeder is known to be empty.
       if (!winnerId && aId && !bId && isByeFeeder(prev[i * 2 + 1])) winnerId = aId;
       if (!winnerId && bId && !aId && isByeFeeder(prev[i * 2])) winnerId = bId;

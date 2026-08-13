@@ -117,23 +117,94 @@ export function courseForRound(
 }
 
 /**
+ * A stored `Stage.nine` narrowed to the three values that mean anything.
+ *
+ * Anything unrecognised reads as "full" — the whole card — because the safe
+ * failure for an unknown value is to narrow nothing, not to guess a half.
+ */
+export function cleanNine(value: string | null | undefined): Nine {
+  return value === "front" || value === "back" ? value : "full";
+}
+
+/**
+ * Re-rank nine stroke-index values to 1..9, keeping their relative difficulty.
+ *
+ * An 18-hole card's stroke indexes are ranked across eighteen holes, so one
+ * nine of it holds nine values scattered through 1..18 — the odds on one half,
+ * the evens on the other, at most clubs. Handicap strokes are allocated by
+ * comparing the index against the strokes to give (see holeStrokesReceived),
+ * which assumes the indexes run 1..n over the holes being played.
+ *
+ * Slicing without re-ranking is what made a nine-hole round hand out roughly
+ * half the strokes owed. A back nine of [2,4,6,8,10,12,14,16,18] gives a
+ * five-stroke player strokes only where the index is <= 5 — two holes, not
+ * five. Ranked to [1..9] he gets the five he is due, on the five hardest of
+ * the nine he is actually playing, which is what the Rules of Handicapping
+ * require.
+ *
+ * Ties keep their original order, so a card with duplicate indexes still
+ * produces a stable 1..9.
+ */
+function rerankNine(strokeIndex: number[]): number[] {
+  const byDifficulty = strokeIndex
+    .map((value, hole) => ({ value, hole }))
+    .sort((a, b) => a.value - b.value || a.hole - b.hole);
+  const ranked = new Array<number>(strokeIndex.length);
+  byDifficulty.forEach((entry, i) => {
+    ranked[entry.hole] = i + 1;
+  });
+  return ranked;
+}
+
+/**
  * Narrow an 18-hole card to the nine actually played.
  *
  * A 9-hole round is played on one half of a real course, and which half
  * decides both the pars and the stroke indexes — so a net match on the back
  * nine allocates strokes completely differently from the front. Returning the
  * first nine regardless would quietly mis-score half of them.
+ *
+ * The stroke indexes are re-ranked, not merely sliced — see rerankNine. Every
+ * consumer of this card allocates strokes on a base of nine, and nine holes
+ * carrying eighteen-hole index numbers is a card no handicap system describes.
  */
-export function applyNine(course: ResolvedCourse, nine: Nine, holes: number): ResolvedCourse {
-  if (holes !== 9 || nine === "full") return course;
+export function applyNine<
+  // Generic over the card shape: the same narrowing is needed for a
+  // ResolvedCourse (which carries where it came from) and for the plain
+  // CoursePreset the server actions resolve. Requiring one of them meant the
+  // match-scoring path could not call this at all, which is how it came to
+  // score a back nine off the front.
+  T extends { name: string; pars: number[]; yards: number[]; strokeIndex: number[] },
+>(course: T, nine: Nine, holes: number): T {
+  if (holes !== 9) return course;
   if (course.pars.length < 18) return course;
 
-  const slice = <T,>(arr: T[]) => (nine === "back" ? arr.slice(9, 18) : arr.slice(0, 9));
+  /**
+   * A nine-hole round that does not say WHICH nine still gets narrowed.
+   *
+   * `Stage.nine` defaults to "full", and "full" is a real choice in the picker
+   * ("Not fixed — shotgun or mixed"), so it is the state of every nine-hole
+   * round nobody has touched the dropdown on. Returning the whole eighteen for
+   * it left a nine-hole card being allocated against eighteen-hole indexes on
+   * an eighteen-hole base — a player owed five strokes over nine received
+   * three. The re-ranking below only ever fired for organizers who had picked
+   * a side, which is the minority of nine-hole rounds.
+   *
+   * The front nine is the assumption, and it is the one the rest of the app
+   * already makes — the leaderboard slices `0..holeCount`, and a nine-hole
+   * card is stored at indexes 0-8. Stating it here makes every surface agree,
+   * and makes the assumption visible in the course name rather than silent.
+   */
+  const half: Nine = nine === "back" ? "back" : "front";
+  const slice = <T,>(arr: T[]) => (half === "back" ? arr.slice(9, 18) : arr.slice(0, 9));
+  const si = slice(course.strokeIndex);
   return {
     ...course,
     name: `${course.name} (${nine === "back" ? "back" : "front"} nine)`,
     pars: slice(course.pars),
     yards: slice(course.yards),
-    strokeIndex: slice(course.strokeIndex),
+    // Only re-rank a full nine; a partial or empty index array is left alone
+    // rather than being given invented ranks.
+    strokeIndex: si.length === 9 ? rerankNine(si) : si,
   };
 }

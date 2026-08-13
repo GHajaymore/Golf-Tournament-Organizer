@@ -53,10 +53,27 @@ describe("resolveMatch", () => {
 
   it("returns N UP through the full round", () => {
     // 9 holes: A wins 5, B wins 4 -> A 1 up.
-    const r = resolveMatch(H("AAAAABBBB"));
+    //
+    // The card was "AAAAABBBB", which is not a match anyone could have played:
+    // A is five up with four to play at the 5th, so the match ENDED there,
+    // 5&4 — B cannot then win the last four. resolveMatch now reads that, so
+    // the fixture is a legal 1-up finish instead: the lead never exceeds the
+    // holes remaining until the last putt drops.
+    const r = resolveMatch(H("ABABABABA"));
     expect(r.remaining).toBe(0);
     expect(r.winner).toBe("A");
     expect(r.resultText).toBe("1 UP");
+  });
+
+  it("reports a closed-out match at the margin it closed on", () => {
+    // The regression this guards: a match that ended 5&4 was reported "1 UP"
+    // because the players carried on and the final state was read instead of
+    // the moment the match was decided. It also credited B four holes won
+    // after the match was over, which fed the standings tiebreakers.
+    const r = resolveMatch(H("AAAAABBBB"));
+    expect(r.resultText).toBe("5&4");
+    expect(r.winner).toBe("A");
+    expect(r.holesWonB).toBe(0);
   });
 
   it("is not complete while the trailing player can still square it", () => {
