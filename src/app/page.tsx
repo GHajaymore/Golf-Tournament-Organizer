@@ -587,7 +587,11 @@ export default async function LoginPage() {
           <div className="foot-meta">
             <a href="/privacy">Privacy</a>
             <span className="cred">
-              An{" "}
+              {/* Lowercase deliberately. Sentence case would be the safe call
+                  and it is what convention asks for — but the line opens on
+                  "an A", and two capital As back to back stutter. Setting the
+                  article quiet lets the mark start the line. */}
+              an{" "}
               {/* aria-hidden because the dotless letters below are a drawing,
                   not spelling. The real word follows for screen readers. */}
               <span className="ajai" aria-hidden="true">
