@@ -123,6 +123,23 @@ export function hasAnyHole(holesJson: string): boolean {
 }
 
 /**
+ * Whether a match has a result — by card OR by forfeit.
+ *
+ * A forfeited match has no holes at all, and every "is this round finished"
+ * test in the app was reading holes. So a conceded match looked permanently
+ * unplayed: `currentRoundIndex` pinned the tournament on that round FOREVER,
+ * a fully played round after it became invisible on every screen, and round
+ * progress stopped one short of the total.
+ *
+ * That is the same "live forever" failure the forfeit feature was built to
+ * remove, arriving through the feature itself. A result is a result however it
+ * was arrived at, which is what this function exists to say.
+ */
+export function matchSettled(m: { holes: string; forfeitedBy?: string | null }): boolean {
+  return !!m.forfeitedBy || hasAnyHole(m.holes);
+}
+
+/**
  * Which round is being played now, as an index into the Round Robin stages.
  *
  * The EARLIEST generated round that still holds a match nobody has written a
@@ -184,14 +201,16 @@ export function currentDatedRoundIndex(
 
 export function currentRoundIndex(
   rrStages: Array<{ id: string }>,
-  matches: Array<{ stageId: string; holes: string }>,
+  matches: Array<{ stageId: string; holes: string; forfeitedBy?: string | null }>,
 ): number {
   let lastGenerated = -1;
   for (let i = 0; i < rrStages.length; i += 1) {
     const own = matches.filter((m) => m.stageId === rrStages[i].id);
     if (own.length === 0) continue;
     lastGenerated = i;
-    if (own.some((m) => !hasAnyHole(m.holes))) return i;
+    // A forfeited match counts as decided — see matchSettled. Reading holes
+    // alone pinned the tournament on the round a concession was recorded in.
+    if (own.some((m) => !matchSettled(m))) return i;
   }
   return lastGenerated;
 }
@@ -576,9 +595,30 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       // Ranked in finishing order, which survivors() takes the front of — per
       // flight or overall as the cut's scope dictates. Stroke ranks by returned
       // cards (only those who've posted), match by the chained standings.
+      //
+      // Restricted to the players who actually CONTESTED the round being cut
+      // out of, which is the same rule generateCutRound applies. Without it the
+      // board answered a different question from the engine and the two
+      // disagreed on screen: a percent cut sized itself against the whole
+      // original field (28 rather than the 24 still in, lighting 19 rows where
+      // the engine would schedule 16), and players eliminated a round earlier
+      // sat at zero points with a zero hole differential — which ranks ABOVE a
+      // survivor who played and lost — so the board highlighted them as
+      // advancing while the player actually in the next round was not lit.
+      //
+      // Filtered rather than re-ranked on purpose. `overall` is already in
+      // finishing order, and re-sorting a different population through an
+      // intransitive comparator (head-to-head decides nothing between players
+      // who never met) can reorder players relative to each other.
+      const contestedIds = new Set(
+        rrMatches.flatMap((m) => [m.playerAId, m.playerBId]).filter(Boolean),
+      );
+      const stillIn = contestedIds.size
+        ? overall.filter((rp) => contestedIds.has(rp.player.id))
+        : overall;
       const ranked: CutCandidate[] = isStroke
         ? strokeStandings.filter((s) => s.thru > 0).map((s) => ({ id: s.player.id, groupId: s.player.groupId }))
-        : overall.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId }));
+        : stillIn.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId }));
       advancingIds = survivors(ranked, cutRule);
     }
   }
@@ -654,7 +694,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
 
 /** Dashboard stat helpers. */
 export function matchProgress(state: EventState): { done: number; total: number; pct: number } {
-  const done = state.rrMatches.filter((m) => hasAnyHole(m.holes)).length;
+  const done = state.rrMatches.filter((m) => matchSettled(m)).length;
   const total = state.rrMatches.length;
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
   return { done, total, pct };

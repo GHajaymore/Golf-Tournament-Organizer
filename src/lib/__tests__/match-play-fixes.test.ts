@@ -164,3 +164,29 @@ describe("a bracket only honours a winner who is in the match", () => {
     expect(view.rounds[1].matches[0].a.playerId).toBeNull();
   });
 });
+
+describe("a forfeit is a result, not an unplayed match", () => {
+  it("counts as settled even though it has no holes", async () => {
+    // The failure this closes: forfeitMatch leaves `holes` all-null by design,
+    // and every "is this round finished" test read holes. So a conceded match
+    // looked permanently unplayed — currentRoundIndex pinned the tournament on
+    // that round forever and a fully played round after it went invisible on
+    // every screen. The same "live forever" bug the feature existed to remove,
+    // arriving through the feature itself.
+    const { matchSettled, hasAnyHole } = await import("@/lib/services/tournament");
+    const nulls = JSON.stringify(new Array(18).fill(null));
+
+    expect(hasAnyHole(nulls)).toBe(false);
+    expect(matchSettled({ holes: nulls })).toBe(false);
+    expect(matchSettled({ holes: nulls, forfeitedBy: "p1" })).toBe(true);
+  });
+
+  it("still reads a played card as settled, and an empty one as not", async () => {
+    const { matchSettled } = await import("@/lib/services/tournament");
+    const played = JSON.stringify(["A", null, null]);
+    expect(matchSettled({ holes: played, forfeitedBy: "" })).toBe(true);
+    expect(matchSettled({ holes: "[]", forfeitedBy: null })).toBe(false);
+    // Unparseable holes are not a result.
+    expect(matchSettled({ holes: "not json" })).toBe(false);
+  });
+});
