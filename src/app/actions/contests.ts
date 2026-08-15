@@ -178,6 +178,82 @@ export async function setContestWinners(contestId: string, winnerIds: string[]):
   return { ok: true };
 }
 
+/**
+ * A player putting their own name down, from the app.
+ *
+ * This is an INTENTION, not a stake. The money is cash on the first tee, so
+ * the row is written unconfirmed and contributes nothing to anybody's balance
+ * until the organizer says they have it — counting it earlier would tell three
+ * other people they are owed money that does not exist, which is the failure
+ * an expense ledger cannot survive.
+ *
+ * A player may only ever put down (or withdraw) THEMSELVES, matched on the
+ * registration email the way every score guard does it. And they cannot
+ * withdraw once the organizer has taken the cash: that is a conversation, not
+ * a button.
+ */
+export async function requestContestEntry(contestId: string, join: boolean): Promise<ContestResult> {
+  const session = await getSession();
+  if (!session?.eventId) throw new Error("Not signed in");
+
+  const contest = await prisma.contest.findFirst({
+    where: { id: contestId, eventId: session.eventId },
+    select: { id: true, name: true },
+  });
+  if (!contest) return { ok: false, error: "That bet isn't in this tournament." };
+
+  const me = await prisma.player.findFirst({
+    where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" } },
+    select: { id: true, name: true },
+  });
+  if (!me) return { ok: false, error: "You aren't in this tournament's field." };
+
+  const existing = await prisma.contestEntry.findUnique({
+    where: { contestId_playerId: { contestId, playerId: me.id } },
+  });
+
+  if (!join) {
+    if (existing?.confirmed) {
+      return { ok: false, error: "The organizer has your money for this one — ask them to take you out." };
+    }
+    if (existing) await prisma.contestEntry.delete({ where: { id: existing.id } });
+    revalidatePath("/", "layout");
+    return { ok: true };
+  }
+
+  if (existing) return { ok: true };
+  await prisma.contestEntry.create({
+    data: { contestId, playerId: me.id, confirmed: false },
+  });
+  await logMoney(session.eventId, "contest.request", `${me.name} asked to join ${contest.name}`);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** The organizer says the cash is in. This is what puts a stake in the pot. */
+export async function confirmContestEntry(
+  contestId: string,
+  playerId: string,
+  paid: boolean,
+): Promise<ContestResult> {
+  const { eventId } = await requireStaff();
+  const contest = await contestInEvent(eventId, contestId);
+
+  const entry = await prisma.contestEntry.findUnique({
+    where: { contestId_playerId: { contestId, playerId } },
+  });
+  if (!entry) return { ok: false, error: "They haven't put their name down." };
+
+  await prisma.contestEntry.update({ where: { id: entry.id }, data: { confirmed: paid } });
+  await logMoney(
+    eventId,
+    "contest.confirm",
+    `${contest.name}: ${paid ? "took" : "un-took"} ${playerId}'s stake`,
+  );
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function removeContest(contestId: string): Promise<ContestResult> {
   const { eventId } = await requireStaff();
   const contest = await contestInEvent(eventId, contestId);

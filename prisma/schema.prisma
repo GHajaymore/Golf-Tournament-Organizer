@@ -67,6 +67,7 @@ model Organization {
   /**
    * /**
    * /**
+   * /**
    * /** Absolute https:// URL to a logo image. A URL rather than an upload
    * because file uploads need blob storage; this works with the club's
    * existing website assets and can be swapped for an upload later without
@@ -1571,6 +1572,16 @@ model ContestEntry {
   contestId String
   playerId  String
   won       Boolean @default(false)
+  /**
+   * Whether the organizer has the money.
+   * A player can put their own name down from the app, which is an INTENTION
+   * and not a stake — the cash is handed over on the first tee, and until it
+   * is, counting them in would tell three other people they are owed money
+   * that does not exist. Only confirmed entries reach the ledger.
+   * Defaults TRUE because an organizer ticking somebody in IS the
+   * confirmation; the self-signup action is the only thing that writes false.
+   */
+  confirmed Boolean @default(true)
 
   contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
 
@@ -1621,9 +1632,15 @@ model SideGame {
  * One player staking in one derived side game.
  */
 model SideGameEntry {
-  id         String @id @default(cuid())
+  id         String  @id @default(cuid())
   sideGameId String
   playerId   String
+  /**
+   * The organizer has the cash. Same rule and same reason as
+   * ContestEntry.confirmed: a name put down in the app is an intention, not
+   * a stake, and only a stake reaches the ledger.
+   */
+  confirmed  Boolean @default(true)
 
   sideGame SideGame @relation(fields: [sideGameId], references: [id], onDelete: Cascade)
 

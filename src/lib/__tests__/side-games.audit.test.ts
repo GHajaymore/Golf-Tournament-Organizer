@@ -336,6 +336,92 @@ describe("the pots the cards settle", () => {
   });
 });
 
+describe("a player putting their own name down", () => {
+  /**
+   * The rule the whole signup flow rests on: an intention is not a stake.
+   *
+   * A player can tap "I'm in" from the app before the round. The money is cash
+   * on the first tee, so until the organizer says they have it, that entry
+   * must move NOBODY's balance — counting it would tell the other players they
+   * are owed money that does not exist, and a ledger that does that once will
+   * not be trusted again.
+   */
+  it("does not put a penny in the pot until the organizer takes the cash", async () => {
+    const kp = await prisma.contest.create({
+      data: {
+        eventId,
+        stageId: round[0],
+        kind: "closest-pin",
+        name: "KP 3rd",
+        hole: 3,
+        buyInCents: 1_000,
+        createdBy: "organizer",
+      },
+    });
+    // Two players paid on the tee; Sam only tapped the button.
+    await prisma.contestEntry.createMany({
+      data: [
+        { contestId: kp.id, playerId: player.dave, confirmed: true },
+        { contestId: kp.id, playerId: player.ann, confirmed: true },
+        { contestId: kp.id, playerId: player.sam, confirmed: false },
+      ],
+    });
+
+    const asked = await moneyFor(eventId, at("sam"));
+    const samBefore = asked.gamesCents;
+    const line = asked.contests.find((c) => c.name === "KP 3rd")!;
+    // The pot is the money actually collected, not the number of names.
+    expect(line.potCents).toBe(2_000);
+    expect(line.entrants).toBe(2);
+    expect(line.youIn, "Sam is down as wanting in").toBe(true);
+    expect(line.youConfirmed, "but the organizer does not have his money").toBe(false);
+
+    // Now the organizer takes it.
+    await prisma.contestEntry.update({
+      where: { contestId_playerId: { contestId: kp.id, playerId: player.sam } },
+      data: { confirmed: true },
+    });
+
+    const paid = await moneyFor(eventId, at("sam"));
+    expect(paid.contests.find((c) => c.name === "KP 3rd")!.potCents).toBe(3_000);
+    // Undecided, so it still costs him nothing — but the pot is now $30.
+    expect(paid.gamesCents).toBe(samBefore);
+    expect(sum(paid.standing)).toBe(0);
+
+    await prisma.contest.delete({ where: { id: kp.id } });
+  });
+
+  it("keeps an unpaid name out of a DERIVED pot too", async () => {
+    const game = await prisma.sideGame.create({
+      data: { eventId, stageId: round[0], kind: "low-gross", buyInCents: 1_000, createdBy: "organizer" },
+    });
+    await prisma.sideGameEntry.createMany({
+      data: [
+        { sideGameId: game.id, playerId: player.dave, confirmed: true },
+        { sideGameId: game.id, playerId: player.ann, confirmed: true },
+        // Rob asked to join and has not paid: he must neither be charged the
+        // stake nor be able to win a pot he is not in.
+        { sideGameId: game.id, playerId: player.rob, confirmed: false },
+      ],
+    });
+
+    const view = await moneyFor(eventId, at("rob"));
+    expect(sum(view.standing)).toBe(0);
+
+    const robPaid = await prisma.sideGameEntry.findFirst({
+      where: { sideGameId: game.id, playerId: player.rob },
+    });
+    expect(robPaid?.confirmed).toBe(false);
+
+    // Dave shot 54 in round 1 and takes the two-player pot: $20, less his $10.
+    const dave = await moneyFor(eventId, at("dave"));
+    const withPot = dave.gamesCents;
+    await prisma.sideGame.delete({ where: { id: game.id } });
+    const withoutPot = (await moneyFor(eventId, at("dave"))).gamesCents;
+    expect(withPot - withoutPot, "a two-player pot, not a three-player one").toBe(1_000);
+  });
+});
+
 describe("the whole outing, derived and manual together", () => {
   it("settles square across both rounds", async () => {
     const view = await moneyFor(eventId, at("dave"));

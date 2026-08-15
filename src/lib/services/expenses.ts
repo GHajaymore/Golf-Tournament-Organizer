@@ -111,6 +111,13 @@ export interface MoneyView {
     decided: boolean;
     /** What this contest did to the signed-in player, in cents. */
     yourCents: number;
+    /**
+     * Whether they have put their name down, and whether the organizer has
+     * taken their money. The two are separate on purpose: a name in the app is
+     * an intention, and only cash is a stake.
+     */
+    youIn: boolean;
+    youConfirmed: boolean;
   }>;
   /** True when this tournament has any money recorded at all. */
   used: boolean;
@@ -198,7 +205,10 @@ async function gameNets(eventId: string): Promise<Net[]> {
         }
 
         if (!isDerivedKind(game.kind)) continue;
-        const entrantIds = game.entrants.map((e) => e.playerId);
+        // CONFIRMED only. A player who put their own name down in the app has
+        // stated an intention; the stake is the cash the organizer took, and
+        // counting the rest would put money in the pot that nobody handed over.
+        const entrantIds = game.entrants.filter((e) => e.confirmed).map((e) => e.playerId);
         const potCards = cards
           .filter((c) => c.stageId === game.stageId && entrantIds.includes(c.playerId))
           .map((c) => {
@@ -245,7 +255,10 @@ async function gameNets(eventId: string): Promise<Net[]> {
       kind: isContestKind(c.kind) ? c.kind : "other",
       name: c.name,
       buyInCents: c.buyInCents,
-      entrantIds: c.entrants.map((e) => e.playerId),
+      // Confirmed stakes only — see the note on the derived pots above. A
+      // WINNER is not filtered: somebody put down for the long drive without
+      // paying in still won it, and the money still balances.
+      entrantIds: c.entrants.filter((e) => e.confirmed).map((e) => e.playerId),
       winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
     })),
   )) {
@@ -395,9 +408,12 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
         kind: isContestKind(c.kind) ? c.kind : ("other" as const),
         name: c.name,
         buyInCents: c.buyInCents,
-        entrantIds: c.entrants.map((e) => e.playerId),
+        // The pot shown is the money actually collected, so a screen never
+        // prints a figure larger than the cash on the table.
+        entrantIds: c.entrants.filter((e) => e.confirmed).map((e) => e.playerId),
         winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
       };
+      const mine = me ? c.entrants.find((e) => e.playerId === me.id) : undefined;
       return {
         id: c.id,
         name: c.name,
@@ -409,6 +425,9 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
         winners: shaped.winnerIds.map((id) => nameOf.get(id) ?? "Unknown"),
         decided: isDecided(shaped),
         yourCents: me ? contestNets(shaped).find((n) => n.playerId === me.id)?.netCents ?? 0 : 0,
+        /** Whether the signed-in player is in, and whether their money is in. */
+        youIn: !!mine,
+        youConfirmed: !!mine?.confirmed,
       };
     }),
     used: rows.length > 0 || settlements.length > 0 || contestRows.length > 0,

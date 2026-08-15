@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import { addExpense, removeExpense, recordSettlement } from "@/app/actions/expenses";
+import { requestContestEntry } from "@/app/actions/contests";
 import type { MoneyView } from "@/lib/services/expenses";
 import { PersonChip } from "@/components/PersonChip";
 
@@ -284,6 +285,40 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                 >
                   {money(c.yourCents)}
                 </span>
+              )}
+
+              {/* Put your own name down, before the round.
+                  It says "asked to join" rather than "in" until the organizer
+                  has the cash, because until then it costs nothing and counts
+                  for nothing — and telling a player otherwise would be the app
+                  inventing a debt. */}
+              {view.playerId && !c.decided && (
+                <button
+                  type="button"
+                  className="touch-target"
+                  disabled={pending || c.youConfirmed}
+                  onClick={() =>
+                    startTransition(async () => {
+                      const res = await requestContestEntry(c.id, !c.youIn);
+                      if (!res.ok) setError(res.error ?? "Couldn't do that.");
+                    })
+                  }
+                  style={{
+                    minHeight: 40,
+                    padding: "0 12px",
+                    borderRadius: 999,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: c.youConfirmed ? "default" : "pointer",
+                    color: "var(--color-text)",
+                    background: c.youIn
+                      ? "color-mix(in srgb, var(--color-accent) 16%, transparent)"
+                      : "var(--color-surface)",
+                    border: `1px solid ${c.youIn ? "var(--color-accent)" : "var(--color-divider)"}`,
+                  }}
+                >
+                  {c.youConfirmed ? "You're in" : c.youIn ? "Asked to join" : "I'm in"}
+                </button>
               )}
             </div>
           ))}

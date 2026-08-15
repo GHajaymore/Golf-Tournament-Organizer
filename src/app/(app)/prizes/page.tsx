@@ -107,9 +107,17 @@ export default async function PrizesPage({
             name: c.name,
             hole: c.hole,
             buyInCents: c.buyInCents,
-            entrantIds: c.entrants.map((e) => e.playerId),
+            // Confirmed stakes are the pot; the rest are people who put their
+            // own name down in the app and still owe the organizer cash.
+            entrantIds: c.entrants.filter((e) => e.confirmed).map((e) => e.playerId),
             winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
-            potCents: c.buyInCents * c.entrants.length,
+            potCents: c.buyInCents * c.entrants.filter((e) => e.confirmed).length,
+            pending: c.entrants
+              .filter((e) => !e.confirmed)
+              .map((e) => ({
+                playerId: e.playerId,
+                name: state.confirmed.find((p) => p.id === e.playerId)?.name ?? "Unknown",
+              })),
           }))}
           sideGames={sideGames.map((g) => ({
             id: g.id,

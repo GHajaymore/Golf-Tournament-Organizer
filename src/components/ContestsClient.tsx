@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { addContest, setContestEntrants, setContestWinners, removeContest } from "@/app/actions/contests";
+import { addContest, setContestEntrants, setContestWinners, removeContest, confirmContestEntry } from "@/app/actions/contests";
 import { saveSideGame, setSideGameEntrants } from "@/app/actions/side-games";
 import { CONTEST_KINDS, CONTEST_LABEL, type ContestKind } from "@/lib/domain/contests";
 import { DERIVED_KINDS, DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
@@ -49,6 +49,8 @@ export interface ContestView {
   entrantIds: string[];
   winnerIds: string[];
   potCents: number;
+  /** Players who put their own name down and have not paid in yet. */
+  pending: Array<{ playerId: string; name: string }>;
 }
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -264,6 +266,35 @@ export function ContestsClient({
                 <span className="text-muted" style={{ fontSize: 12 }}> · {money(c.buyInCents)} each</span>
               </span>
             </div>
+
+            {/* Anybody who put their own name down in the app and has not yet
+                handed the money over. Shown first, because collecting from
+                these people is the job — and their stake is NOT in the pot
+                above until it is taken. */}
+            {c.pending.length > 0 && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: "8px 10px",
+                  borderRadius: "var(--radius-md)",
+                  background: "color-mix(in srgb, var(--color-accent) 8%, transparent)",
+                }}
+              >
+                <span className="card-kicker">Asked to join — take their money ({c.pending.length})</span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                  {c.pending.map((p) => (
+                    <PersonChip
+                      key={p.playerId}
+                      name={`${p.name} · ${money(c.buyInCents)}`}
+                      on={false}
+                      tone="in"
+                      disabled={pending}
+                      onClick={() => run(() => confirmContestEntry(c.id, p.playerId, true))}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Who paid in. */}
             <div style={{ marginTop: 8 }}>
