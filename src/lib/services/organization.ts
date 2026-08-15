@@ -45,12 +45,29 @@ export async function organizationForNewEvent(
     if (membership) return membership.organizationId;
   }
 
+  // The membership is created unconditionally, and the User along with it if
+  // this email has never signed in — the same thing addOrganizationMember does
+  // for staff it invites, claimed with a password on first login.
+  //
+  // It used to be `...(user ? { members: ... } : {})`, which left a brand new
+  // organization with NOBODY in it. An ownerless club then fell to the
+  // `session.role === "admin" && !membership` fallback for its administration,
+  // which is exactly the reading S1 turned into a takeover. Every organization
+  // this app creates now has an owner from the moment it exists.
+  const owner =
+    user ??
+    (await prisma.user.upsert({
+      where: { email },
+      update: {},
+      create: { email, name: displayName || email },
+    }));
+
   const org = await prisma.organization.create({
     data: {
       name: newOrganizationName(orgName, displayName, email),
       kind: "personal",
       subscription: { create: { plan: DEFAULT_PLAN, status: "active" } },
-      ...(user ? { members: { create: { userId: user.id, role: "owner" } } } : {}),
+      members: { create: { userId: owner.id, role: "owner" } },
     },
   });
   return org.id;

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { cleanSettings, usesAccessCodes, type TournamentSettings } from "@/lib/tournament-settings";
 import { generateAccessCode } from "@/lib/codes";
+import { organizationAccess } from "@/lib/services/org-access";
 
 /**
  * Tournament settings and the organization defaults new tournaments copy.
@@ -115,23 +116,16 @@ export async function saveOrganizationDefaults(input: Partial<TournamentSettings
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
 
-  const event = await prisma.event.findUnique({
-    where: { id: session.eventId },
-    select: { organizationId: true },
-  });
-  if (!event) return { ok: false, error: "No organization found." };
-
-  const user = await prisma.user.findUnique({ where: { email: session.email } });
-  const membership = user
-    ? await prisma.organizationMember.findUnique({
-        where: { organizationId_userId: { organizationId: event.organizationId, userId: user.id } },
-      })
-    : null;
-  const canEdit =
-    membership?.role === "owner" ||
-    membership?.role === "admin" ||
-    (session.role === "admin" && !membership);
-  if (!canEdit) return { ok: false, error: "Only an organization owner or admin can change house defaults." };
+  // House defaults belong to the club, so this is the club's rule — the same
+  // one the organization actions use, from one place. The copy that used to
+  // live here ended `|| (session.role === "admin" && !membership)`, which
+  // handed every guest organizer of a single event the keys to the tenant.
+  const access = await organizationAccess(session);
+  if (!access) return { ok: false, error: "No organization found." };
+  if (!access.canEdit) {
+    return { ok: false, error: "Only an organization owner or admin can change house defaults." };
+  }
+  const event = { organizationId: access.organizationId };
 
   const org = await prisma.organization.findUnique({ where: { id: event.organizationId } });
   if (!org) return { ok: false, error: "No organization found." };

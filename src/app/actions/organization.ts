@@ -7,6 +7,7 @@ import {
   isThemeKey, hexToHsl, isAppearance, FAIRWAY, SECONDARY_PRESETS, DEFAULT_APPEARANCE, pairVerdict, type Appearance,
 } from "@/lib/themes";
 import { checkLogoUrl } from "@/lib/services/logo-check";
+import { organizationAccess } from "@/lib/services/org-access";
 import { isBrandDisplay } from "@/lib/brand";
 
 export interface OrgResult {
@@ -22,35 +23,13 @@ export interface OrgResult {
  * whether this person may change its settings.
  *
  * Organization settings sit above a single tournament, so editing them
- * requires being an owner/admin of the organization — not merely an organizer
- * of one of its events.
+ * requires being an owner/admin of the ORGANIZATION — not merely an organizer
+ * of one of its events. The rule itself lives in services/org-access.ts, which
+ * explains at length why "not a member" was the wrong reading; this file and
+ * settings.ts held identical copies of it and one of them was a club takeover.
  */
 async function currentOrganization() {
-  const session = await getSession();
-  if (!session?.eventId) return null;
-  const event = await prisma.event.findUnique({
-    where: { id: session.eventId },
-    select: { organizationId: true },
-  });
-  if (!event) return null;
-
-  const user = await prisma.user.findUnique({ where: { email: session.email } });
-  const membership = user
-    ? await prisma.organizationMember.findUnique({
-        where: { organizationId_userId: { organizationId: event.organizationId, userId: user.id } },
-      })
-    : null;
-
-  return {
-    organizationId: event.organizationId,
-    canEdit:
-      membership?.role === "owner" ||
-      membership?.role === "admin" ||
-      // An organizer of the event who predates organization membership (or
-      // whose personal org was created by the backfill) can still administer
-      // their own tenant — otherwise they'd be locked out of their own club.
-      (session.role === "admin" && !membership),
-  };
+  return organizationAccess(await getSession());
 }
 
 const ORG_ROLES = ["owner", "admin", "member"] as const;
