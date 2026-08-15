@@ -4,6 +4,7 @@ import { addContest, setContestEntrants, setContestWinners, removeContest } from
 import { saveSideGame, setSideGameEntrants } from "@/app/actions/side-games";
 import { CONTEST_KINDS, CONTEST_LABEL, type ContestKind } from "@/lib/domain/contests";
 import { DERIVED_KINDS, DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
+import { PersonChip } from "@/components/PersonChip";
 
 /**
  * The derived pots, in the order a club would read them. Nassau is last and
@@ -51,6 +52,7 @@ export interface ContestView {
 }
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
 
 export interface SideGameView {
   id: string;
@@ -222,12 +224,11 @@ export function ContestsClient({
                       {field.map((p) => {
                         const isIn = entered.has(p.id);
                         return (
-                          <button
+                          <PersonChip
                             key={p.id}
-                            type="button"
-                            className={`btn ${isIn ? "btn-primary" : "btn-secondary"} touch-target`}
-                            style={{ fontSize: 12.5 }}
-                            aria-pressed={isIn}
+                            name={p.name}
+                            on={isIn}
+                            tone="in"
                             disabled={pending || !game}
                             onClick={() => {
                               if (!game) return;
@@ -236,9 +237,7 @@ export function ContestsClient({
                                 : [...game.entrantIds, p.id];
                               run(() => setSideGameEntrants(game.id, next));
                             }}
-                          >
-                            {p.name}
-                          </button>
+                          />
                         );
                       })}
                     </div>
@@ -273,12 +272,11 @@ export function ContestsClient({
                 {field.map((p) => {
                   const on = entered.has(p.id);
                   return (
-                    <button
+                    <PersonChip
                       key={p.id}
-                      type="button"
-                      className={`btn ${on ? "btn-primary" : "btn-secondary"} touch-target`}
-                      style={{ fontSize: 12.5 }}
-                      aria-pressed={on}
+                      name={p.name}
+                      on={on}
+                      tone="in"
                       disabled={pending}
                       onClick={() => {
                         const next = on
@@ -286,9 +284,7 @@ export function ContestsClient({
                           : [...c.entrantIds, p.id];
                         run(() => setContestEntrants(c.id, next));
                       }}
-                    >
-                      {p.name}
-                    </button>
+                    />
                   );
                 })}
               </div>
@@ -305,12 +301,14 @@ export function ContestsClient({
                   .map((p) => {
                     const on = won.has(p.id);
                     return (
-                      <button
+                      <PersonChip
                         key={p.id}
-                        type="button"
-                        className={`btn ${on ? "btn-primary" : "btn-secondary"} touch-target`}
-                        style={{ fontSize: 12.5 }}
-                        aria-pressed={on}
+                        name={p.name}
+                        on={on}
+                        // The club's SECOND colour for money out, the same
+                        // pairing the board uses — both configured, neither
+                        // fixed by this screen.
+                        tone="won"
                         disabled={pending}
                         onClick={() => {
                           const next = on
@@ -318,9 +316,7 @@ export function ContestsClient({
                             : [...c.winnerIds, p.id];
                           run(() => setContestWinners(c.id, next));
                         }}
-                      >
-                        {p.name}
-                      </button>
+                      />
                     );
                   })}
                 {entered.size === 0 && (

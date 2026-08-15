@@ -2,6 +2,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { addExpense, removeExpense, recordSettlement } from "@/app/actions/expenses";
 import type { MoneyView } from "@/lib/services/expenses";
+import { PersonChip } from "@/components/PersonChip";
 
 /**
  * The outing's money, on a phone.
@@ -193,12 +194,10 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               {view.field.map((p) => {
                 const on = picked.has(p.id);
                 return (
-                  <button
+                  <PersonChip
                     key={p.id}
-                    type="button"
-                    className={`btn ${on ? "btn-primary" : "btn-secondary"} touch-target`}
-                    style={{ fontSize: 12.5 }}
-                    aria-pressed={on}
+                    name={p.name}
+                    on={on}
                     onClick={() =>
                       setPicked((prev) => {
                         const next = new Set(prev);
@@ -207,9 +206,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                         return next;
                       })
                     }
-                  >
-                    {p.name}
-                  </button>
+                  />
                 );
               })}
             </div>
