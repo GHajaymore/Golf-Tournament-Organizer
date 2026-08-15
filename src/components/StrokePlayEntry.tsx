@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { CardPhotoReader } from "@/components/CardPhotoReader";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
+import { ScorecardTable } from "@/components/ScorecardTable";
 import { computeStrokeCard, toParText, parseStrokesTranscript } from "@/lib/domain";
 import { isCardLocked } from "@/lib/domain/card-approval";
 import { saveScorecard } from "@/app/actions/tournament";
@@ -11,12 +12,6 @@ interface StrokePlayer {
   id: string;
   name: string;
   handicap: number;
-}
-
-function sum(arr: number[], from: number, to: number): number {
-  let t = 0;
-  for (let i = from; i < to; i += 1) t += arr[i] ?? 0;
-  return t;
 }
 
 export function StrokePlayEntry({
@@ -98,8 +93,6 @@ export function StrokePlayEntry({
     () => computeStrokeCard(strokes, pars, player?.handicap ?? 0, strokeIndex),
     [strokes, pars, strokeIndex, player],
   );
-  const parTotal = pars.slice(0, holes).reduce((a, b) => a + b, 0);
-  const isEighteen = holes > 9;
 
   /**
    * Who is on the card being scored.
@@ -123,12 +116,6 @@ export function StrokePlayEntry({
     }));
   }, [groupIdx, teeGroups, players, playerId, shotsByPlayer]);
 
-  const setHole = (i: number, val: string) => {
-    const n = parseInt(val, 10);
-    const next = [...strokes];
-    next[i] = Number.isFinite(n) && n > 0 ? n : null;
-    setCards((prev) => ({ ...prev, [playerId]: next }));
-  };
   /**
    * Saves the cards that actually have scores on them.
    *
@@ -219,35 +206,10 @@ export function StrokePlayEntry({
     );
   }
 
-  const front = Array.from({ length: Math.min(9, holes) }, (_, i) => i);
-  const back = isEighteen ? Array.from({ length: holes - 9 }, (_, i) => i + 9) : [];
-
-  /**
-   * One hole's box, marked the way a printed card is: under par ringed, over
-   * par boxed.
-   *
-   * Not decoration. A 3 typed where a 5 belongs is just another digit in a row
-   * of eighteen, but a birdie ring on a hole you know you bogeyed is caught
-   * the moment it appears.
-   */
-  const scoreCell = (i: number) => {
-    const v = strokes[i];
-    const par = pars[i];
-    const d = v != null && par ? v - par : null;
-    const mark =
-      d === null ? "" : d <= -2 ? " is-eagle" : d === -1 ? " is-under" : d === 1 ? " is-over" : d >= 2 ? " is-double" : "";
-    return (
-      <td key={i} style={{ padding: 2 }}>
-        <input
-          className={`input sc-score${mark}`}
-          inputMode="numeric"
-          value={strokes[i] ?? ""}
-          onChange={(e) => setHole(i, e.target.value)}
-          aria-label={`Hole ${i + 1}${par ? `, par ${par}` : ""}`}
-        />
-      </td>
-    );
-  };
+  // The grid, the hole columns and the par-marked score box all moved to
+  // ScorecardTable when the two scorecards in this app became one. The marks
+  // went with them — a birdie ring on a hole you know you bogeyed is still
+  // caught the moment it appears, now on both screens instead of one.
 
   return (
     <div className="card elev-sm">
@@ -366,53 +328,23 @@ export function StrokePlayEntry({
           />
         </div>
       ) : (
-      <div className="sc-wrap" style={{ marginTop: 12 }}>
-        <table className="sc" style={{ minWidth: isEighteen ? 960 : 560 }}>
-          <thead>
-            <tr>
-              <th>Hole</th>
-              {front.map((i) => (<th key={i}>{i + 1}</th>))}
-              {isEighteen && <th className="sc-tot">Out</th>}
-              {back.map((i) => (<th key={i}>{i + 1}</th>))}
-              {isEighteen && <th className="sc-tot">In</th>}
-              <th className="sc-tot">Tot</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="sc-ref">
-              <td>Yards</td>
-              {front.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
-              {isEighteen && <td className="sc-tot">{sum(yards, 0, 9)}</td>}
-              {back.map((i) => (<td key={i}>{yards[i] ?? "-"}</td>))}
-              {isEighteen && <td className="sc-tot">{sum(yards, 9, holes)}</td>}
-              <td className="sc-tot">{sum(yards, 0, holes)}</td>
-            </tr>
-            <tr className="sc-ref sc-par">
-              <td>Par</td>
-              {front.map((i) => (<td key={i}>{pars[i] ?? "-"}</td>))}
-              {isEighteen && <td className="sc-tot">{sum(pars, 0, 9)}</td>}
-              {back.map((i) => (<td key={i}>{pars[i] ?? "-"}</td>))}
-              {isEighteen && <td className="sc-tot">{sum(pars, 9, holes)}</td>}
-              <td className="sc-tot">{parTotal}</td>
-            </tr>
-            <tr className="sc-ref">
-              <td>S.I.</td>
-              {front.map((i) => (<td key={i}>{strokeIndex[i] ?? "-"}</td>))}
-              {isEighteen && <td className="sc-tot" />}
-              {back.map((i) => (<td key={i}>{strokeIndex[i] ?? "-"}</td>))}
-              {isEighteen && <td className="sc-tot" />}
-              <td className="sc-tot" />
-            </tr>
-            <tr>
-              <td>Score</td>
-              {front.map((i) => scoreCell(i))}
-              {isEighteen && <td className="sc-tot">{card.front || "—"}</td>}
-              {back.map((i) => scoreCell(i))}
-              {isEighteen && <td className="sc-tot">{card.back || "—"}</td>}
-              <td className="sc-tot">{card.gross || "—"}</td>
-            </tr>
-          </tbody>
-        </table>
+      <div style={{ marginTop: 12 }}>
+        {/* The one scorecard in this app. The player's card renders the same
+            component, so a card checked on a phone and the same card on the
+            console cannot show different totals. */}
+        <ScorecardTable
+          holes={holes}
+          pars={pars}
+          yards={yards}
+          strokeIndex={strokeIndex}
+          strokes={strokes}
+          shotsPerHole={Array.from({ length: holes }, (_, i) => shotsByPlayer[playerId]?.[i] ?? 0)}
+          onSet={(i: number, v: number | null) => setCards((prev) => {
+            const next = [...(prev[playerId] ?? new Array(holes).fill(null))];
+            next[i] = v;
+            return { ...prev, [playerId]: next };
+          })}
+        />
       </div>
       )}
 

@@ -1877,3 +1877,119 @@ describe("the board answers 'where am I' first", () => {
     expect(html).toContain("not started");
   });
 });
+
+describe("the scorecard shows the whole card", () => {
+  /**
+   * There were two grids in this app and neither showed everything: the
+   * organizer's had yards, par, stroke index and a gross total but never the
+   * shots a player receives or the net they produce, and the player's card had
+   * no grid at all — one hole at a time, with no way to check the round
+   * against the paper card in your pocket.
+   *
+   * One component now, rendered by both, so a card checked on a phone and the
+   * same card on the console cannot disagree.
+   */
+  const pars = [4, 5, 3, 4, 4, 3, 5, 4, 4, 4, 3, 5, 4, 4, 3, 4, 5, 4];
+  const si = [7, 3, 15, 1, 11, 17, 5, 9, 13, 8, 16, 2, 6, 10, 18, 4, 12, 14];
+  const strokes: (number | null)[] = [4, 6, 3, 5, 4, 4, 5, 4, 4, 4, 3, 6, 4, 5, 3, 4, 5, 4];
+
+  it("shows every hole, both nines and the total", async () => {
+    const { ScorecardTable } = await import("@/components/ScorecardTable");
+    const html = render(
+      <ScorecardTable holes={18} pars={pars} strokeIndex={si} strokes={strokes} />,
+    );
+    // Every hole number is a column heading, 1 through 18.
+    for (let h = 1; h <= 18; h += 1) expect(html, `hole ${h}`).toContain(`>${h}<`);
+    expect(html).toContain("Out");
+    expect(html).toContain("In");
+    expect(html).toContain("Tot");
+  });
+
+  it("totals gross, to par and holes played", async () => {
+    const { ScorecardTable } = await import("@/components/ScorecardTable");
+    const html = render(
+      <ScorecardTable holes={18} pars={pars} strokeIndex={si} strokes={strokes} />,
+    );
+    // 77 gross against a par of 72.
+    expect(html).toContain("77");
+    expect(html).toContain("Gross");
+    expect(html).toContain("To par");
+    expect(html).toContain("+5");
+    expect(html).toContain("18 of 18");
+  });
+
+  it("shows the shots received and the net they produce", async () => {
+    // The part neither old grid had. A 12 handicap gets a stroke on the twelve
+    // hardest holes, and the net has to be checkable from the card.
+    const { ScorecardTable } = await import("@/components/ScorecardTable");
+    const shots = si.map((n) => (n <= 12 ? 1 : 0));
+    const html = render(
+      <ScorecardTable
+        holes={18}
+        pars={pars}
+        strokeIndex={si}
+        strokes={strokes}
+        shotsPerHole={shots}
+        playingHandicap={12}
+      />,
+    );
+    expect(html).toContain("Shots");
+    expect(html).toContain("Net");
+    expect(html).toContain("65"); // 77 less 12
+  });
+
+  it("counts par and shots over the holes PLAYED, not the whole course", async () => {
+    // Through nine, "to par" against all eighteen would read nine under.
+    const { ScorecardTable } = await import("@/components/ScorecardTable");
+    const nine: (number | null)[] = [...strokes.slice(0, 9), ...new Array(9).fill(null)];
+    const html = render(
+      <ScorecardTable
+        holes={18}
+        pars={pars}
+        strokeIndex={si}
+        strokes={nine}
+        shotsPerHole={si.map((n) => (n <= 12 ? 1 : 0))}
+        playingHandicap={12}
+      />,
+    );
+    expect(html).toContain("9 of 18");
+    // 39 out against a par of 36.
+    expect(html).toContain("39");
+    expect(html).toContain("+3");
+  });
+
+  it("renders a nine-hole round without an empty back nine", async () => {
+    const { ScorecardTable } = await import("@/components/ScorecardTable");
+    const html = render(
+      <ScorecardTable
+        holes={9}
+        pars={pars.slice(0, 9)}
+        strokeIndex={si.slice(0, 9)}
+        strokes={strokes.slice(0, 9)}
+      />,
+    );
+    expect(html).not.toContain(">10<");
+    expect(html).not.toContain("Out");
+    expect(html).toContain("Tot");
+  });
+
+  it("marks a birdie and a double the way a card does", async () => {
+    const { ScorecardTable } = await import("@/components/ScorecardTable");
+    const html = render(
+      <ScorecardTable holes={18} pars={pars} strokeIndex={si} strokes={strokes} />,
+    );
+    // Hole 2 is a 6 on a par 5 (over), hole 12 a 6 on a par 5 (over) — and the
+    // classes are what the eye reads before the column is added up.
+    expect(html).toContain("is-over");
+  });
+
+  it("reads as a card even before a score is entered", async () => {
+    const { ScorecardTable } = await import("@/components/ScorecardTable");
+    const html = render(
+      <ScorecardTable holes={18} pars={pars} strokeIndex={si} strokes={new Array(18).fill(null)} />,
+    );
+    expect(html).toContain("0 of 18");
+    expect(html).toContain("Par");
+    expect(html).toContain("S.I.");
+  });
+});

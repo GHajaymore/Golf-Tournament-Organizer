@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
+import { ScorecardTable } from "@/components/ScorecardTable";
 import { saveScorecard, certifyScorecard } from "@/app/actions/tournament";
 import { RuleCite } from "@/components/RuleCite";
 import { toParText } from "@/lib/domain";
@@ -72,6 +73,8 @@ export function PlayerCard({
   const [pending, startTransition] = useTransition();
   const [note, setNote] = useState("");
   const [state, setState] = useState(status);
+  /** Hole by hole for the round; the full card for checking it after. */
+  const [view, setView] = useState<"hole" | "card">("hole");
   /** Sticky on failure, deliberately: the number is on screen and NOT stored,
    *  and clearing that warning on a timer would hide it. */
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
@@ -222,21 +225,60 @@ export function PlayerCard({
             )}
           </section>
 
-          <HoleByHoleCard
-            players={[
-              {
-                id: playerId,
-                name: playerName,
-                shotsOn: (hole: number) => shotsPerHole[hole] ?? 0,
-              },
-            ]}
-            cards={{ [playerId]: strokes }}
-            pars={pars}
-            yards={yards}
-            strokeIndex={strokeIndex}
-            holes={holes}
-            onSet={(_pid, hole, value) => setHole(hole, value)}
-          />
+          {/* Two ways to fill the same card, because they are two different
+              moments. Hole by hole is the round: one number, big targets, on
+              a phone between shots. The full card is the check afterwards —
+              against the paper one in your pocket, where every hole, the
+              shots you got and both totals have to be visible at once. */}
+          <div className="seg" style={{ marginBottom: 12 }}>
+            <label className="seg-opt">
+              <input
+                type="radio"
+                name="card-view"
+                checked={view === "hole"}
+                onChange={() => setView("hole")}
+              />
+              <i className="ph ph-flag" /> Hole by hole
+            </label>
+            <label className="seg-opt">
+              <input
+                type="radio"
+                name="card-view"
+                checked={view === "card"}
+                onChange={() => setView("card")}
+              />
+              <i className="ph ph-table" /> Full card
+            </label>
+          </div>
+
+          {view === "hole" ? (
+            <HoleByHoleCard
+              players={[
+                {
+                  id: playerId,
+                  name: playerName,
+                  shotsOn: (hole: number) => shotsPerHole[hole] ?? 0,
+                },
+              ]}
+              cards={{ [playerId]: strokes }}
+              pars={pars}
+              yards={yards}
+              strokeIndex={strokeIndex}
+              holes={holes}
+              onSet={(_pid, hole, value) => setHole(hole, value)}
+            />
+          ) : (
+            <ScorecardTable
+              holes={holes}
+              pars={pars}
+              yards={yards}
+              strokeIndex={strokeIndex}
+              strokes={strokes}
+              shotsPerHole={shotsPerHole}
+              playingHandicap={playingHandicap}
+              onSet={setHole}
+            />
+          )}
 
           {/* No Save button. The card writes itself; this says what happened,
               and stays put when it failed. */}
