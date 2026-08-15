@@ -44,38 +44,13 @@ export interface PotResult {
 }
 
 /**
- * Split `totalCents` in proportion to `weights`, exactly.
- *
- * Largest remainder: give everyone their whole-cent share, then hand the odd
- * cents to whoever was rounded down hardest. Ties broken by order, so the
- * result is deterministic rather than depending on sort stability.
- *
- * The point is the guarantee — the parts always sum to the whole. A pot of
- * £60 across 7 skins is £8.571428..., and any method that rounds each share
- * independently loses or invents a few pence.
+ * The split and settle helpers now live in `domain/money.ts`, owned by neither
+ * this feature nor the expense ledger that also settles through them. Re-
+ * exported here so every existing caller and test is untouched, and so there
+ * remains exactly one implementation of each.
  */
-export function splitExactly(totalCents: number, weights: number[]): number[] {
-  const total = Math.max(0, Math.round(totalCents));
-  const sum = weights.reduce((a, w) => a + Math.max(0, w), 0);
-  if (sum <= 0 || total === 0) return weights.map(() => 0);
-
-  const exact = weights.map((w) => (total * Math.max(0, w)) / sum);
-  const floors = exact.map((e) => Math.floor(e));
-  let left = total - floors.reduce((a, f) => a + f, 0);
-
-  // Biggest fractional part first; index order settles a dead heat.
-  const order = exact
-    .map((e, i) => ({ i, frac: e - Math.floor(e) }))
-    .sort((a, b) => b.frac - a.frac || a.i - b.i);
-
-  const out = [...floors];
-  for (const { i } of order) {
-    if (left <= 0) break;
-    out[i] += 1;
-    left -= 1;
-  }
-  return out;
-}
+import { splitExactly } from "./money";
+export { splitExactly, settle, type Transfer } from "./money";
 
 /**
  * Turn a played skins game into money.
@@ -149,51 +124,6 @@ export function skinsPot(
     shares,
     provisional: holesUnplayed > 0,
   };
-}
-
-export interface Transfer {
-  fromPlayerId: string;
-  toPlayerId: string;
-  cents: number;
-}
-
-/**
- * Who actually hands money to whom.
- *
- * Everybody-pays-everybody is arithmetically correct and socially useless: a
- * twelve-player league would settle with sixty-six handshakes. Netting it out
- * turns that into a handful.
- *
- * Greedy largest-debtor against largest-creditor. It does not always find the
- * theoretical minimum number of transfers — that problem is NP-hard — but it
- * is within one of it in practice, runs instantly, and produces a sheet a
- * treasurer can read. Deterministic: ties broken by player id so the same
- * week always settles the same way.
- */
-export function settle(nets: Array<{ playerId: string; netCents: number }>): Transfer[] {
-  const debtors = nets
-    .filter((n) => n.netCents < 0)
-    .map((n) => ({ id: n.playerId, owed: -n.netCents }))
-    .sort((a, b) => b.owed - a.owed || a.id.localeCompare(b.id));
-  const creditors = nets
-    .filter((n) => n.netCents > 0)
-    .map((n) => ({ id: n.playerId, due: n.netCents }))
-    .sort((a, b) => b.due - a.due || a.id.localeCompare(b.id));
-
-  const out: Transfer[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < debtors.length && j < creditors.length) {
-    const pay = Math.min(debtors[i].owed, creditors[j].due);
-    if (pay > 0) {
-      out.push({ fromPlayerId: debtors[i].id, toPlayerId: creditors[j].id, cents: pay });
-      debtors[i].owed -= pay;
-      creditors[j].due -= pay;
-    }
-    if (debtors[i].owed === 0) i += 1;
-    if (creditors[j].due === 0) j += 1;
-  }
-  return out;
 }
 
 /**
