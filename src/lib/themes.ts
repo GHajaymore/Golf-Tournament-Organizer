@@ -52,6 +52,17 @@ export const THEME_PRESETS: ThemePreset[] = [
   { key: "heather", name: "Heather", blurb: "Purple, like the rough at Gleneagles.", hue: 280, saturation: 0.45 },
   { key: "bunker", name: "Bunker", blurb: "Soft sand gold.", hue: 42, saturation: 0.72 },
   { key: "ivy", name: "Ivy", blurb: "Clubhouse green, deeper than the fairway.", hue: 158, saturation: 0.5 },
+  // Two borrowed from outside golf, because a club's identity often is.
+  //
+  // Signal is the bright playing green the newer golf apps use — vivid rather
+  // than natural, and it reads at arm's length in sun, which is the whole
+  // argument for it. It is deliberately a long way from Fairway and Ivy: those
+  // are the colour of grass, this is the colour of a number lighting up.
+  { key: "signal", name: "Signal", blurb: "Bright playing green — a score lighting up, not a fairway.", hue: 137, saturation: 0.9 },
+  // Violet is the developer-tool palette on a near-black page. No golf club
+  // has ever been this colour, which is exactly why a society or a corporate
+  // outing might pick it.
+  { key: "violet", name: "Violet", blurb: "Cool violet on near-black — a society day, not a members' medal.", hue: 249, saturation: 0.88 },
 ];
 
 export const DEFAULT_THEME = "sunset";
