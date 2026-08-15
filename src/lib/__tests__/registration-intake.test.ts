@@ -17,6 +17,7 @@ import {
 
 // A field that is open, well before its deadline, with room to spare.
 const OPEN = {
+  eventStatus: "registration",
   deadline: "2099-12-31",
   capacity: 16,
   confirmedCount: 4,
@@ -82,6 +83,43 @@ describe("where an entry lands", () => {
       reg: { ...OPEN, deadline: "2020-01-01" },
     });
     expect(d.accepted).toBe(false);
+  });
+
+  it("refuses once the tournament has finished", () => {
+    // D2: registerForEvent read the switch, the deadline and the capacity, and
+    // never the event's own status — so a finished tournament kept taking
+    // public entries into a field whose result was already published. The
+    // switch being ON is the interesting case, because that is the state a
+    // club leaves it in when the tournament ends.
+    const d = decideIntake({
+      registrationOpen: true,
+      approvalMode: "auto",
+      reg: { ...OPEN, eventStatus: "completed" },
+    });
+    expect(d.accepted).toBe(false);
+  });
+
+  it("refuses a finished tournament in approve mode too", () => {
+    // Approve mode parks entries in a queue. A queue attached to a tournament
+    // that is over is a queue nobody will ever look at.
+    const d = decideIntake({
+      registrationOpen: true,
+      approvalMode: "approve",
+      reg: { ...OPEN, eventStatus: "completed" },
+    });
+    expect(d.accepted).toBe(false);
+  });
+
+  it("keeps taking entries while the tournament is live", () => {
+    // Not a blanket "started means closed": a club league runs for weeks and
+    // members join mid-season. The organizer's switch decides that, and D2's
+    // other half is that they can now reach it.
+    const d = decideIntake({
+      registrationOpen: true,
+      approvalMode: "auto",
+      reg: { ...OPEN, eventStatus: "live" },
+    });
+    expect(d.accepted).toBe(true);
   });
 
   it("refuses after the deadline, and honours an organizer extension", () => {

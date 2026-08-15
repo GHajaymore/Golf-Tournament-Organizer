@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { registerForEvent, type RegisterResult } from "@/app/actions/register";
 import type { ApprovalMode } from "@/lib/domain/registration-intake";
 import type { RegistrationPrefill } from "@/lib/services/registration";
+import { formatDeadline } from "@/lib/deadline";
 
 /**
  * The self-service registration form.
@@ -128,7 +129,7 @@ export function RegisterClient({
           <span className="text-muted">
             {" · "}
             {formatLabel}
-            {regDeadline ? ` · closes ${regDeadline}` : ""}
+            {regDeadline ? ` · closes ${formatDeadline(regDeadline)}` : ""}
           </span>
         </span>
       </div>

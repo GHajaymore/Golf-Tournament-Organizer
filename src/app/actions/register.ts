@@ -90,6 +90,7 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
     registrationOpen: event.registrationOpen,
     approvalMode: approvalModeOf(event.registrationApproval),
     reg: {
+      eventStatus: event.status,
       deadline: event.regDeadline,
       capacity: event.capacity,
       confirmedCount,

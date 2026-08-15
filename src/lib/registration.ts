@@ -13,15 +13,16 @@
  * needs the app to agree rather than argue.
  */
 
-import { deadlineState, deadlinePassed, isIsoDate } from "./deadline";
+import { deadlineState, deadlinePassed, isIsoDate, formatDeadline, parseDeadlineIso } from "./deadline";
 
-export { deadlinePassed, isIsoDate };
+export { deadlinePassed, isIsoDate, formatDeadline, parseDeadlineIso };
 
 export type RegistrationState =
   | "open"
   | "full"
   | "closed-deadline"
   | "closed-manual"
+  | "closed-finished"
   | "open-extended";
 
 export interface RegistrationStatus {
@@ -37,6 +38,17 @@ export interface RegistrationStatus {
 }
 
 export interface RegistrationInput {
+  /**
+   * The tournament's own lifecycle state — draft | registration | ready | live
+   * | completed.
+   *
+   * Required, not optional, and that is the point. `registerForEvent` never
+   * consulted it, so a FINISHED tournament kept taking public entries; making
+   * the field optional would have left the same hole open for the next caller
+   * to fall into. A caller that has no status to give passes the event's, and
+   * there is always an event.
+   */
+  eventStatus: string;
   /** ISO yyyy-mm-dd, or free text from before the date picker existed. */
   deadline: string;
   /** 0 or less means no limit. */
@@ -52,12 +64,31 @@ export interface RegistrationInput {
 }
 
 export function registrationStatus(input: RegistrationInput): RegistrationStatus {
-  const { deadline, capacity, confirmedCount, override, now = new Date() } = input;
+  const { eventStatus, deadline, capacity, confirmedCount, override, now = new Date() } = input;
   const unlimited = capacity <= 0;
   const full = !unlimited && confirmedCount >= capacity;
   // The deadline half of the question is the shared rule; capacity is layered
   // on top of it here.
   const passed = deadlineState(deadline, null, now).state === "closed";
+
+  // Above the override, and deliberately: "we'll take one more" is a decision
+  // about a tournament that is still being played. A finished one has a result,
+  // and an entry added after it can only corrupt the record — it lands in the
+  // field, on the roster, and in a leaderboard nobody is watching any more.
+  //
+  // Only `completed` closes the door. A LIVE tournament may legitimately still
+  // be taking entries — a club league runs for weeks and members join mid-season
+  // — and that is what the organizer's own switch is for, now that they can
+  // actually reach it once the event is launched.
+  if (eventStatus === "completed") {
+    return {
+      state: "closed-finished",
+      acceptingEntries: false,
+      waitlisting: false,
+      label: "Closed",
+      detail: "This tournament has finished.",
+    };
+  }
 
   if (override === true) {
     return {
@@ -78,7 +109,7 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
       acceptingEntries: true,
       waitlisting: full,
       label: full ? "Extended — waitlist" : "Extended",
-      detail: `Past the ${deadline} deadline, kept open by the organizer.`,
+      detail: `Past the ${formatDeadline(deadline)} deadline, kept open by the organizer.`,
     };
   }
 
@@ -88,7 +119,7 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
       acceptingEntries: false,
       waitlisting: false,
       label: "Closed",
-      detail: `The ${deadline} deadline has passed. Reopen it if you're still taking entries.`,
+      detail: `The ${formatDeadline(deadline)} deadline has passed. Reopen it if you're still taking entries.`,
     };
   }
 

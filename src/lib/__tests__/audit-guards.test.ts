@@ -333,9 +333,20 @@ describe("flight naming and sign-off", () => {
 describe("registration close / extend", () => {
   const body = actions("tournament.ts").find((a) => a.name === "setRegistrationOverride")!.body;
 
-  it("is staff-only and refuses once setup is locked", () => {
+  it("is staff-only, and deliberately NOT lock-gated", () => {
+    // This asserted assertUnlocked until D2 of the 2026-08-12 audit showed
+    // what that cost: the lock throws for status live|completed, so an
+    // organizer whose tournament had started could not close registration at
+    // all — the single control that stops public entries was unreachable from
+    // the moment it started mattering, and the only way round it was unlocking
+    // the whole configuration of a live event.
+    //
+    // The lock protects the SHAPE of a tournament — field, draw, schedule.
+    // This changes none of that; it decides whether the door is open. The
+    // matching rule that a finished tournament refuses entries whatever this
+    // says lives in registrationStatus, where both public paths read it.
     expect(body).toMatch(/requireStaffEvent\(\)/);
-    expect(body).toMatch(/assertUnlocked\(eventId\)/);
+    expect(body).not.toMatch(/assertUnlocked/);
   });
 
   it("never blocks an organizer adding a late entry", () => {

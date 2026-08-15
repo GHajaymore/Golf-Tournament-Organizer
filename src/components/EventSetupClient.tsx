@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { saveEvent, applyManualCount } from "@/app/actions/tournament";
 import { SIDE_STYLE_OPTIONS } from "@/lib/side-style";
+import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
 import FieldInfo from "@/components/FieldInfo";
 
 interface EventForm {
@@ -91,13 +92,17 @@ export function EventSetupClient({
 
   const set = <K extends keyof EventForm>(k: K, v: EventForm[K]) => setF((prev) => ({ ...prev, [k]: v }));
 
-  // Calendar pickers write ISO dates here and derive the display strings
-  // stored on the event (f.dates / f.regDeadline) — the existing free-text
-  // value stays untouched until the organizer actually sets a date via the
-  // picker, since the stored string can't be reliably reverse-parsed.
+  // The calendar picker writes ISO here and derives the display string stored
+  // in f.dates — an existing free-text value stays untouched until the
+  // organizer actually sets a date, since "Spring meeting, first week" can't be
+  // reverse-parsed and nothing depends on it being a date.
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [deadlineDate, setDeadlineDate] = useState("");
+  // The deadline is the exception: it is stored as the ISO date it is, so the
+  // picker can be filled from it and — the reason any of this matters —
+  // deadlinePassed can read it. Legacy free text parses to "" and leaves the
+  // picker empty, exactly as before.
+  const [deadlineDate, setDeadlineDate] = useState(() => parseDeadlineIso(initial.regDeadline));
 
   const onStartDate = (v: string) => {
     setStartDate(v);
@@ -113,7 +118,13 @@ export function EventSetupClient({
   };
   const onDeadlineDate = (v: string) => {
     setDeadlineDate(v);
-    if (v) set("regDeadline", fmtDate(v));
+    // Stored as ISO, NOT as the display string. Running the picker's value
+    // through fmtDate here is the whole of D1: `deadlinePassed` requires ISO
+    // and returns false for anything else, so every deadline set on this
+    // screen was decorative — the public form stayed open indefinitely while
+    // printing the date it was ignoring. The screen formats for display below;
+    // the column keeps the date.
+    if (v) set("regDeadline", v);
   };
 
   const onSelectCourse = (val: string) => {
@@ -396,7 +407,11 @@ export function EventSetupClient({
           <div className="field">
             <label>Registration deadline</label>
             <input className="input" type="date" value={deadlineDate} max={startDate || undefined} onChange={(e) => onDeadlineDate(e.target.value)} />
-            {f.regDeadline && <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>{f.regDeadline}</p>}
+            {f.regDeadline && (
+              <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
+                {formatDeadline(f.regDeadline)}
+              </p>
+            )}
           </div>
           <div className="field">
             <label>Field capacity</label>

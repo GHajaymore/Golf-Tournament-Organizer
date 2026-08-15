@@ -75,6 +75,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
   // never disagree. A passed deadline or a manual close both come back as "not
   // accepting", which folds into the same null the console-side switch does.
   const status = registrationStatus({
+    eventStatus: event.status,
     deadline: event.regDeadline,
     capacity: event.capacity,
     confirmedCount,

@@ -1,5 +1,5 @@
 "use client";
-import { registrationStatus } from "@/lib/registration";
+import { registrationStatus, formatDeadline } from "@/lib/registration";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, approveSignup } from "@/app/actions/tournament";
 import { useState, useRef, useTransition } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
@@ -20,6 +20,9 @@ interface Signup {
 interface EventInfo {
   name: string;
   capacity: number;
+  /** draft | registration | ready | live | completed — a finished tournament
+   *  takes no more entries, whatever the switch and the deadline say. */
+  status: string;
   regDeadline: string;
   /** Organizer overriding the deadline: null follows it, true closes, false extends. */
   registrationOverride: boolean | null;
@@ -84,6 +87,7 @@ export function RegistrationClient({
   // week ago still read "Open · unlimited" — the screen stating something
   // false about the organizer's own event.
   const reg = registrationStatus({
+    eventStatus: event.status,
     deadline: event.regDeadline,
     capacity: event.capacity,
     confirmedCount: confirmed.length,
@@ -331,7 +335,7 @@ export function RegistrationClient({
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Registration closes</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{event.regDeadline || "—"}</div>
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{formatDeadline(event.regDeadline) || "—"}</div>
           <div className="text-muted" style={{ fontSize: 12 }}>groups lock after this date</div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
@@ -379,7 +383,7 @@ export function RegistrationClient({
           }}
         />
         <span style={{ fontSize: 12.5, flex: 1, minWidth: 220, lineHeight: 1.5 }}>
-          {reg.detail || `Entries are open${event.regDeadline ? ` until ${event.regDeadline}` : ""}.`}
+          {reg.detail || `Entries are open${event.regDeadline ? ` until ${formatDeadline(event.regDeadline)}` : ""}.`}
           {!reg.acceptingEntries && (
             <>
               {" "}

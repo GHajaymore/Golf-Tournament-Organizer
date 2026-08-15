@@ -2200,8 +2200,14 @@ export async function setMatchTiebreakers(keys: string[]): Promise<{ ok: boolean
 export async function setRegistrationOverride(
   override: boolean | null,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Deliberately no assertUnlocked, and the same reasoning as saveCustomCourse:
+  // the lock exists to stop a live tournament being RESHAPED, and this changes
+  // nothing about the field, the draw or the schedule — it decides whether the
+  // door is open. Requiring it locked the organizer out of the one control that
+  // stops entries at exactly the moment they need it: assertUnlocked throws for
+  // status live|completed, so a running tournament kept taking public entries
+  // and the only escape was unlocking the whole configuration of a live event.
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
   await prisma.event.update({
     where: { id: eventId },
     data: { registrationOverride: override },
@@ -2228,8 +2234,10 @@ export async function setRegistrationOverride(
  * already in fifty inboxes.
  */
 export async function setRegistrationOpen(open: boolean): Promise<{ ok: boolean; error?: string }> {
+  // No assertUnlocked, for the reason given on setRegistrationOverride: turning
+  // the public link off is how an organizer stops entries, and a lock that
+  // fires on `live` made that impossible precisely when it was needed.
   const eventId = await requireStaffEvent();
-  await assertUnlocked(eventId);
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: { registrationToken: true },
