@@ -4,10 +4,11 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
-import { settingsOf } from "@/lib/services/tournament";
+import { settingsOf, effectiveScoreStatus } from "@/lib/services/tournament";
 import {
   canEnterScores,
   canPlayerSavePartial,
+  allowsAutoConfirm,
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import type { Session } from "@/lib/auth";
@@ -18,7 +19,7 @@ import { generateShareToken } from "@/lib/codes";
 import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates } from "@/lib/domain/round-dates";
-import { reviewCards } from "@/lib/domain/card-approval";
+import { reviewCards, isCardLocked, statusAfterEdit, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes } from "@/lib/domain/score-payload";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
@@ -1109,11 +1110,36 @@ export async function forfeitMatch(matchId: string, forfeitedBy: string) {
   return { ok: true };
 }
 
-export async function clearMatch(matchId: string) {
-  const { eventId, session } = await requireScoreEntry();
+/**
+ * Blank a match back to no result.
+ *
+ * A CONFIRMED result has to be reopened first, by someone who may reopen it.
+ * This wrote the confirmation columns with no check that there was a
+ * confirmation to write over, which made it the quiet way around `reopenMatch`
+ * — organizer-only and logged precisely because undoing a sign-off is the one
+ * thing an assistant reversing quietly would hollow out. Clearing does
+ * strictly more than reopening: a player who lost 5&2 could erase the result
+ * AND their opponent's sign-off together, leaving nothing on any screen to say
+ * the match had ever been played. Same door, one step further in, no lock.
+ *
+ * The status is the EFFECTIVE one. A match left pending for a day in a
+ * player-approval event is auto-confirmed — the column still reads "pending",
+ * and reading the column is how the guard would have been true and useless.
+ */
+export async function clearMatch(matchId: string): Promise<{ ok: boolean; error?: string }> {
+  const { eventId, session, settings } = await requireScoreEntry();
   await assertOwnMatch(session, eventId, matchId);
   const match = await prisma.match.findUnique({ where: { id: matchId } });
-  if (!match || match.eventId !== eventId) return;
+  if (!match || match.eventId !== eventId) return { ok: false, error: "That match isn't in this tournament." };
+
+  const status = effectiveScoreStatus(match, allowsAutoConfirm(settings));
+  if (status === "confirmed" || status === "auto-confirmed") {
+    return {
+      ok: false,
+      error: "That result has been confirmed. An organizer has to reopen it before it can be cleared.",
+    };
+  }
+
   const empty = new Array(matchHoleCount(match.holes)).fill(null);
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
@@ -1121,7 +1147,12 @@ export async function clearMatch(matchId: string) {
     // result, or a cleared match would keep paying out a win nobody can see.
     data: { holes: JSON.stringify(empty), forfeitedBy: "", scoreStatus: "pending", scoredAt: null, confirmedById: null },
   });
+  // Erasing a card is not a smaller act than entering one, and every other
+  // path that ends a result — forfeit, reopen, confirm, dispute — has left a
+  // row since it was written.
+  await logAudit(eventId, matchId, "match.clear", "Score cleared");
   refresh();
+  return { ok: true };
 }
 
 /* ── Stroke play ──────────────────────────────────────────────────────── */
@@ -1181,9 +1212,36 @@ export async function saveScorecard(stageId: string, playerId: string, strokes: 
     const filled = clean.filter((s) => typeof s === "number" && s > 0).length;
     if (filled < clean.length) throw new Error("Enter the full round, then submit it.");
   }
+
+  // The card as already stored, which decides whether this write is allowed at
+  // all. Scoped on eventId as well as the pair for the same reason the upsert
+  // below needed assertEventStage/assertEventPlayer: the (stageId, playerId)
+  // key is caller-supplied.
+  //
+  // Without this an approved card could be rewritten by the very person it
+  // belongs to — a player in a self-scoring event overwriting an approved 82
+  // with a 76, the row still reading `approvedBy: committee@club`, so the
+  // approval vouched for numbers the committee never saw. Staff could do it
+  // for anyone, `assertOwnCard` being a no-op for them. Correcting an approved
+  // card goes back through `reopenScorecard`, which is organizer-only.
+  const existing = await prisma.scorecard.findFirst({
+    where: { eventId, stageId, playerId },
+    select: { id: true, status: true },
+  });
+  if (existing && isCardLocked(existing.status)) throw new Error(LOCKED_CARD_REFUSAL);
+  const reset = existing ? statusAfterEdit(existing.status) : null;
+
   await prisma.scorecard.upsert({
     where: { stageId_playerId: { stageId, playerId } },
-    update: { strokes: JSON.stringify(clean) },
+    // New strokes retract a certification given for the old ones — the same
+    // rule the match path applies, where any score edit drops the result back
+    // to pending. certifyScorecard re-signs it a moment later on the one
+    // screen that saves and certifies together, so the marker's own flow is
+    // unaffected.
+    update: {
+      strokes: JSON.stringify(clean),
+      ...(reset ? { status: reset, certifiedBy: "", certifiedAt: null } : {}),
+    },
     create: { eventId, stageId, playerId, strokes: JSON.stringify(clean) },
   });
   refresh();
@@ -2566,8 +2624,10 @@ export async function certifyScorecard(stageId: string, playerId: string) {
     select: { id: true, status: true },
   });
   if (!card) throw new Error("There's no card to certify yet.");
-  // An approved card is the committee's, not the marker's, to change.
-  if (card.status === "approved") throw new Error("That card has already been approved.");
+  // An approved card is the committee's, not the marker's, to change. Shared
+  // with saveScorecard and disputeScorecard so the three doors into this row
+  // cannot drift apart again.
+  if (isCardLocked(card.status)) throw new Error(LOCKED_CARD_REFUSAL);
 
   await prisma.scorecard.update({
     where: { id: card.id },
@@ -2577,7 +2637,17 @@ export async function certifyScorecard(stageId: string, playerId: string) {
   return { ok: true };
 }
 
-/** Someone says this card is wrong. Never silently approved afterwards. */
+/**
+ * Someone says this card is wrong. Never silently approved afterwards.
+ *
+ * Open to whoever may enter the card, like certification — flagging a card is
+ * how a marker or a player raises a problem, and a flag blocks approval rather
+ * than deciding anything. What it may NOT do is reach past an approval: this
+ * had the same guards as `certifyScorecard` three lines above, minus the
+ * approved-card check, so it was an unaudited `reopenScorecard` open to
+ * anyone in the field — an assistant could take a whole round's accepted cards
+ * back out of the results, and nothing recorded that they had.
+ */
 export async function disputeScorecard(stageId: string, playerId: string) {
   const { eventId, session } = await requireScoreEntry();
   await assertEventStage(eventId, stageId);
@@ -2586,11 +2656,18 @@ export async function disputeScorecard(stageId: string, playerId: string) {
 
   const card = await prisma.scorecard.findFirst({
     where: { eventId, stageId, playerId },
-    select: { id: true },
+    select: { id: true, status: true },
   });
   if (!card) throw new Error("There's no card to dispute yet.");
+  if (isCardLocked(card.status)) throw new Error(LOCKED_CARD_REFUSAL);
+  if (card.status === "disputed") return { ok: true };
 
   await prisma.scorecard.update({ where: { id: card.id }, data: { status: "disputed" } });
+  // `logAudit` records who; the detail has to record which, because a card has
+  // no matchId to hang the row on. The match-play counterpart has logged its
+  // disputes since it existed and stroke play logged nothing at all — the
+  // format where one person enters three other people's rounds.
+  await logAudit(eventId, null, "card.dispute", `Card disputed — round ${stageId}, player ${playerId}`);
   refresh();
   return { ok: true };
 }

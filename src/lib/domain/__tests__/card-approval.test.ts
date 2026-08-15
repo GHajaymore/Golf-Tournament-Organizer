@@ -3,6 +3,8 @@ import {
   reviewCards,
   approvalSummary,
   filledHoles,
+  isCardLocked,
+  statusAfterEdit,
   type CardForReview,
 } from "../card-approval";
 
@@ -107,6 +109,38 @@ describe("what a blanket approval may take", () => {
     expect(exceptions.map((e) => e.reason)).toEqual(["not-certified", "incomplete", "disputed"]);
     // Nobody may be dropped: every card is in exactly one bucket.
     expect(ready.length + exceptions.length).toBe(cards.length);
+  });
+});
+
+describe("what a stored card may be written out of", () => {
+  // S2/S3 in the 2026-08-12 audit. `certifyScorecard` asked this question and
+  // the two actions that change what the card SAYS did not, so an approved 82
+  // could be saved over with a 76, or flipped to disputed by anyone in the
+  // field, under a row that still named the committee member who accepted it.
+  it("locks an approved card and nothing else", () => {
+    expect(isCardLocked("approved")).toBe(true);
+    for (const status of ["entered", "certified", "disputed", "", "APPROVED", "unknown"]) {
+      expect(isCardLocked(status), status).toBe(false);
+    }
+  });
+
+  it("retracts a certification when the strokes change", () => {
+    // The marker certified the numbers that were on the card. New numbers are
+    // not those numbers — the same rule match play applies by dropping a
+    // result back to pending on every edit.
+    expect(statusAfterEdit("certified")).toBe("entered");
+  });
+
+  it("leaves a dispute standing across an edit", () => {
+    // Deliberately unlike the match path. A dispute says this card is wrong
+    // and must never silently become approved; clearing it on edit would hand
+    // the flag's own subject the way to remove it.
+    expect(statusAfterEdit("disputed")).toBeNull();
+  });
+
+  it("has nothing to change about a card nobody has signed", () => {
+    expect(statusAfterEdit("entered")).toBeNull();
+    expect(statusAfterEdit("")).toBeNull();
   });
 });
 

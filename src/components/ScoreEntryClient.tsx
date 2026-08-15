@@ -297,10 +297,15 @@ export function ScoreEntryClient({
   // is how an outage that blocked every score went unnoticed until someone
   // reported it. Now the screen says which happened.
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  /** Why a write failed, where the server had a reason worth repeating. An
+   *  action that REFUSED is not an outage, and "check your connection" would
+   *  send the scorer looking for the wrong problem. */
+  const [saveNote, setSaveNote] = useState("");
 
   /** Run a write and report how it went. */
   const save = (run: () => Promise<unknown>) => {
     setSaveState("saving");
+    setSaveNote("");
     startTransition(async () => {
       try {
         await run();
@@ -419,9 +424,27 @@ export function ScoreEntryClient({
 
   const doClear = () => {
     const empty = new Array(holes.length || 18).fill(null) as HoleResult[];
-    writeHoles(active.id, empty);
-    startTransition(() => {
-      void clearMatch(active.id);
+    // Not optimistic, unlike every other write on this card. The server can
+    // refuse this one — a confirmed result has to be reopened first — and
+    // blanking the card before the answer comes back would show a scorer an
+    // erased match that is still stored, which is the one outcome worse than
+    // the refusal itself.
+    setSaveState("saving");
+    setSaveNote("");
+    startTransition(async () => {
+      try {
+        const res = await clearMatch(active.id);
+        if (!res.ok) {
+          setSaveState("failed");
+          setSaveNote(res.error ?? "");
+          return;
+        }
+        writeHoles(active.id, empty);
+        setStatus(active.id, "pending");
+        setSaveState("saved");
+      } catch {
+        setSaveState("failed");
+      }
     });
   };
 
@@ -699,7 +722,10 @@ export function ScoreEntryClient({
                   {saveState === "saving" && (<><i className="ph ph-circle-notch" /> Saving…</>)}
                   {saveState === "saved" && (<><i className="ph ph-check" /> Saved</>)}
                   {saveState === "failed" && (
-                    <><i className="ph ph-warning-circle" /> Not saved — check your connection and re-enter.</>
+                    <>
+                      <i className="ph ph-warning-circle" />{" "}
+                      {saveNote || "Not saved — check your connection and re-enter."}
+                    </>
                   )}
                 </div>
               )}

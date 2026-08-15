@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CardPhotoReader } from "@/components/CardPhotoReader";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { computeStrokeCard, toParText, parseStrokesTranscript } from "@/lib/domain";
+import { isCardLocked } from "@/lib/domain/card-approval";
 import { saveScorecard } from "@/app/actions/tournament";
 
 interface StrokePlayer {
@@ -26,6 +27,7 @@ export function StrokePlayEntry({
   holes,
   stageId,
   cardsByPlayer,
+  cardStatus = {},
   teeGroups = [],
   shotsByPlayer = {},
 }: {
@@ -36,6 +38,10 @@ export function StrokePlayEntry({
   holes: number;
   stageId: string;
   cardsByPlayer: Record<string, (number | null)[]>;
+  /** Where each card is between "written down" and "accepted". An approved
+   *  card is the committee's, and `saveScorecard` refuses to write one — so
+   *  the screen has to know before it offers, rather than after it fails. */
+  cardStatus?: Record<string, string>;
   /** The round's tee sheet: who is sharing a card with whom. Empty when no
    *  sheet has been drawn, in which case entry falls back to one player. */
   teeGroups?: Array<{ name: string; time: string; playerIds: string[] }>;
@@ -84,6 +90,7 @@ export function StrokePlayEntry({
   const [listenHint, setListenHint] = useState("Tap the mic and read scores in order, e.g. “four, par, birdie, six”.");
   const recognitionRef = useRef<unknown>(null);
   const [pending, startTransition] = useTransition();
+  const [saveNote, setSaveNote] = useState("");
 
   const player = players.find((p) => p.id === playerId);
   const strokes = cards[playerId] ?? new Array(holes).fill(null);
@@ -142,9 +149,21 @@ export function StrokePlayEntry({
       const targets = (view === "hole" ? cardPlayers.map((p) => p.id) : [playerId]).filter((id) =>
         (cards[id] ?? []).some((s) => s != null),
       );
-      for (const id of targets) {
+      // An approved card is left alone rather than attempted. The action
+      // refuses it either way, but a group is saved in one loop — one throw
+      // part-way through would drop the rounds of everyone after it in the
+      // fourball, under a button that said Save.
+      const locked = targets.filter((id) => isCardLocked(cardStatus[id] ?? ""));
+      for (const id of targets.filter((id) => !locked.includes(id))) {
         await saveScorecard(stageId, id, cards[id] ?? new Array(holes).fill(null));
       }
+      setSaveNote(
+        locked.length
+          ? `Saved. ${locked
+              .map((id) => players.find((p) => p.id === id)?.name ?? "A card")
+              .join(", ")} — already approved, so left unchanged. An organizer can reopen it below.`
+          : "Saved.",
+      );
     });
 
   const toggleListen = () => {
@@ -400,6 +419,12 @@ export function StrokePlayEntry({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--color-divider)", flexWrap: "wrap", gap: 8 }}>
         <span className="text-muted" style={{ fontSize: 12 }}>
           Front {card.front || "—"} · Back {card.back || "—"} · {card.played}/{holes} holes
+          {saveNote && (
+            <>
+              {" · "}
+              <span role="status" aria-live="polite">{saveNote}</span>
+            </>
+          )}
         </span>
         <button type="button" className="btn btn-primary" disabled={pending} onClick={save}>
           <i className="ph ph-check" /> Save scorecard

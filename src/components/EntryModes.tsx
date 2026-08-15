@@ -220,6 +220,7 @@ export function EntryModes({
           holes={round.stroke.holes}
           stageId={round.stroke.stageId}
           cardsByPlayer={round.stroke.cardsByPlayer}
+          cardStatus={round.stroke.cardStatus}
           teeGroups={round.stroke.teeGroups}
           shotsByPlayer={round.stroke.shotsByPlayer}
         />

@@ -616,6 +616,66 @@ describe("a card is written to the round and the player it names, not to an id",
   });
 });
 
+describe("an accepted result is only undone by someone entitled to undo it", () => {
+  // Bodies bounded by the next export and stripped of comments, so a fixed
+  // character window can't cut a long action in half and an assertion can
+  // never be satisfied by prose describing the check.
+  const bodies = actions("tournament.ts");
+  const fn = (name: string) => bodies.find((a) => a.name === name)?.body ?? "";
+
+  it("finds the actions it is about to assert on", () => {
+    for (const name of ["saveScorecard", "disputeScorecard", "certifyScorecard", "clearMatch", "reopenScorecard"]) {
+      expect(fn(name).length, `${name} not found — this whole block would pass vacuously`).toBeGreaterThan(200);
+    }
+  });
+
+  it("every path that changes a stored card asks what state it is in", () => {
+    // S2/S3 of the 2026-08-12 audit. certifyScorecard refused an approved card
+    // from the day it was written; the two actions that change what the card
+    // SAYS did not ask at all, so the same row was writable through a
+    // neighbouring door. One shared predicate now, rather than three copies of
+    // a condition that were never going to stay in step.
+    for (const name of ["saveScorecard", "disputeScorecard", "certifyScorecard"]) {
+      expect(fn(name), name).toMatch(/isCardLocked\(/);
+      expect(fn(name), name).toMatch(/LOCKED_CARD_REFUSAL/);
+    }
+  });
+
+  it("reads the card's state before it writes, not after", () => {
+    // A check that runs after the upsert is a comment.
+    const save = fn("saveScorecard");
+    expect(save.indexOf("isCardLocked")).toBeLessThan(save.indexOf("scorecard.upsert"));
+  });
+
+  it("leaves exactly one way out of approved, and it is organizer-only", () => {
+    // reopenScorecard is the documented route back. If it ever stops requiring
+    // an organizer, the refusals above become a formality.
+    expect(fn("reopenScorecard")).toMatch(/requireAdminEvent\(\)/);
+  });
+
+  it("clearMatch reads the EFFECTIVE status, not the stored column", () => {
+    // S4, and the part a column check would have missed: under player approval
+    // a result auto-confirms after 24 hours while scoreStatus still reads
+    // "pending". A guard on the raw column would have been true and useless
+    // for every auto-confirmed match in the field.
+    const clear = fn("clearMatch");
+    expect(clear).toMatch(/effectiveScoreStatus\(match, allowsAutoConfirm\(settings\)\)/);
+    expect(clear).toMatch(/auto-confirmed/);
+    expect(clear).toMatch(/reopen/i);
+    // And the refusal comes before the blanking it prevents.
+    expect(clear.indexOf("effectiveScoreStatus")).toBeLessThan(clear.indexOf("match.updateMany"));
+  });
+
+  it("records the two erasures that left no trace", () => {
+    // Both were flagged "unaudited" in the audit for the same reason: every
+    // match-play counterpart has written a row since it existed, and the
+    // scorecard family wrote none. A result that vanishes with nothing naming
+    // who removed it is one a committee cannot defend.
+    expect(fn("clearMatch")).toMatch(/logAudit\(eventId, matchId, "match\.clear"/);
+    expect(fn("disputeScorecard")).toMatch(/logAudit\(eventId, null, "card\.dispute"/);
+  });
+});
+
 describe("naming a venue can only reach this club's own courses", () => {
   const src = readFileSync(join(process.cwd(), "src/app/actions/courses.ts"), "utf8");
   const fn = src.slice(src.indexOf("export async function nameMatchVenue"));

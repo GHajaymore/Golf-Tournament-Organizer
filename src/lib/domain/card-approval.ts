@@ -60,6 +60,48 @@ export const EXCEPTION_LABEL: Record<ExceptionReason, string> = {
   "already-approved": "Already approved",
 };
 
+/**
+ * The one state a stored card may not be written out of.
+ *
+ * Approval is the committee accepting the card as a result, and from that
+ * point the row is theirs. `certifyScorecard` has refused to touch an approved
+ * card since it was written — but the two paths that change what the card
+ * *says* did not ask: `saveScorecard` writes strokes and never reads status,
+ * and `disputeScorecard` flipped an accepted card to disputed at player level.
+ * So an approved 82 could become a 76, or stop being a result at all, under a
+ * row that still read `approvedBy: committee@club`.
+ *
+ * There is exactly one way out of approved and it is `reopenScorecard`:
+ * organizer-only, and it deliberately keeps approvedBy/approvedAt so "who
+ * signed this off" survives the card changing.
+ *
+ * Here rather than in each action so all three ask the same question and the
+ * player is told the same thing, whichever door they came through.
+ */
+export function isCardLocked(status: string): boolean {
+  return status === "approved";
+}
+
+export const LOCKED_CARD_REFUSAL =
+  "That card has been approved. An organizer has to reopen it before it can be changed.";
+
+/**
+ * Whether returning a new set of strokes invalidates the sign-off already on
+ * the card.
+ *
+ * A certification is a statement about the numbers that were on the card when
+ * it was given — change them and it vouches for something nobody read. Match
+ * play has always worked this way: every score edit resets `scoreStatus` to
+ * pending "so a correction always goes back through approval".
+ *
+ * A DISPUTED card is deliberately not reset. Disputed means someone says this
+ * card is wrong and it must never silently become approved; letting an edit
+ * clear that would hand the flag's own subject the way to remove it.
+ */
+export function statusAfterEdit(status: string): CardStatus | null {
+  return status === "certified" ? "entered" : null;
+}
+
 export function filledHoles(strokes: (number | null)[], holes: number): number {
   let n = 0;
   for (let i = 0; i < holes; i += 1) if (strokes[i] != null) n += 1;
