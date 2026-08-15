@@ -35,12 +35,32 @@ export function PlayerLeaderboard({
   isStableford = false,
   rows,
   holes,
+  youId = "",
+  unit = "",
 }: {
   isStroke: boolean;
   isStableford?: boolean;
   rows: StandingRow[];
   /** Round length, so "thru 18" can become "F". */
   holes: number;
+  /**
+   * The signed-in player's id, when they are in this field.
+   *
+   * A board is read to answer one question first — where am I — and on a
+   * forty-player field that meant scrolling and reading names. Their row is
+   * marked, and their position is repeated at the top so the answer is on
+   * screen before any scrolling happens at all.
+   */
+  youId?: string;
+  /**
+   * What the numbers are: "strokes", "Stableford points", "match points".
+   *
+   * A column of numbers with no unit is a column a player has to infer, and
+   * the same board legitimately shows three different things depending on the
+   * round. The server knows which; it should say so rather than let the reader
+   * guess from the shape of the digits.
+   */
+  unit?: string;
 }) {
   if (rows.length === 0) {
     return (
@@ -59,11 +79,73 @@ export function PlayerLeaderboard({
   );
   const showCut = lastAdvancing >= 0 && lastAdvancing < rows.length - 1;
 
+  const you = youId ? rows.find((r) => r.id === youId) : undefined;
+  const yourScore = you
+    ? isStroke
+      ? isStableford
+        ? String(you.points)
+        : toParText(you.toPar)
+      : you.pts
+    : "";
+
   return (
-    <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
-      {rows.map((r, i) => {
+    <>
+      {/* Where am I — answered before a finger touches the screen. */}
+      {you && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "12px 14px",
+            marginBottom: 10,
+            borderRadius: 12,
+            background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
+            boxShadow: "inset 3px 0 0 var(--color-accent)",
+          }}
+        >
+          <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
+            You
+          </span>
+          <span style={{ ...num, fontSize: 17, fontWeight: 700 }}>
+            {you.thru > 0 ? you.rank : "–"}
+          </span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--color-neutral-400)" }}>
+            {isStroke
+              ? you.thru > 0
+                ? you.thru >= holes
+                  ? "F"
+                  : `thru ${you.thru}`
+                : "not started"
+              : you.record}
+          </span>
+          <span
+            style={{
+              ...num,
+              fontFamily: "var(--font-heading)",
+              fontSize: 24,
+              color: scoreColour(you.toPar, isStableford),
+            }}
+          >
+            {you.thru > 0 || !isStroke ? yourScore : "–"}
+          </span>
+        </div>
+      )}
+
+      {unit && (
+        <p
+          className="text-muted"
+          style={{ fontSize: 11.5, margin: "0 0 6px", letterSpacing: "0.04em", textTransform: "uppercase" }}
+        >
+          Ranked by {unit}
+        </p>
+      )}
+
+      <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {rows.map((r, i) => {
         const leader = i === 0 && r.thru > 0;
         const started = r.thru > 0;
+        const isYou = !!youId && r.id === youId;
 
         // The one number the row is built around.
         const score = isStroke
@@ -83,8 +165,18 @@ export function PlayerLeaderboard({
                 borderRadius: 12,
                 // The leader gets a tint and a rule, not a different layout —
                 // the eye should still be able to run straight down the scores.
-                background: leader ? "var(--color-accent-900)" : "transparent",
-                boxShadow: leader ? "inset 3px 0 0 var(--color-accent)" : undefined,
+                // Your own row is marked the same way in the second colour, so
+                // scrolling to find yourself is a glance rather than a read.
+                background: leader
+                  ? "var(--color-accent-900)"
+                  : isYou
+                    ? "color-mix(in srgb, var(--color-accent-2) 12%, transparent)"
+                    : "transparent",
+                boxShadow: leader
+                  ? "inset 3px 0 0 var(--color-accent)"
+                  : isYou
+                    ? "inset 3px 0 0 var(--color-accent-2)"
+                    : undefined,
                 borderBottom: "1px solid var(--color-divider)",
               }}
             >
@@ -180,7 +272,8 @@ export function PlayerLeaderboard({
             )}
           </li>
         );
-      })}
-    </ol>
+        })}
+      </ol>
+    </>
   );
 }

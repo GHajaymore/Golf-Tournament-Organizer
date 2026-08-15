@@ -31,6 +31,15 @@ export async function myPlayerIds(eventId: string, email: string): Promise<Set<s
   return new Set(rows.map((r) => r.id));
 }
 
+/** The course a round names, by id. Empty when it names none. */
+async function venueNameFor(courseId: string): Promise<string> {
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    select: { name: true },
+  });
+  return course?.name ?? "";
+}
+
 export interface MyRound {
   stageId: string;
   label: string;
@@ -44,6 +53,15 @@ export interface MyRound {
    * would be reading the same round and disagreeing about it.
    */
   ownCard: boolean;
+  /**
+   * Where this round is played, when the round names its own venue.
+   *
+   * Empty for a tournament at one course, which is most of them and needs no
+   * telling. A multi-venue outing is the case that does: "Round 2" says
+   * nothing about which car park to drive to, and the round's own course is
+   * also the card the player's strokes are allocated from.
+   */
+  venue: string;
   /** The tee group I am in, if a sheet has been drawn. */
   group: { name: string; time: string; startHole: number; partners: string[] } | null;
   /** My card for this round: the strokes themselves, how far round I am, and
@@ -136,6 +154,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       // A match is scored against an opponent and a team round on the side's
       // card; neither is a card this player owns or can return alone.
       ownCard: !needsTeams(stage.format) && !generatesPairings(stage.type),
+      venue: stage.courseId ? (await venueNameFor(stage.courseId)) : "",
       group,
       card,
     },

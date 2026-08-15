@@ -35,6 +35,12 @@ export default async function PlayBoardPage() {
   const holes = stage?.holes === 9 ? 9 : 18;
   const rows = standingRows(state);
 
+  // Which row is theirs, by the registration email — the same linkage every
+  // score guard uses, rather than matching on a name two people can share.
+  const me = state.players.find(
+    (p) => p.email.trim().toLowerCase() === session.email.trim().toLowerCase(),
+  );
+
   return (
     <div>
       <div
@@ -57,6 +63,10 @@ export default async function PlayBoardPage() {
         isStableford={stage?.scoringBasis === "stableford"}
         rows={rows}
         holes={holes}
+        youId={me?.id ?? ""}
+        // What the column actually measures, from the same place the board
+        // totals it — the state now says, rather than the screen assuming.
+        unit={state.isStroke ? state.strokeUnit : "match points"}
       />
     </div>
   );

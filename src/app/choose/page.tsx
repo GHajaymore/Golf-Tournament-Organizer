@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
-import { enterTournament, signOutAction } from "@/app/actions/auth";
+import { enterTournament, signOutAction, homeFor } from "@/app/actions/auth";
 import { prisma } from "@/lib/db";
 import { accessibleEvents } from "@/lib/services/access";
 import { ROLE_LABEL } from "@/lib/roles";
@@ -44,7 +44,10 @@ export default async function ChooseTournamentPage({
   // either — with a single account, getSession's "most recent tournament"
   // fallback already resolves to this one.
   if (accounts.length === 1 && !stay) {
-    redirect("/dashboard");
+    // By role, not to the console. A player with one tournament was being sent
+    // to /dashboard — the organizer's screen, emptied by the role guards —
+    // while the player app sat one hand-typed URL away.
+    redirect(homeFor(accounts[0].role));
   }
 
   return (

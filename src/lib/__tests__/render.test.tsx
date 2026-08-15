@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { StandingRow } from "@/components/LeaderboardTable";
 
 /**
  * Do these screens actually render?
@@ -1796,5 +1797,83 @@ describe("the player's own card opens on what is already there", () => {
     expect(html).toContain("Gross");
     expect(html).not.toContain("To par");
     expect(html).not.toContain("Net");
+  });
+});
+
+describe("the board answers 'where am I' first", () => {
+  /**
+   * A leaderboard is read to answer one question before any other, and on a
+   * forty-player field that meant scrolling and reading names to find your own
+   * row. It is also a column of numbers that legitimately means three
+   * different things — strokes, Stableford points, match points — depending on
+   * the round, and the screen used to leave the reader to infer which.
+   */
+  const row = (over: Partial<StandingRow> = {}): StandingRow => ({
+    id: "p1",
+    rank: 1,
+    name: "A. Moore",
+    flight: "—",
+    advancing: false,
+    record: "2-0-0",
+    diff: "",
+    pts: "6",
+    played: 2,
+    wins: 2,
+    ties: 0,
+    losses: 0,
+    gross: 72,
+    net: 72,
+    toPar: 0,
+    points: 0,
+    thru: 18,
+    ...over,
+  });
+
+  const field = [
+    row({ id: "p1", rank: 1, name: "A. Moore", toPar: -4 }),
+    row({ id: "p2", rank: 2, name: "B. Ellis", toPar: -1 }),
+    row({ id: "p3", rank: 3, name: "C. Reid", toPar: 3, thru: 14 }),
+  ];
+
+  it("puts your own position above the list", async () => {
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const html = render(
+      <PlayerLeaderboard isStroke rows={field} holes={18} youId="p3" unit="strokes" />,
+    );
+    const you = html.indexOf("You");
+    expect(you, "your line renders").toBeGreaterThan(-1);
+    expect(you, "and it comes before the field").toBeLessThan(html.indexOf("A. Moore"));
+    expect(html).toContain("thru 14");
+  });
+
+  it("says what the numbers are", async () => {
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const html = render(
+      <PlayerLeaderboard isStroke rows={field} holes={18} unit="Stableford points" />,
+    );
+    expect(html).toContain("Ranked by Stableford points");
+  });
+
+  it("renders the same board for a spectator, with nothing marked", async () => {
+    // The public share link renders this component with no signed-in player.
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const html = render(<PlayerLeaderboard isStroke rows={field} holes={18} />);
+    expect(html).not.toContain(">You<");
+    expect(html).toContain("A. Moore");
+    expect(html).toContain("C. Reid");
+  });
+
+  it("still shows your line before you have started", async () => {
+    // "Not started" is an answer, and a blank row is not.
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const html = render(
+      <PlayerLeaderboard
+        isStroke
+        rows={[row({ id: "p9", name: "D. Shaw", thru: 0, toPar: 0 })]}
+        holes={18}
+        youId="p9"
+      />,
+    );
+    expect(html).toContain("not started");
   });
 });

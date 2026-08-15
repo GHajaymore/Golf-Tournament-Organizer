@@ -7,6 +7,7 @@ import { sendPasswordResetEmail } from "@/lib/email";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 import { prisma } from "@/lib/db";
+import { effectiveAccess } from "@/lib/services/access";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -200,15 +201,32 @@ export async function signUp(
   redirect("/choose");
 }
 
-/** Switch into one of the tournaments this signed-in user has access to
- *  (picked from /choose) and land on its dashboard. */
+/**
+ * Switch into one of the tournaments this signed-in user has access to, and
+ * land wherever that role actually belongs.
+ *
+ * A PLAYER goes to the player app, not the console. Every route in here sent
+ * everybody to /dashboard, so a player who signed in got the organizer's
+ * screen with most of it removed by the role guards — a stripped console
+ * instead of the four-tab app built for exactly them. The player shell, the
+ * card, the board and the availability calendar were all unreachable unless
+ * somebody typed /me by hand.
+ *
+ * Staff still land on the dashboard: it is their tournament's command centre
+ * and the thing they came for.
+ */
 export async function enterTournament(eventId: string): Promise<void> {
   const session = await getSession();
   if (!session) redirect("/");
-  const acct = await prisma.account.findFirst({ where: { eventId, email: session.email } });
-  if (!acct) throw new Error("You don't have access to that tournament");
+  const access = await effectiveAccess(session.email, eventId);
+  if (!access) throw new Error("You don't have access to that tournament");
   await setActiveEvent(eventId);
-  redirect("/dashboard");
+  redirect(homeFor(access.role));
+}
+
+/** Where a role's app starts. One answer, so every entry point agrees. */
+export function homeFor(role: string): string {
+  return role === "admin" || role === "assistant" ? "/dashboard" : "/me";
 }
 
 export async function signOutAction() {

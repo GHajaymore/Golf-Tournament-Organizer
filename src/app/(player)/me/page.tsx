@@ -50,7 +50,7 @@ export default async function PlayTodayPage() {
           color: "var(--color-neutral-400)",
         }}
       >
-        {round?.label ?? "Today"}
+        {[round?.label ?? "Today", round?.venue].filter(Boolean).join(" · ")}
       </div>
       <h1
         style={{
