@@ -245,6 +245,54 @@ export function MoneyClient({ view }: { view: MoneyView }) {
         </section>
       )}
 
+      {/* The side bets behind the "side games" figure above. A total a player
+          cannot expand is a number they have to take on trust, and this is
+          the screen that can least afford one. */}
+      {view.contests.length > 0 && (
+        <section className="card elev-sm" style={{ marginTop: 12 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>Side bets</span>
+          {view.contests.map((c) => (
+            <div
+              key={c.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                paddingTop: 8,
+                borderTop: "1px solid var(--color-divider)",
+              }}
+            >
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>
+                  {c.name}
+                  {c.hole > 0 && <span className="text-muted" style={{ fontWeight: 400 }}> · hole {c.hole}</span>}
+                </span>
+                <span className="text-muted" style={{ fontSize: 11.5 }}>
+                  {money(c.potCents)} pot · {c.entrants} in ·{" "}
+                  {c.decided
+                    ? `won by ${c.winners.join(" & ")}`
+                    : /* An open pot pays and charges nobody, and saying so is
+                         better than showing everyone down their stake for a
+                         contest that has not been won. */
+                      "still open"}
+                </span>
+              </span>
+              {c.yourCents !== 0 && (
+                <span
+                  style={{
+                    fontVariantNumeric: "tabular-nums",
+                    fontWeight: 600,
+                    color: c.yourCents > 0 ? "var(--color-accent-2-300)" : "var(--color-text)",
+                  }}
+                >
+                  {money(c.yourCents)}
+                </span>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
+
       {/* Who hands what to whom. A plain list, and the copy never implies the
           app moved anything. */}
       {view.transfers.length > 0 && (

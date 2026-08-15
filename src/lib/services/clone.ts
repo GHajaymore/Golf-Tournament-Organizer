@@ -148,4 +148,8 @@ export const CLONE_IGNORED_RELATIONS = [
   // friends rather than out of a pot.
   "expenses",
   "settlements",
+  // Side bets are cash on the table, exactly like a skins pot: copying last
+  // year's closest-to-the-pin forward would enter players who staked nothing
+  // and award a pot that was already paid out.
+  "contests",
 ];

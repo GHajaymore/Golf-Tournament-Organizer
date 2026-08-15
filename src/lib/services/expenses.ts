@@ -11,6 +11,8 @@ import {
 import { settle, type Transfer } from "../domain/money";
 import { parseTeeSheet, groupForPlayer } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
+import { contestLedger, contestNets, isContestKind, isDecided, potOf } from "../domain/contests";
+import { skinsPotFor } from "./skins-pot";
 
 /**
  * The outing's money, gathered in the order somebody actually asks for it.
@@ -86,53 +88,89 @@ export interface MoneyView {
     groupName: string;
     groupPlayerIds: string[];
   }>;
+  /**
+   * The side bets, so the games figure can be broken open.
+   *
+   * A total labelled "side games" that a player cannot expand is a number
+   * they have to take on trust, and the one thing an outing's money screen
+   * cannot afford is a figure nobody can check.
+   */
+  contests: Array<{
+    id: string;
+    name: string;
+    kind: string;
+    hole: number;
+    buyInCents: number;
+    potCents: number;
+    entrants: number;
+    winners: string[];
+    decided: boolean;
+    /** What this contest did to the signed-in player, in cents. */
+    yourCents: number;
+  }>;
   /** True when this tournament has any money recorded at all. */
   used: boolean;
 }
 
 /**
- * Side-game money, as nets.
+ * Side-game money, as nets: the skins pots and the contests.
  *
- * Skins pots already settle per week in cents; this sums a player's position
- * across every pot in the tournament. Nassau is played inside a match and has
- * no stored stake yet, so it contributes nothing until it does — and it is
- * better for the screen to say the games total is skins-only than to invent a
- * number for a bet the app never recorded.
+ * The skins figures come from `skinsPotFor` — the pot's OWN service, which
+ * already resolves the week's winners, the carries and the handicap strokes.
+ * Calling it rather than recomputing here is the whole point: a second
+ * implementation of the skins arithmetic living inside a money screen is
+ * exactly the drift this app has been burned by, and this one would drift
+ * about what somebody owes.
+ *
+ * Contests (closest to the pin, long drive) come from domain/contests, which
+ * splits a tied pot to the cent by the same rule everything else uses.
+ *
+ * Nassau is played inside a match and has no stored stake, so it contributes
+ * nothing — better for the screen to be honest about what it knows than to
+ * invent a number for a bet the app never recorded.
  */
 async function gameNets(eventId: string): Promise<Net[]> {
+  const totals = new Map<string, number>();
+  const add = (playerId: string, cents: number) => {
+    if (!playerId || cents === 0) return;
+    totals.set(playerId, (totals.get(playerId) ?? 0) + cents);
+  };
+
+  // ── Skins, through the pot's own service ────────────────────────────────
   const pots = await prisma.skinsPot.findMany({
     where: { eventId },
-    select: { id: true, buyInCents: true, entrants: { select: { playerId: true } } },
+    select: { stageId: true, net: true },
   });
-  if (pots.length === 0) return [];
-
-  // Deliberately NOT recomputing each pot's winners here. The pot's own
-  // service owns that arithmetic, and a second implementation of it in a
-  // money screen is exactly the drift this app has been burned by. Until that
-  // is wired through, the stake is what is known to have changed hands.
-  const totals = new Map<string, number>();
   for (const pot of pots) {
-    for (const e of pot.entrants) {
-      totals.set(e.playerId, (totals.get(e.playerId) ?? 0) - pot.buyInCents);
-    }
-    // The pot pays back out in full, so the stakes net to zero across its own
-    // entrants until the week is scored.
-    const stake = pot.buyInCents * pot.entrants.length;
-    if (pot.entrants.length > 0 && stake !== 0) {
-      const share = Math.floor(stake / pot.entrants.length);
-      let left = stake - share * pot.entrants.length;
-      for (const e of pot.entrants) {
-        const extra = left > 0 ? 1 : 0;
-        left -= extra;
-        totals.set(e.playerId, (totals.get(e.playerId) ?? 0) + share + extra);
-      }
-    }
+    const view = await skinsPotFor(eventId, pot.stageId, pot.net);
+    // A pot with nobody in it has no result and no money — `result` is null
+    // until somebody is entered, which is not the same as everyone at zero.
+    for (const share of view?.result?.shares ?? []) add(share.playerId, share.netCents);
   }
+
+  // ── Contests ────────────────────────────────────────────────────────────
+  const contests = await prisma.contest.findMany({
+    where: { eventId },
+    include: { entrants: true },
+  });
+  for (const n of contestLedger(
+    contests.map((c) => ({
+      id: c.id,
+      kind: isContestKind(c.kind) ? c.kind : "other",
+      name: c.name,
+      buyInCents: c.buyInCents,
+      entrantIds: c.entrants.map((e) => e.playerId),
+      winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
+    })),
+  )) {
+    add(n.playerId, n.netCents);
+  }
+
   return [...totals.entries()].map(([playerId, netCents]) => ({ playerId, netCents }));
 }
 
 export async function moneyFor(eventId: string, email: string): Promise<MoneyView> {
-  const [rows, settlements, players, stages] = await Promise.all([
+  const [rows, settlements, players, stages, contestRows] = await Promise.all([
     prisma.expense.findMany({
       where: { eventId },
       orderBy: [{ spentOn: "desc" }, { createdAt: "desc" }],
@@ -148,6 +186,11 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
       where: { eventId },
       orderBy: { position: "asc" },
       select: { id: true, position: true, type: true, teeSheet: true },
+    }),
+    prisma.contest.findMany({
+      where: { eventId },
+      orderBy: [{ createdAt: "asc" }],
+      include: { entrants: true },
     }),
   ]);
 
@@ -260,7 +303,29 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
           groupPlayerIds: group?.playerIds.filter((id) => nameOf.has(id)) ?? [],
         };
       }),
-    used: rows.length > 0 || settlements.length > 0,
+    contests: contestRows.map((c) => {
+      const shaped = {
+        id: c.id,
+        kind: isContestKind(c.kind) ? c.kind : ("other" as const),
+        name: c.name,
+        buyInCents: c.buyInCents,
+        entrantIds: c.entrants.map((e) => e.playerId),
+        winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
+      };
+      return {
+        id: c.id,
+        name: c.name,
+        kind: c.kind,
+        hole: c.hole,
+        buyInCents: c.buyInCents,
+        potCents: potOf(shaped),
+        entrants: shaped.entrantIds.length,
+        winners: shaped.winnerIds.map((id) => nameOf.get(id) ?? "Unknown"),
+        decided: isDecided(shaped),
+        yourCents: me ? contestNets(shaped).find((n) => n.playerId === me.id)?.netCents ?? 0 : 0,
+      };
+    }),
+    used: rows.length > 0 || settlements.length > 0 || contestRows.length > 0,
   };
 }
 

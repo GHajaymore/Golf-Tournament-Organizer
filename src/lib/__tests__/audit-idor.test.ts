@@ -208,6 +208,10 @@ const EXEMPT: Record<string, string> = {
     "narrowed by membership instead of by event: team.members.some(m => m.playerId === playerId), on a team already proven to be this event's",
   "tournament.ts:setBracketWinner:winnerId":
     "a slot label written into this event's own BracketWinner row, never used as a lookup key — the bracket only ever compares it against its own slots, so a foreign id renders as nothing",
+  "contests.ts:setContestEntrants:playerIds":
+    "narrowed one frame down by fieldIds(eventId, ids), which re-queries every id against this event's Player rows and returns only the ones that are really in the field — an invented id simply is not in the result",
+  "contests.ts:setContestWinners:winnerIds":
+    "same fieldIds(eventId, ids) narrowing: a winner is only recorded for a player this tournament actually has, so a stranger's id cannot be handed a pot",
   "tournament.ts:setPrizeWinner:winnerId":
     "same shape: stored on this event's own Prize row and only ever matched against this event's field",
 };

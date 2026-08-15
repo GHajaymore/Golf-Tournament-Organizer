@@ -65,6 +65,7 @@ model Organization {
   // Branding, applied to the console header and printed output for every
   // tournament this organization owns.
   /**
+   * /**
    * /** Absolute https:// URL to a logo image. A URL rather than an upload
    * because file uploads need blob storage; this works with the club's
    * existing website assets and can be swapped for an upload later without
@@ -746,6 +747,7 @@ model Event {
   courses         EventCourse[]
   expenses        Expense[]
   settlements     Settlement[]
+  contests        Contest[]
 
   @@index([organizationId])
 }
@@ -1506,4 +1508,70 @@ model Settlement {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
+}
+
+/**
+ * A player-funded side bet: closest to the pin, long drive, or whatever the
+ * first tee invented.
+ * Deliberately NOT a `Prize`. A prize is club money — the club pays the winner
+ * $50 and nobody owes anybody, so it must never enter a player settle-up. This
+ * is players' money moving between players, which is why it carries a buy-in
+ * and an entrant list and why its nets join the outing's one ledger.
+ * Simpler than SkinsPot in the one way that matters: no per-hole carry. A pot,
+ * and whoever won it — more than one winner being a tie, split to the cent.
+ */
+model Contest {
+  id      String @id @default(cuid())
+  eventId String
+  /**
+   * The round it was played in. Empty means the whole outing.
+   */
+  stageId String @default("")
+
+  /**
+   * closest-pin | long-drive | other
+   */
+  kind String @default("other")
+  /**
+   * What the organizer called it — "KP 7th", "Long drive, 12th".
+   */
+  name String
+  /**
+   * The hole it was played on, where that means something. 0 for none.
+   */
+  hole Int    @default(0)
+
+  /**
+   * Stake per entrant, integer cents. Zero is a free contest.
+   */
+  buyInCents Int @default(0)
+
+  entrants ContestEntry[]
+
+  createdBy String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([stageId])
+}
+
+/**
+ * One player in one contest, and whether they won it.
+ * `won` on the entry rather than a winner column on the contest, because a tie
+ * is two winners and a single column cannot hold that — and a tie is the
+ * common case for closest to the pin at a society day.
+ */
+model ContestEntry {
+  id        String  @id @default(cuid())
+  contestId String
+  playerId  String
+  won       Boolean @default(false)
+
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, playerId])
+  @@index([contestId])
 }
