@@ -42,6 +42,8 @@ let orgId = "";
 let sides: { id: string; handicap: number }[][] = [];
 const teamIds: string[] = [];
 let matchId = "";
+/** A club member, to prove the roster outlives the tournament. */
+let memberId = "";
 
 beforeAll(async () => {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -80,6 +82,11 @@ beforeAll(async () => {
     },
   });
   stageId = stage.id;
+
+  const member = await prisma.member.create({
+    data: { organizationId: org.id, name: `${TAG} club member`, email: `${TAG.toLowerCase()}@example.invalid` },
+  });
+  memberId = member.id;
 
   const hcps = [4, 12, 8, 20];
   const players = [];
@@ -143,6 +150,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (eventId) await prisma.event.deleteMany({ where: { id: eventId } });
+  // The member deliberately survives the event, so it needs deleting by name.
+  await prisma.member.deleteMany({ where: { name: { startsWith: TAG } } });
+  await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.$disconnect();
 }, 60_000);
 
@@ -213,10 +223,20 @@ describe("scoring the round", () => {
     );
 
   it("resolves a four-ball as a match the singles engine understands", () => {
+    // A side that wins every hole does NOT win eighteen of them. It is ten up
+    // with eight to play after the tenth, and the match is over there — Rule
+    // 3.2a(3): a match ends when one side leads by more holes than remain.
+    // This asserted 18 and passed for as long as resolveMatch read only the
+    // final state; the fix that stopped crediting holes won after the closeout
+    // (holes-won-ratio and fewest-holes-lost rank on them) left the
+    // expectation behind, encoding a match that cannot happen.
     const res = resolveMatch(teamMatchHoles(cardFor(0, 4), cardFor(1, 5)));
-    expect(res.holesWonA).toBe(18);
+    expect(res.holesWonA).toBe(10);
+    expect(res.played).toBe(10);
+    expect(res.remaining).toBe(8);
     expect(res.winner).toBe("A");
-    expect(res.resultText.length).toBeGreaterThan(0);
+    expect(res.complete).toBe(true);
+    expect(res.resultText).toBe("10&8");
   });
 
   it("ranks the sides from the stored cards", async () => {
@@ -286,18 +306,40 @@ describe("cross-cutting rules", () => {
     ).toBe(true);
   });
 
-  it("keeps the demo tournament held", async () => {
-    const demo = await prisma.event.findFirst({ where: { name: { contains: "Ajay More" } } });
-    expect(demo?.retainUntil).not.toBeNull();
-    expect(
-      retentionDecision({
-        id: demo!.id,
+  it("never purges an event that is being held", async () => {
+    // The rule, asserted against a row this test controls. It used to look up
+    // one particular real tournament by name and assert on whatever it found —
+    // so it failed on any database that didn't happen to contain that row, and
+    // said nothing at all about the rule on the databases where it passed.
+    const held = await prisma.event.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG} held`,
+        dates: "",
+        course: "",
+        city: "",
+        address: "",
+        regDeadline: "",
+        shareToken: `${TAG}-held-${Date.now()}`,
         status: "completed",
-        completedAt: new Date(Date.now() - 1000 * 3600e3),
-        plan: "free",
-        retainUntil: demo!.retainUntil,
-      }).purge,
-    ).toBe(false);
+        retainUntil: new Date(Date.now() + 365 * 24 * 3600e3),
+      },
+    });
+    try {
+      expect(
+        retentionDecision({
+          id: held.id,
+          status: "completed",
+          // Long past the free tier's window: the hold is the only thing
+          // standing between this tournament and deletion.
+          completedAt: new Date(Date.now() - 1000 * 3600e3),
+          plan: "free",
+          retainUntil: held.retainUntil,
+        }).purge,
+      ).toBe(false);
+    } finally {
+      await prisma.event.delete({ where: { id: held.id } });
+    }
   });
 
   it("counts a per-event organizer as a staff seat", async () => {
@@ -350,7 +392,14 @@ describe("teardown leaves nothing behind", () => {
   });
 
   it("leaves the club roster intact", async () => {
-    expect(await prisma.member.count()).toBeGreaterThan(0);
+    // The cascade boundary that matters: a Member belongs to the CLUB, not to
+    // the tournament, and deleting an event must not take the people with it —
+    // their history spans events. Asserted against a member this test created,
+    // rather than a global count that passed on any database with a member in
+    // it and failed on an empty one without saying anything either way.
+    const survivor = await prisma.member.findUnique({ where: { id: memberId } });
+    expect(survivor, "deleting an event deleted a club member").not.toBeNull();
+    expect(survivor?.organizationId).toBe(orgId);
   });
 });
 
