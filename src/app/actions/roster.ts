@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine } from "@/lib/csv";
+import { parseHandicapInput } from "@/lib/domain/registration-intake";
 
 /**
  * Club roster management.
@@ -160,8 +161,13 @@ export async function importCsvMembers(csv: string): Promise<MemberImportResult>
       continue;
     }
 
-    const rawHandicap = cell(table, row, "handicap");
-    const parsedHandicap = parseFloat(rawHandicap);
+    // Not parseFloat: it reads "+2.4" as 2.4, and a plus handicap is 2.4
+    // BETTER than scratch. Every scratch-and-better member imported with the
+    // wrong sign and was then given the strokes they should have been giving.
+    // A row whose handicap is unreadable keeps the member and drops the
+    // number — a roster import is a list of people, and refusing the whole row
+    // over one bad cell loses the person.
+    const hcp = parseHandicapInput(cell(table, row, "handicap"));
     const handicapText = cell(table, row, "handicapType");
     const data = cleanMemberData({
       name,
@@ -173,10 +179,12 @@ export async function importCsvMembers(csv: string): Promise<MemberImportResult>
       preferredTee: cell(table, row, "preferredTee"),
       memberNumber: cell(table, row, "memberNumber"),
       notes: cell(table, row, "notes"),
-      handicap: Number.isFinite(parsedHandicap) ? parsedHandicap : 0,
+      handicap: hcp.ok ? hcp.value : 0,
       // "9" or a column that literally says 9 holes; anything else is 18.
       handicapType: handicapText.trim() === "9" || /\b9\b/.test(handicapText) ? "9" : "18",
-      handicapSource: "manual",
+      // "none" where the cell was blank or unreadable, so the roster shows an
+      // unknown index as unknown rather than as a scratch golfer.
+      handicapSource: hcp.ok && hcp.source === "manual" ? "manual" : "none",
     });
 
     const existingId = email ? byEmail.get(email) : byName.get(name.trim().toLowerCase());
@@ -186,7 +194,9 @@ export async function importCsvMembers(csv: string): Promise<MemberImportResult>
       // would otherwise wipe phone numbers and GHIN numbers off the roster.
       const patch = Object.fromEntries(
         Object.entries(data).filter(([k, v]) => {
-          if (k === "handicap") return rawHandicap.trim() !== "";
+          // Only when the cell actually held a readable handicap: a blank one
+          // must not write a 0 over a stored index, and neither must "n/a".
+          if (k === "handicap") return hcp.ok && hcp.source === "manual";
           if (k === "handicapType") return handicapText.trim() !== "";
           if (k === "handicapSource") return false;
           return v !== "";

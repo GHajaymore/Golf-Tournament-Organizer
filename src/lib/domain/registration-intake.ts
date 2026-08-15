@@ -103,6 +103,48 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const HANDICAP_MIN = -10;
 const HANDICAP_MAX = 54;
 
+export type HandicapParse =
+  | { ok: true; value: number; source: "manual" }
+  /** Left blank. Not a zero — a scratch handicap is a claim, and an empty box
+   *  is the absence of one. */
+  | { ok: true; value: 0; source: "none" }
+  | { ok: false; error: string };
+
+/**
+ * Read a handicap the way a golfer writes one.
+ *
+ * D4 of the 2026-08-12 audit. The public form has always done this correctly
+ * and the two importers used bare `parseFloat`, which gets the SIGN WRONG on
+ * the one notation where it matters: `parseFloat("+2.4")` is 2.4, and a plus
+ * handicap is 2.4 strokes BETTER than scratch, i.e. -2.4. Every scratch-and-
+ * better player imported as a mid-handicapper and was then GIVEN the strokes
+ * they should have been giving — a silent error in the direction that decides
+ * matches, on the players most likely to be in the final.
+ *
+ * `parseFloat` also takes "12.4abc" as 12.4, and nothing downstream
+ * range-checked, so "999", "-500" and "1e9" all landed on the roster.
+ *
+ * Extracted here so there is one answer. The importers had their own, the form
+ * had another, and the difference was invisible until a plus-handicapper
+ * entered.
+ */
+export function parseHandicapInput(raw: string | null | undefined): HandicapParse {
+  const value = (raw ?? "").trim();
+  if (value === "") return { ok: true, value: 0, source: "none" };
+
+  // "+2.4" is 2.4 better than scratch. The leading plus is golf notation, not
+  // arithmetic — which is exactly why parseFloat gets it backwards.
+  const normalized = value.startsWith("+") ? `-${value.slice(1)}` : value;
+  // Number(), not parseFloat(): parseFloat stops at the first thing it doesn't
+  // understand and returns what it has, so "12.4abc" becomes a handicap.
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return { ok: false, error: "Enter your handicap as a number, like 12.4." };
+  if (parsed < HANDICAP_MIN || parsed > HANDICAP_MAX) {
+    return { ok: false, error: "That handicap doesn't look right — it should be between +10 and 54." };
+  }
+  return { ok: true, value: parsed, source: "manual" };
+}
+
 const NAME_MAX = 80;
 const PHONE_MAX = 40;
 const TEE_MAX = 40;
@@ -150,21 +192,12 @@ export function cleanRegistration(input: RegistrationForm): ValidationResult {
   if (!email) return { ok: false, error: "Enter your email — it's how the organizer reaches you." };
   if (!EMAIL_RE.test(email)) return { ok: false, error: "Enter a valid email address." };
 
-  const rawHandicap = (input.handicap ?? "").trim();
-  let handicap = 0;
-  let handicapSource: "manual" | "none" = "none";
-  if (rawHandicap !== "") {
-    // Accept a leading "+" as the plus-handicap notation golfers write (+2.4
-    // is better than scratch, i.e. -2.4 as a number).
-    const normalized = rawHandicap.startsWith("+") ? `-${rawHandicap.slice(1)}` : rawHandicap;
-    const parsed = Number(normalized);
-    if (!Number.isFinite(parsed)) return { ok: false, error: "Enter your handicap as a number, like 12.4." };
-    if (parsed < HANDICAP_MIN || parsed > HANDICAP_MAX) {
-      return { ok: false, error: "That handicap doesn't look right — it should be between +10 and 54." };
-    }
-    handicap = parsed;
-    handicapSource = "manual";
-  }
+  // The shared reading — this path's own version of it is what the importers
+  // were supposed to have been using all along.
+  const hcp = parseHandicapInput(input.handicap);
+  if (!hcp.ok) return { ok: false, error: hcp.error };
+  const handicap = hcp.value;
+  const handicapSource = hcp.source;
 
   const handicapType = input.handicapType === "9" ? "9" : "18";
   const phone = (input.phone ?? "").trim().slice(0, PHONE_MAX);

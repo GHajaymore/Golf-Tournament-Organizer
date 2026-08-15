@@ -29,7 +29,7 @@ import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/mat
 import { isCutScope } from "@/lib/domain/cut";
 import { isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
 import { upsertMember, organizationIdForEvent } from "@/lib/services/roster";
-import { placementOnApproval } from "@/lib/domain/registration-intake";
+import { placementOnApproval, parseHandicapInput } from "@/lib/domain/registration-intake";
 import {
   marginToHoles,
   resolveMatch,
@@ -301,14 +301,48 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   return { ok: true };
 }
 
-export async function removeSignup(playerId: string) {
+/**
+ * Take a player out of the field.
+ *
+ * Deletes an entry that has no history, and WITHDRAWS one that has. The
+ * difference matters because `Scorecard.playerId`, `Match.playerAId` and
+ * `Match.playerBId` are plain String columns with no relation and no cascade:
+ * deleting a player who has played leaves rows pointing at somebody who no
+ * longer exists, and the screens then render a match between a name and a gap.
+ *
+ * `withdrawn` is the status the schema has documented as the intended soft
+ * path since it was written, and no code set or read it. It needs no special
+ * handling downstream — the field, the standings and every handicap map are
+ * built from `status === "confirmed"`, so a withdrawal drops out of all of
+ * them, while `state.players` keeps the row so the matches they did play still
+ * have a name on them.
+ */
+export async function removeSignup(playerId: string): Promise<"deleted" | "withdrawn" | "missing"> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   const player = await prisma.player.findUnique({ where: { id: playerId } });
-  if (!player || player.eventId !== eventId) return;
-  await prisma.player.delete({ where: { id: playerId } });
+  if (!player || player.eventId !== eventId) return "missing";
+
+  // Anything that would be orphaned. Counted rather than fetched: the question
+  // is whether this person has a history at all.
+  const [cards, matches] = await Promise.all([
+    prisma.scorecard.count({ where: { eventId, playerId } }),
+    prisma.match.count({
+      where: { eventId, OR: [{ playerAId: playerId }, { playerBId: playerId }] },
+    }),
+  ]);
+  const played = cards > 0 || matches > 0;
+
+  if (played) {
+    await prisma.player.update({ where: { id: playerId }, data: { status: "withdrawn" } });
+  } else {
+    await prisma.player.delete({ where: { id: playerId } });
+  }
   if (player.email.trim()) await revokePlayerAccount(eventId, player.email);
-  // Promote the earliest waitlisted signup if a confirmed spot opened.
+
+  // Promote the earliest waitlisted signup if a confirmed spot opened. True of
+  // a withdrawal as much as a deletion — the place in the field is free either
+  // way, which is the whole reason a club keeps a waitlist.
   if (player.status === "confirmed") {
     const next = await prisma.player.findFirst({
       where: { eventId, status: "waitlisted" },
@@ -317,15 +351,25 @@ export async function removeSignup(playerId: string) {
     if (next) await prisma.player.update({ where: { id: next.id }, data: { status: "confirmed" } });
   }
   refresh();
+  return played ? "withdrawn" : "deleted";
 }
 
-/** Bulk delete — e.g. clearing a list before re-uploading a corrected CSV. */
-export async function removeSignups(playerIds: string[]) {
+/**
+ * Bulk delete — e.g. clearing a list before re-uploading a corrected CSV.
+ *
+ * Reports what it did per outcome, because the two are not the same act and
+ * the screen has to be able to say which happened to whom.
+ */
+export async function removeSignups(
+  playerIds: string[],
+): Promise<{ deleted: number; withdrawn: number; missing: number }> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
+  const tally = { deleted: 0, withdrawn: 0, missing: 0 };
   for (const id of playerIds) {
-    await removeSignup(id);
+    tally[await removeSignup(id)] += 1;
   }
+  return tally;
 }
 
 /* CSV parsing lives in src/lib/csv.ts, shared with the roster importer. The
@@ -405,7 +449,12 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
       skippedDuplicates += 1;
       continue;
     }
-    const handicap = hcpIdx >= 0 ? parseFloat(cols[hcpIdx] ?? "") : 0;
+    // Same reading as the public form, for the same reason: parseFloat("+2.4")
+    // is 2.4, and a plus handicap is 2.4 the other way. An entry list is where
+    // the club's better players arrive, so this is the importer where the sign
+    // was wrong most often.
+    const hcp = parseHandicapInput(hcpIdx >= 0 ? cols[hcpIdx] : "");
+    const handicap = hcp.ok ? hcp.value : 0;
     const status = unlimited || confirmedCount < event.capacity ? "confirmed" : "waitlisted";
     if (status === "confirmed") confirmedCount += 1;
     const handicapType = hcpTypeIdx >= 0 && (cols[hcpTypeIdx] ?? "").trim() === "9" ? "9" : "18";
@@ -416,7 +465,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
       name,
       email: emailKey,
       phone,
-      handicap: Number.isFinite(handicap) ? handicap : 0,
+      handicap,
       handicapType,
     });
     await prisma.player.create({
@@ -424,7 +473,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         eventId,
         memberId,
         name,
-        handicap: Number.isFinite(handicap) ? handicap : 0,
+        handicap,
         seed: seed++,
         status,
         email: emailKey,

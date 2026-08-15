@@ -233,7 +233,12 @@ describe("roster CSV import", () => {
     // The destructive failure: a handicaps-only sheet uploaded after a full
     // export would otherwise erase every phone number and GHIN on the roster.
     expect(body).toMatch(/Object\.entries\(data\)\.filter/);
-    expect(body).toMatch(/rawHandicap\.trim\(\) !== ""/);
+    // The handicap condition used to be `rawHandicap.trim() !== ""`, which
+    // asked whether the CELL had anything in it. It now asks whether that
+    // something was a handicap — strictly stronger, because "n/a" and "12.4
+    // (est)" are not blank and are not numbers either, and the old reading
+    // wrote a 0 over a stored index for both. See D4 and parseHandicapInput.
+    expect(body).toMatch(/hcp\.ok && hcp\.source === "manual"/);
     expect(body).toMatch(/handicapText\.trim\(\) !== ""/);
   });
 

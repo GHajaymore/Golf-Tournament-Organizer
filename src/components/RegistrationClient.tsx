@@ -1,5 +1,6 @@
 "use client";
 import { registrationStatus, formatDeadline } from "@/lib/registration";
+import { parseHandicapInput } from "@/lib/domain/registration-intake";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, approveSignup } from "@/app/actions/tournament";
 import { useState, useRef, useTransition } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
@@ -113,11 +114,36 @@ export function RegistrationClient({
       }
       return next;
     });
-  const deleteSelected = () => {
-    const ids = [...selected];
+  /**
+   * Delete the selected rows OF THIS TABLE.
+   *
+   * One `selected` Set is shared by the confirmed, waitlist and pending tables
+   * — which is fine, ids are unique — but this used to delete every id in it
+   * while the button counted only the rows in front of you. Tick three
+   * confirmed and two waitlisted, press "Delete 2 selected", and all five went,
+   * with no confirmation and no undo. The rows are the ones the label counted.
+   */
+  const deleteSelected = (rows: Signup[]) => {
+    const ids = rows.filter((r) => selected.has(r.id)).map((r) => r.id);
     if (ids.length === 0) return;
-    startTransition(() => removeSignups(ids));
-    setSelected(new Set());
+    const names = ids.map((id) => rows.find((r) => r.id === id)?.name ?? "").filter(Boolean);
+    // Deleting a signup can end someone's tournament. It is worth a sentence.
+    if (!window.confirm(`Remove ${names.length === 1 ? names[0] : `${names.length} players`} from this tournament?\n\nAnyone who has already played is withdrawn instead, so their results stay.`)) {
+      return;
+    }
+    startTransition(async () => {
+      const res = await removeSignups(ids);
+      setRowError(
+        res.withdrawn
+          ? `${res.withdrawn} ${res.withdrawn === 1 ? "player has" : "players have"} played, so ${res.withdrawn === 1 ? "that entry was" : "those entries were"} withdrawn rather than deleted — their results are kept.`
+          : "",
+      );
+    });
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
   };
 
   const submitAdd = () => {
@@ -125,12 +151,18 @@ export function RegistrationClient({
       setAddError(!name.trim() ? "Enter a player name." : "Email is required — it's how this player signs in.");
       return;
     }
-    const h = parseFloat(handicap);
+    // The same reading as the public form and both importers: "+2.4" is a plus
+    // handicap, 2.4 better than scratch, and parseFloat gets that backwards.
+    const h = parseHandicapInput(handicap);
+    if (!h.ok) {
+      setAddError(h.error);
+      return;
+    }
     setAddError("");
     startTransition(async () => {
       const result = await addSignup({
         name,
-        handicap: Number.isFinite(h) ? h : 0,
+        handicap: h.value,
         email,
         phone,
         ghin,
@@ -207,8 +239,8 @@ export function RegistrationClient({
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span className="card-title" style={{ fontSize: 15 }}>{title} ({rows.length})</span>
           {anySelected && (
-            <button type="button" className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} disabled={pending || locked} onClick={deleteSelected}>
-              <i className="ph ph-trash" /> Delete {[...selected].filter((id) => rows.some((r) => r.id === id)).length} selected
+            <button type="button" className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} disabled={pending || locked} onClick={() => deleteSelected(rows)}>
+              <i className="ph ph-trash" /> Delete {rows.filter((r) => selected.has(r.id)).length} selected
             </button>
           )}
         </div>
@@ -284,7 +316,7 @@ export function RegistrationClient({
                   <td className="text-muted" style={{ fontSize: 12 }}>{p.phone || "—"}</td>
                   {showFlight && <td className="text-muted">{p.flight || "—"}</td>}
                   <td style={{ textAlign: "right" }}>
-                    <button type="button" className="btn btn-icon" disabled={pending || locked} onClick={() => startTransition(() => removeSignup(p.id))}>
+                    <button type="button" className="btn btn-icon" disabled={pending || locked} onClick={() => startTransition(() => void removeSignup(p.id))}>
                       <i className="ph ph-x" />
                     </button>
                   </td>
@@ -650,7 +682,7 @@ export function RegistrationClient({
                             className="btn btn-secondary"
                             style={{ fontSize: 12, padding: "4px 10px" }}
                             disabled={pending || locked}
-                            onClick={() => startTransition(() => removeSignup(p.id))}
+                            onClick={() => startTransition(() => void removeSignup(p.id))}
                           >
                             Decline
                           </button>
