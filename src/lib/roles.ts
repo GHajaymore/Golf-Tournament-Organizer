@@ -104,3 +104,19 @@ export function landingScreenFor(role: Role): string {
       return "/dashboard";
   }
 }
+
+/**
+ * Where a role's app starts.
+ *
+ * One answer, so every entry point agrees. Both the /choose redirect and
+ * enterTournament used to send everybody to /dashboard, which meant a player
+ * who signed in got the organizer's console with most of it removed by the
+ * guards above — while the four-tab player app sat one hand-typed URL away.
+ *
+ * Here rather than beside those redirects because a "use server" module may
+ * only export async functions, and this is a pure lookup that the player shell
+ * and the console both need to agree on.
+ */
+export function homeFor(role: string): string {
+  return role === "admin" || role === "assistant" ? "/dashboard" : "/me";
+}

@@ -8,6 +8,7 @@ import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 import { prisma } from "@/lib/db";
 import { effectiveAccess } from "@/lib/services/access";
+import { homeFor } from "@/lib/roles";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
@@ -222,11 +223,6 @@ export async function enterTournament(eventId: string): Promise<void> {
   if (!access) throw new Error("You don't have access to that tournament");
   await setActiveEvent(eventId);
   redirect(homeFor(access.role));
-}
-
-/** Where a role's app starts. One answer, so every entry point agrees. */
-export function homeFor(role: string): string {
-  return role === "admin" || role === "assistant" ? "/dashboard" : "/me";
 }
 
 export async function signOutAction() {

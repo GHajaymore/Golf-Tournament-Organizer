@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
-import { enterTournament, signOutAction, homeFor } from "@/app/actions/auth";
+import { enterTournament, signOutAction } from "@/app/actions/auth";
+import { homeFor } from "@/lib/roles";
 import { prisma } from "@/lib/db";
 import { accessibleEvents } from "@/lib/services/access";
 import { ROLE_LABEL } from "@/lib/roles";
