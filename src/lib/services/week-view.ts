@@ -110,8 +110,8 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
 
   const thisWeek = manual ? [] : parseStrokeCards(cards.filter((c) => c.stageId === stage.id));
   const agg = aggregateStroke(thisWeek, {
-    pars,
-    holeDifficulty,
+    // One week is one round at one venue, so every card here shares a course.
+    courseFor: () => ({ pars, holeDifficulty }),
     handicapFor,
     holeStrokesReceived,
     stablefordPointsForHole,
@@ -233,8 +233,7 @@ async function standingsWithMovement(
   const through = (n: number) => {
     const ids = new Set(weeks.slice(0, n + 1).map((s) => s.id));
     const agg = aggregateStroke(parseStrokeCards(cards.filter((c) => ids.has(c.stageId))), {
-      pars: opts.pars,
-      holeDifficulty: opts.holeDifficulty,
+      courseFor: () => ({ pars: opts.pars, holeDifficulty: opts.holeDifficulty }),
       handicapFor: opts.handicapFor,
       holeStrokesReceived,
       stablefordPointsForHole,

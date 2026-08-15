@@ -33,10 +33,25 @@ export interface StrokeAgg {
   points: number;
 }
 
-export interface StrokeAggOptions {
+/** Par and stroke index for one round, as that round is actually played. */
+export interface RoundCard {
   pars: number[];
   /** Stroke index per hole; 1 is hardest. */
   holeDifficulty: number[];
+}
+
+export interface StrokeAggOptions {
+  /**
+   * The course THIS card's round was played on.
+   *
+   * Was a single pars/holeDifficulty pair for every card in the event, which
+   * is right for a medal at one club and wrong for anything else: a two-course
+   * tournament scored round two against round one's par and stroke index, so
+   * every net score, every to-par figure and every Stableford point on the
+   * second course was computed from the wrong card. `Stage.courseId` existed
+   * and `courseForRound` had zero production callers.
+   */
+  courseFor: (stageId: string) => RoundCard;
   /** Playing handicap for this player on this round, allowance already applied. */
   handicapFor: (playerId: string, stageId: string) => number;
   holeStrokesReceived: (handicap: number, si: number, allocationHoles: number) => number;
@@ -62,9 +77,13 @@ export const emptyAgg = (): StrokeAgg => ({
  */
 export function aggregateStroke(cards: StrokeCard[], opts: StrokeAggOptions): Map<string, StrokeAgg> {
   const out = new Map<string, StrokeAgg>();
-  const alloc = opts.allocationHoles(opts.holeDifficulty.length);
 
   for (const card of cards) {
+    // Per card, not once for the run: two rounds of the same tournament can be
+    // at different clubs, and the allocation is a fact about the card in front
+    // of the player.
+    const { pars, holeDifficulty } = opts.courseFor(card.stageId);
+    const alloc = opts.allocationHoles(holeDifficulty.length);
     const handicap = opts.handicapFor(card.playerId, card.stageId);
     const a = out.get(card.playerId) ?? emptyAgg();
 
@@ -72,10 +91,10 @@ export function aggregateStroke(cards: StrokeCard[], opts: StrokeAggOptions): Ma
       if (typeof s !== "number" || s <= 0) return;
       a.gross += s;
       a.thru += 1;
-      a.parThru += opts.pars[i] ?? 0;
-      const holeStrokes = opts.holeStrokesReceived(handicap, opts.holeDifficulty[i] ?? 18, alloc);
+      a.parThru += pars[i] ?? 0;
+      const holeStrokes = opts.holeStrokesReceived(handicap, holeDifficulty[i] ?? 18, alloc);
       a.strokesReceived += holeStrokes;
-      a.points += opts.stablefordPointsForHole(s, opts.pars[i] ?? 0, holeStrokes);
+      a.points += opts.stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes);
     });
 
     out.set(card.playerId, a);

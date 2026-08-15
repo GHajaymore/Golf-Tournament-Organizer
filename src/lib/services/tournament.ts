@@ -1,6 +1,8 @@
 import "server-only";
 import { isPlayingRound } from "../stage-types";
-import { carryUnitsCompatible } from "../format-chain";
+import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
+import { isManualFormat } from "../formats";
+import { courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { survivors, currentRoundCutRule, type CutCandidate } from "../domain/cut";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { prisma } from "../db";
@@ -278,6 +280,17 @@ export interface EventState {
   isStroke: boolean;
   strokeStandings: StrokeStanding[];
   /**
+   * What `strokeStandings` measures, and which rounds went into it.
+   *
+   * The board used to total every card in the event and label the column with
+   * whatever the active round happened to measure — so a hand-scored round, a
+   * gross round and a Stableford round could all be summed and presented as
+   * one number. These say what is actually being shown, so a screen can name
+   * it rather than assume.
+   */
+  strokeUnit: StandingsUnit;
+  strokeRounds: DbStage[];
+  /**
    * Playing handicap for a player on a given round, allowance and hole count
    * already applied. Exposed so the weekly league view prices a card through
    * the identical function these totals used, rather than rebuilding the tee
@@ -400,7 +413,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return null;
 
-  const [accounts, players, groups, stages, matches, bracketWinners, scorecards, tees] = await Promise.all([
+  const [accounts, players, groups, stages, matches, bracketWinners, scorecards, venues, tees] = await Promise.all([
     prisma.account.findMany({ where: { eventId }, orderBy: { name: "asc" } }),
     prisma.player.findMany({ where: { eventId }, orderBy: { seed: "asc" } }),
     prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
@@ -408,6 +421,9 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     prisma.match.findMany({ where: { eventId } }),
     prisma.bracketWinner.findMany({ where: { eventId } }),
     prisma.scorecard.findMany({ where: { eventId } }),
+    // The tournament's venues, so a round played at another club is scored
+    // against that club's card rather than the first round's.
+    prisma.course.findMany({ where: { events: { some: { eventId } } } }),
     // Tees carry the Course Rating and Slope that turn a Handicap Index into
     // the strokes a player actually receives here.
     prisma.tee.findMany({ where: { course: { events: { some: { eventId } } } }, orderBy: [{ position: "asc" }] }),
@@ -419,6 +435,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // results frozen under whatever was in force when the card was entered.
   const matchTiebreakers = parseMatchTiebreakers(event.matchTiebreakers);
   const confirmed = players.filter((p) => p.status === "confirmed");
+  const venuesById = new Map(venues.map((c) => [c.id, c]));
 
   // Every handicap below this line is a Course Handicap, not an Index.
   // Resolved once, here, because converting at each consuming site means one
@@ -502,8 +519,9 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const domainMatches = activeDomainMatches;
 
   // Stroke-play standings (from submitted scorecards), used when the event format is stroke.
+  // Par and stroke index are now resolved per round by `courseFor` below —
+  // the event's card is only the fallback for a round that names no venue.
   const isStroke = event.format === "stroke";
-  const pars = course.pars;
   const stageById = new Map(stages.map((s) => [s.id, s]));
 
   /**
@@ -521,17 +539,73 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     fallback: courseHcp,
   });
 
-  const strokeAgg = aggregateStroke(parseStrokeCards(scorecards), {
-    pars,
-    holeDifficulty,
-    handicapFor,
-    holeStrokesReceived,
-    stablefordPointsForHole,
-    allocationHoles,
-  });
-  // Stableford ranks by points descending (higher is better); every other
-  // basis ranks by net strokes ascending (lower is better).
-  const stableford = activeStage?.scoringBasis === "stableford";
+  /**
+   * The course each round is played on, walking round → event.
+   *
+   * `Stage.courseId` has existed as long as the venue library and nothing in
+   * production ever read it — `courseForRound` had zero callers — so every
+   * round of a two-course tournament was scored against round one's par and
+   * stroke index. Resolved once per round rather than per card.
+   */
+  const roundCards = new Map<string, { pars: number[]; holeDifficulty: number[] }>();
+  const courseFor = (stageId: string) => {
+    const cached = roundCards.get(stageId);
+    if (cached) return cached;
+    const stage = stageById.get(stageId);
+    const roundCourse = stage?.courseId ? venuesById.get(stage.courseId) ?? null : null;
+    const resolved = courseForRound(roundCourse, event) ?? course;
+    // Narrowed to the nine actually played, the same way the match path does
+    // it: nine holes of an eighteen-hole card carry stroke indexes scattered
+    // through 1..18, and allocating off those gives the wrong holes.
+    const holes = stage?.holes === 9 ? 9 : 18;
+    const applied = applyNine(resolved, cleanNine(stage?.nine), holes);
+    const value = { pars: applied.pars, holeDifficulty: applied.strokeIndex };
+    roundCards.set(stageId, value);
+    return value;
+  };
+
+  /**
+   * Which rounds this board may add together.
+   *
+   * Every card in the event used to be summed into one column and labelled
+   * with whatever the ACTIVE round happened to measure. Three different
+   * tournaments were wrong in three ways at once: a hand-scored round was
+   * ranked the moment it shared an event with a scored one; a gross round was
+   * ranked by net; and two rounds measuring different things were added
+   * together and presented as a total.
+   *
+   * The rule is the one the match-play carry already uses — rounds add up when
+   * they measure the same unit — plus the one the weekly view already applies:
+   * a hand-scored round has cards and adding them up produces a ranking the
+   * club never played for.
+   */
+  const strokeUnitStage = activeStage ?? playRounds[playRounds.length - 1] ?? null;
+  const strokeRounds = playRounds.filter(
+    (s) =>
+      !isManualFormat(s.format) &&
+      (!strokeUnitStage || carryUnitsCompatible(s, strokeUnitStage)),
+  );
+  const strokeRoundIds = new Set(strokeRounds.map((s) => s.id));
+  const strokeUnit = strokeUnitStage
+    ? standingsUnit(strokeUnitStage.format, strokeUnitStage.scoringBasis)
+    : "strokes";
+
+  const strokeAgg = aggregateStroke(
+    parseStrokeCards(scorecards.filter((c) => strokeRoundIds.has(c.stageId))),
+    {
+      courseFor,
+      handicapFor,
+      holeStrokesReceived,
+      stablefordPointsForHole,
+      allocationHoles,
+    },
+  );
+  // Stableford ranks by points descending (higher is better). Everything else
+  // ranks by strokes ascending — GROSS strokes for a gross round, which is the
+  // whole of that round's point: a scratch competition ranked by net is a
+  // different competition, and the board was silently running it.
+  const stableford = strokeUnit === "Stableford points" || strokeUnit === "modified Stableford points";
+  const grossBasis = strokeUnitStage?.scoringBasis === "gross";
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
       const a = strokeAgg.get(p.id) ?? emptyAgg();
@@ -540,7 +614,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     .sort((x, y) => {
       const started = (y.thru > 0 ? 1 : 0) - (x.thru > 0 ? 1 : 0);
       if (started !== 0) return started;
-      return stableford ? y.points - x.points : x.net - y.net || x.gross - y.gross;
+      if (stableford) return y.points - x.points;
+      return grossBasis ? x.gross - y.gross || x.net - y.net : x.net - y.net || x.gross - y.gross;
     })
     .map((s, i) => ({ ...s, rank: i + 1 }));
 
@@ -682,6 +757,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     groupStandings,
     isStroke,
     strokeStandings,
+    strokeUnit,
+    strokeRounds,
     strokeHandicapFor: handicapFor,
     advancingCount,
     advancingIds,
