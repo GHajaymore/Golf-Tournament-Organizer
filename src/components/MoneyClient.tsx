@@ -2,6 +2,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { addExpense, removeExpense, recordSettlement } from "@/app/actions/expenses";
 import { requestContestEntry } from "@/app/actions/contests";
+import { requestSideGameEntry } from "@/app/actions/side-games";
 import type { MoneyView } from "@/lib/services/expenses";
 import { PersonChip } from "@/components/PersonChip";
 
@@ -318,6 +319,66 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                   }}
                 >
                   {c.youConfirmed ? "You're in" : c.youIn ? "Asked to join" : "I'm in"}
+                </button>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* The pots the cards settle. Listed so a player can put their own name
+          down for the birdie pot without finding the organizer first — and so
+          the "side games" figure above can be broken open. */}
+      {view.sideGames.length > 0 && (
+        <section className="card elev-sm" style={{ marginTop: 12 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>Pots on the scores</span>
+          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px", lineHeight: 1.5 }}>
+            Worked out from the cards — no result to enter. Put your name down here and pay the
+            organizer; nothing counts until they have it.
+          </p>
+          {view.sideGames.map((g) => (
+            <div
+              key={g.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                paddingTop: 8,
+                borderTop: "1px solid var(--color-divider)",
+              }}
+            >
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>{g.label}</span>
+                <span className="text-muted" style={{ fontSize: 11.5 }}>
+                  {money(g.buyInCents)} each · {money(g.potCents)} pot · {g.entrants} in
+                </span>
+              </span>
+              {view.playerId && (
+                <button
+                  type="button"
+                  className="touch-target"
+                  disabled={pending || g.youConfirmed}
+                  onClick={() =>
+                    startTransition(async () => {
+                      const res = await requestSideGameEntry(g.id, !g.youIn);
+                      if (!res.ok) setError(res.error ?? "Couldn't do that.");
+                    })
+                  }
+                  style={{
+                    minHeight: 40,
+                    padding: "0 12px",
+                    borderRadius: 999,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: g.youConfirmed ? "default" : "pointer",
+                    color: "var(--color-text)",
+                    background: g.youIn
+                      ? "color-mix(in srgb, var(--color-accent) 16%, transparent)"
+                      : "var(--color-surface)",
+                    border: `1px solid ${g.youIn ? "var(--color-accent)" : "var(--color-divider)"}`,
+                  }}
+                >
+                  {g.youConfirmed ? "You're in" : g.youIn ? "Asked to join" : "I'm in"}
                 </button>
               )}
             </div>

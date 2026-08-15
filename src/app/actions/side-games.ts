@@ -120,6 +120,87 @@ export async function setSideGameEntrants(
   return { ok: true };
 }
 
+/**
+ * A player putting their own name down for a derived pot, from the app.
+ *
+ * Same rule as a contest, and the same reason: this is an INTENTION, not a
+ * stake. The pot is cash, and until the organizer says they have it the entry
+ * counts for nothing — it must neither charge the player nor let them win a
+ * pot they are not in.
+ *
+ * Only ever themselves, matched on the registration email, and not once the
+ * money is in.
+ */
+export async function requestSideGameEntry(
+  sideGameId: string,
+  join: boolean,
+): Promise<SideGameResult> {
+  const session = await getSession();
+  if (!session?.eventId) throw new Error("Not signed in");
+
+  const game = await prisma.sideGame.findFirst({
+    where: { id: sideGameId, eventId: session.eventId },
+    select: { id: true, kind: true },
+  });
+  if (!game) return { ok: false, error: "That side game isn't in this tournament." };
+  if (game.kind === "nassau") {
+    // Nassau is a bet between the two players in a match, not a pot to join.
+    return { ok: false, error: "The Nassau applies to your match — there's nothing to join." };
+  }
+
+  const me = await prisma.player.findFirst({
+    where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" } },
+    select: { id: true, name: true },
+  });
+  if (!me) return { ok: false, error: "You aren't in this tournament's field." };
+
+  const existing = await prisma.sideGameEntry.findUnique({
+    where: { sideGameId_playerId: { sideGameId, playerId: me.id } },
+  });
+
+  if (!join) {
+    if (existing?.confirmed) {
+      return { ok: false, error: "The organizer has your money for this one — ask them to take you out." };
+    }
+    if (existing) await prisma.sideGameEntry.delete({ where: { id: existing.id } });
+    revalidatePath("/", "layout");
+    return { ok: true };
+  }
+
+  if (existing) return { ok: true };
+  await prisma.sideGameEntry.create({
+    data: { sideGameId, playerId: me.id, confirmed: false },
+  });
+  await logMoney(session.eventId, "sidegame.request", `${me.name} asked to join ${game.kind}`);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** The organizer says the cash is in. This is what puts a stake in the pot. */
+export async function confirmSideGameEntry(
+  sideGameId: string,
+  playerId: string,
+  paid: boolean,
+): Promise<SideGameResult> {
+  const { eventId } = await requireStaff();
+
+  const game = await prisma.sideGame.findFirst({
+    where: { id: sideGameId, eventId },
+    select: { id: true, kind: true },
+  });
+  if (!game) return { ok: false, error: "That side game isn't in this tournament." };
+
+  const entry = await prisma.sideGameEntry.findUnique({
+    where: { sideGameId_playerId: { sideGameId, playerId } },
+  });
+  if (!entry) return { ok: false, error: "They haven't put their name down." };
+
+  await prisma.sideGameEntry.update({ where: { id: entry.id }, data: { confirmed: paid } });
+  await logMoney(eventId, "sidegame.confirm", `${game.kind}: ${paid ? "took" : "un-took"} a stake`);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function removeSideGame(sideGameId: string): Promise<SideGameResult> {
   const { eventId } = await requireStaff();
   const game = await prisma.sideGame.findFirst({

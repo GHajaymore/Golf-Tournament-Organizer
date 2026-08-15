@@ -12,7 +12,14 @@ import { settle, type Transfer } from "../domain/money";
 import { parseTeeSheet, groupForPlayer } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
 import { contestLedger, contestNets, isContestKind, isDecided, potOf } from "../domain/contests";
-import { derivedNets, nassauLedger, isDerivedKind } from "../domain/derived-games";
+import {
+  derivedNets,
+  nassauLedger,
+  isDerivedKind,
+  DERIVED_LABEL,
+  DERIVED_HELP,
+  type DerivedKind,
+} from "../domain/derived-games";
 import { skinsPotFor } from "./skins-pot";
 import { loadEventState, type HoleResultArr } from "./tournament";
 import { resolveCourse } from "../courses";
@@ -116,6 +123,25 @@ export interface MoneyView {
      * taken their money. The two are separate on purpose: a name in the app is
      * an intention, and only cash is a stake.
      */
+    youIn: boolean;
+    youConfirmed: boolean;
+  }>;
+  /**
+   * The pots the cards settle, for the player screen.
+   *
+   * Listed so somebody can put their own name down for the birdie pot without
+   * finding the organizer first — and so the "side games" figure above can be
+   * broken open into the bets that produced it. A Nassau is excluded: it
+   * applies to the match rather than being a pot to join.
+   */
+  sideGames: Array<{
+    id: string;
+    kind: string;
+    label: string;
+    help: string;
+    buyInCents: number;
+    potCents: number;
+    entrants: number;
     youIn: boolean;
     youConfirmed: boolean;
   }>;
@@ -269,7 +295,7 @@ async function gameNets(eventId: string): Promise<Net[]> {
 }
 
 export async function moneyFor(eventId: string, email: string): Promise<MoneyView> {
-  const [rows, settlements, players, stages, contestRows] = await Promise.all([
+  const [rows, settlements, players, stages, contestRows, sideGameRows] = await Promise.all([
     prisma.expense.findMany({
       where: { eventId },
       orderBy: [{ spentOn: "desc" }, { createdAt: "desc" }],
@@ -287,6 +313,11 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
       select: { id: true, position: true, type: true, teeSheet: true },
     }),
     prisma.contest.findMany({
+      where: { eventId },
+      orderBy: [{ createdAt: "asc" }],
+      include: { entrants: true },
+    }),
+    prisma.sideGame.findMany({
       where: { eventId },
       orderBy: [{ createdAt: "asc" }],
       include: { entrants: true },
@@ -430,7 +461,33 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
         youConfirmed: !!mine?.confirmed,
       };
     }),
-    used: rows.length > 0 || settlements.length > 0 || contestRows.length > 0,
+    // Nassau is left out: it applies to a match rather than being a pot with
+    // a door to join, and offering one would promise something to tap that
+    // cannot do anything.
+    sideGames: sideGameRows
+      .filter((g) => g.kind !== "nassau" && g.buyInCents > 0 && isDerivedKind(g.kind))
+      .map((g) => {
+        const confirmed = g.entrants.filter((e) => e.confirmed);
+        const mine = me ? g.entrants.find((e) => e.playerId === me.id) : undefined;
+        const kind = g.kind as DerivedKind;
+        return {
+          id: g.id,
+          kind: g.kind,
+          label: DERIVED_LABEL[kind],
+          help: DERIVED_HELP[kind],
+          buyInCents: g.buyInCents,
+          // The cash collected, never the number of names.
+          potCents: g.buyInCents * confirmed.length,
+          entrants: confirmed.length,
+          youIn: !!mine,
+          youConfirmed: !!mine?.confirmed,
+        };
+      }),
+    used:
+      rows.length > 0 ||
+      settlements.length > 0 ||
+      contestRows.length > 0 ||
+      sideGameRows.length > 0,
   };
 }
 

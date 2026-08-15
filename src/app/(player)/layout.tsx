@@ -5,6 +5,7 @@ import { themeCss, playerColorScheme } from "@/lib/themes";
 import { OrgBrand } from "@/components/OrgBrand";
 import { PlayTabs } from "@/components/PlayTabs";
 import { usesExpenses } from "@/lib/services/expenses";
+import { BackLink } from "@/components/BackLink";
 
 /**
  * The player's app.
@@ -73,7 +74,13 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
           WebkitBackdropFilter: "blur(12px)",
         }}
       >
-        <OrgBrand brand={brand} />
+        {/* Brand on a tab root; a way back on anything deeper. Inside an
+            installed PWA there is no browser chrome, so without this a
+            sub-screen is a room with no door. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <BackLink />
+          <OrgBrand brand={brand} />
+        </div>
         {/* The way back for someone who is both — an organizer who also plays
             should not have to sign out to run their own tournament. Rendered
             only for staff; a player has nothing to switch to. */}
