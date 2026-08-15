@@ -1704,4 +1704,97 @@ describe("the player's own card opens on what is already there", () => {
     expect(html).toContain("approved by the committee");
     expect(html, "an approved card must not render an entry pad").not.toContain("Certify");
   });
+
+  it("shows where the round stands, without leaving for the board", async () => {
+    // The question that follows every single tap, and the screen had no answer
+    // to it at all: a player had to open the leaderboard to find out what they
+    // were. Nine fours on a par-72 course is level after nine.
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    const html = render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        shotsPerHole={new Array(18).fill(0)}
+        status="entered" initialStrokes={nine()}
+      />,
+    );
+    expect(html).toContain("Thru");
+    expect(html).toContain("Gross");
+    expect(html).toContain("To par");
+    expect(html).toContain("36"); // gross through nine
+    expect(html).toContain("E"); // level par
+  });
+
+  it("counts par and shots over the holes played, not the whole course", async () => {
+    // Through six holes of a par-72 round, "to par" that used the full 72
+    // would read eighteen under. The same rule the server totals by.
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    const six: (number | null)[] = Array.from({ length: 18 }, (_, i) => (i < 6 ? 5 : null));
+    const html = render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        // A stroke on each of the six holes played, and on nothing else.
+        shotsPerHole={Array.from({ length: 18 }, (_, i) => (i < 6 ? 1 : 0))}
+        playingHandicap={18}
+        status="entered" initialStrokes={six}
+      />,
+    );
+    expect(html).toContain("+6"); // six bogeys
+    expect(html).toContain("Net");
+    // 30 gross less the six strokes received on those six holes.
+    expect(html).toContain("24");
+  });
+
+  it("has no Save button, because a Save button loses rounds", async () => {
+    // A phone goes in a pocket between greens. The card writes itself on every
+    // tap and says so; certifying stays deliberate.
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    const html = render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        status="entered" initialStrokes={nine()}
+      />,
+    );
+    expect(html).not.toContain("ph-floppy-disk");
+    expect(html).toContain("Certify my card");
+    // And the write state has somewhere to be announced from.
+    expect(html).toContain('aria-live="polite"');
+  });
+
+  it("names the round's own venue when it has one", async () => {
+    // A tournament that moves course mid-week: the player needs to know which
+    // card the par and stroke index in front of them belong to.
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    const html = render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 2"
+        courseName="Machrihanish"
+        holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+        strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        status="entered" initialStrokes={new Array(18).fill(null)}
+      />,
+    );
+    expect(html).toContain("Machrihanish");
+  });
+
+  it("leaves the net out entirely when the course is unknown", async () => {
+    // No par and no stroke index means no honest net to show, and inventing
+    // one is worse than the gap.
+    const { PlayerCard } = await import("@/components/PlayerCard");
+    const html = render(
+      <PlayerCard
+        stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+        holes={18} pars={[]} yards={[]} strokeIndex={[]}
+        status="entered" initialStrokes={nine()}
+      />,
+    );
+    expect(html).toContain("Gross");
+    expect(html).not.toContain("To par");
+    expect(html).not.toContain("Net");
+  });
 });

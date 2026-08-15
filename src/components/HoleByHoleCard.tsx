@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toParText } from "@/lib/domain";
 
 /**
@@ -128,6 +128,33 @@ export function HoleByHoleCard({
   const holeDone = (i: number) => players.every((p) => strokesOf(p.id)[i] != null);
   const holeStarted = (i: number) => players.some((p) => strokesOf(p.id)[i] != null);
 
+  /**
+   * Swipe between holes.
+   *
+   * The way a phone is actually held walking up the next fairway — one hand,
+   * thumb across the screen. The Previous/Next buttons stay: swipe is an
+   * addition, never the only way through, because it is invisible and
+   * undiscoverable on its own and impossible with a glove.
+   *
+   * Horizontal intent only, and a real distance: a vertical drag is the page
+   * scrolling, and a 12px twitch while tapping a score is not a swipe.
+   */
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.changedTouches[0];
+    touch.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touch.current;
+    touch.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    go(dx < 0 ? hole + 1 : hole - 1);
+  };
+
   return (
     <div>
       {/* Position in the round, and which holes are in. Doubles as navigation,
@@ -168,7 +195,12 @@ export function HoleByHoleCard({
         })}
       </div>
 
-      <div className="card elev-sm" style={{ padding: "18px 16px" }}>
+      <div
+        className="card elev-sm"
+        style={{ padding: "18px 16px", touchAction: "pan-y" }}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--color-neutral-400)" }}>
