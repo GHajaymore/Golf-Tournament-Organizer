@@ -49,6 +49,14 @@ export default async function PrizesPage({
       })
     : [];
 
+  // The pots the cards settle. No winner is stored for these by design.
+  const sideGames = week
+    ? await prisma.sideGame.findMany({
+        where: { eventId: session.eventId, stageId: week.id },
+        include: { entrants: true },
+      })
+    : [];
+
   return (
     <>
       <div style={{ marginBottom: 20 }}>
@@ -102,6 +110,12 @@ export default async function PrizesPage({
             entrantIds: c.entrants.map((e) => e.playerId),
             winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
             potCents: c.buyInCents * c.entrants.length,
+          }))}
+          sideGames={sideGames.map((g) => ({
+            id: g.id,
+            kind: g.kind,
+            buyInCents: g.buyInCents,
+            entrantIds: g.entrants.map((e) => e.playerId),
           }))}
           field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
         />

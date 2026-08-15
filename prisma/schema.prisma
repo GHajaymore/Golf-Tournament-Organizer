@@ -66,6 +66,7 @@ model Organization {
   // tournament this organization owns.
   /**
    * /**
+   * /**
    * /** Absolute https:// URL to a logo image. A URL rather than an upload
    * because file uploads need blob storage; this works with the club's
    * existing website assets and can be swapped for an upload later without
@@ -748,6 +749,7 @@ model Event {
   expenses        Expense[]
   settlements     Settlement[]
   contests        Contest[]
+  sideGames       SideGame[]
 
   @@index([organizationId])
 }
@@ -1574,4 +1576,57 @@ model ContestEntry {
 
   @@unique([contestId, playerId])
   @@index([contestId])
+}
+
+/**
+ * A side bet the CARDS settle: low gross, low net, a birdie pot, an eagle pot,
+ * or a Nassau.
+ * The difference from `Contest` is where the winner comes from. A contest is
+ * manual because no scorecard records who was closest to the pin; this is
+ * derived, so there is deliberately NO winner column — storing one would let
+ * a typed result contradict the scores it was supposed to come from.
+ * Per round, like the skins pot, because a pot settles on the night it was
+ * played. A Nassau is per round too and applies to every match in it at the
+ * same stake, which is how a club actually calls one.
+ */
+model SideGame {
+  id      String @id @default(cuid())
+  eventId String
+  stageId String
+
+  /**
+   * low-gross | low-net | birdies | eagles | nassau
+   */
+  kind String
+
+  /**
+   * Stake per entrant, integer cents. For a Nassau this is the stake on EACH
+   * of the three segments — a "$5 Nassau" is 500 here, and can cost $15.
+   */
+  buyInCents Int @default(0)
+
+  entrants SideGameEntry[]
+
+  createdBy String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, kind])
+  @@index([eventId])
+}
+
+/**
+ * One player staking in one derived side game.
+ */
+model SideGameEntry {
+  id         String @id @default(cuid())
+  sideGameId String
+  playerId   String
+
+  sideGame SideGame @relation(fields: [sideGameId], references: [id], onDelete: Cascade)
+
+  @@unique([sideGameId, playerId])
+  @@index([sideGameId])
 }

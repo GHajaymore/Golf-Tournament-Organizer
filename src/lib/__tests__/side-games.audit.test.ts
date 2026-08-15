@@ -245,6 +245,97 @@ describe("money only a person can supply", () => {
   });
 });
 
+describe("the pots the cards settle", () => {
+  /**
+   * Each of these measures the DELTA one pot makes, rather than asserting an
+   * absolute figure: bets from the blocks above are still on the books, and a
+   * hard-coded total would be a test of the order this file happens to run in.
+   * Cleanup is in a finally so a failure cannot leave a pot behind and take
+   * the next test down with it — which is exactly what the first draft did.
+   */
+  async function withPot<T>(
+    data: { stageId: string; kind: string; buyInCents: number },
+    body: () => Promise<T>,
+  ): Promise<T> {
+    const game = await prisma.sideGame.create({
+      data: { eventId, ...data, createdBy: "organizer" },
+    });
+    await prisma.sideGameEntry.createMany({
+      data: Object.values(player).map((playerId) => ({ sideGameId: game.id, playerId })),
+    });
+    try {
+      return await body();
+    } finally {
+      await prisma.sideGame.delete({ where: { id: game.id } });
+    }
+  }
+
+  const daveGames = async () => (await moneyFor(eventId, at("dave"))).gamesCents;
+
+  it("pays low gross to whoever shot it, off the scores alone", async () => {
+    // Round 1: Dave shot 54 and everybody else 90. Nobody records that — the
+    // cards are the only source, and a $40 pot is $30 to him after his stake.
+    const before = await daveGames();
+    await withPot({ stageId: round[0], kind: "low-gross", buyInCents: 1_000 }, async () => {
+      const view = await moneyFor(eventId, at("dave"));
+      expect(view.gamesCents - before).toBe(3_000);
+      expect(sum(view.standing)).toBe(0);
+    });
+  });
+
+  it("divides a birdie pot by the birdies actually made", async () => {
+    // Par is 4 everywhere and Dave's round-1 card is all 3s: eighteen birdies
+    // against nobody else's, so the $20 pot is his less his own $5.
+    const before = await daveGames();
+    await withPot({ stageId: round[0], kind: "birdies", buyInCents: 500 }, async () => {
+      const view = await moneyFor(eventId, at("dave"));
+      expect(view.gamesCents - before).toBe(1_500);
+      expect(sum(view.standing)).toBe(0);
+    });
+  });
+
+  it("hands a pot back when the round produced no winner at all", async () => {
+    // An eagle pot on a round with no eagles. Everybody's stake returns and
+    // nobody moves; keeping it would make the app a house.
+    const before = await daveGames();
+    await withPot({ stageId: round[1], kind: "eagles", buyInCents: 500 }, async () => {
+      const view = await moneyFor(eventId, at("dave"));
+      expect(view.gamesCents - before, "an unwon pot moves nobody").toBe(0);
+      expect(sum(view.standing)).toBe(0);
+    });
+  });
+
+  it("settles a Nassau off the match cards", async () => {
+    // No pot and no entrants: a Nassau is a bet between the two players in
+    // each match, and the app reads the holes to know who took which segment.
+    const group = await prisma.group.create({
+      data: { eventId, name: `${TAG} flight`, position: 0 },
+    });
+    const match = await prisma.match.create({
+      data: {
+        eventId,
+        stageId: round[0],
+        groupId: group.id,
+        round: 1,
+        playerAId: player.dave,
+        playerBId: player.ann,
+        holes: JSON.stringify(new Array(18).fill("A")),
+      },
+    });
+
+    const before = await daveGames();
+    await withPot({ stageId: round[0], kind: "nassau", buyInCents: 500 }, async () => {
+      const view = await moneyFor(eventId, at("dave"));
+      // Dave wins front, back and overall at $5 a segment.
+      expect(view.gamesCents - before).toBe(1_500);
+      expect(sum(view.standing)).toBe(0);
+    });
+
+    await prisma.match.delete({ where: { id: match.id } });
+    await prisma.group.delete({ where: { id: group.id } });
+  });
+});
+
 describe("the whole outing, derived and manual together", () => {
   it("settles square across both rounds", async () => {
     const view = await moneyFor(eventId, at("dave"));

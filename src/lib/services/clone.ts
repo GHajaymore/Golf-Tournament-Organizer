@@ -152,4 +152,8 @@ export const CLONE_IGNORED_RELATIONS = [
   // year's closest-to-the-pin forward would enter players who staked nothing
   // and award a pot that was already paid out.
   "contests",
+  // Same reasoning again: a birdie pot is players' cash on a night that has
+  // been played. A copy starts with the bets switched off, and an organizer
+  // who runs the same ones weekly turns them on for the round in front of them.
+  "sideGames",
 ];

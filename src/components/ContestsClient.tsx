@@ -1,7 +1,27 @@
 "use client";
 import { useState, useTransition } from "react";
 import { addContest, setContestEntrants, setContestWinners, removeContest } from "@/app/actions/contests";
+import { saveSideGame, setSideGameEntrants } from "@/app/actions/side-games";
 import { CONTEST_KINDS, CONTEST_LABEL, type ContestKind } from "@/lib/domain/contests";
+import { DERIVED_KINDS, DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
+
+/**
+ * The derived pots, in the order a club would read them. Nassau is last and
+ * separate because it is a match bet rather than a pot — it takes a stake and
+ * no entrant list, since it applies to every match in the round.
+ */
+const DERIVED_ROWS: Array<{ kind: string; label: string; help: string }> = [
+  ...DERIVED_KINDS.map((kind) => ({
+    kind,
+    label: DERIVED_LABEL[kind],
+    help: DERIVED_HELP[kind],
+  })),
+  {
+    kind: "nassau",
+    label: "Nassau",
+    help: "Front, back and overall — three bets on every match at this stake.",
+  },
+];
 
 /**
  * Closest to the pin, long drive, and whatever else the first tee invented.
@@ -32,15 +52,25 @@ export interface ContestView {
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
+export interface SideGameView {
+  id: string;
+  kind: string;
+  buyInCents: number;
+  entrantIds: string[];
+}
+
 export function ContestsClient({
   roundLabel,
   stageId,
   contests,
+  sideGames,
   field,
 }: {
   roundLabel: string;
   stageId: string;
   contests: ContestView[];
+  /** The derived pots — settled by the cards, so no winner is ever picked. */
+  sideGames: SideGameView[];
   field: Array<{ id: string; name: string; playing: boolean }>;
 }) {
   const [pending, startTransition] = useTransition();
@@ -139,6 +169,86 @@ export function ContestsClient({
           No side bets on this round yet.
         </p>
       )}
+
+      {/* The pots the CARDS settle. No winner is ever picked here, and that is
+          the point: the scores name one. All an organizer sets is the stake
+          and who is in. */}
+      <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--color-divider)" }}>
+        <span className="card-kicker">Settled by the scores</span>
+        <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 10px", lineHeight: 1.55 }}>
+          Low gross, low net, birdies, eagles and the Nassau are worked out from the cards — set the
+          stake and who is in, and the money follows the scoring. Nobody types a winner.
+        </p>
+
+        {DERIVED_ROWS.map((row) => {
+          const game = sideGames.find((g) => g.kind === row.kind);
+          const entered = new Set(game?.entrantIds ?? []);
+          const on = !!game && game.buyInCents > 0;
+          return (
+            <div key={row.kind} style={{ paddingTop: 10, borderTop: "1px solid var(--color-divider)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ flex: 1, minWidth: 120 }}>
+                  <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>{row.label}</span>
+                  <span className="text-muted" style={{ fontSize: 11.5 }}>{row.help}</span>
+                </span>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+                  <span className="text-muted">Stake</span>
+                  <input
+                    className="input"
+                    inputMode="decimal"
+                    defaultValue={game ? (game.buyInCents / 100).toFixed(2) : ""}
+                    placeholder="0.00"
+                    disabled={pending}
+                    style={{ width: 82, minHeight: 40, textAlign: "right" }}
+                    onBlur={(e) => {
+                      const cents = Math.round(Number(e.target.value.replace(/[^0-9.]/g, "")) * 100);
+                      if (!Number.isFinite(cents)) return;
+                      if (game && cents === game.buyInCents) return;
+                      run(() => saveSideGame(stageId, row.kind, cents));
+                    }}
+                  />
+                </label>
+              </div>
+
+              {on && (
+                <div style={{ marginTop: 8 }}>
+                  <span className="text-muted" style={{ fontSize: 11.5 }}>
+                    {row.kind === "nassau"
+                      ? "Applies to every match in this round at that stake per segment."
+                      : `In the pot (${entered.size})`}
+                  </span>
+                  {row.kind !== "nassau" && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                      {field.map((p) => {
+                        const isIn = entered.has(p.id);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className={`btn ${isIn ? "btn-primary" : "btn-secondary"} touch-target`}
+                            style={{ fontSize: 12.5 }}
+                            aria-pressed={isIn}
+                            disabled={pending || !game}
+                            onClick={() => {
+                              if (!game) return;
+                              const next = isIn
+                                ? game.entrantIds.filter((id) => id !== p.id)
+                                : [...game.entrantIds, p.id];
+                              run(() => setSideGameEntrants(game.id, next));
+                            }}
+                          >
+                            {p.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       {contests.map((c) => {
         const entered = new Set(c.entrantIds);

@@ -12,7 +12,11 @@ import { settle, type Transfer } from "../domain/money";
 import { parseTeeSheet, groupForPlayer } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
 import { contestLedger, contestNets, isContestKind, isDecided, potOf } from "../domain/contests";
+import { derivedNets, nassauLedger, isDerivedKind } from "../domain/derived-games";
 import { skinsPotFor } from "./skins-pot";
+import { loadEventState, type HoleResultArr } from "./tournament";
+import { resolveCourse } from "../courses";
+import { holeStrokesReceived, allocationHoles } from "../domain";
 
 /**
  * The outing's money, gathered in the order somebody actually asks for it.
@@ -146,6 +150,88 @@ async function gameNets(eventId: string): Promise<Net[]> {
     // A pot with nobody in it has no result and no money — `result` is null
     // until somebody is entered, which is not the same as everyone at zero.
     for (const share of view?.result?.shares ?? []) add(share.playerId, share.netCents);
+  }
+
+  // ── Derived pots: low gross, low net, birdies, eagles, Nassau ───────────
+  //
+  // Worked out from the cards, never from a typed result. The prices come
+  // from loadEventState's own resolver, so a net pot and the leaderboard
+  // cannot disagree about how many strokes somebody receives.
+  const sideGames = await prisma.sideGame.findMany({
+    where: { eventId },
+    include: { entrants: true },
+  });
+  if (sideGames.length > 0) {
+    const state = await loadEventState(eventId);
+    if (state) {
+      const stageById = new Map(state.stages.map((s) => [s.id, s]));
+      const cards = await prisma.scorecard.findMany({ where: { eventId } });
+
+      for (const game of sideGames) {
+        const stage = stageById.get(game.stageId);
+        if (!stage) continue;
+        const holes = stage.holes === 9 ? 9 : 18;
+        const course = resolveCourse(state.event);
+        const pars = course.pars.slice(0, holes);
+
+        if (game.kind === "nassau") {
+          // Every match in the round, at the same stake — how a club calls one.
+          const bets = state.matches
+            .filter((m) => m.stageId === game.stageId && m.playerAId && m.playerBId)
+            .map((m) => {
+              let parsed: HoleResultArr = [];
+              try {
+                parsed = JSON.parse(m.holes) as HoleResultArr;
+              } catch {
+                parsed = [];
+              }
+              return {
+                matchId: m.id,
+                playerAId: m.playerAId,
+                playerBId: m.playerBId,
+                holes: parsed,
+                stakeCents: game.buyInCents,
+              };
+            });
+          for (const n of nassauLedger(bets)) add(n.playerId, n.netCents);
+          continue;
+        }
+
+        if (!isDerivedKind(game.kind)) continue;
+        const entrantIds = game.entrants.map((e) => e.playerId);
+        const potCards = cards
+          .filter((c) => c.stageId === game.stageId && entrantIds.includes(c.playerId))
+          .map((c) => {
+            let strokes: (number | null)[] = [];
+            try {
+              strokes = JSON.parse(c.strokes) as (number | null)[];
+            } catch {
+              strokes = [];
+            }
+            // Strokes received over the holes actually played, from the same
+            // resolver the board totals with.
+            const playing = state.strokeHandicapFor(c.playerId, c.stageId);
+            const alloc = allocationHoles(holes);
+            let received = 0;
+            for (let i = 0; i < holes; i += 1) {
+              const s = strokes[i];
+              if (typeof s !== "number" || s <= 0) continue;
+              received += holeStrokesReceived(playing, course.strokeIndex[i] ?? 18, alloc);
+            }
+            return { playerId: c.playerId, strokes, strokesReceived: received };
+          });
+
+        for (const n of derivedNets({
+          kind: game.kind,
+          buyInCents: game.buyInCents,
+          entrantIds,
+          cards: potCards,
+          pars,
+        })) {
+          add(n.playerId, n.netCents);
+        }
+      }
+    }
   }
 
   // ── Contests ────────────────────────────────────────────────────────────
