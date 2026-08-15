@@ -6,6 +6,7 @@ import { SkinsSeason } from "@/components/SkinsSeason";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PrizesClient } from "@/components/PrizesClient";
+import { ContestsClient } from "@/components/ContestsClient";
 
 export default async function PrizesPage({
   searchParams,
@@ -37,6 +38,16 @@ export default async function PrizesPage({
     where: { eventId: session.eventId },
     orderBy: { position: "asc" },
   });
+
+  // This round's side bets. Scoped to the round for the same reason the skins
+  // pot is: a KP is a hole on a day, not a tournament-wide setting.
+  const contests = week
+    ? await prisma.contest.findMany({
+        where: { eventId: session.eventId, stageId: week.id },
+        orderBy: { createdAt: "asc" },
+        include: { entrants: true },
+      })
+    : [];
 
   return (
     <>
@@ -72,6 +83,27 @@ export default async function PrizesPage({
           rounds={weeks.map((s, i) => ({ stageId: s.id, label: `Round ${i + 1}` }))}
           activeStageId={week.id}
           view={grossSkins}
+        />
+      )}
+      {/* Side bets sit with the skins pot for the same stated reason: they are
+          a payout, and this is where a club comes to settle up. Per round,
+          because closest-to-the-pin is a hole on a day rather than a
+          tournament-wide setting. */}
+      {week && (
+        <ContestsClient
+          roundLabel={`Round ${weeks.findIndex((s) => s.id === week.id) + 1}`}
+          stageId={week.id}
+          contests={contests.map((c) => ({
+            id: c.id,
+            kind: c.kind,
+            name: c.name,
+            hole: c.hole,
+            buyInCents: c.buyInCents,
+            entrantIds: c.entrants.map((e) => e.playerId),
+            winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
+            potCents: c.buyInCents * c.entrants.length,
+          }))}
+          field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
         />
       )}
       <SkinsSeason rows={skinsSeason} />
