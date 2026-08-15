@@ -141,4 +141,11 @@ export const CLONE_IGNORED_RELATIONS = [
   "announcements",
   "auditLogs",
   "courses",
+  // Money that real people really spent, and handovers that really happened.
+  // Copying last year's outing forward would open the new one with a dinner
+  // bill nobody has eaten and a debt nobody agreed to — the same reasoning as
+  // skinsPots, and worse here because an expense ledger is settled between
+  // friends rather than out of a pot.
+  "expenses",
+  "settlements",
 ];

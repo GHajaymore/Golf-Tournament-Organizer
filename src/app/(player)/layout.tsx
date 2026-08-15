@@ -4,6 +4,7 @@ import { brandForEvent, themeForEvent } from "@/lib/services/organization";
 import { themeCss, playerColorScheme } from "@/lib/themes";
 import { OrgBrand } from "@/components/OrgBrand";
 import { PlayTabs } from "@/components/PlayTabs";
+import { usesExpenses } from "@/lib/services/expenses";
 
 /**
  * The player's app.
@@ -28,6 +29,17 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
   const session = await requireSession();
   const brand = session.eventId ? await brandForEvent(session.eventId) : null;
   const theme = await themeForEvent(session.eventId);
+  /**
+   * The fifth tab appears only where the tournament is actually splitting
+   * costs — a league that never buys a round together keeps its four.
+   *
+   * Staff see it regardless, because somebody has to be able to add the FIRST
+   * expense: a tab that only appears once the feature has been used is a tab
+   * nobody can ever reach. The organizer starts the ledger, and from that
+   * moment every player on the outing has it too.
+   */
+  const isStaff = session.role === "admin" || session.role === "assistant";
+  const showMoney = session.eventId ? isStaff || (await usesExpenses(session.eventId)) : false;
 
   return (
     <div
@@ -88,7 +100,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
         {children}
       </main>
 
-      <PlayTabs />
+      <PlayTabs showMoney={showMoney} />
     </div>
   );
 }

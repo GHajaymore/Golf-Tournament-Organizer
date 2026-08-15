@@ -9,6 +9,11 @@ import { usePathname } from "next/navigation";
  * does fifteen things. A player does four, and every extra one is something
  * to read past while standing on a tee. If a fifth is ever needed, something
  * here should have to leave.
+ *
+ * Money is the exception, and it earns it by being CONDITIONAL: it appears
+ * only for a tournament that is actually splitting costs, so a Wednesday
+ * league that never buys a round together still has four. Nothing had to
+ * leave, and nobody is asked to read past a tab their event does not use.
  */
 const TABS = [
   { href: "/me", label: "Today", icon: "ph-flag" },
@@ -17,8 +22,11 @@ const TABS = [
   { href: "/me/rules", label: "Rules", icon: "ph-book-open" },
 ];
 
-export function PlayTabs() {
+const MONEY_TAB = { href: "/me/money", label: "Money", icon: "ph-receipt" };
+
+export function PlayTabs({ showMoney = false }: { showMoney?: boolean }) {
   const path = usePathname();
+  const tabs = showMoney ? [...TABS, MONEY_TAB] : TABS;
 
   return (
     <nav
@@ -40,7 +48,7 @@ export function PlayTabs() {
           "6px calc(4px + env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) calc(4px + env(safe-area-inset-left, 0px))",
       }}
     >
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         // Exact match for the root tab, prefix for the rest — otherwise
         // "Today" stays lit on every screen because every path starts /me.
         const active = t.href === "/me" ? path === "/me" : path.startsWith(t.href);

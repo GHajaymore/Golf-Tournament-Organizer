@@ -45,65 +45,71 @@ model User {
 
 /**
  * The billing tenant: a golf club, society, or an individual organizer.
- *
  * Tournaments belong to an organization rather than floating free, so a
  * subscription has something to attach to. Everyone gets one — an individual
  * organizer's is `kind = "personal"` — which keeps a single code path instead
  * of "event with an org" and "event without one".
- *
  * Note what is deliberately *not* here: players. They hold per-event Account
  * rows and are never organization members, so seat counts can never be
  * inflated by the field. Charging a club for its staff should never mean
  * charging its golfers.
  */
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  /** personal | club — a club is a shared tenant with staff; personal is one organizer. */
-  kind      String   @default("personal")
+  id   String @id @default(cuid())
+  name String
+  /**
+   * personal | club — a club is a shared tenant with staff; personal is one organizer.
+   */
+  kind String @default("personal")
 
   // Branding, applied to the console header and printed output for every
   // tournament this organization owns.
-  /** Absolute https:// URL to a logo image. A URL rather than an upload
-   *  because file uploads need blob storage; this works with the club's
-   *  existing website assets and can be swapped for an upload later without
-   *  changing anything that reads it. */
+  /**
+   * /** Absolute https:// URL to a logo image. A URL rather than an upload
+   * because file uploads need blob storage; this works with the club's
+   * existing website assets and can be swapped for an upload later without
+   * changing anything that reads it.
+   */
   logoUrl      String @default("")
-  /** Optional short name for tight spaces (headers, print). Falls back to `name`. */
+  /**
+   * Optional short name for tight spaces (headers, print). Falls back to `name`.
+   */
   shortName    String @default("")
-  /** How the name renders beside the logo: short | full | both. */
+  /**
+   * How the name renders beside the logo: short | full | both.
+   */
   brandDisplay String @default("short")
 
   /**
    * Where the club is.
-   *
    * Nothing anchored "courses near us" before this — the app knew a club by
    * name and nothing else, so there was no region to search and no sensible
    * default city when adding a course.
-   *
    * Free text rather than a geocoded point: it prefills the course form today
    * and is enough to scope a course lookup later, and asking a golf secretary
    * for coordinates would be asking the wrong question.
    */
-  city         String @default("")
-  /** State, county or province — whatever the club would write on a letter. */
-  region       String @default("")
-  country      String @default("")
+  city              String @default("")
+  /**
+   * State, county or province — whatever the club would write on a letter.
+   */
+  region            String @default("")
+  country           String @default("")
   /**
    * Accent colour preset, from src/lib/themes.ts.
-   *
    * A key rather than a hex value, deliberately. Storing raw colour would let
    * a club pick something the app cannot stay readable against; the presets
    * are contrast-checked by test, so whichever is chosen the text survives.
    */
-  themeKey     String @default("sunset")
-  /** The club's own colour, used when themeKey is "custom". Stored as entered;
-   *  the ramp built from it fixes lightness, so only hue and saturation are
-   *  actually honoured — that is what keeps an open field readable. */
-  themeHex     String @default("")
+  themeKey          String @default("sunset")
+  /**
+   * The club's own colour, used when themeKey is "custom". Stored as entered;
+   * the ramp built from it fixes lightness, so only hue and saturation are
+   * actually honoured — that is what keeps an open field readable.
+   */
+  themeHex          String @default("")
   /**
    * The second colour — advancing rows, positive deltas, a match won.
-   *
    * Defaults to the fairway green, which is the colour of the game rather than
    * of any one club and should usually be left alone. A club whose identity is
    * genuinely two colours has nowhere else to put the second one.
@@ -114,7 +120,6 @@ model Organization {
    * dark | light | auto. Light is not just taste: a bright screen is far
    * easier to read at arm's length in direct sun, which is where scores are
    * actually entered.
-   *
    * Defaults to `auto` so a new club follows the device. The console reads
    * auto as dark-first and the player-facing board as light-first, which is
    * the point: the same setting resolves to whichever ground suits the screen
@@ -134,7 +139,6 @@ model Organization {
   defaultScoreApproval         String  @default("staff")
   /**
    * House default for the per-match points cap. Zero is no cap.
-   *
    * A club that always runs its member-guest capped shouldn't have to set it
    * on every event, and an organizer running something different that week
    * shouldn't be stuck with the house rule — so this seeds a new tournament
@@ -144,12 +148,10 @@ model Organization {
 
   /**
    * The club's own course.
-   *
    * A golf club plays at its course — every tournament, unless someone says
    * otherwise — so setting it once here spares the organizer choosing a venue
    * they were never going to change. New tournaments start with it as their
    * only venue, which keeps every picker hidden.
-   *
    * Null for societies and community organizations, which have no home course
    * and for whom several venues is the normal case rather than the exception.
    * A club is never locked in either: it can add an away venue to any
@@ -171,7 +173,6 @@ model Organization {
 
 /**
  * A golf course the club plays, entered once and reused.
- *
  * Owned by the organization rather than by an event, because the same venue
  * comes back season after season and nobody should retype eighteen stroke
  * indexes for it twice. Built-in presets still exist for common courses; this
@@ -181,20 +182,20 @@ model Course {
   id             String @id @default(cuid())
   organizationId String
 
-  name String
-  city String @default("")
-  /** Street address as printed. Free text — clubs write these many ways, and
-   *  a strict shape would only stop somebody saving a real course. */
+  name    String
+  city    String @default("")
+  /**
+   * Street address as printed. Free text — clubs write these many ways, and
+   * a strict shape would only stop somebody saving a real course.
+   */
   address String @default("")
 
   /**
    * The club's Local Rules for this course, as it publishes them.
-   *
    * Free text on purpose. Local Rules are about internal out of bounds, ground
    * under repair, a drop zone short of the 12th — no schema will anticipate
    * them, and one that tried would only prevent a club recording the rule it
    * actually plays. Optional: a course with none simply shows nothing.
-   *
    * Belongs to the course rather than the event because that is what they
    * describe. A club running four tournaments on the same course should write
    * them once.
@@ -203,25 +204,31 @@ model Course {
 
   /**
    * Where this card came from, and whether anyone has checked it.
-   *
    * manual   — typed in by the club. Trusted.
    * imported — pulled from the web or a club site. NOT trusted until checked.
-   *
    * The distinction is not bureaucracy. A wrong par is obvious the first time
    * someone plays the hole; a wrong stroke index is invisible, and it silently
    * allocates handicap shots to the wrong holes for the life of the course.
    * An imported card is usable, but the app says so until a human confirms it.
    */
-  source      String   @default("manual")
-  /** When someone at the club confirmed the card is right. Null = unchecked. */
-  verifiedAt  DateTime?
-  /** Who confirmed it, for the organizer who asks "says who?". */
-  verifiedBy  String   @default("")
-  /** Where an imported card came from, so it can be re-checked or blamed. */
-  sourceUrl   String   @default("")
+  source     String    @default("manual")
+  /**
+   * When someone at the club confirmed the card is right. Null = unchecked.
+   */
+  verifiedAt DateTime?
+  /**
+   * Who confirmed it, for the organizer who asks "says who?".
+   */
+  verifiedBy String    @default("")
+  /**
+   * Where an imported card came from, so it can be re-checked or blamed.
+   */
+  sourceUrl  String    @default("")
 
-  /** JSON number arrays, one entry per hole — same encoding as the custom
-   *  course fields on Event, which this generalises. */
+  /**
+   * JSON number arrays, one entry per hole — same encoding as the custom
+   * course fields on Event, which this generalises.
+   */
   pars        String
   yards       String
   strokeIndex String
@@ -229,7 +236,7 @@ model Course {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   events       EventCourse[]
   stages       Stage[]
   matches      Match[]
@@ -241,7 +248,6 @@ model Course {
 
 /**
  * Which courses a tournament may be played on.
- *
  * A single row is the ordinary case and nobody is ever asked to choose. More
  * than one turns on the pickers: a multi-day or multi-week event rotating
  * venues sets the course per round, and a community league where opponents
@@ -249,13 +255,11 @@ model Course {
  */
 /**
  * A set of tees, with the ratings that make a handicap mean something.
- *
  * Course Rating and Slope are what convert a portable Handicap Index into the
  * strokes a player actually receives here. Without them the app was scoring
  * everyone off their raw index, which understates strokes on a hard course and
  * overstates them on an easy one — and treats a member-guest playing mixed
  * tees as though the course were identical for everyone.
- *
  * pars and strokeIndex are usually the course's own and stay empty. They exist
  * because championship tees occasionally differ, and a blank means inherit.
  */
@@ -263,19 +267,31 @@ model Tee {
   id       String @id @default(cuid())
   courseId String
 
-  /** As printed on the card: Blue, White, Red, Championship. */
-  name     String
-  /** any | men | women — whose card this set is rated for. */
-  gender   String @default("any")
+  /**
+   * As printed on the card: Blue, White, Red, Championship.
+   */
+  name   String
+  /**
+   * any | men | women — whose card this set is rated for.
+   */
+  gender String @default("any")
 
-  /** Strokes a scratch golfer is expected to take, e.g. 71.5. */
+  /**
+   * Strokes a scratch golfer is expected to take, e.g. 71.5.
+   */
   courseRating Float @default(0)
-  /** Difficulty relative to a bogey golfer. 113 is standard; 0 means unrated. */
+  /**
+   * Difficulty relative to a bogey golfer. 113 is standard; 0 means unrated.
+   */
   slopeRating  Int   @default(0)
-  /** Par for these tees, which can differ from the course's nominal par. */
+  /**
+   * Par for these tees, which can differ from the course's nominal par.
+   */
   par          Int   @default(72)
 
-  /** JSON number arrays, one per hole. Empty inherits from the course. */
+  /**
+   * JSON number arrays, one per hole. Empty inherits from the course.
+   */
   yards       String @default("")
   pars        String @default("")
   strokeIndex String @default("")
@@ -290,11 +306,9 @@ model Tee {
 
 /**
  * A season-long competition across many tournaments — an order of merit.
- *
  * Standings aggregate on Member, never on Player: a Player row belongs to one
  * event, so the same golfer entering twelve league rounds is twelve rows. The
  * club roster exists so there is one record of a person to hang a season on.
- *
  * Points come from finishing position rather than score, because a season can
  * mix stroke play, Stableford and match play, and those produce numbers that
  * cannot be added together. Position is the only currency every format shares.
@@ -306,14 +320,22 @@ model Series {
   name        String
   description String @default("")
 
-  /** JSON number array: points for 1st, 2nd, 3rd... Empty uses the default. */
+  /**
+   * JSON number array: points for 1st, 2nd, 3rd... Empty uses the default.
+   */
   pointsTable String @default("")
-  /** Count only this many best results. 0 counts everything. */
+  /**
+   * Count only this many best results. 0 counts everything.
+   */
   bestOf      Int    @default(0)
-  /** Events a member must play before being ranked. 0 ranks everyone. */
+  /**
+   * Events a member must play before being ranked. 0 ranks everyone.
+   */
   minEvents   Int    @default(0)
 
-  /** active | complete — a finished season stops accepting new events. */
+  /**
+   * active | complete — a finished season stops accepting new events.
+   */
   status String @default("active")
 
   createdAt DateTime @default(now())
@@ -339,12 +361,10 @@ model EventCourse {
 
 /**
  * A person on the club's roster — the primary record of who plays here.
- *
  * Tournaments draw from this rather than each event holding its own island of
  * names. Before this existed, a member who played twelve events was twelve
  * unrelated rows: no history, no single place to correct a phone number, and
  * no way to answer "what has this member played?".
- *
  * Distinct from OrganizationMember, which is *staff* (who can administer the
  * club). A Member is a golfer; they need no login and never take a seat.
  */
@@ -359,7 +379,9 @@ model Member {
   homeClub     String @default("")
   gender       String @default("")
   preferredTee String @default("")
-  /** Club membership number, where the club uses one. */
+  /**
+   * Club membership number, where the club uses one.
+   */
   memberNumber String @default("")
 
   /**
@@ -371,8 +393,10 @@ model Member {
   handicapType   String @default("18") // 9 | 18
   handicapSource String @default("manual") // ghin | manual | none
 
-  /** active | inactive — inactive members stay for history but are hidden
-   *  from the default roster view and from "add to tournament". */
+  /**
+   * active | inactive — inactive members stay for history but are hidden
+   * from the default roster view and from "add to tournament".
+   */
   status String @default("active")
   notes  String @default("")
 
@@ -386,13 +410,17 @@ model Member {
   @@index([organizationId, status])
 }
 
-/** Staff membership in an organization. Distinct from per-event Account
- *  roles: this is who belongs to the club, not who does what in one event. */
+/**
+ * Staff membership in an organization. Distinct from per-event Account
+ * roles: this is who belongs to the club, not who does what in one event.
+ */
 model OrganizationMember {
   id             String   @id @default(cuid())
   organizationId String
   userId         String
-  /** owner (billing) | admin (manage events & staff) | member (staff pool) */
+  /**
+   * owner (billing) | admin (manage events & staff) | member (staff pool)
+   */
   role           String   @default("member")
   createdAt      DateTime @default(now())
 
@@ -408,25 +436,29 @@ model OrganizationMember {
  * An organization's plan. Every organization has exactly one, including free
  * ones, so billing code never has to treat "no subscription" as a separate
  * case.
- *
  * What a plan *includes* lives in code (src/lib/plans.ts), not here — tier
  * limits change far more often than schemas should, and a price change
  * shouldn't require a migration and a backfill. Only the plan's name is
  * stored.
- *
  * The provider columns are unused until payments are wired up; they exist so
  * that adding Stripe later is a code change, not a migration against live
  * tenant data.
  */
 model Subscription {
-  id             String    @id @default(cuid())
-  organizationId String    @unique
-  /** Key into PLANS in src/lib/plans.ts. */
-  plan           String    @default("free")
-  /** active | trialing | past_due | canceled */
-  status         String    @default("active")
-  /** e.g. "stripe" — empty until a payment provider is connected. */
-  provider               String  @default("")
+  id                     String    @id @default(cuid())
+  organizationId         String    @unique
+  /**
+   * Key into PLANS in src/lib/plans.ts.
+   */
+  plan                   String    @default("free")
+  /**
+   * active | trialing | past_due | canceled
+   */
+  status                 String    @default("active")
+  /**
+   * e.g. "stripe" — empty until a payment provider is connected.
+   */
+  provider               String    @default("")
   providerCustomerId     String?
   providerSubscriptionId String?
   currentPeriodEnd       DateTime?
@@ -436,9 +468,11 @@ model Subscription {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
-/** A one-time, short-lived "forgot password" link. Only the sha256 of the
- *  raw token is stored — the raw value lives solely in the emailed URL, so a
- *  database read alone can never produce a usable reset link. */
+/**
+ * A one-time, short-lived "forgot password" link. Only the sha256 of the
+ * raw token is stored — the raw value lives solely in the emailed URL, so a
+ * database read alone can never produce a usable reset link.
+ */
 model PasswordResetToken {
   id        String    @id @default(cuid())
   userId    String
@@ -455,12 +489,10 @@ model PasswordResetToken {
 /**
  * Attempt counters for the endpoints reachable without a session: round-code
  * redemption, sign-in, and password reset.
- *
  * In the database rather than in process memory because the app runs on
  * serverless instances that are per-request and cold-start constantly — an
  * in-memory counter gives an attacker a fresh budget every time they land on
  * a new instance, which is most requests. Shared state is the whole point.
- *
  * `key` is `kind:sha256(identifier):window`, so the row holds no readable
  * email address and no live round code. It is the primary key so the counter
  * can be incremented with a single atomic upsert; rows past `expiresAt` are
@@ -477,144 +509,132 @@ model RateLimitHit {
 }
 
 model Event {
-  id              String   @id @default(cuid())
-  /** Owning tenant. Required so no tournament can exist outside a billing
-   *  boundary — existing events were backfilled to their organizer's
-   *  personal organization. */
-  organizationId  String
-  name            String
-  dates           String
-  format          String   @default("match") // match | stroke
-  course          String
-  city            String
-  address         String
+  id                String @id @default(cuid())
+  /**
+   * Owning tenant. Required so no tournament can exist outside a billing
+   * boundary — existing events were backfilled to their organizer's
+   * personal organization.
+   */
+  organizationId    String
+  name              String
+  dates             String
+  format            String @default("match") // match | stroke
+  course            String
+  city              String
+  address           String
   // Set when `course` doesn't match a built-in preset — the organizer's own
   // hole-by-hole data (JSON number[18] each), entered via the course setup
   // prompt on Score entry. Empty until saved.
   customPars        String @default("")
   customYards       String @default("")
   customStrokeIndex String @default("")
-  regDeadline     String
+  regDeadline       String
   /**
    * fixed | open — whether one venue covers the whole tournament.
-   *
    * "open" is the society or inter-club league where each pairing arranges
    * its own course. The event-level course stays empty on purpose and the
    * venue is named per match, by whoever enters the card.
    */
-  courseMode      String @default("fixed")
-  capacity        Int      @default(32)
-  playerCountMode String   @default("registration") // registration | manual
+  courseMode        String @default("fixed")
+  capacity          Int    @default(32)
+  playerCountMode   String @default("registration") // registration | manual
   manualPlayerCount Int    @default(32)
 
   // Flight formation + qualification config
-  formationRule   String   @default("balanced") // balanced | handicap | seeding | random | manual
-  flightMode      String   @default("auto")     // auto | count | perFlight
-  flightValue     Int      @default(0)
+  formationRule    String  @default("balanced") // balanced | handicap | seeding | random | manual
+  flightMode       String  @default("auto") // auto | count | perFlight
+  flightValue      Int     @default(0)
   /**
    * Whether the organizer has signed off the manual draw.
-   *
    * Only meaningful for the manual formation rule. The computed rules are
    * regenerated from a policy, so there is nothing to confirm — but a hand-
    * built draw is finished work, and it needs a point where it stops being
    * dragged around by accident.
    */
   flightsConfirmed Boolean @default(false)
-  qualifyPerGroup Int      @default(2)
-  qualifyMode     String   @default("perFlight") // perFlight | overall
-  qualifyOverall  Int      @default(16)
+  qualifyPerGroup  Int     @default(2)
+  qualifyMode      String  @default("perFlight") // perFlight | overall
+  qualifyOverall   Int     @default(16)
   /**
    * How the knockout is arranged once qualifiers are decided.
-   *
    * single = one bracket; split = two flights drawn by rank; plate = one
    * bracket with first-round losers dropping into a second. Defaults to split
    * because that is what every existing tournament already does — changing the
    * shape of a knockout under a running event would be a silent rule change.
    */
-  bracketMode     String   @default("split") // single | split | plate
+  bracketMode      String  @default("split") // single | split | plate
   /**
    * What shape of tournament this is, asked once at the start.
-   *
    * Decides what the rest of setup is about: a single round has no next round
    * to carry into, and a knockout has a bracket where a league has none.
    * Defaults to "series" because that is what every existing tournament was
    * built as — it shows every control, which is the behaviour they have now.
-   *
    * A starting point, never a cage. An organizer who adds a bracket to a
    * series has changed their mind, and the app follows.
    */
-  shape           String   @default("series") // single | series | knockout
+  shape            String  @default("series") // single | series | knockout
   /**
    * Whether people play as individuals or as a side — asked once, at setup.
-   *
    * A DEFAULT, NEVER A CONSTRAINT. Nothing that scores a round may read this.
    * Team-ness is a property of each round's format, because it genuinely
    * varies: a member-guest plays four-ball on Saturday and foursomes on
    * Sunday, and a league changes weekly. Storing "this is a team tournament"
    * as a fact would either block that or be quietly ignored, and an ignored
    * setting is worse than no setting.
-   *
    * What it is for is ROUTING. It picks the format a new round starts on, and
    * it lets "Teams & pairs" appear before any team round exists — which it
    * previously could not, so the one screen explaining how to set up team golf
    * was unreachable from the navigation.
-   *
    * Defaults to "individual": the common case, and what every existing
    * tournament already behaves as.
    */
-  sideStyle       String   @default("individual") // individual | pairs | teams | varies
+  sideStyle        String  @default("individual") // individual | pairs | teams | varies
   /**
    * The season this tournament counts towards, if any.
-   *
    * Null is the ordinary case: most tournaments stand alone. Setting it makes
    * the result feed an order of merit, which is what a league or a winter
    * series is.
    */
-  seriesId        String?
+  seriesId         String?
 
   // Scoring rules (round-robin stages)
-  winPts        Float  @default(3)
-  tiePts        Float  @default(1)
-  lossPts       Float  @default(0)
-  holeRatioPts  Float  @default(0.5)
-  bonusPts      Float  @default(0)
+  winPts               Float    @default(3)
+  tiePts               Float    @default(1)
+  lossPts              Float    @default(0)
+  holeRatioPts         Float    @default(0.5)
+  bonusPts             Float    @default(0)
   /**
    * Points for playing a match, awarded once per match contested.
-   *
    * Not the same as `bonusPts`, which is a single flat award per player no
    * matter how many matches they play. In a weekly league that difference is
    * the whole point: a regular who plays eight and a stand-in who plays one
    * collected the same bonus, so turning up paid nothing.
-   *
    * A player who forfeits does not collect it — see Match.forfeitedBy. Zero by
    * default, so no tournament starts paying an appearance point it never
    * asked for.
    */
-  playPts       Float  @default(0)
+  playPts              Float    @default(0)
   /**
    * The most a player or side can take from any single match. Zero is no cap,
    * which is what every existing tournament has and keeps.
-   *
    * Without one a flight can be settled by a single thrashing: holes won feed
    * into points, so a 7&6 pays several times what a 1-up win pays, and by the
    * last match of the week there is nothing left to play for. Capping the
    * take is standard in member-guest invitationals for exactly that reason.
    */
-  maxPerMatch   Float  @default(0)
-  tiebreakers   String @default("[\"head-to-head\",\"holes-won-ratio\",\"fewest-holes-lost\",\"lower-handicap\"]")
+  maxPerMatch          Float    @default(0)
+  tiebreakers          String   @default("[\"head-to-head\",\"holes-won-ratio\",\"fewest-holes-lost\",\"lower-handicap\"]")
   /**
    * How an ALL-SQUARE MATCH is decided — a different question from
    * `tiebreakers` above, which separates players level on points across the
    * whole tournament. This decides one match, on the card in front of you.
-   *
    * JSON array of keys from src/lib/domain/match-tiebreak.ts, in order. Empty
    * means a halved match stays halved: correct match play, and exactly what
    * every existing tournament already does.
    */
-  matchTiebreakers String @default("")
+  matchTiebreakers     String   @default("")
   /**
    * The organizer overriding the registration deadline, either way.
-   *
    * null follows the deadline. true closes early. false keeps entries open
    * past it — which is the common case, because deadlines get extended by a
    * word at the bar far more often than they get edited in software.
@@ -624,7 +644,6 @@ model Event {
   /**
    * Self-service (open) registration — people register themselves from a link
    * the organizer shares, no account required.
-   *
    * `registrationToken` is an unguessable id for the public /register/[token]
    * page, minted the same way as shareToken (CSPRNG, see src/lib/codes.ts) and
    * kept stable so the link an organizer has already sent keeps working. Empty
@@ -633,11 +652,9 @@ model Event {
    * by a PARTIAL index in the migration (unique where <> ''), which Prisma's
    * schema language can't express: a plain @@unique would make the empty
    * default collide for every event that has never opened registration.
-   *
    * `registrationOpen` is the switch. While false the link resolves to the same
    * neutral "not open" page a bogus token gets — closing it must not become an
    * oracle that a tournament exists (same discipline as /live).
-   *
    * `registrationApproval` is auto (fill to capacity as confirmed, overflow to
    * the waitlist) or approve (every entry lands pending for the organizer to
    * accept). Reuses Event.capacity, regDeadline and Player.status rather than
@@ -655,34 +672,41 @@ model Event {
   // event already under way. Values and their meanings live in
   // src/lib/tournament-settings.ts.
   leaderboardVisibility String  @default("participants") // staff | participants | public
-  scoreEntryBy          String  @default("players")      // staff | players
-  scoreEntryWindow      String  @default("during")       // during | after
+  scoreEntryBy          String  @default("players") // staff | players
+  scoreEntryWindow      String  @default("during") // during | after
   voiceEntry            Boolean @default(true)
-  playerAccess          String  @default("email")        // email | code | both
-  /** Who locks a result: "staff" holds every submitted card for organizer
-   *  review; "players" keeps the two-player confirmation with a 24h
-   *  auto-confirm. Defaults to staff — auto-confirming an unreviewed score is
-   *  not something an organizer should get without asking for it. */
-  scoreApproval         String  @default("staff")        // staff | players
-  /** Weekly-league attendance: everyone (no opt in/out — every confirmed
-   *  player is in every round), opt-out (regulars are in unless they say
-   *  otherwise), opt-in (only those who put their name down). */
-  attendanceMode        String  @default("everyone")     // everyone | opt-out | opt-in
-  /** When players approve, how many playing partners must confirm.
-   *  "Playing together" is the scoring group — the match, not the foursome. */
-  attestBy              String  @default("marker")       // marker | opponent | all
-  /** Unguessable id for the public read-only leaderboard. Always present, but
-   *  the link only resolves while leaderboardVisibility is "public", so
-   *  publishing and un-publishing is a single toggle and the URL survives it. */
-  shareToken String @unique
+  playerAccess          String  @default("email") // email | code | both
+  /**
+   * Who locks a result: "staff" holds every submitted card for organizer
+   * review; "players" keeps the two-player confirmation with a 24h
+   * auto-confirm. Defaults to staff — auto-confirming an unreviewed score is
+   * not something an organizer should get without asking for it.
+   */
+  scoreApproval         String  @default("staff") // staff | players
+  /**
+   * Weekly-league attendance: everyone (no opt in/out — every confirmed
+   * player is in every round), opt-out (regulars are in unless they say
+   * otherwise), opt-in (only those who put their name down).
+   */
+  attendanceMode        String  @default("everyone") // everyone | opt-out | opt-in
+  /**
+   * When players approve, how many playing partners must confirm.
+   * "Playing together" is the scoring group — the match, not the foursome.
+   */
+  attestBy              String  @default("marker") // marker | opponent | all
+  /**
+   * Unguessable id for the public read-only leaderboard. Always present, but
+   * the link only resolves while leaderboardVisibility is "public", so
+   * publishing and un-publishing is a single toggle and the URL survives it.
+   */
+  shareToken            String  @unique
 
   // Lifecycle
   status         String    @default("draft") // draft | registration | ready | live | completed
-  configUnlocked Boolean   @default(false)    // organizer override to edit after launch
+  configUnlocked Boolean   @default(false) // organizer override to edit after launch
   launchedAt     DateTime?
   /**
    * When this tournament was marked completed.
-   *
    * The clock the free tier's retention runs on. status alone cannot
    * carry it: updatedAt moves for any edit, and the free-text dates field is
    * whatever the organizer typed. Deleting somebody's results needs a
@@ -691,7 +715,6 @@ model Event {
   completedAt    DateTime?
   /**
    * Keep this tournament until at least this time, whatever the plan says.
-   *
    * An explicit reprieve rather than a loophole: demos, a disputed result
    * still being argued over, an event a club has asked to hold. Retention
    * takes the later of the plan window and this, so setting it can only ever
@@ -702,25 +725,27 @@ model Event {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  series         Series?      @relation(fields: [seriesId], references: [id], onDelete: SetNull)
-  accounts       Account[]
-  players        Player[]
-  groups         Group[]
-  stages         Stage[]
-  matches        Match[]
-  attendance     RoundAttendance[]
-  skinsPots      SkinsPot[]
-  bracketWinners BracketWinner[]
-  commentary     Commentary[]
-  scorecards     Scorecard[]
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  series          Series?           @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  accounts        Account[]
+  players         Player[]
+  groups          Group[]
+  stages          Stage[]
+  matches         Match[]
+  attendance      RoundAttendance[]
+  skinsPots       SkinsPot[]
+  bracketWinners  BracketWinner[]
+  commentary      Commentary[]
+  scorecards      Scorecard[]
   matchScorecards MatchScorecard[]
-  teams          Team[]
-  teamScorecards TeamScorecard[]
-  prizes         Prize[]
-  announcements  Announcement[]
-  auditLogs      AuditLog[]
-  courses        EventCourse[]
+  teams           Team[]
+  teamScorecards  TeamScorecard[]
+  prizes          Prize[]
+  announcements   Announcement[]
+  auditLogs       AuditLog[]
+  courses         EventCourse[]
+  expenses        Expense[]
+  settlements     Settlement[]
 
   @@index([organizationId])
 }
@@ -740,54 +765,54 @@ model Account {
 
 /**
  * One person's entry in one tournament.
- *
  * The identity lives on Member (the club roster); this is the participation:
  * seed, status, flight, and a snapshot of the details as they stood for this
  * event. `handicap` in particular is deliberately a snapshot — correcting a
  * member's index today must not rewrite a tournament played last season.
  */
 model Player {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   eventId  String
-  /** Roster record this entry belongs to. Optional only so that entries made
-   *  before the roster existed remain valid; every path that creates a player
-   *  now goes through a Member. */
+  /**
+   * Roster record this entry belongs to. Optional only so that entries made
+   * before the roster existed remain valid; every path that creates a player
+   * now goes through a Member.
+   */
   memberId String?
   name     String
-  handicap Float  @default(0)
+  handicap Float   @default(0)
   seed     Int
-  status   String @default("confirmed") // confirmed | waitlisted | withdrawn
+  status   String  @default("confirmed") // confirmed | waitlisted | withdrawn
 
   // Registration details
-  email          String @default("")
-  phone          String @default("")
-  ghin           String @default("")
-  homeClub       String @default("")
-  gender         String @default("")
-  preferredTee   String @default("")
-  handicapSource String @default("manual") // ghin | manual | none
-  handicapType   String @default("18") // 9 | 18 — which index this handicap number represents
+  email          String  @default("")
+  phone          String  @default("")
+  ghin           String  @default("")
+  homeClub       String  @default("")
+  gender         String  @default("")
+  preferredTee   String  @default("")
+  handicapSource String  @default("manual") // ghin | manual | none
+  handicapType   String  @default("18") // 9 | 18 — which index this handicap number represents
   /**
    * Which tees this entry plays from.
-   *
    * Null means the round's default. It matters because the Course Handicap
    * depends on the tees: the same index is worth different strokes off the
    * blues and the reds, which is the whole point of a slope rating.
    */
   teeId          String?
 
-  groupId  String?
+  groupId String?
 
-  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  group  Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  event           Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  group           Group?            @relation(fields: [groupId], references: [id], onDelete: SetNull)
   // Removing someone from the roster must not delete tournaments they played
   // in — the entry stays, detached, preserving the result.
-  member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  tee    Tee?    @relation(fields: [teeId], references: [id], onDelete: SetNull)
+  member          Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  tee             Tee?              @relation(fields: [teeId], references: [id], onDelete: SetNull)
   teamMemberships TeamMember[]
   attendance      RoundAttendance[]
-  captainOf       Group[] @relation("FlightCaptain")
-  viceCaptainOf   Group[] @relation("FlightViceCaptain")
+  captainOf       Group[]           @relation("FlightCaptain")
+  viceCaptainOf   Group[]           @relation("FlightViceCaptain")
   skinsEntries    SkinsEntry[]
 
   @@index([eventId])
@@ -796,18 +821,21 @@ model Player {
 }
 
 model Group {
-  id       String @id @default(cuid())
-  eventId  String
-  name     String
-  position Int
-  /** The flight's captain, appointed by the organizer. Sees their own
-   *  flight's attendance list; never anyone else's. Null = no captain. */
-  captainId String?
-  captain   Player? @relation("FlightCaptain", fields: [captainId], references: [id], onDelete: SetNull)
-  /** Deputises for the captain: same read-only view of the flight's list. */
+  id            String  @id @default(cuid())
+  eventId       String
+  name          String
+  position      Int
+  /**
+   * The flight's captain, appointed by the organizer. Sees their own
+   * flight's attendance list; never anyone else's. Null = no captain.
+   */
+  captainId     String?
+  captain       Player? @relation("FlightCaptain", fields: [captainId], references: [id], onDelete: SetNull)
+  /**
+   * Deputises for the captain: same read-only view of the flight's list.
+   */
   viceCaptainId String?
   viceCaptain   Player? @relation("FlightViceCaptain", fields: [viceCaptainId], references: [id], onDelete: SetNull)
-
 
   event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   players Player[]
@@ -817,50 +845,45 @@ model Group {
 }
 
 model Stage {
-  id                  String  @id @default(cuid())
+  id                  String   @id @default(cuid())
   eventId             String
   position            Int
   type                String // Round Robin | Qualification Stage | Single Match Stage | Bracket Stage
-  description         String  @default("")
-  format              String  @default("Match Play") // golf format (see src/lib/formats.ts)
-  holes               Int     @default(18)           // 9 | 18
+  description         String   @default("")
+  format              String   @default("Match Play") // golf format (see src/lib/formats.ts)
+  holes               Int      @default(18) // 9 | 18
   /**
    * The day this round is actually played, as an ISO date ("2026-05-19").
    * Empty means no fixed day.
-   *
    * Distinct from `deadline`, and the distinction is the point: a Tuesday
    * league PLAYS on Tuesday, it does not "play by" Tuesday. A knockout round
    * where players arrange their own match still wants a deadline; a fixed-day
    * league wants a date, and had no field to put one in.
-   *
    * A plain date string rather than DateTime deliberately. This is a calendar
    * day, not an instant — storing it as a timestamp means a club in one
    * timezone can see "Mon 18 May" for a round everyone played on Tuesday.
-   *
    * Per round, so a rained-off week can be moved on its own without touching
    * the rest of the season.
    */
-  playedOn            String  @default("")
-  deadline            String  @default("")
+  playedOn            String   @default("")
+  deadline            String   @default("")
   /**
    * The organizer closing this round early or extending it past its date.
-   *
    * null follows the deadline. Same rule as registration — see
    * src/lib/deadline.ts — because they are the same question asked twice.
    */
   deadlineOverride    Boolean?
-  scoringBasis        String  @default("gross") // gross | net | both
-  carryForwardEnabled Boolean @default(false)
-  carryForwardPct     Int     @default(0)
+  scoringBasis        String   @default("gross") // gross | net | both
+  carryForwardEnabled Boolean  @default(false)
+  carryForwardPct     Int      @default(0)
   /**
    * Whether the organizer has actually been asked about carry-forward.
-   *
    * Distinguishes "they said no" from "nobody ever raised it", which a plain
    * boolean cannot. In a points league whether a strong round still counts is
    * the central decision, and leaving it as an unchecked box halfway down a
    * collapsed panel meant it was made by default rather than on purpose.
    */
-  carryForwardAsked   Boolean @default(false)
+  carryForwardAsked   Boolean  @default(false)
 
   // Field cut entering this round (Round Robin stages after the first): only
   // the top cutCount / cutPercent players from the previous round's standings
@@ -869,7 +892,6 @@ model Stage {
   cutEnabled Boolean @default(false)
   /**
    * overall | perFlight — out of what the cut is taken.
-   *
    * The cut line could only ever take the top N across the whole field, while
    * a separate tournament-level "qualification" setting had per-flight but no
    * percentage. Two half-answers to one question, which an organizer could set
@@ -880,20 +902,22 @@ model Stage {
   cutCount   Int     @default(16)
   cutPercent Int     @default(50)
 
-  /** The venue for this round, when the tournament rotates them — a
-   *  multi-day member-guest or a multi-week league playing somewhere new
-   *  each time. Null means fall back to the event's course. */
+  /**
+   * The venue for this round, when the tournament rotates them — a
+   * multi-day member-guest or a multi-week league playing somewhere new
+   * each time. Null means fall back to the event's course.
+   */
   courseId String?
-  /** Which nine, when the round is 9 holes. full | front | back */
+  /**
+   * Which nine, when the round is 9 holes. full | front | back
+   */
   nine     String  @default("full")
 
   /**
    * Committee override for this round's handicap allowance, as a percentage.
-   *
    * Zero means "use the allowance the format recommends", which is what almost
    * every round wants — a stored 0 is therefore not a 0% allowance but an
    * absence of opinion, and that is why this isn't nullable.
-   *
    * It exists because the published WHS allowances are recommendations, and
    * the scramble family has no published allowance at all — only a widely used
    * club convention. A committee that sets its own needs somewhere to say so,
@@ -906,12 +930,10 @@ model Stage {
    * Per-player allowance shares for this round, best player first — the
    * committee's version of greensomes' 60/40 or a scramble's descending
    * table.
-   *
    * Some shared-ball formats don't take a flat percentage of the combined
    * handicaps, and the split itself varies by club: 60/40 is the common
    * greensomes convention, but 50/50 and 55/45 are all played. `handicapAllowance`
    * is a single number and cannot express any of them.
-   *
    * Empty means "use the split the format recommends", exactly as zero does
    * for handicapAllowance — so every round that existed before this field
    * keeps scoring the way it always did.
@@ -926,12 +948,10 @@ model Stage {
   /**
    * How many partners' scores count on each hole, for the formats that
    * aggregate separate balls.
-   *
    * Four-ball and ordinary best ball count one — the single best score on the
    * hole. Plenty of club and society days count the best two or three of
    * four instead, which keeps everyone involved on every hole rather than
    * leaving three players spectating once someone makes par.
-   *
    * Zero means "use what the format counts", which is one, so every round
    * that existed before this field scores exactly as it did. The scoring
    * engine has always taken this as a parameter; only the setting is new.
@@ -941,24 +961,23 @@ model Stage {
   /**
    * Round Code — the shared code players enter to report scores for this
    * round, modelled on the GGID golfers already know from Golf Genius.
-   *
    * Per round rather than per player because distribution is the problem that
    * decides whether self-scoring gets used at all: one code read out on the
    * first tee beats forty printed slips. A twelve-round league has twelve
    * codes, and last week's stops working.
-   *
    * The trade is real and deliberate: a shared code proves membership of the
    * round, not identity, so the player picks their own name after entering it.
    * Empty unless the tournament has code access switched on.
    */
-  accessCode String @default("")
-  /** Last day a player may change their in/out for this round (inclusive,
-   *  same reading as every other deadline — see src/lib/deadline.ts). Empty
-   *  means changes stay open. Staff always may. */
-  optDeadline String @default("")
+  accessCode        String  @default("")
+  /**
+   * Last day a player may change their in/out for this round (inclusive,
+   * same reading as every other deadline — see src/lib/deadline.ts). Empty
+   * means changes stay open. Staff always may.
+   */
+  optDeadline       String  @default("")
   /**
    * The round's tee sheet, saved as drawn.
-   *
    * JSON rather than rows on purpose: a sheet is replaced wholesale on every
    * regenerate, read as a unit, and never queried relationally — groups with
    * their players, start holes and times. Empty until an organizer saves one;
@@ -966,27 +985,28 @@ model Stage {
    * downstream could ever use it.
    */
   teeSheet          String  @default("")
-  /** Whether players may see it. Drafts stay the organizer's. */
+  /**
+   * Whether players may see it. Drafts stay the organizer's.
+   */
   teeSheetPublished Boolean @default(false)
 
-  event      Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  course     Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  event      Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  course     Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
   matches    Match[]
   teams      Team[]
   attendance RoundAttendance[]
   skinsPots  SkinsPot[]
-
-  @@index([eventId])
   // Redemption looks a code up on its own, so codes must be unique across
   // every tournament. Enforced by a *partial* unique index in the migration
   // (unique where accessCode <> ''), which Prisma's schema language can't
   // express — a plain @@unique would make the empty default collide for every
   // round that has no code.
+
+  @@index([eventId])
 }
 
 /**
  * One player's explicit in/out for one round of a league.
- *
  * Only explicit choices are rows. Absence means the tournament's default —
  * in for an opt-out league, out for an opt-in one — which is what lets an
  * organizer flip a forty-player league to opt-out without writing forty
@@ -999,8 +1019,10 @@ model RoundAttendance {
   playerId  String
   status    String // in | out
   decidedAt DateTime @default(now())
-  /** Who flipped it — the player themself, or a staff name. The answer to
-   *  "why am I not playing this week" has to name a person. */
+  /**
+   * Who flipped it — the player themself, or a staff name. The answer to
+   * "why am I not playing this week" has to name a person.
+   */
   decidedBy String   @default("")
 
   event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -1019,13 +1041,11 @@ model Match {
   round     Int
   /**
    * The two sides.
-   *
    * In an individual format these are Player ids and the team columns are
    * empty. In a team format the team columns hold the sides and these are
    * empty — deliberately not repurposed to hold a team id, because a column
    * whose meaning depends on the round's format is the kind of thing that
    * silently mis-joins a year later.
-   *
    * Empty string rather than null, matching how the rest of the schema models
    * "not set", so the pairing can be read without null-juggling.
    */
@@ -1038,16 +1058,13 @@ model Match {
 
   /**
    * The side that forfeited, when the match was not played out.
-   *
    * Covers the concession of a match (Rule 3.2b(1)), a no-show and a
    * withdrawal — all of which end a match without a card, and none of which
    * could be recorded at all. An organizer's only options were to invent a
    * scoreline or leave the match Live forever.
-   *
    * Holds a player id in an individual round and a team id in a team round,
    * mirroring whichever pair of columns above the round uses. Empty means the
    * match was played.
-   *
    * When set it OVERRIDES `holes`: the opponent takes the win however many
    * holes were entered before the player walked in, because a conceded match
    * is won rather than led. Those holes are also kept out of the standings —
@@ -1058,37 +1075,41 @@ model Match {
 
   /**
    * The venue this particular match was played at.
-   *
    * Null means inherit — from the round, then the event — which is the normal
    * case for a tournament that booked its courses in advance. It is set where
    * the organizer couldn't know: a community league whose opponents arrange
    * their own match somewhere of their choosing before the deadline.
-   *
    * Inheriting is the default, never a restriction. The organizer can always
    * set this on any match — a pairing that had to move venue at short notice
    * is exactly the kind of thing no inference should be able to lock them out
    * of correcting.
    */
   courseId String?
-  /** Which nine, when the round is 9 holes. full | front | back */
+  /**
+   * Which nine, when the round is 9 holes. full | front | back
+   */
   nine     String  @default("full")
 
   // Score confirmation (two-player workflow)
   scoreStatus   String    @default("pending") // pending | confirmed | disputed
   scoredAt      DateTime?
-  /** Who wrote the score down, as a display name. A result that nobody can be
-   *  traced to is not a result a committee can defend, and this was the half
-   *  of the trail that was never recorded — confirmedById existed but was only
-   *  ever written as null. */
+  /**
+   * Who wrote the score down, as a display name. A result that nobody can be
+   * traced to is not a result a committee can defend, and this was the half
+   * of the trail that was never recorded — confirmedById existed but was only
+   * ever written as null.
+   */
   enteredBy     String    @default("")
   confirmedById String?
-  /** Who signed it off, as a display name, alongside the id. */
+  /**
+   * Who signed it off, as a display name, alongside the id.
+   */
   confirmedBy   String    @default("")
 
-  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  stage  Stage   @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  group  Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  event           Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  stage           Stage            @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  group           Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  course          Course?          @relation(fields: [courseId], references: [id], onDelete: SetNull)
   matchScorecards MatchScorecard[]
 
   @@index([eventId])
@@ -1141,7 +1162,9 @@ model Commentary {
   @@index([eventId])
 }
 
-/** A prize / payout line — flight winner, skin, closest-to-pin, etc. */
+/**
+ * A prize / payout line — flight winner, skin, closest-to-pin, etc.
+ */
 model Prize {
   id       String  @id @default(cuid())
   eventId  String
@@ -1156,7 +1179,9 @@ model Prize {
   @@index([eventId])
 }
 
-/** An announcement pushed to players (schedule change, notice, results). */
+/**
+ * An announcement pushed to players (schedule change, notice, results).
+ */
 model Announcement {
   id        String   @id @default(cuid())
   eventId   String
@@ -1170,11 +1195,12 @@ model Announcement {
   @@index([eventId])
 }
 
-/** Individual stroke-play scorecard for a player in a round. */
+/**
+ * Individual stroke-play scorecard for a player in a round.
+ */
 /**
  * A side in a team format — a member-guest pairing, a scramble four, a
  * four-ball partnership.
- *
  * `stageId` decides how long the team lasts. Null means it plays the whole
  * tournament, which is the member-guest case where a pairing is the entry
  * itself. Set to a round means the teams were drawn for that round only, which
@@ -1186,7 +1212,9 @@ model Team {
   eventId String
   stageId String?
   name    String
-  /** Seeding/draw order, and the display order on a leaderboard. */
+  /**
+   * Seeding/draw order, and the display order on a leaderboard.
+   */
   seed    Int     @default(0)
 
   createdAt DateTime @default(now())
@@ -1222,19 +1250,14 @@ model TeamMember {
 
 /**
  * A team's card for one round.
- *
  * `playerId` is what distinguishes the two shapes of team golf:
- *
- *   Empty — the side plays one ball and there is a single card for the team
- *   (foursomes, scramble, Chapman).
- *
- *   Set — each partner keeps their own card and the team's score is derived
- *   per hole (four-ball, best ball, shamble). One row per partner.
- *
+ * Empty — the side plays one ball and there is a single card for the team
+ * (foursomes, scramble, Chapman).
+ * Set — each partner keeps their own card and the team's score is derived
+ * per hole (four-ball, best ball, shamble). One row per partner.
  * Empty string rather than null so the unique constraint below actually
  * constrains: Postgres treats nulls as distinct, so a nullable column here
  * would happily accept two cards for the same single-ball side.
- *
  * `matchId` is empty for a team stroke-play round, which has no opponent, and
  * set for team match play, where each match needs its own card.
  */
@@ -1266,14 +1289,12 @@ model Scorecard {
 
   /**
    * Where this card is in the two steps Rule 3.3b describes.
-   *
-   *   entered   — written down. Not yet claimed to be right by anyone.
-   *   certified — the marker and player say the hole scores are correct. This
-   *               is the card being returned.
-   *   approved  — the committee has accepted it. Only now is it a result.
-   *   disputed  — someone has said it is wrong. Never silently becomes
-   *               approved; a blanket approval must step around it.
-   *
+   * entered   — written down. Not yet claimed to be right by anyone.
+   * certified — the marker and player say the hole scores are correct. This
+   * is the card being returned.
+   * approved  — the committee has accepted it. Only now is it a result.
+   * disputed  — someone has said it is wrong. Never silently becomes
+   * approved; a blanket approval must step around it.
    * Match play has had this since the start, on Match.scoreStatus. Stroke play
    * did not, so a card went straight from a text box to the leaderboard with
    * nothing in between — which mattered much more once one person in a
@@ -1281,13 +1302,17 @@ model Scorecard {
    */
   status String @default("entered")
 
-  /** Who certified the hole scores, and when. The marker, in Rule terms. */
-  certifiedBy String   @default("")
+  /**
+   * Who certified the hole scores, and when. The marker, in Rule terms.
+   */
+  certifiedBy String    @default("")
   certifiedAt DateTime?
 
-  /** Who accepted it for the committee, and when. Kept even after a reopen:
-   *  the question "who signed this off" must survive the card changing. */
-  approvedBy String   @default("")
+  /**
+   * Who accepted it for the committee, and when. Kept even after a reopen:
+   * the question "who signed this off" must survive the card changing.
+   */
+  approvedBy String    @default("")
   approvedAt DateTime?
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -1321,17 +1346,14 @@ model MatchScorecard {
 
 /**
  * A skins pot on one round of a league.
- *
  * Attached to a round rather than the event because a league runs one a week,
  * and each week stands alone: its own entrants, its own pot, its own result.
- *
  * Entrants are stored explicitly rather than derived from who is playing.
  * Attendance answers "are you here this week"; this answers "did you put money
  * in", which is a cash transaction at the first tee that only the person
  * collecting it knows about. Plenty of players play the round and stay out of
  * the skins, and entering them anyway would produce a settlement sheet that is
  * wrong in the way that loses a club's trust.
- *
  * Money is only ever CALCULATED and RECORDED here. TourneyHQ does not move it.
  */
 model SkinsPot {
@@ -1344,16 +1366,24 @@ model SkinsPot {
    */
   stageId String
 
-  /** Stake per player, in whole cents, so no total is ever a rounded float. */
-  buyInCents Int @default(0)
-  /** Net applies handicap strokes per hole — what makes skins playable in a
-   *  mixed-ability club field. Gross is a scratch player's game. */
-  net Boolean @default(true)
-  /** full | front | back. A league playing 18 may run skins on the front only,
-   *  so this is independent of the round's own hole count. */
-  scope String @default("full")
+  /**
+   * Stake per player, in whole cents, so no total is ever a rounded float.
+   */
+  buyInCents Int     @default(0)
+  /**
+   * Net applies handicap strokes per hole — what makes skins playable in a
+   * mixed-ability club field. Gross is a scratch player's game.
+   */
+  net        Boolean @default(true)
+  /**
+   * full | front | back. A league playing 18 may run skins on the front only,
+   * so this is independent of the round's own hole count.
+   */
+  scope      String  @default("full")
 
-  /** Players who paid in. Entered by club staff, never inferred. */
+  /**
+   * Players who paid in. Entered by club staff, never inferred.
+   */
   entrants SkinsEntry[]
 
   createdAt DateTime @default(now())
@@ -1366,7 +1396,9 @@ model SkinsPot {
   @@index([eventId])
 }
 
-/** One player's stake in one week's pot. */
+/**
+ * One player's stake in one week's pot.
+ */
 model SkinsEntry {
   id       String @id @default(cuid())
   potId    String
@@ -1377,4 +1409,101 @@ model SkinsEntry {
 
   @@unique([potId, playerId])
   @@index([playerId])
+}
+
+/**
+ * One thing somebody paid for on an outing.
+ * Money is INTEGER CENTS, never a float, and `amountCents` may be NEGATIVE:
+ * that is a refund or credit — a returned deposit, a cancelled cart — which
+ * splits exactly like a charge and lands the other way round.
+ * `paidBy` is a Player id but deliberately NOT a relation. A Player row with
+ * no scores can still be hard-deleted, and a foreign key would either block
+ * that delete or cascade this expense away and unbalance a ledger that other
+ * people are settling against. The domain module keeps a departed player's
+ * side of the balance and the screen renders them as unknown; see
+ * domain/expenses.ts.
+ */
+model Expense {
+  id      String @id @default(cuid())
+  eventId String
+  /**
+   * The round this belongs to. Empty means the whole outing.
+   */
+  stageId String @default("")
+
+  description String
+  amountCents Int
+  /**
+   * Player id of whoever actually paid the bill.
+   */
+  paidBy      String
+  /**
+   * green-fees | cart | lodging | food | travel | other. Free text, because
+   * a club will always have a category nobody predicted.
+   */
+  category    String @default("")
+  /**
+   * The calendar day it was spent, ISO — a day, not an instant.
+   */
+  spentOn     String @default("")
+
+  /**
+   * Display name of whoever entered it, for the audit trail.
+   */
+  createdBy String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shares ExpenseShare[]
+  event  Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([stageId])
+}
+
+/**
+ * One player's share of one expense.
+ * `weight` is relative: 1 each is an even split, 2 is a double share, and 0
+ * means on the outing but not on this bill — which is a different fact from
+ * having no row at all, and worth keeping.
+ */
+model ExpenseShare {
+  id        String @id @default(cuid())
+  expenseId String
+  playerId  String
+  weight    Int    @default(1)
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, playerId])
+  @@index([expenseId])
+}
+
+/**
+ * A settle-up that happened.
+ * A FACT, not a status: who handed what to whom, when, and who recorded it.
+ * There is deliberately no state machine here — no partial payments, no
+ * reminders, no confirmations — because the app does not move the money and
+ * modelling a payment flow it cannot observe would be inventing certainty.
+ * Recorded rather than derived so that a settle-up survives a later expense
+ * being added: the ledger from that point is the standing position MINUS what
+ * has already changed hands.
+ */
+model Settlement {
+  id      String @id @default(cuid())
+  eventId String
+
+  fromPlayerId String
+  toPlayerId   String
+  cents        Int
+
+  /**
+   * Display name of whoever marked it settled.
+   */
+  recordedBy String   @default("")
+  settledAt  DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
 }
