@@ -10,6 +10,7 @@ import { showBracket, bracketBadge, feederFraction } from "@/lib/bracket-visibil
 import { matchProgress, standingRows } from "@/lib/services/tournament";
 import { pts, shortName } from "@/lib/format";
 import { RoundAvailability } from "@/components/RoundAvailability";
+import { todayIso } from "@/lib/deadline";
 import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { currentRoundCut } from "@/lib/domain/cut";
@@ -243,6 +244,7 @@ export default async function DashboardPage() {
             future={availability.future}
             past={availability.past}
             captainOf={availability.captainOf}
+            today={todayIso()}
           />
         </div>
       )}

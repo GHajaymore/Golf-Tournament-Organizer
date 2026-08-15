@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { setAttendance } from "@/app/actions/attendance";
+import { AvailabilityCalendar } from "@/components/AvailabilityCalendar";
 import type { AvailabilityRound, AvailabilityView, CaptainFlight } from "@/lib/services/availability";
 
 export type { AvailabilityRound, CaptainFlight } from "@/lib/services/availability";
@@ -34,6 +35,7 @@ export function RoundAvailability({
   future,
   past,
   captainOf = [],
+  today,
 }: {
   /** The signed-in player's entry in this tournament. */
   playerId: string;
@@ -42,6 +44,9 @@ export function RoundAvailability({
   past: AvailabilityRound[];
   /** Flights this player captains, across the season. */
   captainOf?: CaptainFlight[];
+  /** Today as yyyy-mm-dd, from the server. The browser's idea of today is the
+   *  device's, and a phone an hour ahead would light the wrong square. */
+  today: string;
 }) {
   const all = [...(next ? [next] : []), ...future, ...past];
   const [byStage, setByStage] = useState<Record<string, "in" | "out">>(() =>
@@ -51,6 +56,7 @@ export function RoundAvailability({
     Object.fromEntries(all.map((r) => [r.stageId, r.explicit])),
   );
   const [error, setError] = useState("");
+  const [view, setView] = useState<"calendar" | "list">("calendar");
   const [pending, startTransition] = useTransition();
 
   const answer = (stageId: string, status: "in" | "out") => {
@@ -71,6 +77,18 @@ export function RoundAvailability({
 
   if (all.length === 0 && captainOf.length === 0) return null;
 
+  /**
+   * Calendar or list.
+   *
+   * The calendar is the default wherever the rounds carry dates, because "am I
+   * around for any of this" is a question about days and a list makes the
+   * reader rebuild the month in their head. A season with no dates has no
+   * calendar to draw, so the toggle isn't offered — and the list stays, in
+   * full, for the player who wants the deadlines spelled out.
+   */
+  const dated = all.filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.playedOn));
+  const canCalendar = dated.length > 0;
+
   const row = (r: AvailabilityRound, emphasis: boolean) => (
     <Round
       key={r.stageId}
@@ -85,16 +103,46 @@ export function RoundAvailability({
 
   return (
     <div className="card elev-sm" style={{ gap: 14 }}>
-      <div>
-        <span className="card-title" style={{ fontSize: 15 }}>
-          Your availability
-        </span>
-        <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
-          Say whether you&rsquo;re playing, round by round. You can change your answer until each
-          round&rsquo;s sign-up deadline; after that the organizer makes changes.
-        </p>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>
+            Your availability
+          </span>
+          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
+            Say whether you&rsquo;re playing, round by round. You can change your answer until each
+            round&rsquo;s sign-up deadline; after that the organizer makes changes.
+          </p>
+        </div>
+        {canCalendar && (
+          <div className="seg" style={{ flexShrink: 0 }}>
+            <label className="seg-opt">
+              <input
+                type="radio"
+                name="avail-view"
+                checked={view === "calendar"}
+                onChange={() => setView("calendar")}
+              />
+              <i className="ph ph-calendar-blank" /> Calendar
+            </label>
+            <label className="seg-opt">
+              <input
+                type="radio"
+                name="avail-view"
+                checked={view === "list"}
+                onChange={() => setView("list")}
+              />
+              <i className="ph ph-list" /> List
+            </label>
+          </div>
+        )}
       </div>
 
+      {/* The next round sits above both views, always.
+          It is what most players opened the app to answer, it is the only one
+          with a deadline worth printing in words, and a month grid answers
+          "am I around in June" without answering "what about Tuesday". The
+          toggle below switches the REST of the season between a calendar and
+          a list. */}
       {next && (
         <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <span className="card-kicker">Next round</span>
@@ -102,7 +150,23 @@ export function RoundAvailability({
         </section>
       )}
 
-      {future.length > 0 && (
+      {canCalendar && view === "calendar" && (
+        <AvailabilityCalendar
+          rounds={all.map((r) => ({
+            stageId: r.stageId,
+            label: r.label,
+            status: byStage[r.stageId] ?? r.status,
+            explicit: explicitByStage[r.stageId] ?? r.explicit,
+            locked: r.locked,
+            playedOn: r.playedOn,
+          }))}
+          today={today}
+          pending={pending}
+          onAnswer={answer}
+        />
+      )}
+
+      {(!canCalendar || view === "list") && future.length > 0 && (
         <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <span className="card-kicker">
             Future rounds <span style={{ opacity: 0.7 }}>({future.length})</span>
@@ -113,7 +177,7 @@ export function RoundAvailability({
 
       {/* Collapsed, not dropped. A player who wants to check what they said
           about a week that has been and gone can still open it. */}
-      {past.length > 0 && (
+      {(!canCalendar || view === "list") && past.length > 0 && (
         <details>
           <summary
             className="card-kicker touch-target"

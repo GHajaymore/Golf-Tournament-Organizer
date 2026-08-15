@@ -5,6 +5,7 @@ import { loadEventState } from "@/lib/services/tournament";
 import { meFor } from "@/lib/services/me";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
+import { todayIso } from "@/lib/deadline";
 import { toParText } from "@/lib/domain";
 
 /**
@@ -199,6 +200,7 @@ export default async function PlayTodayPage() {
                 future={availability.future}
                 past={availability.past}
                 captainOf={availability.captainOf}
+                today={todayIso()}
               />
             </div>
           )}
