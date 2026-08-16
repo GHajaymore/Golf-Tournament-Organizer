@@ -214,7 +214,13 @@ export function MessagesClient({
           <i className={KIND_ICON[view.kind] ?? "ph ph-chat-circle"} style={{ color: "var(--color-accent)" }} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14.5, fontWeight: 600 }}>{view.title}</div>
-            <div className="text-muted" style={{ fontSize: 11.5 }}>{view.label}</div>
+            {/* The second line says what kind of audience this is — "Flight A"
+                over "Your flight". For the broadcast scopes the thread has no
+                name of its own and the two are the same string, which printed
+                "Players only" twice. */}
+            {view.label !== view.title && (
+              <div className="text-muted" style={{ fontSize: 11.5 }}>{view.label}</div>
+            )}
           </div>
         </div>
 
@@ -361,7 +367,11 @@ export function MessagesClient({
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                 <span style={{ fontSize: 14, fontWeight: t.unread > 0 ? 700 : 500 }}>{t.title}</span>
-                <span className="text-muted" style={{ fontSize: 11 }}>{t.label}</span>
+                {/* Same as the open thread's header: the broadcast scopes have
+                    no name of their own, so title and label are one string. */}
+                {t.label !== t.title && (
+                  <span className="text-muted" style={{ fontSize: 11 }}>{t.label}</span>
+                )}
               </div>
               <div className="text-muted" style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {t.preview || "No messages yet"}

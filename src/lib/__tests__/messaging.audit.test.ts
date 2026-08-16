@@ -561,3 +561,14 @@ describe("a players-only broadcast", () => {
     expect((await staffBroadcast(sam, scopeKey("players"), "hello all", "Sam")).ok).toBe(false);
   });
 });
+
+describe("how destinations are labelled", () => {
+  it("names a round the way the rest of the app does", async () => {
+    // The label came from Stage.description, which holds a sentence explaining
+    // the format. In a list of places to send a message, beside "Flight A",
+    // that read as an explanation rather than a destination.
+    const admin = (await ctxFor("olive", "admin"))!;
+    const rounds = (await composableScopes(admin)).filter((s) => s.kind === "round");
+    expect(rounds.map((r) => r.label)).toEqual(["Round 1 — Round Robin", "Round 2 — Round Robin"]);
+  });
+});

@@ -601,7 +601,19 @@ export async function composableScopes(
     prisma.team.findMany({ where: { eventId: ctx.eventId }, select: { id: true, name: true } }),
   ]);
   const groupName = new Map(groups.map((g) => [g.id, g.name]));
-  const stageName = new Map(stages.map((s) => [s.id, s.description?.trim() || s.type]));
+  /**
+   * "Round 1 — Round Robin", matching how rounds are named everywhere else in
+   * the app (play-auth). Not `description`: that field holds a sentence
+   * explaining the format ("Every player meets every other in their group over
+   * 3 rounds"), which reads as an explanation rather than a destination when a
+   * dropdown of places to send a message puts it beside "Flight A".
+   */
+  const stageName = new Map(
+    stages.map((s, i) => {
+      const type = s.type?.trim();
+      return [s.id, type ? `Round ${i + 1} — ${type}` : `Round ${i + 1}`] as const;
+    }),
+  );
   const teamName = new Map(teams.map((t) => [t.id, t.name]));
 
   for (const key of keys) {
