@@ -93,6 +93,7 @@ export default async function PublicRegisterPage({ params }: { params: Promise<{
           waitlistOnly={view.waitlistOnly}
           spotsLeft={view.spotsLeft}
           approvalMode={view.approvalMode}
+          requirePhone={view.requirePhone}
           prefill={prefill}
         />
 

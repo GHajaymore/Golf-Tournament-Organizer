@@ -2860,3 +2860,19 @@ export async function reopenScorecard(stageId: string, playerId: string) {
   refresh();
   return { ok: true };
 }
+
+/**
+ * Whether this tournament's sign-up form demands a mobile number.
+ *
+ * Per tournament, and off by default. A phone number is not needed to run a
+ * competition — email is identity here and the app reaches people in the app —
+ * so a required field that costs entries belongs to the organizer of the event
+ * that actually needs one, rather than being imposed on every club.
+ */
+export async function setRequirePhone(required: boolean): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  await prisma.event.update({ where: { id: eventId }, data: { requirePhone: !!required } });
+  refresh();
+  return { ok: true };
+}

@@ -1,7 +1,7 @@
 "use client";
 import { registrationStatus, formatDeadline } from "@/lib/registration";
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
-import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, approveSignup } from "@/app/actions/tournament";
+import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup } from "@/app/actions/tournament";
 import { useState, useRef, useTransition } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SetupLockBanner } from "./SetupLockBanner";
@@ -37,6 +37,7 @@ interface EventInfo {
   registrationOpen: boolean;
   /** auto | approve — whether entries land confirmed or wait for the organizer. */
   registrationApproval: string;
+  requirePhone: boolean;
   /** Opaque token for the public /register/[token] link. Empty until first opened. */
   registrationToken: string;
 }
@@ -531,6 +532,32 @@ export function RegistrationClient({
                   ? "Every entry lands in “Pending approval” below for you to accept — nobody joins the field until you do."
                   : "Entries fill the field up to capacity and confirm automatically; once full, further entries go to the waitlist."}
               </p>
+            </div>
+
+            {/* Off by default, and per tournament rather than global. A phone
+                number is not needed to run a competition — the app reaches
+                people in the app — so a required field that costs entries is
+                the organizer's call for the event that actually needs it. */}
+            <div className="field" style={{ marginTop: 2 }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={event.requirePhone}
+                  disabled={pending || locked}
+                  onChange={(e) =>
+                    startTransition(() => void setRequirePhone(e.target.checked))
+                  }
+                  style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
+                />
+                <span>
+                  <span style={{ fontWeight: 500 }}>Require a mobile number</span>
+                  <span className="text-muted" style={{ display: "block", fontSize: 12, lineHeight: 1.6 }}>
+                    {event.requirePhone
+                      ? "The sign-up form asks for a mobile and won't accept an entry without one. Use this for a shotgun start, where you may need to ring a group that hasn't arrived."
+                      : "The sign-up form asks for a mobile but accepts an entry without one. Most tournaments don't need it — every extra required field costs you entries."}
+                  </span>
+                </span>
+              </label>
             </div>
           </>
         )}

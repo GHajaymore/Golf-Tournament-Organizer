@@ -6,6 +6,7 @@ import { syncPlayerAccount } from "@/lib/services/player-access";
 import { sendRegistrationEmail } from "@/lib/email";
 import {
   cleanRegistration,
+  looksLikePhone,
   decideIntake,
   approvalModeOf,
   type RegistrationForm,
@@ -71,6 +72,23 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // Same neutral message whether the token is unknown or registration is off —
   // no existence oracle.
   if (!event || !event.registrationOpen) return { ok: false, error: NOT_OPEN };
+
+  // Whether a phone number is required is this tournament's own setting, so it
+  // cannot be checked with the rest — those run before any lookup on purpose,
+  // so junk never reaches the database. This one needs the event, and comes
+  // straight after it and before anything is written.
+  //
+  // A named error rather than the neutral NOT_OPEN: this is the person's own
+  // form being incomplete, not anything about whether the event exists, so
+  // telling them what to fix leaks nothing.
+  if (event.requirePhone && !looksLikePhone(person.phone)) {
+    return {
+      ok: false,
+      error: person.phone
+        ? "That doesn't look like a phone number."
+        : "Enter a mobile number — this tournament needs one to reach you on the day.",
+    };
+  }
 
   // De-duplicate before deciding placement. Someone tapping "Register" twice, or
   // coming back to a link they already used, must not become two rows in the

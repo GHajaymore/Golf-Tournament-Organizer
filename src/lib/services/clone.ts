@@ -57,6 +57,12 @@ export const CLONED_EVENT_FIELDS = [
   "scoreEntryWindow",
   "voiceEntry",
   "playerAccess",
+  // Carried, unlike registrationOpen/registrationApproval above. Those are
+  // about the state a copy starts in; this is a standing decision about what
+  // the club asks its members for. A society that runs a shotgun every year
+  // and needs a number to ring wants that on next year's form too, and having
+  // to remember it after the entries are in is when it is too late.
+  "requirePhone",
   "scoreApproval",
   // Travels with scoreApproval — a club that wants every player in the match
   // to sign off wants that next year too.

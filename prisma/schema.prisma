@@ -698,6 +698,17 @@ model Event {
   voiceEntry            Boolean @default(true)
   playerAccess          String  @default("email") // email | code | both
   /**
+   * Registration asks for a mobile number and refuses without one.
+   *
+   * Off by default and deliberately per-tournament. A phone number is not
+   * needed to run a competition — email is identity here and the app reaches
+   * people in the app — so a required field that costs entries has to be the
+   * organizer's call for the event that actually needs it. The event that
+   * needs it is the shotgun start where somebody has to ring the four that
+   * hasn't arrived.
+   */
+  requirePhone          Boolean @default(false)
+  /**
    * Who locks a result: "staff" holds every submitted card for organizer
    * review; "players" keeps the two-player confirmation with a 24h
    * auto-confirm. Defaults to staff — auto-confirming an unreviewed score is

@@ -183,7 +183,23 @@ export type ValidationResult =
  * short form, and the first thing wrong with it is the thing to say. Messages
  * name what to fix and never hint at anything about the event.
  */
-export function cleanRegistration(input: RegistrationForm): ValidationResult {
+/**
+ * Is this a usable phone number?
+ *
+ * Deliberately loose. Golf clubs have members abroad, members who write their
+ * number with spaces, dots, brackets or a leading +, and members on a landline.
+ * A strict pattern here would reject real numbers, and rejecting a real number
+ * on a registration form loses an entry — so this only asks whether there are
+ * enough digits to be a number at all. Whether it can actually receive a text
+ * is answered by the carrier at send time, not guessed here.
+ */
+export function looksLikePhone(raw: string): boolean {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  // Seven is the shortest real subscriber number; fifteen is E.164's maximum.
+  return digits.length >= 7 && digits.length <= 15;
+}
+
+export function cleanRegistration(input: RegistrationForm, requirePhone = false): ValidationResult {
   const name = (input.name ?? "").trim();
   if (!name) return { ok: false, error: "Enter your name." };
   if (name.length > NAME_MAX) return { ok: false, error: "That name is too long." };
@@ -201,6 +217,14 @@ export function cleanRegistration(input: RegistrationForm): ValidationResult {
 
   const handicapType = input.handicapType === "9" ? "9" : "18";
   const phone = (input.phone ?? "").trim().slice(0, PHONE_MAX);
+  // Only when this tournament asks for it. Most don't: a phone number is not
+  // needed to run a competition, and a field that costs entries has to earn
+  // its place per event rather than be imposed on every club. The ones that
+  // turn it on are the ones that ring stragglers off a shotgun start.
+  if (requirePhone) {
+    if (!phone) return { ok: false, error: "Enter a mobile number — this tournament needs one to reach you on the day." };
+    if (!looksLikePhone(phone)) return { ok: false, error: "That doesn't look like a phone number." };
+  }
   const preferredTee = (input.preferredTee ?? "").trim().slice(0, TEE_MAX);
 
   return {

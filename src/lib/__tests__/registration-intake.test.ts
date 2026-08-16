@@ -318,3 +318,60 @@ describe("validating a public submission", () => {
     }
   });
 });
+
+describe("a tournament that requires a mobile number", () => {
+  const form = { name: "Rita Ahmed", email: "rita@example.invalid", handicap: "12.4", handicapType: "18" };
+
+  it("accepts an entry without one when the tournament doesn't ask", () => {
+    // The default, and the one that matters most: a phone number is not needed
+    // to run a competition, and every required field costs entries.
+    const r = cleanRegistration({ ...form, phone: "" });
+    expect(r.ok).toBe(true);
+  });
+
+  it("refuses an entry without one when it does", () => {
+    const r = cleanRegistration({ ...form, phone: "" }, true);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/mobile number/i);
+  });
+
+  it("accepts the ways people actually write a number", () => {
+    // A strict pattern here would reject real numbers, and rejecting a real
+    // number on a sign-up form loses an entry. Clubs have members abroad and
+    // members who use spaces, dots and brackets.
+    for (const phone of [
+      "+1 415 555 0198",
+      "(0161) 496 0198",
+      "07700 900123",
+      "415.555.0198",
+      "+44 7700 900123",
+    ]) {
+      expect(cleanRegistration({ ...form, phone }, true).ok, phone).toBe(true);
+    }
+  });
+
+  it("still refuses something that is plainly not a number", () => {
+    for (const phone of ["ask me", "123", "n/a", "-"]) {
+      const r = cleanRegistration({ ...form, phone }, true);
+      expect(r.ok, phone).toBe(false);
+    }
+  });
+
+  it("says which box to fix and nothing about the event", () => {
+    // The rule for every message on this form: name what to fix, leak nothing.
+    const r = cleanRegistration({ ...form, phone: "" }, true);
+    if (!r.ok) {
+      expect(r.error).not.toMatch(/capacity|full|waitlist|deadline|closed/i);
+    }
+  });
+
+  it("complains about the name and email first", () => {
+    // A blank form should point at the first empty box, not the newest one.
+    const blank = cleanRegistration({ name: "", email: "", phone: "" }, true);
+    expect(blank.ok).toBe(false);
+    if (!blank.ok) expect(blank.error).toMatch(/name/i);
+
+    const noEmail = cleanRegistration({ ...form, email: "", phone: "" }, true);
+    if (!noEmail.ok) expect(noEmail.error).toMatch(/email/i);
+  });
+});

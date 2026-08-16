@@ -34,6 +34,7 @@ export default async function RegistrationPage() {
         city: state.event.city,
         registrationOpen: state.event.registrationOpen,
         registrationApproval: state.event.registrationApproval,
+        requirePhone: state.event.requirePhone,
         registrationToken: state.event.registrationToken,
       }}
       confirmed={state.confirmed.map((p) => ({

@@ -36,6 +36,8 @@ export interface PublicRegistrationView {
   spotsLeft: number | null;
   /** auto | approve — approve mode changes what "what happens next" says. */
   approvalMode: ApprovalMode;
+  /** This tournament asks for a mobile number and refuses without one. */
+  requirePhone: boolean;
   brand: EventBrand | null;
 }
 
@@ -96,6 +98,7 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     waitlistOnly: status.waitlisting,
     spotsLeft: unlimited ? null : Math.max(0, event.capacity - confirmedCount),
     approvalMode: approvalModeOf(event.registrationApproval),
+    requirePhone: event.requirePhone,
     brand,
   };
 }

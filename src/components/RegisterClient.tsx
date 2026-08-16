@@ -25,6 +25,8 @@ interface Props {
   spotsLeft: number | null;
   approvalMode: ApprovalMode;
   prefill: RegistrationPrefill | null;
+  /** This tournament asks for a mobile number and refuses without one. */
+  requirePhone?: boolean;
 }
 
 export function RegisterClient({
@@ -36,6 +38,7 @@ export function RegisterClient({
   spotsLeft,
   approvalMode,
   prefill,
+  requirePhone = false,
 }: Props) {
   const [name, setName] = useState(prefill?.name ?? "");
   const [email, setEmail] = useState(prefill?.email ?? "");
@@ -56,6 +59,14 @@ export function RegisterClient({
     }
     if (!email.trim()) {
       setError("Enter your email.");
+      return;
+    }
+    // After name and email, matching the server's order — a blank form should
+    // complain about the first empty box, not the newest one. Checked here as
+    // well as on the server only so the message arrives without a round trip;
+    // the server still decides.
+    if (requirePhone && !phone.trim()) {
+      setError("Enter a mobile number — this tournament needs one to reach you on the day.");
       return;
     }
     setError("");
@@ -177,8 +188,31 @@ export function RegisterClient({
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div className="field">
-            <label>Phone <span className="text-muted">· optional</span></label>
-            <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1…" />
+            <label>
+              Mobile{" "}
+              {requirePhone ? (
+                <span className="text-muted">· required</span>
+              ) : (
+                <span className="text-muted">· optional</span>
+              )}
+            </label>
+            <input
+              className="input"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+1…"
+              required={requirePhone}
+              inputMode="tel"
+              autoComplete="tel"
+            />
+            {/* Why, not just that. A required field with no reason beside it is
+                the one people abandon; a required field with a reason is the
+                one they fill in. */}
+            {requirePhone && (
+              <span className="text-muted" style={{ fontSize: 11.5 }}>
+                The organizer needs this to reach you on the day.
+              </span>
+            )}
           </div>
           <div className="field">
             <label>Preferred tee <span className="text-muted">· optional</span></label>
