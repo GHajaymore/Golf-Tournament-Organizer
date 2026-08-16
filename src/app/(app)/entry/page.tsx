@@ -3,6 +3,7 @@ import { clubCourses } from "@/lib/services/courses";
 import { loadEventState, effectiveScoreStatus, settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { redirect } from "next/navigation";
+import { entitlementForEvent } from "@/lib/services/entitlements";
 import { EntryModes, type EntryRound } from "@/components/EntryModes";
 import { CourseSetupPrompt } from "@/components/CourseSetupPrompt";
 import { prisma } from "@/lib/db";
@@ -491,6 +492,7 @@ export default async function EntryPage() {
 
   return (
     <EntryModes
+      cardScanAvailable={(await entitlementForEvent(session.eventId, "cardScan")).allowed}
       rounds={rounds}
       voice={voice}
       openCourse={courseMode === "open"}

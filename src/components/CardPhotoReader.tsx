@@ -2,6 +2,7 @@
 import { useRef, useState, useTransition } from "react";
 import { readScorecardPhoto } from "@/app/actions/card-photo";
 import FieldInfo from "@/components/FieldInfo";
+import { LockedFeature } from "@/components/LockedFeature";
 
 /**
  * Read a paper card from a photograph, then hand the numbers to a person.
@@ -24,6 +25,9 @@ export interface CardPhotoReaderProps {
   holeCount: number;
   /** Called with the proposed scores. The caller decides what to do with them. */
   onReading: (strokes: (number | null)[]) => void;
+  /** False when this club's plan doesn't include card reading. The section is
+   *  still rendered — as a visible locked state, before any work is done. */
+  available?: boolean;
 }
 
 /** Downscale before upload: a 12-megapixel photo is far more than is needed to
@@ -49,6 +53,7 @@ export function CardPhotoReader({
   playerName,
   holeCount,
   onReading,
+  available = true,
 }: CardPhotoReaderProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
@@ -87,6 +92,15 @@ export function CardPhotoReader({
       }
     });
   };
+
+  // Locked BEFORE the work, not after it. Discovering this by photographing a
+  // card, waiting for the upload, and then being refused is the version of
+  // this that makes somebody give up on the product rather than buy it.
+  if (!available) {
+    return (
+      <LockedFeature feature="cardScan" insteadOf="Type the scores in below as usual." />
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

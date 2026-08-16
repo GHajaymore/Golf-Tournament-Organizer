@@ -1,5 +1,6 @@
 import { requireScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
+import { entitlementForEvent } from "@/lib/services/entitlements";
 import { prisma } from "@/lib/db";
 import { loadEventState } from "@/lib/services/tournament";
 import { AnnouncementsClient } from "@/components/AnnouncementsClient";
@@ -33,6 +34,7 @@ export default async function AnnouncementsPage() {
         </p>
       </div>
       <AnnouncementsClient
+        aiAvailable={(await entitlementForEvent(session.eventId, "aiAssist")).allowed}
         items={items.map((a) => ({
           id: a.id,
           title: a.title,

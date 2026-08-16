@@ -11,7 +11,14 @@ export interface AnnouncementRow {
   when: string;
 }
 
-export function AnnouncementsClient({ items }: { items: AnnouncementRow[] }) {
+export function AnnouncementsClient({
+  items,
+  aiAvailable = true,
+}: {
+  items: AnnouncementRow[];
+  /** False when this club's plan doesn't include drafting. */
+  aiAvailable?: boolean;
+}) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [pinned, setPinned] = useState(false);
@@ -65,6 +72,7 @@ export function AnnouncementsClient({ items }: { items: AnnouncementRow[] }) {
           stays the obvious path; drafting is the shortcut you reach for when
           you don't fancy writing it. */}
       <DraftAssistant
+        available={aiAvailable}
         onUse={(text, suggested) => {
           setBody(text);
           // Only fills an empty title. An organizer who already typed one has

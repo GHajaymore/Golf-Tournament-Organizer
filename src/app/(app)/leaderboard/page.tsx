@@ -2,6 +2,7 @@ import { requireState } from "@/lib/page-helpers";
 import { computeHighlights, standingRows, settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { redirect } from "next/navigation";
+import { entitlementForEvent } from "@/lib/services/entitlements";
 import { prisma } from "@/lib/db";
 import { CommentaryPanel } from "@/components/CommentaryPanel";
 import { LeaderboardBoard } from "@/components/LeaderboardBoard";
@@ -161,7 +162,11 @@ export default async function LeaderboardPage() {
       </div>
 
       <div style={{ marginTop: 16 }}>
-        <CommentaryPanel items={commentaryItems} canPost={isStaff} />
+        <CommentaryPanel
+          items={commentaryItems}
+          canPost={isStaff}
+          aiAvailable={(await entitlementForEvent(session.eventId, "aiAssist")).allowed}
+        />
       </div>
     </>
   );

@@ -78,7 +78,8 @@ export interface Plan {
     /** Reading a photographed scorecard into proposed scores. */
     cardScan: boolean;
 
-    /** Drafted commentary, invitations, and setup suggestions. */
+    /** AjAi: drafted commentary, invitations, and setup suggestions. The flag
+     *  keeps the neutral name; the label people read is the brand. */
     aiAssist: boolean;
   };
 }
@@ -228,11 +229,11 @@ export const METERED_FEATURES: {
   },
   {
     key: "aiAssist",
-    label: "Drafted commentary and invitations",
+    label: "AjAi drafting",
     benefit:
-      "A first draft of your leaderboard commentary, invitation, and round setup, ready to edit.",
+      "AjAi writes a first draft of your leaderboard commentary, invitation, and round setup, ready for you to edit.",
     locked:
-      "Drafting isn't switched on yet. Write it yourself for now — this is coming with the paid plan, because each draft costs money.",
+      "AjAi drafting isn't switched on yet. Write it yourself for now — this is coming with the paid plan, because each draft costs money.",
   },
 ];
 

@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { suggestSetup, applySetupProposal } from "@/app/actions/setup-suggest";
 import type { SetupProposal } from "@/lib/domain/setup-proposal";
 import FieldInfo from "@/components/FieldInfo";
+import { LockedFeature } from "@/components/LockedFeature";
 
 /**
  * Describe a tournament in a sentence and get the rounds proposed.
@@ -15,7 +16,7 @@ import FieldInfo from "@/components/FieldInfo";
  * It deliberately does not look like a chat. A conversation invites trust in
  * the answer; a list of rounds with a Create button invites checking it.
  */
-export function DescribeTournament() {
+export function DescribeTournament({ available = true }: { available?: boolean }) {
   const [text, setText] = useState("");
   const [proposal, setProposal] = useState<SetupProposal | null>(null);
   const [error, setError] = useState("");
@@ -50,6 +51,18 @@ export function DescribeTournament() {
       setProposal(null);
       setText("");
     });
+
+  // Shown locked rather than hidden. The whole value of this screen is that an
+  // organizer discovers they could describe a tournament in a sentence — a
+  // feature they never see is a feature they never want.
+  if (!available) {
+    return (
+      <div className="card elev-sm" style={{ gap: 10, marginBottom: 16 }}>
+        <span className="card-title" style={{ fontSize: 15 }}>Describe it instead</span>
+        <LockedFeature feature="aiAssist" insteadOf="Build the rounds with the controls below." />
+      </div>
+    );
+  }
 
   return (
     <div className="card elev-sm" style={{ gap: 10, marginBottom: 16 }}>

@@ -10,7 +10,16 @@ export interface CommentaryItem {
   when: string;
 }
 
-export function CommentaryPanel({ items, canPost }: { items: CommentaryItem[]; canPost: boolean }) {
+export function CommentaryPanel({
+  items,
+  canPost,
+  aiAvailable = true,
+}: {
+  items: CommentaryItem[];
+  canPost: boolean;
+  /** False when this club's plan doesn't include drafting. */
+  aiAvailable?: boolean;
+}) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -42,9 +51,29 @@ export function CommentaryPanel({ items, canPost }: { items: CommentaryItem[]; c
             style={{ resize: "vertical", fontFamily: "inherit" }}
           />
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" className="btn btn-secondary" disabled={busy} onClick={draftAi}>
-              <i className="ph ph-sparkle" /> {busy ? "Drafting…" : "AI draft"}
+            {/* Left in place and disabled rather than removed: a greyed
+                button with a reason is how somebody learns the feature is
+                there. The title carries the explanation, so hovering answers
+                "why can't I click this" without a second surface. */}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy || !aiAvailable}
+              onClick={draftAi}
+              title={
+                aiAvailable
+                  ? undefined
+                  : "Drafting comes with the paid plan — write your own line for now."
+              }
+            >
+              <i className={aiAvailable ? "ph ph-sparkle" : "ph ph-lock-simple"} />{" "}
+              {busy ? "Drafting…" : "AjAi draft"}
             </button>
+            {!aiAvailable && (
+              <span className="text-muted" style={{ fontSize: 12, alignSelf: "center" }}>
+                On the paid plan
+              </span>
+            )}
             <div style={{ flex: 1 }} />
             <button
               type="button"
@@ -73,7 +102,9 @@ export function CommentaryPanel({ items, canPost }: { items: CommentaryItem[]; c
                 {/* 10.5px, not 9. `.tag` is designed at 11 and this shrank it
                     to nine — small enough to be unreadable outdoors, on the one
                     label that tells a reader a machine wrote the line. */}
-                {c.source === "ai" && <span className="tag tag-accent" style={{ fontSize: 10.5, padding: "1px 6px" }}>AI</span>}
+                {/* The stored value stays "ai" — this is the label a reader sees, not
+                    the data. Renaming the column would be a migration for a word. */}
+                {c.source === "ai" && <span className="tag tag-accent" style={{ fontSize: 10.5, padding: "1px 6px" }}>AjAi</span>}
                 {c.author} · {c.when}
               </div>
             </div>

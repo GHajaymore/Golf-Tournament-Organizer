@@ -2050,3 +2050,73 @@ describe("MessagesClient", () => {
     expect(html).toContain("No messages yet");
   });
 });
+
+describe("locked metered features", () => {
+  /**
+   * The locked state is a render path of its own, reached only when a club is
+   * on a plan without the feature — which, today, is every club. So it is the
+   * path most people actually see, and it had no coverage at all until this.
+   */
+  it("shows the card reader as locked rather than hiding it", async () => {
+    const { CardPhotoReader } = await import("@/components/CardPhotoReader");
+    const html = render(
+      <CardPhotoReader
+        stageId="s1"
+        playerId="p1"
+        playerName="Rita"
+        holeCount={18}
+        onReading={() => {}}
+        available={false}
+      />,
+    );
+    expect(html).toContain("Photograph a scorecard");
+    expect(html).toContain("On the paid plan");
+    // And it says what to do instead, so the screen is still usable.
+    expect(html).toContain("Type the scores in below");
+    // The control itself must be gone — a button that does nothing is worse
+    // than no button.
+    expect(html).not.toContain("Read from a photo");
+  });
+
+  it("shows the drafting panels as locked", async () => {
+    const { DraftAssistant } = await import("@/components/DraftAssistant");
+    const { DescribeTournament } = await import("@/components/DescribeTournament");
+
+    const draft = render(<DraftAssistant onUse={() => {}} available={false} />);
+    expect(draft).toContain("AjAi drafting");
+    expect(draft).toContain("Write it yourself below");
+    expect(draft).not.toContain("Write a draft");
+
+    const describe = render(<DescribeTournament available={false} />);
+    expect(describe).toContain("AjAi drafting");
+    expect(describe).not.toContain("Work out the rounds");
+  });
+
+  it("disables the commentary draft button but leaves it visible", async () => {
+    // Different treatment on purpose: this one is a single button inside a
+    // panel that still works, so it greys out rather than replacing anything.
+    const { CommentaryPanel } = await import("@/components/CommentaryPanel");
+    const html = render(<CommentaryPanel items={[]} canPost aiAvailable={false} />);
+    expect(html).toContain("AjAi draft");
+    expect(html).toContain("disabled");
+    expect(html).toContain("On the paid plan");
+  });
+
+  it("renders every one of them normally when the plan allows it", async () => {
+    // The other half — the locked path must not have broken the working one.
+    const { CardPhotoReader } = await import("@/components/CardPhotoReader");
+    const { CommentaryPanel } = await import("@/components/CommentaryPanel");
+    expect(
+      render(
+        <CardPhotoReader
+          stageId="s1"
+          playerId="p1"
+          playerName="Rita"
+          holeCount={18}
+          onReading={() => {}}
+        />,
+      ),
+    ).toContain("Read from a photo");
+    expect(render(<CommentaryPanel items={[]} canPost />)).not.toContain("On the paid plan");
+  });
+});

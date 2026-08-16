@@ -25,6 +25,7 @@ export function StrokePlayEntry({
   cardStatus = {},
   teeGroups = [],
   shotsByPlayer = {},
+  cardScanAvailable = true,
 }: {
   players: StrokePlayer[];
   pars: number[];
@@ -37,6 +38,9 @@ export function StrokePlayEntry({
    *  card is the committee's, and `saveScorecard` refuses to write one — so
    *  the screen has to know before it offers, rather than after it fails. */
   cardStatus?: Record<string, string>;
+  /** False when this club's plan doesn't include reading a card from a
+   *  photo. Passed down so the control renders locked rather than vanishing. */
+  cardScanAvailable?: boolean;
   /** The round's tee sheet: who is sharing a card with whom. Empty when no
    *  sheet has been drawn, in which case entry falls back to one player. */
   teeGroups?: Array<{ name: string; time: string; playerIds: string[] }>;
@@ -249,6 +253,7 @@ export function StrokePlayEntry({
       {player && (
         <div style={{ marginTop: 10 }}>
           <CardPhotoReader
+            available={cardScanAvailable}
             stageId={stageId}
             playerId={player.id}
             playerName={player.name}

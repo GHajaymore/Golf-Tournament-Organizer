@@ -3,6 +3,7 @@ import { loadEventState, parseMatchTiebreakers, settingsOf } from "@/lib/service
 import { resolveAttendance } from "@/lib/domain/attendance";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
+import { entitlementForEvent } from "@/lib/services/entitlements";
 import { StagesClient } from "@/components/StagesClient";
 import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
@@ -132,7 +133,11 @@ export default async function StagesPage() {
       {/* Above the builder, because it is a way IN to the builder rather than
           an alternative to it — whatever it proposes lands as ordinary rounds
           on the cards below, editable like any other. */}
-      {!locked && <DescribeTournament />}
+      {!locked && (
+        <DescribeTournament
+          available={(await entitlementForEvent(session.eventId, "aiAssist")).allowed}
+        />
+      )}
       <StagesClient
         stages={stages}
         venues={venues}

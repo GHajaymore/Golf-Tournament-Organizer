@@ -51,9 +51,14 @@ export function EntryModes({
   voice,
   openCourse = false,
   courseLibrary = [],
+  cardScanAvailable = true,
 }: {
   rounds: EntryRound[];
   activeIndex: number;
+  /** False when this club's plan doesn't include reading a card from a photo.
+   *  Passed down so the control renders locked rather than disappearing —
+   *  a feature nobody can see is a feature nobody asks for. */
+  cardScanAvailable?: boolean;
   players: Array<{ id: string; name: string; handicap: number }>;
   pars: number[];
   yards: number[];
@@ -213,6 +218,7 @@ export function EntryModes({
       ) : (
         <StrokePlayEntry
           key={round.stageId}
+          cardScanAvailable={cardScanAvailable}
           players={players}
           pars={pars}
           yards={yards}

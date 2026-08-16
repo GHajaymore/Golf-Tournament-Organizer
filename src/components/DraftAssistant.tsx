@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { draftMessage } from "@/app/actions/draft-message";
 import { DRAFT_KIND_LABELS, DRAFT_KIND_TITLES, type DraftKind } from "@/lib/domain/draft-check";
 import FieldInfo from "@/components/FieldInfo";
+import { LockedFeature } from "@/components/LockedFeature";
 
 /**
  * Draft an announcement from the event's own results.
@@ -22,7 +23,14 @@ import FieldInfo from "@/components/FieldInfo";
  * Both make the feature look less magical. That is the intent — a club sending
  * this to two hundred members should be reading it, not admiring it.
  */
-export function DraftAssistant({ onUse }: { onUse: (text: string, title: string) => void }) {
+export function DraftAssistant({
+  onUse,
+  available = true,
+}: {
+  onUse: (text: string, title: string) => void;
+  /** False when this club's plan doesn't include drafting. */
+  available?: boolean;
+}) {
   const [kind, setKind] = useState<DraftKind>("results");
   const [extra, setExtra] = useState("");
   const [draft, setDraft] = useState("");
@@ -46,6 +54,15 @@ export function DraftAssistant({ onUse }: { onUse: (text: string, title: string)
       setUnknown(res.unknownNames ?? []);
       setFacts(res.facts ?? "");
     });
+
+  if (!available) {
+    return (
+      <div className="card elev-sm" style={{ gap: 10, marginBottom: 16 }}>
+        <span className="card-title" style={{ fontSize: 15 }}>Draft it from the results</span>
+        <LockedFeature feature="aiAssist" insteadOf="Write it yourself below and send as usual." />
+      </div>
+    );
+  }
 
   return (
     <div className="card elev-sm" style={{ gap: 10, marginBottom: 16 }}>
