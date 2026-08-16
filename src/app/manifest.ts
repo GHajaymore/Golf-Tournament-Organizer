@@ -2,7 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "TourneyHQ — Golf Tournament Console",
+    // The installed-app name. Kept shorter than the page title because a home
+    // screen truncates: short_name is what actually sits under the icon.
+    name: "TourneyHQ — Golf tournaments & leagues",
     short_name: "TourneyHQ",
     description: "Enter scores, track the live leaderboard, and run golf tournaments.",
     start_url: "/",

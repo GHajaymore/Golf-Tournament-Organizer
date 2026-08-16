@@ -41,8 +41,20 @@ const display = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "TourneyHQ — Golf Tournament Console",
-  description: "Run the whole golf event from one console: flights, qualification, brackets and live standings.",
+  /**
+   * "Console" described the organizer's half and nothing else — and by the
+   * time the player app had a card, a board, the weekly sign-up and the
+   * settle-up, that was half the product missing from its own title. It is
+   * also a word nobody searches: people look for golf tournament software and
+   * golf league apps, and a title that answers neither is invisible to both.
+   *
+   * "League" earns its place separately from "tournament": a weekly league is
+   * a different search, and a large part of this app — availability, the week
+   * view, the season skins table — exists for it.
+   */
+  title: "TourneyHQ — Golf tournament & league software",
+  description:
+    "Run a golf tournament or league end to end: flights, handicaps, brackets and live standings — with every player's card, board and settle-up on their own phone.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

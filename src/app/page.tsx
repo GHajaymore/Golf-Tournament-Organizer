@@ -385,7 +385,12 @@ export default async function LoginPage() {
       <header className="hero">
         <div className="wrap hero-in" id="thq-hero">
           <div>
-            <div className="eyebrow rise">For clubs, societies, corporate &amp; charity golf events</div>
+            {/* Says what this IS, not who it is for. The audience already has
+                a section of its own further down — club championships, league
+                play, member-guest, corporate and charity — so an eyebrow
+                listing them again buried the one word a stranger needs, and
+                buried it at the end of the line. */}
+            <div className="eyebrow rise">Golf tournament &amp; league software</div>
             <h1 className="rise">From Registration<br />to <em>Recognition.</em></h1>
             {/* The four verbs are the organizer's real path through the app —
                 registration, flights and pairings, rounds and scoring, prizes
