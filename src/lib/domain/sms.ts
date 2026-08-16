@@ -242,3 +242,31 @@ export function planFanOut(recipients: SmsRecipient[], text: string): FanOut {
 
   return { send, skipped, segmentsEach, totalSegments: segmentsEach * send.length };
 }
+
+/**
+ * What a fan-out will cost, from the club's own per-segment rate.
+ *
+ * Returns null when no rate is set, and the caller then reports segments
+ * alone. That is deliberate: a made-up price is worse than no price, because
+ * an organizer will believe it. Carriers change their rates and the US and UK
+ * differ by roughly four times, so the number has to come from the club rather
+ * than from a constant in here.
+ */
+export function estimateCost(totalSegments: number, rateMicros: number): number | null {
+  if (rateMicros <= 0) return null;
+  return (totalSegments * rateMicros) / 1_000_000;
+}
+
+/**
+ * The estimate as an organizer should read it.
+ *
+ * Rounded UP to the cent, and prefixed "about". A send that comes in a penny
+ * over the number they were shown is a broken promise; one that comes in under
+ * is a pleasant surprise. Small sends round up to the smallest unit rather
+ * than showing 0.00, which reads as free.
+ */
+export function formatCost(amount: number | null, symbol = "$"): string {
+  if (amount === null) return "";
+  const cents = Math.max(1, Math.ceil(amount * 100));
+  return `about ${symbol}${(cents / 100).toFixed(2)}`;
+}

@@ -155,9 +155,16 @@ export async function previewSmsBroadcast(scope: string, body: string): Promise<
   if (ctx.role !== "admin" && ctx.role !== "assistant") return null;
   const org = await prisma.organization.findUnique({
     where: { id: ctx.organizationId },
-    select: { name: true },
+    select: { name: true, smsRateMicros: true, currencySymbol: true },
   });
-  return planSmsBroadcast(ctx, scope, body, org?.name ?? "");
+  return planSmsBroadcast(
+    ctx,
+    scope,
+    body,
+    org?.name ?? "",
+    org?.smsRateMicros ?? 0,
+    org?.currencySymbol ?? "$",
+  );
 }
 
 /** Post to a scope and text everyone in it who asked to be texted. */

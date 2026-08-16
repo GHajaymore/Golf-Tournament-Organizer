@@ -10,6 +10,8 @@ import {
   samePhone,
   planFanOut,
   MAX_SMS_SEGMENTS,
+  estimateCost,
+  formatCost,
   type SmsRecipient,
 } from "@/lib/domain/sms";
 
@@ -172,5 +174,43 @@ describe("planning a fan-out", () => {
   it("costs nothing when nobody has opted in", () => {
     const plan = planFanOut([r("A", "+447700900001", false)], "hello");
     expect(plan.totalSegments).toBe(0);
+  });
+});
+
+describe("what it costs the club", () => {
+  it("says nothing when the club hasn't set a rate", () => {
+    // A made-up price is worse than no price, because an organizer will
+    // believe it — and the US and UK differ by roughly four times.
+    expect(estimateCost(100, 0)).toBeNull();
+    expect(formatCost(null)).toBe("");
+  });
+
+  it("works out a US-style send", () => {
+    // ~$0.011 a segment all-in, 60 people, one segment each.
+    expect(estimateCost(60, 11_000)).toBeCloseTo(0.66, 5);
+    expect(formatCost(estimateCost(60, 11_000))).toBe("about $0.66");
+  });
+
+  it("works out a UK-style send in the club's own symbol", () => {
+    expect(formatCost(estimateCost(60, 40_000), "£")).toBe("about £2.40");
+  });
+
+  it("rounds up, never down", () => {
+    // A send that comes in over the number they were shown is a broken
+    // promise; under is a pleasant surprise.
+    expect(formatCost(estimateCost(1, 11_000))).toBe("about $0.02");
+    expect(formatCost(estimateCost(3, 11_000))).toBe("about $0.04");
+  });
+
+  it("never shows a tiny send as free", () => {
+    expect(formatCost(estimateCost(1, 1))).toBe("about $0.01");
+  });
+
+  it("scales with segments, which is the point of counting them", () => {
+    // The two-segment message costs exactly double, which is why the composer
+    // bothers to strip curly quotes.
+    const one = estimateCost(60, 11_000)!;
+    const two = estimateCost(120, 11_000)!;
+    expect(two).toBeCloseTo(one * 2, 5);
   });
 });

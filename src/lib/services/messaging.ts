@@ -8,6 +8,8 @@ import {
   normalizePhone,
   samePhone,
   inboundIntent,
+  estimateCost,
+  formatCost,
   type SmsRecipient,
 } from "@/lib/domain/sms";
 import { sendSms, smsConfig } from "@/lib/sms";
@@ -761,6 +763,8 @@ export interface SmsPlan {
   truncated: boolean;
   configured: boolean;
   problem?: string;
+  /** "about $0.66", or empty when the club has set no rate. */
+  costLabel: string;
 }
 
 /**
@@ -776,6 +780,8 @@ export async function planSmsBroadcast(
   key: ScopeKey,
   body: string,
   clubName: string,
+  rateMicros = 0,
+  currencySymbol = "$",
 ): Promise<SmsPlan> {
   const composed = composeSms(clubName, body);
   const audience = await smsAudienceFor(ctx, key);
@@ -791,6 +797,7 @@ export async function planSmsBroadcast(
     truncated: composed.truncated,
     configured: config.configured,
     problem: config.problem,
+    costLabel: formatCost(estimateCost(plan.totalSegments, rateMicros), currencySymbol),
   };
 }
 

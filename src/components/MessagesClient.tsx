@@ -677,6 +677,7 @@ function ComposePanel({
                   <b>
                     {plan.recipients} {plan.recipients === 1 ? "person" : "people"} · {plan.segmentsEach}{" "}
                     {plan.segmentsEach === 1 ? "segment" : "segments"} each · {plan.totalSegments} billed
+                    {plan.costLabel ? ` · ${plan.costLabel}` : ""}
                   </b>
                   {plan.truncated && (
                     <div style={{ color: "var(--color-danger)" }}>

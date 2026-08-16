@@ -70,6 +70,7 @@ model Organization {
    * /**
    * /**
    * /**
+   * /**
    * /** Absolute https:// URL to a logo image. A URL rather than an upload
    * because file uploads need blob storage; this works with the club's
    * existing website assets and can be swapped for an upload later without
@@ -167,6 +168,25 @@ model Organization {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /**
+   * What a text costs this club, in MILLIONTHS of a currency unit per segment.
+   * Micros rather than cents because the number is genuinely smaller than a
+   * cent and rounding it to one loses the whole figure: a US segment is about
+   * $0.011 all-in, which is 11000 here. Zero means "not set", and the estimate
+   * then reports segments only rather than inventing a price.
+   * Stored per club because it is not one number: the same message costs
+   * roughly $0.011 in the US and £0.04 in the UK, and it changes whenever the
+   * carrier changes it. A rate baked into the app would be wrong somewhere on
+   * the day it shipped.
+   */
+  smsRateMicros Int @default(0)
+
+  /**
+   * What to put in front of an amount. Not a locale — clubs write their own
+   * currency and this is the shortest honest way to let them.
+   */
+  currencySymbol String @default("$")
 
   members      OrganizationMember[]
   roster       Member[]
