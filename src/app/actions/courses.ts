@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { settingsOf } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
+import { playsInMatch } from "@/lib/services/match-access";
 import { COURSES } from "@/lib/courses";
 import { parseCard } from "@/lib/domain/scorecard-parse";
 import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
@@ -279,6 +280,14 @@ export async function setMatchCourse(
   if (!canEnterScores(settingsOf(event), session.role)) {
     return { ok: false, error: "Scores for this tournament are entered by the organizer." };
   }
+  // S5. This writes the same fields as nameMatchVenue and had none of its
+  // checks: any signed-in player could repoint ANYBODY's match at another
+  // course, which silently rescores it against a different par and stroke
+  // index. The venue decides where the shots fall, so this is a score edit
+  // wearing a dropdown.
+  if (session.role === "player" && !(await playsInMatch(session.eventId, session.email, match))) {
+    return { ok: false, error: "That isn't your match." };
+  }
 
   if (courseId) {
     const allowed = await prisma.eventCourse.findFirst({ where: { eventId: session.eventId, courseId } });
@@ -551,15 +560,11 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
   // A player may only speak for a match they are actually in. Without this,
   // any signed-in player could repoint anyone's match at another course and
   // silently rescore it against a different stroke index.
-  if (session.role === "player") {
-    const own = await prisma.player.findMany({
-      where: { eventId: session.eventId, email: { equals: session.email, mode: "insensitive" } },
-      select: { id: true },
-    });
-    const mine = new Set(own.map((p) => p.id));
-    if (!mine.has(match.playerAId) && !mine.has(match.playerBId)) {
-      return { ok: false, error: "That isn't your match." };
-    }
+  // The same rule as setMatchCourse above, from the same function. This copy
+  // read only the two PLAYER columns, which a team round leaves empty — so it
+  // refused every four-ball partner the venue of their own match.
+  if (session.role === "player" && !(await playsInMatch(session.eventId, session.email, match))) {
+    return { ok: false, error: "That isn't your match." };
   }
 
   let courseId = input.courseId ?? "";

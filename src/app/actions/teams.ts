@@ -293,6 +293,7 @@ export async function autoDrawTeams(
  */
 export async function setStageAllowance(stageId: string, percent: number): Promise<TeamResult> {
   const eventId = await requireStaff();
+  await assertUnlocked(eventId);
   await stageInEvent(eventId, stageId);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
     return { ok: false, error: "Enter an allowance between 0 and 100 percent." };
@@ -316,6 +317,7 @@ export async function setStageAllowance(stageId: string, percent: number): Promi
  */
 export async function setStageCountBest(stageId: string, count: number): Promise<TeamResult> {
   const eventId = await requireStaff();
+  await assertUnlocked(eventId);
   await stageInEvent(eventId, stageId);
 
   if (!Number.isFinite(count) || count < 0) {
@@ -359,6 +361,7 @@ export async function setStageAllowanceWeights(
   weights: number[],
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
+  await assertUnlocked(eventId);
   await stageInEvent(eventId, stageId);
 
   if (weights.length === 0) {

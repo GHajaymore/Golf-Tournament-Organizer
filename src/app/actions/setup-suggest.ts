@@ -35,6 +35,21 @@ export interface SetupSuggestResult {
 /** Long enough to describe a tournament, short enough not to be a payload. */
 const MAX_DESCRIPTION = 600;
 
+/**
+ * Structural changes stop once the tournament is live, unless the organizer
+ * has explicitly unlocked it. The same rule and the same words as `addStage`,
+ * because this writes the rows `addStage` writes.
+ */
+async function assertUnlocked(eventId: string): Promise<void> {
+  const e = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { status: true, configUnlocked: true },
+  });
+  if (e && (e.status === "live" || e.status === "completed") && !e.configUnlocked) {
+    throw new Error("Configuration is locked. Unlock the tournament to make structural changes.");
+  }
+}
+
 async function requireStaff(): Promise<{ eventId: string; who: string }> {
   const session = await getSession();
   if (!session?.eventId) throw new Error("Not signed in");
@@ -124,6 +139,11 @@ export async function suggestSetup(description: string): Promise<SetupSuggestRes
  */
 export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestResult> {
   const { eventId } = await requireStaff();
+  // S7. `addStage` applies the lock and this creates the same rows, so a
+  // description typed into a live tournament could append rounds that the
+  // ordinary control refuses — the lock exists because adding a round to an
+  // event already being played changes what the standings are counting.
+  await assertUnlocked(eventId);
 
   const checked = parseSetupProposal({ rounds }, PLAYABLE_FORMAT_NAMES, STAGE_TYPES);
   if (checked.rounds.length === 0) {

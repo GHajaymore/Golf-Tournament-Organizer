@@ -44,9 +44,14 @@ describe("every server action is guarded", () => {
       // The "Viewing as" toggle. Sets a cookie on the caller and nothing else,
       // and the value is whitelisted to assistant/player — anything else
       // clears it — so it can only ever *reduce* what its own caller sees.
-      // Safe specifically because no write guard reads viewRole; every action
-      // gates on session.role, which this cannot touch. If that ever changes,
-      // this exemption becomes a privilege-escalation hole.
+      //
+      // This used to be justified by "no write guard reads viewRole". That
+      // stopped being true (S8 of the 2026-08-12 audit: four now do), so the
+      // exemption rests on the real invariant instead — viewRole can never be
+      // MORE privileged than role — which is asserted directly in
+      // "the preview toggle can only ever reduce" below rather than asserted
+      // here in a comment. A guard whose safety argument lives only in prose
+      // is a guard nobody re-checks.
       "setPreviewAction",
     ],
     "play.ts": ["redeemRoundCode", "claimPlayerSlot", "leavePlay"],
@@ -773,5 +778,46 @@ describe("open (self-service) registration defends its own endpoint", () => {
     const createAt = body.indexOf("player.create");
     expect(createAt).toBeGreaterThan(-1);
     expect(sendAt).toBeGreaterThan(createAt);
+  });
+});
+
+describe("the preview toggle can only ever reduce", () => {
+  /**
+   * S8 of the 2026-08-12 audit, closed at the argument rather than the symptom.
+   *
+   * `setPreviewAction` is exempt from the "every action is guarded" sweep
+   * because it writes one cookie about its own caller. That exemption used to
+   * be justified by "no write guard reads viewRole" — and four now do
+   * (skins.ts, card-photo.ts, draft-message.ts, setup-suggest.ts). Reading
+   * viewRole is not itself wrong: those guards become MORE restrictive while
+   * an organizer previews, which is what preview is for.
+   *
+   * What matters is that viewRole can never be more privileged than role. That
+   * is the whole safety argument, so it is asserted here instead of asserted
+   * in a comment nobody re-checks.
+   */
+  const src = readFileSync(join(process.cwd(), "src", "lib", "auth.ts"), "utf8");
+
+  it("only ever accepts a LOWER role than admin", () => {
+    // The whitelist is the mechanism: anything not assistant/player clears the
+    // cookie, and neither of those outranks admin.
+    const fn = src.slice(src.indexOf("export async function setPreviewRole"));
+    expect(fn.slice(0, 600)).toMatch(/previewRole === "assistant" \|\| previewRole === "player"/);
+    expect(fn.slice(0, 600), "anything else must clear it, not store it").toMatch(/jar\.delete\(PREVIEW_COOKIE\)/);
+    expect(fn.slice(0, 600)).not.toMatch(/"admin"/);
+  });
+
+  it("is only honoured for an admin in the first place", () => {
+    // A player who forges the cookie gets nothing: the session applies it only
+    // when the REAL role is admin, so viewRole <= role holds by construction.
+    const session = src.slice(src.indexOf("export async function getSession"));
+    expect(session).toMatch(/role === "admin" && \(preview === "assistant" \|\| preview === "player"\)/);
+  });
+
+  it("leaves the real role untouched, so no guard can be widened by it", () => {
+    // Both are on the session; the actions that read viewRole can only ever
+    // read something at or below role.
+    expect(src).toMatch(/const role: Role = access\?\.role \?\? current\.role/);
+    expect(src).toMatch(/viewRole: Role =/);
   });
 });
