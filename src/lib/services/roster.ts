@@ -167,7 +167,13 @@ export async function upsertMember(organizationId: string, input: MemberIdentity
     if (!existing.homeClub && input.homeClub?.trim()) fill.homeClub = input.homeClub.trim();
     if (!existing.gender && input.gender?.trim()) fill.gender = input.gender.trim();
     if (!existing.preferredTee && input.preferredTee?.trim()) fill.preferredTee = input.preferredTee.trim();
-    if (Number.isFinite(input.handicap) && input.handicap !== existing.handicap) {
+    // A blank handicap box arrives here as 0 with source "none" — the absence
+    // of a claim, not a scratch handicap. Writing it would overwrite a member
+    // stored at 12.4 with 0 every time they register for something without
+    // retyping their index. Only a handicap somebody actually entered is
+    // authoritative; anything else leaves the roster's value alone.
+    const claimed = (input.handicapSource ?? "manual") !== "none";
+    if (claimed && Number.isFinite(input.handicap) && input.handicap !== existing.handicap) {
       fill.handicap = input.handicap as number;
       fill.handicapType = input.handicapType === "9" ? "9" : "18";
     }

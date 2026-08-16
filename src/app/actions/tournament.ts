@@ -255,7 +255,13 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   if (!player || player.eventId !== eventId) return { ok: false, error: "Player not found." };
   const data: Record<string, string | number> = {};
   if (patch.name !== undefined && patch.name.trim()) data.name = patch.name.trim();
-  if (patch.handicap !== undefined && Number.isFinite(patch.handicap)) data.handicap = patch.handicap;
+  if (patch.handicap !== undefined && Number.isFinite(patch.handicap)) {
+    data.handicap = patch.handicap;
+    // Somebody typed this one, so it stops being unknown — including the case
+    // this action exists for, correcting an index that arrived blank in a CSV.
+    // Without this the roster would keep refusing the correction as "no claim".
+    data.handicapSource = "manual";
+  }
   if (patch.handicapType !== undefined) data.handicapType = patch.handicapType === "9" ? "9" : "18";
   const oldEmail = player.email.trim().toLowerCase();
   let emailChanged = false;
@@ -283,7 +289,7 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
       homeClub: player.homeClub,
       handicap: (data.handicap as number) ?? player.handicap,
       handicapType: (data.handicapType as string) ?? player.handicapType,
-      handicapSource: player.handicapSource,
+      handicapSource: (data.handicapSource as string) ?? player.handicapSource,
     });
     if (memberId && memberId !== player.memberId) {
       await prisma.player.update({ where: { id: playerId }, data: { memberId } });
@@ -455,6 +461,11 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     // was wrong most often.
     const hcp = parseHandicapInput(hcpIdx >= 0 ? cols[hcpIdx] : "");
     const handicap = hcp.ok ? hcp.value : 0;
+    // An empty cell, no handicap column at all, or something unreadable are all
+    // the absence of a handicap rather than a scratch one — and the roster has
+    // to be told which, or a spring CSV without an index column silently
+    // rewrites every stored handicap in the club to 0.
+    const handicapSource = hcp.ok ? hcp.source : "none";
     const status = unlimited || confirmedCount < event.capacity ? "confirmed" : "waitlisted";
     if (status === "confirmed") confirmedCount += 1;
     const handicapType = hcpTypeIdx >= 0 && (cols[hcpTypeIdx] ?? "").trim() === "9" ? "9" : "18";
@@ -467,6 +478,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
       phone,
       handicap,
       handicapType,
+      handicapSource,
     });
     await prisma.player.create({
       data: {
@@ -479,6 +491,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         email: emailKey,
         phone,
         handicapType,
+        handicapSource,
       },
     });
     await syncPlayerAccount(eventId, name, emailKey);
