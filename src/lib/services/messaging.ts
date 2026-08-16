@@ -2,6 +2,16 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import {
+  canFanOutToSms,
+  composeSms,
+  planFanOut,
+  normalizePhone,
+  samePhone,
+  inboundIntent,
+  type SmsRecipient,
+} from "@/lib/domain/sms";
+import { sendSms, smsConfig } from "@/lib/sms";
+import {
   scopeKey,
   parseScopeKey,
   visibleScopes,
@@ -674,3 +684,244 @@ export async function staffBroadcast(
 
 /** Re-exported so callers have one import for the whole feature. */
 export { canReadScope, scopeKey, SCOPE_LABEL };
+
+/**
+ * Everyone a broadcast to this scope would reach, as SMS recipients.
+ *
+ * Derived from the same tournament structure the in-app scopes are, so the
+ * text and the message go to exactly the same people — a text reaching
+ * somebody who cannot see the message it quotes would be a different bug every
+ * time the two lists drifted.
+ *
+ * Consent and phone number are read from the club roster; a player with no
+ * roster row has neither, which `planFanOut` reports as "no mobile number"
+ * rather than silently dropping.
+ */
+export async function smsAudienceFor(
+  ctx: MembershipContext,
+  key: ScopeKey,
+): Promise<SmsRecipient[]> {
+  const parsed = parseScopeKey(key);
+  if (!parsed || !canFanOutToSms(parsed.kind)) return [];
+
+  // Who is in this scope, by the tournament's own structure.
+  let players: { name: string; email: string }[] = [];
+  if (parsed.kind === "club") {
+    const roster = await prisma.member.findMany({
+      where: { organizationId: ctx.organizationId, status: "active" },
+      select: { name: true, email: true },
+    });
+    players = roster;
+  } else if (parsed.kind === "event" || parsed.kind === "round") {
+    // Every round of a tournament has the whole field in it — see
+    // membershipFor, where being entered is what puts a player in a round.
+    players = await prisma.player.findMany({
+      where: { eventId: ctx.eventId, status: "confirmed" },
+      select: { name: true, email: true },
+    });
+  } else if (parsed.kind === "flight") {
+    players = await prisma.player.findMany({
+      where: { eventId: ctx.eventId, groupId: parsed.id, status: "confirmed" },
+      select: { name: true, email: true },
+    });
+  } else if (parsed.kind === "team") {
+    const members = await prisma.teamMember.findMany({
+      where: { teamId: parsed.id },
+      select: { player: { select: { name: true, email: true } } },
+    });
+    players = members.map((m) => m.player).filter((p): p is { name: string; email: string } => !!p);
+  }
+
+  const emails = [...new Set(players.map((p) => p.email.trim().toLowerCase()).filter(Boolean))];
+  if (emails.length === 0) return [];
+
+  const roster = await prisma.member.findMany({
+    where: { organizationId: ctx.organizationId, email: { in: emails, mode: "insensitive" } },
+    select: { email: true, phone: true, smsOptIn: true },
+  });
+  const byEmail = new Map(roster.map((m) => [m.email.trim().toLowerCase(), m]));
+
+  return players.map((p) => {
+    const row = byEmail.get(p.email.trim().toLowerCase());
+    return {
+      name: p.name,
+      phone: row?.phone ?? "",
+      smsOptIn: row?.smsOptIn ?? false,
+    };
+  });
+}
+
+export interface SmsPlan {
+  /** What the text will say, exactly as it arrives. */
+  text: string;
+  segmentsEach: number;
+  recipients: number;
+  totalSegments: number;
+  skipped: { name: string; reason: string }[];
+  truncated: boolean;
+  configured: boolean;
+  problem?: string;
+}
+
+/**
+ * What texting this scope would do, without doing it.
+ *
+ * Shown before the send, because "this goes to 84 people as 2 segments each"
+ * is the only number that changes what somebody writes — and because an
+ * organizer discovering after the fact that half the field never opted in has
+ * already made a decision on bad information.
+ */
+export async function planSmsBroadcast(
+  ctx: MembershipContext,
+  key: ScopeKey,
+  body: string,
+  clubName: string,
+): Promise<SmsPlan> {
+  const composed = composeSms(clubName, body);
+  const audience = await smsAudienceFor(ctx, key);
+  const plan = planFanOut(audience, composed.text);
+  const config = smsConfig();
+
+  return {
+    text: composed.text,
+    segmentsEach: plan.segmentsEach,
+    recipients: plan.send.length,
+    totalSegments: plan.totalSegments,
+    skipped: plan.skipped,
+    truncated: composed.truncated,
+    configured: config.configured,
+    problem: config.problem,
+  };
+}
+
+/**
+ * Post to a scope AND text everyone in it who asked to be texted.
+ *
+ * The in-app message is written first and unconditionally. If the carrier is
+ * down, or unconfigured, or every recipient has opted out, the message still
+ * reaches everybody in the app — losing the announcement because the texting
+ * failed would be the worst possible trade.
+ *
+ * Every attempt is recorded, sent or not. SMS is the one thing here that costs
+ * money per use and that somebody may later ask a consent question about, and
+ * neither answer can be reconstructed from the messages themselves.
+ */
+export async function broadcastWithSms(
+  ctx: MembershipContext,
+  key: ScopeKey,
+  body: string,
+  authorName: string,
+  clubName: string,
+): Promise<PostResult & { texted: number; failed: number; skipped: number }> {
+  const posted = await staffBroadcast(ctx, key, body, authorName);
+  if (!posted.ok) return { ...posted, texted: 0, failed: 0, skipped: 0 };
+
+  const parsed = parseScopeKey(key);
+  if (!parsed || !canFanOutToSms(parsed.kind)) {
+    return { ...posted, texted: 0, failed: 0, skipped: 0 };
+  }
+
+  const composed = composeSms(clubName, body);
+  const audience = await smsAudienceFor(ctx, key);
+  const plan = planFanOut(audience, composed.text);
+
+  // Everyone excluded is recorded too, so "why didn't Dave get it" has an
+  // answer months later rather than a shrug.
+  for (const s of plan.skipped) {
+    await prisma.smsDelivery.create({
+      data: {
+        organizationId: ctx.organizationId,
+        eventId: parsed.kind === "club" ? null : ctx.eventId,
+        threadId: posted.threadId ?? null,
+        scopeKey: key,
+        toPhone: "",
+        toName: s.name,
+        body: composed.text,
+        segments: 0,
+        status: "skipped",
+        error: s.reason,
+        sentByEmail: ctx.email,
+      },
+    });
+  }
+
+  let texted = 0;
+  let failed = 0;
+  for (const r of plan.send) {
+    const to = normalizePhone(r.phone, process.env.SMS_DEFAULT_COUNTRY_CODE ?? "");
+    const row = await prisma.smsDelivery.create({
+      data: {
+        organizationId: ctx.organizationId,
+        eventId: parsed.kind === "club" ? null : ctx.eventId,
+        threadId: posted.threadId ?? null,
+        scopeKey: key,
+        toPhone: to,
+        toName: r.name,
+        body: composed.text,
+        segments: plan.segmentsEach,
+        status: "queued",
+        sentByEmail: ctx.email,
+      },
+    });
+
+    const res = await sendSms(to, composed.text);
+    await prisma.smsDelivery.update({
+      where: { id: row.id },
+      data: {
+        status: res.ok ? "sent" : "failed",
+        providerId: res.providerId ?? "",
+        error: res.error ?? "",
+      },
+    });
+    if (res.ok) texted += 1;
+    else failed += 1;
+  }
+
+  return { ...posted, texted, failed, skipped: plan.skipped.length };
+}
+
+/**
+ * Honour an inbound STOP or START.
+ *
+ * Matched on the number rather than on any id, because that is all an inbound
+ * text carries. `samePhone` compares from the right so a member stored as
+ * `07700 900123` is found by a reply from `+447700900123` — the same person
+ * written two ways, which is the ordinary case and not an edge one.
+ *
+ * Returns what to reply with, or empty for nothing. STOP is honoured without a
+ * confirmation question: somebody texting STOP has already decided, and asking
+ * them to confirm is another text they did not want.
+ */
+export async function handleInboundSms(from: string, text: string): Promise<string> {
+  const intent = inboundIntent(text);
+  if (intent === "other") return "";
+
+  // Every roster row that could be this number. Narrowed in code rather than
+  // in SQL because numbers are stored as people typed them.
+  const candidates = await prisma.member.findMany({
+    where: { phone: { not: "" } },
+    select: { id: true, phone: true, organization: { select: { name: true } } },
+  });
+  const matches = candidates.filter((m) => samePhone(m.phone, from));
+  if (matches.length === 0) return "";
+
+  if (intent === "help") {
+    const club = matches[0].organization?.name ?? "your golf club";
+    return `${club} tournament messages. Reply STOP to opt out.`;
+  }
+
+  const optIn = intent === "start";
+  const now = new Date();
+  // Applied to every club this number is on. Somebody texting STOP means stop,
+  // not stop from one of the four clubs they belong to.
+  await prisma.member.updateMany({
+    where: { id: { in: matches.map((m) => m.id) } },
+    data: optIn
+      ? { smsOptIn: true, smsOptInAt: now }
+      : { smsOptIn: false, smsOptOutAt: now },
+  });
+
+  return optIn
+    ? "You're subscribed to tournament texts again. Reply STOP to opt out."
+    : "You won't get any more texts from us. Reply START to turn them back on.";
+}

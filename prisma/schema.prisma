@@ -69,6 +69,7 @@ model Organization {
    * /**
    * /**
    * /**
+   * /**
    * /** Absolute https:// URL to a logo image. A URL rather than an upload
    * because file uploads need blob storage; this works with the club's
    * existing website assets and can be swapped for an upload later without
@@ -407,19 +408,40 @@ model Member {
 
   /**
    * Opted out of being messaged by other members.
-   *
    * Deliberately narrow, and the narrowness is the whole design. It stops
    * other players starting a direct conversation with this person and takes
    * them out of the address book. It does NOT silence the organizer: tee
    * times, a frost delay and a change of venue are how somebody finds out
    * where to turn up, and an opt-out that loses them their tee time is a
    * setting nobody can safely use.
-   *
    * On Member rather than Player because a communication preference belongs to
    * the person and their club, not to one week's entry — asking somebody to
    * opt out again for every tournament is not offering them a choice.
    */
   messagesOptOut Boolean @default(false)
+
+  /**
+   * Agreed to receive text messages. Opt-IN, and separate from everything else
+   * on purpose.
+   * Somebody who gave a phone number so the organizer could ring them about a
+   * tee time has not agreed to receive bulk texts, and treating those as the
+   * same thing is exactly the conflation that gets an SMS programme shut down.
+   * So a number is necessary and never sufficient: nothing is sent unless this
+   * is true.
+   */
+  smsOptIn Boolean @default(false)
+
+  /**
+   * When they texted STOP, or unticked the box. Kept rather than just flipping
+   * the flag, because "did you have consent when you sent it" is the question
+   * that actually gets asked, and a boolean cannot answer it.
+   */
+  smsOptOutAt DateTime?
+
+  /**
+   * When they opted in, for the same reason.
+   */
+  smsOptInAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -699,7 +721,6 @@ model Event {
   playerAccess          String  @default("email") // email | code | both
   /**
    * Registration asks for a mobile number and refuses without one.
-   *
    * Off by default and deliberately per-tournament. A phone number is not
    * needed to run a competition — email is identity here and the app reaches
    * people in the app — so a required field that costs entries has to be the
@@ -1772,4 +1793,58 @@ model ThreadRead {
 
   @@unique([threadId, email])
   @@index([email])
+}
+
+/**
+ * One text we tried to send.
+ * Kept because SMS is the one thing in this app that costs money per use and
+ * that a regulator may ask about. Two questions have to be answerable months
+ * later: what did this cost, and did we have consent when we sent it. Neither
+ * can be answered from the messages themselves.
+ * Deliberately stores the number as sent rather than pointing at the Member —
+ * a member who later changes their number must not silently rewrite the record
+ * of where a message actually went.
+ */
+model SmsDelivery {
+  id             String  @id @default(cuid())
+  organizationId String
+  eventId        String?
+  /**
+   * The Thread this went out for, when it was a broadcast of one.
+   */
+  threadId       String?
+  /**
+   * `kind:id` — which level the organizer sent to.
+   */
+  scopeKey       String  @default("")
+
+  toPhone    String
+  toName     String @default("")
+  body       String
+  /**
+   * What this was billed as: segments, not messages.
+   */
+  segments   Int    @default(1)
+  /**
+   * queued | sent | delivered | failed | skipped
+   */
+  status     String @default("queued")
+  /**
+   * Carrier or provider error, kept verbatim for support.
+   */
+  error      String @default("")
+  /**
+   * The provider's own id, for reconciling against their invoice.
+   */
+  providerId String @default("")
+
+  /**
+   * Who sent it — an organizer's email, for the audit question.
+   */
+  sentByEmail String   @default("")
+  createdAt   DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([eventId])
+  @@index([threadId])
 }
