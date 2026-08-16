@@ -868,3 +868,54 @@ describe("nothing builds a CSV by hand", () => {
     expect(src).toMatch(/export function toCsv/);
   });
 });
+
+describe("every screen that shows results makes the same branch", () => {
+  /**
+   * D8 of the 2026-08-12 audit. The leaderboard had four branches ahead of its
+   * `standingRows` call — manual, team, skins/nassau/modified Stableford —
+   * Reports had none of them, and `/live` had one. So a team round exported
+   * from Reports as the whole field at gross 0 through 0, and a *manual* round
+   * printed a branded "Final standings snapshot" with an Advancing column for
+   * a format the leaderboard explicitly refuses to score.
+   *
+   * The branch is now one function, `boardKind`. This guard is on the thing
+   * that actually went wrong: three screens each deciding for themselves. Any
+   * screen calling `standingRows` has to have asked.
+   */
+  const SCREENS = [
+    join("app", "(app)", "leaderboard", "page.tsx"),
+    join("app", "(app)", "reports", "page.tsx"),
+    join("app", "live", "[token]", "page.tsx"),
+  ];
+
+  for (const screen of SCREENS) {
+    it(`${screen} branches on boardKind`, () => {
+      const src = stripComments(readFileSync(join(process.cwd(), "src", screen), "utf8"));
+      expect(src, "must not call standingRows without deciding which board applies").toMatch(
+        /boardKind\(/,
+      );
+      // Every kind that is not the ordinary board has to be handled, or the
+      // fallthrough silently ranks a format on the wrong reading again.
+      for (const kind of ["manual", "team", "skins", "nassau", "modified-stableford"]) {
+        expect(src, `${screen} ignores the "${kind}" board`).toContain(`"${kind}"`);
+      }
+    });
+  }
+
+  it("no other screen ranks the field without asking", () => {
+    const APP = join(process.cwd(), "src", "app");
+    const offenders: string[] = [];
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const p = join(dir, e.name);
+        return e.isDirectory() ? walk(p) : /\.tsx?$/.test(e.name) ? [p] : [];
+      });
+
+    for (const file of walk(APP)) {
+      const src = stripComments(readFileSync(file, "utf8"));
+      if (!/\bstandingRows\(/.test(src)) continue;
+      if (!/boardKind\(|usesStandardBoard\(/.test(src)) offenders.push(file.slice(APP.length + 1));
+    }
+    expect(offenders, "call boardKind before ranking — see lib/formats.ts").toEqual([]);
+  });
+});

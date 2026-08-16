@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, standingRows, settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
+import { boardKind } from "@/lib/formats";
 
 /**
  * The board, as a player reads it.
@@ -33,6 +34,27 @@ export default async function PlayBoardPage() {
 
   const stage = state.activeStage ?? state.stages[0] ?? null;
   const holes = stage?.holes === 9 ? 9 : 18;
+
+  // The same branch the console leaderboard, Reports and /live make (D8). A
+  // player looking at their own board is the last person who should be shown a
+  // ranking the app cannot actually compute for this round — they will read it
+  // as where they stand.
+  const kind = boardKind(stage?.format);
+  if (kind !== "standard") {
+    return (
+      <div>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 22, margin: 0 }}>Board</h1>
+        <p style={{ marginTop: 10, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
+          {kind === "manual"
+            ? "This round is scored by hand — the committee works out the result and posts it when it's settled."
+            : kind === "team"
+              ? "This round ranks teams rather than players. Ask your organizer for the team board."
+              : "This round is scored a different way. Ask your organizer for the current standings."}
+        </p>
+      </div>
+    );
+  }
+
   const rows = standingRows(state);
 
   // Which row is theirs, by the registration email — the same linkage every

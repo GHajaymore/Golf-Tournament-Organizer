@@ -17,7 +17,23 @@ export function ManualRoundBoard({ format }: { format: string }) {
         <div className="page-kicker">Live</div>
         <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Leaderboard</h2>
       </div>
+      <ManualRoundNotice format={format} />
+    </>
+  );
+}
 
+/**
+ * The same refusal without the leaderboard's page header, so Reports can say
+ * it too.
+ *
+ * Reports used to print a branded "Final standings snapshot" with an Advancing
+ * column for these rounds — a *more* authoritative-looking wrong answer than
+ * the leaderboard would have given, on the page whose output gets pinned to a
+ * noticeboard. One message, one component, both screens.
+ */
+export function ManualRoundNotice({ format }: { format: string }) {
+  return (
+    <>
       <div className="card elev-sm" style={{ gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <i className="ph ph-clipboard-text" style={{ fontSize: 20, opacity: 0.7 }} />

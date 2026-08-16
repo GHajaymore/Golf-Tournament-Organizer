@@ -18,6 +18,7 @@ import { courseHandicapMap, playingHandicapFrom } from "@/lib/domain/handicap";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows } from "@/lib/services/tournament";
+import { usesStandardBoard } from "@/lib/formats";
 import type { VoiceContext } from "@/lib/domain/voice-query";
 import { courseModeOf, needsVenue } from "@/lib/domain/venue";
 
@@ -473,7 +474,11 @@ export default async function EntryPage() {
           if (opp) opponentByRound[i + 1] = opp.name;
         }
       });
-      const rows = standingRows(state);
+      // Position is omitted rather than guessed for a round the ordinary board
+      // does not cover (D8). This feeds a spoken answer to "where am I?", and
+      // a confident wrong rank is worse than "I don't have that for this
+      // round" — nothing on screen qualifies it.
+      const rows = usesStandardBoard(state.activeStage?.format) ? standingRows(state) : [];
       const idx = rows.findIndex((r) => r.id === myId);
       voice = {
         playerName: me.name,

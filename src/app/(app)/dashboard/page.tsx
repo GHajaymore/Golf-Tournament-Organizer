@@ -8,6 +8,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
 import { showBracket, bracketBadge, feederFraction } from "@/lib/bracket-visibility";
 import { matchProgress, standingRows } from "@/lib/services/tournament";
+import { usesStandardBoard } from "@/lib/formats";
 import { pts, shortName } from "@/lib/format";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
@@ -137,7 +138,12 @@ export default async function DashboardPage() {
     ? setupChecklist({ ...state, branding: clubBrandingState(brandingOrg) })
     : [];
 
-  const rows = standingRows(state).slice(0, 8);
+  // Empty for a round the ordinary board does not cover (D8) — a team round
+  // would list the field at gross 0, a manual round a ranking the app has no
+  // basis for. The dashboard's leaderboard card hides itself when there are no
+  // rows, which is the honest thing here: the real board is one click away and
+  // knows how to read this format.
+  const rows = usesStandardBoard(state.activeStage?.format) ? standingRows(state).slice(0, 8) : [];
   const advancingIds = state.advancingIds;
 
   // With no knockout to qualify into, the field advances by a per-round cut

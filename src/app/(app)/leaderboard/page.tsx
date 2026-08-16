@@ -8,7 +8,7 @@ import { LeaderboardBoard } from "@/components/LeaderboardBoard";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
-import { needsTeams, findFormat, isManualFormat } from "@/lib/formats";
+import { boardKind } from "@/lib/formats";
 import { ManualRoundBoard } from "@/components/ManualRoundBoard";
 import { teamStandings } from "@/lib/services/teams";
 import { resolveCourse } from "@/lib/courses";
@@ -33,15 +33,16 @@ export default async function LeaderboardPage() {
   // only half the story — so this is a different board, not a column change.
   const activeStage = state.activeStage ?? state.stages[0] ?? null;
 
-  // Checked FIRST, before teams and before any engine. A round the app does
-  // not score must never reach a scoring path: it would rank the field on
-  // strokes nobody was playing for and look exactly as authoritative as a
-  // real board.
-  if (activeStage && isManualFormat(activeStage.format)) {
-    return <ManualRoundBoard format={activeStage.format} />;
+  // `boardKind` holds the order these are checked in — manual first, before
+  // teams and before any engine — because Reports and /live have to make the
+  // same decision and used not to. See lib/formats.ts.
+  const kind = boardKind(activeStage?.format);
+
+  if (kind === "manual") {
+    return <ManualRoundBoard format={activeStage!.format} />;
   }
 
-  if (activeStage && needsTeams(activeStage.format)) {
+  if (kind === "team" && activeStage) {
     const holeCount = activeStage.holes === 9 ? 9 : 18;
     const course = resolveCourse(event);
     const standings = await teamStandings(
@@ -68,21 +69,20 @@ export default async function LeaderboardPage() {
   // its scores where the standard boards keep them — a skins game is a stroke
   // card, a Nassau is a match card — so these only change the reading.
   if (activeStage) {
-    const engine = findFormat(activeStage.format).engine;
     const holes = activeStage.holes === 9 ? 9 : 18;
     const c = resolveCourse(event);
 
-    if (engine === "skins") {
+    if (kind === "skins") {
       const net = activeStage.scoringBasis !== "gross";
       const board = await skinsBoard(
         session.eventId, activeStage.id, holes, net, c.strokeIndex.slice(0, holes),
       );
       return <SkinsLeaderboard board={board} net={net} />;
     }
-    if (engine === "nassau") {
+    if (kind === "nassau") {
       return <NassauLeaderboard rows={await nassauBoard(session.eventId, activeStage.id)} />;
     }
-    if (engine === "modified-stableford") {
+    if (kind === "modified-stableford") {
       const rows = await modifiedStablefordBoard(
         session.eventId, activeStage.id, c.pars.slice(0, holes), c.strokeIndex.slice(0, holes),
       );

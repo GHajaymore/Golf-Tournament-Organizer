@@ -450,6 +450,45 @@ export function needsTeams(formatName: string): boolean {
   return findFormat(formatName).sideSize > 1;
 }
 
+/**
+ * Which board a round belongs on.
+ *
+ * Every screen that shows results has to make this decision, and for a while
+ * each of them made it separately — so they disagreed. The leaderboard had all
+ * four branches; Reports had none of them and called `standingRows`
+ * unconditionally, and `/live` branched only on teams. A team round therefore
+ * appeared on Reports as the whole field at gross 0 through 0, and a *manual*
+ * round printed a branded "Final standings snapshot" with an Advancing column
+ * for a format the leaderboard explicitly refuses to score. Two screens in the
+ * same product, contradicting each other, both looking authoritative.
+ *
+ * So the decision lives here once and every screen asks. The order matters and
+ * is the leaderboard's: manual is checked FIRST, because a round the app does
+ * not score must never reach a scoring path at all.
+ */
+export type BoardKind = "manual" | "team" | "skins" | "nassau" | "modified-stableford" | "standard";
+
+export function boardKind(formatName: string | null | undefined): BoardKind {
+  if (!formatName) return "standard";
+  if (isManualFormat(formatName)) return "manual";
+  if (needsTeams(formatName)) return "team";
+  const engine = findFormat(formatName).engine;
+  if (engine === "skins") return "skins";
+  if (engine === "nassau") return "nassau";
+  if (engine === "modified-stableford") return "modified-stableford";
+  return "standard";
+}
+
+/**
+ * True when `standingRows` is the right thing to render for this round.
+ *
+ * The one-line form of the check above, for screens that only need to know
+ * whether the ordinary board applies.
+ */
+export function usesStandardBoard(formatName: string | null | undefined): boolean {
+  return boardKind(formatName) === "standard";
+}
+
 /** True when the side shares a single scorecard rather than one card each. */
 export function sharesOneCard(formatName: string): boolean {
   return findFormat(formatName).ball === "single";

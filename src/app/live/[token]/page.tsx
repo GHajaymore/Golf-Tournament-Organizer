@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { loadEventState, standingRows, settingsOf } from "@/lib/services/tournament";
-import { needsTeams } from "@/lib/formats";
+import { boardKind } from "@/lib/formats";
 import { teamStandings } from "@/lib/services/teams";
+import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
+import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { resolveCourse } from "@/lib/courses";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
@@ -25,6 +27,35 @@ import { themeCss, playerColorScheme } from "@/lib/themes";
 // Standings move as scores come in, so this must never be served stale from
 // the full route cache.
 export const dynamic = "force-dynamic";
+
+/**
+ * What a spectator sees for a round the app does not score.
+ *
+ * The console has an organizer standing next to it who knows the app isn't
+ * working the result out. This page does not — a table here is read as the
+ * result by whoever opened the link, and there is nobody to correct it. So it
+ * says plainly that there is no live board for this round and where the result
+ * will come from.
+ */
+function PublicManualNotice() {
+  return (
+    <div
+      style={{
+        border: "1px solid var(--color-divider)",
+        borderRadius: 12,
+        padding: "22px 20px",
+        textAlign: "center",
+        lineHeight: 1.65,
+      }}
+    >
+      <p style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>This round is scored by hand</p>
+      <p style={{ margin: "8px 0 0", fontSize: 13.5, color: "var(--color-neutral-400)" }}>
+        There is no live leaderboard for it — the committee works out the result and posts it when
+        it is settled.
+      </p>
+    </div>
+  );
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -52,8 +83,15 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
   // A team round keeps its scores on TeamScorecard, so standingRows — which
   // only knows about players — would render an empty table on a page the club
   // has deliberately made public.
+  //
+  // The other branches matter here for a stronger reason than on the console:
+  // this page is the one a spectator reads, and it has no organizer standing
+  // next to it to say "that isn't the real result". `boardKind` is shared with
+  // the leaderboard and Reports so the three cannot drift apart again — this
+  // page used to branch on teams alone (D8).
   const activeStage = state.activeStage ?? state.stages[0] ?? null;
-  const teamRound = !!activeStage && needsTeams(activeStage.format);
+  const kind = boardKind(activeStage?.format);
+  const teamRound = kind === "team" && !!activeStage;
   const holeCount = activeStage?.holes === 9 ? 9 : 18;
   const liveCourse = resolveCourse(event);
   const teamRows = teamRound
@@ -69,6 +107,24 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
         activeStage!.countBest,
       )
     : [];
+
+  // The reading each of these formats needs. Computed here rather than in the
+  // markup so the branch below stays a single decision.
+  const skinsNet = activeStage ? activeStage.scoringBasis !== "gross" : true;
+  const skins =
+    kind === "skins" && activeStage
+      ? await skinsBoard(event.id, activeStage.id, holeCount, skinsNet, liveCourse.strokeIndex.slice(0, holeCount))
+      : null;
+  const nassau = kind === "nassau" && activeStage ? await nassauBoard(event.id, activeStage.id) : null;
+  const modStableford =
+    kind === "modified-stableford" && activeStage
+      ? await modifiedStablefordBoard(
+          event.id,
+          activeStage.id,
+          liveCourse.pars.slice(0, holeCount),
+          liveCourse.strokeIndex.slice(0, holeCount),
+        )
+      : null;
 
   const rows = standingRows(state);
   const brand = await brandForEvent(event.id);
@@ -148,12 +204,20 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
           </p>
         </header>
 
-        {teamRound ? (
+        {kind === "manual" ? (
+          <PublicManualNotice />
+        ) : teamRound ? (
           <TeamLeaderboard
             format={activeStage!.format}
             stableford={activeStage!.scoringBasis === "stableford"}
             rows={teamRows}
           />
+        ) : kind === "skins" && skins ? (
+          <SkinsLeaderboard board={skins} net={skinsNet} />
+        ) : kind === "nassau" && nassau ? (
+          <NassauLeaderboard rows={nassau} />
+        ) : kind === "modified-stableford" && modStableford ? (
+          <ModifiedStablefordLeaderboard rows={modStableford} />
         ) : (
           <PlayerLeaderboard
             isStroke={state.isStroke}

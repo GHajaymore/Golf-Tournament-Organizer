@@ -23,6 +23,10 @@ export function ReportsClient({
   isStableford = false,
   eventName,
   brand,
+  snapshotTitle = "Final standings snapshot",
+  extraCsv = [],
+  board,
+  scored = true,
 }: {
   rows: StandingRow[];
   isStroke: boolean;
@@ -30,6 +34,23 @@ export function ReportsClient({
   eventName: string;
   /** Owning club's branding, shown on the printable standings. */
   brand?: { name: string; logoUrl: string } | null;
+  /** What the printable panel is called — a team round is not "standings". */
+  snapshotTitle?: string;
+  /**
+   * Exports for a round the standard board does not cover, built on the server
+   * from that round's own engine. Replaces the two player-standings CSVs when
+   * present, because those would be an export of the wrong reading.
+   */
+  extraCsv?: { label: string; desc: string; filename: string; rows: string[][] }[];
+  /** The board to print, when it isn't the ordinary player standings. */
+  board?: React.ReactNode;
+  /**
+   * False for a format the app does not score. Everything that produces a
+   * result is withheld — the CSVs and the printable snapshot — while the
+   * things that still make sense for such a round, the tee sheet and the
+   * printable blank scorecards, stay.
+   */
+  scored?: boolean;
 }) {
   const router = useRouter();
   const status = (r: StandingRow) => (r.advancing ? "Advancing" : "Eliminated");
@@ -61,9 +82,30 @@ export function ReportsClient({
     ]);
   };
 
+  // The player-standings CSVs apply only when the ordinary board does. A team
+  // round exports sides; a skins round exports skins; a manual round exports
+  // no result at all, because the app does not know one.
+  const standingsCsv =
+    scored && extraCsv.length === 0
+      ? [
+          { label: "Full standings", desc: "Every player, ranked, with results and status.", icon: "ph ph-table", action: fullStandings, kind: "csv" },
+          { label: "Flight results", desc: "Per-flight finishing order and advancing status.", icon: "ph ph-squares-four", action: groupResults, kind: "csv" },
+        ]
+      : [];
+
   const exports = [
-    { label: "Full standings", desc: "Every player, ranked, with results and status.", icon: "ph ph-table", action: fullStandings, kind: "csv" },
-    { label: "Flight results", desc: "Per-flight finishing order and advancing status.", icon: "ph ph-squares-four", action: groupResults, kind: "csv" },
+    ...standingsCsv,
+    ...(scored
+      ? extraCsv.map((e) => ({
+          label: e.label,
+          desc: e.desc,
+          icon: "ph ph-table",
+          action: () => download(e.filename, e.rows),
+          kind: "csv",
+        }))
+      : []),
+    // These stay whatever the format is: a bracket and a blank scorecard are
+    // not claims about who won.
     { label: "Bracket sheet", desc: "Open the bracket, then print to PDF.", icon: "ph ph-tree-structure", action: () => router.push("/bracket"), kind: "open" },
     { label: "Scorecards", desc: "Open printable scorecards for the field.", icon: "ph ph-cards", action: () => router.push("/scorecard"), kind: "open" },
   ];
@@ -88,6 +130,10 @@ export function ReportsClient({
           Use your browser&rsquo;s Print → &ldquo;Save as PDF&rdquo; on any printable view (chrome is hidden in print).
         </p>
       </div>
+      {/* No snapshot at all for a format the app does not score. A printed
+          table is read as a result whatever the caption says, and this is the
+          page whose output gets pinned to a noticeboard. */}
+      {!scored ? null : (
       <div className="card elev-sm print-card">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
@@ -102,7 +148,7 @@ export function ReportsClient({
               />
             )}
             <div style={{ minWidth: 0 }}>
-              <span className="card-title" style={{ fontSize: 15 }}>Final standings snapshot</span>
+              <span className="card-title" style={{ fontSize: 15 }}>{snapshotTitle}</span>
               <div className="text-muted" style={{ fontSize: 12 }}>
                 {[brand?.name, eventName].filter(Boolean).join(" · ")}
               </div>
@@ -112,8 +158,9 @@ export function ReportsClient({
             <i className="ph ph-printer" /> Print
           </button>
         </div>
-        <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} />
+        {board ?? <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} />}
       </div>
+      )}
     </div>
   );
 }

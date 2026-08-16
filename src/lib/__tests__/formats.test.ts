@@ -13,6 +13,7 @@ import {
   lookupFormat,
   isKnownFormat,
   needsTeams,
+  boardKind,
   sharesOneCard,
   sideSizeRange,
   playingHandicap,
@@ -139,16 +140,40 @@ describe("the catalog", () => {
     // strokes nobody was playing for — indistinguishable, on screen, from a
     // real result. So the check has to come FIRST, before the team branch and
     // before anything reads .engine.
-    const board = readFileSync(
-      join(process.cwd(), "src/app/(app)/leaderboard/page.tsx"),
-      "utf8",
-    );
-    const manualAt = board.indexOf("isManualFormat");
-    const teamsAt = board.indexOf("needsTeams(activeStage.format)");
-    const engineAt = board.indexOf("findFormat(activeStage.format).engine");
+    //
+    // The ordering used to live inline in the leaderboard, which is why this
+    // test read that file. It now lives in `boardKind` — because Reports and
+    // /live have to make the same decision and made it differently (D8) — so
+    // the ordering is asserted where it is, plus behaviourally below.
+    const formats = readFileSync(join(process.cwd(), "src/lib/formats.ts"), "utf8");
+    const fn = formats.slice(formats.indexOf("export function boardKind"));
+    const body = fn.slice(0, fn.indexOf("\n}"));
+    const manualAt = body.indexOf("isManualFormat");
+    const teamsAt = body.indexOf("needsTeams");
+    const engineAt = body.indexOf(".engine");
     expect(manualAt).toBeGreaterThan(-1);
     expect(manualAt, "manual check must precede the team branch").toBeLessThan(teamsAt);
     expect(manualAt, "manual check must precede any engine read").toBeLessThan(engineAt);
+  });
+
+  it("calls a manual round manual whatever else it looks like", () => {
+    // The behavioural half of the check above, which no amount of moving the
+    // code around can quietly break.
+    for (const name of PLAYABLE_FORMAT_NAMES) {
+      if (!isManualFormat(name)) continue;
+      expect(boardKind(name), `${name} must never reach a scoring board`).toBe("manual");
+    }
+  });
+
+  it("sends every scored format to a board that can read it", () => {
+    // The other half: nothing playable may fall through to the standard board
+    // unless the standard board is actually right for it.
+    for (const name of PLAYABLE_FORMAT_NAMES) {
+      const kind = boardKind(name);
+      if (isManualFormat(name)) continue;
+      if (needsTeams(name)) expect(kind, name).toBe("team");
+      else expect(["skins", "nassau", "modified-stableford", "standard"]).toContain(kind);
+    }
   });
 
   it("stops the weekly league sheet ranking a manual round either", () => {
