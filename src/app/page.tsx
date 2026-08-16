@@ -73,6 +73,12 @@ const LANDING_CSS = `
   --flag:#4FA97C; --flag-soft:#63BE90; --under:#4FA97C; --brass:#E8A33D;
   --sans:var(--font-geist-sans),-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
   --mono:var(--font-geist-mono),ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  /* Display only. Golf sets its own type in engraved and printed serifs —
+     honours boards, card stock, the crest over the door — and a page selling
+     that in the same grotesque as every other SaaS reads as software about
+     golf rather than something belonging to it. Headlines only: a serif in a
+     score column, read on a phone in sun, is a worse leaderboard. */
+  --display:var(--font-display),"Hoefler Text","Iowan Old Style",Georgia,"Times New Roman",serif;
   font-family:var(--sans); background:var(--ground); color:var(--ink);
   line-height:1.6; -webkit-font-smoothing:antialiased;
 }
@@ -117,7 +123,9 @@ const LANDING_CSS = `
    tight, the way a board reads across a room. Not the serif — that belonged to
    the programme direction, and a serif at this size reads editorial rather
    than live. */
-.thq h1 { font-family:var(--sans); font-weight:700; font-size:clamp(2.7rem, 6.2vw, 5rem); line-height:0.96; letter-spacing:-0.035em; margin:20px 0 0; text-wrap:balance; }
+.thq h1 { font-family:var(--display); font-weight:700; font-size:clamp(2.8rem, 6.4vw, 5.2rem); line-height:0.98; letter-spacing:-0.022em; margin:20px 0 0; text-wrap:balance; }
+/* The one italic on the page, on the one word the whole line turns on. */
+.thq h1 em { font-style:italic; font-weight:600; }
 .thq h1 em { font-style:normal; color:var(--brass); }
 /* The four verbs. Spaced and uppercase so they read as a sequence — which is
    what they are: the organizer's actual path through the app. */
@@ -167,8 +175,10 @@ const LANDING_CSS = `
 
 .thq section { padding:72px 0; }
 .thq .sec-kick { font-size:11.5px; text-transform:uppercase; letter-spacing:0.16em; font-weight:650; color:var(--brass); }
-.thq .sec-h { font-family:var(--sans); font-size:clamp(1.7rem, 3vw, 2.4rem); font-weight:700; letter-spacing:-0.02em; margin:12px 0 0; text-wrap:balance; }
-.thq .sec-sub { color:var(--ink-soft); margin:14px 0 0; max-width:54ch; line-height:1.6; }
+.thq .sec-h { font-family:var(--display); font-size:clamp(1.8rem, 3.1vw, 2.6rem); font-weight:700; letter-spacing:-0.012em; line-height:1.12; margin:12px 0 0; text-wrap:balance; }
+/* 62ch rather than 54: at this size the shorter measure was breaking two-line
+   sentences into three. */
+.thq .sec-sub { color:var(--ink-soft); margin:15px 0 0; max-width:62ch; line-height:1.62; font-size:16.5px; }
 
 .thq .features { display:grid; grid-template-columns:repeat(3, 1fr); gap:1px; margin-top:36px; background:var(--line); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
 .thq .feat { background:var(--ground); padding:30px 28px; display:flex; flex-direction:column; gap:13px; min-height:190px; transition:background .18s ease; }
@@ -216,7 +226,7 @@ const LANDING_CSS = `
 
 .thq .close { text-align:center; padding:108px 0; border-top:1px solid var(--line); position:relative; overflow:hidden; }
 .thq .close::before { content:""; position:absolute; inset:auto 0 -50% 0; height:460px; background:radial-gradient(50% 100% at 50% 100%, color-mix(in srgb, var(--flag) 12%, transparent), transparent 72%); pointer-events:none; }
-.thq .close h2 { font-family:var(--sans); position:relative; font-size:clamp(2rem, 4vw, 3rem); font-weight:700; letter-spacing:-0.025em; margin:0; text-wrap:balance; }
+.thq .close h2 { font-family:var(--display); position:relative; font-size:clamp(2rem, 4vw, 3rem); font-weight:700; letter-spacing:-0.025em; margin:0; text-wrap:balance; }
 .thq .close p { position:relative; color:var(--ink-soft); margin:18px auto 32px; max-width:46ch; }
 
 .thq footer { border-top:1px solid var(--line); padding:34px 0 44px; }
@@ -488,6 +498,86 @@ export default async function LoginPage() {
               <p style={paperSoft}>Brackets seeded, ties broken, payouts calculated. Export the lot, or publish a link for the clubhouse.</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* The player's half of the product. The page spoke only to organizers,
+          which undersold the thing a member actually holds on the course —
+          and it is the half every competitor leads with. */}
+      <section>
+        <div className="wrap">
+          <div className="reveal">
+            <div className="sec-kick">For the player</div>
+            <h2 className="sec-h">Four tabs, and nothing to learn.</h2>
+            <p className="sec-sub">
+              A member opens their phone on the first tee, not a manual. Their card, the board, what
+              they owe, and whether they&rsquo;re playing next week — and a round code gets them in
+              with no account at all.
+            </p>
+          </div>
+          <div className="features reveal">
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M9 9v11" /></svg>
+              <h4>A card that saves itself</h4>
+              <p>
+                Hole by hole between shots, or the whole card to check against the paper one. No Save
+                button — a Save button on a golf course is a round lost to a pocket.
+              </p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
+              <h4>Where you stand, first</h4>
+              <p>
+                Your own line sits above the board, so &ldquo;where am I&rdquo; is answered before a
+                finger touches the screen — and the column says whether it is strokes, points or
+                match play.
+              </p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 11h18" /></svg>
+              <h4>Am I in next week?</h4>
+              <p>
+                A league season on a calendar, not twelve identical rows. In, out, and — honestly —
+                &ldquo;in because nobody said otherwise&rdquo;, which is a different promise.
+              </p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18" /><path d="M17 7.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.6 5 3 5 1.3 5 3-2.2 3-5 3-5-1.1-5-3" /></svg>
+              <h4>What you owe, in one number</h4>
+              <p>
+                Dinner, the carts, the skins and the closest-to-the-pin — added up into a single
+                figure, with the parts shown so nobody has to take it on trust.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* The differentiator, and the one thing no general expense app can do:
+          it does not know the golf. */}
+      <section className="band">
+        <div className="wrap">
+          <div className="reveal">
+            <div className="sec-kick" style={paperInk}>The money</div>
+            <h2 className="sec-h" style={paperInk}>One settle-up, golf included.</h2>
+            <p className="sec-sub" style={paperInk}>
+              Splitwise can divide a dinner bill. It cannot know that Dave also lost the skins and
+              won the long drive. TourneyHQ adds the outing and the side games together and produces
+              the fewest handovers that square everybody — and it never touches the money.
+            </p>
+          </div>
+          <div className="calc reveal" style={{ maxWidth: 440 }}>
+            <div className="cr"><span className="k">Dinner, split four ways</span><span className="v">−65.00</span></div>
+            <div className="cr"><span className="k">Carts, your fourball</span><span className="v">−45.00</span></div>
+            <div className="cr"><span className="k">Skins, worked out from the cards</span><span className="v">+80.00</span></div>
+            <div className="cr"><span className="k">Closest to the pin, 7th</span><span className="v">+15.00</span></div>
+            <div className="cr win"><span className="k">You&rsquo;re owed</span><span className="v">15.00</span></div>
+          </div>
+          <p className="sec-sub reveal" style={{ ...paperInk, marginTop: 18, maxWidth: "52ch" }}>
+            Skins and the low-gross pot settle from the scorecards themselves. Closest to the pin and
+            the long drive are typed in, because no card has ever recorded who was nearest the flag.
+            Everything balances to the cent, and a pot nobody has won yet costs nobody anything.
+          </p>
         </div>
       </section>
 

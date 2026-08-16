@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+import { Fraunces } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
@@ -17,7 +18,27 @@ import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
  * same-origin, so there is no CDN to block and no flash of fallback text. Geist
  * is a variable grotesque with true tabular figures, which is what a page built
  * around a leaderboard needs — columns of numbers have to lock.
+ *
+ * Fraunces joins it for DISPLAY TEXT ONLY — the marketing page's headlines and
+ * nothing else. Golf's own typography is engraved and printed: honours boards,
+ * card stock, the club's crest. A page selling that in the same grotesque as
+ * every other SaaS product reads as software about golf rather than something
+ * belonging to the game. It is confined to headings on purpose: a serif in a
+ * score column, on a phone in sun, would be a worse leaderboard.
+ *
+ * `next/font/google` downloads at BUILD time and serves the files
+ * same-origin, so the CSP note above still holds — there is no external font
+ * host at runtime.
  */
+const display = Fraunces({
+  subsets: ["latin"],
+  // A narrow range, requested as a variable font: enough for a headline and a
+  // heavier one, without shipping an axis nobody uses.
+  weight: ["600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-display",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "TourneyHQ — Golf Tournament Console",
@@ -55,7 +76,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} ${display.variable}`}>
       <head>
         <link
           rel="stylesheet"
