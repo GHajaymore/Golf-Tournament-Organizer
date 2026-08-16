@@ -36,6 +36,7 @@ function when(ts: number): string {
 const KIND_ICON: Record<string, string> = {
   club: "ph ph-buildings",
   event: "ph ph-trophy",
+  players: "ph ph-users-three",
   staff: "ph ph-lock-simple",
   flight: "ph ph-squares-four",
   round: "ph ph-flag",
@@ -498,7 +499,7 @@ function OptOutPanel({
 /** Pick who to write to: a level, or a person. */
 /** Scopes a text can go to at all — mirrors SMS_BROADCAST_SCOPES on the
  *  server, which is the authority. A chat scope never texts. */
-const SMS_KINDS = ["club", "event", "flight", "round", "team"];
+const SMS_KINDS = ["club", "event", "players", "flight", "round", "team"];
 
 function ComposePanel({
   composable,

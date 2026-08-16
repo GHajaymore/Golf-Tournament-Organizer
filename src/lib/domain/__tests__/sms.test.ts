@@ -214,3 +214,11 @@ describe("what it costs the club", () => {
     expect(two).toBeCloseTo(one * 2, 5);
   });
 });
+
+describe("players only can be texted", () => {
+  it("is a broadcast scope", () => {
+    // It is an organizer addressing the field — the same shape as event-wide,
+    // so it fans out the same way.
+    expect(canFanOutToSms("players")).toBe(true);
+  });
+});

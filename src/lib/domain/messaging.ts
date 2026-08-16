@@ -25,8 +25,18 @@
 export type ScopeKind =
   /** Everyone on the club roster, across tournaments. */
   | "club"
-  /** Everyone in one tournament. */
+  /** Everyone in one tournament — the field and the people running it. */
   | "event"
+  /**
+   * The field only.
+   *
+   * Distinct from `event` because "everyone in this tournament" includes the
+   * committee, and an organizer telling the players something does not always
+   * want it landing with their assistants as an announcement too. The audience
+   * is who is entered; staff still see the thread, because they run it and
+   * have to be able to read what was sent.
+   */
+  | "players"
   /** Organizers and assistants of one tournament. Never visible to players. */
   | "staff"
   /** One flight. */
@@ -45,6 +55,7 @@ export type ScopeKind =
 export const SCOPE_KINDS: ScopeKind[] = [
   "club",
   "event",
+  "players",
   "staff",
   "flight",
   "round",
@@ -134,6 +145,13 @@ export function visibleScopes(ctx: MembershipContext): ScopeKey[] {
   const inEvent = ctx.playerId !== null || ctx.role !== "player";
   if (inEvent) keys.push(scopeKey("event"));
 
+  // "Players only" is addressed to the field, but staff read it too — they
+  // sent it, and an organizer who cannot see what went out to their own
+  // players has a worse problem than a tidy audience list. The distinction
+  // that matters is who RECEIVES it, which is what the SMS fan-out and the
+  // label both use.
+  if (inEvent) keys.push(scopeKey("players"));
+
   // The one scope a player may never read, however they got here. An
   // organizer previewing as a player must not see it either: preview exists to
   // show what a player sees, and a back-room conversation is the clearest case
@@ -175,7 +193,10 @@ export function canPostToScope(ctx: MembershipContext, key: ScopeKey): boolean {
   if (!canReadScope(ctx, key)) return false;
   const parsed = parseScopeKey(key);
   if (!parsed) return false;
-  if (parsed.kind === "club" || parsed.kind === "event") {
+  // The three broadcast scopes. A field of 120 all able to reply to a club
+  // announcement is a broadcast storm, not a conversation — and "players only"
+  // is an announcement to the field for the same reason event-wide is.
+  if (parsed.kind === "club" || parsed.kind === "event" || parsed.kind === "players") {
     return ctx.role === "admin" || ctx.role === "assistant";
   }
   return true;
@@ -196,6 +217,7 @@ export function canStartThreadIn(ctx: MembershipContext, key: ScopeKey): boolean
 export const SCOPE_LABEL: Record<ScopeKind, string> = {
   club: "Everyone at the club",
   event: "Everyone in this tournament",
+  players: "Players only",
   staff: "Organizers only",
   flight: "Your flight",
   round: "Everyone in this round",

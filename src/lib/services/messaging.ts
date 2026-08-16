@@ -616,6 +616,33 @@ export async function composableScopes(
     if (kind === "direct") continue; // has its own picker
     out.push({ key, label, kind });
   }
+
+  /**
+   * Staff can broadcast to flights, rounds and teams they are not personally
+   * in — that is what running a tournament is, and `staffBroadcast` has always
+   * allowed it. The picker did not offer them, because it was built only from
+   * the caller's own membership: an organizer who is not also playing has no
+   * flight and no four, so the dropdown showed three entries and the whole
+   * per-flight capability was unreachable from the UI. Found by opening the
+   * screen as an organizer who isn't in the field, which is the ordinary case.
+   *
+   * Added after the membership-derived entries and de-duplicated, so an
+   * organizer who IS in the field still sees their own flight once, and the
+   * derived label wins.
+   */
+  if (ctx.role === "admin" || ctx.role === "assistant") {
+    const seen = new Set(out.map((o) => o.key));
+    const add = (kind: ScopeKind, id: string, label: string) => {
+      const key = scopeKey(kind, id);
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ key, label, kind });
+    };
+    for (const g of groups) add("flight", g.id, `Flight ${g.name}`.trim());
+    for (const s of stages) add("round", s.id, stageName.get(s.id) ?? "Round");
+    for (const t of teams) add("team", t.id, t.name);
+  }
+
   return out;
 }
 
@@ -628,7 +655,15 @@ export async function composableScopes(
  * staff access to, and to the structural scopes only: it can never reach a
  * private four's conversation or a direct message.
  */
-const BROADCASTABLE: ScopeKind[] = ["club", "event", "staff", "flight", "round", "team"];
+const BROADCASTABLE: ScopeKind[] = [
+  "club",
+  "event",
+  "players",
+  "staff",
+  "flight",
+  "round",
+  "team",
+];
 
 export async function staffBroadcast(
   ctx: MembershipContext,
@@ -716,7 +751,7 @@ export async function smsAudienceFor(
       select: { name: true, email: true },
     });
     players = roster;
-  } else if (parsed.kind === "event" || parsed.kind === "round") {
+  } else if (parsed.kind === "event" || parsed.kind === "players" || parsed.kind === "round") {
     // Every round of a tournament has the whole field in it — see
     // membershipFor, where being entered is what puts a player in a round.
     players = await prisma.player.findMany({

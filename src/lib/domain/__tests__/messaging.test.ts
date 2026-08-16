@@ -215,3 +215,41 @@ describe("direct threads", () => {
     expect(directKeyFor(["Rita@X.test", "rita@x.test", "sam@x.test"])).toBe("rita@x.test|sam@x.test");
   });
 });
+
+describe("players only", () => {
+  it("is a separate audience from the whole tournament", () => {
+    // "Everyone in this tournament" includes the committee. An organizer
+    // telling the field something does not always want it landing with their
+    // assistants as an announcement too.
+    const c = ctx();
+    expect(canReadScope(c, scopeKey("players"))).toBe(true);
+    expect(canReadScope(c, scopeKey("event"))).toBe(true);
+    expect(scopeKey("players")).not.toBe(scopeKey("event"));
+  });
+
+  it("is readable by staff, who sent it", () => {
+    // Not a contradiction of the name: the audience is the field, but an
+    // organizer who cannot see what went out to their own players has a
+    // worse problem than an untidy audience list.
+    const staff = ctx({ role: "admin", playerId: null, groupIds: [], stageIds: [], matchIds: [], foursomeIds: [] });
+    expect(canReadScope(staff, scopeKey("players"))).toBe(true);
+  });
+
+  it("is not readable by someone outside the field entirely", () => {
+    const outsider = ctx({
+      playerId: null, groupIds: [], stageIds: [], matchIds: [], foursomeIds: [],
+    });
+    expect(canReadScope(outsider, scopeKey("players"))).toBe(false);
+  });
+
+  it("is announcements-only, like the other two broadcast scopes", () => {
+    // A field of 120 all able to reply is a broadcast storm, not a
+    // conversation — the same reason club and event are staff-post-only.
+    expect(canPostToScope(ctx(), scopeKey("players"))).toBe(false);
+    expect(canPostToScope(ctx({ role: "admin" }), scopeKey("players"))).toBe(true);
+  });
+
+  it("parses as a known kind", () => {
+    expect(parseScopeKey(scopeKey("players"))).toEqual({ kind: "players", id: "" });
+  });
+});

@@ -30,7 +30,14 @@ import type { ScopeKind } from "./messaging";
  * another, sent by the club's number, makes the club the publisher of
  * something it never saw.
  */
-export const SMS_BROADCAST_SCOPES: ScopeKind[] = ["club", "event", "flight", "round", "team"];
+export const SMS_BROADCAST_SCOPES: ScopeKind[] = [
+  "club",
+  "event",
+  "players",
+  "flight",
+  "round",
+  "team",
+];
 
 export function canFanOutToSms(kind: ScopeKind): boolean {
   return SMS_BROADCAST_SCOPES.includes(kind);

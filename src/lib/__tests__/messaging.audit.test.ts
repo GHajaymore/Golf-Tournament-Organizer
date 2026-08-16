@@ -13,6 +13,7 @@ import {
   messageableField,
   messagesOptOutFor,
   setMessagesOptOut,
+  composableScopes,
   broadcastWithSms,
   planSmsBroadcast,
 } from "@/lib/services/messaging";
@@ -484,5 +485,79 @@ describe("the SMS plan gate", () => {
     expect(plan.recipients).toBe(0);
     expect(plan.problem).toMatch(/still reaches everyone in the app/i);
     expect(plan.problem).not.toMatch(/TWILIO|credentials/i);
+  });
+});
+
+describe("what an organizer can compose to", () => {
+  it("offers every flight, round and team — not only the ones they play in", async () => {
+    // Found by opening the screen as an organizer who is not in the field,
+    // which is the ordinary case. `composableScopes` was built purely from the
+    // caller's own membership, so a non-playing organizer saw three entries
+    // and the whole per-flight capability was unreachable from the UI even
+    // though staffBroadcast had always allowed it.
+    const admin = (await ctxFor("olive", "admin"))!; // on the roster, NOT entered
+    expect(admin.playerId).toBeNull();
+
+    const scopes = await composableScopes(admin);
+    const kinds = new Set(scopes.map((s) => s.kind));
+    expect(kinds).toContain("flight");
+    expect(kinds).toContain("round");
+
+    // And they are labelled with what they are in this tournament, not "flight".
+    const flights = scopes.filter((s) => s.kind === "flight").map((s) => s.label);
+    expect(flights).toContain("Flight A");
+    expect(flights).toContain("Flight B");
+  });
+
+  it("offers players-only alongside the whole tournament", async () => {
+    const admin = (await ctxFor("olive", "admin"))!;
+    const kinds = (await composableScopes(admin)).map((s) => s.kind);
+    expect(kinds).toContain("event");
+    expect(kinds).toContain("players");
+  });
+
+  it("lists a playing organizer's own flight exactly once", async () => {
+    // Rita is entered AND an admin, so her flight arrives from both the
+    // membership pass and the staff pass. It must not appear twice.
+    const playingAdmin = (await ctxFor("rita", "admin"))!;
+    const keys = (await composableScopes(playingAdmin)).map((s) => s.key);
+    expect(keys.length).toBe(new Set(keys).size);
+    expect(keys.filter((k) => k === scopeKey("flight", flightA))).toHaveLength(1);
+  });
+
+  it("offers a player nothing but what they are actually in", async () => {
+    // The staff widening must not leak to players: a player still gets only
+    // their own flight, and cannot compose to the tournament at all.
+    const sam = (await ctxFor("sam"))!;
+    const scopes = await composableScopes(sam);
+    const flights = scopes.filter((s) => s.kind === "flight").map((s) => s.key);
+    expect(flights).toEqual([scopeKey("flight", flightA)]);
+    expect(scopes.map((s) => s.kind)).not.toContain("event");
+    expect(scopes.map((s) => s.kind)).not.toContain("players");
+  });
+});
+
+describe("a players-only broadcast", () => {
+  it("reaches the field and is readable by the organizer who sent it", async () => {
+    const admin = (await ctxFor("rita", "admin"))!;
+    const res = await staffBroadcast(admin, scopeKey("players"), "Cards in by 6pm", "Organizer");
+    expect(res.ok, res.error).toBe(true);
+
+    const sam = (await ctxFor("sam"))!;
+    expect((await threadView(sam, res.threadId!))?.messages.at(-1)?.body).toBe("Cards in by 6pm");
+    expect(await threadView(admin, res.threadId!)).not.toBeNull();
+  });
+
+  it("is not readable by someone on the roster who never entered", async () => {
+    const admin = (await ctxFor("rita", "admin"))!;
+    const res = await staffBroadcast(admin, scopeKey("players"), "Field only", "Organizer");
+    const olive = (await ctxFor("olive"))!; // roster, not entered, not staff
+    expect(await threadView(olive, res.threadId!)).toBeNull();
+  });
+
+  it("cannot be posted to by a player", async () => {
+    const sam = (await ctxFor("sam"))!;
+    expect((await postToScope(sam, scopeKey("players"), "hello all", "Sam")).ok).toBe(false);
+    expect((await staffBroadcast(sam, scopeKey("players"), "hello all", "Sam")).ok).toBe(false);
   });
 });
