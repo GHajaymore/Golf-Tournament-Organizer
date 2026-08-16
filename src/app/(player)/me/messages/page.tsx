@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
 import { membershipFor, threadsFor, composableScopes, messageableField, messagesOptOutFor } from "@/lib/services/messaging";
+import { prisma } from "@/lib/db";
 import { MessagesClient } from "@/components/MessagesClient";
 
 /**
@@ -22,11 +23,15 @@ export default async function PlayMessagesPage() {
   const ctx = await membershipFor(session.eventId, session.email, session.role);
   if (!ctx) redirect("/choose");
 
-  const [threads, composable, people, optedOut] = await Promise.all([
+  const [threads, composable, people, optedOut, rosterRow] = await Promise.all([
     threadsFor(ctx),
     composableScopes(ctx),
     messageableField(ctx),
     messagesOptOutFor(ctx),
+    prisma.member.findFirst({
+      where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
+      select: { smsOptIn: true },
+    }),
   ]);
 
   const isStaff = session.role === "admin" || session.role === "assistant";
@@ -43,6 +48,7 @@ export default async function PlayMessagesPage() {
         people={people}
         isStaff={isStaff}
         optedOut={optedOut}
+        smsOptIn={rosterRow?.smsOptIn ?? false}
       />
     </div>
   );

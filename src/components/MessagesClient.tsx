@@ -7,6 +7,9 @@ import {
   markThreadRead,
   startDirectThread,
   setMyMessagesOptOut,
+  setMySmsOptIn,
+  previewSmsBroadcast,
+  broadcastWithText,
 } from "@/app/actions/messaging";
 import type { ThreadListItem, ThreadView } from "@/lib/services/messaging";
 
@@ -93,6 +96,7 @@ export function MessagesClient({
   people,
   isStaff,
   optedOut = false,
+  smsOptIn = false,
 }: {
   threads: ThreadListItem[];
   composable: { key: string; label: string; kind: string }[];
@@ -101,6 +105,8 @@ export function MessagesClient({
   isStaff: boolean;
   /** This reader has turned off direct messages from other players. */
   optedOut?: boolean;
+  /** This reader has agreed to receive texts. */
+  smsOptIn?: boolean;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [view, setView] = useState<ThreadView | null>(null);
@@ -126,6 +132,7 @@ export function MessagesClient({
 
   const [showPrefs, setShowPrefs] = useState(false);
   const [off, setOff] = useState(optedOut);
+  const [sms, setSms] = useState(smsOptIn);
 
   const ackRates = () => {
     try {
@@ -305,12 +312,15 @@ export function MessagesClient({
         </button>
       </div>
 
-      {showPrefs && <OptOutPanel optedOut={off} onChange={setOff} />}
+      {showPrefs && (
+        <OptOutPanel optedOut={off} onChange={setOff} smsOptIn={sms} onSmsChange={setSms} />
+      )}
 
       {composing && (
         <ComposePanel
           composable={composable}
           people={people}
+          isStaff={isStaff}
           onOpen={(id) => {
             setComposing(false);
             setOpenId(id);
@@ -389,7 +399,17 @@ export function MessagesClient({
  * organizer would be one nobody could safely use, so it stops other players
  * and leaves the tournament's own announcements alone.
  */
-function OptOutPanel({ optedOut, onChange }: { optedOut: boolean; onChange: (v: boolean) => void }) {
+function OptOutPanel({
+  optedOut,
+  onChange,
+  smsOptIn,
+  onSmsChange,
+}: {
+  optedOut: boolean;
+  onChange: (v: boolean) => void;
+  smsOptIn: boolean;
+  onSmsChange: (v: boolean) => void;
+}) {
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
 
@@ -402,6 +422,18 @@ function OptOutPanel({ optedOut, onChange }: { optedOut: boolean; onChange: (v: 
         return;
       }
       onChange(next);
+    });
+  };
+
+  const toggleSms = (next: boolean) => {
+    setError("");
+    start(async () => {
+      const res = await setMySmsOptIn(next);
+      if (!res.ok) {
+        setError(res.error ?? "Couldn't save that.");
+        return;
+      }
+      onSmsChange(next);
     });
   };
 
@@ -432,26 +464,83 @@ function OptOutPanel({ optedOut, onChange }: { optedOut: boolean; onChange: (v: 
         tournament or your flight, and this setting deliberately doesn&rsquo;t touch those — turning
         it on should never cost you your tee time.
       </p>
+
+      {/* Separate switch, and off until it is ticked. Handing over a phone
+          number so an organizer can ring you is not agreeing to bulk texts,
+          and treating those as the same thing is what gets an SMS programme
+          shut down. */}
+      <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={smsOptIn}
+            disabled={pending}
+            onChange={(e) => toggleSms(e.target.checked)}
+            style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
+          />
+          <span>
+            <span style={{ fontSize: 14, fontWeight: 500, display: "block" }}>
+              Also text me tournament announcements
+            </span>
+            <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
+              Only what your organizer sends to the whole tournament, your flight or your round —
+              never chat from your group, and never a direct message. Standard message and data
+              rates from your carrier apply. Reply STOP to any text to turn this off.
+            </span>
+          </span>
+        </label>
+      </div>
       {error && <p style={{ color: "var(--color-danger)", fontSize: 12, margin: 0 }}>{error}</p>}
     </div>
   );
 }
 
 /** Pick who to write to: a level, or a person. */
+/** Scopes a text can go to at all — mirrors SMS_BROADCAST_SCOPES on the
+ *  server, which is the authority. A chat scope never texts. */
+const SMS_KINDS = ["club", "event", "flight", "round", "team"];
+
 function ComposePanel({
   composable,
   people,
   onOpen,
+  isStaff,
 }: {
   composable: { key: string; label: string; kind: string }[];
   people: { name: string; email: string }[];
   onOpen: (threadId: string) => void;
+  isStaff: boolean;
 }) {
   const [body, setBody] = useState("");
   const [target, setTarget] = useState(composable[0]?.key ?? "");
   const [person, setPerson] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
+
+  const [alsoText, setAlsoText] = useState(false);
+  const [plan, setPlan] = useState<Awaited<ReturnType<typeof previewSmsBroadcast>>>(null);
+  const kind = composable.find((c) => c.key === target)?.kind ?? "";
+  const canText = isStaff && !person && SMS_KINDS.includes(kind);
+
+  // The estimate, refreshed as they type. Debounced because it counts the
+  // audience server-side, and an organizer typing a paragraph should not run
+  // that on every keystroke.
+  useEffect(() => {
+    if (!alsoText || !canText || !body.trim()) {
+      setPlan(null);
+      return;
+    }
+    let live = true;
+    const t = setTimeout(() => {
+      previewSmsBroadcast(target, body).then((p) => {
+        if (live) setPlan(p);
+      });
+    }, 400);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [alsoText, canText, target, body]);
 
   const send = () => {
     if (!body.trim()) {
@@ -466,10 +555,12 @@ function ComposePanel({
       // been created.
       const res = person
         ? await startDirectThread([person], body)
-        : await (async () => {
-            const r = await sendMessage(target, body);
-            return r.ok ? r : broadcastToScope(target, body);
-          })();
+        : alsoText && canText
+          ? await broadcastWithText(target, body)
+          : await (async () => {
+              const r = await sendMessage(target, body);
+              return r.ok ? r : broadcastToScope(target, body);
+            })();
       if (!res.ok) {
         setError(res.error ?? "Couldn't send that.");
         return;
@@ -540,10 +631,76 @@ function ComposePanel({
           resize: "vertical",
         }}
       />
+      {canText && (
+        <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={alsoText}
+              onChange={(e) => setAlsoText(e.target.checked)}
+              style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
+            />
+            <span>
+              <span style={{ fontSize: 13.5, fontWeight: 500, display: "block" }}>
+                Also send this as a text
+              </span>
+              <span className="text-muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
+                Goes only to people who have agreed to texts. Everyone gets it in the app either
+                way.
+              </span>
+            </span>
+          </label>
+
+          {/* The estimate before the send, not the invoice after it. Segments
+              rather than messages, because that is what is actually billed —
+              one curly apostrophe can double it. */}
+          {alsoText && plan && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: "8px 10px",
+                borderRadius: 8,
+                background: "var(--color-surface-2)",
+                fontSize: 12.5,
+                lineHeight: 1.7,
+              }}
+            >
+              {!plan.configured ? (
+                <span style={{ color: "var(--color-danger)" }}>{plan.problem}</span>
+              ) : plan.recipients === 0 ? (
+                <span>
+                  Nobody has agreed to texts yet, so this will only go out in the app. Players turn
+                  texts on under Message settings.
+                </span>
+              ) : (
+                <>
+                  <b>
+                    {plan.recipients} {plan.recipients === 1 ? "person" : "people"} · {plan.segmentsEach}{" "}
+                    {plan.segmentsEach === 1 ? "segment" : "segments"} each · {plan.totalSegments} billed
+                  </b>
+                  {plan.truncated && (
+                    <div style={{ color: "var(--color-danger)" }}>
+                      Too long for a text — it will be shortened. The full message still appears in
+                      the app.
+                    </div>
+                  )}
+                  {plan.skipped.length > 0 && (
+                    <div className="text-muted">
+                      {plan.skipped.length} not texted (
+                      {[...new Set(plan.skipped.map((s) => s.reason))].join(", ")}).
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {error && <p style={{ color: "var(--color-danger)", fontSize: 12, margin: 0 }}>{error}</p>}
       <div>
         <button type="button" className="btn btn-primary" disabled={pending} onClick={send}>
-          {pending ? "Sending…" : "Send"}
+          {pending ? "Sending…" : alsoText && canText ? "Send + text" : "Send"}
         </button>
       </div>
     </div>

@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import {
   membershipFor,
   threadsFor,
@@ -13,6 +14,9 @@ import {
   unreadTotal,
   messagesOptOutFor,
   setMessagesOptOut,
+  planSmsBroadcast,
+  broadcastWithSms,
+  type SmsPlan,
   type ThreadListItem,
   type ThreadView,
   type PostResult,
@@ -135,6 +139,69 @@ export async function setMyMessagesOptOut(optOut: boolean): Promise<{ ok: boolea
   const { ctx } = await requireMembership();
   const saved = await setMessagesOptOut(ctx, optOut);
   if (!saved) return { ok: false, error: "You're not on the club roster yet, so there's nothing to save this against." };
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * What texting this scope would do, without doing it.
+ *
+ * Staff only — the recipient count and the skip reasons name members, which is
+ * roster data. Shown before the send because "84 people, 2 segments each" is
+ * the only number that changes what somebody writes.
+ */
+export async function previewSmsBroadcast(scope: string, body: string): Promise<SmsPlan | null> {
+  const { ctx } = await requireMembership();
+  if (ctx.role !== "admin" && ctx.role !== "assistant") return null;
+  const org = await prisma.organization.findUnique({
+    where: { id: ctx.organizationId },
+    select: { name: true },
+  });
+  return planSmsBroadcast(ctx, scope, body, org?.name ?? "");
+}
+
+/** Post to a scope and text everyone in it who asked to be texted. */
+export async function broadcastWithText(
+  scope: string,
+  body: string,
+): Promise<PostResult & { texted?: number; failed?: number; skipped?: number }> {
+  const { session, ctx } = await requireMembership();
+  const org = await prisma.organization.findUnique({
+    where: { id: ctx.organizationId },
+    select: { name: true },
+  });
+  const res = await broadcastWithSms(ctx, scope, body, session.name, org?.name ?? "");
+  if (res.ok) revalidatePath("/", "layout");
+  return res;
+}
+
+/** Whether the caller has agreed to receive texts. */
+export async function mySmsOptIn(): Promise<boolean> {
+  const { ctx } = await requireMembership();
+  const member = await prisma.member.findFirst({
+    where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
+    select: { smsOptIn: true },
+  });
+  return member?.smsOptIn ?? false;
+}
+
+/**
+ * Agree, or stop agreeing, to receive texts.
+ *
+ * No id parameter: the row is the caller's own, found by their session email
+ * and their own club. The timestamps are written because "did you have consent
+ * when you sent it" is answered by a date and not by a flag.
+ */
+export async function setMySmsOptIn(optIn: boolean): Promise<{ ok: boolean; error?: string }> {
+  const { ctx } = await requireMembership();
+  const now = new Date();
+  const res = await prisma.member.updateMany({
+    where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
+    data: optIn ? { smsOptIn: true, smsOptInAt: now } : { smsOptIn: false, smsOptOutAt: now },
+  });
+  if (res.count === 0) {
+    return { ok: false, error: "You're not on the club roster yet, so there's nothing to save this against." };
+  }
   revalidatePath("/", "layout");
   return { ok: true };
 }

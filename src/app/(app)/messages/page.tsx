@@ -1,6 +1,7 @@
 import { requireScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
 import { membershipFor, threadsFor, composableScopes, messageableField, messagesOptOutFor } from "@/lib/services/messaging";
+import { prisma } from "@/lib/db";
 import { MessagesClient } from "@/components/MessagesClient";
 
 /**
@@ -20,7 +21,7 @@ export default async function MessagesPage() {
   const ctx = await membershipFor(session.eventId, session.email, session.role);
   if (!ctx) redirect("/");
 
-  const [threads, composable, people, optedOut] = await Promise.all([
+  const [threads, composable, people, optedOut, rosterRow] = await Promise.all([
     threadsFor(ctx),
     composableScopes(ctx),
     // The address book: this tournament's field, minus anyone who has turned
@@ -28,6 +29,10 @@ export default async function MessagesPage() {
     // picker cannot offer somebody the endpoint will refuse.
     messageableField(ctx),
     messagesOptOutFor(ctx),
+    prisma.member.findFirst({
+      where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
+      select: { smsOptIn: true },
+    }),
   ]);
 
   const isStaff = session.role === "admin" || session.role === "assistant";
@@ -49,6 +54,7 @@ export default async function MessagesPage() {
         people={people}
         isStaff={isStaff}
         optedOut={optedOut}
+        smsOptIn={rosterRow?.smsOptIn ?? false}
       />
     </>
   );
