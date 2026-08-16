@@ -6,6 +6,7 @@ import {
   broadcastToScope,
   markThreadRead,
   startDirectThread,
+  setMyMessagesOptOut,
 } from "@/app/actions/messaging";
 import type { ThreadListItem, ThreadView } from "@/lib/services/messaging";
 
@@ -41,17 +42,65 @@ const KIND_ICON: Record<string, string> = {
   direct: "ph ph-chat-circle",
 };
 
+/**
+ * The one-time notice before somebody's first message.
+ *
+ * The standard disclosure, worded for what this actually is. Messages here go
+ * over the internet, not the SMS network, so there is no per-message carrier
+ * charge to warn about and claiming one would be false — what a player on a
+ * course away from wifi is actually spending is mobile data. The sentence
+ * about message rates is there because it becomes true the moment a club
+ * switches on SMS or email delivery, and a disclosure people have already
+ * dismissed cannot be shown to them again.
+ *
+ * Acknowledged in localStorage rather than on the server: it is a courtesy
+ * notice about the reader's own phone bill, not consent that needs an audit
+ * trail, and a new device showing it once more is the right failure.
+ */
+const RATES_ACK = "thq.messaging.rates.ack.v1";
+
+function FirstUseNotice({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div
+      className="card elev-sm"
+      style={{ gap: 8, marginBottom: 12, borderLeft: "3px solid var(--color-accent)" }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <i className="ph ph-info" style={{ color: "var(--color-accent)", fontSize: 18 }} />
+        <span className="card-title" style={{ fontSize: 14.5 }}>Before you start</span>
+      </div>
+      <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65 }}>
+        Messages are sent inside the app over your internet connection — there is no per-text charge
+        from your phone company. If you are on mobile data rather than wifi, your{" "}
+        <b>standard data charges apply</b>, the same as any other app.
+      </p>
+      <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.65 }}>
+        If your club turns on text or email alerts for these messages, your carrier&rsquo;s message
+        and data rates may apply to those.
+      </p>
+      <div>
+        <button type="button" className="btn btn-primary" onClick={onDismiss}>
+          Got it
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function MessagesClient({
   threads,
   composable,
   people,
   isStaff,
+  optedOut = false,
 }: {
   threads: ThreadListItem[];
   composable: { key: string; label: string; kind: string }[];
-  /** Everyone in the field, for starting a direct conversation. */
+  /** Everyone in the field, minus anyone who has turned direct messages off. */
   people: { name: string; email: string }[];
   isStaff: boolean;
+  /** This reader has turned off direct messages from other players. */
+  optedOut?: boolean;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [view, setView] = useState<ThreadView | null>(null);
@@ -60,6 +109,32 @@ export function MessagesClient({
   const [composing, setComposing] = useState(false);
   const [pending, start] = useTransition();
   const endRef = useRef<HTMLDivElement>(null);
+
+  // Null until we have looked, so the notice never flashes on for somebody who
+  // dismissed it months ago — localStorage is not readable during the server
+  // render, and a banner that appears and vanishes reads as a bug.
+  const [seenRates, setSeenRates] = useState<boolean | null>(null);
+  useEffect(() => {
+    try {
+      setSeenRates(window.localStorage.getItem(RATES_ACK) === "1");
+    } catch {
+      // Private mode or storage disabled. Treat as seen rather than showing an
+      // undismissable banner on every visit.
+      setSeenRates(true);
+    }
+  }, []);
+
+  const [showPrefs, setShowPrefs] = useState(false);
+  const [off, setOff] = useState(optedOut);
+
+  const ackRates = () => {
+    try {
+      window.localStorage.setItem(RATES_ACK, "1");
+    } catch {
+      // Nothing to do — the acknowledgement just will not persist.
+    }
+    setSeenRates(true);
+  };
 
   // Load a thread when it is opened, and mark it read — opening IS reading,
   // so the badge should clear without a second action.
@@ -214,11 +289,23 @@ export function MessagesClient({
 
   return (
     <>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+      {seenRates === false && <FirstUseNotice onDismiss={ackRates} />}
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
         <button type="button" className="btn btn-primary" onClick={() => setComposing((v) => !v)}>
           <i className="ph ph-plus" /> New message
         </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => setShowPrefs((v) => !v)}
+          aria-expanded={showPrefs}
+        >
+          <i className="ph ph-sliders-horizontal" /> Message settings
+        </button>
       </div>
+
+      {showPrefs && <OptOutPanel optedOut={off} onChange={setOff} />}
 
       {composing && (
         <ComposePanel
@@ -290,6 +377,63 @@ export function MessagesClient({
         ))}
       </div>
     </>
+  );
+}
+
+/**
+ * Turning direct messages off.
+ *
+ * The scope of the switch is spelled out rather than left to be discovered,
+ * because the thing people are actually worried about — missing their tee
+ * time — is exactly what this does NOT do. An opt-out that silences the
+ * organizer would be one nobody could safely use, so it stops other players
+ * and leaves the tournament's own announcements alone.
+ */
+function OptOutPanel({ optedOut, onChange }: { optedOut: boolean; onChange: (v: boolean) => void }) {
+  const [error, setError] = useState("");
+  const [pending, start] = useTransition();
+
+  const toggle = (next: boolean) => {
+    setError("");
+    start(async () => {
+      const res = await setMyMessagesOptOut(next);
+      if (!res.ok) {
+        setError(res.error ?? "Couldn't save that.");
+        return;
+      }
+      onChange(next);
+    });
+  };
+
+  return (
+    <div className="card elev-sm" style={{ gap: 10, marginBottom: 12 }}>
+      <span className="card-kicker">Message settings</span>
+      <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={optedOut}
+          disabled={pending}
+          onChange={(e) => toggle(e.target.checked)}
+          style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
+        />
+        <span>
+          <span style={{ fontSize: 14, fontWeight: 500, display: "block" }}>
+            Don&rsquo;t let other players message me directly
+          </span>
+          <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
+            You&rsquo;ll be taken out of the list people pick from, and nobody can start a private
+            conversation with you.
+          </span>
+        </span>
+      </label>
+      <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6 }}>
+        <i className="ph ph-info" style={{ marginRight: 5 }} />
+        Your organizer can still reach you. Tee times, delays and changes of venue go to the whole
+        tournament or your flight, and this setting deliberately doesn&rsquo;t touch those — turning
+        it on should never cost you your tee time.
+      </p>
+      {error && <p style={{ color: "var(--color-danger)", fontSize: 12, margin: 0 }}>{error}</p>}
+    </div>
   );
 }
 

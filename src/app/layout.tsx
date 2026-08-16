@@ -51,8 +51,13 @@ export const metadata: Metadata = {
    * "League" earns its place separately from "tournament": a weekly league is
    * a different search, and a large part of this app — availability, the week
    * view, the season skins table — exists for it.
+   *
+   * "Management" rather than "software" costs nothing and buys the modern
+   * reading: "golf tournament management" is itself a high-intent search, so
+   * this is not a trade of findability against how it sounds. The two words
+   * that actually carry the search — "golf tournament" — are untouched.
    */
-  title: "TourneyHQ — Golf tournament & league software",
+  title: "TourneyHQ — Golf tournament & league management",
   description:
     "Run a golf tournament or league end to end: flights, handicaps, brackets and live standings — with every player's card, board and settle-up on their own phone.",
   manifest: "/manifest.webmanifest",

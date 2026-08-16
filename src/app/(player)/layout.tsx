@@ -5,6 +5,7 @@ import { themeCss, playerColorScheme } from "@/lib/themes";
 import { OrgBrand } from "@/components/OrgBrand";
 import { PlayTabs } from "@/components/PlayTabs";
 import { usesExpenses } from "@/lib/services/expenses";
+import { membershipFor, unreadTotal } from "@/lib/services/messaging";
 import { BackLink } from "@/components/BackLink";
 
 /**
@@ -41,6 +42,19 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
    */
   const isStaff = session.role === "admin" || session.role === "assistant";
   const showMoney = session.eventId ? isStaff || (await usesExpenses(session.eventId)) : false;
+
+  /**
+   * Messages sit in the header, not the tab bar.
+   *
+   * PlayTabs says four and means it — "if a fifth is ever needed, something
+   * here should have to leave" — and nothing here should. A chat icon with an
+   * unread count is also simply where people look for messages on a phone, so
+   * respecting that rule cost nothing.
+   */
+  const ctx = session.eventId
+    ? await membershipFor(session.eventId, session.email, session.role)
+    : null;
+  const unread = ctx ? await unreadTotal(ctx) : 0;
 
   return (
     <div
@@ -84,15 +98,47 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
         {/* The way back for someone who is both — an organizer who also plays
             should not have to sign out to run their own tournament. Rendered
             only for staff; a player has nothing to switch to. */}
-        {(session.viewRole === "admin" || session.viewRole === "assistant") && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Link
-            href="/dashboard"
+            href="/me/messages"
+            aria-label={unread > 0 ? `Messages, ${unread} unread` : "Messages"}
             className="btn btn-secondary"
-            style={{ fontSize: 12.5, whiteSpace: "nowrap" }}
+            style={{ fontSize: 12.5, position: "relative", padding: "6px 10px" }}
           >
-            <i className="ph ph-gear" /> Organizer
+            <i className="ph ph-chat-circle-dots" style={{ fontSize: 17 }} />
+            {unread > 0 && (
+              <span
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  top: -5,
+                  right: -5,
+                  minWidth: 17,
+                  height: 17,
+                  borderRadius: 999,
+                  background: "var(--color-accent)",
+                  color: "var(--color-on-accent)",
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  display: "grid",
+                  placeItems: "center",
+                  padding: "0 4px",
+                }}
+              >
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
           </Link>
-        )}
+          {(session.viewRole === "admin" || session.viewRole === "assistant") && (
+            <Link
+              href="/dashboard"
+              className="btn btn-secondary"
+              style={{ fontSize: 12.5, whiteSpace: "nowrap" }}
+            >
+              <i className="ph ph-gear" /> Organizer
+            </Link>
+          )}
+        </div>
       </header>
 
       <main

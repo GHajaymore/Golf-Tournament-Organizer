@@ -1,7 +1,6 @@
 import { requireScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
-import { membershipFor, threadsFor, composableScopes } from "@/lib/services/messaging";
+import { membershipFor, threadsFor, composableScopes, messageableField, messagesOptOutFor } from "@/lib/services/messaging";
 import { MessagesClient } from "@/components/MessagesClient";
 
 /**
@@ -21,20 +20,17 @@ export default async function MessagesPage() {
   const ctx = await membershipFor(session.eventId, session.email, session.role);
   if (!ctx) redirect("/");
 
-  const [threads, composable, field] = await Promise.all([
+  const [threads, composable, people, optedOut] = await Promise.all([
     threadsFor(ctx),
     composableScopes(ctx),
-    // The address book for a direct message: the field of this tournament,
-    // which is exactly who `openDirectThread` will accept.
-    prisma.player.findMany({
-      where: { eventId: session.eventId, email: { not: "" } },
-      select: { name: true, email: true },
-      orderBy: { name: "asc" },
-    }),
+    // The address book: this tournament's field, minus anyone who has turned
+    // direct messages off — exactly who `openDirectThread` will accept, so the
+    // picker cannot offer somebody the endpoint will refuse.
+    messageableField(ctx),
+    messagesOptOutFor(ctx),
   ]);
 
   const isStaff = session.role === "admin" || session.role === "assistant";
-  const people = field.filter((p) => p.email.trim().toLowerCase() !== ctx.email);
 
   return (
     <>
@@ -47,7 +43,13 @@ export default async function MessagesPage() {
             : "Your group, your flight, your match, and anyone in the field."}
         </p>
       </div>
-      <MessagesClient threads={threads} composable={composable} people={people} isStaff={isStaff} />
+      <MessagesClient
+        threads={threads}
+        composable={composable}
+        people={people}
+        isStaff={isStaff}
+        optedOut={optedOut}
+      />
     </>
   );
 }

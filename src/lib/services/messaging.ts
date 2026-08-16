@@ -433,6 +433,22 @@ export async function openDirectThread(
     return { ok: false, error: `Not in this tournament: ${unreachable.join(", ")}` };
   }
 
+  // Anyone who has opted out of being messaged. Checked here and not only in
+  // the picker, because the picker is a list in a browser and this is the
+  // endpoint. Staff are not exempt: an organizer who needs to reach this
+  // person has the tournament and flight threads, which the opt-out
+  // deliberately does not touch.
+  const optedOut = await prisma.member.findMany({
+    where: { organizationId: ctx.organizationId, email: { in: wanted, mode: "insensitive" }, messagesOptOut: true },
+    select: { name: true },
+  });
+  if (optedOut.length > 0) {
+    return {
+      ok: false,
+      error: `${optedOut.map((m) => m.name).join(", ")} ${optedOut.length === 1 ? "has" : "have"} turned off direct messages.`,
+    };
+  }
+
   const participants = [...wanted, ctx.email];
   const key = scopeKey("direct", directKeyFor(participants));
   const id = threadIdFor(ctx.organizationId, ctx.eventId, key);
@@ -484,6 +500,61 @@ export async function openDirectThread(
   }
 
   return { ok: true, threadId: id };
+}
+
+/**
+ * Whether this person has turned off direct messages, and setting it.
+ *
+ * Read from the club roster by email, because that is where the preference
+ * lives — see Member.messagesOptOut. Somebody entered in a tournament who is
+ * not on the roster has no row to carry a preference, and defaults to
+ * reachable; adding them to the roster is what the registration path already
+ * does.
+ */
+export async function messagesOptOutFor(ctx: MembershipContext): Promise<boolean> {
+  const member = await prisma.member.findFirst({
+    where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
+    select: { messagesOptOut: true },
+  });
+  return member?.messagesOptOut ?? false;
+}
+
+export async function setMessagesOptOut(ctx: MembershipContext, optOut: boolean): Promise<boolean> {
+  // Scoped to the caller's OWN email and their own club. There is no id
+  // parameter here at all, so this cannot be pointed at anybody else.
+  const res = await prisma.member.updateMany({
+    where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
+    data: { messagesOptOut: optOut },
+  });
+  return res.count > 0;
+}
+
+/**
+ * The address book, minus anyone who has opted out.
+ *
+ * Callers used to build this from the Player table directly, which meant the
+ * opt-out was enforced at the endpoint but the person still appeared in the
+ * dropdown — an opt-out you can see being refused is not much of one.
+ */
+export async function messageableField(
+  ctx: MembershipContext,
+): Promise<{ name: string; email: string }[]> {
+  const [field, optedOut] = await Promise.all([
+    prisma.player.findMany({
+      where: { eventId: ctx.eventId, email: { not: "" } },
+      select: { name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.member.findMany({
+      where: { organizationId: ctx.organizationId, messagesOptOut: true },
+      select: { email: true },
+    }),
+  ]);
+  const off = new Set(optedOut.map((m) => m.email.trim().toLowerCase()).filter(Boolean));
+  return field.filter((p) => {
+    const e = p.email.trim().toLowerCase();
+    return e !== ctx.email && !off.has(e);
+  });
 }
 
 /**

@@ -10,6 +10,9 @@ import {
   openDirectThread,
   markRead,
   unreadTotal,
+  messageableField,
+  messagesOptOutFor,
+  setMessagesOptOut,
 } from "@/lib/services/messaging";
 import { scopeKey, teeGroupId } from "@/lib/domain/messaging";
 
@@ -359,5 +362,68 @@ describe("a round the player is not in", () => {
     // round conversation silently.
     const rita = (await ctxFor("rita"))!;
     expect(rita.stageIds).toContain(otherStageId);
+  });
+});
+
+describe("turning direct messages off", () => {
+  it("stops another player starting a conversation, and says who", async () => {
+    await prisma.member.updateMany({
+      where: { organizationId: orgId, email: at("sam") },
+      data: { messagesOptOut: true },
+    });
+
+    const rita = (await ctxFor("rita"))!;
+    const res = await openDirectThread(rita, [at("sam")], "Rita", "hello");
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/turned off direct messages/i);
+  });
+
+  it("takes them out of the list people pick from", async () => {
+    // Enforced at the endpoint AND in the picker. An opt-out you can watch
+    // being refused is not much of an opt-out.
+    const rita = (await ctxFor("rita"))!;
+    const book = await messageableField(rita);
+    expect(book.map((p) => p.email)).not.toContain(at("sam"));
+    expect(book.map((p) => p.email)).toContain(at("dev"));
+  });
+
+  it("does not silence the organizer", async () => {
+    // The whole reason the switch is narrow. Somebody who opts out must still
+    // find out their tee time, so tournament and flight threads are untouched.
+    const admin = (await ctxFor("rita", "admin"))!;
+    const res = await staffBroadcast(admin, scopeKey("event"), "Frost delay, 30 mins", "Organizer");
+    expect(res.ok).toBe(true);
+
+    const sam = (await ctxFor("sam"))!;
+    const seen = await threadView(sam, res.threadId!);
+    expect(seen?.messages.at(-1)?.body).toBe("Frost delay, 30 mins");
+  });
+
+  it("does not stop them reading or writing themselves", async () => {
+    // Opting out of being contacted is not leaving. They keep their four, their
+    // match and every conversation they were already in.
+    const sam = (await ctxFor("sam"))!;
+    const res = await postToScope(sam, scopeKey("match", matchId), "still here", "Sam");
+    expect(res.ok, res.error).toBe(true);
+  });
+
+  it("is not something staff can override", async () => {
+    // An organizer who needs this person has the tournament and flight
+    // threads. A staff bypass on the private channel would make the setting
+    // advisory, which is not what it says on the screen.
+    const admin = (await ctxFor("rita", "admin"))!;
+    const res = await openDirectThread(admin, [at("sam")], "Organizer", "quick word");
+    expect(res.ok).toBe(false);
+  });
+
+  it("is set against the caller's own row and nobody else's", async () => {
+    const sam = (await ctxFor("sam"))!;
+    expect(await messagesOptOutFor(sam)).toBe(true);
+
+    // Turning it back off is the caller's own row — there is no id to point
+    // anywhere else, which is the point of the signature.
+    expect(await setMessagesOptOut(sam, false)).toBe(true);
+    expect(await messagesOptOutFor(sam)).toBe(false);
+    expect(await messagesOptOutFor((await ctxFor("rita"))!)).toBe(false);
   });
 });

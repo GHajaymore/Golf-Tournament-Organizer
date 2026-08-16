@@ -117,8 +117,12 @@ const LANDING_CSS = `
 .thq .hero::before { content:""; position:absolute; inset:-40% -20% auto 40%; height:720px; z-index:0; background:radial-gradient(50% 60% at 70% 10%, color-mix(in srgb, var(--flag) 14%, transparent), transparent 70%); pointer-events:none; }
 .thq .hero::after { content:""; position:absolute; inset:0; z-index:0; pointer-events:none; background:repeating-linear-gradient(90deg, transparent 0 72px, color-mix(in srgb, var(--ink) 3%, transparent) 72px 144px); -webkit-mask-image:linear-gradient(180deg, #000, transparent 78%); mask-image:linear-gradient(180deg, #000, transparent 78%); }
 .thq .hero-in { position:relative; z-index:1; display:grid; grid-template-columns:1.02fr 0.98fr; gap:56px; align-items:center; padding:76px 0 68px; }
-.thq .eyebrow { display:inline-flex; align-items:center; gap:10px; font-size:11.5px; text-transform:uppercase; letter-spacing:0.18em; font-weight:650; color:var(--brass); }
-.thq .eyebrow::before { content:""; width:22px; height:1px; background:var(--brass); }
+/* balance, and align-items:flex-start rather than center, because this line
+   now wraps in the hero's narrow column and on every phone. Centred, the rule
+   floated to the middle of a two-line block; unbalanced, it broke to a single
+   orphaned word. */
+.thq .eyebrow { display:inline-flex; align-items:flex-start; gap:10px; font-size:11.5px; text-transform:uppercase; letter-spacing:0.18em; font-weight:650; color:var(--brass); text-wrap:balance; line-height:1.5; }
+.thq .eyebrow::before { content:""; width:22px; height:1px; background:var(--brass); flex:none; margin-top:0.55em; }
 /* Type IS the hero in this direction: a grotesque set very large and tracked
    tight, the way a board reads across a room. Not the serif — that belonged to
    the programme direction, and a serif at this size reads editorial rather
@@ -389,8 +393,14 @@ export default async function LoginPage() {
                 a section of its own further down — club championships, league
                 play, member-guest, corporate and charity — so an eyebrow
                 listing them again buried the one word a stranger needs, and
-                buried it at the end of the line. */}
-            <div className="eyebrow rise">Golf tournament &amp; league software</div>
+                buried it at the end of the line.
+
+                "Management" rather than "software": the category word moved on,
+                and "software" now reads like a 2005 licence rather than
+                something you sign into. "All-in-one" is doing real work too —
+                the objection this product answers is a club running four
+                different tools and a spreadsheet. */}
+            <div className="eyebrow rise">All-in-one golf tournament &amp; league management</div>
             <h1 className="rise">From Registration<br />to <em>Recognition.</em></h1>
             {/* The four verbs are the organizer's real path through the app —
                 registration, flights and pairings, rounds and scoring, prizes
@@ -475,6 +485,25 @@ export default async function LoginPage() {
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="2.2" /><path d="M7.5 7.5a6.4 6.4 0 000 9M16.5 7.5a6.4 6.4 0 010 9M4.5 4.5a10.6 10.6 0 000 15M19.5 4.5a10.6 10.6 0 010 15" /></svg>
               <h4>A link for everyone else</h4>
               <p>A public live leaderboard for the clubhouse screen and the players&rsquo; families — without a login.</p>
+            </div>
+            {/* Three the page never claimed, and all three are what an
+                organizer is otherwise doing in a group chat and a spreadsheet
+                beside the app — which is the actual competitor. Nine cards
+                also keeps the three-column grid square. */}
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20.5 12a8.5 8.5 0 01-12.3 7.6L3.5 20.5l.9-4.7A8.5 8.5 0 1120.5 12z" /></svg>
+              <h4>Messages, at the right level</h4>
+              <p>The whole club, one tournament, a flight, a round, a side, your fourball, your match — or one player. Everyone sees only the conversations they&rsquo;re actually in.</p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.2" /><path d="M3.5 9.5h17M8 3v4M16 3v4" /><path d="M9 14.5l2 2 4-4" /></svg>
+              <h4>Who&rsquo;s in, week by week</h4>
+              <p>Players opt in or out on their own phone and the tee sheet fills from the answers — instead of a reply-all thread you have to count.</p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8.5" r="3.4" /><path d="M2.8 20a6.4 6.4 0 0112.4 0" /><path d="M16.5 6.2a3.4 3.4 0 010 6.6M18.4 20a6.4 6.4 0 00-2.2-4.8" /></svg>
+              <h4>One roster, every event</h4>
+              <p>Entering somebody in a tournament adds them to the club list. Handicaps, tees and contact details carry to the next one — and a blank box never overwrites what you already had.</p>
             </div>
           </div>
         </div>

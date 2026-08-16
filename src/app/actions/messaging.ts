@@ -11,6 +11,8 @@ import {
   staffBroadcast,
   composableScopes,
   unreadTotal,
+  messagesOptOutFor,
+  setMessagesOptOut,
   type ThreadListItem,
   type ThreadView,
   type PostResult,
@@ -113,4 +115,26 @@ export async function listComposableScopes() {
 export async function unreadMessageCount(): Promise<number> {
   const { ctx } = await requireMembership();
   return unreadTotal(ctx);
+}
+
+/** Whether the caller has turned off direct messages. */
+export async function myMessagesOptOut(): Promise<boolean> {
+  const { ctx } = await requireMembership();
+  return messagesOptOutFor(ctx);
+}
+
+/**
+ * Turn direct messages on or off for the caller.
+ *
+ * Takes no id — the row is found by the caller's own email and their own club,
+ * so there is nothing here to point at somebody else. Returns false when they
+ * have no roster row to carry the preference, which the screen reports rather
+ * than silently pretending to have saved.
+ */
+export async function setMyMessagesOptOut(optOut: boolean): Promise<{ ok: boolean; error?: string }> {
+  const { ctx } = await requireMembership();
+  const saved = await setMessagesOptOut(ctx, optOut);
+  if (!saved) return { ok: false, error: "You're not on the club roster yet, so there's nothing to save this against." };
+  revalidatePath("/", "layout");
+  return { ok: true };
 }

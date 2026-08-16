@@ -405,6 +405,22 @@ model Member {
   status String @default("active")
   notes  String @default("")
 
+  /**
+   * Opted out of being messaged by other members.
+   *
+   * Deliberately narrow, and the narrowness is the whole design. It stops
+   * other players starting a direct conversation with this person and takes
+   * them out of the address book. It does NOT silence the organizer: tee
+   * times, a frost delay and a change of venue are how somebody finds out
+   * where to turn up, and an opt-out that loses them their tee time is a
+   * setting nobody can safely use.
+   *
+   * On Member rather than Player because a communication preference belongs to
+   * the person and their club, not to one week's entry — asking somebody to
+   * opt out again for every tournament is not offering them a choice.
+   */
+  messagesOptOut Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
