@@ -78,6 +78,13 @@ describe("every server action is guarded", () => {
     // query is scoped to it. Verified before being listed — adding a name here
     // without checking would defeat the point of the test.
     "requireOrg",
+    // messaging.ts: getSession, then builds the caller's membership from their
+    // OWN session — event id and email off the session, never an argument —
+    // and throws when either is missing. Every read is then filtered to the
+    // scopes that membership derives (see domain/messaging.ts), which is a
+    // stronger shape than a role check: there is no thread-id parameter that
+    // authorises anything. Verified by reading it, per the note above.
+    "requireMembership",
     "getPlaySession",
     "effectiveAccess",
   ];

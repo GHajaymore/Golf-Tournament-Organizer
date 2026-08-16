@@ -72,9 +72,21 @@ function actionsIn(file: string): Action[] {
   return out;
 }
 
-/** Parameter names that identify a row the caller does not necessarily own. */
+/**
+ * Parameter names that identify a row the caller does not necessarily own.
+ *
+ * This list is coverage. A row type missing from it is not reported as safe —
+ * it is not looked at, which is worse, because the suite still passes and
+ * reads as if it checked. That is not hypothetical: `contest`, `expense`,
+ * `settlement`, `sideGame` and `thread` were all absent while their actions
+ * were being written, so the money stack and messaging were both outside the
+ * sweep the whole time they were built.
+ *
+ * Anything added to the schema that an action can take by id belongs here the
+ * same day.
+ */
 const ROW_ID =
-  /^\w*(stage|match|player|team|course|tee|series|member|account|event|flight|prize|group|announcement|card|organization|winner)Ids?$/i;
+  /^\w*(stage|match|player|team|course|tee|series|member|account|event|flight|prize|group|announcement|card|organization|winner|contest|expense|settlement|sideGame|pot|thread|message)Ids?$/i;
 
 function rowIdParams(a: Action): string[] {
   return [...a.params.matchAll(/(\w+)\s*[?]?\s*:\s*string(\[\])?/g)]
@@ -190,6 +202,10 @@ function unscopedParams(a: Action): string[] {
  * `file:action` where the whole action is pre-authorization.
  */
 const EXEMPT: Record<string, string> = {
+  "messaging.ts:readThread:threadId":
+    "threadView(ctx, threadId) selects with { id, organizationId, scopeKey: { in: visibleScopes(ctx) } } in ONE where clause — the id narrows within the caller's derived scope set rather than authorising anything, and a thread outside it returns null; the scope check is one frame down",
+  "messaging.ts:markThreadRead:threadId":
+    "calls threadView first and returns without writing when it is null, so the watermark can only ever be moved on a thread the same derived-scope query already returned",
   "auth.ts:signInWithPassword": "pre-auth by definition; resolves its own scope from credentials",
   "auth.ts:claimPassword": "pre-auth; the token is the authorization",
   "auth.ts:resetPassword": "pre-auth; the token is the authorization",

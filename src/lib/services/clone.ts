@@ -156,4 +156,9 @@ export const CLONE_IGNORED_RELATIONS = [
   // been played. A copy starts with the bets switched off, and an organizer
   // who runs the same ones weekly turns them on for the round in front of them.
   "sideGames",
+  // Conversations belong to the tournament they were had in. Copying them
+  // forward would carry last year's messages into this year's event and show
+  // them to a field that has changed — including, in a direct thread, to
+  // people who were never in it. A new tournament starts quiet.
+  "threads",
 ];

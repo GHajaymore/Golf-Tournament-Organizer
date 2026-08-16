@@ -68,6 +68,7 @@ model Organization {
    * /**
    * /**
    * /**
+   * /**
    * /** Absolute https:// URL to a logo image. A URL rather than an upload
    * because file uploads need blob storage; this works with the club's
    * existing website assets and can be swapped for an upload later without
@@ -171,6 +172,7 @@ model Organization {
   courses      Course[]
   events       Event[]
   series       Series[]
+  threads      Thread[]
   subscription Subscription?
 }
 
@@ -751,6 +753,7 @@ model Event {
   settlements     Settlement[]
   contests        Contest[]
   sideGames       SideGame[]
+  threads         Thread[]
 
   @@index([organizationId])
 }
@@ -1646,4 +1649,100 @@ model SideGameEntry {
 
   @@unique([sideGameId, playerId])
   @@index([sideGameId])
+}
+
+/**
+ * A conversation.
+ * Scoped by `scopeKey` — `kind:id`, see domain/messaging.ts — because every
+ * read is `scopeKey IN (the set derived for this reader)`. Membership is never
+ * stored for the structural scopes: a player moves flight, a tee sheet is
+ * republished, a side is redrawn, and a stored recipient list would keep
+ * showing the conversation to somebody who has left it. Deriving it from the
+ * tournament each time cannot go stale.
+ * `organizationId` is always set; `eventId` is null only for a club-wide
+ * thread, which by definition outlives any one tournament.
+ */
+model Thread {
+  id             String   @id @default(cuid())
+  organizationId String
+  eventId        String?
+  /**
+   * `kind:id`. Empty id for club/event/staff, which the event already names.
+   */
+  scopeKey       String
+  title          String   @default("")
+  createdByEmail String   @default("")
+  createdByName  String   @default("")
+  createdAt      DateTime @default(now())
+  /**
+   * Denormalised so the thread list sorts without touching every message.
+   */
+  lastMessageAt  DateTime @default(now())
+  archived       Boolean  @default(false)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        Event?       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  messages     Message[]
+  participants ThreadParticipant[]
+  reads        ThreadRead[]
+
+  /**
+   * The lookup every read does.
+   */
+  @@index([organizationId, scopeKey])
+  @@index([eventId, scopeKey])
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id          String    @id @default(cuid())
+  threadId    String
+  authorEmail String
+  authorName  String    @default("")
+  body        String
+  createdAt   DateTime  @default(now())
+  editedAt    DateTime?
+  /**
+   * Soft delete: a removed message leaves a tombstone so the thread still
+   * reads as a conversation rather than silently losing a turn.
+   */
+  deletedAt   DateTime?
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+/**
+ * Named participants of a DIRECT thread only.
+ * The structural scopes derive their membership and must not have rows here —
+ * that is what keeps them from going stale.
+ */
+model ThreadParticipant {
+  id       String @id @default(cuid())
+  threadId String
+  email    String
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, email])
+  @@index([email])
+}
+
+/**
+ * How far one person has read one thread.
+ * A watermark rather than a row per message: one row per person per thread,
+ * and "what is new" is a timestamp comparison.
+ */
+model ThreadRead {
+  id         String   @id @default(cuid())
+  threadId   String
+  email      String
+  lastReadAt DateTime @default(now())
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, email])
+  @@index([email])
 }
