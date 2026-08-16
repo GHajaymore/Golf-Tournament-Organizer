@@ -821,3 +821,50 @@ describe("the preview toggle can only ever reduce", () => {
     expect(src).toMatch(/viewRole: Role =/);
   });
 });
+
+describe("nothing builds a CSV by hand", () => {
+  /**
+   * D9 of the 2026-08-12 audit. The reports export escaped inline, in a client
+   * component, with `/[",\n]/` — no `\r`, and nothing at all about formula
+   * injection. A player name of `=HYPERLINK(...)`, which the unauthenticated
+   * public registration form accepts, ran when the club opened the file.
+   *
+   * The fix is only durable if the next export reuses it, and the reason this
+   * one did not is that the rule was never anywhere reusable. So the guard is
+   * on the shape: cells go through `csvCell`/`toCsv` in
+   * `domain/csv-export.ts`, which is tested, and not through a join written on
+   * the spot.
+   */
+  const SRC = join(process.cwd(), "src");
+
+  function walk(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) return e.name === "__tests__" ? [] : walk(p);
+      return /\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name) ? [p] : [];
+    });
+  }
+
+  it("uses the shared escaper everywhere a CSV is written", () => {
+    const offenders: string[] = [];
+    for (const file of walk(SRC)) {
+      if (file.endsWith(join("domain", "csv-export.ts"))) continue;
+      const src = stripComments(readFileSync(file, "utf8"));
+      // A CSV is being emitted here if it declares the MIME type or names a
+      // .csv download.
+      if (!/text\/csv|\.csv["'`]/.test(src)) continue;
+      // Reading one is fine — score-import and the roster upload both parse.
+      // Writing one without the escaper is not.
+      const writes = /new Blob\(|download\s*=|Content-Disposition/.test(src);
+      if (writes && !/csvCell|toCsv/.test(src)) offenders.push(file.slice(SRC.length + 1));
+    }
+    expect(offenders, "escape via domain/csv-export.ts, not inline").toEqual([]);
+  });
+
+  it("still has the escaper the guard points at", () => {
+    // So the sweep above cannot pass by the file having been renamed away.
+    const src = readFileSync(join(SRC, "lib", "domain", "csv-export.ts"), "utf8");
+    expect(src).toMatch(/export function csvCell/);
+    expect(src).toMatch(/export function toCsv/);
+  });
+});

@@ -2,9 +2,12 @@
 import { useRouter } from "next/navigation";
 import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
 import { toParText } from "@/lib/domain";
+import { toCsv } from "@/lib/domain/csv-export";
 
 function download(filename: string, rows: string[][]) {
-  const csv = rows.map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(",")).join("\n");
+  // Player names on this export can come from the public registration form, so
+  // the escaping has to survive a hostile one — see csv-export.ts.
+  const csv = toCsv(rows);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
