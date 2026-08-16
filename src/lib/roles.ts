@@ -73,6 +73,9 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   qualification: ["admin", "assistant"],
   bracket: ["admin", "assistant", "player"],
   announcements: ["admin", "assistant"],
+  // Everyone. A conversation nobody but staff can reach is the Announcements
+  // screen, which already exists — this one is for the field.
+  messages: ["admin", "assistant", "player"],
 
   // Results.
   prizes: ["admin", "assistant"],

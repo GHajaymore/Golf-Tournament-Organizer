@@ -62,8 +62,15 @@ describe("role boundaries", () => {
     // "me" is the play shell they land on at sign-in. It is in the nav so that
     // staff who are ALSO in the field have a door into it, gated on actually
     // being entered — a player reaching it is simply reaching their own app.
+    //
+    // "messages" is open to players because a conversation only staff can
+    // reach is the Announcements screen, which already exists separately and
+    // stays staff-only. What a player sees inside is not decided here at all:
+    // the screen shows the scopes their membership derives, so a player gets
+    // their own flight, round, four and match and never the organizers'
+    // thread — see domain/messaging.ts and messaging.audit.test.ts.
     expect(allowed.sort()).toEqual(
-      ["bracket", "dashboard", "entry", "leaderboard", "me", "rules", "week"].sort(),
+      ["bracket", "dashboard", "entry", "leaderboard", "me", "messages", "rules", "week"].sort(),
     );
   });
 

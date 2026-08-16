@@ -62,6 +62,7 @@ export const NAV: NavSection[] = [
       { key: "qualification", label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered" },
       { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure" },
       { key: "announcements", label: "Announcements", href: "/announcements", icon: "ph ph-megaphone" },
+      { key: "messages", label: "Messages", href: "/messages", icon: "ph ph-chat-circle-dots" },
     ],
   },
   {

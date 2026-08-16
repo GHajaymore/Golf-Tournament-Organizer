@@ -51,6 +51,7 @@ vi.mock("@/app/actions/tournament", actionModule);
 vi.mock("@/app/actions/event", actionModule);
 vi.mock("@/app/actions/stages", actionModule);
 vi.mock("@/app/actions/roster", actionModule);
+vi.mock("@/app/actions/messaging", actionModule);
 
 import { SeriesClient } from "@/components/SeriesClient";
 import { TeeEditor } from "@/components/TeeEditor";
@@ -1991,5 +1992,61 @@ describe("the scorecard shows the whole card", () => {
     expect(html).toContain("0 of 18");
     expect(html).toContain("Par");
     expect(html).toContain("S.I.");
+  });
+});
+
+describe("MessagesClient", () => {
+  const threads = [
+    {
+      id: "t1",
+      scopeKey: "foursome:s1#Group 1",
+      kind: "foursome" as const,
+      title: "Your group",
+      label: "Your group",
+      lastMessageAt: Date.now() - 60_000,
+      unread: 2,
+      canPost: true,
+      preview: "running 5 late",
+    },
+    {
+      id: "t2",
+      scopeKey: "event:",
+      kind: "event" as const,
+      title: "Everyone in this tournament",
+      label: "Everyone in this tournament",
+      lastMessageAt: Date.now() - 86_400_000,
+      unread: 0,
+      canPost: false,
+      preview: "",
+    },
+  ];
+  const composable = [{ key: "foursome:s1#Group 1", label: "Your group — Group 1", kind: "foursome" }];
+  const people = [{ name: "Sam Ellis", email: "sam@example.invalid" }];
+
+  it("lists conversations with their unread counts", async () => {
+    const { MessagesClient } = await import("@/components/MessagesClient");
+    const html = render(
+      <MessagesClient threads={threads} composable={composable} people={people} isStaff={false} />,
+    );
+    expect(html).toContain("Your group");
+    expect(html).toContain("running 5 late");
+    // The badge is the whole reason a player opens this screen.
+    expect(html).toContain(">2<");
+  });
+
+  it("comes up on the first day, before anybody has said anything", async () => {
+    // The state every new tournament is in, and the one a list component is
+    // most likely to crash reading rows[0] of.
+    const { MessagesClient } = await import("@/components/MessagesClient");
+    const html = render(<MessagesClient threads={[]} composable={[]} people={[]} isStaff />);
+    expect(html).toContain("No conversations yet");
+  });
+
+  it("renders a thread with no preview text without falling over", async () => {
+    const { MessagesClient } = await import("@/components/MessagesClient");
+    const html = render(
+      <MessagesClient threads={[threads[1]]} composable={[]} people={[]} isStaff={false} />,
+    );
+    expect(html).toContain("No messages yet");
   });
 });
