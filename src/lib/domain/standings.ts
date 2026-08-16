@@ -169,6 +169,42 @@ export function aggregateStats(
 }
 
 /**
+ * Head-to-head as a NUMBER, over the players who are actually tied.
+ *
+ * The pairwise version below is not a total order. Beating each other in a
+ * cycle — A beat B, B beat C, C beat A — is an ordinary thing to happen in a
+ * round robin, and `Array.sort` given an intransitive comparator returns
+ * whatever its algorithm happens to produce: the order then depends on how
+ * many OTHER players are in the array. The audit found exactly that, two
+ * players level on points ranking differently over a field of 24 than over 28,
+ * which is a leaderboard that changes when somebody unrelated enters.
+ *
+ * So the tie is broken the way golf and every league actually breaks it: a
+ * mini-league among the tied players only. Wins less losses against that
+ * group is a scalar, scalars are transitive, and for the common case of two
+ * players it is exactly the old answer — who won the meeting.
+ */
+function miniLeague(playerId: string, tied: Player[], matches: Match[]): number {
+  const others = new Set(tied.map((p) => p.id).filter((id) => id !== playerId));
+  if (others.size === 0) return 0;
+
+  let score = 0;
+  for (const m of matches) {
+    const isA = m.playerAId === playerId;
+    const isB = m.playerBId === playerId;
+    if (!isA && !isB) continue;
+    const opponent = isA ? m.playerBId : m.playerAId;
+    if (!others.has(opponent)) continue;
+
+    const r = resolveMatch(m.holes);
+    if (!r.complete || r.winner === "H") continue;
+    const wonIt = (r.winner === "A" && isA) || (r.winner === "B" && isB);
+    score += wonIt ? 1 : -1;
+  }
+  return score;
+}
+
+/**
  * Result of the head-to-head between two players within `matches`:
  * -1 if `aId` won the meeting, 1 if `bId` won, 0 if halved / no completed meeting.
  */
@@ -223,9 +259,16 @@ function tiebreakerCompare(
   sb: PlayerStats,
   matches: Match[],
   holeDifficulty?: number[],
+  /** Mini-league scores for the tied group this comparison belongs to. */
+  h2h?: Map<string, number>,
 ): number {
   switch (key) {
     case "head-to-head":
+      // The scalar, when the caller has grouped the tie (rankPlayers always
+      // does). The pairwise fallback is kept for the handful of callers that
+      // compare two players outside a ranking, where a "group" of two makes
+      // the two answers identical anyway.
+      if (h2h) return (h2h.get(pb.id) ?? 0) - (h2h.get(pa.id) ?? 0);
       return headToHead(pa.id, pb.id, matches);
     case "most-wins":
       return sb.wins - sa.wins; // more wins ranks first
@@ -274,16 +317,49 @@ export function rankPlayers(
     ? scoring.tiebreakers
     : (["head-to-head", "holes-won-ratio", "fewest-holes-lost", "lower-handicap"] as TiebreakerKey[]);
 
-  const sorted = [...players].sort((pa, pb) => {
-    const sa = stats.get(pa.id)!;
-    const sb = stats.get(pb.id)!;
-    if (sb.totalPoints !== sa.totalPoints) return sb.totalPoints - sa.totalPoints;
-    for (const key of chain) {
-      const c = tiebreakerCompare(key, pa, pb, sa, sb, matches, holeDifficulty);
-      if (c !== 0) return c;
-    }
-    return pa.seed - pb.seed;
+  /**
+   * Points first, and then each tie broken WITHIN its own group.
+   *
+   * Sorting the whole field with one comparator is what made the order depend
+   * on the field: head-to-head is pairwise, a cycle of results is ordinary in
+   * a round robin, and `Array.sort` handed an intransitive comparator returns
+   * whatever its algorithm reaches. Grouping first means the mini-league is
+   * computed over exactly the players who are level, which is both the rule
+   * every league actually uses and a scalar — and a scalar cannot be
+   * intransitive.
+   */
+  const byPoints = [...players].sort((pa, pb) => {
+    const diff = (stats.get(pb.id)?.totalPoints ?? 0) - (stats.get(pa.id)?.totalPoints ?? 0);
+    return diff !== 0 ? diff : pa.seed - pb.seed;
   });
+
+  const sorted: Player[] = [];
+  let i = 0;
+  while (i < byPoints.length) {
+    const points = stats.get(byPoints[i].id)?.totalPoints ?? 0;
+    let j = i;
+    while (j < byPoints.length && (stats.get(byPoints[j].id)?.totalPoints ?? 0) === points) j += 1;
+
+    const tied = byPoints.slice(i, j);
+    if (tied.length === 1) {
+      sorted.push(tied[0]);
+    } else {
+      // One mini-league for this group, computed once rather than per
+      // comparison — and it is the group's own results, not the field's.
+      const h2h = new Map(tied.map((p) => [p.id, miniLeague(p.id, tied, matches)]));
+      const ordered = [...tied].sort((pa, pb) => {
+        const sa = stats.get(pa.id)!;
+        const sb = stats.get(pb.id)!;
+        for (const key of chain) {
+          const c = tiebreakerCompare(key, pa, pb, sa, sb, matches, holeDifficulty, h2h);
+          if (c !== 0) return c;
+        }
+        return pa.seed - pb.seed;
+      });
+      sorted.push(...ordered);
+    }
+    i = j;
+  }
 
   return sorted.map((player, i) => ({
     player,
