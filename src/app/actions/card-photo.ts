@@ -126,7 +126,19 @@ export async function readScorecardPhoto(
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-5",
+        // Haiku rather than Sonnet, and this is the one action where that is
+        // clearly right. Reading a grid of two-digit numbers off a photograph
+        // is narrow extraction, not judgement — and it is the highest-volume
+        // model call in the product, one per card rather than one per round,
+        // so it dominates the AI bill at any real scale. Haiku is a third of
+        // Sonnet's price per token on both sides.
+        //
+        // The accuracy trade is bounded by the design above: this action NEVER
+        // SAVES ANYTHING. Every number comes back for the person holding the
+        // card to check and correct before it goes through the ordinary entry
+        // path. A misread here costs a correction, not a wrong result — which
+        // is exactly the shape of task where the cheaper model belongs.
+        model: "claude-haiku-4-5",
         max_tokens: 400,
         messages: [
           {

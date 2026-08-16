@@ -926,3 +926,44 @@ describe("every screen that shows results makes the same branch", () => {
     expect(offenders, "call boardKind before ranking — see lib/formats.ts").toEqual([]);
   });
 });
+
+describe("which model each AI call uses", () => {
+  /**
+   * Not a correctness rule — a cost one, and the only reason it is a test is
+   * that nothing else would notice it changing.
+   *
+   * Card reading is by far the highest-volume model call in the product: one
+   * per scorecard rather than one per round or per tournament, so at any real
+   * scale it dominates the AI bill. It is also the narrowest task — reading a
+   * grid of two-digit numbers off a photograph is extraction, not judgement —
+   * and the action never saves what it reads, so a misread costs a correction
+   * rather than a wrong result. Haiku is the right model and is a third of
+   * Sonnet's price per token on both sides.
+   *
+   * The prose calls stay on Sonnet deliberately: they are low-volume and their
+   * output is read by a person as writing.
+   */
+  const MODEL_FOR: Record<string, string> = {
+    "card-photo.ts": "claude-haiku-4-5",
+    "commentary.ts": "claude-sonnet-5",
+    "draft-message.ts": "claude-sonnet-5",
+    "setup-suggest.ts": "claude-sonnet-5",
+  };
+
+  for (const [file, expected] of Object.entries(MODEL_FOR)) {
+    it(`${file} calls ${expected}`, () => {
+      const src = stripComments(read(file));
+      const found = [...src.matchAll(/model:\s*"([^"]+)"/g)].map((m) => m[1]);
+      expect(found, `${file} should name exactly one model`).toEqual([expected]);
+    });
+  }
+
+  it("has no AI call this guard has not been told about", () => {
+    // So a new model call cannot be added without a deliberate decision about
+    // which model it should use and what that costs per invocation.
+    const unlisted = readdirSync(ACTIONS_DIR)
+      .filter((f) => f.endsWith(".ts") && !MODEL_FOR[f])
+      .filter((f) => /api\.anthropic\.com/.test(stripComments(read(f))));
+    expect(unlisted, "add it to MODEL_FOR with a note on why that model").toEqual([]);
+  });
+});
