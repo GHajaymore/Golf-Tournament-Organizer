@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { entitlementForEvent } from "@/lib/services/entitlements";
 import { holesPlayed } from "@/lib/domain/handicap";
 import {
   parseCardReading,
@@ -106,6 +107,13 @@ export async function readScorecardPhoto(
   // Per person: a shared budget would let one busy organizer lock out a club.
   const limit = await checkRateLimit("card-photo", who);
   if (!limit.allowed) return { ok: false, error: limit.message };
+
+  // The plan gate comes before the key check: whether the club is entitled to
+  // this is a different answer from whether the server can do it, and the
+  // organizer needs the one that tells them what to do next. Checked here
+  // rather than in the UI because this action spends money per call.
+  const entitled = await entitlementForEvent(eventId, "cardScan");
+  if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) {

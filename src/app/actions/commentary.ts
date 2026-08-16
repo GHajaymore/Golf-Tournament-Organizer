@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { loadEventState, computeHighlights } from "@/lib/services/tournament";
+import { entitlementForEvent } from "@/lib/services/entitlements";
 
 async function requireStaff() {
   const session = await getSession();
@@ -39,6 +40,13 @@ export async function deleteCommentary(id: string) {
  */
 export async function suggestCommentary(): Promise<{ text: string; configured: boolean }> {
   const session = await requireStaff();
+  // Reported as "not configured" because that is exactly what the caller does
+  // with it — hide the button and let the organizer write it themselves. This
+  // action returns no error channel, so the plan check folds into the same
+  // flag rather than inventing one. Gated because each draft costs money.
+  const entitled = await entitlementForEvent(session.eventId, "aiAssist");
+  if (!entitled.allowed) return { text: "", configured: false };
+
   const key = process.env.ANTHROPIC_API_KEY;
   const state = await loadEventState(session.eventId);
   if (!state) return { text: "", configured: !!key };

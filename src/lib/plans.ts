@@ -55,6 +55,31 @@ export interface Plan {
      * sits on the paid tier rather than being given away.
      */
     whiteLabel: boolean;
+
+    /**
+     * Everything below costs real money *per use* rather than per tenant.
+     *
+     * The rest of this product is priced on capacity — seats, tournaments,
+     * how long data is kept — where one more club costs essentially nothing
+     * to serve. These three do not work that way: each is a per-message or
+     * per-call charge from a carrier or a model provider that scales with how
+     * much a club actually uses it. A free tier that included them would lose
+     * money in proportion to how much people liked them, which is the worst
+     * possible shape for a free tier.
+     *
+     * They are built, tested, and switched off — not stubbed. When there is
+     * revenue to cover them, these flip to `true` on the paid plan and nothing
+     * else has to change.
+     */
+
+    /** Sending an organizer broadcast as a text as well as in the app. */
+    sms: boolean;
+
+    /** Reading a photographed scorecard into proposed scores. */
+    cardScan: boolean;
+
+    /** Drafted commentary, invitations, and setup suggestions. */
+    aiAssist: boolean;
   };
 }
 
@@ -73,7 +98,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // to upgrade, and the single most important thing to say before anyone
     // plays — one number, read by every surface that mentions it.
     retentionHours: 48,
-    features: { whiteLabel: false },
+    features: { whiteLabel: false, sms: false, cardScan: false, aiAssist: false },
   },
   club: {
     key: "club",
@@ -86,7 +111,13 @@ export const PLANS: Record<PlanKey, Plan> = {
       playersPerEvent: null,
     },
     retentionHours: null,
-    features: { whiteLabel: true },
+    // The metered three are dark on BOTH tiers today. They are switched off by
+    // cost, not by tier: until subscription revenue exists to cover the
+    // carrier and model bills, nobody gets them — a paid club included.
+    // Flipping them here is the whole of turning them on, and the upgrade
+    // copy already lists them (see METERED_FEATURES below), so the promise and
+    // the switch move together.
+    features: { whiteLabel: true, sms: false, cardScan: false, aiAssist: false },
   },
 };
 
@@ -146,4 +177,96 @@ export function retentionNotice(planKey: string): string | null {
 /** Whether this plan keeps data indefinitely. */
 export function keepsDataForever(planKey: string): boolean {
   return planFor(planKey).retentionHours === null;
+}
+
+/** Feature flags that can be checked by name. */
+export type FeatureKey = keyof Plan["features"];
+
+/**
+ * Is this feature switched on for this plan?
+ *
+ * One entry point, so a feature is never gated by an inline plan comparison
+ * that somebody later forgets to update. Unknown plan keys fall back to free,
+ * which fails closed for everything metered.
+ */
+export function hasFeature(planKey: string | null | undefined, feature: FeatureKey): boolean {
+  return planFor(planKey).features[feature] === true;
+}
+
+/**
+ * The features that cost money every time they are used, with the words shown
+ * to an organizer who reaches one.
+ *
+ * Kept as data rather than scattered through the screens that gate them so the
+ * promise on the upgrade page and the message at the locked door cannot drift
+ * apart — they are generated from the same rows.
+ */
+export const METERED_FEATURES: {
+  key: FeatureKey;
+  /** Short label, for the benefits list. */
+  label: string;
+  /** What the club gets, one line. */
+  benefit: string;
+  /** Shown where the feature is reached and unavailable. */
+  locked: string;
+}[] = [
+  {
+    key: "sms",
+    label: "Text alerts",
+    benefit:
+      "Send a frost delay or a tee change as a text as well as in the app, to the players who asked for them.",
+    locked:
+      "Text alerts aren't switched on yet. Your message still reaches everyone in the app — texting is coming with the paid plan, because every text costs the club money at the carrier.",
+  },
+  {
+    key: "cardScan",
+    label: "Photograph a scorecard",
+    benefit:
+      "Photograph a completed card and have the scores read off it for you to check, instead of typing eighteen numbers.",
+    locked:
+      "Reading a photographed card isn't switched on yet. Enter the scores by hand for now — this is coming with the paid plan, because each card read costs money.",
+  },
+  {
+    key: "aiAssist",
+    label: "Drafted commentary and invitations",
+    benefit:
+      "A first draft of your leaderboard commentary, invitation, and round setup, ready to edit.",
+    locked:
+      "Drafting isn't switched on yet. Write it yourself for now — this is coming with the paid plan, because each draft costs money.",
+  },
+];
+
+/**
+ * Why a club on this plan would upgrade, in the order they'd care.
+ *
+ * Generated rather than written out per screen so a new paid feature appears
+ * everywhere upgrades are offered by being added once. Anything the plan
+ * already has is left out — a benefits list that includes what you already
+ * bought reads as a mistake.
+ */
+export function upgradeBenefits(planKey: string | null | undefined): string[] {
+  const plan = planFor(planKey);
+  const out: string[] = [];
+
+  if (plan.retentionHours !== null) {
+    out.push("Keep your results permanently, instead of losing them 48 hours after the event.");
+  }
+  if (plan.limits.activeEvents !== null) {
+    out.push("Run as many tournaments at once as your season needs.");
+  }
+  if (plan.limits.staffSeats !== null && plan.limits.staffSeats < 10) {
+    out.push("Bring your committee in — up to ten organizers and assistants.");
+  }
+  if (!plan.features.whiteLabel) {
+    out.push("Your club's branding on every screen, with ours removed.");
+  }
+
+  // The metered ones last and flagged as coming: they are the reason the paid
+  // tier exists, but promising them as available today would be a lie until
+  // the flags above are on.
+  for (const f of METERED_FEATURES) {
+    if (!plan.features[f.key]) out.push(`${f.benefit} (coming with the paid plan.)`);
+  }
+
+  return out;
 }

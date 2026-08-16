@@ -13,6 +13,8 @@ import {
   messageableField,
   messagesOptOutFor,
   setMessagesOptOut,
+  broadcastWithSms,
+  planSmsBroadcast,
 } from "@/lib/services/messaging";
 import { scopeKey, teeGroupId } from "@/lib/domain/messaging";
 
@@ -425,5 +427,62 @@ describe("turning direct messages off", () => {
     expect(await setMessagesOptOut(sam, false)).toBe(true);
     expect(await messagesOptOutFor(sam)).toBe(false);
     expect(await messagesOptOutFor((await ctxFor("rita"))!)).toBe(false);
+  });
+});
+
+describe("the SMS plan gate", () => {
+  it("still delivers the message in the app when texting is off", async () => {
+    // The ordering that matters: the in-app broadcast is written first and
+    // unconditionally, so a club without texting still reaches everybody.
+    // Losing the announcement because the paid feature is off would be the
+    // worst possible trade.
+    const admin = (await ctxFor("rita", "admin"))!;
+    const res = await broadcastWithSms(
+      admin,
+      scopeKey("event"),
+      "Tee times are up",
+      "Organizer",
+      `${TAG} club`,
+    );
+    expect(res.ok, res.error).toBe(true);
+    expect(res.texted).toBe(0);
+
+    const dev = (await ctxFor("dev"))!;
+    expect((await threadView(dev, res.threadId!))?.messages.at(-1)?.body).toBe("Tee times are up");
+  });
+
+  it("texts nobody, however many have opted in", async () => {
+    // The gate is in the service, not the screen, so reaching the endpoint
+    // directly cannot spend the club's money.
+    await prisma.member.updateMany({
+      where: { organizationId: orgId },
+      data: { smsOptIn: true, phone: "+447700900500" },
+    });
+
+    const admin = (await ctxFor("rita", "admin"))!;
+    const res = await broadcastWithSms(
+      admin,
+      scopeKey("event"),
+      "Frost delay",
+      "Organizer",
+      `${TAG} club`,
+    );
+    expect(res.texted).toBe(0);
+    expect(res.failed).toBe(0);
+
+    // And nothing was even attempted — no delivery rows, so no carrier call.
+    const attempts = await prisma.smsDelivery.count({ where: { organizationId: orgId } });
+    expect(attempts).toBe(0);
+  });
+
+  it("says it is the plan, not the carrier", async () => {
+    // An organizer told "SMS isn't configured" goes looking for a setting.
+    // The refusal has to name the real reason and say what still happens.
+    const admin = (await ctxFor("rita", "admin"))!;
+    const plan = await planSmsBroadcast(admin, scopeKey("event"), "Frost delay", `${TAG} club`);
+    expect(plan.configured).toBe(false);
+    expect(plan.recipients).toBe(0);
+    expect(plan.problem).toMatch(/still reaches everyone in the app/i);
+    expect(plan.problem).not.toMatch(/TWILIO|credentials/i);
   });
 });

@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { entitlementForEvent } from "@/lib/services/entitlements";
 import { PLAYABLE_FORMAT_NAMES } from "@/lib/formats";
 import { STAGE_TYPES } from "@/lib/stage-types";
 import { extractReadingJson } from "@/lib/domain/card-reading";
@@ -60,7 +61,7 @@ async function requireStaff(): Promise<{ eventId: string; who: string }> {
 }
 
 export async function suggestSetup(description: string): Promise<SetupSuggestResult> {
-  const { who } = await requireStaff();
+  const { eventId, who } = await requireStaff();
 
   const text = description.trim();
   if (text.length < 8) {
@@ -74,6 +75,11 @@ export async function suggestSetup(description: string): Promise<SetupSuggestRes
   // AI, not a separate allowance per feature.
   const limit = await checkRateLimit("card-photo", who);
   if (!limit.allowed) return { ok: false, error: limit.message };
+
+  // Entitlement before capability — see entitlements.ts. Each suggestion is a
+  // model call, so this is gated on the plan, not just on the server key.
+  const entitled = await entitlementForEvent(eventId, "aiAssist");
+  if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) {

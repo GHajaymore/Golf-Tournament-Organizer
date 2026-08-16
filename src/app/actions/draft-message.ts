@@ -1,6 +1,7 @@
 "use server";
 import { getSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { entitlementForEvent } from "@/lib/services/entitlements";
 import { draftFactsFor } from "@/lib/services/draft-facts";
 import { checkDraft, draftPrompt, DRAFT_KINDS, type DraftKind } from "@/lib/domain/draft-check";
 
@@ -63,6 +64,12 @@ export async function draftMessage(kind: string, extra: string): Promise<DraftRe
       error: "There are no results to write about yet. Enter some scores first.",
     };
   }
+
+  // Entitlement before capability: "your plan doesn't include this" and "the
+  // server has no key" are different answers, and only the first one tells the
+  // organizer what to do about it. Checked here because each draft costs money.
+  const entitled = await entitlementForEvent(session.eventId, "aiAssist");
+  if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) {

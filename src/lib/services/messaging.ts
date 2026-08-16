@@ -13,6 +13,8 @@ import {
   type SmsRecipient,
 } from "@/lib/domain/sms";
 import { sendSms, smsConfig } from "@/lib/sms";
+import { hasFeature, METERED_FEATURES } from "@/lib/plans";
+import { planForOrganization } from "@/lib/services/entitlements";
 import {
   scopeKey,
   parseScopeKey,
@@ -788,6 +790,23 @@ export async function planSmsBroadcast(
   const plan = planFanOut(audience, composed.text);
   const config = smsConfig();
 
+  // Not on this plan: report it as the reason rather than as a carrier
+  // problem, and say what still happens. An organizer who reads "SMS isn't
+  // configured" will go looking for a setting that isn't the issue.
+  if (!hasFeature(await planForOrganization(ctx.organizationId), "sms")) {
+    return {
+      text: composed.text,
+      segmentsEach: plan.segmentsEach,
+      recipients: 0,
+      totalSegments: 0,
+      skipped: [],
+      truncated: composed.truncated,
+      configured: false,
+      problem: METERED_FEATURES.find((f) => f.key === "sms")!.locked,
+      costLabel: "",
+    };
+  }
+
   return {
     text: composed.text,
     segmentsEach: plan.segmentsEach,
@@ -825,6 +844,14 @@ export async function broadcastWithSms(
 
   const parsed = parseScopeKey(key);
   if (!parsed || !canFanOutToSms(parsed.kind)) {
+    return { ...posted, texted: 0, failed: 0, skipped: 0 };
+  }
+
+  // The plan gate, checked HERE rather than in the action, so that reaching
+  // the endpoint directly cannot spend the club's money. The in-app message
+  // above has already been written and is not affected — a club without texting
+  // still reaches everybody, which is the point of the ordering.
+  if (!hasFeature(await planForOrganization(ctx.organizationId), "sms")) {
     return { ...posted, texted: 0, failed: 0, skipped: 0 };
   }
 
