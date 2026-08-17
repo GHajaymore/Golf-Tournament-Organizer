@@ -85,11 +85,12 @@ export function aggregateStats(
      * crediting a conceder the three holes he was up would flatter him in
      * hole differential, which is what the flight is ranked on.
      */
-    const forfeitedBy = m.forfeitedBy ?? "";
-    if (forfeitedBy && (forfeitedBy === m.playerAId || forfeitedBy === m.playerBId)) {
-      const loser = forfeitedBy === m.playerAId ? a : b;
-      const winner = forfeitedBy === m.playerAId ? b : a;
-      const winnerId = forfeitedBy === m.playerAId ? m.playerBId : m.playerAId;
+    const conceded = forfeitWinnerSide(m);
+    if (conceded) {
+      const forfeitedBy = conceded === "B" ? m.playerAId : m.playerBId;
+      const loser = conceded === "B" ? a : b;
+      const winner = conceded === "B" ? b : a;
+      const winnerId = conceded === "B" ? m.playerBId : m.playerAId;
       if (loser) {
         loser.played += 1;
         loser.losses += 1;
@@ -184,6 +185,30 @@ export function aggregateStats(
  * group is a scalar, scalars are transitive, and for the common case of two
  * players it is exactly the old answer — who won the meeting.
  */
+/**
+ * Which side won by forfeit, or null when the match was played out.
+ *
+ * The one place that answers it. `aggregateStats` already honoured a forfeit,
+ * but the two tiebreakers below went to the card themselves — so a conceder
+ * three up when he walked in was reported as having WON the meeting, and the
+ * holes the forfeit discards still counted towards his differential. Two
+ * players level on points could be separated by a match one of them never
+ * finished, in favour of the one who quit.
+ *
+ * Returns null when `forfeitedBy` names neither player. That covers a team
+ * round, where the forfeit holds a team id and the player columns are empty:
+ * such a match contributes nothing to a player's record either way, and
+ * guessing a side from an id that is not in it would be worse than ignoring
+ * it.
+ */
+function forfeitWinnerSide(m: Match): "A" | "B" | null {
+  const by = m.forfeitedBy ?? "";
+  if (!by) return null;
+  if (by === m.playerAId) return "B";
+  if (by === m.playerBId) return "A";
+  return null;
+}
+
 function miniLeague(playerId: string, tied: Player[], matches: Match[]): number {
   const others = new Set(tied.map((p) => p.id).filter((id) => id !== playerId));
   if (others.size === 0) return 0;
@@ -195,6 +220,13 @@ function miniLeague(playerId: string, tied: Player[], matches: Match[]): number 
     if (!isA && !isB) continue;
     const opponent = isA ? m.playerBId : m.playerAId;
     if (!others.has(opponent)) continue;
+
+    // A forfeit decides the meeting, whatever the card says.
+    const conceded = forfeitWinnerSide(m);
+    if (conceded) {
+      score += (conceded === "A" && isA) || (conceded === "B" && isB) ? 1 : -1;
+      continue;
+    }
 
     const r = resolveMatch(m.holes);
     if (!r.complete || r.winner === "H") continue;
@@ -241,6 +273,11 @@ function holesDiffOn(playerId: string, matches: Match[], holeIdxs: Set<number>):
     const isA = m.playerAId === playerId;
     const isB = m.playerBId === playerId;
     if (!isA && !isB) continue;
+    // A forfeited match has no card worth reading. aggregateStats discards
+    // those holes for exactly this reason — crediting a conceder the holes he
+    // was up flatters him — and this tiebreaker was still counting them, on
+    // the six hardest holes of the course.
+    if (forfeitWinnerSide(m)) continue;
     for (const idx of holeIdxs) {
       const h = m.holes[idx];
       if (h === null || h === "H") continue;
