@@ -63,6 +63,10 @@ export const CLONED_EVENT_FIELDS = [
   // and needs a number to ring wants that on next year's form too, and having
   // to remember it after the entries are in is when it is too late.
   "requirePhone",
+  // How this tournament handles money. Carried, because next year's running of
+  // the same outing runs its money the same way — and an empty value here
+  // means "follow the club", which is exactly what a copy should inherit too.
+  "moneyMode",
   "scoreApproval",
   // Travels with scoreApproval — a club that wants every player in the match
   // to sign off wants that next year too.
@@ -154,6 +158,11 @@ export const CLONE_IGNORED_RELATIONS = [
   // friends rather than out of a pot.
   "expenses",
   "settlements",
+  // The kitty's own lines, for the same reason: last year's entry fees were
+  // collected from last year's entrants and last year's trophy is bought.
+  // The MODE carries forward (see the allowlist above) so the new tournament
+  // runs its money the same way; the money itself does not.
+  "fundLines",
   // Side bets are cash on the table, exactly like a skins pot: copying last
   // year's closest-to-the-pin forward would enter players who staked nothing
   // and award a pot that was already paid out.

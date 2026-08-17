@@ -62,6 +62,13 @@ model Organization {
    */
   kind String @default("personal")
 
+  /**
+   * none | float | split — the club default for what a tournament does with
+   * money. Empty follows the kind of outfit (see resolveMoneyMode), which is
+   * what every existing club does today.
+   */
+  moneyMode String @default("")
+
   // Branding, applied to the console header and printed output for every
   // tournament this organization owns.
   /**
@@ -750,6 +757,13 @@ model Event {
    */
   requirePhone          Boolean @default(false)
   /**
+   * none | float | split — this tournament overriding the club default.
+   * Empty follows the club, which follows the kind. A society runs a thirty
+   * pound roll-up and a three-day trip with a minibus in the same season, and
+   * one setting cannot be right for both.
+   */
+  moneyMode             String  @default("")
+  /**
    * Who locks a result: "staff" holds every submitted card for organizer
    * review; "players" keeps the two-player confirmation with a 24h
    * auto-confirm. Defaults to staff — auto-confirming an unreviewed score is
@@ -818,6 +832,7 @@ model Event {
   auditLogs       AuditLog[]
   courses         EventCourse[]
   expenses        Expense[]
+  fundLines       TournamentFund[]
   settlements     Settlement[]
   contests        Contest[]
   sideGames       SideGame[]
@@ -1936,4 +1951,49 @@ model EmailFailure {
   createdAt DateTime @default(now())
 
   @@index([organizationId, createdAt])
+}
+
+/**
+ * A line in a tournament's kitty — the FLOAT money mode.
+ *
+ * Deliberately not an Expense with a negative amount. The split ledger next
+ * door divides amounts between players, and a negative there would silently
+ * invert a debt; `direction` says which way the money went and cannot be
+ * mistaken for a discount.
+ *
+ * Also deliberately not per player. A float is one pot belonging to the
+ * tournament: fees have already left the entrants' hands, so there is nobody
+ * to owe anybody. Per-player reconciliation ("did all forty pay?") is a real
+ * want and a separate feature — see docs/audit-2026-08-12.md.
+ */
+model TournamentFund {
+  id      String @id @default(cuid())
+  eventId String
+  /**
+   * The round it belongs to. Empty means the whole outing — a trophy is for
+   * the tournament, a round's prize money is for that round.
+   */
+  stageId String @default("")
+
+  /**
+   * in | out. Fees and collections in; prizes, trophies and the meal out.
+   */
+  direction   String
+  description String
+  amountCents Int
+  /**
+   * entry-fee | prize | trophy | catering | other. Free text, because a club
+   * will always have a category nobody predicted.
+   */
+  category String @default("")
+  /** The calendar day, ISO — a day, not an instant. */
+  occurredOn String @default("")
+
+  createdBy String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, stageId])
 }

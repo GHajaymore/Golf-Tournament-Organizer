@@ -11,6 +11,7 @@ import {
 import { settle, type Transfer } from "../domain/money";
 import { parseTeeSheet, groupForPlayer } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
+import { resolveMoneyMode, moneyScreenApplies } from "../domain/money-mode";
 import { contestLedger, contestNets, isContestKind, isDecided, potOf } from "../domain/contests";
 import {
   derivedNets,
@@ -493,9 +494,29 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
 
 /** Whether this tournament shows the money tab at all. */
 export async function usesExpenses(eventId: string): Promise<boolean> {
-  const [expenses, settlements] = await Promise.all([
-    prisma.expense.count({ where: { eventId } }),
-    prisma.settlement.count({ where: { eventId } }),
-  ]);
-  return expenses > 0 || settlements > 0;
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { moneyMode: true, organization: { select: { moneyMode: true, kind: true } } },
+  });
+  if (!event) return false;
+
+  /**
+   * The mode decides, where this used to guess from whether anything had been
+   * entered yet. That guess was wrong in both directions: a tournament that
+   * handles its money outside the app got a settle-up as soon as somebody
+   * added one line, and a tournament that intends to use it showed nothing
+   * until the first line existed, so there was no way to tell the feature was
+   * there.
+   */
+  const mode = resolveMoneyMode({
+    eventMode: event.moneyMode,
+    orgMode: event.organization?.moneyMode,
+    orgKind: event.organization?.kind,
+  });
+  if (!moneyScreenApplies(mode)) return false;
+
+  // Under a mode that HAS a money screen, it is offered as soon as the
+  // tournament is set up rather than only once somebody has used it —
+  // otherwise the first person to need it cannot find it.
+  return true;
 }
