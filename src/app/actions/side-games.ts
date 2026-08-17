@@ -108,10 +108,28 @@ export async function setSideGameEntrants(
     select: { id: true },
   });
 
+  /**
+   * Replaces the CONFIRMED entrants, and leaves people who are still waiting
+   * to pay exactly where they are.
+   *
+   * This used to delete every row and recreate the given ids, and
+   * SideGameEntry.confirmed defaults to true — so an organizer nudging one
+   * chip silently marked every outstanding self-signup as paid, and their
+   * stakes went into the pot without the cash. It also worked the other way:
+   * a pending request vanished the moment anyone touched the list, so the
+   * player's ask was lost with nothing to show they had made it.
+   *
+   * An id explicitly passed in IS confirmed — an organizer ticking somebody in
+   * is the confirmation, the same rule ContestEntry documents. Anyone pending
+   * and not named keeps their unconfirmed row and stays on the collect list.
+   */
+  const ids = rows.map((r) => r.id);
   await prisma.$transaction([
-    prisma.sideGameEntry.deleteMany({ where: { sideGameId } }),
+    prisma.sideGameEntry.deleteMany({
+      where: { sideGameId, OR: [{ confirmed: true }, { playerId: { in: ids } }] },
+    }),
     prisma.sideGameEntry.createMany({
-      data: rows.map((r) => ({ sideGameId, playerId: r.id })),
+      data: ids.map((id) => ({ sideGameId, playerId: id, confirmed: true })),
     }),
   ]);
 

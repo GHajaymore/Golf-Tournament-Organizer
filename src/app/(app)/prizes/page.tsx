@@ -123,7 +123,25 @@ export default async function PrizesPage({
             id: g.id,
             kind: g.kind,
             buyInCents: g.buyInCents,
-            entrantIds: g.entrants.map((e) => e.playerId),
+            /**
+             * Confirmed stakes only — the same rule the contests above follow,
+             * and this was the one place not following it.
+             *
+             * A player putting their own name down from the app writes an
+             * unconfirmed row: an intention, not a stake. Counting it here put
+             * money in the pot that nobody had handed over, so the payout was
+             * split more ways than there was cash — the exact thing the
+             * `confirmed` column was added to prevent, working everywhere
+             * except the pots a player can actually join from their phone.
+             */
+            entrantIds: g.entrants.filter((e) => e.confirmed).map((e) => e.playerId),
+            // And who still owes, so there is somewhere to collect it from.
+            pending: g.entrants
+              .filter((e) => !e.confirmed)
+              .map((e) => ({
+                playerId: e.playerId,
+                name: state.confirmed.find((p) => p.id === e.playerId)?.name ?? "Unknown",
+              })),
           }))}
           field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
         />

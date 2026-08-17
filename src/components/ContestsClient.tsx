@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { addContest, setContestEntrants, setContestWinners, removeContest, confirmContestEntry } from "@/app/actions/contests";
-import { saveSideGame, setSideGameEntrants } from "@/app/actions/side-games";
+import { saveSideGame, setSideGameEntrants, confirmSideGameEntry } from "@/app/actions/side-games";
 import { CONTEST_KINDS, CONTEST_LABEL, type ContestKind } from "@/lib/domain/contests";
 import { DERIVED_KINDS, DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
 import { PersonChip } from "@/components/PersonChip";
@@ -60,7 +60,10 @@ export interface SideGameView {
   id: string;
   kind: string;
   buyInCents: number;
+  /** Confirmed stakes — the pot. */
   entrantIds: string[];
+  /** Put their own name down from the app and still owe the cash. */
+  pending: { playerId: string; name: string }[];
 }
 
 export function ContestsClient({
@@ -213,6 +216,39 @@ export function ContestsClient({
                   />
                 </label>
               </div>
+
+              {/* Same block, and the same reasoning, as the contests below:
+                  these people asked to join from their phone and have not paid
+                  yet, so their stake is NOT in the pot above. Collecting from
+                  them is the job, so they come first. This was the one pot type
+                  a player could join from the app and the only one with nowhere
+                  for the organizer to see it. */}
+              {on && game && game.pending.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: "8px 10px",
+                    borderRadius: "var(--radius-md)",
+                    background: "color-mix(in srgb, var(--color-accent) 8%, transparent)",
+                  }}
+                >
+                  <span className="card-kicker">
+                    Asked to join — take their money ({game.pending.length})
+                  </span>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                    {game.pending.map((p) => (
+                      <PersonChip
+                        key={p.playerId}
+                        name={`${p.name} · ${money(game.buyInCents)}`}
+                        on={false}
+                        tone="in"
+                        disabled={pending}
+                        onClick={() => run(() => confirmSideGameEntry(game.id, p.playerId, true))}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {on && (
                 <div style={{ marginTop: 8 }}>
