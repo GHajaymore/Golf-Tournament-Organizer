@@ -2,6 +2,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { listNames } from "@/lib/format";
 import { fieldRosterSummary } from "@/lib/domain/roster-link";
+import { csvSizeRefusal } from "@/lib/csv";
 import {
   addMember,
   updateMember,
@@ -155,11 +156,23 @@ export function RosterClient({
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
     setImportResult(null);
     setError("");
+    // Same reason as the entry import: over the body limit the request never
+    // reaches the server, so this is the only place it can be explained.
+    const tooBig = csvSizeRefusal(file.size);
+    if (tooBig) {
+      setError(tooBig);
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    const text = await file.text();
     startTransition(async () => {
-      setImportResult(await importCsvMembers(text));
+      try {
+        setImportResult(await importCsvMembers(text));
+      } catch {
+        setError("That import didn't go through. Check your connection and try again — nothing was added.");
+      }
     });
     // Cleared so re-picking the same file after a correction still fires
     // onChange — otherwise the second upload silently does nothing.

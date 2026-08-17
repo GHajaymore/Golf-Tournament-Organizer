@@ -7,7 +7,7 @@ import type { Standing } from "@/lib/domain/draw";
 import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
 import { resolveAttendance, type AttendanceMode } from "@/lib/domain/attendance";
-import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { parseTeeSheet, teeSheetDrift } from "@/lib/domain/tee-sheet";
 import { shortDate } from "@/lib/domain/round-dates";
 import { TeeSheetPrint } from "@/components/TeeSheetPrint";
 import { resolveCourse } from "@/lib/courses";
@@ -63,6 +63,12 @@ export default async function FoursomesPage({
   // the preview reshuffles on every visit, and a card has to match what was
   // announced. No saved sheet, no print button.
   const savedSheet = stage ? parseTeeSheet(stage.teeSheet) : null;
+  // Only meaningful once a sheet has actually gone out: an unpublished draft
+  // being out of step with the field is just a draft.
+  const drift =
+    savedSheet && stage?.teeSheetPublished
+      ? teeSheetDrift(savedSheet, new Set(state.confirmed.map((p) => p.id)))
+      : null;
   const course = resolveCourse(state.event);
   const brand = await brandForEvent(session.eventId);
   const nameOf = new Map(state.confirmed.map((p) => [p.id, p]));
@@ -112,6 +118,41 @@ export default async function FoursomesPage({
           </p>
         )}
       </div>
+
+      {/* A published sheet is a snapshot of a field that keeps moving.
+          validateTeeSheet ran when it went out and never again, so a player
+          withdrawn on the Wednesday stayed in the stored draw: the group
+          printed with three and a gap, and nothing said why. The print already
+          drops the missing name — this is what tells the committee it happened,
+          so they can move somebody up rather than send out a three-ball they
+          did not choose. */}
+      {drift?.stale && (
+        <div
+          className="card elev-sm"
+          style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 6 }}
+        >
+          <span className="card-title" style={{ fontSize: 14 }}>
+            <i className="ph ph-warning-circle" /> The published sheet no longer matches the field
+          </span>
+          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+            {drift.departed.length > 0 && (
+              <>
+                {drift.departed.length} drawn {drift.departed.length === 1 ? "player has" : "players have"} left
+                the field, leaving {drift.shortGroups.length === 1 ? "" : "these groups"} short
+                {drift.shortGroups.length > 0 ? `: ${drift.shortGroups.join(", ")}` : ""}.{" "}
+              </>
+            )}
+            {drift.undrawn.length > 0 && (
+              <>
+                {drift.undrawn.length} confirmed {drift.undrawn.length === 1 ? "player has" : "players have"} no
+                tee time.{" "}
+              </>
+            )}
+            Re-pair and publish again to put it right — the printed sheet leaves out anyone who has gone, so
+            it is correct but shorter than you drew it.
+          </p>
+        </div>
+      )}
       <FoursomeMaker
         players={field.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, seed: p.seed }))}
         standings={standings}

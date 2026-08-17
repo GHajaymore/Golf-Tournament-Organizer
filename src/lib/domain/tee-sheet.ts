@@ -86,3 +86,77 @@ export function validateTeeSheet(sheet: TeeSheet, confirmedIds: Set<string>): st
 export function groupForPlayer(sheet: TeeSheet, playerId: string): TeeSheetGroup | null {
   return sheet.groups.find((g) => g.playerIds.includes(playerId)) ?? null;
 }
+
+/**
+ * A published sheet measured against the field as it stands now.
+ *
+ * `validateTeeSheet` runs when a sheet is published and never again, so the
+ * sheet is a snapshot of a field that keeps moving. Withdraw a player on the
+ * Wednesday and their id stays in the stored JSON: the group prints with three
+ * names and a gap, the player still sees a tee time for a tournament they left,
+ * and nothing anywhere says the sheet is out of date. The same drift the
+ * messaging design was shaped to avoid — a stored list of people going stale
+ * against a membership that changed.
+ *
+ * Deliberately reports rather than repairs. Rewriting a published sheet
+ * underneath a committee is worse than telling them it needs republishing:
+ * they may want to move somebody up rather than leave a three-ball, and that
+ * is a decision about the draw, not a data-integrity chore.
+ */
+export interface TeeSheetDrift {
+  /** Ids in the sheet that are no longer in the confirmed field. */
+  departed: string[];
+  /** Confirmed players the sheet does not place anywhere. */
+  undrawn: string[];
+  /** Groups left short by a departure, by name. */
+  shortGroups: string[];
+  /** True when the sheet no longer matches the field at all. */
+  stale: boolean;
+}
+
+export function teeSheetDrift(sheet: TeeSheet, confirmedIds: Set<string>): TeeSheetDrift {
+  const departed: string[] = [];
+  const shortGroups: string[] = [];
+  const drawn = new Set<string>();
+
+  for (const g of sheet.groups) {
+    let lost = 0;
+    for (const id of g.playerIds) {
+      if (confirmedIds.has(id)) {
+        drawn.add(id);
+      } else {
+        departed.push(id);
+        lost += 1;
+      }
+    }
+    if (lost > 0) shortGroups.push(g.name || "A group");
+  }
+
+  // Someone entered after the sheet went out is as much a mismatch as someone
+  // who left: they have no tee time and no way to find out except by asking.
+  const undrawn = [...confirmedIds].filter((id) => !drawn.has(id));
+
+  return {
+    departed,
+    undrawn,
+    shortGroups,
+    stale: departed.length > 0 || undrawn.length > 0,
+  };
+}
+
+/**
+ * The sheet as it should be read today: departed players dropped.
+ *
+ * For the screens that only display it — a player's own tee time, the printed
+ * sheet — so a withdrawn name never appears in a group. The stored JSON is
+ * left alone; this is a view, not a migration.
+ */
+export function teeSheetAsPlayed(sheet: TeeSheet, confirmedIds: Set<string>): TeeSheet {
+  return {
+    ...sheet,
+    groups: sheet.groups.map((g) => ({
+      ...g,
+      playerIds: g.playerIds.filter((id) => confirmedIds.has(id)),
+    })),
+  };
+}

@@ -7,6 +7,7 @@ import { PlayTabs } from "@/components/PlayTabs";
 import { usesExpenses } from "@/lib/services/expenses";
 import { membershipFor, unreadTotal } from "@/lib/services/messaging";
 import { BackLink } from "@/components/BackLink";
+import { PlayerSignOut } from "@/components/PlayerSignOut";
 
 /**
  * The player's app.
@@ -138,6 +139,11 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
               <i className="ph ph-gear" /> Organizer
             </Link>
           )}
+          {/* Last, and an icon, because it is the control you want findable and
+              never want to hit by accident. The shell had none at all: a player
+              signing in on a phone passed round a fourball, or on the clubhouse
+              iPad, left the next person signed in as them. */}
+          <PlayerSignOut name={session.name} />
         </div>
       </header>
 

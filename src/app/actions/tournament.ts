@@ -23,7 +23,7 @@ import { reviewCards, isCardLocked, statusAfterEdit, LOCKED_CARD_REFUSAL } from 
 import { cleanStrokes } from "@/lib/domain/score-payload";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
-import { splitCsvLine, matchColumn } from "@/lib/csv";
+import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
@@ -413,17 +413,27 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "The file is empty." };
   }
 
-  const headerCols = splitCsvLine(lines[0]).map(matchColumn);
-  const nameIdx = headerCols.indexOf("name");
-  if (nameIdx === -1) {
+  /**
+   * Parsed with the shared reader, the same one the roster import uses.
+   *
+   * This had its own header handling and looked only for a single "name"
+   * column, so a club system exporting "First Name,Last Name" — at least as
+   * common as one combined column — loaded onto the roster and was rejected
+   * from the entry list, on the same file, in the same app. Two readers of one
+   * format is how that happens; there is now one.
+   */
+  const table = parseCsv(csv);
+  if (!table) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "The file is empty." };
+  if (!hasNameColumn(table)) {
     return {
       imported: 0,
       skippedDuplicates: 0,
       skippedInvalid: 0,
-      error: 'Couldn\'t find a "name" column in the header row. Expected a header like: name, handicap, email, phone.',
+      error:
+        'Couldn\'t find a name column in the header row. Expected a header like: name, handicap, email, phone — or first name and last name in separate columns.',
     };
   }
-  const hcpIdx = headerCols.indexOf("handicap");
+  const headerCols = table.columns;
   const emailIdx = headerCols.indexOf("email");
   if (emailIdx === -1) {
     return {
@@ -448,10 +458,16 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         'Couldn\'t find a "phone" column in the header row — this tournament collects a mobile number for every entrant. Add a phone column, or enter the field by hand.',
     };
   }
-  const hcpTypeIdx = headerCols.indexOf("handicapType");
-
-  const existing = await prisma.player.findMany({ where: { eventId }, select: { name: true, email: true } });
-  const seenNames = new Set(existing.map((p) => p.name.trim().toLowerCase()));
+  /**
+   * De-duplicated on email alone.
+   *
+   * It also matched on name, which drops the second real John Smith in a club
+   * that has two of them — and clubs do. Email is the identity key everywhere
+   * else in this app precisely because names are not unique, and the entry
+   * importer already requires one from every row, so there is nothing for the
+   * name check to catch that the email check does not.
+   */
+  const existing = await prisma.player.findMany({ where: { eventId }, select: { email: true } });
   const seenEmails = new Set(existing.map((p) => p.email.trim().toLowerCase()).filter(Boolean));
 
   let confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
@@ -463,28 +479,26 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   let skippedDuplicates = 0;
   let skippedInvalid = 0;
 
-  for (const line of lines.slice(1)) {
-    const cols = splitCsvLine(line);
-    const name = (cols[nameIdx] ?? "").trim();
+  for (const cols of table.rows) {
+    // Handles a single "Name" column and a "First Name"/"Last Name" pair alike.
+    const name = nameFrom(table, cols);
     if (!name) {
       skippedInvalid += 1;
       continue;
     }
-    const email = (cols[emailIdx] ?? "").trim();
-    const emailKey = email.toLowerCase();
+    const emailKey = cell(table, cols, "email").toLowerCase();
     if (!emailKey || !EMAIL_RE.test(emailKey)) {
       skippedInvalid += 1;
       continue;
     }
-    const nameKey = name.toLowerCase();
-    if (seenNames.has(nameKey) || seenEmails.has(emailKey)) {
+    if (seenEmails.has(emailKey)) {
       skippedDuplicates += 1;
       continue;
     }
     // The column exists (checked above), so a row failing here is that one
     // player's cell being blank or unreadable — the same class as a missing
     // email, and counted the same way.
-    if (needsPhone && !looksLikePhone((cols[phoneIdx] ?? "").trim())) {
+    if (needsPhone && !looksLikePhone(cell(table, cols, "phone"))) {
       skippedInvalid += 1;
       continue;
     }
@@ -492,7 +506,7 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     // is 2.4, and a plus handicap is 2.4 the other way. An entry list is where
     // the club's better players arrive, so this is the importer where the sign
     // was wrong most often.
-    const hcp = parseHandicapInput(hcpIdx >= 0 ? cols[hcpIdx] : "");
+    const hcp = parseHandicapInput(cell(table, cols, "handicap"));
     const handicap = hcp.ok ? hcp.value : 0;
     // An empty cell, no handicap column at all, or something unreadable are all
     // the absence of a handicap rather than a scratch one — and the roster has
@@ -501,8 +515,8 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     const handicapSource = hcp.ok ? hcp.source : "none";
     const status = unlimited || confirmedCount < event.capacity ? "confirmed" : "waitlisted";
     if (status === "confirmed") confirmedCount += 1;
-    const handicapType = hcpTypeIdx >= 0 && (cols[hcpTypeIdx] ?? "").trim() === "9" ? "9" : "18";
-    const phone = phoneIdx >= 0 ? (cols[phoneIdx] ?? "").trim() : "";
+    const handicapType = cell(table, cols, "handicapType") === "9" ? "9" : "18";
+    const phone = cell(table, cols, "phone");
     // Importing a field also builds the roster: a club that uploads its
     // spring CSV has its member list from then on, without a second import.
     const memberId = await upsertMember(event.organizationId, {
@@ -528,7 +542,6 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
       },
     });
     await syncPlayerAccount(eventId, name, emailKey);
-    seenNames.add(nameKey);
     seenEmails.add(emailKey);
     imported += 1;
   }
@@ -1182,6 +1195,29 @@ export async function forfeitMatch(matchId: string, forfeitedBy: string) {
   const sides = [match.playerAId, match.playerBId, match.teamAId, match.teamBId].filter(Boolean);
   if (forfeitedBy && !sides.includes(forfeitedBy)) {
     return { ok: false, error: "That player isn't in this match." };
+  }
+
+  /**
+   * A team cannot forfeit yet, and this says so rather than pretending.
+   *
+   * The column accepted a team id and stored it perfectly, and nothing ever
+   * read it: standings aggregate over playerAId/playerBId, which a team round
+   * leaves empty, and there is no team match-play aggregation to teach. So an
+   * organizer recorded a concession, saw it accepted, and got a result that
+   * counted for nothing — the worst of the three possible behaviours, because
+   * it is the one they will not check.
+   *
+   * Refusing is the honest half of the fix until team standings exist to
+   * honour it. The undo path stays open: an empty string still clears a team
+   * forfeit stored before this, so nobody is stuck with one.
+   */
+  const isTeamSide = forfeitedBy === match.teamAId || forfeitedBy === match.teamBId;
+  if (forfeitedBy && isTeamSide) {
+    return {
+      ok: false,
+      error:
+        "A team can't be recorded as forfeiting yet — team results aren't aggregated, so it wouldn't count for anything. Enter the concession as a match result instead.",
+    };
   }
   if (forfeitedBy && match.forfeitedBy === forfeitedBy) return { ok: true };
 

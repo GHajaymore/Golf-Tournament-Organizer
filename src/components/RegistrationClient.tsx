@@ -8,6 +8,7 @@ import { SetupLockBanner } from "./SetupLockBanner";
 import { RosterPicker } from "./RosterPicker";
 import type { RosterCandidate } from "@/lib/services/roster";
 import { PHONE_REQUIRED_FREE } from "@/lib/plans";
+import { csvSizeRefusal } from "@/lib/csv";
 import { contactGaps } from "@/lib/domain/contact-gaps";
 
 interface Signup {
@@ -204,11 +205,32 @@ export function RegistrationClient({
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
     setImportResult(null);
+    // Checked before the upload, not after. Over the platform's body limit the
+    // request is rejected before any of our code runs — no error, no result,
+    // the screen just does nothing — so the only place this can be caught and
+    // explained is here.
+    const tooBig = csvSizeRefusal(file.size);
+    if (tooBig) {
+      setImportResult({ imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: tooBig });
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    const text = await file.text();
     startTransition(async () => {
-      const result = await importCsvSignups(text);
-      setImportResult(result);
+      try {
+        setImportResult(await importCsvSignups(text));
+      } catch {
+        // A rejected body, a dropped connection, a timeout. Whatever it was,
+        // the organizer needs to know it did not happen rather than be left
+        // looking at an unchanged screen.
+        setImportResult({
+          imported: 0,
+          skippedDuplicates: 0,
+          skippedInvalid: 0,
+          error: "That import didn't go through. Check your connection and try again — nothing was added.",
+        });
+      }
     });
     if (fileRef.current) fileRef.current.value = "";
   };
