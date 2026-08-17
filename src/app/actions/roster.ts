@@ -5,7 +5,7 @@ import { getSession } from "@/lib/auth";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { upsertMember } from "@/lib/services/roster";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
-import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine } from "@/lib/csv";
+import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
 import { parseHandicapInput, looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
@@ -136,7 +136,9 @@ export async function importCsvMembers(csv: string): Promise<MemberImportResult>
     };
   }
 
-  const unknownColumns = splitCsvLine(csv.split(/\r?\n/).filter((l) => l.trim() !== "")[0])
+  // Through the same record splitter as parseCsv, or a quoted newline in the
+  // HEADER would make this read a different first row than the table did.
+  const unknownColumns = splitCsvLine(splitCsvRecords(csv).filter((l) => l.trim() !== "")[0])
     .filter((_, i) => table.columns[i] === null)
     .map((h) => h.replace(/^﻿/, "").trim())
     .filter(Boolean);

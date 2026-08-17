@@ -81,9 +81,53 @@ export interface CsvTable {
   rows: string[][];
 }
 
+/**
+ * Split a whole file into records, honouring newlines inside quoted cells.
+ *
+ * A record is not a line. `"Flat 2\n14 High Street"` in an Address column, or
+ * a Notes cell somebody pressed Enter in, is ONE field containing a newline —
+ * and every spreadsheet in the world writes it that way. Splitting on `\n`
+ * first turned that row into two: the tail became a record of its own, and
+ * because the roster importer matches a nameless row by name, it created a
+ * member whose display name was the next cell along — in the reported case, a
+ * real member's email address.
+ *
+ * So the quote state has to be tracked across the whole file rather than
+ * within a line, which is the one thing a line-at-a-time reader cannot do.
+ */
+export function splitCsvRecords(csv: string): string[] {
+  const records: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < csv.length; i += 1) {
+    const c = csv[i];
+    if (c === '"') {
+      // A doubled quote is an escaped quote and leaves the state alone.
+      if (inQuotes && csv[i + 1] === '"') {
+        cur += '""';
+        i += 1;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      cur += c;
+      continue;
+    }
+    if (!inQuotes && (c === "\n" || c === "\r")) {
+      // Swallow the \n of a \r\n pair rather than emitting an empty record.
+      if (c === "\r" && csv[i + 1] === "\n") i += 1;
+      records.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += c;
+  }
+  records.push(cur);
+  return records;
+}
+
 /** Header row plus data rows, with blank lines dropped. */
 export function parseCsv(csv: string): CsvTable | null {
-  const lines = csv.split(/\r?\n/).filter((l) => l.trim() !== "");
+  const lines = splitCsvRecords(csv).filter((l) => l.trim() !== "");
   if (lines.length === 0) return null;
   return {
     columns: splitCsvLine(lines[0]).map(matchColumn),

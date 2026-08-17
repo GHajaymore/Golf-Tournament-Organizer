@@ -243,7 +243,23 @@ export function RegistrationClient({
   // Sign the invitation with the club's name so the recipient recognises who
   // it's from — a bare link from an unknown app reads like spam.
   const signature = event.organizationName ? `\n— ${event.organizationName}` : "";
-  const fullMessage = `${invite}${signature}${registrationLink ? `\n\nSign up: ${registrationLink}` : ""}`;
+  /**
+   * The invitation, and the link that actually signs somebody up.
+   *
+   * This interpolated `registrationLink` — the bare origin — so every
+   * invitation ever sent from this screen, by WhatsApp, SMS, the native share
+   * sheet or Copy message, carried a URL with no token. It landed the
+   * recipient on the home page of an app they have no account for, which is
+   * the end of the road for the one feature that exists so they never need
+   * one. `registerUrl` is the same string plus `/register/<token>`; the token
+   * IS the invitation.
+   *
+   * No token, no link. An invitation with a dead link is worse than one that
+   * says nothing, because the sender believes it worked — hence the guard
+   * below, which stops the message going out at all until registration has
+   * been opened once and a token exists.
+   */
+  const fullMessage = `${invite}${signature}${registerUrl ? `\n\nSign up: ${registerUrl}` : ""}`;
 
   const sendWhatsApp = () => window.open(`https://wa.me/?text=${encodeURIComponent(fullMessage)}`, "_blank", "noopener");
   const sendSms = () => {
@@ -650,12 +666,23 @@ export function RegistrationClient({
           <label>Message</label>
           <textarea className="input" rows={3} value={invite} onChange={(e) => setInvite(e.target.value)} onBlur={() => startTransition(() => setInviteMessage(invite))} style={{ resize: "vertical", fontFamily: "inherit" }} />
         </div>
+        {/* Nothing to send until a token exists. Every one of these buttons
+            puts the link in front of a member, and a link with no token is a
+            dead end they cannot get past — better to say why than to hand the
+            organizer a broken invitation that looks like it worked. */}
+        {!registerUrl && (
+          <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+            <i className="ph ph-warning-circle" /> Open registration first — the sign-up link doesn&rsquo;t exist
+            until you do, so there is nothing to invite anyone to yet.
+          </p>
+        )}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" className="btn btn-primary" onClick={sendWhatsApp}><i className="ph-fill ph-whatsapp-logo" /> WhatsApp</button>
-          <button type="button" className="btn btn-secondary" onClick={sendSms}><i className="ph ph-chat-text" /> SMS / Text</button>
-          <button type="button" className="btn btn-secondary" onClick={shareNative}><i className="ph ph-share-network" /> {copied === "share" ? "Copied" : "Share…"}</button>
-          <button type="button" className="btn btn-secondary" onClick={() => copy(fullMessage, "msg")}><i className="ph ph-copy" /> {copied === "msg" ? "Copied" : "Copy message"}</button>
-          <button type="button" className="btn btn-secondary" onClick={() => copy(registrationLink, "link")}><i className="ph ph-link" /> {copied === "link" ? "Copied" : "Copy link"}</button>
+          <button type="button" className="btn btn-primary" onClick={sendWhatsApp} disabled={!registerUrl}><i className="ph-fill ph-whatsapp-logo" /> WhatsApp</button>
+          <button type="button" className="btn btn-secondary" onClick={sendSms} disabled={!registerUrl}><i className="ph ph-chat-text" /> SMS / Text</button>
+          <button type="button" className="btn btn-secondary" onClick={shareNative} disabled={!registerUrl}><i className="ph ph-share-network" /> {copied === "share" ? "Copied" : "Share…"}</button>
+          <button type="button" className="btn btn-secondary" onClick={() => copy(fullMessage, "msg")} disabled={!registerUrl}><i className="ph ph-copy" /> {copied === "msg" ? "Copied" : "Copy message"}</button>
+          {/* Also the sign-up link, not the origin — same bug, second door. */}
+          <button type="button" className="btn btn-secondary" onClick={() => copy(registerUrl, "link")} disabled={!registerUrl}><i className="ph ph-link" /> {copied === "link" ? "Copied" : "Copy link"}</button>
         </div>
       </div>
 

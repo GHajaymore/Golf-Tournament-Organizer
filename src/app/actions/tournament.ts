@@ -408,11 +408,6 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "Event not found." };
 
-  const lines = csv.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length === 0) {
-    return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "The file is empty." };
-  }
-
   /**
    * Parsed with the shared reader, the same one the roster import uses.
    *

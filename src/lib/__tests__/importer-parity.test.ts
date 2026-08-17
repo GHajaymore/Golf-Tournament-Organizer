@@ -140,3 +140,52 @@ describe("D12 — a published sheet against a field that moved", () => {
     expect(sheet.groups[0].playerIds).toHaveLength(4);
   });
 });
+
+describe("D6 — a newline inside a quoted cell", () => {
+  it("keeps a multi-line address as one row", () => {
+    // Every spreadsheet writes an Address or Notes cell this way. Splitting on
+    // \n first turned one row into two.
+    const t = table('Name,Email,Notes\n"Tom Halloran",tom@example.invalid,"Flat 2\n14 High Street"');
+    expect(t.rows).toHaveLength(1);
+    expect(nameFrom(t, t.rows[0])).toBe("Tom Halloran");
+    expect(cell(t, t.rows[0], "email")).toBe("tom@example.invalid");
+    expect(cell(t, t.rows[0], "notes")).toBe("Flat 2\n14 High Street");
+  });
+
+  it("does not invent a member named after somebody's email address", () => {
+    // The reported symptom, and the reason this is not cosmetic. The tail of
+    // the broken row became a record of its own, and the roster importer
+    // matches a nameless row BY NAME — so it created a member whose display
+    // name was the next cell along.
+    const t = table('Name,Notes,Email\nTom Halloran,"line one\nline two",real.member@example.invalid');
+    expect(t.rows).toHaveLength(1);
+    expect(t.rows.map((r) => nameFrom(t, r))).toEqual(["Tom Halloran"]);
+    expect(t.rows.some((r) => nameFrom(t, r).includes("@"))).toBe(false);
+  });
+
+  it("handles an escaped quote inside a multi-line cell", () => {
+    const t = table('Name,Notes\nTom,"he said ""hello""\nthen left"');
+    expect(t.rows).toHaveLength(1);
+    expect(cell(t, t.rows[0], "notes")).toBe('he said "hello"\nthen left');
+  });
+
+  it("still splits ordinary rows, CRLF included", () => {
+    const t = table("Name,Email\r\nTom,a@b.test\r\nSam,c@d.test\r\n");
+    expect(t.rows).toHaveLength(2);
+    expect(nameFrom(t, t.rows[1])).toBe("Sam");
+  });
+
+  it("copes with a quoted newline in the header itself", () => {
+    const t = table('Name,"Email\nAddress"\nTom,a@b.test');
+    expect(t.rows).toHaveLength(1);
+    expect(nameFrom(t, t.rows[0])).toBe("Tom");
+  });
+
+  it("does not hang or lose data on an unterminated quote", () => {
+    // A truncated download. It must degrade to one long field rather than
+    // dropping rows silently.
+    const t = table('Name,Notes\nTom,"never closed\nSam,also here');
+    expect(t.rows).toHaveLength(1);
+    expect(nameFrom(t, t.rows[0])).toBe("Tom");
+  });
+});
