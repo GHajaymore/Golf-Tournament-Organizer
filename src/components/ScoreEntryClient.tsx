@@ -13,6 +13,20 @@ import {
 import { firstName } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import {
+  matchStatusKey,
+  filterMatches,
+  statusCounts,
+  visibleMatches,
+  filterActive,
+  STATUS_LABEL,
+  STATUS_ORDER,
+  EMPTY_FILTER,
+  VISIBLE_CAP,
+  type MatchFilter,
+  type MatchStatusKey,
+} from "@/lib/domain/match-filter";
+import { confirmMatches } from "@/app/actions/tournament";
+import {
   saveMatchHoles,
   applyMatchResult,
   clearMatch,
@@ -162,17 +176,29 @@ type Winner = "A" | "B" | "H";
  * "Not started" rather than "Pending" for an empty card, since "Pending
  * confirmation" already means something else on this same screen.
  */
+const TAG_CLASS: Record<MatchStatusKey, string> = {
+  disputed: "tag-accent",
+  final: "tag-accent-2",
+  awaiting: "tag-neutral",
+  live: "tag-accent",
+  "not-started": "tag-neutral",
+};
+
+/**
+ * The row's tag, derived from the same reading the filter uses.
+ *
+ * This used to decide the words itself, which meant the chip counting eleven
+ * "Awaiting approval" and the rows wearing that label were two separate
+ * implementations of one rule — and a bulk action built on the first would
+ * quietly disagree with the second.
+ */
 function statusOf(holes: HoleResult[], confirmStatus: string): { tag: string; tagClass: string } {
-  const r = resolveMatch(holes);
-  if (r.complete) {
-    if (confirmStatus === "disputed") return { tag: "Disputed", tagClass: "tag-accent" };
-    if (confirmStatus === "confirmed" || confirmStatus === "auto-confirmed") {
-      return { tag: "Final", tagClass: "tag-accent-2" };
-    }
-    return { tag: "Awaiting approval", tagClass: "tag-neutral" };
-  }
-  if (holes.some((h) => h !== null)) return { tag: "Live", tagClass: "tag-accent" };
-  return { tag: "Not started", tagClass: "tag-neutral" };
+  const key = matchStatusKey({
+    complete: resolveMatch(holes).complete,
+    started: holes.some((h) => h !== null),
+    confirmStatus,
+  });
+  return { tag: STATUS_LABEL[key], tagClass: TAG_CLASS[key] };
 }
 
 function sum(arr: number[], from: number, to: number): number {
@@ -240,6 +266,10 @@ export function ScoreEntryClient({
     Object.fromEntries(matches.map((m) => [m.id, m.bStrokes])),
   );
   const [selectedId, setSelectedId] = useState<string>(matches[0]?.id ?? "");
+  const [filter, setFilter] = useState<MatchFilter>(EMPTY_FILTER);
+  const [showAll, setShowAll] = useState(false);
+  const [bulkPending, setBulkPending] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState("");
   /** Per-match venue override, empty string meaning inherit. */
   const [courseByMatch, setCourseByMatch] = useState<Record<string, string>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.courseId ?? ""])),
@@ -272,6 +302,57 @@ export function ScoreEntryClient({
    * The rule lives in the engine, not here, so the screen and the resolver
    * cannot disagree about what a format accepts.
    */
+  /**
+   * The draw, tagged with what each match is doing.
+   *
+   * Read from the live edit state rather than the props, so a card confirmed
+   * in this session leaves the "Awaiting approval" chip immediately instead of
+   * waiting for a reload — otherwise "approve the 11 shown" would keep
+   * offering the ones just approved.
+   */
+  const tagged = useMemo(
+    () =>
+      matches.map((m) => {
+        const holes = holesById[m.id] ?? m.holes;
+        return {
+          ...m,
+          status: matchStatusKey({
+            complete: resolveMatch(holes).complete,
+            started: holes.some((h) => h !== null),
+            confirmStatus: statusById[m.id] ?? m.status,
+          }),
+        };
+      }),
+    [matches, holesById, statusById],
+  );
+  const counts = useMemo(() => statusCounts(tagged), [tagged]);
+  const shown = useMemo(() => filterMatches(tagged, filter), [tagged, filter]);
+  const visible = useMemo(() => visibleMatches(shown, showAll), [shown, showAll]);
+
+  const approveShown = async () => {
+    setBulkPending(true);
+    setBulkNotice("");
+    const ids = shown.map((m) => m.id);
+    const res = await confirmMatches(ids);
+    setBulkPending(false);
+    if (!res.ok) {
+      setBulkNotice(res.error ?? "Couldn't approve those.");
+      return;
+    }
+    // Reflect it locally too. The server revalidates, but the list is driven
+    // by this component's own edit state, which a revalidate does not reset.
+    setStatusById((prev) => {
+      const next = { ...prev };
+      for (const id of ids) next[id] = "confirmed";
+      return next;
+    });
+    setBulkNotice(
+      res.confirmed === 0
+        ? "Nothing left to approve — those were already signed off."
+        : `Approved ${res.confirmed} result${res.confirmed === 1 ? "" : "s"}.`,
+    );
+  };
+
   const allowed = useMemo(() => entryModesFor(format), [format]);
   const availableModes = useMemo(
     () => ENTRY_MODES.filter((m) => allowed.includes(m.domain)),
@@ -612,7 +693,81 @@ export function ScoreEntryClient({
             fold — picking a match appeared to do nothing at all. */}
         <div className="card elev-sm entry-matchlist" style={{ gap: 6 }}>
           <span className="card-kicker">Round-robin matches</span>
-          {matches.map((m) => {
+
+          {/* Only worth the room once the draw is bigger than the list. Below
+              that the filter costs more space than it saves. */}
+          {matches.length > VISIBLE_CAP && (
+            <>
+              <input
+                className="input"
+                value={filter.query}
+                onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
+                placeholder="Search player, flight or round…"
+                style={{ fontSize: 13 }}
+              />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                {STATUS_ORDER.filter((k) => counts[k] > 0).map((k) => {
+                  const on = filter.status === k;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      className={`tag ${on ? "tag-accent" : "tag-neutral"}`}
+                      // Tapping the chip you are already on clears it, so the
+                      // way back to everything is the control you just used.
+                      onClick={() => setFilter((f) => ({ ...f, status: on ? null : k }))}
+                      style={{ cursor: "pointer", border: "none" }}
+                      aria-pressed={on}
+                    >
+                      {STATUS_LABEL[k]} {counts[k]}
+                    </button>
+                  );
+                })}
+                {filterActive(filter) && (
+                  <button
+                    type="button"
+                    className="tag tag-neutral"
+                    onClick={() => setFilter(EMPTY_FILTER)}
+                    style={{ cursor: "pointer", border: "none" }}
+                  >
+                    <i className="ph ph-x" /> Clear
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Only where it is the whole point of the filter: approving the
+              cards that are waiting. Offering it beside "Final" would be a
+              button with nothing to do, and beside "Disputed" it would be
+              wrong. */}
+          {isStaff && filter.status === "awaiting" && shown.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={bulkPending}
+              onClick={approveShown}
+              style={{ justifyContent: "center", fontSize: 13 }}
+            >
+              <i className="ph ph-check-circle" />{" "}
+              {bulkPending
+                ? "Approving…"
+                : `Approve ${shown.length} shown result${shown.length === 1 ? "" : "s"}`}
+            </button>
+          )}
+          {bulkNotice && (
+            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+              {bulkNotice}
+            </p>
+          )}
+
+          {shown.length === 0 && (
+            <p className="text-muted" style={{ fontSize: 12, margin: "4px 0" }}>
+              No matches for that.
+            </p>
+          )}
+
+          {visible.rows.map((m) => {
             const st = statusOf(holesById[m.id] ?? m.holes, statusById[m.id] ?? m.status);
             const selected = m.id === selectedId;
             return (
@@ -635,6 +790,17 @@ export function ScoreEntryClient({
               </button>
             );
           })}
+
+          {visible.hidden > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowAll(true)}
+              style={{ justifyContent: "center", fontSize: 13 }}
+            >
+              Show {visible.hidden} more
+            </button>
+          )}
         </div>
 
         {openCourse && active.venueNeeded ? (

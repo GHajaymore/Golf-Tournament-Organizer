@@ -372,9 +372,12 @@ body {
   .login-pitch h1 {
     font-size: 32px !important;
   }
-  /* Match picker becomes a short scroller so the entry panel sits below it. */
+  /* The picker is capped by row count on narrow screens, not by height — a
+     fixed-height scroller here swallowed the page's own scrolling. See the
+     900px rule in design-system.css. */
   .entry-matchlist {
-    max-height: 34vh !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
   /* Bigger touch targets */
   .hole-btn {

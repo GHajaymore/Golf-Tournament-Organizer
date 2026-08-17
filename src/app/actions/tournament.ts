@@ -1685,6 +1685,60 @@ export async function confirmMatch(matchId: string) {
   refresh();
 }
 
+/**
+ * Approve a batch of finished matches at once.
+ *
+ * Organizers only, deliberately — unlike confirmMatch, which a player may call
+ * for a match they played. Peer confirmation is a person vouching for a card
+ * they were standing next to; there is no version of that which applies to
+ * eleven cards in one tap, so this is not offered to players at all rather
+ * than offered and then filtered down to the one match they could have signed.
+ *
+ * Written as one updateMany scoped to the event and to the matches that are
+ * actually waiting. That scoping is the whole security of it: ids arrive from
+ * the browser, and a match belonging to another tournament simply is not in
+ * the `where`, so it cannot be touched however it got into the list.
+ *
+ * Already-confirmed and disputed matches are excluded rather than refused. A
+ * card that was confirmed while the organizer was reading the screen is not an
+ * error worth failing the batch over — and a disputed one is precisely what
+ * must not be swept up by a bulk approve.
+ */
+export async function confirmMatches(
+  matchIds: string[],
+): Promise<{ ok: boolean; confirmed: number; error?: string }> {
+  const session = await getSession();
+  if (!session) return { ok: false, confirmed: 0, error: "Not authenticated." };
+  if (session.role !== "admin" && session.role !== "assistant") {
+    return { ok: false, confirmed: 0, error: "An organizer approves scores." };
+  }
+  const eventId = session.eventId;
+
+  const result = await prisma.match.updateMany({
+    where: {
+      // Cleaned inline rather than through a local, so the ids and the
+      // eventId that bounds them are visibly one clause — audit-idor.test.ts
+      // reads these where clauses, and a local would have hidden the scoping
+      // from it as effectively as omitting it. An empty list matches nothing
+      // and updates nothing, which is the right answer for an empty selection.
+      id: { in: [...new Set((matchIds ?? []).map((id) => (id ?? "").trim()).filter(Boolean))] },
+      eventId,
+      // Not "everything selected": only what is genuinely awaiting a decision.
+      scoreStatus: { notIn: ["confirmed", "auto-confirmed", "disputed"] },
+    },
+    data: { scoreStatus: "confirmed", confirmedById: session.accountId || null, confirmedBy: session.name },
+  });
+
+  if (result.count > 0) {
+    // One audit line for the batch, not one per match. The question this log
+    // answers is "who signed these off and when", and 48 identical rows a
+    // second apart buries that rather than recording it.
+    await logAudit(eventId, null, "confirm-batch", `Approved ${result.count} results by organizer`);
+    refresh();
+  }
+  return { ok: true, confirmed: result.count };
+}
+
 /** Flag a result as wrong. Open to anyone in the event — a disputed score
  *  blocks confirmation rather than changing anything, so the permissive side
  *  is the safe one here. */

@@ -418,7 +418,25 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     prisma.player.findMany({ where: { eventId }, orderBy: { seed: "asc" } }),
     prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
     prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
-    prisma.match.findMany({ where: { eventId } }),
+    /**
+     * Ordered, and it has to be.
+     *
+     * This had no orderBy at all, so Postgres returned heap order — and an
+     * UPDATE rewrites a row to the end of it. Every score entered, and every
+     * card approved, physically moved that match and reshuffled the draw
+     * underneath the organizer: approve one and it jumps to the top of the
+     * picker, which is how this was noticed. The same defect as the standings
+     * comparator, in a different disguise — a list whose order depended on
+     * something that was never meant to carry meaning.
+     *
+     * Round then flight is how the draw reads on paper; id last so two
+     * matches in the same flight and round can never swap places between two
+     * loads of the same page.
+     */
+    prisma.match.findMany({
+      where: { eventId },
+      orderBy: [{ round: "asc" }, { groupId: "asc" }, { id: "asc" }],
+    }),
     prisma.bracketWinner.findMany({ where: { eventId } }),
     prisma.scorecard.findMany({ where: { eventId } }),
     // The tournament's venues, so a round played at another club is scored

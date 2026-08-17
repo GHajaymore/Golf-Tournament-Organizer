@@ -479,7 +479,14 @@ textarea.input { min-height: 90px; resize: vertical; }
    card into view on the same breakpoint; the two must agree. */
 @media (max-width: 900px) {
   .entry-grid { grid-template-columns: minmax(0, 1fr); }
-  .entry-matchlist { max-height: 210px; }
+  /* No inner scroller once this is a strip rather than a sidebar.
+     It used to be capped at 210px with overflow:auto, and on a phone that is a
+     scroll trap: a swipe landing anywhere on the list scrolled 2700px of draw
+     instead of the page, so the entry panel below it could not be reached at
+     all until your thumb found the margin beside the list. The list is capped
+     by row count instead now (see VISIBLE_CAP), which keeps the panel near the
+     top of the page without taking the page's scrolling away from it. */
+  .entry-matchlist { max-height: none; overflow: visible; }
 }
 
 .match-row {
