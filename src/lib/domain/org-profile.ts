@@ -59,6 +59,24 @@ export interface OrgProfile {
    * so its own card is the default rather than one picked per event.
    */
   ownsCourse: boolean;
+  /**
+   * Whether the APP is the thing that tracks who has paid.
+   *
+   * At a club or a course, it is not: the shop takes the entry fee, the 2s
+   * pot comes out of it, and the professional pays the winner. The app's job
+   * there is to say who won — a results sheet, not a cash book. Recording
+   * "Halloran still owes £5" would be inventing a debt the club is not
+   * chasing and cannot see, and every screen that showed it would be wrong.
+   *
+   * A society or a roll-up is the opposite case: one person fronted the money
+   * and is owed by nine others, with nobody in a shop to arbitrate. That is
+   * the whole reason the ledger and the settle-up exist.
+   *
+   * This is the flag that decides whether "take their money" and "you owe"
+   * appear at all — not a cosmetic difference, a different product on the
+   * same engine.
+   */
+  tracksCash: boolean;
 }
 
 const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
@@ -69,6 +87,8 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
     ledger: false,
     seasonPlay: true,
     ownsCourse: true,
+    // The shop takes the entry fee and pays the winner. The app says who won.
+    tracksCash: false,
   },
   course: {
     label: "Golf course",
@@ -77,6 +97,7 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
     ledger: false,
     seasonPlay: true,
     ownsCourse: true,
+    tracksCash: false,
   },
   community: {
     label: "Society or league",
@@ -85,6 +106,8 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
     ledger: true,
     seasonPlay: true,
     ownsCourse: false,
+    // One person fronted it and is owed by nine others, with no shop to ask.
+    tracksCash: true,
   },
   personal: {
     label: "Personal",
@@ -93,6 +116,7 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
     ledger: true,
     seasonPlay: false,
     ownsCourse: false,
+    tracksCash: true,
   },
 };
 
