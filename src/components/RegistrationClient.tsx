@@ -676,9 +676,9 @@ export function RegistrationClient({
               <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} style={{ display: "none" }} />
             </label>
             <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
-              First row must be a header. Recognized columns: name and email
-              {phoneRequired ? " and phone (all three required" : " (both required"} — email is how each player
-              signs in
+              First row must be a header. Recognized columns:{" "}
+              {phoneRequired ? "name, email and phone (all three required" : "name and email (both required"} — email
+              is how each player signs in
               {phoneRequired
                 ? ", and this tournament collects a mobile for every entrant), handicap, handicap type (9/18)."
                 : "), handicap, phone, handicap type (9/18)."}{" "}
