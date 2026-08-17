@@ -599,7 +599,8 @@ describe("roster CSV import", () => {
 
   it("offers both ways of adding someone", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" isClub eventName="Spring Medal" fieldLocked={false} members={[]} />,
+      <RosterClient clubName="Bushwood" isClub eventName="Spring Medal" fieldLocked={false} members={[]}
+        fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("Add member");
     expect(html).toContain("Import CSV");
@@ -609,6 +610,7 @@ describe("roster CSV import", () => {
   it("renders a populated roster", () => {
     const html = render(
       <RosterClient clubName="Bushwood" isClub eventName="Spring Medal" fieldLocked={false}
+        fieldSize={2} unlinkedCount={0}
         members={[row(), row({ id: "m2", name: "Rob Ferris", status: "inactive" })]} />,
     );
     expect(html).toContain("Ann Doyle");

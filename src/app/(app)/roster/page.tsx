@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { loadRoster, organizationIdForEvent } from "@/lib/services/roster";
 import { RosterClient } from "@/components/RosterClient";
+import { unlinkedPlayers } from "@/lib/domain/roster-link";
 
 // /roster used to be the per-event player list, which now lives inside
 // Registration & field. The path now means what it says: the club's standing
@@ -30,10 +31,16 @@ export default async function RosterPage() {
   // "add to this tournament" can never create a duplicate entry.
   const entered = await prisma.player.findMany({
     where: { eventId: session.eventId },
-    select: { memberId: true, email: true },
+    select: { id: true, name: true, memberId: true, email: true },
   });
   const enteredIds = new Set(entered.map((p) => p.memberId).filter(Boolean) as string[]);
   const enteredEmails = new Set(entered.map((p) => p.email.trim().toLowerCase()).filter(Boolean));
+
+  // The other half of the count. Without it the card reports how many MEMBERS
+  // are playing while reading as how many PEOPLE are — which is how a club
+  // with 32 confirmed entries and an empty roster saw "0 entered in the open
+  // tournament" on one screen and "32 confirmed" on the next.
+  const unlinked = unlinkedPlayers(entered, members.map((m) => ({ id: m.id, email: m.email })));
 
   return (
     <RosterClient
@@ -41,6 +48,8 @@ export default async function RosterPage() {
       isClub={org.kind === "club"}
       eventName={event.name}
       fieldLocked={(event.status === "live" || event.status === "completed") && !event.configUnlocked}
+      fieldSize={entered.length}
+      unlinkedCount={unlinked.length}
       members={members.map((m) => ({
         ...m,
         entered: enteredIds.has(m.id) || (!!m.email && enteredEmails.has(m.email.toLowerCase())),

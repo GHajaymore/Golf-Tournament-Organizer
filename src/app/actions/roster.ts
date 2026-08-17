@@ -3,6 +3,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { syncPlayerAccount } from "@/lib/services/player-access";
+import { upsertMember } from "@/lib/services/roster";
+import { unlinkedPlayers } from "@/lib/domain/roster-link";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine } from "@/lib/csv";
 import { parseHandicapInput, looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
@@ -290,6 +292,63 @@ export async function deleteMember(memberId: string): Promise<RosterResult> {
   await prisma.member.delete({ where: { id: memberId } });
   refresh();
   return { ok: true };
+}
+
+/**
+ * Put the current field on the club roster.
+ *
+ * The remedy for a Members screen reporting "none of the 32 in the field are
+ * on the roster yet" — a club whose field predates its roster, which is every
+ * club that imported entries before it thought about a member list.
+ *
+ * Every other path into the roster already goes through upsertMember, and so
+ * does this: a player whose address already matches a member links to that
+ * member rather than creating a second copy of them, which is the whole reason
+ * not to write Member rows directly here.
+ *
+ * The player is then pointed at the member. Without that the link would rest
+ * on the email alone, and a player with no address — placeholders from a field
+ * resize, entries typed before the roster existed — would still read as
+ * unlinked the moment after being added.
+ */
+export async function addFieldToRoster(): Promise<{
+  ok: boolean;
+  added: number;
+  linked: number;
+  error?: string;
+}> {
+  const { organizationId, eventId } = await requireRosterOrg();
+
+  const [players, members] = await Promise.all([
+    prisma.player.findMany({
+      where: { eventId },
+      select: {
+        id: true, name: true, email: true, phone: true, memberId: true,
+        ghin: true, homeClub: true, gender: true, preferredTee: true,
+        handicap: true, handicapType: true, handicapSource: true,
+      },
+    }),
+    prisma.member.findMany({ where: { organizationId }, select: { id: true, email: true } }),
+  ]);
+
+  const todo = unlinkedPlayers(players, members);
+  let added = 0;
+  let linked = 0;
+
+  for (const p of todo) {
+    const memberId = await upsertMember(organizationId, p);
+    // A player with no name has nothing to become a member of; upsertMember
+    // says so by returning null rather than creating an anonymous row.
+    if (!memberId) continue;
+    if (!members.some((m) => m.id === memberId)) added += 1;
+    // Scoped to the event: a player id from this query cannot belong to
+    // another tournament, and the where clause says so anyway.
+    await prisma.player.updateMany({ where: { id: p.id, eventId }, data: { memberId } });
+    linked += 1;
+  }
+
+  if (linked > 0) refresh();
+  return { ok: true, added, linked };
 }
 
 export interface AddToEventResult extends RosterResult {

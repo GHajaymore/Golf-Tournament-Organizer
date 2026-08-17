@@ -1,12 +1,14 @@
 "use client";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { listNames } from "@/lib/format";
+import { fieldRosterSummary } from "@/lib/domain/roster-link";
 import {
   addMember,
   updateMember,
   setMemberStatus,
   deleteMember,
   addMembersToEvent,
+  addFieldToRoster,
   importCsvMembers,
   type MemberInput,
   type MemberImportResult,
@@ -39,6 +41,10 @@ interface Props {
   eventName: string;
   fieldLocked: boolean;
   members: RosterRow[];
+  /** Everyone in the open tournament, entered and waitlisted. */
+  fieldSize: number;
+  /** How many of them have no roster member behind them. */
+  unlinkedCount: number;
 }
 
 const BLANK: MemberInput = {
@@ -53,7 +59,15 @@ const BLANK: MemberInput = {
   notes: "",
 };
 
-export function RosterClient({ clubName, isClub, eventName, fieldLocked, members }: Props) {
+export function RosterClient({
+  clubName,
+  isClub,
+  eventName,
+  fieldLocked,
+  members,
+  fieldSize,
+  unlinkedCount,
+}: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importResult, setImportResult] = useState<MemberImportResult | null>(null);
   const [query, setQuery] = useState("");
@@ -65,6 +79,7 @@ export function RosterClient({ clubName, isClub, eventName, fieldLocked, members
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [pending, startTransition] = useTransition();
+  const summary = fieldRosterSummary(fieldSize, unlinkedCount);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -159,6 +174,20 @@ export function RosterClient({ clubName, isClub, eventName, fieldLocked, members
     });
   };
 
+  const bringFieldOnto = () => {
+    run(async () => {
+      const r = await addFieldToRoster();
+      if (r.ok) {
+        setNotice(
+          r.added > 0
+            ? `${r.added} added to the roster from the field.`
+            : "Everyone in the field was already on the roster — the entries are linked to them now.",
+        );
+      }
+      return r;
+    });
+  };
+
   const addSelectedToEvent = () => {
     const ids = addable.map((m) => m.id);
     if (ids.length === 0) return;
@@ -195,6 +224,37 @@ export function RosterClient({ clubName, isClub, eventName, fieldLocked, members
         </p>
       </div>
 
+      {/* A screen that reports a gap and offers no way to close it is half a
+          fix. This is the whole remedy: everyone playing becomes a member, and
+          the entries point at them, so next season's field is a few clicks
+          rather than a retype — which is what the paragraph above promises. */}
+      {summary.unlinked > 0 && (
+        <div
+          className="card elev-sm"
+          style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 8 }}
+        >
+          <span className="card-title" style={{ fontSize: 14 }}>
+            <i className="ph ph-users-three" /> {summary.unlinked} in {eventName}{" "}
+            {summary.unlinked === 1 ? "isn’t" : "aren’t"} on the roster
+          </span>
+          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+            Their entries are fine and the tournament is unaffected — they were just added before the club
+            list existed, so nothing here knows about them. Adding them keeps their details for next season
+            instead of retyping the field.
+          </p>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={pending}
+            onClick={bringFieldOnto}
+            style={{ alignSelf: "flex-start" }}
+          >
+            <i className="ph ph-user-plus" />{" "}
+            {pending ? "Adding…" : `Add ${summary.unlinked} to the roster`}
+          </button>
+        </div>
+      )}
+
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Active members</span>
@@ -208,10 +268,17 @@ export function RosterClient({ clubName, isClub, eventName, fieldLocked, members
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">In {eventName}</span>
+          {/* "of N" rather than a bare count. The number alone answers "how
+              many of my members are playing" while being read as "how many
+              people are playing", which is how an empty roster beside a full
+              field produced a 0 that flatly contradicted Registration. */}
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>
-            {members.filter((m) => m.entered).length}
+            {summary.linked}
+            {summary.fieldSize > 0 && (
+              <span className="text-muted" style={{ fontSize: 15 }}> of {summary.fieldSize}</span>
+            )}
           </div>
-          <div className="text-muted" style={{ fontSize: 12 }}>entered in the open tournament</div>
+          <div className="text-muted" style={{ fontSize: 12 }}>{summary.note}</div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Type</span>
