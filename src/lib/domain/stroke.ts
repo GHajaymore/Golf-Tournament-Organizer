@@ -161,3 +161,35 @@ export function parseStrokesTranscript(transcript: string, pars: number[], start
   }
   return results;
 }
+
+/**
+ * Re-rank a slice of a card's stroke index to 1..N for the holes being played.
+ *
+ * A stroke index is a ranking of eighteen holes against each other. Take nine
+ * of them for a front- or back-nine game and the numbers that come with them
+ * are still 1..18 — the front nine of a normal card carries the odd values
+ * 1,3,5,…,17 — but the allocation has to compare them against 1..9.
+ *
+ * Left un-ranked, the comparison `strokeIndex <= handicap % 9` is false for
+ * nearly every hole, so every player received exactly `floor(handicap / 9)`
+ * strokes: a blanket one-a-hole for anyone from 9 to 17, and none at all below
+ * 9. In a Thursday-night nine where the field is bunched, that hands the same
+ * stroke to everybody, every hole halves, no skin is ever won outright, and
+ * the pot refunds itself. It is the reason this was reported as "the pot never
+ * pays".
+ *
+ * Ranking preserves the relative difficulty the club set, which is the only
+ * thing the eighteen-hole numbers are really saying. Ties keep their input
+ * order, so a card with a duplicated index still yields distinct ranks rather
+ * than two holes sharing one.
+ */
+export function rankStrokeIndex(sliced: number[]): number[] {
+  const order = sliced
+    .map((si, at) => ({ si: Number.isFinite(si) ? si : Number.MAX_SAFE_INTEGER, at }))
+    .sort((a, b) => a.si - b.si || a.at - b.at);
+  const ranks = new Array<number>(sliced.length);
+  order.forEach((entry, i) => {
+    ranks[entry.at] = i + 1;
+  });
+  return ranks;
+}

@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
+import { rankStrokeIndex } from "../domain/stroke";
+import { courseHandicapMap } from "../domain/handicap";
 import {
   skinsPot,
   settle,
@@ -59,19 +61,32 @@ export async function skinsPotFor(
   ]);
   if (!stage || stage.eventId !== eventId || !event) return null;
 
-  const [players, cards] = await Promise.all([
+  const [players, cards, tees] = await Promise.all([
     prisma.player.findMany({
       where: { eventId, status: "confirmed" },
-      select: { id: true, name: true, handicap: true },
+      // handicapType and preferredTee are what turn an Index into a Course
+      // Handicap; selecting only `handicap` is why this used an Index as one.
+      select: { id: true, name: true, handicap: true, handicapType: true, preferredTee: true },
       orderBy: { seed: "asc" },
     }),
     prisma.scorecard.findMany({ where: { eventId, stageId } }),
+    prisma.tee.findMany({
+      where: { course: { events: { some: { eventId } } } },
+      orderBy: [{ position: "asc" }],
+    }),
   ]);
 
   const scope: SkinsScope = pot && isSkinsScope(pot.scope) ? pot.scope : "full";
   const { from, to } = scopeRange(scope, stage.holes);
   const course = resolveCourse(event);
-  const strokeIndex = course.strokeIndex.slice(from, to);
+  /**
+   * Ranked 1..N for the holes actually being played.
+   *
+   * A slice of an eighteen-hole index still carries 1..18 values — the front
+   * nine of a normal card is 1,3,5,…,17 — while the allocation compares them
+   * against 1..9. See rankStrokeIndex for what that did to the pot.
+   */
+  const strokeIndex = rankStrokeIndex(course.strokeIndex.slice(from, to));
 
   const parse = (s: string): (number | null)[] => {
     try {
@@ -90,11 +105,41 @@ export async function skinsPotFor(
   // of the pot, which is exactly why entrants are stored rather than inferred.
   const inPot = players.filter((p) => entrantIds.includes(p.id));
   const holeCount = to - from;
+
+  /**
+   * A real Course Handicap, not the Index off the player row.
+   *
+   * `Player.handicap` is a Handicap Index — a portable number that means
+   * nothing until it is put against a set of tees. Passing it straight in
+   * charged everyone the same strokes whatever they played off, and got the
+   * nine-hole case wrong twice over: an eighteen-hole Index allocated across
+   * nine holes gives roughly double the strokes a nine-hole competition
+   * should. `courseHandicapMap` is the conversion the stroke-play board,
+   * the team scoring and the regrouper already share — it converts the Index
+   * AND the tee to the holes being played, once each.
+   */
+  const teeRatings = new Map(
+    tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+  );
+  const courseHcp = courseHandicapMap(
+    inPot.map((p) => ({
+      id: p.id,
+      handicap: p.handicap,
+      handicapType: p.handicapType,
+      teeId: p.preferredTee || null,
+    })),
+    teeRatings,
+    tees[0]?.id ?? null,
+    holeCount === 9 ? 9 : 18,
+  );
+
   const outcome = playSkins(
     inPot.map((p) => ({
       playerId: p.id,
       strokes: (strokesBy.get(p.id) ?? []).slice(from, to),
-      courseHandicap: p.handicap,
+      // Falls back to the Index only when the course has no tees on file at
+      // all, which is the old behaviour and the best available guess.
+      courseHandicap: courseHcp.get(p.id) ?? p.handicap,
     })),
     holeCount,
     { net, strokeIndex },
