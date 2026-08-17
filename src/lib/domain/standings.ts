@@ -4,6 +4,7 @@
 
 import { resolveMatch } from "./match";
 import { breakMatchTie, type MatchTiebreakKey } from "./match-tiebreak";
+import { toughestN } from "./types";
 import type {
   Match,
   Player,
@@ -321,20 +322,23 @@ function tiebreakerCompare(
     }
     case "fewest-holes-lost":
       return sa.holesLost - sb.holesLost; // fewer lost ranks first
-    case "toughest-6":
-    case "toughest-3": {
+    case "lower-handicap":
+      return pa.handicap - pb.handicap; // lower handicap ranks first
+    default: {
+      // The countbacks. N is part of the key rather than one of two fixed
+      // choices, so a committee can write its own ladder — hardest 9, then 6,
+      // then 3, then the hardest hole — and toughestN rejects anything outside
+      // 1..18, which is how a bad key from the database decides nothing rather
+      // than reading holes that do not exist.
+      const n = toughestN(key);
+      if (n === null) return 0;
       // No course/stroke-index data available — skip to the next tiebreaker.
       if (!holeDifficulty || holeDifficulty.length === 0) return 0;
-      const n = key === "toughest-6" ? 6 : 3;
       const idxs = toughestHoleIndexes(holeDifficulty, n);
       const da = holesDiffOn(pa.id, matches, idxs);
       const db = holesDiffOn(pb.id, matches, idxs);
       return db - da; // better record on the toughest holes ranks first
     }
-    case "lower-handicap":
-      return pa.handicap - pb.handicap; // lower handicap ranks first
-    default:
-      return 0;
   }
 }
 

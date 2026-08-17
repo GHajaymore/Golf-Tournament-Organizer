@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { computeStandings } from "@/lib/domain/standings";
 import { marginToHoles } from "@/lib/domain/match";
 import { DEFAULT_SCORING } from "@/lib/domain/types";
-import type { Player, Match, Scoring } from "@/lib/domain/types";
+import type { Player, Match, ScoringRules } from "@/lib/domain/types";
 
 /**
  * A forfeit decides the match everywhere, not just in the points.
@@ -30,7 +30,7 @@ const match = (over: Partial<Match> & Pick<Match, "playerAId" | "playerBId">): M
   }) as Match;
 
 /** Head-to-head first, so the meeting is what separates a tie. */
-const H2H: Scoring = { ...DEFAULT_SCORING, tiebreakers: ["head-to-head"] };
+const H2H: ScoringRules = { ...DEFAULT_SCORING, tiebreakers: ["head-to-head"] };
 
 describe("head-to-head reads the forfeit, not the card", () => {
   it("gives the meeting to the player who did not concede", () => {
@@ -69,7 +69,7 @@ describe("head-to-head reads the forfeit, not the card", () => {
 });
 
 describe("the toughest-holes tiebreaker discards a forfeited card", () => {
-  const TOUGH: Scoring = { ...DEFAULT_SCORING, tiebreakers: ["toughest-3"] };
+  const TOUGH: ScoringRules = { ...DEFAULT_SCORING, tiebreakers: ["toughest-3"] };
   // Hole 1 is the hardest, then 2, then 3.
   const strokeIndex = Array.from({ length: 18 }, (_, i) => i + 1);
 

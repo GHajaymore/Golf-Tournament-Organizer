@@ -38,6 +38,7 @@ import {
   resolveMatch,
   deriveNetHoles,
   TIEBREAKER_KEYS,
+  isTiebreakerKey,
   isBracketMode,
   courseHandicapMap,
   playingHandicapFrom,
@@ -917,7 +918,11 @@ export async function setStageHoles(stageId: string, holes: number) {
 export async function saveTiebreakers(order: string[]) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
-  const valid = order.filter((k) => (TIEBREAKER_KEYS as string[]).includes(k));
+  // isTiebreakerKey rather than a membership test against a fixed list: the
+  // countbacks are `toughest-N` for any N a committee names, and it bounds N
+  // to the holes on a card. De-duplicated because the same tiebreaker twice
+  // is a chain whose second copy can never decide anything.
+  const valid = [...new Set(order.filter(isTiebreakerKey))];
   await prisma.event.update({
     where: { id: eventId },
     data: { tiebreakers: JSON.stringify(valid.length ? valid : TIEBREAKER_KEYS) },

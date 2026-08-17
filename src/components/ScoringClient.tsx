@@ -2,7 +2,7 @@
 import { useState, useTransition } from "react";
 import { saveScoring, saveTiebreakers } from "@/app/actions/tournament";
 import { pts } from "@/lib/format";
-import { TIEBREAKER_LABELS, TIEBREAKER_HELP, TIEBREAKER_KEYS, type TiebreakerKey } from "@/lib/domain";
+import { tiebreakerLabel, tiebreakerHelp, FIXED_TIEBREAKER_KEYS, toughestN, MAX_TOUGHEST_N, type TiebreakerKey } from "@/lib/domain";
 import { RuleCite } from "./RuleCite";
 import FieldInfo from "@/components/FieldInfo";
 
@@ -55,7 +55,24 @@ export function ScoringClient({
     startTransition(() => saveTiebreakers(next));
   };
 
-  const available = TIEBREAKER_KEYS.filter((k) => !order.includes(k));
+  /**
+   * The fixed tiebreakers not already in the chain.
+   *
+   * The countbacks are not listed here: there are eighteen of them and a
+   * committee wants one or two, so they are added by naming N below rather
+   * than by scrolling a list of every possibility.
+   */
+  const available = FIXED_TIEBREAKER_KEYS.filter((k) => !order.includes(k));
+
+  /** Which N are still free to add, so the same countback can't go in twice. */
+  const usedN = new Set(order.map((k) => toughestN(k)).filter((n): n is number => n !== null));
+  const addToughest = (n: number) => {
+    const key = `toughest-${n}` as TiebreakerKey;
+    if (order.includes(key)) return;
+    const next = [...order, key];
+    setOrder(next);
+    startTransition(() => saveTiebreakers(next));
+  };
 
   const save = (next: Values) => {
     setValues(next);
@@ -148,9 +165,9 @@ export function ScoringClient({
               >
                 {i + 1}
               </span>
-              <span style={{ flex: 1 }}>{TIEBREAKER_LABELS[t]}</span>
-              <FieldInfo label={TIEBREAKER_LABELS[t]}>
-                <p>{TIEBREAKER_HELP[t]}</p>
+              <span style={{ flex: 1 }}>{tiebreakerLabel(t)}</span>
+              <FieldInfo label={tiebreakerLabel(t)}>
+                <p>{tiebreakerHelp(t)}</p>
               </FieldInfo>
               <button type="button" className="btn btn-icon" disabled={pending || i === 0} onClick={() => move(i, -1)} title="Move up" style={{ width: 28, height: 28 }}>
                 <i className="ph ph-caret-up" />
@@ -190,15 +207,62 @@ export function ScoringClient({
                 >
                   <label style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, cursor: "pointer" }}>
                     <input type="checkbox" checked={false} disabled={pending} onChange={() => toggle(t, true)} />
-                    {TIEBREAKER_LABELS[t]}
+                    {tiebreakerLabel(t)}
                   </label>
-                  <FieldInfo label={TIEBREAKER_LABELS[t]}>
-                    <p>{TIEBREAKER_HELP[t]}</p>
+                  <FieldInfo label={tiebreakerLabel(t)}>
+                    <p>{tiebreakerHelp(t)}</p>
                   </FieldInfo>
                 </div>
               ))}
             </>
           )}
+
+          {/* Countbacks are added by naming N rather than picked off a list of
+              eighteen. A committee writes its own ladder — hardest 9, then 6,
+              then 3, then the hardest hole — and each one added is a tighter
+              cut than the last, so several in a chain is the normal case
+              rather than an odd one. */}
+          <div className="text-muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", margin: "12px 0 4px" }}>
+            Add a countback
+          </div>
+          <p className="text-muted" style={{ fontSize: 12, margin: "0 0 7px", lineHeight: 1.6 }}>
+            Compares records over the hardest holes by stroke index. Add as many as you like — each one a
+            tighter cut for players still level after the one before.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
+            {[9, 6, 3, 1].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className="tag tag-neutral"
+                disabled={pending || usedN.has(n)}
+                onClick={() => addToughest(n)}
+                style={{ cursor: usedN.has(n) ? "default" : "pointer", border: "none", opacity: usedN.has(n) ? 0.45 : 1 }}
+              >
+                <i className="ph ph-plus" /> Toughest {n}
+              </button>
+            ))}
+            <select
+              className="input"
+              value=""
+              disabled={pending}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (n) addToughest(n);
+              }}
+              style={{ fontSize: 12, padding: "3px 6px", width: "auto" }}
+              aria-label="Add another countback"
+            >
+              <option value="">Another N…</option>
+              {Array.from({ length: MAX_TOUGHEST_N }, (_, i) => i + 1)
+                .filter((n) => !usedN.has(n))
+                .map((n) => (
+                  <option key={n} value={n}>
+                    Toughest {n} {n === 1 ? "hole" : "holes"}
+                  </option>
+                ))}
+            </select>
+          </div>
         </div>
         <div className="card elev-sm">
           <span className="card-kicker">Worked example</span>

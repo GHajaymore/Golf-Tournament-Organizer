@@ -24,16 +24,60 @@ export type BracketKind = "winners" | "consolation";
 
 /** Ordered tiebreaker keys, applied after points when standings are level.
  *  Match-play only — stroke play breaks ties by low net, then low gross. */
-export type TiebreakerKey =
+export type FixedTiebreakerKey =
   | "head-to-head"
   | "most-wins"
   | "win-percentage"
   | "holes-won-ratio"
   | "fewest-holes-lost"
-  | "lower-handicap"
-  | "toughest-6"
-  | "toughest-3";
+  | "lower-handicap";
 
+/**
+ * A countback over the N hardest holes, N chosen by the committee.
+ *
+ * Was two fixed keys, `toughest-6` and `toughest-3`, which is one club's
+ * convention rather than a rule. Committees write their own ladder — hardest
+ * 9, then 6, then 3, then the hardest hole — and each cut is tighter than the
+ * one before it. Any N from 1 to 18 is now expressible, and a chain may hold
+ * as many as a committee wants.
+ */
+export type ToughestTiebreakerKey = `toughest-${number}`;
+
+export type TiebreakerKey = FixedTiebreakerKey | ToughestTiebreakerKey;
+
+/** Holes on a full card — the ceiling on N. */
+export const MAX_TOUGHEST_N = 18;
+
+/**
+ * The N in `toughest-N`, or null when the key is not one.
+ *
+ * Bounded here rather than at the call sites, because a key arrives from the
+ * database as free text: `toughest-0` would decide nothing while looking like
+ * a tiebreaker, and `toughest-99` would read holes off the end of the card.
+ * Neither may be treated as a countback at all.
+ */
+export function toughestN(key: string): number | null {
+  const m = /^toughest-(\d+)$/.exec(key);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (!Number.isInteger(n) || n < 1 || n > MAX_TOUGHEST_N) return null;
+  return n;
+}
+
+export const FIXED_TIEBREAKER_KEYS: FixedTiebreakerKey[] = [
+  "head-to-head",
+  "most-wins",
+  "win-percentage",
+  "holes-won-ratio",
+  "fewest-holes-lost",
+  "lower-handicap",
+];
+
+export function isTiebreakerKey(key: string): key is TiebreakerKey {
+  return (FIXED_TIEBREAKER_KEYS as string[]).includes(key) || toughestN(key) !== null;
+}
+
+/** The chain a tournament starts with, before a committee changes it. */
 export const TIEBREAKER_KEYS: TiebreakerKey[] = [
   "head-to-head",
   "most-wins",
@@ -45,16 +89,20 @@ export const TIEBREAKER_KEYS: TiebreakerKey[] = [
   "lower-handicap",
 ];
 
-export const TIEBREAKER_LABELS: Record<TiebreakerKey, string> = {
+const FIXED_TIEBREAKER_LABELS: Record<FixedTiebreakerKey, string> = {
   "head-to-head": "Head-to-head result",
   "most-wins": "Most match wins",
   "win-percentage": "Winning percentage",
   "holes-won-ratio": "Hole differential (won − lost)",
   "fewest-holes-lost": "Fewest holes lost",
-  "toughest-6": "Toughest 6 holes (by stroke index)",
-  "toughest-3": "Toughest 3 holes (by stroke index)",
   "lower-handicap": "Lower handicap",
 };
+
+export function tiebreakerLabel(key: string): string {
+  const n = toughestN(key);
+  if (n !== null) return `Toughest ${n} ${n === 1 ? "hole" : "holes"} (by stroke index)`;
+  return FIXED_TIEBREAKER_LABELS[key as FixedTiebreakerKey] ?? key;
+}
 
 /**
  * What each tiebreaker actually does, in the words a committee would use.
@@ -66,7 +114,7 @@ export const TIEBREAKER_LABELS: Record<TiebreakerKey, string> = {
  * head-to-head does nothing between players who never met, and the countbacks
  * do nothing on a course with no stroke index entered.
  */
-export const TIEBREAKER_HELP: Record<TiebreakerKey, string> = {
+const TIEBREAKER_HELP: Record<FixedTiebreakerKey, string> = {
   "head-to-head":
     "Whoever won when these two played each other. If they never met, or their match was halved, this decides nothing and the next tiebreaker is used.",
   "most-wins": "Most matches won outright. Halved matches don't count either way.",
@@ -76,13 +124,22 @@ export const TIEBREAKER_HELP: Record<TiebreakerKey, string> = {
     "Holes won minus holes lost across every match. The usual first countback in match play: it rewards winning holes rather than winning narrowly.",
   "fewest-holes-lost":
     "Fewest holes dropped across every match — the defensive twin of hole differential.",
-  "toughest-6":
-    "Record on the six hardest holes, taken from the card's stroke index. Needs a stroke index on the course; without one it decides nothing and the next tiebreaker is used.",
-  "toughest-3":
-    "As above, on the three hardest holes. A tighter countback where the six-hole one still leaves players level.",
   "lower-handicap":
     "The lower handicap ranks first. Traditional, and a definite answer — worth keeping last in the list so a tie always resolves.",
 };
+
+export function tiebreakerHelp(key: string): string {
+  const n = toughestN(key);
+  if (n !== null) {
+    return (
+      `Record on the ${n === 1 ? "hardest hole" : `${n} hardest holes`}, taken from the card's stroke ` +
+      `index. Needs a stroke index on the course; without one it decides nothing and the next tiebreaker ` +
+      `is used.` +
+      (n <= 3 ? " A tight cut, for where a wider countback still leaves players level." : "")
+    );
+  }
+  return TIEBREAKER_HELP[key as FixedTiebreakerKey] ?? "";
+}
 
 export interface Player {
   id: string;

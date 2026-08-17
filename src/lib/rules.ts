@@ -1,4 +1,4 @@
-import { TIEBREAKER_LABELS, type TiebreakerKey } from "@/lib/domain/types";
+import { tiebreakerLabel, type TiebreakerKey } from "@/lib/domain/types";
 
 /**
  * The rules a competition actually runs under, in the three tiers a golfer
@@ -230,7 +230,7 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
   if (input.tiebreakers.length) {
     out.push({
       label: "Ties",
-      value: input.tiebreakers.map((t) => TIEBREAKER_LABELS[t] ?? t).join(", then "),
+      value: input.tiebreakers.map((t) => tiebreakerLabel(t)).join(", then "),
       rule: "decidingTies",
     });
   }
