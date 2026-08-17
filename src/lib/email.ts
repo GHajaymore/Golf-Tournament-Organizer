@@ -1,5 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
+import { prisma } from "@/lib/db";
+import { classifySendFailure, type EmailKind, type EmailFailureReason } from "@/lib/domain/email-trouble";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
@@ -53,6 +55,60 @@ export function emailConfig(): EmailConfig {
 }
 
 /**
+ * Record a failed send so it can surface on the Access screen.
+ *
+ * Never throws, for the same reason the sends themselves never throw: this is
+ * bookkeeping about a nicety, and it must not be able to break the registration
+ * or password-reset path it is attached to. A failure to record a failure is
+ * logged and dropped.
+ *
+ * "unconfigured" is deliberately not recorded. A missing API key is already
+ * reported by `emailConfig()` in far plainer words, and writing a row per send
+ * would fill the table with rows that say what the banner above them already
+ * says — including on every developer machine.
+ */
+async function recordFailure(input: {
+  kind: EmailKind;
+  reason: EmailFailureReason;
+  detail: string;
+  organizationIds: string[];
+  eventId?: string | null;
+  toEmail?: string;
+  toName?: string;
+}): Promise<void> {
+  if (input.reason === "unconfigured" || input.organizationIds.length === 0) return;
+  try {
+    await prisma.emailFailure.createMany({
+      data: input.organizationIds.map((organizationId) => ({
+        organizationId,
+        eventId: input.eventId ?? null,
+        kind: input.kind,
+        reason: input.reason,
+        detail: input.detail.slice(0, 500),
+        toEmail: input.toEmail ?? "",
+        toName: input.toName ?? "",
+      })),
+    });
+  } catch (e) {
+    console.error(`[email] Could not record a send failure: ${e instanceof Error ? e.message : "unknown"}`);
+  }
+}
+
+/** The organizations that would want to know an address could not be reached. */
+async function organizationsFor(email: string): Promise<string[]> {
+  try {
+    const rows = await prisma.member.findMany({
+      where: { email },
+      select: { organizationId: true },
+      distinct: ["organizationId"],
+    });
+    return rows.map((r) => r.organizationId);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Send a password reset link.
  *
  * The caller must not vary its response based on the outcome — see
@@ -96,12 +152,27 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     });
     if (error) {
       console.error(`[email] Resend rejected the reset email for ${to}: ${error.message}`);
+      await recordFailure({
+        kind: "reset",
+        reason: classifySendFailure(error.message, (error as { statusCode?: number }).statusCode),
+        detail: error.message,
+        organizationIds: await organizationsFor(to),
+        // Address deliberately omitted — see the model. The organizer's job
+        // here is to fix the mail setup, and a durable list of who forgot
+        // their password is a record worth not keeping.
+      });
       return { ok: false, error: error.message };
     }
     return { ok: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to send email.";
     console.error(`[email] Failed sending reset email to ${to}: ${message}`);
+    await recordFailure({
+      kind: "reset",
+      reason: classifySendFailure(message),
+      detail: message,
+      organizationIds: await organizationsFor(to),
+    });
     return { ok: false, error: message };
   }
 }
@@ -117,7 +188,15 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
  */
 export async function sendRegistrationEmail(
   to: string,
-  opts: { eventName: string; status: "confirmed" | "waitlisted" | "pending" },
+  opts: {
+    eventName: string;
+    status: "confirmed" | "waitlisted" | "pending";
+    /** So a failure can be shown to the club it happened in. */
+    organizationId: string;
+    eventId: string;
+    /** For the follow-up: an organizer needs to know who to call. */
+    toName?: string;
+  },
 ): Promise<void> {
   if (!resend) {
     console.warn(`[email] RESEND_API_KEY not set — skipping registration email to ${to} (${opts.status}).`);
@@ -136,9 +215,29 @@ export async function sendRegistrationEmail(
       subject: `You're registered — ${opts.eventName}`,
       html: `<p>Thanks for registering for <strong>${opts.eventName}</strong>.</p><p>${line}</p>`,
     });
-    if (error) console.error(`[email] Resend rejected the registration email for ${to}: ${error.message}`);
+    if (error) {
+      console.error(`[email] Resend rejected the registration email for ${to}: ${error.message}`);
+      await recordFailure({
+        kind: "registration",
+        reason: classifySendFailure(error.message, (error as { statusCode?: number }).statusCode),
+        detail: error.message,
+        organizationIds: [opts.organizationId],
+        eventId: opts.eventId,
+        toEmail: to,
+        toName: opts.toName ?? "",
+      });
+    }
   } catch (e) {
     const message = e instanceof Error ? e.message : "unknown error";
     console.error(`[email] Failed sending registration email to ${to}: ${message}`);
+    await recordFailure({
+      kind: "registration",
+      reason: classifySendFailure(message),
+      detail: message,
+      organizationIds: [opts.organizationId],
+      eventId: opts.eventId,
+      toEmail: to,
+      toName: opts.toName ?? "",
+    });
   }
 }

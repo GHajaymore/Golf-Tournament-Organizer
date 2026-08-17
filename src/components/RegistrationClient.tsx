@@ -7,6 +7,7 @@ import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups,
 import { SetupLockBanner } from "./SetupLockBanner";
 import { RosterPicker } from "./RosterPicker";
 import type { RosterCandidate } from "@/lib/services/roster";
+import { PHONE_REQUIRED_FREE } from "@/lib/plans";
 
 interface Signup {
   id: string;
@@ -38,6 +39,12 @@ interface EventInfo {
   /** auto | approve — whether entries land confirmed or wait for the organizer. */
   registrationApproval: string;
   requirePhone: boolean;
+  /**
+   * Whether the mobile requirement is fixed by the plan rather than chosen.
+   * True on free, where every entrant gives a number; false on a paid plan,
+   * where `requirePhone` above is the organizer's own per-tournament decision.
+   */
+  phoneLocked: boolean;
   /** Opaque token for the public /register/[token] link. Empty until first opened. */
   registrationToken: string;
 }
@@ -75,6 +82,12 @@ export function RegistrationClient({
   const [addError, setAddError] = useState("");
   const [rowError, setRowError] = useState("");
   const [pending, startTransition] = useTransition();
+  // Fixed by the plan on free, the organizer's own choice on a paid plan.
+  const phoneLocked = event.phoneLocked;
+  // What the import and the public form will actually insist on — the resolved
+  // rule, not the raw setting, so the hint can't promise something the action
+  // then refuses.
+  const phoneRequired = phoneLocked || event.requirePhone;
   const commitUpdate = (playerId: string, patch: Parameters<typeof updateSignup>[1]) =>
     startTransition(async () => {
       const result = await updateSignup(playerId, patch);
@@ -534,27 +547,50 @@ export function RegistrationClient({
               </p>
             </div>
 
-            {/* Off by default, and per tournament rather than global. A phone
-                number is not needed to run a competition — the app reaches
-                people in the app — so a required field that costs entries is
-                the organizer's call for the event that actually needs it. */}
+            {/* Per tournament on a paid plan; forced on and not editable on
+                free. The switch is shown either way rather than hidden, so a
+                free club can see what the choice would be — the same reasoning
+                as every other locked feature. A phone number is not needed to
+                run a competition, so being able to stop asking for one is a
+                real thing to buy: every extra required field costs entries,
+                and the members it turns away are the ones least likely to have
+                a mobile at all. */}
             <div className="field" style={{ marginTop: 2 }}>
-              <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer" }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 9,
+                  cursor: phoneLocked ? "default" : "pointer",
+                }}
+              >
                 <input
                   type="checkbox"
-                  checked={event.requirePhone}
-                  disabled={pending || locked}
+                  checked={phoneLocked ? true : event.requirePhone}
+                  disabled={pending || locked || phoneLocked}
                   onChange={(e) =>
                     startTransition(() => void setRequirePhone(e.target.checked))
                   }
                   style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
                 />
                 <span>
-                  <span style={{ fontWeight: 500 }}>Require a mobile number</span>
+                  <span style={{ fontWeight: 500 }}>
+                    Require a mobile number{" "}
+                    {phoneLocked && (
+                      <span
+                        className="text-muted"
+                        style={{ fontSize: 10.5, letterSpacing: 0.4, textTransform: "uppercase" }}
+                      >
+                        <i className="ph ph-lock-simple" /> Always on — free plan
+                      </span>
+                    )}
+                  </span>
                   <span className="text-muted" style={{ display: "block", fontSize: 12, lineHeight: 1.6 }}>
-                    {event.requirePhone
-                      ? "The sign-up form asks for a mobile and won't accept an entry without one. Use this for a shotgun start, where you may need to ring a group that hasn't arrived."
-                      : "The sign-up form asks for a mobile but accepts an entry without one. Most tournaments don't need it — every extra required field costs you entries."}
+                    {phoneLocked
+                      ? PHONE_REQUIRED_FREE
+                      : event.requirePhone
+                        ? "The sign-up form asks for a mobile and won't accept an entry without one. Use this for a shotgun start, where you may need to ring a group that hasn't arrived."
+                        : "The sign-up form asks for a mobile but accepts an entry without one. Most tournaments don't need it — every extra required field costs you entries."}
                   </span>
                 </span>
               </label>
@@ -640,9 +676,14 @@ export function RegistrationClient({
               <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} style={{ display: "none" }} />
             </label>
             <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
-              First row must be a header. Recognized columns: name and email (both required — email is how each
-              player signs in), handicap, phone, handicap type (9/18). Rows missing either, or duplicating a name or
-              email already in the field, are skipped automatically.
+              First row must be a header. Recognized columns: name and email
+              {phoneRequired ? " and phone (all three required" : " (both required"} — email is how each player
+              signs in
+              {phoneRequired
+                ? ", and this tournament collects a mobile for every entrant), handicap, handicap type (9/18)."
+                : "), handicap, phone, handicap type (9/18)."}{" "}
+              Rows missing a required column, or duplicating a name or email already in the field, are skipped
+              automatically.
             </p>
             {importResult && (
               importResult.error ? (

@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AccessClient } from "@/components/AccessClient";
 import { emailConfig } from "@/lib/email";
+import { emailTroubleFor } from "@/lib/services/email-trouble";
 
 export default async function AccessPage() {
   await requireScreen("access");
@@ -12,6 +13,7 @@ export default async function AccessPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const mail = emailConfig();
+  const trouble = await emailTroubleFor(state.event.organizationId);
 
   return (
     <>
@@ -41,6 +43,31 @@ export default async function AccessPage() {
           </span>
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
             {mail.problem}
+          </p>
+        </div>
+      )}
+
+      {/* Sends are fire-and-forget by design, so a refused email has nowhere
+          else to appear. Below the configuration warning because that one is
+          about mail being broken for everyone, and this one is about specific
+          people who were missed. */}
+      {trouble && (
+        <div
+          className="card elev-sm"
+          style={{
+            marginBottom: 16,
+            borderLeft: `3px solid ${
+              trouble.severity === "danger" ? "var(--color-danger)" : "var(--color-accent)"
+            }`,
+            gap: 4,
+          }}
+        >
+          <span className="card-title" style={{ fontSize: 14 }}>
+            <i className={trouble.severity === "danger" ? "ph ph-warning-circle" : "ph ph-warning"} />{" "}
+            {trouble.title}
+          </span>
+          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            {trouble.detail}
           </p>
         </div>
       )}

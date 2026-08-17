@@ -2,6 +2,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { addMembersToEvent } from "@/app/actions/roster";
+import { listNames } from "@/lib/format";
 import type { RosterCandidate } from "@/lib/services/roster";
 
 /**
@@ -63,6 +64,8 @@ export function RosterPicker({
       const bits = [`Added ${r.added}`];
       if (r.waitlisted) bits.push(`${r.waitlisted} waitlisted`);
       if (r.skipped) bits.push(`${r.skipped} already in the field`);
+      if (r.needEmail.length) bits.push(`no email for ${listNames(r.needEmail)} — not entered`);
+      if (r.needPhone.length) bits.push(`no mobile for ${listNames(r.needPhone)} — not entered`);
       setResult(`${bits.join(" · ")}.`);
       setSelected(new Set());
     });

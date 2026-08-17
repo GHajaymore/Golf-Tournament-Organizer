@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useRef, useState, useTransition } from "react";
+import { listNames } from "@/lib/format";
 import {
   addMember,
   updateMember,
@@ -168,6 +169,11 @@ export function RosterClient({ clubName, isClub, eventName, fieldLocked, members
           const bits = [`${r.added} added to ${eventName}`];
           if (r.waitlisted) bits.push(`${r.waitlisted} waitlisted (field is full)`);
           if (r.skipped) bits.push(`${r.skipped} already entered`);
+          // Named, and split by what is actually missing. The organizer's next
+          // move is to open those members and fill the detail in, and neither a
+          // count nor a merged list tells them which detail or whose.
+          if (r.needEmail.length) bits.push(`no email for ${listNames(r.needEmail)} — not entered`);
+          if (r.needPhone.length) bits.push(`no mobile for ${listNames(r.needPhone)} — not entered`);
           setNotice(bits.join(" · "));
           setSelected(new Set());
         }

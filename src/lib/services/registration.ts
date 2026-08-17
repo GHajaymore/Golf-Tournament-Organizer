@@ -3,6 +3,8 @@ import { prisma } from "../db";
 import { brandForEvent, type EventBrand } from "./organization";
 import { registrationStatus } from "../registration";
 import { approvalModeOf, type ApprovalMode } from "../domain/registration-intake";
+import { planForOrganization } from "./entitlements";
+import { phoneRequiredFor } from "../plans";
 
 /**
  * What the public /register/[token] page is allowed to know.
@@ -98,7 +100,11 @@ export async function openRegistrationView(token: string): Promise<PublicRegistr
     waitlistOnly: status.waitlisting,
     spotsLeft: unlimited ? null : Math.max(0, event.capacity - confirmedCount),
     approvalMode: approvalModeOf(event.registrationApproval),
-    requirePhone: event.requirePhone,
+    // Resolved through the plan, so the public form asks for exactly what the
+    // action will insist on. Reading event.requirePhone straight through would
+    // show a free club's entrants an optional mobile field and then refuse
+    // their entry for leaving it blank.
+    requirePhone: phoneRequiredFor(await planForOrganization(event.organizationId), event.requirePhone),
     brand,
   };
 }

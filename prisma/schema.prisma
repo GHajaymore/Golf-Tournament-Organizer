@@ -1868,3 +1868,42 @@ model SmsDelivery {
   @@index([eventId])
   @@index([threadId])
 }
+
+/**
+ * An outbound email that did not reach its recipient.
+ *
+ * Recorded because every email send in this app is fire-and-forget by design —
+ * the on-screen confirmation is the real receipt, and a bounced confirmation
+ * must never undo a real entry. That leaves a failure with nowhere to appear.
+ * See lib/domain/email-trouble.ts for what is done with these.
+ */
+model EmailFailure {
+  id             String  @id @default(cuid())
+  organizationId String
+  eventId        String?
+
+  /**
+   * registration | reset
+   */
+  kind   String
+  /**
+   * quota | rejected | unconfigured — see classifySendFailure.
+   */
+  reason String
+  /**
+   * The provider's message, verbatim, for support.
+   */
+  detail String  @default("")
+
+  /**
+   * Who missed out. Empty for password resets: the organizer's action there is
+   * to fix the mail setup, not to contact the person, and a durable list of who
+   * forgot their password is a record worth not keeping.
+   */
+  toEmail String @default("")
+  toName  String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+}

@@ -4,7 +4,9 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine } from "@/lib/csv";
-import { parseHandicapInput } from "@/lib/domain/registration-intake";
+import { parseHandicapInput, looksLikePhone } from "@/lib/domain/registration-intake";
+import { planForEvent } from "@/lib/services/entitlements";
+import { phoneRequiredFor } from "@/lib/plans";
 
 /**
  * Club roster management.
@@ -295,6 +297,20 @@ export interface AddToEventResult extends RosterResult {
   waitlisted: number;
   /** Already in the field — skipped rather than duplicated. */
   skipped: number;
+  /**
+   * Members left out because the roster has no email for them, by name.
+   *
+   * Names rather than a count, because the organizer's next action is to go and
+   * fill those addresses in and a number tells them nothing about whom.
+   */
+  needContact: string[];
+  /**
+   * Split by what is actually missing, so the notice can say which detail to go
+   * and fill in. One merged list would send an organizer looking for a missing
+   * email on a member whose address was fine and whose mobile was blank.
+   */
+  needEmail: string[];
+  needPhone: string[];
 }
 
 /**
@@ -307,7 +323,7 @@ export interface AddToEventResult extends RosterResult {
 export async function addMembersToEvent(memberIds: string[]): Promise<AddToEventResult> {
   const { organizationId, eventId } = await requireRosterOrg();
   const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) return { ok: false, error: "Event not found.", added: 0, waitlisted: 0, skipped: 0 };
+  if (!event) return { ok: false, error: "Event not found.", added: 0, waitlisted: 0, skipped: 0, needContact: [], needEmail: [], needPhone: [] };
   if ((event.status === "live" || event.status === "completed") && !event.configUnlocked) {
     return {
       ok: false,
@@ -315,6 +331,9 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
       added: 0,
       waitlisted: 0,
       skipped: 0,
+      needContact: [],
+      needEmail: [],
+      needPhone: [],
     };
   }
 
@@ -338,10 +357,44 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   let added = 0;
   let waitlisted = 0;
   let skipped = 0;
+  const needContact: string[] = [];
+  const needEmail: string[] = [];
+  const needPhone: string[] = [];
+  const needsPhone = phoneRequiredFor(await planForEvent(eventId), event.requirePhone);
 
   for (const m of members) {
     if (takenIds.has(m.id) || (m.email && takenEmails.has(m.email))) {
       skipped += 1;
+      continue;
+    }
+    /**
+     * An entry needs an email, and this was the one way in that did not ask.
+     *
+     * The roster deliberately keeps members with no address — plenty of clubs
+     * have them, and refusing those rows would stop the roster ever matching
+     * the membership list it was copied from. Entering a tournament is a
+     * different question, and every other route already enforces it: open
+     * registration, addSignup, and the entry CSV import all reject a missing
+     * address. This one carried the blank straight through, and the player it
+     * created never even got a sign-in account (syncPlayerAccount below is
+     * guarded on the same field). They could not sign in, could not be
+     * messaged, could not be sent a thing — a second-class entrant nobody had
+     * decided to create.
+     *
+     * The phone half follows the plan, not this screen: free clubs collect a
+     * mobile from every entrant, paid clubs decide per tournament. See
+     * phoneRequiredFor.
+     *
+     * Skipped and named rather than failing the batch: an organizer picking
+     * forty members off the club list should not have the whole action refused
+     * because two of them have no address on file.
+     */
+    const missingEmail = !m.email.trim();
+    const missingPhone = needsPhone && !looksLikePhone(m.phone);
+    if (missingEmail || missingPhone) {
+      needContact.push(m.name);
+      if (missingEmail) needEmail.push(m.name);
+      else needPhone.push(m.name);
       continue;
     }
     const status = unlimited || confirmedCount < event.capacity ? "confirmed" : "waitlisted";
@@ -368,12 +421,13 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
         preferredTee: m.preferredTee,
       },
     });
-    if (m.email) await syncPlayerAccount(eventId, m.name, m.email);
+    // Unconditional now: an entrant without an address never reaches here.
+    await syncPlayerAccount(eventId, m.name, m.email);
     takenIds.add(m.id);
-    if (m.email) takenEmails.add(m.email);
+    takenEmails.add(m.email);
     added += 1;
   }
 
   refresh();
-  return { ok: true, added, waitlisted, skipped };
+  return { ok: true, added, waitlisted, skipped, needContact, needEmail, needPhone };
 }

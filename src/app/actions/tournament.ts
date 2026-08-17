@@ -24,6 +24,9 @@ import { cleanStrokes } from "@/lib/domain/score-payload";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { splitCsvLine, matchColumn } from "@/lib/csv";
+import { looksLikePhone } from "@/lib/domain/registration-intake";
+import { planForEvent } from "@/lib/services/entitlements";
+import { phoneRequiredFor } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, generatesPairings, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { isCutScope } from "@/lib/domain/cut";
@@ -209,6 +212,14 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return { ok: false, error: "Event not found." };
+  // The same rule the public form follows. An organizer typing someone in must
+  // not be able to create an entrant the tournament cannot reach, when the
+  // stranger filling in the form on their phone cannot.
+  const cleanPhone = (input.phone ?? "").trim();
+  if (phoneRequiredFor(await planForEvent(eventId), event.requirePhone)) {
+    if (!cleanPhone) return { ok: false, error: "Enter a mobile number for this player." };
+    if (!looksLikePhone(cleanPhone)) return { ok: false, error: "That doesn't look like a phone number." };
+  }
   const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   const maxSeed = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
   const unlimited = event.capacity <= 0; // 0 = open / unlimited field
@@ -422,6 +433,20 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     };
   }
   const phoneIdx = headerCols.indexOf("phone");
+  // Same plan rule as every other way in. Refused at the header rather than
+  // row by row: a file with no phone column at all would otherwise be read as
+  // a hundred individually invalid rows, and the organizer would be told
+  // "skipped 100" with no hint that one missing column caused it.
+  const needsPhone = phoneRequiredFor(await planForEvent(eventId), event.requirePhone);
+  if (needsPhone && phoneIdx === -1) {
+    return {
+      imported: 0,
+      skippedDuplicates: 0,
+      skippedInvalid: 0,
+      error:
+        'Couldn\'t find a "phone" column in the header row — this tournament collects a mobile number for every entrant. Add a phone column, or enter the field by hand.',
+    };
+  }
   const hcpTypeIdx = headerCols.indexOf("handicapType");
 
   const existing = await prisma.player.findMany({ where: { eventId }, select: { name: true, email: true } });
@@ -453,6 +478,13 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     const nameKey = name.toLowerCase();
     if (seenNames.has(nameKey) || seenEmails.has(emailKey)) {
       skippedDuplicates += 1;
+      continue;
+    }
+    // The column exists (checked above), so a row failing here is that one
+    // player's cell being blank or unreadable — the same class as a missing
+    // email, and counted the same way.
+    if (needsPhone && !looksLikePhone((cols[phoneIdx] ?? "").trim())) {
+      skippedInvalid += 1;
       continue;
     }
     // Same reading as the public form, for the same reason: parseFloat("+2.4")

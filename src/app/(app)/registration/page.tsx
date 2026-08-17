@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { RegistrationClient } from "@/components/RegistrationClient";
 import { brandForEvent } from "@/lib/services/organization";
 import { rosterForEvent } from "@/lib/services/roster";
+import { planForEvent } from "@/lib/services/entitlements";
+import { phoneRequiredFor } from "@/lib/plans";
 
 export default async function RegistrationPage() {
   const session = await requireScreen("registration");
@@ -12,6 +14,7 @@ export default async function RegistrationPage() {
   const locked = isSetupLocked(state.event);
   const brand = await brandForEvent(session.eventId);
   const roster = await rosterForEvent(session.eventId);
+  const plan = await planForEvent(session.eventId);
 
   // Flight label per player, for the confirmed-field table (absorbs the old Roster screen).
   const flightByPlayer = new Map<string, string>();
@@ -35,6 +38,7 @@ export default async function RegistrationPage() {
         registrationOpen: state.event.registrationOpen,
         registrationApproval: state.event.registrationApproval,
         requirePhone: state.event.requirePhone,
+        phoneLocked: phoneRequiredFor(plan, false),
         registrationToken: state.event.registrationToken,
       }}
       confirmed={state.confirmed.map((p) => ({

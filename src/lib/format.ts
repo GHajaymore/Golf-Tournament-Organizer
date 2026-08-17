@@ -35,3 +35,21 @@ export function shortName(name: string): string {
   if (parts.length < 2) return name;
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
+
+/**
+ * A readable list of names for a one-line notice.
+ *
+ * Capped, because the case that produces one of these is a bulk action: an
+ * organizer adding forty members off the club roster can easily have a dozen
+ * without an address, and a notice that names all twelve is a paragraph nobody
+ * reads. Naming the first few is what makes it actionable — it tells them the
+ * kind of member affected and where to start.
+ */
+export function listNames(names: string[], max = 3): string {
+  const clean = names.map((n) => n.trim()).filter(Boolean);
+  if (clean.length === 0) return "";
+  if (clean.length === 1) return clean[0];
+  if (clean.length <= max) return `${clean.slice(0, -1).join(", ")} and ${clean[clean.length - 1]}`;
+  const rest = clean.length - max;
+  return `${clean.slice(0, max).join(", ")} and ${rest} other${rest === 1 ? "" : "s"}`;
+}

@@ -4,6 +4,8 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { upsertMember } from "@/lib/services/roster";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { sendRegistrationEmail } from "@/lib/email";
+import { planForEvent } from "@/lib/services/entitlements";
+import { phoneRequiredFor } from "@/lib/plans";
 import {
   cleanRegistration,
   looksLikePhone,
@@ -81,7 +83,11 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // A named error rather than the neutral NOT_OPEN: this is the person's own
   // form being incomplete, not anything about whether the event exists, so
   // telling them what to fix leaks nothing.
-  if (event.requirePhone && !looksLikePhone(person.phone)) {
+  // Free clubs always collect a mobile; paid clubs decide per tournament.
+  // Resolved here rather than read off the event, so the plan and the setting
+  // can never be consulted separately — see phoneRequiredFor.
+  const plan = await planForEvent(event.id);
+  if (phoneRequiredFor(plan, event.requirePhone) && !looksLikePhone(person.phone)) {
     return {
       ok: false,
       error: person.phone
@@ -156,7 +162,13 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
 
   // Best-effort, and it must stay best-effort: the on-screen confirmation is the
   // real receipt. No-ops without RESEND_API_KEY, never throws.
-  await sendRegistrationEmail(person.email, { eventName: event.name, status: decision.status });
+  await sendRegistrationEmail(person.email, {
+    eventName: event.name,
+    status: decision.status,
+    organizationId: event.organizationId,
+    eventId: event.id,
+    toName: person.name,
+  });
 
   return { ok: true, status: decision.status };
 }
