@@ -8,6 +8,7 @@ import { SetupLockBanner } from "./SetupLockBanner";
 import { RosterPicker } from "./RosterPicker";
 import type { RosterCandidate } from "@/lib/services/roster";
 import { PHONE_REQUIRED_FREE } from "@/lib/plans";
+import { contactGaps } from "@/lib/domain/contact-gaps";
 
 interface Signup {
   id: string;
@@ -109,7 +110,10 @@ export function RegistrationClient({
     override: event.registrationOverride,
   });
   const status = reg.label;
-  const missingEmailCount = [...confirmed, ...waitlist].filter((p) => !p.email?.trim()).length;
+  // Both halves of the same rule, reported together — see contactGaps for why
+  // the phone line is conditional, and why it says outright that the existing
+  // entries are not a mistake.
+  const gaps = contactGaps([...confirmed, ...waitlist], phoneRequired);
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -358,13 +362,28 @@ export function RegistrationClient({
 
       <SetupLockBanner locked={locked} isAdmin={isAdmin} />
 
-      {missingEmailCount > 0 && (
-        <div className="card elev-sm" style={{ marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 10, borderColor: "var(--color-accent)" }}>
-          <i className="ph ph-warning-circle" style={{ color: "var(--color-accent)", fontSize: 18 }} />
-          <span style={{ fontSize: 13 }}>
-            {missingEmailCount} player{missingEmailCount === 1 ? "" : "s"} {missingEmailCount === 1 ? "has" : "have"} no email on file — access is email-based, so
-            {missingEmailCount === 1 ? " they" : " they"} can&rsquo;t sign in until one&rsquo;s added below.
-          </span>
+      {gaps.lines.length > 0 && (
+        <div
+          className="card elev-sm"
+          style={{
+            marginBottom: 16,
+            flexDirection: "row",
+            alignItems: gaps.lines.length > 1 ? "flex-start" : "center",
+            gap: 10,
+            borderColor: "var(--color-accent)",
+          }}
+        >
+          <i
+            className="ph ph-warning-circle"
+            style={{ color: "var(--color-accent)", fontSize: 18, marginTop: gaps.lines.length > 1 ? 1 : 0 }}
+          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {gaps.lines.map((line) => (
+              <span key={line} style={{ fontSize: 13 }}>
+                {line}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
