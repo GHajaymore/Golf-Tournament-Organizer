@@ -51,6 +51,10 @@ export interface ContestView {
   potCents: number;
   /** Players who put their own name down and have not paid in yet. */
   pending: Array<{ playerId: string; name: string }>;
+  /** opt-in | opt-out — who is in the pot by default. */
+  entryMode: string;
+  /** Taken out of an opt-out pot. */
+  excluded: Array<{ playerId: string; name: string }>;
 }
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -64,6 +68,8 @@ export interface SideGameView {
   entrantIds: string[];
   /** Put their own name down from the app and still owe the cash. */
   pending: { playerId: string; name: string }[];
+  entryMode: string;
+  excluded: { playerId: string; name: string }[];
 }
 
 export function ContestsClient({

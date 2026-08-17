@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PrizesClient } from "@/components/PrizesClient";
 import { ContestsClient } from "@/components/ContestsClient";
+import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 
 export default async function PrizesPage({
   searchParams,
@@ -57,6 +58,19 @@ export default async function PrizesPage({
       })
     : [];
 
+  /**
+   * The field a pot draws its members from, and a name for an id.
+   *
+   * Confirmed entries only: an opt-out pot means "everyone PLAYING", and a
+   * waitlisted player is not playing. Shared by both pot types so they cannot
+   * disagree about who the field is.
+   */
+  const fieldIds = state.confirmed.map((p) => p.id);
+  const nameOf = (id: string) => state.confirmed.find((p) => p.id === id)?.name ?? "Unknown";
+  // A stored mode is free text; anything unrecognised falls back to the
+  // original behaviour rather than to whichever branch happens to be the else.
+  const modeOf = (v: string) => (isPotEntryMode(v) ? v : "opt-in");
+
   return (
     <>
       <div style={{ marginBottom: 20 }}>
@@ -101,48 +115,51 @@ export default async function PrizesPage({
         <ContestsClient
           roundLabel={`Round ${weeks.findIndex((s) => s.id === week.id) + 1}`}
           stageId={week.id}
-          contests={contests.map((c) => ({
-            id: c.id,
-            kind: c.kind,
-            name: c.name,
-            hole: c.hole,
-            buyInCents: c.buyInCents,
-            // Confirmed stakes are the pot; the rest are people who put their
-            // own name down in the app and still owe the organizer cash.
-            entrantIds: c.entrants.filter((e) => e.confirmed).map((e) => e.playerId),
-            winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
-            potCents: c.buyInCents * c.entrants.filter((e) => e.confirmed).length,
-            pending: c.entrants
-              .filter((e) => !e.confirmed)
-              .map((e) => ({
-                playerId: e.playerId,
-                name: state.confirmed.find((p) => p.id === e.playerId)?.name ?? "Unknown",
+          contests={contests.map((c) => {
+            // One rule for both modes — see potMembership. Opt-in counts the
+            // rows that exist; opt-out counts the field minus whoever said
+            // otherwise, so a weekly contest needs no ticking and a player
+            // entered later joins by himself.
+            const m = potMembership(modeOf(c.entryMode), fieldIds, c.entrants);
+            return {
+              id: c.id,
+              kind: c.kind,
+              name: c.name,
+              hole: c.hole,
+              buyInCents: c.buyInCents,
+              entryMode: modeOf(c.entryMode),
+              entrantIds: m.entrants,
+              winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
+              potCents: c.buyInCents * m.entrants.length,
+              pending: m.pending.map((playerId) => ({
+                playerId,
+                name: nameOf(playerId),
               })),
-          }))}
-          sideGames={sideGames.map((g) => ({
+              excluded: m.excluded.map((playerId) => ({ playerId, name: nameOf(playerId) })),
+            };
+          })}
+          sideGames={sideGames.map((g) => {
+            const m = potMembership(modeOf(g.entryMode), fieldIds, g.entrants);
+            return {
             id: g.id,
             kind: g.kind,
             buyInCents: g.buyInCents,
+            entryMode: modeOf(g.entryMode),
             /**
-             * Confirmed stakes only — the same rule the contests above follow,
-             * and this was the one place not following it.
+             * Confirmed stakes only — the same rule the contests follow, and
+             * this was the one place not following it.
              *
              * A player putting their own name down from the app writes an
              * unconfirmed row: an intention, not a stake. Counting it here put
              * money in the pot that nobody had handed over, so the payout was
-             * split more ways than there was cash — the exact thing the
-             * `confirmed` column was added to prevent, working everywhere
-             * except the pots a player can actually join from their phone.
+             * split more ways than there was cash.
              */
-            entrantIds: g.entrants.filter((e) => e.confirmed).map((e) => e.playerId),
+            entrantIds: m.entrants,
             // And who still owes, so there is somewhere to collect it from.
-            pending: g.entrants
-              .filter((e) => !e.confirmed)
-              .map((e) => ({
-                playerId: e.playerId,
-                name: state.confirmed.find((p) => p.id === e.playerId)?.name ?? "Unknown",
-              })),
-          }))}
+            pending: m.pending.map((playerId) => ({ playerId, name: nameOf(playerId) })),
+            excluded: m.excluded.map((playerId) => ({ playerId, name: nameOf(playerId) })),
+            };
+          })}
           field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
         />
       )}

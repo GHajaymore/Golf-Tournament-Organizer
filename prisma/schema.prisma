@@ -1620,6 +1620,15 @@ model Contest {
    */
   buyInCents Int @default(0)
 
+  /**
+   * opt-in | opt-out — see lib/domain/pot-entry.ts.
+   * opt-in: a name is in because somebody put it there.
+   * opt-out: everyone in the field is in unless they said otherwise, which is
+   * how a weekly league and a closest-to-the-pin actually run. Per pot, and a
+   * pot hangs off a round, so different rounds can run different games.
+   */
+  entryMode String @default("opt-in")
+
   entrants ContestEntry[]
 
   createdBy String   @default("")
@@ -1653,6 +1662,12 @@ model ContestEntry {
    * confirmation; the self-signup action is the only thing that writes false.
    */
   confirmed Boolean @default(true)
+  /**
+   * Explicitly out. A decision about PLAYING, where confirmed is a decision
+   * about MONEY — "took himself out" and "has not paid yet" settle
+   * differently, so they are not one column.
+   */
+  excluded  Boolean @default(false)
 
   contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
 
@@ -1687,6 +1702,15 @@ model SideGame {
    */
   buyInCents Int @default(0)
 
+  /**
+   * opt-in | opt-out — see lib/domain/pot-entry.ts.
+   * opt-in: a name is in because somebody put it there.
+   * opt-out: everyone in the field is in unless they said otherwise, which is
+   * how a weekly league and a closest-to-the-pin actually run. Per pot, and a
+   * pot hangs off a round, so different rounds can run different games.
+   */
+  entryMode String @default("opt-in")
+
   entrants SideGameEntry[]
 
   createdBy String   @default("")
@@ -1712,6 +1736,12 @@ model SideGameEntry {
    * a stake, and only a stake reaches the ledger.
    */
   confirmed  Boolean @default(true)
+  /**
+   * Explicitly out. A decision about PLAYING, where confirmed is a decision
+   * about MONEY — "took himself out" and "has not paid yet" settle
+   * differently, so they are not one column.
+   */
+  excluded  Boolean @default(false)
 
   sideGame SideGame @relation(fields: [sideGameId], references: [id], onDelete: Cascade)
 
