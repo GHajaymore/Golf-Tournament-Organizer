@@ -607,6 +607,22 @@ describe("roster CSV import", () => {
     expect(html).toContain('accept=".csv,text/csv"');
   });
 
+  it("shows the empty roster message outside a table", () => {
+    // The table declares minWidth 820, so an empty one still claimed 820px and
+    // put a horizontal scrollbar under a list with nothing in it — and the
+    // message, living in a colSpan cell, inherited that width and ran off the
+    // right edge. The one sentence a new club needs was the one being cut in
+    // half. No rows, no table.
+    const html = render(
+      <RosterClient clubName="Bushwood" isClub eventName="Spring Medal" fieldLocked={false} members={[]}
+        fieldSize={0} unlinkedCount={0} />,
+    );
+    expect(html).toContain("No members yet.");
+    expect(html).toContain("joins the roster automatically.");
+    expect(html).not.toContain("<table");
+    expect(html).not.toContain("minWidth");
+  });
+
   it("renders a populated roster", () => {
     const html = render(
       <RosterClient clubName="Bushwood" isClub eventName="Spring Medal" fieldLocked={false}

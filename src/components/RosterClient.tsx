@@ -496,6 +496,24 @@ export function RosterClient({
           </div>
         )}
 
+        {/* No rows, no table.
+            The table is 820px wide by declaration, so an empty one still
+            claimed 820px and put a horizontal scrollbar under a list with
+            nothing in it — and the empty-state sentence, living in a colSpan
+            cell, inherited that width and ran off the right edge. The one
+            message a club most needs to read on their first visit was the one
+            sentence the screen cut in half. Six columns of headings above no
+            rows tell nobody anything anyway. */}
+        {visible.length === 0 ? (
+          <p
+            className="text-muted"
+            style={{ fontSize: 13, textAlign: "center", padding: "20px 4px", margin: "10px 0 0" }}
+          >
+            {members.length === 0
+              ? "No members yet. Add one above, or import a field on Registration — everyone you enter joins the roster automatically."
+              : "No members match that search."}
+          </p>
+        ) : (
         <div className="table-scroll" style={{ marginTop: 10 }}>
           <table className="table" style={{ fontSize: 13, minWidth: 820 }}>
             <thead>
@@ -601,18 +619,10 @@ export function RosterClient({
                   </td>
                 </tr>
               ))}
-              {visible.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="text-muted" style={{ textAlign: "center", padding: "18px 0" }}>
-                    {members.length === 0
-                      ? "No members yet. Add one above, or import a field on Registration — everyone you enter joins the roster automatically."
-                      : "No members match that search."}
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </>
   );

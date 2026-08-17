@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { setEventStatus, launchTournament, setConfigUnlocked } from "@/app/actions/tournament";
 import { STATUS_META } from "@/lib/format";
+import { lifecycleMismatch } from "@/lib/domain/lifecycle-state";
 
 export interface LifecycleSummary {
   name: string;
@@ -18,16 +19,20 @@ export function LifecycleBar({
   isAdmin,
   configUnlocked,
   summary,
+  matchesScored = 0,
 }: {
   status: string;
   isAdmin: boolean;
   configUnlocked: boolean;
   summary: LifecycleSummary;
+  /** Results recorded so far, so the status can be checked against reality. */
+  matchesScored?: number;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
   const meta = STATUS_META[status] ?? STATUS_META.draft;
   const locked = (status === "live" || status === "completed") && !configUnlocked;
+  const mismatch = lifecycleMismatch({ status, matchesScored, playersEntered: summary.players });
 
   const next = () => {
     if (status === "draft") return { label: "Open registration", run: () => setEventStatus("registration") };
@@ -79,6 +84,35 @@ export function LifecycleBar({
           </button>
         )}
       </div>
+
+      {/* The status is the organizer's to set, so this reports the
+          disagreement rather than quietly correcting it — launching locks
+          configuration and hands out player access, which are decisions, not
+          bookkeeping. See lifecycleMismatch. */}
+      {mismatch && (
+        <div
+          className="card elev-sm"
+          style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 8 }}
+        >
+          <span className="card-title" style={{ fontSize: 14 }}>
+            <i className="ph ph-warning-circle" /> {mismatch.title}
+          </span>
+          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+            {mismatch.detail}
+          </p>
+          {isAdmin && mismatch.offerLaunch && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={pending}
+              onClick={() => setConfirming(true)}
+              style={{ alignSelf: "flex-start" }}
+            >
+              <i className="ph ph-rocket-launch" /> Launch tournament
+            </button>
+          )}
+        </div>
+      )}
 
       {confirming && (
         <div className="dialog-backdrop" onClick={() => setConfirming(false)}>

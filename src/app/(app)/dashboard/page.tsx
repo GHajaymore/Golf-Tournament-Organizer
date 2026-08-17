@@ -289,6 +289,7 @@ export default async function DashboardPage() {
         status={event.status}
         isAdmin={isAdmin}
         configUnlocked={event.configUnlocked}
+        matchesScored={progress.done}
         summary={{
           name: event.name,
           dates: event.dates,
