@@ -18,6 +18,27 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const SANDBOX_FROM = "onboarding@resend.dev";
 const FROM = process.env.RESEND_FROM_EMAIL ?? `TourneyHQ <${SANDBOX_FROM}>`;
 
+/**
+ * An address, logged without being an address.
+ *
+ * P2 of the 2026-08-12 audit: five lines printed a member's email into the
+ * platform log on every send failure. Logs are read by more people than the
+ * database is, kept longer, and shipped to whoever aggregates them — so a
+ * club's membership list leaked a name at a time through its own error
+ * handling, for no benefit an operator could point at.
+ *
+ * The domain survives, because it is the part that debugs anything: one
+ * corporate mail server bouncing everything looks nothing like one member's
+ * typo, and telling those apart is the only reason to log this at all. The
+ * local part does not, beyond its first character — enough to match a support
+ * email against a line, not enough to identify anybody from the line alone.
+ */
+export function maskEmail(address: string): string {
+  const at = (address ?? "").lastIndexOf("@");
+  if (at <= 0) return "an address";
+  return `${address[0]}***@${address.slice(at + 1)}`;
+}
+
 export interface EmailConfig {
   /** Whether an API key is present at all. */
   configured: boolean;
@@ -151,7 +172,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
       `,
     });
     if (error) {
-      console.error(`[email] Resend rejected the reset email for ${to}: ${error.message}`);
+      console.error(`[email] Resend rejected the reset email for ${maskEmail(to)}: ${error.message}`);
       await recordFailure({
         kind: "reset",
         reason: classifySendFailure(error.message, (error as { statusCode?: number }).statusCode),
@@ -166,7 +187,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     return { ok: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to send email.";
-    console.error(`[email] Failed sending reset email to ${to}: ${message}`);
+    console.error(`[email] Failed sending reset email to ${maskEmail(to)}: ${message}`);
     await recordFailure({
       kind: "reset",
       reason: classifySendFailure(message),
@@ -199,7 +220,7 @@ export async function sendRegistrationEmail(
   },
 ): Promise<void> {
   if (!resend) {
-    console.warn(`[email] RESEND_API_KEY not set — skipping registration email to ${to} (${opts.status}).`);
+    console.warn(`[email] RESEND_API_KEY not set — skipping registration email to ${maskEmail(to)} (${opts.status}).`);
     return;
   }
   const line =
@@ -216,7 +237,7 @@ export async function sendRegistrationEmail(
       html: `<p>Thanks for registering for <strong>${opts.eventName}</strong>.</p><p>${line}</p>`,
     });
     if (error) {
-      console.error(`[email] Resend rejected the registration email for ${to}: ${error.message}`);
+      console.error(`[email] Resend rejected the registration email for ${maskEmail(to)}: ${error.message}`);
       await recordFailure({
         kind: "registration",
         reason: classifySendFailure(error.message, (error as { statusCode?: number }).statusCode),
@@ -229,7 +250,7 @@ export async function sendRegistrationEmail(
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : "unknown error";
-    console.error(`[email] Failed sending registration email to ${to}: ${message}`);
+    console.error(`[email] Failed sending registration email to ${maskEmail(to)}: ${message}`);
     await recordFailure({
       kind: "registration",
       reason: classifySendFailure(message),
