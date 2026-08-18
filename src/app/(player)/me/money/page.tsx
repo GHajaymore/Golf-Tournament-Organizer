@@ -5,7 +5,6 @@ import { MoneyClient } from "@/components/MoneyClient";
 import { RoundMoney } from "@/components/RoundMoney";
 import { prisma } from "@/lib/db";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
-import { moneyLayoutFor } from "@/lib/domain/money-layout";
 
 /**
  * The player's money.
@@ -42,15 +41,23 @@ export default async function MoneyPage() {
   // an empty screen that implies something is missing.
   if (mode === "none") redirect("/me");
 
-  const layout = moneyLayoutFor(event.organization?.kind ?? "");
   const currency = event.organization?.currencySymbol || "$";
 
   const rounds = await roundMoneyFor(session.eventId, session.email);
 
-  // The split ledger only where the tournament actually splits costs. A kitty
-  // is the organizer's book: the fees have left the players' hands, so there
-  // is nothing here for a player to owe or be owed.
-  const ledger = mode === "split" && layout.ledger ? await moneyFor(session.eventId, session.email) : null;
+  /**
+   * The split ledger, whenever the tournament is on split. The MODE decides,
+   * and nothing else.
+   *
+   * This also asked `layout.ledger`, which is the default for the kind of
+   * outfit — and the kind has already had its say, as the fallback inside
+   * resolveMoneyMode. Asking twice meant a club that deliberately set one
+   * tournament to split got the tab (usesExpenses reads the mode) and then no
+   * ledger on it: the override honoured in one place and overruled in the
+   * other, which is worse than not offering it. A club running one society
+   * day a year is exactly who needs this.
+   */
+  const ledger = mode === "split" ? await moneyFor(session.eventId, session.email) : null;
   if (!rounds.playerId && !ledger?.used) redirect("/me");
 
   return (

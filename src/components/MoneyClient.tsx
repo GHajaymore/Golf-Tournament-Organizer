@@ -83,29 +83,6 @@ export function MoneyClient({ view }: { view: MoneyView }) {
         Money
       </div>
 
-      {/* The one number. */}
-      <section className="card elev-sm" style={{ marginTop: 8, alignItems: "center", textAlign: "center", padding: "20px 16px" }}>
-        <div style={{ fontSize: 12.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>
-          {view.netCents === 0 ? "You're square" : owed ? "You're owed" : "You owe"}
-        </div>
-        <div
-          style={{
-            fontFamily: "var(--font-heading)",
-            fontSize: 44,
-            lineHeight: 1.1,
-            fontVariantNumeric: "tabular-nums",
-            color: view.netCents === 0 ? "var(--color-text)" : owed ? "var(--color-accent-2-300)" : "var(--color-text)",
-          }}
-        >
-          {money(Math.abs(view.netCents))}
-        </div>
-        {/* The parts, always — never make the total take it on faith. */}
-        <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 12, color: "var(--color-neutral-400)" }}>
-          <span>Expenses {money(view.expensesCents)}</span>
-          {view.gamesCents !== 0 && <span>Side games {money(view.gamesCents)}</span>}
-          {view.settledCents !== 0 && <span>Settled {money(view.settledCents)}</span>}
-        </div>
-      </section>
 
       {/* Add — the common case is an amount and a label. */}
       {!adding ? (
@@ -243,6 +220,30 @@ export function MoneyClient({ view }: { view: MoneyView }) {
           )}
         </section>
       )}
+
+      {/* The one number. */}
+      <section className="card elev-sm" style={{ marginTop: 8, alignItems: "center", textAlign: "center", padding: "20px 16px" }}>
+        <div style={{ fontSize: 12.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>
+          {view.netCents === 0 ? "You're square" : owed ? "You're owed" : "You owe"}
+        </div>
+        <div
+          style={{
+            fontFamily: "var(--font-heading)",
+            fontSize: 44,
+            lineHeight: 1.1,
+            fontVariantNumeric: "tabular-nums",
+            color: view.netCents === 0 ? "var(--color-text)" : owed ? "var(--color-accent-2-300)" : "var(--color-text)",
+          }}
+        >
+          {money(Math.abs(view.netCents))}
+        </div>
+        {/* The parts, always — never make the total take it on faith. */}
+        <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 12, color: "var(--color-neutral-400)" }}>
+          <span>Expenses {money(view.expensesCents)}</span>
+          {view.gamesCents !== 0 && <span>Side games {money(view.gamesCents)}</span>}
+          {view.settledCents !== 0 && <span>Settled {money(view.settledCents)}</span>}
+        </div>
+      </section>
 
       {/* The side bets behind the "side games" figure above. A total a player
           cannot expand is a number they have to take on trust, and this is

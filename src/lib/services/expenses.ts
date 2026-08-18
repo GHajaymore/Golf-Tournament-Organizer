@@ -328,6 +328,14 @@ async function gameNets(eventId: string, onlyStageId?: string): Promise<Net[]> {
 }
 
 export async function moneyFor(eventId: string, email: string): Promise<MoneyView> {
+  // The field an opt-out pot draws on. Confirmed only — "everyone in the
+  // field" means everyone PLAYING, and a withdrawn player is not.
+  const confirmedField = await prisma.player.findMany({
+    where: { eventId, status: "confirmed" },
+    select: { id: true },
+  });
+  const moneyFieldIds = confirmedField.map((p) => p.id);
+
   const [rows, settlements, players, stages, contestRows, sideGameRows] = await Promise.all([
     prisma.expense.findMany({
       where: { eventId },
@@ -472,9 +480,21 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
         kind: isContestKind(c.kind) ? c.kind : ("other" as const),
         name: c.name,
         buyInCents: c.buyInCents,
-        // The pot shown is the money actually collected, so a screen never
-        // prints a figure larger than the cash on the table.
-        entrantIds: c.entrants.filter((e) => e.confirmed).map((e) => e.playerId),
+        /**
+         * Through potMembership, like the ledger arithmetic above.
+         *
+         * The DISPLAY read the rows directly while the settlement had already
+         * been taught opt-out, so the same contest read "$5.00 pot, 1 in" in
+         * the side-bets list and settled for $165 three inches below it. The
+         * pot shown is still only money actually collected — that is what
+         * potMembership returns as entrants — so no screen prints a figure
+         * larger than the cash on the table.
+         */
+        entrantIds: potMembership(
+          isPotEntryMode(c.entryMode) ? c.entryMode : "opt-in",
+          moneyFieldIds,
+          c.entrants,
+        ).entrants,
         winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
       };
       const mine = me ? c.entrants.find((e) => e.playerId === me.id) : undefined;
