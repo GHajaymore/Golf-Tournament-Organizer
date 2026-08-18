@@ -2138,3 +2138,138 @@ describe("locked metered features", () => {
     expect(render(<CommentaryPanel items={[]} canPost />)).not.toContain("On the paid plan");
   });
 });
+
+describe("the two controls built after the audit", () => {
+  // Both were shipped on a typecheck and a build alone, which is exactly the
+  // hole this file exists to cover. Each renders in the states a committee
+  // actually meets it in: nothing decided yet, waiting on earlier results,
+  // and resolved.
+  const rounds = [
+    { id: "r1", label: "Round 1" },
+    { id: "r2", label: "Round 2" },
+  ];
+  const players = [
+    { id: "p1", name: "Rita Ahuja" },
+    { id: "p2", name: "Tom Brooks" },
+  ];
+
+  it("offers the single match a rule before one has been chosen", async () => {
+    const { SingleMatchRulePicker } = await import("@/components/SingleMatchRulePicker");
+    const html = render(
+      <SingleMatchRulePicker
+        stageId="s1"
+        rule={null}
+        ruleLabel=""
+        problem="No pairing rule set yet."
+        aName=""
+        bName=""
+        matchId={null}
+        stale={false}
+        rounds={rounds}
+        players={players}
+      />,
+    );
+    expect(html).toContain("No pairing rule set yet.");
+  });
+
+  it("names the pair once the rule resolves, and offers to make the match", async () => {
+    const { SingleMatchRulePicker } = await import("@/components/SingleMatchRulePicker");
+    const html = render(
+      <SingleMatchRulePicker
+        stageId="s1"
+        rule={{ kind: "seeds", a: 1, b: 2 }}
+        ruleLabel="1st against 2nd"
+        problem=""
+        aName="Rita Ahuja"
+        bName="Tom Brooks"
+        matchId={null}
+        stale={false}
+        rounds={rounds}
+        players={players}
+      />,
+    );
+    expect(html).toContain("Rita Ahuja");
+    expect(html).toContain("Tom Brooks");
+  });
+
+  it("renders the single match picker with no rounds and no players to point at", async () => {
+    // The first day of a tournament: the stage exists and nothing else does.
+    // "Winner of round X" has nothing to offer, which must not throw.
+    const { SingleMatchRulePicker } = await import("@/components/SingleMatchRulePicker");
+    expect(() =>
+      render(
+        <SingleMatchRulePicker
+          stageId="s1"
+          rule={{ kind: "stage-winners", a: "r1", b: "r2" }}
+          ruleLabel="Winner of Round 1 against winner of Round 2"
+          problem="Waiting on the earlier rounds."
+          aName=""
+          bName=""
+          matchId={null}
+          stale={false}
+          rounds={[]}
+          players={[]}
+        />,
+      ),
+    ).not.toThrow();
+  });
+
+  it("explains the third-place play-off rather than showing a bare checkbox", async () => {
+    const { ThirdPlaceControl } = await import("@/components/ThirdPlaceControl");
+    const html = render(
+      <ThirdPlaceControl stageId="s1" on={false} problem="" aName="" bName="" made={false} />,
+    );
+    expect(html).toContain("Play off for third");
+    expect(html).toContain("beaten semi-finalists");
+  });
+
+  it("says what it is waiting for when the semi-finals are unplayed", async () => {
+    const { ThirdPlaceControl } = await import("@/components/ThirdPlaceControl");
+    const html = render(
+      <ThirdPlaceControl
+        stageId="s1"
+        on
+        problem="Waiting on the semi-finals — the losers of those two play for third."
+        aName=""
+        bName=""
+        made={false}
+      />,
+    );
+    expect(html).toContain("Waiting on the semi-finals");
+    expect(html).not.toContain("Create the play-off");
+  });
+
+  it("names the two beaten semi-finalists once both semis are settled", async () => {
+    const { ThirdPlaceControl } = await import("@/components/ThirdPlaceControl");
+    const html = render(
+      <ThirdPlaceControl
+        stageId="s1"
+        on
+        problem=""
+        aName="Rita Ahuja"
+        bName="Tom Brooks"
+        made={false}
+      />,
+    );
+    expect(html).toContain("Rita Ahuja");
+    expect(html).toContain("Create the play-off");
+  });
+
+  it("stops offering to create it once the play-off exists", async () => {
+    // The guard against a second play-off is server-side, but the screen must
+    // not keep inviting a click that will now be refused.
+    const { ThirdPlaceControl } = await import("@/components/ThirdPlaceControl");
+    const html = render(
+      <ThirdPlaceControl
+        stageId="s1"
+        on
+        problem=""
+        aName="Rita Ahuja"
+        bName="Tom Brooks"
+        made
+      />,
+    );
+    expect(html).not.toContain("Create the play-off");
+    expect(html).toContain("Score entry");
+  });
+});
