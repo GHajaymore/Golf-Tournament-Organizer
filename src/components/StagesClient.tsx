@@ -991,32 +991,51 @@ function StageCard({
 
             {stage.type === "Round Robin" && (
               <div>
-                <SectionLabel>Match points &amp; tiebreakers</SectionLabel>
-                {format === "Match Play" ? (
-                  <>
+                {/* Two different questions that were sharing one heading, which
+                    is why nobody could find the second one. The first settles
+                    ONE MATCH that finished all square; the second settles TWO
+                    PLAYERS level on points once every match is in. They apply
+                    at different moments and neither substitutes for the other,
+                    so they are now separately titled and separately boxed. */}
+                {format === "Match Play" && (
+                  <div style={{ marginBottom: 18 }}>
+                    <SectionLabel>
+                      1. A match finishes all square
+                      <FieldInfo label="deciding a halved match">
+                        <p>
+                          This decides a single match on the day — who takes the point when two players
+                          finish level after the last hole. It has nothing to do with the standings.
+                        </p>
+                      </FieldInfo>
+                    </SectionLabel>
                     <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 10px" }}>
-                      Points for match results in round-robin play, and the tiebreakers that settle level
-                      standings. Shared by all round-robin rounds scored as Match Play.
+                      Who takes the point when a match ends level. Tried in order; a halved match stays
+                      halved if none of them separates the two.
                     </p>
-                    {/* Two different questions, in the order they are asked.
-                        This one decides a single match; the one below settles
-                        players level on points once every match is decided. */}
-                    <MatchTiebreakControl
-                      selected={matchTiebreakers}
-                      holes={holes}
-                      locked={pending}
-                    />
-                    <div style={{ borderTop: "1px solid var(--color-divider)", margin: "14px 0 12px" }} />
-                    <SectionLabel>If players finish level on points</SectionLabel>
-                    <ScoringClient initial={scoring} tiebreakers={tiebreakers} />
-                  </>
-                ) : (
-                  <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
-                    This round is scored as Stroke Play — ties break by{" "}
-                    {basis === "stableford" ? "highest Stableford points" : "lowest net, then lowest gross"}.
-                    Match Points &amp; tiebreakers only apply to Match Play rounds.
-                  </p>
+                    <MatchTiebreakControl selected={matchTiebreakers} holes={holes} locked={pending} />
+                  </div>
                 )}
+
+                <div>
+                  <SectionLabel>
+                    {format === "Match Play" ? "2. Players finish level on the leaderboard" : "Players finish level on the leaderboard"}
+                    <FieldInfo label="deciding the standings">
+                      <p>
+                        This ranks the STANDINGS once every match is in — a different question from the
+                        one above, asked at a different time. Add as many Toughest N steps as you like
+                        and set N on each.
+                      </p>
+                    </FieldInfo>
+                  </SectionLabel>
+                  <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 10px" }}>
+                    {format === "Match Play"
+                      ? "How the table is ordered when players are level on points. Shared by every round-robin round scored as Match Play."
+                      : `This round is scored as Stroke Play, so ties break by ${
+                          basis === "stableford" ? "highest Stableford points" : "lowest net, then lowest gross"
+                        }, then by the steps below.`}
+                  </p>
+                  <ScoringClient initial={scoring} tiebreakers={tiebreakers} />
+                </div>
               </div>
             )}
           </div>
