@@ -99,9 +99,20 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
 
   const holes = stage.holes === 9 ? 9 : 18;
 
-  // Who I am playing with. Names come from the field rather than the sheet, so
-  // a player withdrawn after the draw simply drops out instead of appearing.
-  const sheet = parseTeeSheet(stage.teeSheet);
+  /**
+   * Who I am playing with — from the PUBLISHED sheet only.
+   *
+   * P4 of the 2026-08-12 audit. This read the stored draw without asking
+   * whether it had been published, so a draft reached a player's phone the
+   * moment an organizer saved it. The whole point of the publish step is that
+   * a committee can shuffle a draw, sleep on it and redraw — and a player
+   * ringing up about a tee time they were never meant to see takes that away.
+   * The dashboard already got this right; these two callers did not.
+   *
+   * Names come from the field rather than the sheet, so a player withdrawn
+   * after the draw simply drops out instead of appearing.
+   */
+  const sheet = stage.teeSheetPublished ? parseTeeSheet(stage.teeSheet) : null;
   const mine = sheet?.groups.find((g) => g.playerIds.includes(playerId)) ?? null;
   const group = mine
     ? {

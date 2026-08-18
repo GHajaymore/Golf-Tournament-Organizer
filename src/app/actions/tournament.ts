@@ -2998,3 +2998,61 @@ export async function setRequirePhone(required: boolean): Promise<{ ok: boolean;
   refresh();
   return { ok: true };
 }
+
+/**
+ * Mint a new public link, and kill the old one.
+ *
+ * P3 of the 2026-08-12 audit: `shareToken` was minted once at creation and
+ * `registrationToken` once on first open, and **nothing anywhere replaced
+ * either**. A link forwarded to the wrong WhatsApp group, or posted somewhere
+ * public, could only be dealt with by switching the whole feature off — and
+ * per D2 an organizer often could not even do that. A secret with no way to
+ * change it is a secret you keep until it stops being one.
+ *
+ * Admin only, and audited. Rotating is destructive in the way that matters:
+ * every copy of the old URL stops working the moment this runs, including the
+ * ones in fifty inboxes and on the noticeboard. That is the point, but it is
+ * not something an assistant should be able to do by mis-tapping, and it is
+ * something a committee will want a name against afterwards.
+ *
+ * The registration link is only rotated when one already exists. Minting a
+ * token here for a tournament that has never opened registration would create
+ * a live public URL as a side effect of asking to invalidate one.
+ */
+export async function rotatePublicToken(
+  which: "share" | "registration",
+): Promise<{ ok: boolean; token?: string; error?: string }> {
+  const eventId = await requireAdminEvent();
+  const session = await getSession();
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { shareToken: true, registrationToken: true },
+  });
+  if (!event) return { ok: false, error: "Event not found." };
+
+  const token = generateShareToken();
+
+  if (which === "share") {
+    await prisma.event.update({ where: { id: eventId }, data: { shareToken: token } });
+    await logAudit(
+      eventId,
+      null,
+      "rotate-share-token",
+      `${session?.name ?? "An organizer"} replaced the live leaderboard link`,
+    );
+  } else {
+    if (!event.registrationToken) {
+      return { ok: false, error: "There's no sign-up link yet — open registration to create one." };
+    }
+    await prisma.event.update({ where: { id: eventId }, data: { registrationToken: token } });
+    await logAudit(
+      eventId,
+      null,
+      "rotate-registration-token",
+      `${session?.name ?? "An organizer"} replaced the sign-up link`,
+    );
+  }
+
+  refresh();
+  return { ok: true, token };
+}

@@ -1,7 +1,7 @@
 "use client";
 import { registrationStatus, formatDeadline } from "@/lib/registration";
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
-import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup } from "@/app/actions/tournament";
+import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
 import { useState, useRef, useTransition } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
 import { SetupLockBanner } from "./SetupLockBanner";
@@ -574,6 +574,33 @@ export function RegistrationClient({
                 <button type="button" className="btn btn-secondary" onClick={() => copy(registerUrl, "reg")}>
                   <i className="ph ph-copy" /> {copied === "reg" ? "Copied" : "Copy link"}
                 </button>
+                {/* P3: a secret with no way to change it is a secret you keep
+                    until it stops being one. Confirmed, because every copy of
+                    the old URL dies the moment this runs — which is the point,
+                    and not something to do by mis-tapping. Admin only. */}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={pending}
+                    title="Replace this link — the old one stops working"
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          "Replace the sign-up link?\n\nThe current link stops working immediately — anyone who already has it, including in an email you sent, will get 'this registration link isn't open'. You'll need to send the new one out.",
+                        )
+                      ) {
+                        return;
+                      }
+                      startTransition(async () => {
+                        const res = await rotatePublicToken("registration");
+                        setRowError(res.ok ? "" : res.error ?? "Couldn't replace that link.");
+                      });
+                    }}
+                  >
+                    <i className="ph ph-arrows-clockwise" /> New link
+                  </button>
+                )}
               </div>
             )}
 

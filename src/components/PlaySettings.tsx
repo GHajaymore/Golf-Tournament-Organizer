@@ -5,6 +5,7 @@ import {
   saveOrganizationDefaults,
   regenerateRoundCode,
 } from "@/app/actions/settings";
+import { rotatePublicToken } from "@/app/actions/tournament";
 import {
   LEADERBOARD_VISIBILITY,
   LEADERBOARD_VISIBILITY_LABEL,
@@ -115,6 +116,7 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState("");
+  const [rotating, setRotating] = useState(false);
   const [origin, setOrigin] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -195,6 +197,32 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
           <button type="button" className="btn btn-secondary" onClick={() => copy(shareUrl, "share")}>
             <i className="ph ph-copy" /> {copied === "share" ? "Copied" : "Copy"}
           </button>
+          {/* P3 of the audit: this token was minted once at creation and
+              nothing replaced it, so a link posted somewhere public could only
+              be dealt with by turning the leaderboard off. Confirmed, because
+              every copy of the old URL dies the moment it runs — including the
+              one on the clubhouse noticeboard. */}
+          {canEdit && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={rotating}
+              title="Replace this link — the old one stops working"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    "Replace the leaderboard link?\n\nThe current link stops working immediately — anyone who has it, including on a noticeboard or in a group chat, will get a not-found page. You'll need to share the new one.",
+                  )
+                ) {
+                  return;
+                }
+                setRotating(true);
+                void rotatePublicToken("share").finally(() => setRotating(false));
+              }}
+            >
+              <i className="ph ph-arrows-clockwise" /> New link
+            </button>
+          )}
         </div>
       )}
 

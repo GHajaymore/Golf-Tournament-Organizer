@@ -401,7 +401,17 @@ export default async function EntryPage() {
           // Who shares a card. Entry follows the tee group; the flight is a
           // different axis and decides who you are compared against, not who
           // is standing next to you writing the scores down.
-          teeGroups: (parseTeeSheet(stage.teeSheet)?.groups ?? []).map((g) => ({
+          /**
+           * Staff see the draft; a player sees only what was published.
+           *
+           * P4 of the 2026-08-12 audit — this read the stored draw with no
+           * `teeSheetPublished` check, and this screen is reachable by players
+           * whenever the tournament lets them enter their own scores. So a
+           * committee shuffling a draw had it on the field's phones the moment
+           * they saved. An organizer needs the draft here, because grouping
+           * the card is what they are doing; a player does not.
+           */
+          teeGroups: ((isStaff || stage.teeSheetPublished ? parseTeeSheet(stage.teeSheet)?.groups : []) ?? []).map((g) => ({
             name: g.name,
             time: g.time,
             playerIds: g.playerIds,
