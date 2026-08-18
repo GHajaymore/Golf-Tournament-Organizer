@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
-import { settingsOf, effectiveScoreStatus } from "@/lib/services/tournament";
+import { settingsOf, effectiveScoreStatus, loadEventState } from "@/lib/services/tournament";
 import {
   canEnterScores,
   canPlayerSavePartial,
@@ -26,6 +26,7 @@ import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-ac
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
 import { parseSingleMatchRule } from "@/lib/domain/single-match";
 import { singleMatchFor } from "@/lib/services/single-match";
+import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
@@ -3130,6 +3131,80 @@ export async function createSingleMatch(stageId: string): Promise<{ ok: boolean;
     data: { eventId, stageId, groupId: "", round: 1, playerAId, playerBId, holes: "[]" },
   });
   await logAudit(eventId, null, "single-match", `Created the match for this round: ${view.aName} v ${view.bName}`);
+  refresh();
+  return { ok: true };
+}
+
+/** Whether this knockout plays off for third. Off by default. */
+export async function setThirdPlace(stageId: string, on: boolean): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+
+  const r = await prisma.stage.updateMany({
+    where: { id: stageId, eventId },
+    data: { thirdPlace: !!on },
+  });
+  if (r.count === 0) return { ok: false, error: "That round isn't in this tournament." };
+
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Create the third-place match from the beaten semi-finalists.
+ *
+ * Explicit, like the Single Match Stage's own create and for the same reason:
+ * the pairing is derived and can still change, and "we are playing this" is a
+ * committee's decision rather than a consequence of a semi-final finishing.
+ *
+ * The pairing comes from `resolveThirdPlace`, which refuses on an unfinished
+ * semi-final rather than naming two players who might both still reach the
+ * Final — so this only ever has a real pair to write.
+ */
+export async function createThirdPlaceMatch(stageId: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { id: true, thirdPlace: true },
+  });
+  if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+  if (!stage.thirdPlace) return { ok: false, error: "This knockout isn't playing off for third." };
+
+  const state = await loadEventState(eventId);
+  const resolved = resolveThirdPlace(state?.brackets.winners ?? null);
+  if (!resolved.pairing) return { ok: false, error: resolved.problem };
+
+  const { a, b } = resolved.pairing;
+  if (!a.playerId || !b.playerId) return { ok: false, error: resolved.problem || "No beaten semi-finalists yet." };
+
+  /**
+   * One third-place match per knockout.
+   *
+   * Marked by its round number so it cannot be confused with a bracket match
+   * and cannot be created twice — `round: 0` is used by nothing else, and a
+   * second play-off for third is not a thing.
+   */
+  const existing = await prisma.match.findFirst({
+    where: { eventId, stageId, round: 0 },
+    select: { id: true },
+  });
+  if (existing) return { ok: false, error: "The play-off for third has already been made." };
+
+  // Both ids came from the bracket, which is built from this event's field —
+  // the where clause says so anyway rather than trusting a value that arrived
+  // through three functions.
+  const both = await prisma.player.findMany({
+    where: { eventId, id: { in: [a.playerId, b.playerId] } },
+    select: { id: true },
+  });
+  if (both.length !== 2) return { ok: false, error: "Those players aren't both in this tournament." };
+
+  await prisma.match.create({
+    data: { eventId, stageId, groupId: "", round: 0, playerAId: a.playerId, playerBId: b.playerId, holes: "[]" },
+  });
+  await logAudit(eventId, null, "third-place", `Created the play-off for third: ${a.name} v ${b.name}`);
   refresh();
   return { ok: true };
 }
