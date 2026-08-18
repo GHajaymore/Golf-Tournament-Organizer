@@ -40,33 +40,64 @@ export function parseCardRow(text: string, holes = 18): ParsedCardRow {
   // Exactly the hole count: nothing to strip.
   if (nums.length === holes) return { values: nums, strippedTotals: [] };
 
+  /**
+   * Strip the totals by ARITHMETIC rather than by position.
+   *
+   * This used to assume a layout from the count alone — 20 numbers meant
+   * "nine, OUT, nine, TOTAL", so it dropped whatever sat at index 9 and 19.
+   * That is right for a tidy card and silently wrong for a real one. A card
+   * pasted with one par missing from the front nine still has 20 numbers, so
+   * the OUT total was kept AS A PAR and a real hole was thrown away: the
+   * screen showed par 36 on the 9th, and the only complaint was a flat "every
+   * hole needs a par between 3 and 6" with nothing said about where or why.
+   *
+   * A total is a number that equals the sum of the run in front of it, and
+   * that is checkable rather than guessable. Only after a full nine, or as a
+   * grand total once the whole card is in — so an ordinary par 4 that happens
+   * to equal something cannot be mistaken for one.
+   */
+  const values: number[] = [];
   const strippedTotals: number[] = [];
+  const nine = holes === 9 ? 9 : 9;
+  let run = 0;
+  let runCount = 0;
+  let all = 0;
 
-  if (holes === 18) {
-    // 21 = 9 + OUT + 9 + IN + TOT. 20 = one of the two nine-totals plus a
-    // grand total. 19 = a grand total only.
-    if (nums.length === 21) {
-      strippedTotals.push(nums[9], nums[19], nums[20]);
-      return { values: [...nums.slice(0, 9), ...nums.slice(10, 19)], strippedTotals };
+  for (const n of nums) {
+    const endsANine = runCount === nine && n === run;
+    const isGrandTotal = values.length === holes && n === all;
+    if (endsANine || isGrandTotal) {
+      strippedTotals.push(n);
+      run = 0;
+      runCount = 0;
+      continue;
     }
-    if (nums.length === 20) {
-      strippedTotals.push(nums[9], nums[19]);
-      return { values: [...nums.slice(0, 9), ...nums.slice(10, 19)], strippedTotals };
-    }
-    if (nums.length === 19) {
-      strippedTotals.push(nums[18]);
-      return { values: nums.slice(0, 18), strippedTotals };
-    }
+    values.push(n);
+    all += n;
+    run += n;
+    runCount += 1;
   }
 
+  if (values.length === holes) return { values, strippedTotals };
+
+  /**
+   * The arithmetic did not resolve it — the card does not add up, which is
+   * usually a hole missing from the paste. Fall back to the old positional
+   * reading only where it is unambiguous, and otherwise hand the numbers back
+   * whole so the validator can say what is wrong. A wrong card entered
+   * silently is worse than one that refuses to load.
+   */
+  if (holes === 18 && nums.length === 21) {
+    return { values: [...nums.slice(0, 9), ...nums.slice(10, 19)], strippedTotals: [nums[9], nums[19], nums[20]] };
+  }
+  if (holes === 18 && nums.length === 19) {
+    return { values: nums.slice(0, 18), strippedTotals: [nums[18]] };
+  }
   if (holes === 9 && nums.length === 10) {
-    strippedTotals.push(nums[9]);
-    return { values: nums.slice(0, 9), strippedTotals };
+    return { values: nums.slice(0, 9), strippedTotals: [nums[9]] };
   }
 
-  // Anything else is handed back whole — the validator will say what's wrong
-  // far more usefully than a guess here would.
-  return { values: nums, strippedTotals };
+  return { values: nums, strippedTotals: [] };
 }
 
 export interface CardProblem {
@@ -101,16 +132,29 @@ export function validateCard(
 ): ParsedCard {
   const problems: CardProblem[] = [];
 
+  /**
+   * Say what is actually wrong, not just that the count is off.
+   *
+   * "Expected 18 numbers, found 20" is true and useless: the reader cannot
+   * tell whether they pasted too much or too little, and the commonest cause
+   * — one hole missing from a row that still carries its totals — reads as
+   * having pasted too MANY. Totals are stripped by arithmetic upstream, so
+   * anything left over is a card that does not reconcile, and saying so is
+   * the only hint worth giving.
+   */
   const lengthProblem = (row: CardProblem["row"], values: number[]) => {
-    if (values.length !== holes) {
-      problems.push({
-        row,
-        message: `Expected ${holes} numbers, found ${values.length}.`,
-        holes: [],
-      });
-      return true;
-    }
-    return false;
+    if (values.length === holes) return false;
+    const label = row === "pars" ? "par" : row === "yards" ? "yardage" : "stroke index";
+    const short = holes - values.length;
+    const message =
+      values.length > holes
+        ? `Found ${values.length} numbers for ${holes} holes on the ${label} row. The totals could not be ` +
+          `told apart from the holes, which usually means one hole is missing — check each nine adds up to ` +
+          `the OUT and IN figures on the card.`
+        : `Found only ${values.length} numbers for ${holes} holes on the ${label} row. ` +
+          `${short} hole${short === 1 ? " is" : "s are"} missing.`;
+    problems.push({ row, message, holes: [] });
+    return true;
   };
 
   // ── Pars ──────────────────────────────────────────────────────────────

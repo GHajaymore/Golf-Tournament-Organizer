@@ -150,7 +150,8 @@ describe("checking pars and yards", () => {
 
   it("says when a row is the wrong length", () => {
     const r = validateCard(PARS.slice(0, 17), [], SI);
-    expect(r.problems.some((p) => p.row === "pars" && p.message.includes("found 17"))).toBe(true);
+    // The message now names the row and says how many holes are missing.
+    expect(r.problems.some((p) => p.row === "pars" && /17 numbers for 18 holes/.test(p.message))).toBe(true);
   });
 });
 
@@ -182,5 +183,67 @@ describe("a card pasted off a club website", () => {
   it("refuses an empty paste rather than saving a blank card", () => {
     const r = parseCard({ pars: "", strokeIndex: "" });
     expect(r.ok).toBe(false);
+  });
+});
+
+
+describe("stripping totals off a pasted row", () => {
+  const par = (t: string) => parseCardRow(t).values;
+
+  it("takes a tidy card with every total on it", () => {
+    // 9, OUT, 9, IN, TOT — what a club website usually prints.
+    const row = "4 5 3 4 4 3 4 4 5 36 4 4 3 4 5 4 3 4 4 35 71";
+    expect(par(row)).toEqual([4, 5, 3, 4, 4, 3, 4, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 4]);
+  });
+
+  it("takes one with no totals at all", () => {
+    const row = "4 5 3 4 4 3 4 4 5 4 4 3 4 5 4 3 4 4";
+    expect(par(row)).toHaveLength(18);
+  });
+
+  it("takes one with only a grand total", () => {
+    const row = "4 5 3 4 4 3 4 4 5 4 4 3 4 5 4 3 4 4 71";
+    expect(par(row)).toHaveLength(18);
+  });
+
+  it("does not mistake a par for a total", () => {
+    // The danger of matching sums: an early hole can equal the running sum.
+    // A total only counts after a full nine, so this stays 18 holes.
+    const row = "4 4 3 4 4 3 4 4 5 4 4 3 4 5 4 3 4 4";
+    expect(par(row)).toHaveLength(18);
+    expect(par(row)[1]).toBe(4);
+  });
+
+  it("refuses to invent a card when a hole is missing", () => {
+    /**
+     * The reported case. A front nine with one par missing still leaves 20
+     * numbers, so reading by POSITION dropped a real par and kept the OUT
+     * total as the 9th hole — the screen offered a par 36 and said only that
+     * a par must be between 3 and 6.
+     */
+    const row = "4 5 3 4 4 3 4 5 36 4 4 3 4 5 4 3 4 4 35 71";
+    const values = par(row);
+    // The guarantee is not that it recovers the missing hole — it cannot, the
+    // number is not in the paste. It is that it never hands back a PLAUSIBLE
+    // card built from a total. Eighteen values would be accepted and scored.
+    expect(values.length).not.toBe(18);
+    // The numbers come back whole, so the count is visibly wrong and the
+    // message below explains it, rather than a par 36 reaching the boxes.
+    expect(values).toHaveLength(20);
+  });
+
+  it("says what is wrong rather than just counting", () => {
+    const card = parseCard({
+      pars: "4 5 3 4 4 3 4 5 36 4 4 3 4 5 4 3 4 4 35 71",
+      strokeIndex: "7 3 11 1 15 5 17 9 13 8 4 12 2 16 6 18 10 14",
+    });
+    const parProblem = card.problems.find((p) => p.row === "pars");
+    expect(parProblem?.message).toMatch(/one hole is missing/);
+    expect(parProblem?.message).toMatch(/OUT and IN/);
+  });
+
+  it("leaves a correct stroke index alone", () => {
+    const si = "7 3 11 1 15 5 17 9 13 8 4 12 2 16 6 18 10 14";
+    expect(parseCardRow(si).values).toHaveLength(18);
   });
 });
