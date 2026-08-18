@@ -31,6 +31,16 @@ export interface SingleMatchView {
   canCreate: boolean;
   /** True when a match exists but the rule now resolves to different players. */
   stale: boolean;
+  /**
+   * The other rounds and the field, for the picker's dropdowns.
+   *
+   * Carried here rather than threaded through the round-card component tree:
+   * the view already had to load both to resolve the rule, and a second query
+   * two components away is how the picker would come to offer a round that no
+   * longer exists.
+   */
+  rounds: Array<{ id: string; label: string }>;
+  players: Array<{ id: string; name: string }>;
 }
 
 /**
@@ -128,5 +138,7 @@ export async function singleMatchFor(eventId: string, stageId: string): Promise<
     matchId: existing?.id ?? null,
     canCreate: !!pair && !existing,
     stale,
+    rounds: state.stages.map((s, i) => ({ id: s.id, label: `Round ${i + 1}` })),
+    players: state.confirmed.map((p) => ({ id: p.id, name: p.name })),
   };
 }

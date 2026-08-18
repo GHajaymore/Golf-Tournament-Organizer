@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { StagesClient } from "@/components/StagesClient";
+import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
 import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
@@ -62,6 +63,19 @@ export default async function StagesPage() {
     attendanceMode === "everyone"
       ? []
       : await prisma.roundAttendance.findMany({ where: { eventId: session.eventId } });
+
+  /**
+   * A resolved view per Single Match Stage.
+   *
+   * Only those stages — every other kind has no entry, so the picker is
+   * rendered by the presence of a view rather than by a second type check
+   * that could drift from this one.
+   */
+  const singleMatches: Record<string, SingleMatchView> = {};
+  for (const s of state.stages.filter((x) => x.type === "Single Match Stage")) {
+    const view = await singleMatchFor(session.eventId, s.id);
+    if (view) singleMatches[s.id] = view;
+  }
 
   const stages = state.stages.map((s) => ({
     id: s.id,
@@ -140,6 +154,7 @@ export default async function StagesPage() {
       )}
       <StagesClient
         stages={stages}
+        singleMatches={singleMatches}
         venues={venues}
         activeStageId={state.activeStage?.id ?? null}
         handicapWarning={await unratedWarning(session.eventId, state.stages.find((s) => s.type === "Round Robin")?.scoringBasis ?? "gross")}

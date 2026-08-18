@@ -31,6 +31,8 @@ import { ScoringClient } from "./ScoringClient";
 import { RoundTeamScoring, type RoundScoringInfo } from "./RoundTeamScoring";
 import { MatchTiebreakControl } from "./MatchTiebreakControl";
 import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
+import { SingleMatchRulePicker } from "@/components/SingleMatchRulePicker";
+import type { SingleMatchView } from "@/lib/services/single-match";
 import { QualControl } from "./QualControl";
 import { CutControl } from "./CutControl";
 import { RoundDeadlineControl } from "./RoundDeadlineControl";
@@ -326,8 +328,11 @@ function StageCard({
   chainsRounds,
   expanded,
   onToggle,
+  singleMatch,
 }: {
   stage: StageView;
+  /** For a Single Match Stage: the rule, and who it currently resolves to. */
+  singleMatch?: SingleMatchView | null;
   isFirst: boolean;
   /** Whether this round's configuration is open. */
   expanded: boolean;
@@ -921,6 +926,28 @@ function StageCard({
               </div>
             )}
 
+            {/* One match, paired by a rule rather than by hand. Sits with the
+                other per-type settings because that is what it is: how this
+                kind of round decides what it contains. */}
+            {stage.type === "Single Match Stage" && singleMatch && (
+              <div>
+                <SectionLabel>The match</SectionLabel>
+                <SingleMatchRulePicker
+                  stageId={stage.id}
+                  rule={singleMatch.rule}
+                  ruleLabel={singleMatch.ruleLabel}
+                  problem={singleMatch.resolution.problem}
+                  aName={singleMatch.aName}
+                  bName={singleMatch.bName}
+                  matchId={singleMatch.matchId}
+                  stale={singleMatch.stale}
+                  rounds={singleMatch.rounds}
+                  players={singleMatch.players}
+                  locked={false}
+                />
+              </div>
+            )}
+
             {stage.type === "Qualification Stage" && (
               <div>
                 <SectionLabel>
@@ -988,6 +1015,7 @@ export function StagesClient({
   chainsRounds = true,
   handicapWarning = null,
   activeStageId = null,
+  singleMatches,
 }: {
   stages: StageView[];
   rrMatchesPerPlayer: number;
@@ -1008,6 +1036,13 @@ export function StagesClient({
   /** The round actually being played, decided on the server so this screen
    *  and every other one name the same round. */
   activeStageId?: string | null;
+  /**
+   * Resolved Single Match Stage views, by stage id.
+   *
+   * Only the stages that are one — every other kind has no entry, which is why
+   * the lookup is optional rather than a map that has to be complete.
+   */
+  singleMatches?: Record<string, SingleMatchView>;
 }) {
   /**
    * Which round is open. One at a time, and none when there are several.
@@ -1078,6 +1113,7 @@ export function StagesClient({
           <StageCard
             key={s.id}
             stage={s}
+            singleMatch={singleMatches?.[s.id] ?? null}
             expanded={openRound === s.id}
             onToggle={() => setOpenRound((cur) => (cur === s.id ? null : s.id))}
             isFirst={i === 0}

@@ -44,7 +44,12 @@ export function SingleMatchRulePicker({
   /** The other rounds, for "winner of X against winner of Y". */
   rounds: Array<{ id: string; label: string }>;
   players: Array<{ id: string; name: string }>;
-  locked: boolean;
+  /**
+   * Optional. Both actions call assertUnlocked on the server, so a locked
+   * tournament is refused there with a message either way — this only saves
+   * the round trip when the caller already knows.
+   */
+  locked?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
