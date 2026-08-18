@@ -2,6 +2,13 @@
 import { useState, useTransition } from "react";
 import { addContest, setContestEntrants, setContestWinners, removeContest, confirmContestEntry } from "@/app/actions/contests";
 import { saveSideGame, setSideGameEntrants, confirmSideGameEntry } from "@/app/actions/side-games";
+import { setPotEntryMode } from "@/app/actions/money-setup";
+import {
+  POT_ENTRY_MODES,
+  POT_MODE_LABEL,
+  POT_MODE_HELP,
+  isPotEntryMode,
+} from "@/lib/domain/pot-entry";
 import { CONTEST_KINDS, CONTEST_LABEL, type ContestKind } from "@/lib/domain/contests";
 import { DERIVED_KINDS, DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
 import { PersonChip } from "@/components/PersonChip";
@@ -94,12 +101,41 @@ export function ContestsClient({
   const [hole, setHole] = useState("");
   const [stake, setStake] = useState("5");
 
+
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
     startTransition(async () => {
       setError("");
       const res = await fn();
       if (!res.ok) setError(res.error ?? "Couldn't save that.");
     });
+
+  /**
+   * Opt-in or opt-out, on one pot.
+   *
+   * Shown on every pot rather than set once for the tournament, because a
+   * club routinely runs both on the same day: the closest-to-the-pin is on
+   * for everybody, and the £10 sweep is for whoever fancies it.
+   */
+  const modeToggle = (potType: "contest" | "sideGame", potId: string, mode: string) => (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center", marginTop: 6 }}>
+      {POT_ENTRY_MODES.map((m) => (
+        <button
+          key={m}
+          type="button"
+          className={`tag ${mode === m ? "tag-accent" : "tag-neutral"}`}
+          disabled={pending}
+          onClick={() => run(() => setPotEntryMode(potType, potId, m))}
+          style={{ cursor: "pointer", border: "none" }}
+          title={POT_MODE_HELP[m]}
+        >
+          {POT_MODE_LABEL[m]}
+        </button>
+      ))}
+      <span className="text-muted" style={{ fontSize: 11.5, flexBasis: "100%", lineHeight: 1.55 }}>
+        {POT_MODE_HELP[isPotEntryMode(mode) ? mode : "opt-in"]}
+      </span>
+    </div>
+  );
 
   const create = () => {
     const cents = Math.round(Number(stake.replace(/[^0-9.]/g, "")) * 100);
@@ -229,6 +265,8 @@ export function ContestsClient({
                   them is the job, so they come first. This was the one pot type
                   a player could join from the app and the only one with nowhere
                   for the organizer to see it. */}
+              {on && game && modeToggle("sideGame", game.id, game.entryMode)}
+
               {on && game && game.pending.length > 0 && (
                 <div
                   style={{
@@ -308,6 +346,8 @@ export function ContestsClient({
                 <span className="text-muted" style={{ fontSize: 12 }}> · {money(c.buyInCents)} each</span>
               </span>
             </div>
+
+            {modeToggle("contest", c.id, c.entryMode)}
 
             {/* Anybody who put their own name down in the app and has not yet
                 handed the money over. Shown first, because collecting from

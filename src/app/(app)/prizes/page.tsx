@@ -8,6 +8,9 @@ import { prisma } from "@/lib/db";
 import { PrizesClient } from "@/components/PrizesClient";
 import { ContestsClient } from "@/components/ContestsClient";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
+import { resolveMoneyMode } from "@/lib/domain/money-mode";
+import { MoneySetup } from "@/components/MoneySetup";
+import { FloatClient } from "@/components/FloatClient";
 
 export default async function PrizesPage({
   searchParams,
@@ -70,6 +73,25 @@ export default async function PrizesPage({
   // A stored mode is free text; anything unrecognised falls back to the
   // original behaviour rather than to whichever branch happens to be the else.
   const modeOf = (v: string) => (isPotEntryMode(v) ? v : "opt-in");
+
+  // How this tournament handles money at all, and the kitty when it keeps one.
+  const org = await prisma.organization.findUnique({
+    where: { id: state.event.organizationId },
+    select: { name: true, shortName: true, kind: true, moneyMode: true },
+  });
+  const moneyMode = resolveMoneyMode({
+    eventMode: state.event.moneyMode,
+    orgMode: org?.moneyMode,
+    orgKind: org?.kind,
+  });
+  const isStaff = session.role === "admin" || session.role === "assistant";
+  const fundLines =
+    moneyMode === "float"
+      ? await prisma.tournamentFund.findMany({
+          where: { eventId: session.eventId },
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
 
   return (
     <>
@@ -164,6 +186,38 @@ export default async function PrizesPage({
         />
       )}
       <SkinsSeason rows={skinsSeason} />
+
+      {/* The kitty, when this tournament keeps one. Below the pots because the
+          pots are what people ask about on the day, and the kitty is what the
+          organizer reconciles afterwards. */}
+      {moneyMode === "float" && (
+        <FloatClient
+          lines={fundLines.map((l) => ({
+            id: l.id,
+            direction: l.direction,
+            description: l.description,
+            amountCents: l.amountCents,
+            category: l.category,
+            occurredOn: l.occurredOn,
+            stageId: l.stageId,
+            createdBy: l.createdBy,
+          }))}
+          rounds={weeks.map((s, i) => ({ id: s.id, label: `Round ${i + 1}` }))}
+          canEdit={isStaff}
+        />
+      )}
+
+      {/* How money is handled at all, last: it is a setting, and a setting
+          belongs under the thing it configures rather than above it. */}
+      {isStaff && (
+        <MoneySetup
+          eventMode={state.event.moneyMode}
+          orgMode={org?.moneyMode ?? ""}
+          orgKind={org?.kind ?? ""}
+          clubName={org?.shortName || org?.name || ""}
+          isAdmin={session.role === "admin"}
+        />
+      )}
     </>
   );
 }
