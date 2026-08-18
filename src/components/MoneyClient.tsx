@@ -34,6 +34,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
+  const [showAllTransfers, setShowAllTransfers] = useState(false);
 
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
@@ -76,6 +77,24 @@ export function MoneyClient({ view }: { view: MoneyView }) {
   };
 
   const owed = view.netCents > 0;
+
+  /**
+   * Yours first, and the rest behind a button.
+   *
+   * A big opt-out pot settles into one transfer per entrant — thirty-odd of
+   * them, most for the same few pounds to the same person. All of it is
+   * correct and none of it is yours, so the handful a player has to actually
+   * do was buried under a screenful of other people squaring up with each
+   * other. Ordering by relevance rather than truncating: the whole list is
+   * still reachable, because somebody has to be able to check it.
+   */
+  const mine = view.transfers.filter(
+    (t) => t.fromPlayerId === view.playerId || t.toPlayerId === view.playerId,
+  );
+  const theirs = view.transfers.filter(
+    (t) => t.fromPlayerId !== view.playerId && t.toPlayerId !== view.playerId,
+  );
+  const shownTransfers = showAllTransfers ? [...mine, ...theirs] : mine;
 
   return (
     <div>
@@ -395,7 +414,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
           <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 10px", lineHeight: 1.5 }}>
             The fewest handovers that make everyone square. TourneyHQ works the money out; it never moves it.
           </p>
-          {view.transfers.map((t) => (
+          {shownTransfers.map((t) => (
             <div
               key={`${t.fromPlayerId}-${t.toPlayerId}-${t.cents}`}
               style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 8, borderTop: "1px solid var(--color-divider)" }}
@@ -420,6 +439,23 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               </button>
             </div>
           ))}
+          {theirs.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowAllTransfers((v) => !v)}
+              style={{ marginTop: 10, width: "100%", justifyContent: "center", fontSize: 12.5 }}
+            >
+              {showAllTransfers
+                ? "Just mine"
+                : `Show everyone else’s ${theirs.length} handover${theirs.length === 1 ? "" : "s"}`}
+            </button>
+          )}
+          {mine.length === 0 && !showAllTransfers && (
+            <p className="text-muted" style={{ fontSize: 12.5, margin: "8px 0 0" }}>
+              Nothing for you to hand over or collect.
+            </p>
+          )}
         </section>
       )}
 
