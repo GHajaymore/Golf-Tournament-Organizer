@@ -1,0 +1,15 @@
+-- Whether a knockout plays off for third.
+--
+-- A bracket in this app ended at the Final and stopped, so a championship
+-- produced two placings out of four. Every club that runs one plays off for
+-- third; the word did not appear anywhere in the codebase.
+--
+-- Off by default. Plenty of clubs send everyone to the bar instead, and a
+-- fixture nobody asked for is worse than a missing one — so every existing
+-- bracket behaves exactly as it does today.
+--
+-- Only the CHOICE is stored. The pairing is the two beaten semi-finalists and
+-- is derived from the semi-finals as they stand, so a corrected result changes
+-- who plays it rather than leaving two players in a fixture the draw no longer
+-- supports.
+ALTER TABLE "Stage" ADD COLUMN "thirdPlace" BOOLEAN NOT NULL DEFAULT false;

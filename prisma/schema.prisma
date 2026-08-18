@@ -973,6 +973,16 @@ model Stage {
    * longer support. Empty on every other kind of stage.
    */
   singleMatchRule     String   @default("")
+  /**
+   * Whether a Bracket Stage plays off for third.
+   *
+   * Off by default — plenty of clubs send everyone to the bar instead, and a
+   * fixture nobody asked for is worse than a missing one. The MATCH is not
+   * stored here: the pairing is the two beaten semi-finalists and is derived
+   * from the semi-finals as they stand, so a corrected result changes who
+   * plays it. See lib/domain/third-place.ts.
+   */
+  thirdPlace          Boolean  @default(false)
   carryForwardEnabled Boolean  @default(false)
   carryForwardPct     Int      @default(0)
   /**
