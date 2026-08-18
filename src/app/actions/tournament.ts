@@ -24,6 +24,8 @@ import { cleanStrokes } from "@/lib/domain/score-payload";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
+import { parseSingleMatchRule } from "@/lib/domain/single-match";
+import { singleMatchFor } from "@/lib/services/single-match";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
@@ -3055,4 +3057,79 @@ export async function rotatePublicToken(
 
   refresh();
   return { ok: true, token };
+}
+
+/**
+ * Choose how a Single Match Stage picks its two players.
+ *
+ * Validated through the domain parser rather than trusted, because an
+ * unreadable rule resolves to no match at all — and a rule stored in a shape
+ * nothing can read would leave an organizer with a round that never fills and
+ * no way to see why.
+ */
+export async function setSingleMatchRule(
+  stageId: string,
+  rule: { kind: string; a: string | number; b: string | number },
+): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+
+  const json = JSON.stringify(rule ?? {});
+  if (!parseSingleMatchRule(json)) {
+    return { ok: false, error: "That pairing doesn't make sense — pick two different players or rounds." };
+  }
+
+  const r = await prisma.stage.updateMany({
+    where: { id: stageId, eventId },
+    data: { singleMatchRule: json },
+  });
+  if (r.count === 0) return { ok: false, error: "That round isn't in this tournament." };
+
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Create the match a Single Match Stage's rule resolves to.
+ *
+ * Explicit rather than automatic. The pairing is derived, so it can change
+ * right up until somebody commits it — and creating the match is the moment a
+ * committee says "this is the final", which is a decision rather than a
+ * consequence of loading a page.
+ *
+ * Refuses when the rule cannot be satisfied yet, passing the domain's own
+ * explanation back, and refuses to create a second match for a stage that
+ * already has one.
+ */
+export async function createSingleMatch(stageId: string): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+
+  const view = await singleMatchFor(eventId, stageId);
+  if (!view) return { ok: false, error: "That round isn't in this tournament." };
+  if (view.matchId) return { ok: false, error: "This round already has its match." };
+  if (!view.resolution.pairing) return { ok: false, error: view.resolution.problem };
+
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { id: true },
+  });
+  if (!stage) return { ok: false, error: "That round isn't in this tournament." };
+
+  const { playerAId, playerBId } = view.resolution.pairing;
+  // Both ids came from the resolver, which only ever returns players in this
+  // tournament's field — but the where clause says so anyway rather than
+  // trusting a value that travelled through three functions to get here.
+  const both = await prisma.player.findMany({
+    where: { eventId, id: { in: [playerAId, playerBId] } },
+    select: { id: true },
+  });
+  if (both.length !== 2) return { ok: false, error: "Those players aren't both in this tournament." };
+
+  await prisma.match.create({
+    data: { eventId, stageId, groupId: "", round: 1, playerAId, playerBId, holes: "[]" },
+  });
+  await logAudit(eventId, null, "single-match", `Created the match for this round: ${view.aName} v ${view.bName}`);
+  refresh();
+  return { ok: true };
 }
