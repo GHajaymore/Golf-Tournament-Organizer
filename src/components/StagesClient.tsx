@@ -32,6 +32,14 @@ import { RoundTeamScoring, type RoundScoringInfo } from "./RoundTeamScoring";
 import { MatchTiebreakControl } from "./MatchTiebreakControl";
 import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
 import { SingleMatchRulePicker } from "@/components/SingleMatchRulePicker";
+import { ThirdPlaceControl } from "@/components/ThirdPlaceControl";
+export interface ThirdPlaceView {
+  on: boolean;
+  problem: string;
+  aName: string;
+  bName: string;
+  made: boolean;
+}
 import type { SingleMatchView } from "@/lib/services/single-match";
 import { QualControl } from "./QualControl";
 import { CutControl } from "./CutControl";
@@ -329,10 +337,13 @@ function StageCard({
   expanded,
   onToggle,
   singleMatch,
+  thirdPlace,
 }: {
   stage: StageView;
   /** For a Single Match Stage: the rule, and who it currently resolves to. */
   singleMatch?: SingleMatchView | null;
+  /** For a Bracket Stage: whether it plays off for third, and who would. */
+  thirdPlace?: ThirdPlaceView | null;
   isFirst: boolean;
   /** Whether this round's configuration is open. */
   expanded: boolean;
@@ -948,6 +959,20 @@ function StageCard({
               </div>
             )}
 
+            {stage.type === "Bracket Stage" && thirdPlace && (
+              <div>
+                <SectionLabel>Third and fourth</SectionLabel>
+                <ThirdPlaceControl
+                  stageId={stage.id}
+                  on={thirdPlace.on}
+                  problem={thirdPlace.problem}
+                  aName={thirdPlace.aName}
+                  bName={thirdPlace.bName}
+                  made={thirdPlace.made}
+                />
+              </div>
+            )}
+
             {stage.type === "Qualification Stage" && (
               <div>
                 <SectionLabel>
@@ -1016,6 +1041,7 @@ export function StagesClient({
   handicapWarning = null,
   activeStageId = null,
   singleMatches,
+  thirdPlaces,
 }: {
   stages: StageView[];
   rrMatchesPerPlayer: number;
@@ -1043,6 +1069,8 @@ export function StagesClient({
    * the lookup is optional rather than a map that has to be complete.
    */
   singleMatches?: Record<string, SingleMatchView>;
+  /** Third-place views, by Bracket Stage id. */
+  thirdPlaces?: Record<string, ThirdPlaceView>;
 }) {
   /**
    * Which round is open. One at a time, and none when there are several.
@@ -1114,6 +1142,7 @@ export function StagesClient({
             key={s.id}
             stage={s}
             singleMatch={singleMatches?.[s.id] ?? null}
+            thirdPlace={thirdPlaces?.[s.id] ?? null}
             expanded={openRound === s.id}
             onToggle={() => setOpenRound((cur) => (cur === s.id ? null : s.id))}
             isFirst={i === 0}

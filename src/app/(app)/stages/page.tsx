@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { StagesClient } from "@/components/StagesClient";
 import { singleMatchFor, type SingleMatchView } from "@/lib/services/single-match";
+import { resolveThirdPlace } from "@/lib/domain/third-place";
+import type { ThirdPlaceView } from "@/components/StagesClient";
 import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
@@ -75,6 +77,26 @@ export default async function StagesPage() {
   for (const s of state.stages.filter((x) => x.type === "Single Match Stage")) {
     const view = await singleMatchFor(session.eventId, s.id);
     if (view) singleMatches[s.id] = view;
+  }
+
+  /**
+   * The third-place view per Bracket Stage.
+   *
+   * Resolved from the winners bracket as it stands, so a corrected semi-final
+   * changes who would play it — the same late reading the Single Match Stage
+   * uses, and for the same reason.
+   */
+  const thirdPlaces: Record<string, ThirdPlaceView> = {};
+  for (const s of state.stages.filter((x) => x.type === "Bracket Stage")) {
+    const r = resolveThirdPlace(state.brackets.winners);
+    const made = await prisma.match.count({ where: { eventId: session.eventId, stageId: s.id, round: 0 } });
+    thirdPlaces[s.id] = {
+      on: s.thirdPlace,
+      problem: r.problem,
+      aName: r.pairing?.a.name ?? "",
+      bName: r.pairing?.b.name ?? "",
+      made: made > 0,
+    };
   }
 
   const stages = state.stages.map((s) => ({
@@ -155,6 +177,7 @@ export default async function StagesPage() {
       <StagesClient
         stages={stages}
         singleMatches={singleMatches}
+        thirdPlaces={thirdPlaces}
         venues={venues}
         activeStageId={state.activeStage?.id ?? null}
         handicapWarning={await unratedWarning(session.eventId, state.stages.find((s) => s.type === "Round Robin")?.scoringBasis ?? "gross")}
