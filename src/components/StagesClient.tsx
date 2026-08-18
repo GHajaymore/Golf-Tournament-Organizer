@@ -534,6 +534,12 @@ function StageCard({
   // round*. A single-round tournament has no next round, so offering them
   // asks an organizer to configure something that cannot happen — which is
   // what the shape question exists to stop.
+  //
+  // And only once the next round actually EXISTS. These controls used to
+  // create one silently the moment either was touched, so an organizer
+  // reading the options ended up with a round they never asked for — and a
+  // round that then had to be found and deleted. A round is added
+  // deliberately, from "Add round"; nothing here conjures one.
   const showTransition = stage.type === "Round Robin" && chainsRounds;
   const notGenerated = !isFirst && stage.type === "Round Robin" && stage.matchCount === 0;
 
