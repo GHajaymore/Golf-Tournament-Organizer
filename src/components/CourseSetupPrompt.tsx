@@ -187,9 +187,16 @@ export function CourseSetupPrompt({
       {/* Two rows of nine, the way a card is actually printed. One scrolling
           row of eighteen put 54 identical boxes behind a horizontal scrollbar,
           which is both unreadable and the least-used path on the screen. */}
-      <details>
+      {/* Open on its own when a paste went wrong.
+          The line above promises "the boxes below fill in as you paste", and
+          they were folded away — so the one moment a reader needs to SEE what
+          the paste produced, in order to correct it, was the one moment it was
+          hidden. A problem is not something to make somebody go looking for
+          the evidence of. `open` is uncontrolled after the first render, so a
+          reader can still fold it away again. */}
+      <details open={pasteProblems.length > 0}>
         <summary style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 600, marginBottom: 10 }}>
-          Or type the card in by hand
+          {pasteProblems.length > 0 ? "Check the card below" : "Or type the card in by hand"}
         </summary>
         {/* Each nine gets its own scroller.
             `width: 100%` sounds like it bounds the table and does not: a table's
