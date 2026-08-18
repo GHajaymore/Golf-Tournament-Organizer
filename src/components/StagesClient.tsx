@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import React, { useState, useTransition } from "react";
 import {
   setStageDeadline,
   setStageCarry,
@@ -119,6 +119,67 @@ function isIsoDate(v: string): boolean {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <span className="card-kicker" style={{ display: "block" }}>{children}</span>;
+}
+
+/**
+ * A titled group of settings inside a round.
+ *
+ * The settings panel had grown into a flat column of eight sections carrying
+ * equal weight — when the round is played, what it decides, how ties break —
+ * so an organizer looking for one of them had to read all of them. These are
+ * different KINDS of decision, made at different times by different people:
+ * the day and the scoring window are the day's admin, the per-type settings
+ * are what the round is for, and the tiebreakers are rules set once and
+ * rarely touched.
+ *
+ * Renders nothing at all when it has no children, so a stage type that has
+ * no decisions of its own does not show an empty heading — the gating stays
+ * on the sections themselves rather than being duplicated here.
+ */
+function SettingsGroup({
+  title,
+  blurb,
+  children,
+}: {
+  title: string;
+  blurb?: string;
+  children: React.ReactNode;
+}) {
+  const kids = React.Children.toArray(children).filter(Boolean);
+  if (kids.length === 0) return null;
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div>
+        <h4
+          style={{
+            margin: 0,
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: "0.01em",
+            color: "var(--color-text)",
+          }}
+        >
+          {title}
+        </h4>
+        {blurb && (
+          <p className="text-muted" style={{ fontSize: 11.5, margin: "3px 0 0", lineHeight: 1.5 }}>
+            {blurb}
+          </p>
+        )}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+          paddingLeft: 12,
+          borderLeft: "2px solid var(--color-divider)",
+        }}
+      >
+        {kids}
+      </div>
+    </section>
+  );
 }
 
 /**
@@ -904,6 +965,10 @@ function StageCard({
             )}
 
 
+            <SettingsGroup
+              title="On the day"
+              blurb="When this round is played and whether scores can still go in."
+            >
             {/* Directly under the date, because it is the thing that overrules
                 it. Kept out of the collapsed summary: closing a round early is
                 a decision made on the day, not part of setting one up. */}
@@ -921,6 +986,12 @@ function StageCard({
               />
             </div>
 
+            </SettingsGroup>
+
+            <SettingsGroup
+              title="What this round decides"
+              blurb="Only what this kind of round actually settles. A round with nothing of its own to decide shows nothing here."
+            >
             {showTransition && (
               <div>
                 <SectionLabel>
@@ -989,6 +1060,12 @@ function StageCard({
               </div>
             )}
 
+            </SettingsGroup>
+
+            <SettingsGroup
+              title="Tiebreakers"
+              blurb="Set once and rarely touched. Two separate questions — the numbers say which is which."
+            >
             {stage.type === "Round Robin" && (
               <div>
                 {/* Two different questions that were sharing one heading, which
@@ -1038,6 +1115,7 @@ function StageCard({
                 </div>
               </div>
             )}
+            </SettingsGroup>
           </div>
         )}
       </div>
