@@ -13,6 +13,7 @@ import { parseTeeSheet, groupForPlayer } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
 import { resolveMoneyMode, moneyScreenApplies } from "../domain/money-mode";
 import { roundMoneyIsFinal } from "../domain/money-layout";
+import { potMembership, isPotEntryMode } from "../domain/pot-entry";
 import { contestLedger, contestNets, isContestKind, isDecided, potOf } from "../domain/contests";
 import {
   derivedNets,
@@ -23,7 +24,7 @@ import {
   type DerivedKind,
 } from "../domain/derived-games";
 import { skinsPotFor } from "./skins-pot";
-import { loadEventState, type HoleResultArr } from "./tournament";
+import { loadEventState, matchSettled, type HoleResultArr } from "./tournament";
 import { resolveCourse } from "../courses";
 import { holeStrokesReceived, allocationHoles } from "../domain";
 
@@ -169,6 +170,13 @@ export interface MoneyView {
  * invent a number for a bet the app never recorded.
  */
 async function gameNets(eventId: string, onlyStageId?: string): Promise<Net[]> {
+  // The field an opt-out pot draws its members from. Confirmed entries only:
+  // "everyone in the field" means everyone PLAYING.
+  const fieldRows = await prisma.player.findMany({
+    where: { eventId, status: "confirmed" },
+    select: { id: true },
+  });
+  const fieldIds = fieldRows.map((r) => r.id);
   // Scoped to one round when asked. Every pot type here is already per-stage,
   // so this is a filter rather than a second implementation — the player round
   // view and the outing ledger read the same arithmetic.
@@ -237,10 +245,16 @@ async function gameNets(eventId: string, onlyStageId?: string): Promise<Net[]> {
         }
 
         if (!isDerivedKind(game.kind)) continue;
-        // CONFIRMED only. A player who put their own name down in the app has
-        // stated an intention; the stake is the cash the organizer took, and
-        // counting the rest would put money in the pot that nobody handed over.
-        const entrantIds = game.entrants.filter((e) => e.confirmed).map((e) => e.playerId);
+        // Through potMembership, the same as the contests below. Opt-in still
+        // means confirmed stakes only — a name put down in the app is an
+        // intention and the stake is the cash the organizer took — and opt-out
+        // means the field, which carries no rows for the people who never had
+        // to say anything.
+        const entrantIds = potMembership(
+          isPotEntryMode(game.entryMode) ? game.entryMode : "opt-in",
+          fieldIds,
+          game.entrants,
+        ).entrants;
         const potCards = cards
           .filter((c) => c.stageId === game.stageId && entrantIds.includes(c.playerId))
           .map((c) => {
@@ -287,10 +301,23 @@ async function gameNets(eventId: string, onlyStageId?: string): Promise<Net[]> {
       kind: isContestKind(c.kind) ? c.kind : "other",
       name: c.name,
       buyInCents: c.buyInCents,
-      // Confirmed stakes only — see the note on the derived pots above. A
-      // WINNER is not filtered: somebody put down for the long drive without
-      // paying in still won it, and the money still balances.
-      entrantIds: c.entrants.filter((e) => e.confirmed).map((e) => e.playerId),
+      /**
+       * Through potMembership, so an opt-out pot means what it says here too.
+       *
+       * This read the entry rows directly, which is right for opt-in and
+       * silently wrong for opt-out: an everyone-in contest carries no rows for
+       * the people who never had to say anything, so the pot came out as the
+       * handful who did — and the ledger disagreed with the prizes screen next
+       * door about the same contest. One rule, read in both places.
+       *
+       * A WINNER is still not filtered: somebody put down for the long drive
+       * without paying in still won it, and the money still balances.
+       */
+      entrantIds: potMembership(
+        isPotEntryMode(c.entryMode) ? c.entryMode : "opt-in",
+        fieldIds,
+        c.entrants,
+      ).entrants,
       winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
     })),
   )) {
@@ -570,6 +597,14 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
 
   const stages = (state?.stages ?? []).filter((s) => isPlayingRound(s.type));
   const cards = await prisma.scorecard.findMany({ where: { eventId }, select: { stageId: true, strokes: true } });
+  // Match play returns no scorecards, so a round of it would never look
+  // finished on holes alone and its pots would never be reported. A match
+  // round is done when every match in it is settled — the same reading
+  // currentRoundIndex uses to decide which round a tournament is on.
+  const matches = await prisma.match.findMany({
+    where: { eventId },
+    select: { stageId: true, holes: true, forfeitedBy: true },
+  });
 
   const rounds: RoundMoneyRow[] = [];
   const outingTotals = new Map<string, number>();
@@ -592,10 +627,15 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       if (played) holesReturned += 1;
     }
 
+    const stageMatches = matches.filter((m) => m.stageId === stage.id);
+    const matchesDone = stageMatches.length > 0 && stageMatches.every((m) => matchSettled(m));
+
     const final = roundMoneyIsFinal({
       holesReturned,
       holeCount,
-      roundComplete: state?.event.status === "completed",
+      // Either measure can finish a round: every card in, every match
+      // settled, or the organizer closing the tournament.
+      roundComplete: matchesDone || state?.event.status === "completed",
     });
 
     // Nothing is computed for a round in progress. Not hidden after the fact —
