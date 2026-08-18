@@ -12,6 +12,7 @@ import { settle, type Transfer } from "../domain/money";
 import { parseTeeSheet, groupForPlayer } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
 import { resolveMoneyMode, moneyScreenApplies } from "../domain/money-mode";
+import { roundMoneyIsFinal } from "../domain/money-layout";
 import { contestLedger, contestNets, isContestKind, isDecided, potOf } from "../domain/contests";
 import {
   derivedNets,
@@ -167,7 +168,11 @@ export interface MoneyView {
  * nothing — better for the screen to be honest about what it knows than to
  * invent a number for a bet the app never recorded.
  */
-async function gameNets(eventId: string): Promise<Net[]> {
+async function gameNets(eventId: string, onlyStageId?: string): Promise<Net[]> {
+  // Scoped to one round when asked. Every pot type here is already per-stage,
+  // so this is a filter rather than a second implementation — the player round
+  // view and the outing ledger read the same arithmetic.
+  const stageWhere = onlyStageId ? { stageId: onlyStageId } : {};
   const totals = new Map<string, number>();
   const add = (playerId: string, cents: number) => {
     if (!playerId || cents === 0) return;
@@ -176,7 +181,7 @@ async function gameNets(eventId: string): Promise<Net[]> {
 
   // ── Skins, through the pot's own service ────────────────────────────────
   const pots = await prisma.skinsPot.findMany({
-    where: { eventId },
+    where: { eventId, ...stageWhere },
     select: { stageId: true, net: true },
   });
   for (const pot of pots) {
@@ -192,7 +197,7 @@ async function gameNets(eventId: string): Promise<Net[]> {
   // from loadEventState's own resolver, so a net pot and the leaderboard
   // cannot disagree about how many strokes somebody receives.
   const sideGames = await prisma.sideGame.findMany({
-    where: { eventId },
+    where: { eventId, ...stageWhere },
     include: { entrants: true },
   });
   if (sideGames.length > 0) {
@@ -273,7 +278,7 @@ async function gameNets(eventId: string): Promise<Net[]> {
 
   // ── Contests ────────────────────────────────────────────────────────────
   const contests = await prisma.contest.findMany({
-    where: { eventId },
+    where: { eventId, ...stageWhere },
     include: { entrants: true },
   });
   for (const n of contestLedger(
@@ -519,4 +524,107 @@ export async function usesExpenses(eventId: string): Promise<boolean> {
   // tournament is set up rather than only once somebody has used it —
   // otherwise the first person to need it cannot find it.
   return true;
+}
+
+export interface RoundMoneyRow {
+  stageId: string;
+  label: string;
+  /** Whether the round's money can be reported yet. */
+  final: boolean;
+  /** Holes returned against holes to play, for the "still playing" line. */
+  holesReturned: number;
+  holeCount: number;
+  /** The signed-in player's net for this round, in cents. */
+  yourCents: number;
+  /** Everyone's, biggest winner first — the round's own payout sheet. */
+  standing: Array<{ playerId: string; name: string; netCents: number }>;
+}
+
+export interface RoundMoneyView {
+  playerId: string;
+  rounds: RoundMoneyRow[];
+  /** The outing total: every round added up. */
+  yourTotalCents: number;
+  outingStanding: Array<{ playerId: string; name: string; netCents: number }>;
+  /** True when at least one round has finished and has money in it. */
+  anyFinal: boolean;
+}
+
+/**
+ * The player's money, round by round, with the outing underneath.
+ *
+ * Both, because they answer different questions and one cannot stand in for
+ * the other. "Did I win the skins on Thursday?" is a round; "what am I owed at
+ * the end?" is the outing. A league settles every week and a running season
+ * total is meaningless to it; a member-guest settles once and three separate
+ * sheets are a nuisance.
+ *
+ * Final only. A round still being played reports nothing but the fact that it
+ * is unfinished — see roundMoneyIsFinal for why a running skins position is
+ * not an early view of the answer but a different number that looks like one.
+ */
+export async function roundMoneyFor(eventId: string, email: string): Promise<RoundMoneyView> {
+  const state = await loadEventState(eventId);
+  const me = state?.confirmed.find((p) => p.email?.toLowerCase() === email.trim().toLowerCase());
+  const nameOf = new Map((state?.confirmed ?? []).map((p) => [p.id, p.name]));
+
+  const stages = (state?.stages ?? []).filter((s) => isPlayingRound(s.type));
+  const cards = await prisma.scorecard.findMany({ where: { eventId }, select: { stageId: true, strokes: true } });
+
+  const rounds: RoundMoneyRow[] = [];
+  const outingTotals = new Map<string, number>();
+
+  for (const [i, stage] of stages.entries()) {
+    const holeCount = stage.holes === 9 ? 9 : 18;
+    // How much of the round is in. A hole counts as returned once anybody has
+    // posted it — the pot is decided by the field, not by one card.
+    const forStage = cards.filter((c) => c.stageId === stage.id);
+    let holesReturned = 0;
+    for (let h = 0; h < holeCount; h += 1) {
+      const played = forStage.some((c) => {
+        try {
+          const arr = JSON.parse(c.strokes) as (number | null)[];
+          return arr[h] != null;
+        } catch {
+          return false;
+        }
+      });
+      if (played) holesReturned += 1;
+    }
+
+    const final = roundMoneyIsFinal({
+      holesReturned,
+      holeCount,
+      roundComplete: state?.event.status === "completed",
+    });
+
+    // Nothing is computed for a round in progress. Not hidden after the fact —
+    // not worked out at all, so there is no half-answer to leak.
+    const nets = final ? await gameNets(eventId, stage.id) : [];
+    for (const n of nets) outingTotals.set(n.playerId, (outingTotals.get(n.playerId) ?? 0) + n.netCents);
+
+    rounds.push({
+      stageId: stage.id,
+      label: `Round ${i + 1}`,
+      final,
+      holesReturned,
+      holeCount,
+      yourCents: me ? nets.find((n) => n.playerId === me.id)?.netCents ?? 0 : 0,
+      standing: nets
+        .filter((n) => n.netCents !== 0)
+        .map((n) => ({ playerId: n.playerId, name: nameOf.get(n.playerId) ?? "Unknown", netCents: n.netCents }))
+        .sort((a, b) => b.netCents - a.netCents),
+    });
+  }
+
+  return {
+    playerId: me?.id ?? "",
+    rounds,
+    yourTotalCents: me ? outingTotals.get(me.id) ?? 0 : 0,
+    outingStanding: [...outingTotals.entries()]
+      .filter(([, cents]) => cents !== 0)
+      .map(([playerId, netCents]) => ({ playerId, name: nameOf.get(playerId) ?? "Unknown", netCents }))
+      .sort((a, b) => b.netCents - a.netCents),
+    anyFinal: rounds.some((r) => r.final && r.standing.length > 0),
+  };
 }
