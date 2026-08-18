@@ -31,6 +31,20 @@ export interface StrokeAgg {
   parThru: number;
   strokesReceived: number;
   points: number;
+  /**
+   * Per-hole scores, kept per round, for the countback.
+   *
+   * Keyed by stage rather than concatenated, because a countback reads the
+   * LAST ROUND'S card — "the last nine" means the closing nine of the round
+   * just played, not the tail of a two-day total. Concatenating would also
+   * make the answer depend on the order the cards happened to be queried in,
+   * which is the defect this whole feature exists to remove.
+   *
+   * Both bases are carried because the countback must run on whichever one the
+   * competition was played on: a net comp separated on gross hands the prize
+   * to exactly the low handicapper a countback exists to stop.
+   */
+  holesByStage: Map<string, { gross: (number | null)[]; net: (number | null)[] }>;
 }
 
 /** Par and stroke index for one round, as that round is actually played. */
@@ -65,6 +79,7 @@ export const emptyAgg = (): StrokeAgg => ({
   parThru: 0,
   strokesReceived: 0,
   points: 0,
+  holesByStage: new Map(),
 });
 
 /**
@@ -87,6 +102,14 @@ export function aggregateStroke(cards: StrokeCard[], opts: StrokeAggOptions): Ma
     const handicap = opts.handicapFor(card.playerId, card.stageId);
     const a = out.get(card.playerId) ?? emptyAgg();
 
+    // This round's card, hole by hole, for the countback. Sized to the round
+    // rather than to what was returned, so an unplayed hole stays null and the
+    // countback can tell "did not finish" from "finished well".
+    const perHole = {
+      gross: Array.from({ length: card.strokes.length }, () => null) as (number | null)[],
+      net: Array.from({ length: card.strokes.length }, () => null) as (number | null)[],
+    };
+
     card.strokes.forEach((s, i) => {
       if (typeof s !== "number" || s <= 0) return;
       a.gross += s;
@@ -95,7 +118,11 @@ export function aggregateStroke(cards: StrokeCard[], opts: StrokeAggOptions): Ma
       const holeStrokes = opts.holeStrokesReceived(handicap, holeDifficulty[i] ?? 18, alloc);
       a.strokesReceived += holeStrokes;
       a.points += opts.stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes);
+      perHole.gross[i] = s;
+      perHole.net[i] = s - holeStrokes;
     });
+
+    a.holesByStage.set(card.stageId, perHole);
 
     out.set(card.playerId, a);
   }

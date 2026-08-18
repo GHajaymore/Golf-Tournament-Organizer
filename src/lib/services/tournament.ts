@@ -10,6 +10,7 @@ import { effectiveAllowance } from "./teams";
 import {
   holeStrokesReceived, stablefordPointsForHole, allocationHoles, playingHandicapFrom } from "../domain";
 import { aggregateStroke, emptyAgg, netOf, type StrokeCard } from "../domain/stroke-agg";
+import { countbackCompare } from "../domain/stroke-countback";
 import { resolveCourse } from "../courses";
 import { todayIso } from "../deadline";
 import { cleanIsoDate } from "../domain/round-dates";
@@ -624,6 +625,29 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // different competition, and the board was silently running it.
   const stableford = strokeUnit === "Stableford points" || strokeUnit === "modified Stableford points";
   const grossBasis = strokeUnitStage?.scoringBasis === "gross";
+  /**
+   * The card a countback reads, and how long it is.
+   *
+   * The LAST stroke round, because "the last nine" means the closing nine of
+   * the round just played rather than the tail of a two-day total — and
+   * because concatenating rounds would make the answer depend on the order
+   * the cards were queried in, which is the defect this replaces.
+   *
+   * On the basis the competition was played on. A net comp separated on gross
+   * hands the prize to exactly the low handicapper a countback exists to stop.
+   */
+  const lastStrokeRound = strokeRounds[strokeRounds.length - 1] ?? null;
+  const lastRoundHoles = lastStrokeRound?.holes === 9 ? 9 : 18;
+  const cbCard = (playerId: string) => {
+    const perStage = strokeAgg.get(playerId)?.holesByStage;
+    const card = lastStrokeRound ? perStage?.get(lastStrokeRound.id) : undefined;
+    return {
+      playerId,
+      total: 0, // unused: this is only ever handed to countbackCompare
+      holes: (grossBasis ? card?.gross : card?.net) ?? [],
+    };
+  };
+
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
       const a = strokeAgg.get(p.id) ?? emptyAgg();
@@ -633,9 +657,49 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       const started = (y.thru > 0 ? 1 : 0) - (x.thru > 0 ? 1 : 0);
       if (started !== 0) return started;
       if (stableford) return y.points - x.points;
-      return grossBasis ? x.gross - y.gross || x.net - y.net : x.net - y.net || x.gross - y.gross;
+      const byScore = grossBasis
+        ? x.gross - y.gross || x.net - y.net
+        : x.net - y.net || x.gross - y.gross;
+      if (byScore !== 0) return byScore;
+      /**
+       * Level on the score — go to the countback.
+       *
+       * This used to fall straight through to array order, which is seed
+       * order, so two players on 72 finished 1st and 2nd silently. The ladder
+       * is the standard one (last 9, 6, 3, then the last hole) read off the
+       * LAST round's card, which is what "the last nine" means to a committee.
+       */
+      return countbackCompare(cbCard(x.player.id), cbCard(y.player.id), lastRoundHoles);
     })
-    .map((s, i) => ({ ...s, rank: i + 1 }));
+    .map((s) => ({ ...s, rank: 0 }));
+
+  /**
+   * A tie the countback cannot break stays a tie.
+   *
+   * Everybody still level shares the position and the next player is numbered
+   * past all of them — T1, T1, then 3rd. That is what a results sheet prints,
+   * and what tells a committee it has a play-off to run. Numbering them 1 and
+   * 2 was the original defect: an order invented out of nothing and presented
+   * as a result.
+   *
+   * A second pass rather than inside the map, because a shared rank has to
+   * look back at the rank already given — which is a fact about the finished
+   * list, not about the row being built.
+   */
+  for (let i = 0; i < strokeStandings.length; i += 1) {
+    const s = strokeStandings[i];
+    const prev = i > 0 ? strokeStandings[i - 1] : null;
+    const sameScore =
+      prev !== null &&
+      prev.thru > 0 === s.thru > 0 &&
+      (stableford
+        ? prev.points === s.points
+        : prev.gross === s.gross && prev.net === s.net);
+    const level =
+      sameScore &&
+      countbackCompare(cbCard(prev!.player.id), cbCard(s.player.id), lastRoundHoles) === 0;
+    s.rank = level ? strokeStandings[i - 1].rank : i + 1;
+  }
 
   // Qualification: format-aware — top N by net (stroke) or points (match), per flight or overall.
   let qualifierIds: Set<string>;

@@ -132,7 +132,16 @@ describe("what it counts", () => {
 
   it("gives an empty aggregate for a player with no card", () => {
     expect(aggregateStroke([], opts(() => HOME)).get("p1")).toBeUndefined();
-    expect(emptyAgg()).toEqual({ gross: 0, thru: 0, parThru: 0, strokesReceived: 0, points: 0 });
+    // holesByStage starts empty too — a player with no card has no round to
+    // count back over, which is different from having a round of zeros.
+    expect(emptyAgg()).toEqual({
+      gross: 0,
+      thru: 0,
+      parThru: 0,
+      strokesReceived: 0,
+      points: 0,
+      holesByStage: new Map(),
+    });
   });
 
   it("rounds the net once, at the end", () => {
