@@ -1,0 +1,15 @@
+-- How a Single Match Stage picks its two players.
+--
+-- The stage type has been in the picker since the beginning and never did
+-- anything: no code path created its match, so an organizer could add it, save
+-- it, and find an empty round.
+--
+-- Stores the RULE rather than the pair — first against second, winner of one
+-- round against winner of another, or two named players — and the pairing is
+-- resolved when the round opens. A pair written down at creation goes stale
+-- the moment a score upstream is corrected, which would leave two players in a
+-- final the results no longer support.
+--
+-- Empty on every existing stage, which is exactly what every existing stage
+-- means by it.
+ALTER TABLE "Stage" ADD COLUMN "singleMatchRule" TEXT NOT NULL DEFAULT '';

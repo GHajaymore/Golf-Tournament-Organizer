@@ -965,6 +965,14 @@ model Stage {
    */
   deadlineOverride    Boolean?
   scoringBasis        String   @default("gross") // gross | net | both
+  /**
+   * How a Single Match Stage picks its two players, as JSON — see
+   * lib/domain/single-match.ts. The RULE, not the pair: a pairing written
+   * down when the stage was created goes stale the moment an upstream score
+   * is corrected, which would put two players in a final the results no
+   * longer support. Empty on every other kind of stage.
+   */
+  singleMatchRule     String   @default("")
   carryForwardEnabled Boolean  @default(false)
   carryForwardPct     Int      @default(0)
   /**
