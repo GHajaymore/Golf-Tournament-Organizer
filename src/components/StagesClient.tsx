@@ -184,10 +184,10 @@ function SettingsGroup({
 
 /**
  * Configures what happens between this round and the next one — carry-forward
- * and the cut line — right from the round you're currently looking at. Both
- * controls are always live: if the next round doesn't exist yet, touching
- * either one creates it automatically (via ensureNextStageId) instead of
- * requiring a separate "Add round" step first. Keyed by the next stage's id
+ * and the cut line — right from the round you're currently looking at.
+ *
+ * When there IS no next round it says so and offers a button, rather than
+ * creating one silently on the first click. Keyed by the next stage's id
  * (or "none") so its local state re-syncs whenever a round gets added/removed.
  */
 function NextRoundTransition({
@@ -211,13 +211,10 @@ function NextRoundTransition({
   const [pending, startTransition] = useTransition();
   const [genPending, startGenTransition] = useTransition();
 
-  // Resolves to the real next-round id, creating a Round Robin round first if
-  // one doesn't exist yet — so the cut/carry controls work immediately.
-  const ensureNextStageId = async (): Promise<string> => {
-    if (nextStage) return nextStage.id;
-    const id = await addStage("Round Robin");
-    return id ?? stageId;
-  };
+  // The next round is guaranteed to exist by the time anything below runs —
+  // the no-next-round case returns early. Kept as a function because the cut
+  // control takes a getter rather than an id.
+  const ensureNextStageId = async (): Promise<string> => nextStage?.id ?? stageId;
 
   const commitCarry = (nextEnabled: boolean, nextPct: number) => {
     setCarryEnabled(nextEnabled);
@@ -228,7 +225,49 @@ function NextRoundTransition({
     });
   };
 
-  const roundLabel = nextStage ? `Round ${nextStage.position + 1}` : "the next round";
+  // No next round yet, so there is nothing to cut INTO and nothing to carry
+  // INTO. These controls used to stay live and create a Round Robin round the
+  // moment either was touched, which meant an organizer who opened the section
+  // to read the options came away with a round they never asked for and then
+  // had to find and delete. Adding a round is a decision, so it gets a button
+  // and a name rather than happening as a side effect of a click somewhere
+  // else. The statement stays — it is true and worth reading — and only the
+  // controls that would have conjured a round are withheld.
+  if (!nextStage) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 9,
+          padding: "11px 13px",
+          borderRadius: "var(--radius-md)",
+          background: "color-mix(in srgb, var(--color-text) 3%, transparent)",
+        }}
+      >
+        <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
+          <i className="ph ph-info" /> No round after this yet. A cut and a carry-forward both need
+          somewhere to go, so add the next round first and they will appear here.
+        </span>
+        <div>
+          <button
+            type="button"
+            className="btn"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                await addStage("Round Robin");
+              })
+            }
+          >
+            <i className="ph ph-plus" /> Add the next round
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const roundLabel = `Round ${nextStage.position + 1}`;
   // A stroke-play / medal next round draws no pairings — the field returns
   // cards — so it is "generated" by handing the survivors a card, not by
   // building matches. Before it exists, assume a Round Robin (what gets created).
