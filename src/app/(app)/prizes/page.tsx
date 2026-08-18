@@ -11,6 +11,8 @@ import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { MoneySetup } from "@/components/MoneySetup";
 import { FloatClient } from "@/components/FloatClient";
+import { OrganizerLedger } from "@/components/OrganizerLedger";
+import { moneyFor } from "@/lib/services/expenses";
 
 export default async function PrizesPage({
   searchParams,
@@ -77,7 +79,7 @@ export default async function PrizesPage({
   // How this tournament handles money at all, and the kitty when it keeps one.
   const org = await prisma.organization.findUnique({
     where: { id: state.event.organizationId },
-    select: { name: true, shortName: true, kind: true, moneyMode: true },
+    select: { name: true, shortName: true, kind: true, moneyMode: true, currencySymbol: true },
   });
   const moneyMode = resolveMoneyMode({
     eventMode: state.event.moneyMode,
@@ -85,6 +87,14 @@ export default async function PrizesPage({
     orgKind: org?.kind,
   });
   const isStaff = session.role === "admin" || session.role === "assistant";
+  /**
+   * The ledger for whoever is running it.
+   *
+   * Read with the organizer's own email, which is right even when they are not
+   * playing: everything a treasurer needs — the standing, the transfers, the
+   * lines — is event-wide, and the "you" parts simply have nobody to match.
+   */
+  const ledger = moneyMode === "split" && isStaff ? await moneyFor(session.eventId, session.email) : null;
   const fundLines =
     moneyMode === "float"
       ? await prisma.tournamentFund.findMany({
@@ -206,6 +216,12 @@ export default async function PrizesPage({
           canEdit={isStaff}
         />
       )}
+
+      {/* The ledger, for the person collecting. The settle-up used to live
+          only on the player screen, which works for an organizer who is also
+          playing and fails completely for the one who is not — a society
+          treasurer being the likeliest person to need it. */}
+      {ledger && <OrganizerLedger view={ledger} currency={org?.currencySymbol || "$"} />}
 
       {/* How money is handled at all, last: it is a setting, and a setting
           belongs under the thing it configures rather than above it. */}
