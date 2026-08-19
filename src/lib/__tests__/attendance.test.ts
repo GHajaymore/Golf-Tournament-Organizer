@@ -7,7 +7,9 @@ import {
   defaultStatus,
   effectiveStatus,
   playerMayChange,
+  playersAnswer,
   resolveAttendance,
+  tracksPerRound,
 } from "../domain/attendance";
 
 /**
@@ -95,8 +97,8 @@ describe("resolving a field for one round", () => {
 });
 
 describe("the modes on offer", () => {
-  it("describes all three and rejects anything else", () => {
-    expect(ATTENDANCE_MODES).toHaveLength(3);
+  it("describes every one and rejects anything else", () => {
+    expect(ATTENDANCE_MODES).toHaveLength(4);
     for (const m of ATTENDANCE_MODES) {
       expect(isAttendanceMode(m), m).toBe(true);
       expect(ATTENDANCE_MODE_LABEL[m], m).toBeTruthy();
@@ -104,5 +106,62 @@ describe("the modes on offer", () => {
     }
     expect(isAttendanceMode("maybe")).toBe(false);
     expect(isAttendanceMode("")).toBe(false);
+  });
+});
+
+describe("captains send the list and the club enters it", () => {
+  /**
+   * The inter-club and pairs-league pattern: the captain owns the selection,
+   * the club owns the sheet. The captain uses whatever they already use — a
+   * WhatsApp message on Tuesday night — and staff type it in.
+   */
+  it("asks nobody in the app", () => {
+    expect(playersAnswer("captains")).toBe(false);
+    // ...unlike the two modes where the player answers on their own phone.
+    expect(playersAnswer("opt-in")).toBe(true);
+    expect(playersAnswer("opt-out")).toBe(true);
+    // And `everyone` asks nobody either, because there is no question.
+    expect(playersAnswer("everyone")).toBe(false);
+  });
+
+  it("still tracks a per-round field, unlike everyone", () => {
+    // The distinction that made this mode possible. `mode !== "everyone"` used
+    // to answer BOTH questions in four places; under captains they differ.
+    expect(tracksPerRound("captains")).toBe(true);
+    expect(tracksPerRound("opt-in")).toBe(true);
+    expect(tracksPerRound("opt-out")).toBe(true);
+    expect(tracksPerRound("everyone")).toBe(false);
+  });
+
+  it("assumes nobody is playing until a captain's list says so", () => {
+    // A tee sheet that assumed a silent player in would invent a pairing the
+    // captain never sent.
+    expect(defaultStatus("captains")).toBe("out");
+  });
+
+  it("counts only the players staff have entered", () => {
+    const s = resolveAttendance("captains", ["a", "b", "c"], [
+      { playerId: "a", status: "in", decidedBy: "Club office" },
+      { playerId: "b", status: "in", decidedBy: "Club office" },
+    ]);
+    expect(s.in).toBe(2);
+    expect(s.out).toBe(1);
+    // Nobody is ever "in by default" here — that number is the organizer's
+    // uncertainty about silence, and under captains silence means out.
+    expect(s.inByDefault).toBe(0);
+  });
+
+  it("records who entered it, because 'why am I not playing' needs a name", () => {
+    const s = resolveAttendance("captains", ["a"], [
+      { playerId: "a", status: "in", decidedBy: "Club office" },
+    ]);
+    expect(s.rows[0]).toMatchObject({ status: "in", explicit: true, decidedBy: "Club office" });
+  });
+
+  it("leaves the other modes exactly as they were", () => {
+    // Adding a mode must not move anybody else's default.
+    expect(defaultStatus("everyone")).toBe("in");
+    expect(defaultStatus("opt-out")).toBe("in");
+    expect(defaultStatus("opt-in")).toBe("out");
   });
 });

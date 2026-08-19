@@ -1,6 +1,6 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState, parseMatchTiebreakers, settingsOf } from "@/lib/services/tournament";
-import { resolveAttendance } from "@/lib/domain/attendance";
+import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
@@ -61,10 +61,9 @@ export default async function StagesPage() {
   // initialization". Because saving a score revalidates the whole layout,
   // that turned every score entry into a 500 and nothing could be entered.
   const attendanceMode = settingsOf(state.event).attendanceMode;
-  const attendanceRows =
-    attendanceMode === "everyone"
-      ? []
-      : await prisma.roundAttendance.findMany({ where: { eventId: session.eventId } });
+  const attendanceRows = tracksPerRound(attendanceMode as AttendanceMode)
+    ? await prisma.roundAttendance.findMany({ where: { eventId: session.eventId } })
+    : [];
 
   /**
    * A resolved view per Single Match Stage.
@@ -124,10 +123,9 @@ export default async function StagesPage() {
     // the Teams screen behind a second round selector, so a format was chosen
     // in one place and priced in another.
     teamScoring: teamScoringFor(s),
-    attendance:
-      attendanceMode === "everyone"
-        ? null
-        : (() => {
+    attendance: !tracksPerRound(attendanceMode as AttendanceMode)
+      ? null
+      : (() => {
             const resolved = resolveAttendance(
               attendanceMode,
               state.confirmed.map((p) => p.id),
