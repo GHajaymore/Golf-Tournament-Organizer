@@ -26,6 +26,42 @@ import { orgProfile, type OrgProfile } from "./org-profile";
 
 export type SetupStepKey = "profile" | "course" | "roster" | "tournament" | "money";
 
+/**
+ * Where each step actually lives.
+ *
+ * Gathered here because the first version of this file invented them — it
+ * linked to `/settings/organization`, `/members`, `/courses` and
+ * `/tournaments/new`, and NOT ONE of those routes exists. Every row of the
+ * checklist was a dead link, which nobody noticed because the component was
+ * never mounted. A path is not a design decision, it is a fact about the app,
+ * and inventing one is the same mistake as storing a rule twice: it reads as
+ * true and is checked by nothing.
+ *
+ * Kept as a table rather than inline strings so the next person can see all
+ * five in one place and check them against `find src/app -name page.tsx`.
+ *
+ * Note what these say about the shape of the app. `/organization` and
+ * `/roster` are inside the `(app)` shell, which `requireEventSession` gates on
+ * an ACTIVE EVENT — so an organizer with no tournament yet cannot reach either
+ * of them, and is bounced to `/choose`. This app is event-first: the club
+ * settings hang off a tournament rather than the other way round. Until that
+ * changes, the only step a brand-new organization can actually do is create
+ * its first tournament, and the checklist must not pretend otherwise.
+ */
+export const SETUP_HREF: Record<SetupStepKey, string> = {
+  // The club settings screen: name, branding, theme, staff access.
+  profile: "/organization",
+  // Courses are set up per tournament, on the event screen.
+  course: "/event",
+  // The club roster — members who outlive any one tournament.
+  roster: "/roster",
+  // `?stay=1` keeps the picker up instead of bouncing a single-tournament
+  // organizer straight back into the one they already have.
+  tournament: "/choose?stay=1",
+  // The money question sits on the same settings screen as the profile.
+  money: "/organization",
+};
+
 export interface SetupStep {
   key: SetupStepKey;
   title: string;
@@ -88,7 +124,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
     blurb: "What it is and what to call it. Decides which of the rest of these apply.",
     done: facts.named,
     consequence: "",
-    href: "/settings/organization",
+    href: SETUP_HREF.profile,
   });
 
   if (profile.ownsCourse) {
@@ -98,7 +134,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
       blurb: "Par and stroke index for each hole, so handicaps and skins compute.",
       done: facts.hasCourse,
       consequence: "Without a card, net scoring and skins have no stroke index to work from.",
-      href: "/courses",
+      href: SETUP_HREF.course,
     });
   }
 
@@ -109,7 +145,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
       blurb: "The list that outlives any one tournament. Import a CSV or add them by hand.",
       done: facts.memberCount > 0,
       consequence: "Pairings cannot be drawn from an empty field.",
-      href: "/members",
+      href: SETUP_HREF.roster,
     });
   }
 
@@ -139,7 +175,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
       : "Skins and pots are always worked out. Entry fees and shared costs sit outside the app unless you say otherwise — a society day can differ.",
     done: facts.moneyAnswered || !profile.ledger,
     consequence: "",
-    href: "/settings/organization",
+    href: SETUP_HREF.money,
   });
 
   steps.push({
@@ -148,7 +184,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
     blurb: "Rounds, formats and a field. The part everyone came for.",
     done: facts.eventCount > 0,
     consequence: "",
-    href: "/tournaments/new",
+    href: SETUP_HREF.tournament,
   });
 
   const remaining = steps.filter((s) => !s.done);

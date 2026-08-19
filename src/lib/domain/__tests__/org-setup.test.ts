@@ -1,5 +1,32 @@
 import { describe, it, expect } from "vitest";
-import { orgSetupState, type OrgSetupFacts } from "../org-setup";
+import { readdirSync } from "node:fs";
+import { join, sep } from "node:path";
+import { orgSetupState, SETUP_HREF, type OrgSetupFacts } from "../org-setup";
+
+/**
+ * Every route this app serves, read off the filesystem.
+ *
+ * Swept rather than listed, for the reason `e2e/layout.spec.ts` gives about
+ * layout: a hand-written list covers what its author remembered, and the ones
+ * it misses get no assertion at all. Route GROUPS — the `(app)` and `(player)`
+ * directories — are organisational and do not appear in the URL, so they are
+ * stripped the same way Next strips them.
+ */
+function appRoutes(dir: string, prefix = ""): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      // A route group contributes nothing to the path.
+      const segment = /^\(.*\)$/.test(entry.name) ? prefix : `${prefix}/${entry.name}`;
+      out.push(...appRoutes(join(dir, entry.name), segment));
+    } else if (entry.name === "page.tsx") {
+      out.push(prefix || "/");
+    }
+  }
+  return out;
+}
+
+const ROUTES = new Set(appRoutes(join(process.cwd(), "src", "app").split("/").join(sep)));
 
 const facts = (over: Partial<OrgSetupFacts> = {}): OrgSetupFacts => ({
   kind: "club",
@@ -93,5 +120,42 @@ describe("org setup checklist", () => {
   it("treats an unknown kind as something rather than crashing", () => {
     expect(() => orgSetupState(facts({ kind: "nonsense" }))).not.toThrow();
     expect(orgSetupState(facts({ kind: null })).steps.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the checklist links somewhere that exists", () => {
+  /**
+   * THE BUG THIS EXISTS FOR. The first version of org-setup.ts invented all
+   * five of its paths — `/settings/organization`, `/courses`, `/members`,
+   * `/tournaments/new` — and not one of them is a route this app serves. Every
+   * row was a dead link. Nothing caught it: the component was never mounted,
+   * the render test asserted the same invented string the code used, and a
+   * path is not the kind of thing a type can check.
+   *
+   * So it is checked against the filesystem instead. A step that points
+   * nowhere now fails here the moment somebody adds it.
+   */
+  it("points every step at a route that exists", () => {
+    for (const [key, href] of Object.entries(SETUP_HREF)) {
+      const path = href.split("?")[0];
+      expect(ROUTES.has(path), `${key} -> ${href} (routes: ${[...ROUTES].sort().join(", ")})`).toBe(true);
+    }
+  });
+
+  it("found the routes at all, so an empty sweep cannot pass it vacuously", () => {
+    // A sweep that silently returns nothing would make the test above pass for
+    // every href in the world.
+    expect(ROUTES.size).toBeGreaterThan(10);
+    expect(ROUTES.has("/choose")).toBe(true);
+  });
+
+  it("gives every step in the state a href from the table", () => {
+    // Belt and braces: the steps must not go around SETUP_HREF with a literal.
+    const known = new Set(Object.values(SETUP_HREF));
+    for (const kind of ["club", "community", "personal"]) {
+      for (const step of orgSetupState(facts({ kind })).steps) {
+        expect(known.has(step.href), `${kind}/${step.key} -> ${step.href}`).toBe(true);
+      }
+    }
   });
 });

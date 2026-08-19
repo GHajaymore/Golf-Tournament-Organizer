@@ -2311,8 +2311,13 @@ describe("the setup checklist", () => {
     // The point of a checklist rather than a gate: creating the tournament
     // before the roster is loaded is a normal way to work.
     const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const { SETUP_HREF } = await import("@/lib/domain/org-setup");
     const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />);
-    expect(html).toContain('href="/tournaments/new"');
+    // Read from the table rather than written out again here. This line used
+    // to assert `href="/tournaments/new"`, a route that has never existed —
+    // the test agreed with the code and both were wrong. What routes exist is
+    // checked against the filesystem in org-setup.test.ts.
+    expect(html).toContain(`href="${SETUP_HREF.tournament}"`);
     expect(html).not.toContain("disabled");
   });
 
