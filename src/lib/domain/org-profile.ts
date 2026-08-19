@@ -16,19 +16,33 @@
  * The distinctions are drawn from how the golf is actually organised, not from
  * how big the outfit is:
  *
- *   - a CLUB and a COURSE run competitions for a standing membership. Money
- *     means the pots, settled round by round, usually in cash the same
- *     evening. Nobody splits a cart fee with the club — they pay the shop.
+ *   - a CLUB (or a course, or a resort) runs competitions for a standing
+ *     membership or for whoever books. Money means the pots, settled round by
+ *     round, usually in cash the same evening. Nobody splits a cart fee with
+ *     the club — they pay the shop.
  *   - a COMMUNITY (a society, a league, a group of friends who play weekly)
  *     runs the same competitions AND shares real costs somebody fronted: the
  *     minibus, the green fees, dinner. That is what the ledger is for.
  *   - a PERSONAL organizer is one person running one thing. Same as a
  *     community in what it needs, smaller in what it has.
+ *
+ * There was briefly a fourth kind, `course`, for a course or resort as distinct
+ * from a members' club. It was removed on 2026-08-18 because it held the SAME
+ * value as `club` on all five flags below — it was a label, not a kind, and a
+ * kind that decides nothing is a question an organizer has to answer for no
+ * reason and a fifth column to fill in every time a flag is added. The word
+ * survives where it belongs, in the signup wording ("A golf club or course"),
+ * which is where somebody recognises their own outfit. Nothing had ever been
+ * written with it: no code path writes `kind` at all except the hard-coded
+ * "personal" in services/organization.ts, so there were no rows to migrate.
+ * If a resort ever does need a different answer to one of these, it comes back
+ * as one row in PROFILES and the compiler finds every caller — which is the
+ * whole point of declaring them here.
  */
 
-export type OrgKind = "club" | "course" | "community" | "personal";
+export type OrgKind = "club" | "community" | "personal";
 
-export const ORG_KINDS: OrgKind[] = ["club", "course", "community", "personal"];
+export const ORG_KINDS: OrgKind[] = ["club", "community", "personal"];
 
 export interface OrgProfile {
   kind: OrgKind;
@@ -82,21 +96,12 @@ export interface OrgProfile {
 const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
   club: {
     label: "Golf club",
-    blurb: "A members' club running competitions for its own membership.",
+    blurb: "A club, course or resort running competitions for its members and guests.",
     sharedRoster: true,
     ledger: false,
     seasonPlay: true,
     ownsCourse: true,
     // The shop takes the entry fee and pays the winner. The app says who won.
-    tracksCash: false,
-  },
-  course: {
-    label: "Golf course",
-    blurb: "A course or resort running events for whoever books them.",
-    sharedRoster: true,
-    ledger: false,
-    seasonPlay: true,
-    ownsCourse: true,
     tracksCash: false,
   },
   community: {

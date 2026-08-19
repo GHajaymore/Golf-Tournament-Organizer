@@ -9,6 +9,7 @@ import { ROLE_LABEL } from "@/lib/roles";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
+import { orgProfile } from "@/lib/domain/org-profile";
 
 export default async function ChooseTournamentPage({
   searchParams,
@@ -124,7 +125,13 @@ export default async function ChooseTournamentPage({
                   <div className="text-muted" style={{ fontSize: 12, marginTop: 3 }}>
                     {a.event.dates || "No dates set"}
                     {a.event.course ? ` · ${a.event.course}` : ""} · {a.event._count.players} players
-                    {a.event.organization?.kind === "club" ? ` · ${a.event.organization.name}` : ""}
+                    {/* Whose name is worth showing: a tenant shared with other
+                        people, so the row says which one. A personal organizer's
+                        org name is their own and adds nothing. Asked via the
+                        profile rather than compared, so a society gets it too. */}
+                    {a.event.organization && orgProfile(a.event.organization.kind).sharedRoster
+                      ? ` · ${a.event.organization.name}`
+                      : ""}
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "none" }}>

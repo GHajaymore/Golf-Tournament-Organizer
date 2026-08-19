@@ -3,6 +3,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { listNames } from "@/lib/format";
 import { fieldRosterSummary } from "@/lib/domain/roster-link";
 import { csvSizeRefusal } from "@/lib/csv";
+import { orgProfile } from "@/lib/domain/org-profile";
 import {
   addMember,
   updateMember,
@@ -38,7 +39,16 @@ export interface RosterRow {
 
 interface Props {
   clubName: string;
-  isClub: boolean;
+  /**
+   * The stored kind, asked via `orgProfile` rather than compared here.
+   *
+   * This was `isClub: boolean`, filled in by the page with `kind === "club"`.
+   * That is a second place deciding what a kind means, and it got the answer
+   * wrong for every kind but the two it knew: a society has a shared roster
+   * and would have been labelled "Personal — your own list of players" while
+   * looking at the shared list.
+   */
+  orgKind: string;
   eventName: string;
   fieldLocked: boolean;
   members: RosterRow[];
@@ -62,7 +72,7 @@ const BLANK: MemberInput = {
 
 export function RosterClient({
   clubName,
-  isClub,
+  orgKind,
   eventName,
   fieldLocked,
   members,
@@ -81,6 +91,7 @@ export function RosterClient({
   const [notice, setNotice] = useState("");
   const [pending, startTransition] = useTransition();
   const summary = fieldRosterSummary(fieldSize, unlinkedCount);
+  const profile = orgProfile(orgKind);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -295,9 +306,9 @@ export function RosterClient({
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Type</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{isClub ? "Club" : "Personal"}</div>
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{profile.label}</div>
           <div className="text-muted" style={{ fontSize: 12 }}>
-            {isClub ? "shared roster" : "your own list of players"}
+            {profile.sharedRoster ? "shared roster" : "your own list of players"}
           </div>
         </div>
       </div>

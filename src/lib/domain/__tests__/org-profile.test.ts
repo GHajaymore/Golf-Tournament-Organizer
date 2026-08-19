@@ -3,12 +3,11 @@ import { orgProfile, isOrgKind, ORG_KINDS, type OrgKind } from "@/lib/domain/org
 import { moneyLayoutFor, roundMoneyIsFinal } from "@/lib/domain/money-layout";
 
 describe("what each kind of organization means", () => {
-  it("gives a club and a course no shared-cost ledger", () => {
+  it("gives a club no shared-cost ledger", () => {
     // Nobody splits a cart fee with the club — they pay the shop. A ledger
     // there is a feature from somebody else's outing, and it invites a member
     // to think the club owes them for the buggy.
     expect(orgProfile("club").ledger).toBe(false);
-    expect(orgProfile("course").ledger).toBe(false);
   });
 
   it("gives a society and a personal organizer one", () => {
@@ -19,18 +18,17 @@ describe("what each kind of organization means", () => {
 
   it("keeps the roster shared for everyone but a personal organizer", () => {
     // The existing `kind === "club"` comparisons were really asking this.
-    for (const k of ["club", "course", "community"] as OrgKind[]) {
+    for (const k of ["club", "community"] as OrgKind[]) {
       expect(orgProfile(k).sharedRoster, k).toBe(true);
     }
     expect(orgProfile("personal").sharedRoster).toBe(false);
   });
 
-  it("leaves the cash to the shop at a club or a course", () => {
+  it("leaves the cash to the shop at a club", () => {
     // The shop takes the entry fee, the 2s pot comes out of it, and the pro
     // pays the winner. Recording "Halloran still owes 5" would invent a debt
     // the club is not chasing and cannot see.
     expect(orgProfile("club").tracksCash).toBe(false);
-    expect(orgProfile("course").tracksCash).toBe(false);
     // A society has no shop to arbitrate: one person fronted it, nine owe.
     expect(orgProfile("community").tracksCash).toBe(true);
     expect(orgProfile("personal").tracksCash).toBe(true);
@@ -75,8 +73,13 @@ describe("what each kind of organization means", () => {
   });
 
   it("validates a stored kind", () => {
-    expect(isOrgKind("course")).toBe(true);
+    expect(isOrgKind("club")).toBe(true);
+    expect(isOrgKind("community")).toBe(true);
     expect(isOrgKind("society")).toBe(false);
+    // Dropped on 2026-08-18 — it answered every flag exactly as `club` did, so
+    // it was a label rather than a kind. No row has ever held it: nothing
+    // writes `kind` but the hard-coded "personal" in services/organization.ts.
+    expect(isOrgKind("course")).toBe(false);
   });
 });
 

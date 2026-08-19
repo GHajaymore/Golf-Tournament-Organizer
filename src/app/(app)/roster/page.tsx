@@ -45,7 +45,7 @@ export default async function RosterPage() {
   return (
     <RosterClient
       clubName={org.shortName || org.name}
-      isClub={org.kind === "club"}
+      orgKind={org.kind}
       eventName={event.name}
       fieldLocked={(event.status === "live" || event.status === "completed") && !event.configUnlocked}
       fieldSize={entered.length}

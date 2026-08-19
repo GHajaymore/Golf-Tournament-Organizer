@@ -9,6 +9,7 @@ import {
   BRAND_DISPLAY_LABEL,
   BRAND_DISPLAY_HELP,
 } from "@/lib/brand";
+import { orgProfile } from "@/lib/domain/org-profile";
 
 interface Props {
   name: string;
@@ -79,11 +80,9 @@ export function OrganizationClient(props: Props) {
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Type</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>
-            {props.kind === "club" ? "Club" : "Personal"}
-          </div>
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{orgProfile(props.kind).label}</div>
           <div className="text-muted" style={{ fontSize: 12 }}>
-            {props.kind === "club" ? "shared with staff" : "a single organizer"}
+            {orgProfile(props.kind).sharedRoster ? "shared with staff" : "a single organizer"}
           </div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>

@@ -58,7 +58,20 @@ model Organization {
   id   String @id @default(cuid())
   name String
   /**
-   * personal | club — a club is a shared tenant with staff; personal is one organizer.
+   * club | community | personal — see lib/domain/org-profile.ts, which is the
+   * authoritative list and declares what each one MEANS. Do not re-decide the
+   * behaviour of a kind by comparing this string; ask `orgProfile()`.
+   *
+   * club      a club, course or resort. Shared roster, no ledger — the shop
+   *           takes the entry fee and pays the winner, so the app says who won.
+   * community a society, league or regular group. Shared roster AND a ledger:
+   *           somebody fronted the minibus and is owed by nine others.
+   * personal  one organizer running an outing, with their own list of players.
+   *
+   * This comment used to read `personal | club`, disagreeing with the four
+   * kinds in org-profile.ts. Settled on 2026-08-18: org-profile is
+   * authoritative, and `course` was dropped there because it held the same
+   * value as `club` on every behaviour flag.
    */
   kind String @default("personal")
 

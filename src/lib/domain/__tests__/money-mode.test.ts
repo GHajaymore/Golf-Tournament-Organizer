@@ -12,9 +12,13 @@ describe("which mode is in force", () => {
     // The whole point of the empty defaults. Every club and event in the
     // database has "" for both columns, and must keep behaving as it does.
     expect(resolveMoneyMode({ orgKind: "club" })).toBe("none");
-    expect(resolveMoneyMode({ orgKind: "course" })).toBe("none");
     expect(resolveMoneyMode({ orgKind: "community" })).toBe("split");
     expect(resolveMoneyMode({ orgKind: "personal" })).toBe("split");
+    // `course` was a kind until 2026-08-18 and is now an unknown string, so it
+    // takes the orgProfile fallback to `personal` and gets the ledger. That is
+    // the safe direction — a typo in the column should never be the reason
+    // somebody is not told they are owed — and no row has ever held it.
+    expect(resolveMoneyMode({ orgKind: "course" })).toBe("split");
   });
 
   it("lets the club set its own default", () => {
