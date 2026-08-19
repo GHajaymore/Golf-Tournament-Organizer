@@ -2408,14 +2408,28 @@ describe("play settings name one thing per heading", () => {
   });
 
   it("keeps every control it had — this separates, it does not remove", async () => {
+    // Asserts the OPTIONS, not the headings. Two controls had their label
+    // suppressed because the group heading above already said the same words,
+    // so checking for the label would pass while the control itself had gone.
     const html = await panel("tournament");
-    for (const label of [
-      "Who can see the leaderboard",
-      "Who enters scores",
-      "Who signs off a result",
-      "Weekly sign-up",
+    for (const option of [
+      "Organizers only", // who can see the leaderboard
+      "Players may enter their own scores", // who enters scores
+      "During the round, hole by hole", // when players may submit
+      "An organizer approves each card", // who signs off
+      "Everyone plays every round", // weekly sign-up
     ]) {
-      expect(html, label).toContain(label);
+      expect(html, option).toContain(option);
+    }
+  });
+
+  it("does not say the same words twice in a row", async () => {
+    // Grouping put "Who signs off a result" directly under a heading reading
+    // "Who signs off a result". Separation that makes a screen wordier rather
+    // than clearer is not the point of this pass.
+    const html = await panel("tournament");
+    for (const words of ["Who signs off a result", "Weekly sign-up"]) {
+      expect(html.split(words).length - 1, words).toBe(1);
     }
   });
 

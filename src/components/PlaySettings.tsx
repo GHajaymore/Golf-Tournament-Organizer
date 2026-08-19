@@ -87,6 +87,7 @@ function Choice<T extends string>({
   disabled,
   onChange,
 }: {
+  /** Empty where the Group heading above already names this setting. */
   label: string;
   hint?: string;
   value: T;
@@ -98,9 +99,17 @@ function Choice<T extends string>({
 }) {
   return (
     <div className="field">
-      <label>
-        {label} {hint && <span className="text-muted">· {hint}</span>}
-      </label>
+      {/* Suppressed when the Group heading directly above already says it.
+          Grouping the settings put "Who signs off a result" immediately under
+          a heading reading "Who signs off a result", and the same for "Weekly
+          sign-up" — a stutter, and a separation that made the screen wordier
+          rather than clearer. Where a group holds one control, the heading IS
+          the label. */}
+      {label && (
+        <label>
+          {label} {hint && <span className="text-muted">· {hint}</span>}
+        </label>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 2 }}>
         {options.map((opt) => (
           <label
@@ -312,7 +321,7 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
       />
 
       <Choice
-        label="Who signs off a result"
+        label=""
         value={form.scoreApproval}
         options={SCORE_APPROVAL}
         labels={SCORE_APPROVAL_LABEL}
@@ -344,12 +353,11 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
 
       <Group
         title="Weekly sign-up"
-        blurb="Who is playing next week — nothing to do with scoring or sign-off."
+        blurb="Who is playing next week — nothing to do with scoring or sign-off. For a league that plays every week: whether the field is assumed in, assumed out, or the question never asked. Players answer per round, until each round's sign-up deadline."
       />
 
       <Choice
-        label="Weekly sign-up"
-        hint="For a league that plays every week: whether the field is assumed in, assumed out, or the question never asked. Players answer per round, until each round's sign-up deadline."
+        label=""
         value={form.attendanceMode}
         options={ATTENDANCE_MODES}
         labels={ATTENDANCE_MODE_LABEL}
