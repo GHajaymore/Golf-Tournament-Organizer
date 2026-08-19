@@ -21,6 +21,9 @@ import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
+import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
+import { orgSetupFactsFor } from "@/lib/services/organization";
+import { orgSetupState } from "@/lib/domain/org-setup";
 
 /**
  * Shortcuts into the sidebar, with the dashboard's own shorter labels.
@@ -57,6 +60,9 @@ export default async function DashboardPage() {
       ? "Every player meets everyone in their flight."
       : currentStage?.description ?? "";
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+  // Null for anybody who runs no organization of their own.
+  const orgFacts = isStaff ? await orgSetupFactsFor(session.email, session.name) : null;
+  const orgSetup = orgFacts ? orgSetupState(orgFacts) : null;
   const isAdmin = session.viewRole === "admin";
 
   // The dashboard mirrors the leaderboard and links into score entry, so it
@@ -202,6 +208,22 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {/* The ORGANIZATION checklist, above the per-tournament one below it.
+          Two different things and deliberately two components: this one is
+          about the club or society that OWNS the tournaments — its name, its
+          course, its roster — and is answered once rather than per event.
+          Merging them would put "add your members" inside a list about one
+          tournament.
+
+          Staff only, and it renders nothing once everything that applies is
+          done, so an established club never sees it. A player never sees it
+          either — they run no organization, so the facts come back null. */}
+      {isStaff && orgSetup && (
+        <div style={{ marginBottom: 16 }}>
+          <OrgSetupChecklist state={orgSetup} />
+        </div>
+      )}
+
       {publishedSheet && (
         <div className="card elev-sm" style={{ marginBottom: 16, gap: 10 }}>
           <div>

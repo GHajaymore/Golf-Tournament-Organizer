@@ -62,11 +62,25 @@ describe("what each kind of organization means", () => {
     for (const k of ORG_KINDS) {
       const p = orgProfile(k);
       expect(p.label.length, k).toBeGreaterThan(0);
+      expect(p.noun.length, k).toBeGreaterThan(0);
       expect(p.blurb.length, k).toBeGreaterThan(0);
       expect(typeof p.ledger, k).toBe("boolean");
       expect(typeof p.sharedRoster, k).toBe("boolean");
       expect(typeof p.seasonPlay, k).toBe("boolean");
       expect(typeof p.ownsCourse, k).toBe("boolean");
+    }
+  });
+
+  it("gives every kind a noun that survives being put in a sentence", () => {
+    // `label` is a chip and does not. OrgSetupChecklist rendered "Setting up
+    // your personal" and "Name your personal" from lowercasing it — neither is
+    // English, and nobody saw them because the component was never mounted.
+    for (const k of ORG_KINDS) {
+      const noun = orgProfile(k).noun;
+      expect(`Setting up your ${noun}`, k).not.toMatch(/your personal$/);
+      // A noun, not a title-cased label dropped in.
+      expect(noun, k).toBe(noun.toLowerCase());
+      expect(noun.split(" ").length, k).toBe(1);
     }
   });
 

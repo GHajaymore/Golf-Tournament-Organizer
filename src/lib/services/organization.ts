@@ -7,8 +7,9 @@ import {
 } from "../themes";
 import { cleanSettings } from "../tournament-settings";
 import { generateShareToken } from "../codes";
-import { newOrganizationName } from "../org-naming";
+import { newOrganizationName, organizationWasNamed } from "../org-naming";
 import type { OrgKind } from "../domain/org-profile";
+import type { OrgSetupFacts } from "../domain/org-setup";
 
 /**
  * Resolve the organization a new tournament should belong to for this person,
@@ -99,6 +100,62 @@ export async function createOrganizationWithOwner(input: {
     },
   });
   return org.id;
+}
+
+/**
+ * The setup checklist for whichever organization this person runs, or null.
+ *
+ * Null when they run none — a player invited to somebody else's tournament has
+ * no organization of their own and must not be shown a club setup checklist.
+ * Deliberately not "create one so there is something to show": creating a
+ * tenant as a side effect of rendering a page is how orphan organizations get
+ * made, and `signUp` already creates one for anybody who is actually an
+ * organizer.
+ *
+ * Which organization, when they run several: the same preference order
+ * `organizationForNewEvent` uses — owner or admin, a real club ahead of the
+ * personal fallback, oldest first — so the checklist is about the same
+ * organization a new tournament would land in. Two different answers to "which
+ * of my organizations is this page about" would be the usual defect.
+ *
+ * The facts are COUNTS, never rows. Nothing downstream needs to know what a
+ * member is, only whether there are any, and counting in the database beats
+ * loading a club's whole roster to check it is not empty.
+ */
+export async function orgSetupFactsFor(
+  email: string,
+  displayName: string,
+): Promise<OrgSetupFacts | null> {
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (!user) return null;
+
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId: user.id, role: { in: ["owner", "admin"] } },
+    orderBy: [{ organization: { kind: "asc" } }, { createdAt: "asc" }],
+    select: {
+      organization: {
+        select: {
+          name: true,
+          kind: true,
+          moneyMode: true,
+          _count: { select: { roster: true, events: true, courses: true } },
+        },
+      },
+    },
+  });
+  if (!membership) return null;
+
+  const org = membership.organization;
+  return {
+    kind: org.kind,
+    // Not `!!org.name` — every organization has a name from birth, because
+    // sign-up derives one from the person. See organizationWasNamed.
+    named: organizationWasNamed(org.name, displayName, email),
+    hasCourse: org._count.courses > 0,
+    memberCount: org._count.roster,
+    eventCount: org._count.events,
+    moneyAnswered: org.moneyMode.trim() !== "",
+  };
 }
 
 /**

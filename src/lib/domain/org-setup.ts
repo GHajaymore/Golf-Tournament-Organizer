@@ -118,11 +118,25 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
   const profile = orgProfile(facts.kind);
   const steps: SetupStep[] = [];
 
+  /**
+   * `noun`, not `label.toLowerCase()`. This read "Name your personal" for a
+   * personal organizer, and the checklist heading above it read "Setting up
+   * your personal" — the label is a chip, and a chip does not survive being
+   * dropped into a sentence.
+   *
+   * Done for a personal organizer whichever name it has. Their organization is
+   * their own list of players and nobody else ever sees its name, so the
+   * derived one is a complete answer. A club or a society is a shared tenant
+   * whose name lands on every scorecard, the console header and the public
+   * board — for those, the name the app made up is the first thing still to do.
+   */
   steps.push({
     key: "profile",
-    title: `Name your ${profile.label.toLowerCase()}`,
-    blurb: "What it is and what to call it. Decides which of the rest of these apply.",
-    done: facts.named,
+    title: `Name your ${profile.noun}`,
+    blurb: profile.sharedRoster
+      ? "It goes on every scorecard, the console header and the public leaderboard."
+      : "A name, a logo and colours for your scorecards and leaderboard.",
+    done: facts.named || !profile.sharedRoster,
     consequence: "",
     href: SETUP_HREF.profile,
   });
@@ -131,9 +145,17 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
     steps.push({
       key: "course",
       title: "Add your course",
-      blurb: "Par and stroke index for each hole, so handicaps and skins compute.",
+      blurb: "Par and stroke index once, reused by every tournament you run there.",
       done: facts.hasCourse,
-      consequence: "Without a card, net scoring and skins have no stroke index to work from.",
+      /**
+       * Not "net scoring and skins have no stroke index to work from", which
+       * this said and which is not true: a tournament carries its own pars and
+       * stroke index, and the demo club has run a whole event on them without
+       * a Course row. Overstating a consequence is the same failure as a
+       * disabled control with no reason — it asks somebody to act on a
+       * penalty that will not arrive, and they learn to discount the next one.
+       */
+      consequence: "Without one, par and stroke index have to be re-entered on every tournament.",
       href: SETUP_HREF.course,
     });
   }

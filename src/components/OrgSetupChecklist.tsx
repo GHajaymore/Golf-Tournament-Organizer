@@ -34,7 +34,7 @@ export function OrgSetupChecklist({ state }: { state: OrgSetupState }) {
     <section className="card elev-sm" style={{ gap: 14 }}>
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>
-          Setting up your {state.profile.label.toLowerCase()}
+          Setting up your {state.profile.noun}
         </span>
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
           {doneCount} of {state.steps.length} done. Work through them in any order — nothing here is

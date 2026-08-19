@@ -123,6 +123,32 @@ describe("org setup checklist", () => {
   });
 });
 
+describe("naming the organization", () => {
+  it("asks a club and a society to name it, because everyone sees that name", () => {
+    // It lands on every scorecard, the console header and the public board.
+    for (const kind of ["club", "community"]) {
+      const s = orgSetupState(facts({ kind, named: false }));
+      expect(s.steps.find((x) => x.key === "profile")?.done, kind).toBe(false);
+    }
+  });
+
+  it("does not ask a personal organizer, whose derived name is a real answer", () => {
+    // Their organization is their own list of players and nobody else ever
+    // sees what it is called, so "named after me" is complete rather than
+    // outstanding.
+    const s = orgSetupState(facts({ kind: "personal", named: false }));
+    expect(s.steps.find((x) => x.key === "profile")?.done).toBe(true);
+  });
+
+  it("titles the step in English for every kind", () => {
+    // "Name your personal" was what the label produced.
+    for (const kind of ["club", "community", "personal"]) {
+      const title = orgSetupState(facts({ kind })).steps.find((x) => x.key === "profile")?.title;
+      expect(title, kind).toMatch(/^Name your (club|society|outing)$/);
+    }
+  });
+});
+
 describe("the checklist links somewhere that exists", () => {
   /**
    * THE BUG THIS EXISTS FOR. The first version of org-setup.ts invented all

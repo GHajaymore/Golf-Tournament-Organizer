@@ -46,8 +46,19 @@ export const ORG_KINDS: OrgKind[] = ["club", "community", "personal"];
 
 export interface OrgProfile {
   kind: OrgKind;
-  /** What to call it on screen. */
+  /** What to call it on screen, as a heading or a chip. Title case. */
   label: string;
+  /**
+   * What to call it inside a sentence — "Setting up your club", "Name your
+   * outing".
+   *
+   * Separate from `label` because `label` does not survive being dropped into
+   * running text. `OrgSetupChecklist` said "Setting up your personal" and the
+   * first step was titled "Name your personal", both from lowercasing the
+   * label. Neither is English. Nobody saw them because the component has never
+   * been mounted.
+   */
+  noun: string;
   /** One line an organizer would recognise their own outfit in. */
   blurb: string;
   /**
@@ -99,6 +110,7 @@ export interface OrgProfile {
 const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
   club: {
     label: "Golf club",
+    noun: "club",
     blurb: "A club, course or resort running competitions for its members and guests.",
     sharedRoster: true,
     ledger: false,
@@ -107,6 +119,7 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
   },
   community: {
     label: "Society or league",
+    noun: "society",
     blurb: "A society, league or group that plays together and shares the costs.",
     sharedRoster: true,
     ledger: true,
@@ -116,6 +129,7 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
   },
   personal: {
     label: "Personal",
+    noun: "outing",
     blurb: "One organizer running an outing, with their own list of players.",
     sharedRoster: false,
     ledger: true,
