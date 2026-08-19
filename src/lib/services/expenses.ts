@@ -578,8 +578,9 @@ export async function hasMoneyGames(eventId: string): Promise<boolean> {
  * depend on who is running the golf. A club is `none` by default — correctly,
  * the shop takes the entry fee and pays the winner — but a club runs skins and
  * a 2s pot every Saturday, and the app is the thing that works out who won
- * them. That is a RESULT, not a cash book, which is the distinction org-profile
- * draws in `tracksCash`.
+ * them. That is a RESULT, not a cash book — a stake settled at the bar the same
+ * evening, as against a share of the minibus somebody fronted, which is the
+ * distinction org-profile draws in `ledger`.
  *
  * Under `none` the whole tab was hidden, so the organizer settled the skins on
  * the prizes screen (which is gated on the round, not the mode, so it always

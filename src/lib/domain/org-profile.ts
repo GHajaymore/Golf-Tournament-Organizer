@@ -56,11 +56,32 @@ export interface OrgProfile {
    */
   sharedRoster: boolean;
   /**
-   * Shared costs and a settle-up.
+   * Shared costs and a settle-up: money one person FRONTED and the others owe
+   * a share of. The minibus, the green fees, dinner.
    *
-   * Off for a club and a course. A ledger there is a feature from somebody
-   * else's outing and worse than absent: it invites a member to think the club
-   * owes them for the buggy.
+   * Off for a club. A ledger there is a feature from somebody else's outing and
+   * worse than absent: it invites a member to think the club owes them for the
+   * buggy. A society is the opposite case — one person paid for the minibus and
+   * is owed by nine others, with nobody in a shop to arbitrate — and that is
+   * the whole reason the settle-up exists.
+   *
+   * Note what this is NOT about: whether the app counts money at all. It does,
+   * for everybody. A club runs skins and a 2s pot, players stake in them, and
+   * the app works out who won and who is down a fiver — see `usesExpenses` and
+   * `moneyScreenApplies`. A stake in a pot is a RESULT, settled at the bar the
+   * same evening. A share of the minibus is a DEBT, and only some outfits have
+   * them.
+   *
+   * There used to be a second flag here, `tracksCash`, documented as "whether
+   * the APP is the thing that tracks who has paid" and false for a club. Three
+   * things were wrong with it. It was read by nothing. It held the same value
+   * as `ledger` on every kind, which a test asserted outright — so it was a
+   * second name for this rule, and this codebase's recurring defect is one rule
+   * with two readers that disagree. And by 2026-08-18 its claim was simply
+   * false: a club player who stakes in the skins and wins nothing is shown a
+   * negative number, and an organizer marks a pot entrant unpaid. The app does
+   * track who has paid at a club. Removed rather than reworded, because the
+   * honest split of it is "a constant that is true everywhere" plus this flag.
    */
   ledger: boolean;
   /**
@@ -73,24 +94,6 @@ export interface OrgProfile {
    * so its own card is the default rather than one picked per event.
    */
   ownsCourse: boolean;
-  /**
-   * Whether the APP is the thing that tracks who has paid.
-   *
-   * At a club or a course, it is not: the shop takes the entry fee, the 2s
-   * pot comes out of it, and the professional pays the winner. The app's job
-   * there is to say who won — a results sheet, not a cash book. Recording
-   * "Halloran still owes £5" would be inventing a debt the club is not
-   * chasing and cannot see, and every screen that showed it would be wrong.
-   *
-   * A society or a roll-up is the opposite case: one person fronted the money
-   * and is owed by nine others, with nobody in a shop to arbitrate. That is
-   * the whole reason the ledger and the settle-up exist.
-   *
-   * This is the flag that decides whether "take their money" and "you owe"
-   * appear at all — not a cosmetic difference, a different product on the
-   * same engine.
-   */
-  tracksCash: boolean;
 }
 
 const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
@@ -101,18 +104,15 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
     ledger: false,
     seasonPlay: true,
     ownsCourse: true,
-    // The shop takes the entry fee and pays the winner. The app says who won.
-    tracksCash: false,
   },
   community: {
     label: "Society or league",
     blurb: "A society, league or group that plays together and shares the costs.",
     sharedRoster: true,
     ledger: true,
+    // One person fronted the minibus and is owed by nine others, no shop to ask.
     seasonPlay: true,
     ownsCourse: false,
-    // One person fronted it and is owed by nine others, with no shop to ask.
-    tracksCash: true,
   },
   personal: {
     label: "Personal",
@@ -121,7 +121,6 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
     ledger: true,
     seasonPlay: false,
     ownsCourse: false,
-    tracksCash: true,
   },
 };
 
