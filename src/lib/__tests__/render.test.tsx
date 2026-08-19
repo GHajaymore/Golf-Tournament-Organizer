@@ -2329,3 +2329,44 @@ describe("the setup checklist", () => {
     expect(html).not.toContain("Add your members");
   });
 });
+
+describe("the draw's refusal", () => {
+  const controls = async (players: unknown[], locked = false) => {
+    const { GroupingControls } = await import("@/components/GroupingControls");
+    return render(
+      <GroupingControls
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        players={players as any}
+        currentRule="balanced"
+        currentMode="auto"
+        currentValue={0}
+        locked={locked}
+      />,
+    );
+  };
+  const player = (id: string) => ({ id, name: `Player ${id}`, handicap: 10, seed: 1, email: "" });
+
+  it("says why the draw is dead on an empty field, and links to the fix", async () => {
+    // The whole point. This button was `disabled={... players.length === 0}`
+    // with no reason given anywhere on the page — the same dead-control
+    // complaint that was raised about Rounds & formats.
+    const html = await controls([]);
+    expect(html).toMatch(/empty field/i);
+    expect(html).toContain('href="/registration"');
+  });
+
+  it("puts the locked reason on the page, not only in a tooltip", async () => {
+    // It was a `title`, which never appears on a touch device and is not
+    // announced.
+    const html = await controls([player("a"), player("b")], true);
+    expect(html).toMatch(/lock/i);
+    expect(html).toContain("href=");
+  });
+
+  it("says nothing at all when the draw can just go ahead", async () => {
+    // The refusal must not become permanent furniture on a working screen.
+    const html = await controls([player("a"), player("b")]);
+    expect(html).not.toMatch(/empty field/i);
+    expect(html).not.toContain('href="/registration"');
+  });
+});
