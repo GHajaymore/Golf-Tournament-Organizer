@@ -52,6 +52,31 @@ interface Props {
 
 /** Radio group. Each option carries its own explanation, because these
  *  choices change what players can see and do — not somewhere to be terse. */
+/**
+ * A subheading naming ONE question.
+ *
+ * Seven controls sat in a flat list under a single "Players & scoring"
+ * heading, answering four unrelated questions: who may see results, how scores
+ * get in, who signs a result off, and who is playing next week. That is the
+ * same failure as the "Match points & tiebreakers" heading — an ampersand
+ * covering two things, so the setting somebody came for cannot be found,
+ * because nothing on screen names it.
+ *
+ * The fix is separation, not removal. Every control here is still present and
+ * still does what it did; they are grouped under headings that each name one
+ * thing.
+ */
+function Group({ title, blurb }: { title: string; blurb: string }) {
+  return (
+    <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 12, marginTop: 2 }}>
+      <span style={{ fontFamily: "var(--font-heading)", fontSize: 13, fontWeight: 600 }}>{title}</span>
+      <p className="text-muted" style={{ fontSize: 11.5, margin: "3px 0 0", lineHeight: 1.5 }}>
+        {blurb}
+      </p>
+    </div>
+  );
+}
+
 function Choice<T extends string>({
   label,
   hint,
@@ -168,6 +193,11 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
         </p>
       </div>
 
+      <Group
+        title="Who can see results"
+        blurb="The board in the clubhouse and the link families follow."
+      />
+
       <Choice
         label="Who can see the leaderboard"
         value={form.leaderboardVisibility}
@@ -226,6 +256,11 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
         </div>
       )}
 
+      <Group
+        title="How scores get in"
+        blurb="Who records them, from where, and when."
+      />
+
       <Choice
         label="Who enters scores"
         hint="organizers and assistants can always enter and correct scores"
@@ -271,6 +306,11 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
         </>
       )}
 
+      <Group
+        title="Who signs off a result"
+        blurb="Before a score counts on the board."
+      />
+
       <Choice
         label="Who signs off a result"
         value={form.scoreApproval}
@@ -283,18 +323,12 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
 
       {/* Only asked when players sign off. With staff approval there is
           nobody to configure, and showing it anyway invites an organizer to
-          set something that will never apply. */}
-      <Choice
-        label="Weekly sign-up"
-        hint="For a league that plays every week: whether the field is assumed in, assumed out, or the question never asked. Players answer per round, until each round's sign-up deadline."
-        value={form.attendanceMode}
-        options={ATTENDANCE_MODES}
-        labels={ATTENDANCE_MODE_LABEL}
-        help={ATTENDANCE_MODE_HELP}
-        disabled={!canEdit || pending}
-        onChange={(v) => set("attendanceMode", v)}
-      />
-
+          set something that will never apply.
+          This comment had drifted off its control: "Weekly sign-up" was
+          inserted between it and the attestBy Choice it describes, so it read
+          as an explanation of a setting it has nothing to do with — and
+          "Weekly sign-up" is not gated on sign-off at all. Weekly sign-up is
+          its own question and now sits under its own heading below. */}
       {form.scoreApproval === "players" && (
         <Choice
           label="How many playing partners must confirm"
@@ -307,6 +341,22 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
           onChange={(v) => set("attestBy", v)}
         />
       )}
+
+      <Group
+        title="Weekly sign-up"
+        blurb="Who is playing next week — nothing to do with scoring or sign-off."
+      />
+
+      <Choice
+        label="Weekly sign-up"
+        hint="For a league that plays every week: whether the field is assumed in, assumed out, or the question never asked. Players answer per round, until each round's sign-up deadline."
+        value={form.attendanceMode}
+        options={ATTENDANCE_MODES}
+        labels={ATTENDANCE_MODE_LABEL}
+        help={ATTENDANCE_MODE_HELP}
+        disabled={!canEdit || pending}
+        onChange={(v) => set("attendanceMode", v)}
+      />
 
       {error && (
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>

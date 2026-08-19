@@ -2330,6 +2330,53 @@ describe("the setup checklist", () => {
   });
 });
 
+describe("play settings name one thing per heading", () => {
+  const settings = {
+    leaderboardVisibility: "players",
+    scoreEntryBy: "players",
+    scoreEntryWindow: "anytime",
+    voiceEntry: false,
+    playerAccess: "code",
+    scoreApproval: "players",
+    attendanceMode: "off",
+    attestBy: "one",
+  };
+  const panel = async (mode: "tournament" | "organization") => {
+    const { PlaySettings } = await import("@/components/PlaySettings");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return render(<PlaySettings mode={mode} settings={settings as any} canEdit />);
+  };
+
+  it("separates the four questions that shared one heading", async () => {
+    // Seven controls sat flat under "Players & scoring", answering four
+    // unrelated questions. The setting somebody came for could not be found
+    // because nothing on screen named it — the "Match points & tiebreakers"
+    // failure again.
+    const html = await panel("tournament");
+    for (const heading of ["Who can see results", "How scores get in", "Who signs off a result", "Weekly sign-up"]) {
+      expect(html, heading).toContain(heading);
+    }
+  });
+
+  it("keeps every control it had — this separates, it does not remove", async () => {
+    const html = await panel("tournament");
+    for (const label of [
+      "Who can see the leaderboard",
+      "Who enters scores",
+      "Who signs off a result",
+      "Weekly sign-up",
+    ]) {
+      expect(html, label).toContain(label);
+    }
+  });
+
+  it("renders the house-defaults mode too, which shares this component", async () => {
+    // It appears on the organization screen as well, so a change here lands
+    // on two screens.
+    expect(await panel("organization")).toContain("How scores get in");
+  });
+});
+
 describe("the draw's refusal", () => {
   const controls = async (players: unknown[], locked = false) => {
     const { GroupingControls } = await import("@/components/GroupingControls");
