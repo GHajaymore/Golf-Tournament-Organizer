@@ -1,7 +1,9 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { regenGroups } from "@/app/actions/tournament";
 import { formGroups, flightCountFor, type FormationRule, type Player } from "@/lib/domain";
+import { drawReadiness } from "@/lib/domain/draw-readiness";
 
 const RULES: Array<{ key: FormationRule; label: string; icon: string; desc: string }> = [
   {
@@ -76,6 +78,9 @@ export function GroupingControls({
 
   const config = { mode, value: value || undefined };
   const flightCount = flightCountFor(players.length, config);
+  // The one thing to fix before a draw is possible, or null. Rendered below
+  // the button rather than hidden in a `title`.
+  const block = drawReadiness({ fieldSize: players.length, locked });
   const active = RULES.find((r) => r.key === rule) ?? RULES[0];
 
   const byId = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
@@ -139,8 +144,7 @@ export function GroupingControls({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending || players.length === 0 || locked}
-            title={locked ? "Configuration is locked. Unlock the tournament to regenerate flights." : undefined}
+            disabled={pending || !!block}
             onClick={() =>
               startTransition(async () => {
                 setError("");
@@ -156,6 +160,35 @@ export function GroupingControls({
           </button>
         </div>
       </div>
+
+      {/* The reason the button above is dead, on the page rather than in a
+          tooltip, with the way out as a link. A `title` never appears on a
+          touch device, is not announced, and cannot hold a link — so a
+          disabled control with only a tooltip is still a disabled control with
+          no reason, which is the complaint this exists to answer. */}
+      {block && (
+        <p
+          style={{
+            fontSize: 12.5,
+            margin: 0,
+            lineHeight: 1.5,
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-start",
+            padding: "9px 11px",
+            borderRadius: 9,
+            background: "color-mix(in srgb, var(--color-text) 5%, transparent)",
+          }}
+        >
+          <i className="ph ph-info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
+          <span>
+            {block.problem}{" "}
+            <Link href={block.href} style={{ color: "var(--color-accent-300)" }}>
+              {block.linkLabel}
+            </Link>
+          </span>
+        </p>
+      )}
 
       {error && (
         <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>

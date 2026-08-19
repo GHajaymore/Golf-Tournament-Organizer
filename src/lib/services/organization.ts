@@ -7,7 +7,9 @@ import {
 } from "../themes";
 import { cleanSettings } from "../tournament-settings";
 import { generateShareToken } from "../codes";
-import { newOrganizationName } from "../org-naming";
+import { newOrganizationName, organizationWasNamed } from "../org-naming";
+import type { OrgKind } from "../domain/org-profile";
+import type { OrgSetupFacts } from "../domain/org-setup";
 
 /**
  * Resolve the organization a new tournament should belong to for this person,
@@ -45,32 +47,115 @@ export async function organizationForNewEvent(
     if (membership) return membership.organizationId;
   }
 
-  // The membership is created unconditionally, and the User along with it if
-  // this email has never signed in — the same thing addOrganizationMember does
-  // for staff it invites, claimed with a password on first login.
-  //
-  // It used to be `...(user ? { members: ... } : {})`, which left a brand new
-  // organization with NOBODY in it. An ownerless club then fell to the
-  // `session.role === "admin" && !membership` fallback for its administration,
-  // which is exactly the reading S1 turned into a takeover. Every organization
-  // this app creates now has an owner from the moment it exists.
-  const owner =
-    user ??
-    (await prisma.user.upsert({
-      where: { email },
-      update: {},
-      create: { email, name: displayName || email },
-    }));
+  return createOrganizationWithOwner({ email, displayName, orgName });
+}
+
+/**
+ * Create an organization and the person who owns it. THE one place that does.
+ *
+ * Two callers now — a first tournament created before anyone signed up for an
+ * organization, and `signUp`, which creates one at the front door — and they
+ * must not drift. Three things have to be true of every organization in this
+ * database and none of them are enforced by the schema:
+ *
+ *   - it has a Subscription, because `planFor` and every limit check assume one
+ *     exists rather than treating "no subscription" as a separate case;
+ *   - it has an OWNER from the moment it exists. It used to be
+ *     `...(user ? { members: ... } : {})`, which left a brand new organization
+ *     with NOBODY in it. An ownerless club then fell to the
+ *     `session.role === "admin" && !membership` fallback for its
+ *     administration, which is exactly the reading S1 of the 2026-08-12 audit
+ *     turned into a takeover;
+ *   - its `kind` is one org-profile knows, so nothing has to resolve an
+ *     unknown string.
+ *
+ * A second creation site that forgot any one of those would be invisible until
+ * a real club hit it.
+ *
+ * The User is created if this email has never signed in — the same thing
+ * `addOrganizationMember` does for staff it invites, claimed with a password on
+ * first login.
+ */
+export async function createOrganizationWithOwner(input: {
+  email: string;
+  displayName: string;
+  /** Names the organization when given; otherwise it is named after the person. */
+  orgName?: string;
+  /** Defaults to `personal`, which is the schema default and what a lazily
+   *  created organization has always been. */
+  kind?: OrgKind;
+}): Promise<string> {
+  const owner = await prisma.user.upsert({
+    where: { email: input.email },
+    update: {},
+    create: { email: input.email, name: input.displayName || input.email },
+  });
 
   const org = await prisma.organization.create({
     data: {
-      name: newOrganizationName(orgName, displayName, email),
-      kind: "personal",
+      name: newOrganizationName(input.orgName, input.displayName, input.email),
+      kind: input.kind ?? "personal",
       subscription: { create: { plan: DEFAULT_PLAN, status: "active" } },
       members: { create: { userId: owner.id, role: "owner" } },
     },
   });
   return org.id;
+}
+
+/**
+ * The setup checklist for whichever organization this person runs, or null.
+ *
+ * Null when they run none — a player invited to somebody else's tournament has
+ * no organization of their own and must not be shown a club setup checklist.
+ * Deliberately not "create one so there is something to show": creating a
+ * tenant as a side effect of rendering a page is how orphan organizations get
+ * made, and `signUp` already creates one for anybody who is actually an
+ * organizer.
+ *
+ * Which organization, when they run several: the same preference order
+ * `organizationForNewEvent` uses — owner or admin, a real club ahead of the
+ * personal fallback, oldest first — so the checklist is about the same
+ * organization a new tournament would land in. Two different answers to "which
+ * of my organizations is this page about" would be the usual defect.
+ *
+ * The facts are COUNTS, never rows. Nothing downstream needs to know what a
+ * member is, only whether there are any, and counting in the database beats
+ * loading a club's whole roster to check it is not empty.
+ */
+export async function orgSetupFactsFor(
+  email: string,
+  displayName: string,
+): Promise<OrgSetupFacts | null> {
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (!user) return null;
+
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId: user.id, role: { in: ["owner", "admin"] } },
+    orderBy: [{ organization: { kind: "asc" } }, { createdAt: "asc" }],
+    select: {
+      organization: {
+        select: {
+          name: true,
+          kind: true,
+          moneyMode: true,
+          _count: { select: { roster: true, events: true, courses: true } },
+        },
+      },
+    },
+  });
+  if (!membership) return null;
+
+  const org = membership.organization;
+  return {
+    kind: org.kind,
+    // Not `!!org.name` — every organization has a name from birth, because
+    // sign-up derives one from the person. See organizationWasNamed.
+    named: organizationWasNamed(org.name, displayName, email),
+    hasCourse: org._count.courses > 0,
+    memberCount: org._count.roster,
+    eventCount: org._count.events,
+    moneyAnswered: org.moneyMode.trim() !== "",
+  };
 }
 
 /**

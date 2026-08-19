@@ -3,6 +3,7 @@ import { playingStages, settingsOf, type EventState } from "@/lib/services/tourn
 import {
   effectiveStatus,
   playerMayChange,
+  playersAnswer,
   resolveAttendance,
   type AttendanceMode,
 } from "@/lib/domain/attendance";
@@ -131,7 +132,10 @@ export async function availabilityFor(
   now: Date = new Date(),
 ): Promise<AvailabilityView> {
   const mode = settingsOf(state.event).attendanceMode as AttendanceMode;
-  if (mode === "everyone") return EMPTY;
+  // Whether the PLAYER is asked, not whether attendance is tracked. Under
+  // `captains` it is tracked and the player is never asked — their captain
+  // sent the pairs and the club wrote them down.
+  if (!playersAnswer(mode)) return EMPTY;
 
   const own = await prisma.player.findMany({
     where: {

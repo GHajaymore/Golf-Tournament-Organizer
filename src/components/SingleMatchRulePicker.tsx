@@ -53,7 +53,23 @@ export function SingleMatchRulePicker({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [kind, setKind] = useState<SingleMatchRule["kind"]>(rule?.kind ?? "seeds");
+  /**
+   * NULL until a rule is actually stored or the organizer picks one.
+   *
+   * This was `rule?.kind ?? "seeds"`, which made the editor invent an answer.
+   * With nothing saved, the segmented control highlighted "From the
+   * standings", the seed dropdowns rendered showing "1st in the standings"
+   * against "2nd" — and directly beneath, read off the STORED rule, the box
+   * said "No pairing set · This round has no pairing rule set". The screen
+   * displayed a fully specified pairing and told you it did not exist, in the
+   * same breath. An organizer reads the top half, concludes it is configured,
+   * and moves on; the match never gets made.
+   *
+   * A default here is not a convenience, it is a claim about data that is not
+   * there. Same reason the sign-up kind question has no default: silently
+   * answering a question nobody answered is worse than leaving it open.
+   */
+  const [kind, setKind] = useState<SingleMatchRule["kind"] | null>(rule?.kind ?? null);
 
   const save = (next: { kind: string; a: string | number; b: string | number }) =>
     startTransition(async () => {
@@ -63,6 +79,27 @@ export function SingleMatchRulePicker({
     });
 
   const others = rounds.filter((r) => r.id !== stageId);
+
+  /**
+   * Why a rule cannot be used yet, or "" when it can.
+   *
+   * The other half of the same bug. Clicking "Winners of two rounds" with
+   * fewer than two other rounds used to call `setKind` and then fall through
+   * every save branch — so the control showed the rule as chosen and nothing
+   * was ever written, which is exactly the state this component was displaying
+   * wrongly in the first place. Refuse with the reason instead of selecting
+   * something that cannot be stored.
+   */
+  const unavailable = (k: SingleMatchRule["kind"]): string => {
+    if (k === "stage-winners" && others.length < 2) {
+      return "That needs at least two other rounds to take the winners from — this tournament has " +
+        `${others.length}.`;
+    }
+    if (k === "named" && players.length < 2) {
+      return "That needs at least two players in the field to choose between.";
+    }
+    return "";
+  };
   const seedA = rule?.kind === "seeds" ? rule.a : 1;
   const seedB = rule?.kind === "seeds" ? rule.b : 2;
   const idA = rule && rule.kind !== "seeds" ? String(rule.a) : "";
@@ -90,10 +127,18 @@ export function SingleMatchRulePicker({
             className={kind === k ? "on" : ""}
             disabled={pending || locked}
             onClick={() => {
+              const why = unavailable(k);
+              if (why) {
+                // Not selected. Saying why beats a control that looks chosen
+                // and stored nothing.
+                setError(why);
+                return;
+              }
+              setError("");
               setKind(k);
               if (k === "seeds") save({ kind: k, a: seedA, b: seedB });
-              else if (others.length >= 2) save({ kind: k, a: idA || others[0].id, b: idB || others[1].id });
-              else if (k === "named" && players.length >= 2) save({ kind: k, a: idA || players[0].id, b: idB || players[1].id });
+              else if (k === "stage-winners") save({ kind: k, a: idA || others[0].id, b: idB || others[1].id });
+              else save({ kind: k, a: idA || players[0].id, b: idB || players[1].id });
             }}
           >
             {label}

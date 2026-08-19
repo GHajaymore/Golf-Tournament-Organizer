@@ -9,6 +9,10 @@ import { ROLE_LABEL } from "@/lib/roles";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
+import { orgProfile } from "@/lib/domain/org-profile";
+import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
+import { orgSetupFactsFor } from "@/lib/services/organization";
+import { orgSetupState } from "@/lib/domain/org-setup";
 
 export default async function ChooseTournamentPage({
   searchParams,
@@ -27,6 +31,11 @@ export default async function ChooseTournamentPage({
     include: { _count: { select: { players: true } }, organization: { select: { name: true, kind: true } } },
     orderBy: { createdAt: "desc" },
   });
+  // Null for anybody who runs no organization of their own, which is every
+  // player invited to somebody else's tournament.
+  const facts = await orgSetupFactsFor(session.email, session.name);
+  const setup = facts ? orgSetupState(facts) : null;
+
   const roleByEvent = new Map(access.map((a) => [a.eventId, a]));
   const accounts = events.map((event) => ({
     id: event.id,
@@ -100,6 +109,23 @@ export default async function ChooseTournamentPage({
             : `You have access to ${accounts.length} tournament${accounts.length === 1 ? "" : "s"}.`}
         </p>
 
+        {/* The organization checklist lives HERE, and this is the only place
+            it can. Every screen in the (app) shell goes through
+            requireEventSession, which bounces anybody without an active
+            tournament straight back to this page — so an organizer who has
+            just signed up can reach nothing else. This app is event-first: the
+            club settings hang off a tournament rather than the other way
+            round.
+
+            It renders nothing at all for somebody who runs no organization (a
+            player invited to a tournament) and nothing once everything that
+            applies is done, so the common case is unchanged. */}
+        {setup && (
+          <div style={{ marginBottom: 18 }}>
+            <OrgSetupChecklist state={setup} />
+          </div>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {accounts.map((a) => (
             <form key={a.id} action={enterTournament.bind(null, a.eventId)}>
@@ -124,7 +150,13 @@ export default async function ChooseTournamentPage({
                   <div className="text-muted" style={{ fontSize: 12, marginTop: 3 }}>
                     {a.event.dates || "No dates set"}
                     {a.event.course ? ` · ${a.event.course}` : ""} · {a.event._count.players} players
-                    {a.event.organization?.kind === "club" ? ` · ${a.event.organization.name}` : ""}
+                    {/* Whose name is worth showing: a tenant shared with other
+                        people, so the row says which one. A personal organizer's
+                        org name is their own and adds nothing. Asked via the
+                        profile rather than compared, so a society gets it too. */}
+                    {a.event.organization && orgProfile(a.event.organization.kind).sharedRoster
+                      ? ` · ${a.event.organization.name}`
+                      : ""}
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "none" }}>

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
-import { moneyFor, roundMoneyFor } from "@/lib/services/expenses";
+import { moneyFor, roundMoneyFor, usesExpenses } from "@/lib/services/expenses";
 import { MoneyClient } from "@/components/MoneyClient";
 import { RoundMoney } from "@/components/RoundMoney";
 import { prisma } from "@/lib/db";
@@ -36,10 +36,17 @@ export default async function MoneyPage() {
     orgMode: event.organization?.moneyMode,
     orgKind: event.organization?.kind,
   });
-  // `none` means the money is handled outside the app entirely — the tab is
-  // hidden for it, and anyone arriving by URL is sent back rather than shown
-  // an empty screen that implies something is missing.
-  if (mode === "none") redirect("/me");
+
+  /**
+   * Whether this screen exists, asked of `usesExpenses` — the SAME reader the
+   * tab in (player)/layout.tsx uses.
+   *
+   * This used to be `if (mode === "none") redirect("/me")`, which is a second
+   * implementation of the same rule and disagreed with the first the moment
+   * the first learned about pots. A page that redirects while the tab says it
+   * is there — or the reverse — is this codebase's oldest bug shape.
+   */
+  if (!(await usesExpenses(session.eventId))) redirect("/me");
 
   const currency = event.organization?.currencySymbol || "$";
 

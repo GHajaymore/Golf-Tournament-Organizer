@@ -599,7 +599,7 @@ describe("roster CSV import", () => {
 
   it("offers both ways of adding someone", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" isClub eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" orgKind="club" eventName="Spring Medal" fieldLocked={false} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("Add member");
@@ -614,7 +614,7 @@ describe("roster CSV import", () => {
     // right edge. The one sentence a new club needs was the one being cut in
     // half. No rows, no table.
     const html = render(
-      <RosterClient clubName="Bushwood" isClub eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" orgKind="club" eventName="Spring Medal" fieldLocked={false} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("No members yet.");
@@ -625,7 +625,7 @@ describe("roster CSV import", () => {
 
   it("renders a populated roster", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" isClub eventName="Spring Medal" fieldLocked={false}
+      <RosterClient clubName="Bushwood" orgKind="club" eventName="Spring Medal" fieldLocked={false}
         fieldSize={2} unlinkedCount={0}
         members={[row(), row({ id: "m2", name: "Rob Ferris", status: "inactive" })]} />,
     );
@@ -2311,8 +2311,13 @@ describe("the setup checklist", () => {
     // The point of a checklist rather than a gate: creating the tournament
     // before the roster is loaded is a normal way to work.
     const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const { SETUP_HREF } = await import("@/lib/domain/org-setup");
     const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />);
-    expect(html).toContain('href="/tournaments/new"');
+    // Read from the table rather than written out again here. This line used
+    // to assert `href="/tournaments/new"`, a route that has never existed —
+    // the test agreed with the code and both were wrong. What routes exist is
+    // checked against the filesystem in org-setup.test.ts.
+    expect(html).toContain(`href="${SETUP_HREF.tournament}"`);
     expect(html).not.toContain("disabled");
   });
 
@@ -2322,5 +2327,156 @@ describe("the setup checklist", () => {
       <OrgSetupChecklist state={await state({ kind: "personal", eventCount: 0, memberCount: 0 })} />,
     );
     expect(html).not.toContain("Add your members");
+  });
+});
+
+describe("the single match picker does not invent a rule", () => {
+  const picker = async (rule: unknown) => {
+    const { SingleMatchRulePicker } = await import("@/components/SingleMatchRulePicker");
+    return render(
+      <SingleMatchRulePicker
+        stageId="s3"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rule={rule as any}
+        ruleLabel={rule ? "1st in the standings v 2nd" : "No pairing set"}
+        problem={rule ? "" : "This round has no pairing rule set — choose who plays it."}
+        aName="Tom Halloran"
+        bName="Diego Alvarez"
+        matchId={null}
+        stale={false}
+        rounds={[{ id: "s1", label: "Round 1" }, { id: "s2", label: "Round 2" }, { id: "s3", label: "Round 3" }]}
+        players={[{ id: "p1", name: "Tom Halloran" }, { id: "p2", name: "Diego Alvarez" }]}
+      />,
+    );
+  };
+
+  it("selects nothing and shows no dropdowns when no rule is stored", async () => {
+    // THE BUG. `useState(rule?.kind ?? "seeds")` made the editor invent an
+    // answer: the segmented control highlighted "From the standings" and the
+    // seed dropdowns rendered "1st in the standings" against "2nd", directly
+    // above a box reading "This round has no pairing rule set". The screen
+    // showed a complete pairing and denied it existed in the same breath.
+    const html = await picker(null);
+    expect(html).toContain("No pairing set");
+    // The seed dropdowns must not be there to be read as an answer.
+    expect(html).not.toContain("1st in the standings");
+    // Nothing in the segmented control is marked selected.
+    expect(html).not.toMatch(/class="[^"]*\bon\b[^"]*"/);
+  });
+
+  it("still offers all three rules to choose from", async () => {
+    // Separation, not removal: the options are all still there.
+    const html = await picker(null);
+    for (const label of ["From the standings", "Winners of two rounds", "Two players I pick"]) {
+      expect(html, label).toContain(label);
+    }
+  });
+
+  it("shows the stored rule when there actually is one", async () => {
+    const html = await picker({ kind: "seeds", a: 1, b: 2 });
+    expect(html).toContain("1st in the standings");
+    expect(html).toContain("Tom Halloran");
+  });
+});
+
+describe("play settings name one thing per heading", () => {
+  const settings = {
+    leaderboardVisibility: "players",
+    scoreEntryBy: "players",
+    scoreEntryWindow: "anytime",
+    voiceEntry: false,
+    playerAccess: "code",
+    scoreApproval: "players",
+    attendanceMode: "off",
+    attestBy: "one",
+  };
+  const panel = async (mode: "tournament" | "organization") => {
+    const { PlaySettings } = await import("@/components/PlaySettings");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return render(<PlaySettings mode={mode} settings={settings as any} canEdit />);
+  };
+
+  it("separates the four questions that shared one heading", async () => {
+    // Seven controls sat flat under "Players & scoring", answering four
+    // unrelated questions. The setting somebody came for could not be found
+    // because nothing on screen named it — the "Match points & tiebreakers"
+    // failure again.
+    const html = await panel("tournament");
+    for (const heading of ["Who can see results", "How scores get in", "Who signs off a result", "Weekly sign-up"]) {
+      expect(html, heading).toContain(heading);
+    }
+  });
+
+  it("keeps every control it had — this separates, it does not remove", async () => {
+    // Asserts the OPTIONS, not the headings. Two controls had their label
+    // suppressed because the group heading above already said the same words,
+    // so checking for the label would pass while the control itself had gone.
+    const html = await panel("tournament");
+    for (const option of [
+      "Organizers only", // who can see the leaderboard
+      "Players may enter their own scores", // who enters scores
+      "During the round, hole by hole", // when players may submit
+      "An organizer approves each card", // who signs off
+      "Everyone plays every round", // weekly sign-up
+    ]) {
+      expect(html, option).toContain(option);
+    }
+  });
+
+  it("does not say the same words twice in a row", async () => {
+    // Grouping put "Who signs off a result" directly under a heading reading
+    // "Who signs off a result". Separation that makes a screen wordier rather
+    // than clearer is not the point of this pass.
+    const html = await panel("tournament");
+    for (const words of ["Who signs off a result", "Weekly sign-up"]) {
+      expect(html.split(words).length - 1, words).toBe(1);
+    }
+  });
+
+  it("renders the house-defaults mode too, which shares this component", async () => {
+    // It appears on the organization screen as well, so a change here lands
+    // on two screens.
+    expect(await panel("organization")).toContain("How scores get in");
+  });
+});
+
+describe("the draw's refusal", () => {
+  const controls = async (players: unknown[], locked = false) => {
+    const { GroupingControls } = await import("@/components/GroupingControls");
+    return render(
+      <GroupingControls
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        players={players as any}
+        currentRule="balanced"
+        currentMode="auto"
+        currentValue={0}
+        locked={locked}
+      />,
+    );
+  };
+  const player = (id: string) => ({ id, name: `Player ${id}`, handicap: 10, seed: 1, email: "" });
+
+  it("says why the draw is dead on an empty field, and links to the fix", async () => {
+    // The whole point. This button was `disabled={... players.length === 0}`
+    // with no reason given anywhere on the page — the same dead-control
+    // complaint that was raised about Rounds & formats.
+    const html = await controls([]);
+    expect(html).toMatch(/empty field/i);
+    expect(html).toContain('href="/registration"');
+  });
+
+  it("puts the locked reason on the page, not only in a tooltip", async () => {
+    // It was a `title`, which never appears on a touch device and is not
+    // announced.
+    const html = await controls([player("a"), player("b")], true);
+    expect(html).toMatch(/lock/i);
+    expect(html).toContain("href=");
+  });
+
+  it("says nothing at all when the draw can just go ahead", async () => {
+    // The refusal must not become permanent furniture on a working screen.
+    const html = await controls([player("a"), player("b")]);
+    expect(html).not.toMatch(/empty field/i);
+    expect(html).not.toContain('href="/registration"');
   });
 });

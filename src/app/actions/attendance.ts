@@ -3,7 +3,7 @@ import { getSession, type Session } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { settingsOf } from "@/lib/services/tournament";
-import { playerMayChange } from "@/lib/domain/attendance";
+import { playerMayChange, playersAnswer, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { isIsoDate } from "@/lib/deadline";
 
 /**
@@ -69,8 +69,25 @@ export async function setAttendance(
 
   const event = await prisma.event.findUnique({ where: { id: session.eventId } });
   if (!event) return { ok: false, error: "Tournament not found." };
-  if (settingsOf(event).attendanceMode === "everyone") {
+  const mode = settingsOf(event).attendanceMode as AttendanceMode;
+  if (!tracksPerRound(mode)) {
     return { ok: false, error: "This tournament doesn't use weekly sign-up — everyone plays every round." };
+  }
+
+  /**
+   * Under `captains`, only staff record attendance.
+   *
+   * Enforced HERE and not only by hiding the player's screen. A "use server"
+   * export is a public HTTP endpoint, so a player whose UI never offers the
+   * question can still call this — and if it were allowed, a player could mark
+   * themselves in against the list their captain sent, leaving the club with
+   * two answers and no way to tell which was meant.
+   */
+  if (!isStaff && !playersAnswer(mode)) {
+    return {
+      ok: false,
+      error: "Your captain sends the pairs to the club and the club records them — ask your captain to include you.",
+    };
   }
 
   if (!isStaff) {

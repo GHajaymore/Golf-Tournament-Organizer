@@ -6,7 +6,7 @@ import { FoursomeMaker } from "@/components/FoursomeMaker";
 import type { Standing } from "@/lib/domain/draw";
 import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
-import { resolveAttendance, type AttendanceMode } from "@/lib/domain/attendance";
+import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { parseTeeSheet, teeSheetDrift } from "@/lib/domain/tee-sheet";
 import { shortDate } from "@/lib/domain/round-dates";
 import { TeeSheetPrint } from "@/components/TeeSheetPrint";
@@ -89,7 +89,7 @@ export default async function FoursomesPage({
   const attendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
   let field = state.confirmed;
   let attendanceNote = "";
-  if (attendanceMode !== "everyone" && stage) {
+  if (tracksPerRound(attendanceMode) && stage) {
     const explicit = await prisma.roundAttendance.findMany({
       where: { eventId: session.eventId, stageId: stage.id },
     });

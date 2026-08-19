@@ -1,5 +1,6 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { settingsOf } from "@/lib/services/tournament";
+import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { GroupingControls } from "@/components/GroupingControls";
@@ -85,7 +86,10 @@ export default async function GroupingPage() {
           locked={locked}
           canEdit={session.viewRole !== "player"}
           confirmed={state.event.flightsConfirmed}
-          leadership={settingsOf(state.event).attendanceMode !== "everyone"}
+          // Captains are named whenever attendance is tracked per round —
+          // including under `captains` mode, where knowing who to chase for a
+          // list is the entire point.
+          leadership={tracksPerRound(settingsOf(state.event).attendanceMode as AttendanceMode)}
         />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>

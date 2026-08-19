@@ -1,14 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { orgProfile, isOrgKind, ORG_KINDS, type OrgKind } from "@/lib/domain/org-profile";
-import { moneyLayoutFor, roundMoneyIsFinal } from "@/lib/domain/money-layout";
+import { roundMoneyIsFinal } from "@/lib/domain/money-layout";
 
 describe("what each kind of organization means", () => {
-  it("gives a club and a course no shared-cost ledger", () => {
+  it("gives a club no shared-cost ledger", () => {
     // Nobody splits a cart fee with the club — they pay the shop. A ledger
     // there is a feature from somebody else's outing, and it invites a member
     // to think the club owes them for the buggy.
     expect(orgProfile("club").ledger).toBe(false);
-    expect(orgProfile("course").ledger).toBe(false);
   });
 
   it("gives a society and a personal organizer one", () => {
@@ -19,29 +18,27 @@ describe("what each kind of organization means", () => {
 
   it("keeps the roster shared for everyone but a personal organizer", () => {
     // The existing `kind === "club"` comparisons were really asking this.
-    for (const k of ["club", "course", "community"] as OrgKind[]) {
+    for (const k of ["club", "community"] as OrgKind[]) {
       expect(orgProfile(k).sharedRoster, k).toBe(true);
     }
     expect(orgProfile("personal").sharedRoster).toBe(false);
   });
 
-  it("leaves the cash to the shop at a club or a course", () => {
-    // The shop takes the entry fee, the 2s pot comes out of it, and the pro
-    // pays the winner. Recording "Halloran still owes 5" would invent a debt
-    // the club is not chasing and cannot see.
-    expect(orgProfile("club").tracksCash).toBe(false);
-    expect(orgProfile("course").tracksCash).toBe(false);
-    // A society has no shop to arbitrate: one person fronted it, nine owe.
-    expect(orgProfile("community").tracksCash).toBe(true);
-    expect(orgProfile("personal").tracksCash).toBe(true);
-  });
-
-  it("ties tracking cash to having a ledger", () => {
-    // Not a coincidence worth leaving implicit: the kinds that track who paid
-    // are exactly the kinds with shared costs to settle.
-    for (const k of ORG_KINDS) {
-      expect(orgProfile(k).tracksCash, k).toBe(orgProfile(k).ledger);
-    }
+  it("scopes the ledger to costs somebody fronted, not to counting money", () => {
+    // There was a second flag here, `tracksCash`, and a test asserting it
+    // equalled `ledger` on every kind — so it was a second name for one rule,
+    // which is this codebase's recurring defect. It was also read by nothing,
+    // and its claim ("the app does not track who has paid at a club")
+    // became false once a club's players could see their pots: a member who
+    // stakes in the skins and wins nothing is shown a negative number.
+    //
+    // What survives is the true distinction. A stake in a pot is a RESULT,
+    // settled at the bar; a share of the minibus is a DEBT. Only the second is
+    // kind-dependent, and `ledger` is the one flag that says so.
+    expect(orgProfile("club").ledger).toBe(false);
+    expect(orgProfile("community").ledger).toBe(true);
+    expect(orgProfile("personal").ledger).toBe(true);
+    expect("tracksCash" in orgProfile("club")).toBe(false);
   });
 
   it("falls back to personal, which is the permissive answer", () => {
@@ -65,38 +62,47 @@ describe("what each kind of organization means", () => {
     for (const k of ORG_KINDS) {
       const p = orgProfile(k);
       expect(p.label.length, k).toBeGreaterThan(0);
+      expect(p.noun.length, k).toBeGreaterThan(0);
       expect(p.blurb.length, k).toBeGreaterThan(0);
       expect(typeof p.ledger, k).toBe("boolean");
       expect(typeof p.sharedRoster, k).toBe("boolean");
       expect(typeof p.seasonPlay, k).toBe("boolean");
       expect(typeof p.ownsCourse, k).toBe("boolean");
-      expect(typeof p.tracksCash, k).toBe("boolean");
+    }
+  });
+
+  it("gives every kind a noun that survives being put in a sentence", () => {
+    // `label` is a chip and does not. OrgSetupChecklist rendered "Setting up
+    // your personal" and "Name your personal" from lowercasing it — neither is
+    // English, and nobody saw them because the component was never mounted.
+    for (const k of ORG_KINDS) {
+      const noun = orgProfile(k).noun;
+      expect(`Setting up your ${noun}`, k).not.toMatch(/your personal$/);
+      // A noun, not a title-cased label dropped in.
+      expect(noun, k).toBe(noun.toLowerCase());
+      expect(noun.split(" ").length, k).toBe(1);
     }
   });
 
   it("validates a stored kind", () => {
-    expect(isOrgKind("course")).toBe(true);
+    expect(isOrgKind("club")).toBe(true);
+    expect(isOrgKind("community")).toBe(true);
     expect(isOrgKind("society")).toBe(false);
+    // Dropped on 2026-08-18 — it answered every flag exactly as `club` did, so
+    // it was a label rather than a kind. No row has ever held it: nothing
+    // writes `kind` but the hard-coded "personal" in services/organization.ts.
+    expect(isOrgKind("course")).toBe(false);
   });
 });
 
-describe("what the money screen shows", () => {
-  it("is round-based for everyone", () => {
-    // Money is won on a given day by a given card. A season-long running total
-    // is meaningless to a league that settles every Thursday.
-    for (const k of ORG_KINDS) expect(moneyLayoutFor(k).rounds, k).toBe(true);
-  });
-
-  it("adds the ledger only where the kind has one", () => {
-    expect(moneyLayoutFor("club").ledger).toBe(false);
-    expect(moneyLayoutFor("community").ledger).toBe(true);
-  });
-
-  it("says what the screen covers in each case", () => {
-    expect(moneyLayoutFor("club").blurb).not.toMatch(/shared costs/);
-    expect(moneyLayoutFor("personal").blurb).toMatch(/shared costs/);
-  });
-});
+/**
+ * `moneyLayoutFor` was tested here and is gone — see money-layout.ts for why.
+ * It decided "does this screen have a ledger?" from the org kind, which
+ * `resolveMoneyMode` already owns and which disagreed with it the moment a
+ * club set one tournament to split. What it used to assert now lives where the
+ * rule does: money-mode.test.ts covers the ledger and the money screen, and
+ * org-setup.test.ts covers what each kind is asked to set up.
+ */
 
 describe("when a round's money can be shown", () => {
   it("waits for the round to finish", () => {
