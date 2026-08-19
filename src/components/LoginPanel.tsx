@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from "@/app/actions/auth";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
+import type { OrgKind } from "@/lib/domain/org-profile";
 
 /**
  * Standard two-tab auth: Log in / Sign up.
@@ -19,6 +20,36 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 type Mode = "login" | "signup";
 type Extra = null | "claim" | "forgot" | "forgot-sent";
 
+/**
+ * The sign-up question, in an organizer's own words.
+ *
+ * These map onto OrgKind, but the wording deliberately does not: nobody
+ * signing up knows what a "kind" is, and everybody knows whether they are a
+ * club or a few friends. The order runs from most structured to least.
+ *
+ * The club and the society are separated because they fall on opposite sides
+ * of the ledger — a club's shop takes the money, a society sorts it out
+ * between themselves — which is the single most consequential thing this
+ * answer decides. A two-way "club or society" split could not tell them apart.
+ */
+const SIGNUP_KINDS: Array<{ value: OrgKind; label: string; help: string }> = [
+  {
+    value: "club",
+    label: "A golf club or course",
+    help: "Competitions for members and guests. The shop takes the entry fee and pays the winner.",
+  },
+  {
+    value: "community",
+    label: "A society, league or regular group",
+    help: "You play together through the season and sort the money out between yourselves.",
+  },
+  {
+    value: "personal",
+    label: "A one-off outing with friends",
+    help: "Just this once, with your own list of players.",
+  },
+];
+
 export function LoginPanel({
   initialMode = "login",
   autoFocusFields = true,
@@ -29,6 +60,7 @@ export function LoginPanel({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [kind, setKind] = useState<OrgKind | "">("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -56,7 +88,7 @@ export function LoginPanel({
   const submitSignup = () => {
     setError("");
     startTransition(async () => {
-      const result = await signUp(name, email, password);
+      const result = await signUp(name, email, password, kind);
       if (!result.ok) setError(result.error ?? "Something went wrong.");
     });
   };
@@ -360,6 +392,62 @@ export function LoginPanel({
           />
         </Field>
 
+        {/* The one product question at sign-up, and deliberately the only one.
+            It decides which setup steps exist, whether money defaults to a
+            settle-up, and whether the roster is shared — see org-profile.ts.
+            Asked as what somebody IS, never as "organization kind": a person
+            signing up knows which of these they are and does not know what a
+            kind is. No default, because silently answering the most
+            consequential question in the product is how a society ends up
+            configured as a club. */}
+        {!login && (
+          <fieldset style={{ border: "none", padding: 0, margin: 0, minWidth: 0 }}>
+            <legend
+              style={{ fontSize: 12, padding: 0, marginBottom: 7, color: "var(--color-text)", fontWeight: 500 }}
+            >
+              What are you organizing golf for?
+            </legend>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {SIGNUP_KINDS.map((k) => (
+                <label
+                  key={k.value}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 9,
+                    padding: "10px 11px",
+                    borderRadius: 10,
+                    cursor: "pointer",
+                    background:
+                      kind === k.value
+                        ? "color-mix(in srgb, var(--color-accent) 10%, transparent)"
+                        : "color-mix(in srgb, var(--color-text) 4%, transparent)",
+                    boxShadow:
+                      kind === k.value
+                        ? "inset 0 0 0 1px var(--color-accent)"
+                        : "inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent)",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="orgKind"
+                    value={k.value}
+                    checked={kind === k.value}
+                    onChange={() => setKind(k.value)}
+                    style={{ marginTop: 2, flex: "none", accentColor: "var(--color-accent)" }}
+                  />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 500 }}>{k.label}</span>
+                    <span className="text-muted" style={{ display: "block", fontSize: 11.5, lineHeight: 1.5 }}>
+                      {k.help}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
         {errorBlock}
 
         <button
@@ -369,7 +457,7 @@ export function LoginPanel({
           disabled={
             pending ||
             !email.trim() ||
-            (login ? !password : !name.trim() || password.length < MIN_PASSWORD_LENGTH)
+            (login ? !password : !name.trim() || password.length < MIN_PASSWORD_LENGTH || !kind)
           }
         >
           {pending

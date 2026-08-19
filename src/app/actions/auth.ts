@@ -8,6 +8,8 @@ import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 import { prisma } from "@/lib/db";
 import { effectiveAccess } from "@/lib/services/access";
+import { createOrganizationWithOwner } from "@/lib/services/organization";
+import { isOrgKind } from "@/lib/domain/org-profile";
 import { homeFor } from "@/lib/roles";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -169,16 +171,31 @@ export async function resetPassword(token: string, password: string): Promise<{ 
 }
 
 /**
- * Self-serve sign-up: create the person's login identity, and nothing else.
+ * Self-serve sign-up: the person's login identity, and the organization they
+ * are signing up ON BEHALF OF.
  *
- * Creating an account and creating a tournament are separate acts, so this
- * creates no Event, Account or Stage — the new user lands on /choose with an
- * empty list and an explicit "create your first tournament" step.
+ * Still creates no Event, Account or Stage — creating an account and creating a
+ * tournament are separate acts, and the new user lands on /choose with an empty
+ * list and an explicit "create your first tournament" step.
+ *
+ * The organization is new. It used to be created lazily, on the first
+ * tournament, which left a signed-up organizer with no tenant at all and so
+ * nothing to hang a kind, a name, a plan or a setup checklist off. The kind is
+ * asked here because it is the cheapest question in the product and it decides
+ * the most: which setup steps exist, whether money defaults to a settle-up, and
+ * whether the roster is shared. See lib/domain/org-profile.ts.
+ *
+ * `kind` is VALIDATED, not trusted. A "use server" export is a public HTTP
+ * endpoint and TypeScript types are erased at runtime, so this is called with
+ * whatever the caller likes — and an unrecognised kind stored here would be
+ * resolved by `orgProfile`'s permissive fallback forever after, silently giving
+ * a club the wrong product.
  */
 export async function signUp(
   name: string,
   email: string,
   password: string,
+  kind: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
@@ -186,6 +203,7 @@ export async function signUp(
   if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
   const weak = passwordProblem(password);
   if (weak) return { ok: false, error: weak };
+  if (!isOrgKind(kind)) return { ok: false, error: "Choose what you're organizing golf for." };
 
   // Don't let sign-up silently overwrite the password of an existing account.
   const existing = await prisma.user.findUnique({ where: { email: cleanEmail } });
@@ -198,6 +216,25 @@ export async function signUp(
     update: { name: cleanName, password: hashPassword(password) },
     create: { email: cleanEmail, name: cleanName, password: hashPassword(password) },
   });
+
+  /**
+   * Only when they do not already run one.
+   *
+   * Someone invited as staff already has a User row and a membership but no
+   * password, and claims the account by signing up. Creating a second
+   * organization for them would leave a junk personal tenant beside their real
+   * club, and the answer they just gave must not restate what their club is —
+   * the same rule `newOrganizationName` follows in never renaming an existing
+   * organization from a later form.
+   */
+  const owned = await prisma.organizationMember.findFirst({
+    where: { userId: user.id, role: { in: ["owner", "admin"] } },
+    select: { id: true },
+  });
+  if (!owned) {
+    await createOrganizationWithOwner({ email: cleanEmail, displayName: cleanName, kind });
+  }
+
   await createSession(user.id);
   redirect("/choose");
 }
