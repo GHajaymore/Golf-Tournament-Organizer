@@ -2273,3 +2273,54 @@ describe("the two controls built after the audit", () => {
     expect(html).toContain("Score entry");
   });
 });
+
+describe("the setup checklist", () => {
+  const state = async (over: Record<string, unknown> = {}) => {
+    const { orgSetupState } = await import("@/lib/domain/org-setup");
+    return orgSetupState({
+      kind: "club",
+      named: true,
+      hasCourse: true,
+      memberCount: 30,
+      eventCount: 1,
+      moneyAnswered: true,
+      ...over,
+    });
+  };
+
+  it("renders nothing once everything that applies is done", async () => {
+    // A checklist that stays on screen congratulating itself is clutter on
+    // every visit afterwards.
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    expect(render(<OrgSetupChecklist state={await state()} />)).toBe("");
+  });
+
+  it("lists what is left and marks the next one", async () => {
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />);
+    expect(html).toContain("Add your members");
+    expect(html).toContain("Next");
+  });
+
+  it("says what an undone step costs", async () => {
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    expect(render(<OrgSetupChecklist state={await state({ memberCount: 0 })} />)).toContain("empty field");
+  });
+
+  it("leaves every step a live link, including ones not reached yet", async () => {
+    // The point of a checklist rather than a gate: creating the tournament
+    // before the roster is loaded is a normal way to work.
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />);
+    expect(html).toContain('href="/tournaments/new"');
+    expect(html).not.toContain("disabled");
+  });
+
+  it("renders for a personal organizer without inventing a roster step", async () => {
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const html = render(
+      <OrgSetupChecklist state={await state({ kind: "personal", eventCount: 0, memberCount: 0 })} />,
+    );
+    expect(html).not.toContain("Add your members");
+  });
+});
