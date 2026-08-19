@@ -26,14 +26,36 @@ describe("org setup checklist", () => {
     expect(keys).not.toContain("course");
   });
 
-  it("does not offer a club the money question", () => {
-    // The shop takes the entry fee and the professional pays the winner. A
-    // ledger there is somebody else's outing.
-    expect(orgSetupState(facts()).steps.map((s) => s.key)).not.toContain("money");
+  it("offers a club the money question, already answered", () => {
+    // The shop takes the entry fee and the professional pays the winner, so
+    // the default is right and nothing is waiting on the organizer. But a
+    // club's annual away day IS an outing, and `resolveMoneyMode` lets one
+    // tournament differ — a default nobody can see is a restriction, so the
+    // row is present and ticked rather than absent.
+    const s = orgSetupState(facts({ kind: "club", moneyAnswered: false }));
+    expect(s.steps.map((x) => x.key)).toContain("money");
+    expect(s.steps.find((x) => x.key === "money")?.done).toBe(true);
+    // ...and it must not hold the checklist open forever.
+    expect(s.remaining.map((x) => x.key)).not.toContain("money");
   });
 
-  it("offers a community organizer the money question", () => {
-    expect(orgSetupState(facts({ kind: "community" })).steps.map((s) => s.key)).toContain("money");
+  it("says a club's pots are worked out even though its costs are not", () => {
+    // The distinction the money-game fix rests on: a pot is a result, not a
+    // cash book, and a club runs skins every Saturday.
+    const s = orgSetupState(facts({ kind: "club" }));
+    expect(s.steps.find((x) => x.key === "money")?.blurb).toMatch(/[Ss]kins/);
+  });
+
+  it("leaves the money question genuinely open for a society", () => {
+    // Here it IS waiting on somebody: nothing sensible can be defaulted when
+    // the whole point is who fronted what.
+    const s = orgSetupState(facts({ kind: "community", moneyAnswered: false }));
+    expect(s.steps.find((x) => x.key === "money")?.done).toBe(false);
+    expect(s.remaining.map((x) => x.key)).toContain("money");
+  });
+
+  it("stays ready for a club that has never answered the money question", () => {
+    expect(orgSetupState(facts({ kind: "club", moneyAnswered: false })).ready).toBe(true);
   });
 
   it("points at the first undone step and no further", () => {

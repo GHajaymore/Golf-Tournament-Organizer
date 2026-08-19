@@ -113,16 +113,34 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
     });
   }
 
-  if (profile.ledger) {
-    steps.push({
-      key: "money",
-      title: "Decide how money works",
-      blurb: "Entry fees and shared costs, or nothing at all. Changeable per tournament later.",
-      done: facts.moneyAnswered,
-      consequence: "",
-      href: "/settings/organization",
-    });
-  }
+  /**
+   * The money question is asked of EVERY kind, and pre-answered for the kinds
+   * whose default needs no action.
+   *
+   * It used to exist only `if (profile.ledger)`, so a club was never shown it.
+   * That made the default a restriction rather than a default: a club CAN set
+   * split on one tournament — `resolveMoneyMode` is event → club → kind — but
+   * with nothing on screen ever mentioning it, nobody would find out. A club's
+   * annual away day is an outing: minibus, green fees, dinner, somebody
+   * fronted it. The kind of the tenant does not tell you the character of the
+   * event, which is the whole reason the mode is per tournament.
+   *
+   * `done` for a club because the decision IS made — the shop handles it, and
+   * nothing is broken or waiting. It is listed so it can be changed, not so it
+   * can be nagged about: the checklist renders finished steps as live links and
+   * disappears entirely once everything that applies is done, so a permanently
+   * open step nobody needs to act on would keep it on screen forever.
+   */
+  steps.push({
+    key: "money",
+    title: "Decide how money works",
+    blurb: profile.ledger
+      ? "Entry fees and shared costs, or nothing at all. Changeable per tournament later."
+      : "Skins and pots are always worked out. Entry fees and shared costs sit outside the app unless you say otherwise — a society day can differ.",
+    done: facts.moneyAnswered || !profile.ledger,
+    consequence: "",
+    href: "/settings/organization",
+  });
 
   steps.push({
     key: "tournament",

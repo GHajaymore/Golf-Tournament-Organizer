@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { orgProfile, isOrgKind, ORG_KINDS, type OrgKind } from "@/lib/domain/org-profile";
-import { moneyLayoutFor, roundMoneyIsFinal } from "@/lib/domain/money-layout";
+import { roundMoneyIsFinal } from "@/lib/domain/money-layout";
 
 describe("what each kind of organization means", () => {
   it("gives a club no shared-cost ledger", () => {
@@ -83,23 +83,14 @@ describe("what each kind of organization means", () => {
   });
 });
 
-describe("what the money screen shows", () => {
-  it("is round-based for everyone", () => {
-    // Money is won on a given day by a given card. A season-long running total
-    // is meaningless to a league that settles every Thursday.
-    for (const k of ORG_KINDS) expect(moneyLayoutFor(k).rounds, k).toBe(true);
-  });
-
-  it("adds the ledger only where the kind has one", () => {
-    expect(moneyLayoutFor("club").ledger).toBe(false);
-    expect(moneyLayoutFor("community").ledger).toBe(true);
-  });
-
-  it("says what the screen covers in each case", () => {
-    expect(moneyLayoutFor("club").blurb).not.toMatch(/shared costs/);
-    expect(moneyLayoutFor("personal").blurb).toMatch(/shared costs/);
-  });
-});
+/**
+ * `moneyLayoutFor` was tested here and is gone — see money-layout.ts for why.
+ * It decided "does this screen have a ledger?" from the org kind, which
+ * `resolveMoneyMode` already owns and which disagreed with it the moment a
+ * club set one tournament to split. What it used to assert now lives where the
+ * rule does: money-mode.test.ts covers the ledger and the money screen, and
+ * org-setup.test.ts covers what each kind is asked to set up.
+ */
 
 describe("when a round's money can be shown", () => {
   it("waits for the round to finish", () => {
