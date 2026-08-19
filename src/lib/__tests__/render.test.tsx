@@ -2330,6 +2330,55 @@ describe("the setup checklist", () => {
   });
 });
 
+describe("the single match picker does not invent a rule", () => {
+  const picker = async (rule: unknown) => {
+    const { SingleMatchRulePicker } = await import("@/components/SingleMatchRulePicker");
+    return render(
+      <SingleMatchRulePicker
+        stageId="s3"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rule={rule as any}
+        ruleLabel={rule ? "1st in the standings v 2nd" : "No pairing set"}
+        problem={rule ? "" : "This round has no pairing rule set — choose who plays it."}
+        aName="Tom Halloran"
+        bName="Diego Alvarez"
+        matchId={null}
+        stale={false}
+        rounds={[{ id: "s1", label: "Round 1" }, { id: "s2", label: "Round 2" }, { id: "s3", label: "Round 3" }]}
+        players={[{ id: "p1", name: "Tom Halloran" }, { id: "p2", name: "Diego Alvarez" }]}
+      />,
+    );
+  };
+
+  it("selects nothing and shows no dropdowns when no rule is stored", async () => {
+    // THE BUG. `useState(rule?.kind ?? "seeds")` made the editor invent an
+    // answer: the segmented control highlighted "From the standings" and the
+    // seed dropdowns rendered "1st in the standings" against "2nd", directly
+    // above a box reading "This round has no pairing rule set". The screen
+    // showed a complete pairing and denied it existed in the same breath.
+    const html = await picker(null);
+    expect(html).toContain("No pairing set");
+    // The seed dropdowns must not be there to be read as an answer.
+    expect(html).not.toContain("1st in the standings");
+    // Nothing in the segmented control is marked selected.
+    expect(html).not.toMatch(/class="[^"]*\bon\b[^"]*"/);
+  });
+
+  it("still offers all three rules to choose from", async () => {
+    // Separation, not removal: the options are all still there.
+    const html = await picker(null);
+    for (const label of ["From the standings", "Winners of two rounds", "Two players I pick"]) {
+      expect(html, label).toContain(label);
+    }
+  });
+
+  it("shows the stored rule when there actually is one", async () => {
+    const html = await picker({ kind: "seeds", a: 1, b: 2 });
+    expect(html).toContain("1st in the standings");
+    expect(html).toContain("Tom Halloran");
+  });
+});
+
 describe("play settings name one thing per heading", () => {
   const settings = {
     leaderboardVisibility: "players",
