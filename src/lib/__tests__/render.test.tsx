@@ -457,6 +457,147 @@ describe("rounds and format", () => {
   it("renders a tournament with no rounds at all", () => {
     expect(() => render(<StagesClient {...base} stages={[]} />)).not.toThrow();
   });
+
+  // What a round DECIDES is not a customization, and used to sit two clicks
+  // deep: expand the round, expand "Customize this round", then scroll. A
+  // Single Match Stage with no rule set is an unconfigured round, not a
+  // customized one, and a third-place play-off is something plenty of clubs
+  // run every year. These assert the controls are in the markup with the
+  // Customize panel CLOSED — which is what "one click, not two" means here.
+  describe("what the round decides is reachable in one click", () => {
+    const closedPanel = (html: string) => {
+      // The proof the assertions above it mean anything: if the Customize
+      // panel were open, everything would be in the markup for the wrong
+      // reason. "Result calculation" only ever renders inside it.
+      expect(html).not.toContain("Result calculation");
+    };
+
+    it("shows the third-place play-off on a Bracket Stage", () => {
+      const html = render(
+        <StagesClient {...base}
+          stages={[stage({ id: "b1", position: 0, type: "Bracket Stage" })]}
+          thirdPlaces={{
+            b1: { on: true, problem: "", aName: "Ann Reyes", bName: "Bo Kite", made: false },
+          }} />,
+      );
+      expect(html).toContain("Third and fourth");
+      expect(html).toContain("Play off for third");
+      expect(html).toContain("Ann Reyes");
+      closedPanel(html);
+    });
+
+    it("shows the pairing rule on a Single Match Stage", () => {
+      const html = render(
+        <StagesClient {...base}
+          stages={[stage({ id: "sm1", position: 0, type: "Single Match Stage" })]}
+          singleMatches={{
+            sm1: {
+              stageId: "sm1", rule: null, ruleLabel: "No pairing set",
+              resolution: { pairing: null, problem: "This round has no pairing rule set — choose who plays it." },
+              aName: "", bName: "", matchId: null, canCreate: false, stale: false,
+              rounds: [], players: [],
+            },
+          }} />,
+      );
+      expect(html).toContain("The match");
+      expect(html).toContain("No pairing set");
+      closedPanel(html);
+    });
+
+    it("shows the qualification cut on a Qualification Stage", () => {
+      const html = render(
+        <StagesClient {...base}
+          stages={[stage({ id: "q1", position: 0, type: "Qualification Stage" })]} />,
+      );
+      expect(html).toContain("Qualification cut");
+      closedPanel(html);
+    });
+
+    it("says nothing at all on a round that decides nothing of its own", () => {
+      // SettingsGroup renders no heading when it has no children, so a plain
+      // Round Robin must not grow an empty "What this round decides".
+      const html = render(
+        <StagesClient {...base} chainsRounds={false} stages={[stage({ position: 0 })]} />,
+      );
+      expect(html).not.toContain("What this round decides");
+    });
+  });
+
+  // The guard against a "simplification" that quietly drops a setting. Every
+  // control the round card carried before the separation is asserted present,
+  // by its own visible label, with the panel open.
+  it("keeps every control on the round card", () => {
+    // Two points-scored Round Robin rounds with the carry question unanswered:
+    // that is what opens the Customize panel on a static render.
+    const html = render(
+      <StagesClient {...base} chainsRounds
+        flightCount={2}
+        stages={[
+          stage({ id: "r1", position: 0, attendance: { in: 18, out: 2, inByDefault: 5 } }),
+          stage({ id: "r2", position: 1, carryAsked: false }),
+        ]}
+        venues={[{ id: "c1", name: "Bushwood" }, { id: "c2", name: "Augusta" }]} />,
+    );
+    for (const control of [
+      // The header row of the open round
+      "Format", "Holes", "Played on", "Course", "Remove stage",
+      // Inside "Customize this round"
+      "Result calculation",
+      "When scores are due", "Completion deadline", "Scoring window",
+      "Sign-up deadline",
+      "Before the next round", "Carry forward points into Round 2", "Cut the field for Round 2",
+      "Generate", "Tiebreakers",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("names the scoring window once, not twice", () => {
+    // The group was titled "On the day" and blurbed "whether scores can still
+    // go in", above one control labelled "Scoring window" blurbed "Whether
+    // scores can still be entered for this round." The same trap this pass
+    // walked into on PlaySettings, already sitting on this screen.
+    const html = render(
+      <StagesClient {...base} chainsRounds
+        stages={[stage({ id: "r1", position: 0 }), stage({ id: "r2", position: 1, carryAsked: false })]} />,
+    );
+    expect(html).toContain("Scoring window");
+    expect(html).not.toContain("Whether scores can still be entered for this round");
+  });
+
+  it("promises two tiebreaker questions only where there are two", () => {
+    // The 1./2. numbering is conditional on Match Play; the blurb was not, so
+    // a stroke-play round robin advertised a second question and numbers that
+    // never rendered.
+    const open = (format: string) =>
+      render(
+        <StagesClient {...base} chainsRounds
+          stages={[
+            stage({ id: "r1", position: 0, format }),
+            stage({ id: "r2", position: 1, format, carryAsked: false }),
+          ]} />,
+      );
+    expect(open("Match Play")).toContain("Two separate questions");
+    expect(open("Stroke Play")).not.toContain("Two separate questions");
+  });
+
+  it("says what a closed round decides, not just 'Standard settings'", () => {
+    // A bracket playing off for third and a single match with a real pairing
+    // both used to summarise as "Standard settings" — the two settings hardest
+    // to reach were the only two the closed row never mentioned. Three stages,
+    // so none opens by default.
+    const html = render(
+      <StagesClient {...base}
+        stages={[
+          stage({ id: "r1", position: 0 }),
+          stage({ id: "b1", position: 1, type: "Bracket Stage" }),
+          stage({ id: "q1", position: 2, type: "Qualification Stage" }),
+        ]}
+        thirdPlaces={{ b1: { on: true, problem: "waiting on the semi-finals", aName: "", bName: "", made: false } }} />,
+    );
+    expect(html).toContain("Plays off for third");
+    expect(html).toContain("Top 8 overall");
+  });
 });
 
 describe("course library", () => {

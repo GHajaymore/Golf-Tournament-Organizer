@@ -128,9 +128,14 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
  * equal weight — when the round is played, what it decides, how ties break —
  * so an organizer looking for one of them had to read all of them. These are
  * different KINDS of decision, made at different times by different people:
- * the day and the scoring window are the day's admin, the per-type settings
- * are what the round is for, and the tiebreakers are rules set once and
- * rarely touched.
+ * when scores are due is the day's admin, what the round decides is what the
+ * round is FOR, and the tiebreakers are rules set once and rarely touched.
+ *
+ * Used at two levels now. "What this round decides" is a group at ROUND level,
+ * because the per-type settings are the round's whole point and were two
+ * clicks from invisible inside "Customize this round"; the rest are groups
+ * inside that panel. Same component either way — the level is the claim about
+ * how central the decision is, and it should be visible in one place.
  *
  * Renders nothing at all when it has no children, so a stage type that has
  * no decisions of its own does not show an empty heading — the gating stays
@@ -141,7 +146,10 @@ function SettingsGroup({
   blurb,
   children,
 }: {
-  title: string;
+  /** ReactNode rather than string so a group can carry its own FieldInfo,
+   *  which is where the "why does this work like that" explanation belongs
+   *  once a group heading is the only heading above the controls. */
+  title: React.ReactNode;
   blurb?: string;
   children: React.ReactNode;
 }) {
@@ -582,30 +590,46 @@ function StageCard({
   const showTransition = stage.type === "Round Robin" && chainsRounds;
   const notGenerated = !isFirst && stage.type === "Round Robin" && stage.matchCount === 0;
 
-  // One rich, always-legible summary line for the collapsed toggle — covers
-  // every setting on this card (including what happens into the next round),
-  // so there's a single place to both see and change everything, and nothing
-  // is invisible just because it hasn't been customized yet.
+  // TWO summaries, because they answer to two different places and one string
+  // cannot be honest in both. The closed round row has to cover the whole card.
+  // The "Customize this round" button must cover only what is INSIDE that
+  // panel — what the round decides is now shown directly above it, and a
+  // button summarising things visible above it is noise.
   const transitionParts: string[] = [];
   if (nextStage?.carryEnabled) transitionParts.push(`carries ${nextStage.carryPct}%`);
   if (nextStage?.cutEnabled) {
     transitionParts.push(nextStage.cutMode === "percent" ? `cuts to top ${nextStage.cutPercent}%` : `cuts to top ${nextStage.cutCount}`);
   }
-  const summaryParts: string[] = [];
-  if (deadline) summaryParts.push(`Due ${deadline}`);
+  const customizeParts: string[] = [];
+  if (deadline) customizeParts.push(`Due ${deadline}`);
   if (basis !== "gross") {
-    summaryParts.push(basis === "net" ? "Net scoring" : basis === "stableford" ? "Stableford" : "Gross + net");
-  }
-  if (stage.type === "Qualification Stage") {
-    summaryParts.push(qual.mode === "overall" ? `Top ${qual.overall} overall` : `Top ${qual.perFlight} per flight`);
+    customizeParts.push(basis === "net" ? "Net scoring" : basis === "stableford" ? "Stableford" : "Gross + net");
   }
   if (showTransition) {
-    summaryParts.push(
+    customizeParts.push(
       nextStage
         ? `Into Round ${nextStage.position + 1}: ${transitionParts.length ? transitionParts.join(" · ") : "no cut or carry-forward"}`
         : "No round after this yet",
     );
   }
+
+  // What this kind of round settles. A Bracket Stage playing off for third and
+  // a Single Match Stage resolving to a real pairing both used to read
+  // "Standard settings" when closed — so the two settings hardest to reach on
+  // this screen were also the only two the summary never mentioned.
+  const decidesParts: string[] = [];
+  if (stage.type === "Qualification Stage") {
+    decidesParts.push(qual.mode === "overall" ? `Top ${qual.overall} overall` : `Top ${qual.perFlight} per flight`);
+  }
+  if (stage.type === "Single Match Stage" && singleMatch) {
+    decidesParts.push(singleMatch.ruleLabel);
+  }
+  if (stage.type === "Bracket Stage" && thirdPlace) {
+    decidesParts.push(thirdPlace.on ? "Plays off for third" : "No play-off for third");
+  }
+
+  const customizeSummary = customizeParts.length ? customizeParts.join(" · ") : "Standard settings";
+  const summaryParts = [...customizeParts, ...decidesParts];
   const summaryLine = summaryParts.length ? summaryParts.join(" · ") : "Standard settings";
 
   // A rotating accent per round so a page of several rounds is scannable at a
@@ -892,6 +916,72 @@ function StageCard({
           </div>
         </div>
       )}
+      {/* What this kind of round settles — at ROUND level, not inside
+          "Customize this round".
+
+          These were two levels deep: expand the round, expand Customize, then
+          scroll. They are not customizations. A Single Match Stage with no rule
+          set is not a customized round, it is an unconfigured one, and its
+          picker read "No pairing set" where nobody could see it; a Qualification
+          Stage's whole job is the number in here; a third-place play-off is
+          something plenty of clubs run every year. Sits beside "Handicaps
+          for <format>", which is out here already for exactly this reason.
+
+          The cut and carry-forward deliberately did NOT come with them: those
+          are about the round AFTER this one, and they have their own heading
+          inside the panel. */}
+      <SettingsGroup title="What this round decides" blurb="What this kind of round settles.">
+        {/* One match, paired by a rule rather than by hand. */}
+        {stage.type === "Single Match Stage" && singleMatch && (
+          <div>
+            <SectionLabel>The match</SectionLabel>
+            <SingleMatchRulePicker
+              stageId={stage.id}
+              rule={singleMatch.rule}
+              ruleLabel={singleMatch.ruleLabel}
+              problem={singleMatch.resolution.problem}
+              aName={singleMatch.aName}
+              bName={singleMatch.bName}
+              matchId={singleMatch.matchId}
+              stale={singleMatch.stale}
+              rounds={singleMatch.rounds}
+              players={singleMatch.players}
+              locked={false}
+            />
+          </div>
+        )}
+
+        {stage.type === "Bracket Stage" && thirdPlace && (
+          <div>
+            <SectionLabel>Third and fourth</SectionLabel>
+            <ThirdPlaceControl
+              stageId={stage.id}
+              on={thirdPlace.on}
+              problem={thirdPlace.problem}
+              aName={thirdPlace.aName}
+              bName={thirdPlace.bName}
+              made={thirdPlace.made}
+            />
+          </div>
+        )}
+
+        {stage.type === "Qualification Stage" && (
+          <div>
+            <SectionLabel>
+              Qualification cut
+              <FieldInfo label="the qualification cut">
+                <p>{QUALIFICATION_CUT_HELP}</p>
+                <p>{CUT_SCOPE_HELP}</p>
+              </FieldInfo>
+            </SectionLabel>
+            <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
+              How many players advance from this cut — top N per flight, or top N overall.
+            </p>
+            <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} />
+          </div>
+        )}
+      </SettingsGroup>
+
       <div>
         <button
           type="button"
@@ -918,40 +1008,56 @@ function StageCard({
           </span>
           {!customizeOpen && (
             <span className="text-muted" style={{ fontSize: 12, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {summaryLine}
+              {customizeSummary}
             </span>
           )}
         </button>
 
         {customizeOpen && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-              <div className="field" style={{ width: 320 }}>
-                <label>
-                  Result calculation
-                  <FieldInfo label="result calculation">
-                    <p>
-                      <b>Gross</b> ranks the strokes actually taken. <b>Net</b> takes handicap
-                      strokes off first, so a 20-handicap can win. <b>Both</b> keeps two orders of
-                      merit from one card.
-                    </p>
-                    <p>
-                      <b>Stableford</b> scores points per hole instead of counting strokes, so a
-                      blow-up costs one hole rather than the round. It is set here, on a stroke-play
-                      round, rather than picked as its own format &mdash; there is one engine, and
-                      offering two doors to it would leave one of them not opening.
-                    </p>
-                  </FieldInfo>
-                </label>
-                <div className="seg" style={{ width: "100%" }}>
-                  {BASIS_OPTIONS.map((o) => (
-                    <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
-                      <input type="radio" name={`basis-${stage.id}`} checked={basis === o.key} disabled={pending} onChange={() => commitBasis(o.key)} />
-                      {o.label}
-                    </label>
-                  ))}
-                </div>
+            <div className="field" style={{ width: 320 }}>
+              <label>
+                Result calculation
+                <FieldInfo label="result calculation">
+                  <p>
+                    <b>Gross</b> ranks the strokes actually taken. <b>Net</b> takes handicap
+                    strokes off first, so a 20-handicap can win. <b>Both</b> keeps two orders of
+                    merit from one card.
+                  </p>
+                  <p>
+                    <b>Stableford</b> scores points per hole instead of counting strokes, so a
+                    blow-up costs one hole rather than the round. It is set here, on a stroke-play
+                    round, rather than picked as its own format &mdash; there is one engine, and
+                    offering two doors to it would leave one of them not opening.
+                  </p>
+                </FieldInfo>
+              </label>
+              <div className="seg" style={{ width: "100%" }}>
+                {BASIS_OPTIONS.map((o) => (
+                  <label key={o.key} className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
+                    <input type="radio" name={`basis-${stage.id}`} checked={basis === o.key} disabled={pending} onChange={() => commitBasis(o.key)} />
+                    {o.label}
+                  </label>
+                ))}
               </div>
+            </div>
+
+            {/* Was two headings for one thing: a group titled "On the day"
+                blurbed "whether scores can still go in", holding one control
+                labelled "Scoring window" blurbed "Whether scores can still be
+                entered for this round." Said once now — the trap this pass
+                walked into on PlaySettings, already sitting here.
+
+                And the deadline itself has moved INTO the group. It was four
+                sections and a group boundary away, while two comments still
+                described them as adjacent: the one below claiming "directly
+                under the date", and RoundDeadlineControl's own footer, which
+                says "Scoring follows the completion deadline above." Both are
+                true again. */}
+            <SettingsGroup
+              title="When scores are due"
+              blurb="The day this round's scores are due, and whether they can still be entered."
+            >
               <div className="field" style={{ width: 190 }}>
                 <label>Completion deadline</label>
                 {/* A date input, so it opens the platform calendar rather than
@@ -978,12 +1084,28 @@ function StageCard({
                   </p>
                 )}
               </div>
-            </div>
 
-            {/* Weekly sign-up, when the league asks the question. The counts
-                keep the organizer honest about Wednesday: "18 in" where five
-                are only in by default is a different tee sheet from 18 who
-                said so. */}
+              {/* Directly under the date, because it is the thing that overrules
+                  it. Kept out of the collapsed summary: closing a round early is
+                  a decision made on the day, not part of setting one up. */}
+              <div>
+                <SectionLabel>Scoring window</SectionLabel>
+                <RoundDeadlineControl
+                  stageId={stage.id}
+                  roundLabel={`Round ${stage.position + 1}`}
+                  deadline={deadline}
+                  override={stage.deadlineOverride}
+                  locked={pending}
+                />
+              </div>
+            </SettingsGroup>
+
+            {/* Weekly sign-up, when the league asks the question. A different
+                question from either date above — who is playing next week, not
+                when this week's scores are due — so it stands on its own rather
+                than being sandwiched between the two. The counts keep the
+                organizer honest about Wednesday: "18 in" where five are only in
+                by default is a different tee sheet from 18 who said so. */}
             {stage.attendance && (
               <div className="field" style={{ maxWidth: 420 }}>
                 <label>Sign-up deadline</label>
@@ -1009,107 +1131,42 @@ function StageCard({
               </div>
             )}
 
-
-            <SettingsGroup
-              title="On the day"
-              blurb="When this round is played and whether scores can still go in."
-            >
-            {/* Directly under the date, because it is the thing that overrules
-                it. Kept out of the collapsed summary: closing a round early is
-                a decision made on the day, not part of setting one up. */}
-            <div>
-              <SectionLabel>Scoring window</SectionLabel>
-              <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
-                Whether scores can still be entered for this round.
-              </p>
-              <RoundDeadlineControl
-                stageId={stage.id}
-                roundLabel={`Round ${stage.position + 1}`}
-                deadline={deadline}
-                override={stage.deadlineOverride}
-                locked={pending}
-              />
-            </div>
-
-            </SettingsGroup>
-
-            <SettingsGroup
-              title="What this round decides"
-              blurb="Only what this kind of round actually settles. A round with nothing of its own to decide shows nothing here."
-            >
+            {/* Was "Cut line &amp; carry-forward — before the next round" —
+                an ampersand heading naming two of the THREE things beneath it.
+                The third is the Generate pairings button, and nobody looking
+                for "how do I draw Round 2" would look under a heading about cut
+                lines. Renamed to cover the handover itself; no sub-headings
+                added, because each control below already labels itself and a
+                heading that repeats the label under it is the trap this pass
+                walked into on its own first screen. */}
             {showTransition && (
-              <div>
-                <SectionLabel>
-                  Cut line &amp; carry-forward — before the next round
-                  <FieldInfo label="the cut line and carry-forward">
-                    <p>{ROUND_CUT_HELP}</p>
-                    <p>{CUT_SCOPE_HELP}</p>
-                  </FieldInfo>
-                </SectionLabel>
-                <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
-                  Carry points forward and/or cut the field before it moves on from this round.
-                </p>
+              <SettingsGroup
+                title={
+                  <>
+                    Before the next round
+                    <FieldInfo label="the cut line and carry-forward">
+                      <p>{ROUND_CUT_HELP}</p>
+                      <p>{CUT_SCOPE_HELP}</p>
+                    </FieldInfo>
+                  </>
+                }
+                blurb="What carries forward, who survives the cut, and drawing the next round's matches."
+              >
                 <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} confirmedCount={confirmedCount} flightCount={flightCount} carry={carryPrompt} />
-              </div>
+              </SettingsGroup>
             )}
-
-            {/* One match, paired by a rule rather than by hand. Sits with the
-                other per-type settings because that is what it is: how this
-                kind of round decides what it contains. */}
-            {stage.type === "Single Match Stage" && singleMatch && (
-              <div>
-                <SectionLabel>The match</SectionLabel>
-                <SingleMatchRulePicker
-                  stageId={stage.id}
-                  rule={singleMatch.rule}
-                  ruleLabel={singleMatch.ruleLabel}
-                  problem={singleMatch.resolution.problem}
-                  aName={singleMatch.aName}
-                  bName={singleMatch.bName}
-                  matchId={singleMatch.matchId}
-                  stale={singleMatch.stale}
-                  rounds={singleMatch.rounds}
-                  players={singleMatch.players}
-                  locked={false}
-                />
-              </div>
-            )}
-
-            {stage.type === "Bracket Stage" && thirdPlace && (
-              <div>
-                <SectionLabel>Third and fourth</SectionLabel>
-                <ThirdPlaceControl
-                  stageId={stage.id}
-                  on={thirdPlace.on}
-                  problem={thirdPlace.problem}
-                  aName={thirdPlace.aName}
-                  bName={thirdPlace.bName}
-                  made={thirdPlace.made}
-                />
-              </div>
-            )}
-
-            {stage.type === "Qualification Stage" && (
-              <div>
-                <SectionLabel>
-                  Qualification cut
-                  <FieldInfo label="the qualification cut">
-                    <p>{QUALIFICATION_CUT_HELP}</p>
-                    <p>{CUT_SCOPE_HELP}</p>
-                  </FieldInfo>
-                </SectionLabel>
-                <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
-                  How many players advance from this cut — top N per flight, or top N overall.
-                </p>
-                <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} />
-              </div>
-            )}
-
-            </SettingsGroup>
 
             <SettingsGroup
               title="Tiebreakers"
-              blurb="Set once and rarely touched. Two separate questions — the numbers say which is which."
+              blurb={
+                // Only Match Play shows two questions and the 1./2. numbering.
+                // The blurb used to promise both unconditionally, so a
+                // stroke-play round robin advertised a second question that
+                // was not there and numbers that were never rendered.
+                format === "Match Play"
+                  ? "Set once and rarely touched. Two separate questions — the numbers say which is which."
+                  : "Set once and rarely touched. How the table is ordered when players finish level."
+              }
             >
             {stage.type === "Round Robin" && (
               <div>
