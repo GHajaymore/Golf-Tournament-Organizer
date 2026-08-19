@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   resolveMoneyMode,
+  sharedCostsApply,
   moneyScreenApplies,
   floatSummary,
   isMoneyMode,
@@ -48,10 +49,49 @@ describe("which mode is in force", () => {
     expect(isMoneyMode("ledger")).toBe(false);
   });
 
-  it("hides the money screen only under none", () => {
-    expect(moneyScreenApplies("none")).toBe(false);
-    expect(moneyScreenApplies("float")).toBe(true);
-    expect(moneyScreenApplies("split")).toBe(true);
+  it("turns off the shared costs only under none", () => {
+    // Note what this does NOT decide: whether there is a money screen. A club
+    // is `none` and still runs skins, and the players have to be able to see
+    // who won them — see moneyScreenApplies.
+    expect(sharedCostsApply("none")).toBe(false);
+    expect(sharedCostsApply("float")).toBe(true);
+    expect(sharedCostsApply("split")).toBe(true);
+  });
+});
+
+describe("whether the money screen exists", () => {
+  it("shows the pots to a club that handles its cash outside the app", () => {
+    // THE REGRESSION THIS FILE EXISTS FOR. A club resolves to `none` — right,
+    // the shop takes the fee and pays the winner — and used to lose the whole
+    // money tab with it. But the club runs skins and a 2s pot every Saturday,
+    // the app is the only thing that works out who won them, and the players
+    // were redirected away from the answer while the organizer could see it on
+    // the prizes screen. A pot is a RESULT, not a cash book.
+    expect(moneyScreenApplies({ mode: "none", hasPots: true })).toBe(true);
+  });
+
+  it("shows nothing to a club with no pots at all", () => {
+    // The other direction matters just as much: an empty money screen implies
+    // something is missing. No costs in the app and no pot means no screen.
+    expect(moneyScreenApplies({ mode: "none", hasPots: false })).toBe(false);
+  });
+
+  it("exists under a kitty or a settle-up before anyone has used it", () => {
+    // Offered as soon as the tournament is set up, or the first person who
+    // needs to add a line cannot find where to do it.
+    expect(moneyScreenApplies({ mode: "float", hasPots: false })).toBe(true);
+    expect(moneyScreenApplies({ mode: "split", hasPots: false })).toBe(true);
+  });
+
+  it("never depends on the org kind directly", () => {
+    // The kind has already had its say, inside resolveMoneyMode. Asking it
+    // twice is how a club that deliberately set one tournament to split got
+    // the tab and then no ledger on it.
+    for (const mode of MONEY_MODES) {
+      for (const hasPots of [true, false]) {
+        expect(moneyScreenApplies({ mode, hasPots })).toBe(sharedCostsApply(mode) || hasPots);
+      }
+    }
   });
 });
 

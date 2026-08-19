@@ -12,8 +12,10 @@ import { orgProfile } from "./org-profile";
  * Three modes, because "does this tournament handle money" turned out to be
  * two different questions that were being answered as one:
  *
- *   NONE  — results only. The club shop takes the entry fee and pays the
- *           winner; the app says who won and nothing else.
+ *   NONE  — the club shop takes the entry fee and pays the winner, so the app
+ *           keeps no kitty and no settle-up. It still settles the POTS: skins,
+ *           2s, closest-to-the-pin. Those are a result, not a cash book, and
+ *           they are the same at a club as anywhere else.
  *   FLOAT — a kitty. Fees come IN, prizes and the celebration go OUT, and the
  *           question is whether the tournament balanced and what is left. One
  *           pot belonging to the tournament, not a web of debts.
@@ -35,13 +37,16 @@ export function isMoneyMode(v: string): v is MoneyMode {
 }
 
 export const MONEY_MODE_LABEL: Record<MoneyMode, string> = {
-  none: "No money in the app",
+  // Not "No money in the app": the skins and the 2s pot are still worked out
+  // and still shown, at a club as much as anywhere. What this mode turns off
+  // is the app handling the FEES and the shared costs.
+  none: "Costs handled outside the app",
   float: "Tournament kitty",
   split: "Split shared costs",
 };
 
 export const MONEY_MODE_HELP: Record<MoneyMode, string> = {
-  none: "Results only. Entry fees and prizes are handled outside the app — the shop, the bar, an envelope.",
+  none: "Entry fees and prizes are handled outside the app — the shop, the bar, an envelope. Skins, 2s and side bets are still worked out and shown to the players.",
   float:
     "Track the entry fees in and the costs out — trophies, prizes, the meal — and see whether the tournament balanced and what is left over. One pot belonging to the tournament; nobody owes anybody.",
   split:
@@ -79,9 +84,39 @@ export function resolveMoneyMode(input: {
   return orgProfile(input.orgKind).ledger ? "split" : "none";
 }
 
-/** Whether the money screen exists at all under this mode. */
-export function moneyScreenApplies(mode: MoneyMode): boolean {
+/**
+ * Whether this tournament handles shared costs or a kitty inside the app.
+ *
+ * This was called `moneyScreenApplies`, and the name was the bug: it reads as
+ * "show the money screen", so `none` hid the screen entirely — including the
+ * skins, which every club runs and which the app is the only thing working
+ * out. The mode governs the LEDGER and the KITTY. Whether there is a money
+ * screen is a wider question, asked by `usesExpenses`, because a pot exists
+ * whatever the club does about entry fees.
+ */
+export function sharedCostsApply(mode: MoneyMode): boolean {
   return mode !== "none";
+}
+
+/**
+ * Whether the money screen exists at all — the rule, in one place.
+ *
+ * TWO independent reasons for it to exist, and collapsing them to one is what
+ * went wrong:
+ *
+ *   - the tournament handles costs in the app (a kitty, or a settle-up), OR
+ *   - somebody staked in a pot, whatever the club does about entry fees.
+ *
+ * A club is `none` by default and correctly so — the shop takes the fee and
+ * pays the winner — but it runs skins and a 2s pot every Saturday, and the app
+ * is the only thing that works out who won them. With one reason instead of
+ * two, the organizer settled the skins on the prizes screen (gated on the
+ * round, not the mode, so it always worked) and every player was redirected
+ * away from the result. The calculation ran and nobody it belonged to could
+ * see it.
+ */
+export function moneyScreenApplies(input: { mode: MoneyMode; hasPots: boolean }): boolean {
+  return sharedCostsApply(input.mode) || input.hasPots;
 }
 
 /**

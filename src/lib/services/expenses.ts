@@ -11,7 +11,7 @@ import {
 import { settle, type Transfer } from "../domain/money";
 import { parseTeeSheet, groupForPlayer } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
-import { resolveMoneyMode, moneyScreenApplies } from "../domain/money-mode";
+import { resolveMoneyMode, sharedCostsApply, moneyScreenApplies } from "../domain/money-mode";
 import { roundMoneyIsFinal } from "../domain/money-layout";
 import { potMembership, isPotEntryMode } from "../domain/pot-entry";
 import { contestLedger, contestNets, isContestKind, isDecided, potOf } from "../domain/contests";
@@ -544,7 +544,48 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
   };
 }
 
-/** Whether this tournament shows the money tab at all. */
+/**
+ * Whether this tournament has any money game at all — a skins pot, a side
+ * game, or a contest.
+ *
+ * The three pot tables `gameNets` settles from, asked as one question. A
+ * fourth pot table added without being added here will make the money tab
+ * disappear for the players who staked in it, which is the same shape of bug
+ * as reading pot membership three ways.
+ */
+export async function hasMoneyGames(eventId: string): Promise<boolean> {
+  const [skins, side, contest] = await Promise.all([
+    prisma.skinsPot.findFirst({ where: { eventId }, select: { id: true } }),
+    prisma.sideGame.findFirst({ where: { eventId }, select: { id: true } }),
+    prisma.contest.findFirst({ where: { eventId }, select: { id: true } }),
+  ]);
+  return !!(skins || side || contest);
+}
+
+/**
+ * Whether this tournament shows the money tab at all.
+ *
+ * TWO questions, and they were being answered as one.
+ *
+ * "Does this tournament share costs?" is the MODE — the ledger and the kitty,
+ * which is what `none` is really turning off. It used to guess from whether
+ * anything had been entered yet, and that guess was wrong in both directions:
+ * a tournament handling its money outside the app got a settle-up as soon as
+ * somebody added one line, and a tournament that intended to use it showed
+ * nothing until the first line existed.
+ *
+ * "Did anyone win the skins?" is a different question, and the answer does not
+ * depend on who is running the golf. A club is `none` by default — correctly,
+ * the shop takes the entry fee and pays the winner — but a club runs skins and
+ * a 2s pot every Saturday, and the app is the thing that works out who won
+ * them. That is a RESULT, not a cash book, which is the distinction org-profile
+ * draws in `tracksCash`.
+ *
+ * Under `none` the whole tab was hidden, so the organizer settled the skins on
+ * the prizes screen (which is gated on the round, not the mode, so it always
+ * worked) and every player was redirected away from the answer. The money-game
+ * calculation was running and nobody it belonged to could see it.
+ */
 export async function usesExpenses(eventId: string): Promise<boolean> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -552,25 +593,25 @@ export async function usesExpenses(eventId: string): Promise<boolean> {
   });
   if (!event) return false;
 
-  /**
-   * The mode decides, where this used to guess from whether anything had been
-   * entered yet. That guess was wrong in both directions: a tournament that
-   * handles its money outside the app got a settle-up as soon as somebody
-   * added one line, and a tournament that intends to use it showed nothing
-   * until the first line existed, so there was no way to tell the feature was
-   * there.
-   */
   const mode = resolveMoneyMode({
     eventMode: event.moneyMode,
     orgMode: event.organization?.moneyMode,
     orgKind: event.organization?.kind,
   });
-  if (!moneyScreenApplies(mode)) return false;
-
-  // Under a mode that HAS a money screen, it is offered as soon as the
-  // tournament is set up rather than only once somebody has used it —
-  // otherwise the first person to need it cannot find it.
-  return true;
+  /**
+   * The pot query is skipped when the mode alone settles it, which cannot
+   * change the answer: `moneyScreenApplies` is an OR, so a true left-hand side
+   * makes the right irrelevant. The RULE still lives in one place — this
+   * function gathers facts and does not decide.
+   *
+   * Under a mode that has a ledger or a kitty the tab is offered as soon as the
+   * tournament is set up, rather than once somebody has used it, or the first
+   * person to need it cannot find it. Under `none` there is nothing standing
+   * until a pot exists — no pots, no tab, and no empty screen implying
+   * something is missing.
+   */
+  const hasPots = sharedCostsApply(mode) ? false : await hasMoneyGames(eventId);
+  return moneyScreenApplies({ mode, hasPots });
 }
 
 export interface RoundMoneyRow {
