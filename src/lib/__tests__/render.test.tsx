@@ -2415,6 +2415,66 @@ describe("the two controls built after the audit", () => {
   });
 });
 
+describe("members", () => {
+  const member = (over: Record<string, unknown> = {}) => ({
+    id: "m1", name: "zz-Priya Nair", email: "zz1@example.invalid", phone: "", ghin: "",
+    homeClub: "", gender: "", preferredTee: "", memberNumber: "", handicap: 12,
+    handicapType: "18", handicapSource: "manual", status: "active", notes: "",
+    entryCount: 0, lastEvent: "", entered: false, ...over,
+  });
+  const roster = async (members: ReturnType<typeof member>[]) => {
+    const { RosterClient } = await import("@/components/RosterClient");
+    return render(
+      <RosterClient clubName="zz-Club" orgKind="club" eventName="zz-Cup" fieldLocked={false}
+        members={members} fieldSize={members.length} unlinkedCount={0} />,
+    );
+  };
+
+  it("keeps every control on the members screen", async () => {
+    const html = await roster([member()]);
+    for (const control of [
+      "Active members", "Inactive", "In zz-Cup", "Type",
+      "Members (1)", "Search name, email, number", "Show inactive",
+      "Add member", "Import CSV",
+      "Name", "Index", "Contact", "Played", "Last event",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("calls the list what the sidebar calls it", async () => {
+    // The page heading and the sidebar both say Members; the card said
+    // "Roster". One screen, one list, two names.
+    const html = await roster([member()]);
+    expect(html).toContain("Members (1)");
+    expect(html).not.toContain("Roster (1)");
+  });
+
+  it("keeps the remove button on screen and says why it refuses", async () => {
+    // It used to render only when entryCount was 0, so for anybody who had
+    // played the control simply was not there — and an organizer wondering why
+    // had nothing to read. Present and refusing now, with the reason in the
+    // accessible name, because a `title` never appears on a phone.
+    const played = await roster([member({ entryCount: 3 })]);
+    expect(played).toContain("Cannot remove zz-Priya Nair");
+    expect(played).toContain("they have played in 3 tournaments");
+    expect(played).toContain("Set them inactive instead");
+    // And the rule once for the whole table, for anybody not using a reader.
+    expect(played).toContain("A member who has played cannot be removed");
+
+    // Somebody who has played nothing can still be removed, and the sentence
+    // does not appear for a table where it applies to nobody.
+    const fresh = await roster([member({ entryCount: 0 })]);
+    expect(fresh).toContain("Remove zz-Priya Nair from the roster");
+    expect(fresh).not.toContain("A member who has played cannot be removed");
+  });
+
+  it("counts one tournament without the plural", async () => {
+    const html = await roster([member({ entryCount: 1 })]);
+    expect(html).toContain("played in 1 tournament.");
+  });
+});
+
 describe("club settings", () => {
   const club = async (over: Record<string, unknown> = {}) => {
     const { OrganizationClient } = await import("@/components/OrganizationClient");
