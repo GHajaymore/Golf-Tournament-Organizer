@@ -501,7 +501,16 @@ export function RegistrationClient({
           {!reg.acceptingEntries && (
             <>
               {" "}
-              <strong>You can still add players below</strong> — closing only changes what this says.
+              {/* Was "closing only changes what this says", which is not true
+                  and understates the control by a long way. `decideIntake`
+                  refuses an entry the moment `registrationStatus` stops
+                  accepting — so a closed tournament turns every visitor to the
+                  sign-up link away, whether it was closed by the deadline or by
+                  hand. Adding somebody yourself is the part that is unaffected,
+                  and that is worth saying; telling an organizer the switch is
+                  cosmetic is how they close it and wonder why nobody signed up. */}
+              <strong>You can still add players below</strong> — while it is closed the sign-up link
+              turns everyone else away.
             </>
           )}
         </span>
@@ -550,12 +559,21 @@ export function RegistrationClient({
       </div>
 
       {/* Self-service registration: share a link and people register themselves.
-          Separate from the invite message above — that hands someone this
-          console's sign-up; this hands anyone a public, no-account entry form. */}
+          Separate from "Invite players" BELOW — that hands someone this
+          console's sign-up; this hands anyone a public, no-account entry form.
+
+          Named for the LINK, not for "registration". It used to be titled
+          "Open registration", with a button reading "Open registration" /
+          "Close sign-ups" — sitting a few inches under a banner whose button
+          reads "Close registration". Two switches, one word, and they are not
+          opposites: the banner is `registrationOverride`, whether this
+          tournament takes entries at all; this one is `registrationOpen`,
+          whether the public link exists. An organizer wanting to stop people
+          signing up had two plausible controls and no way to tell them apart. */}
       <div className="card elev-sm" style={{ marginBottom: 16, gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div>
-            <span className="card-title" style={{ fontSize: 15 }}>Open registration</span>
+            <span className="card-title" style={{ fontSize: 15 }}>Public sign-up link</span>
             <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
               Share a link and people sign themselves up — no account needed. Entries appear in the field below.
             </p>
@@ -567,9 +585,21 @@ export function RegistrationClient({
             onClick={() => startTransition(() => void setRegistrationOpen(!event.registrationOpen))}
           >
             <i className={event.registrationOpen ? "ph ph-lock-simple" : "ph ph-door-open"} />
-            {event.registrationOpen ? "Close sign-ups" : "Open registration"}
+            {event.registrationOpen ? "Take the link down" : "Publish the link"}
           </button>
         </div>
+
+        {/* Both switches on, and off. A published link on a tournament that is
+            not accepting entries is live, copyable, and turns away everybody
+            who follows it — `decideIntake` checks `registrationOpen` AND
+            `registrationStatus`. The organizer could see a working link and a
+            "Closed" chip four inches apart and had nothing joining the two. */}
+        {event.registrationOpen && !reg.acceptingEntries && (
+          <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+            <i className="ph ph-warning-circle" /> The link is live but this tournament is not taking
+            entries — anyone who follows it is turned away. {reg.detail}
+          </p>
+        )}
 
         {event.registrationOpen && (
           <>
@@ -710,7 +740,10 @@ export function RegistrationClient({
             organizer a broken invitation that looks like it worked. */}
         {!registerUrl && (
           <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
-            <i className="ph ph-warning-circle" /> Open registration first — the sign-up link doesn&rsquo;t exist
+            {/* Names the control by the words now on it. A refusal that tells
+                somebody to press a button that no longer exists is worse than
+                no refusal at all. */}
+            <i className="ph ph-warning-circle" /> Publish the sign-up link first — it doesn&rsquo;t exist
             until you do, so there is nothing to invite anyone to yet.
           </p>
         )}

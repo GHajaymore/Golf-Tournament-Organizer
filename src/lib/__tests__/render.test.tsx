@@ -2415,6 +2415,75 @@ describe("the two controls built after the audit", () => {
   });
 });
 
+describe("registration and field", () => {
+  // Another screen with no render test of its own before today.
+  const reg = async (over: Record<string, unknown> = {}) => {
+    const { RegistrationClient } = await import("@/components/RegistrationClient");
+    return render(
+      <RegistrationClient
+        confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
+        event={{
+          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "",
+          registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
+          dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
+          requirePhone: false, phoneLocked: false, registrationToken: "",
+          ...over,
+        }} />,
+    );
+  };
+
+  it("keeps every control on the registration screen", async () => {
+    const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    for (const control of [
+      "Confirmed", "Waitlisted", "Registration closes", "Status",
+      "Public sign-up link", "Take the link down", "When someone registers",
+      "Auto-confirm to capacity", "Approve each entry", "Require a mobile number",
+      "Invite players", "Message", "Add someone new", "Player name",
+      "Close registration",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("does not give two different switches the same name", async () => {
+    // The banner's "Close registration" is registrationOverride — whether this
+    // tournament takes entries at all. The card's switch is registrationOpen —
+    // whether the public link exists. They are not opposites, and both used to
+    // say "registration": the card was titled "Open registration" and its
+    // button read "Open registration" / "Close sign-ups", inches under a button
+    // reading "Close registration".
+    const html = await reg({ registrationOpen: false });
+    expect(html).toContain("Publish the link");
+    expect(html).not.toContain(">Open registration<");
+    // The refusal in "Invite players" names the button by the words on it — a
+    // refusal pointing at a button that no longer exists is worse than none.
+    expect(html).toContain("Publish the sign-up link first");
+  });
+
+  it("says when a published link is turning everybody away", async () => {
+    // Both switches are real and independent: decideIntake checks
+    // registrationOpen AND registrationStatus. A live, copyable link on a
+    // closed tournament refuses every visitor, and the screen said nothing.
+    const html = await reg({
+      registrationOpen: true, registrationToken: "zztok", registrationOverride: true,
+    });
+    expect(html).toContain("The link is live but this tournament is not taking");
+    // And not when the tournament is actually accepting entries.
+    const open = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    expect(open).not.toContain("The link is live but");
+  });
+
+  it("does not tell an organizer that closing is cosmetic", async () => {
+    // "closing only changes what this says" was false. registrationStatus
+    // returning acceptingEntries:false makes decideIntake refuse the entry.
+    const html = await reg({ registrationOverride: true });
+    expect(html).not.toContain("only changes what this says");
+    // The specific sentence, not just the words "sign-up link" — those also
+    // appear in the invite card's refusal, which would pass this vacuously.
+    expect(html).toContain("while it is closed the sign-up link turns everyone else away");
+  });
+});
+
 describe("tournament details", () => {
   // Neither this component nor the /event page had a render test — the screen
   // was covered by smoke alone, which proves it does not 500 and nothing else.
