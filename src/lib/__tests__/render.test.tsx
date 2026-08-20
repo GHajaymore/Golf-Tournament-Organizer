@@ -2415,6 +2415,86 @@ describe("the two controls built after the audit", () => {
   });
 });
 
+describe("tournament details", () => {
+  // Neither this component nor the /event page had a render test — the screen
+  // was covered by smoke alone, which proves it does not 500 and nothing else.
+  const setup = async (over: Record<string, unknown> = {}) => {
+    const { EventSetupClient } = await import("@/components/EventSetupClient");
+    return render(
+      <EventSetupClient
+        playersCount={24}
+        courses={[{ name: "Bushwood", city: "Chicago", address: "" }]}
+        initial={{
+          name: "zz-Club Championship", dates: "", format: "match", course: "Bushwood",
+          courseMode: "fixed", city: "Chicago", address: "", regDeadline: "", capacity: 32,
+          playerCountMode: "registration", manualPlayerCount: 0, sideStyle: "individual",
+          ...over,
+        }} />,
+    );
+  };
+
+  it("keeps every control on the setup card", async () => {
+    // The guard against a separation becoming a removal. Manual mode, so the
+    // target and its Apply button are in the markup too.
+    const html = await setup({ playerCountMode: "manual", manualPlayerCount: 24 });
+    for (const control of [
+      "Tournament identity", "Tournament name", "Tournament dates",
+      "The kind of golf", "Scoring", "Match play", "Stroke play", "How do people play?",
+      "Venue", "Golf course", "City", "Address",
+      "Registration", "Registration deadline", "Field capacity",
+      "Where the field size comes from", "Player count", "From registrations",
+      "Target player count", "Apply",
+      // The save button reads "Saved" until something is dirty, which on a
+      // fresh render is always.
+      "Summary", "Recommended flow", "Saved",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("does not file the scoring questions under Tournament identity", async () => {
+    // A name and a date say WHICH tournament this is. Match-versus-stroke and
+    // singles-versus-sides say what kind of golf it is, and both used to sit
+    // under "Tournament identity" where nobody would look for them.
+    const html = await setup();
+    expect(html.indexOf("Tournament identity")).toBeLessThan(html.indexOf("The kind of golf"));
+    expect(html.indexOf("The kind of golf")).toBeLessThan(html.indexOf("How do people play?"));
+  });
+
+  it("does not name a section after a screen that already has that name", async () => {
+    // "Registration & field" is the SIDEBAR SCREEN at /registration. A section
+    // of this card wore the same name, and the Recommended flow card below it
+    // told organizers to go to "Registration & field" — meaning the screen.
+    const html = await setup();
+    // Once, in the Recommended flow list, where it means the screen.
+    expect(html.match(/Registration &amp; field/g)?.length ?? 0).toBe(1);
+  });
+
+  it("separates the field-resizing tool from the registration rules", async () => {
+    // The deadline and the capacity decide whether the public form takes an
+    // entry. "Player count" → Manual → Apply waitlists confirmed players,
+    // invents placeholder rows and deletes scored matches. One heading held
+    // all three.
+    const html = await setup({ playerCountMode: "manual" });
+    expect(html.indexOf("Field capacity")).toBeLessThan(html.indexOf("Where the field size comes from"));
+    expect(html.indexOf("Where the field size comes from")).toBeLessThan(html.indexOf("Player count"));
+  });
+
+  it("names real screens in the recommended flow", async () => {
+    const { NAV } = await import("@/lib/nav");
+    const labels = new Set(NAV.flatMap((s) => s.items.map((i) => i.label)));
+    const html = await setup();
+    // Every screen the flow names has to be one the sidebar actually offers.
+    // The list used to say "Rounds & format" (it is Rounds & formats) and
+    // "Prizes & Reports" (two screens, neither called that).
+    for (const label of ["Rounds &amp; formats", "Tee sheet", "Score entry", "Qualification", "Bracket", "Prizes &amp; payouts", "Reports &amp; export", "Flights"]) {
+      const plain = label.replace(/&amp;/g, "&");
+      expect(labels, `not a real screen: ${plain}`).toContain(plain);
+      expect(html, `not named in the flow: ${plain}`).toContain(label);
+    }
+  });
+});
+
 describe("the setup checklist", () => {
   const state = async (over: Record<string, unknown> = {}) => {
     const { orgSetupState } = await import("@/lib/domain/org-setup");

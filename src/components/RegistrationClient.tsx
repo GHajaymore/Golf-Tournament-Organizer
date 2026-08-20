@@ -429,7 +429,11 @@ export function RegistrationClient({
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Confirmed</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{confirmed.length}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>{unlimited ? "unlimited field" : `of ${event.capacity} capacity`}</div>
+          <div className="text-muted" style={{ fontSize: 12 }}>
+            {unlimited ? "unlimited field" : `of ${event.capacity} capacity`}
+            {" · "}
+            <a href="/event">change on Tournament details</a>
+          </div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Waitlisted</span>
@@ -439,7 +443,14 @@ export function RegistrationClient({
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Registration closes</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{formatDeadline(event.regDeadline) || "—"}</div>
-          <div className="text-muted" style={{ fontSize: 12 }}>groups lock after this date</div>
+          {/* Both this and the capacity above are SET on Tournament details and
+              only shown here — on the screen called Registration & field, which
+              is where an organizer goes to change them. Read-only with no way
+              onward, an unset deadline renders as "—" and the screen offers
+              nothing to do about it. Says where instead. */}
+          <div className="text-muted" style={{ fontSize: 12 }}>
+            groups lock after this date · <a href="/event">set it on Tournament details</a>
+          </div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Status</span>
