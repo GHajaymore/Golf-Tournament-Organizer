@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { drawReadiness } from "../draw-readiness";
+import { drawReadiness, sideDrawReadiness } from "../draw-readiness";
 
 /**
  * The refusal at the point of consequence.
@@ -71,5 +71,49 @@ describe("whether pairings can be drawn", () => {
     // Nothing should produce one, but failing the other way would draw
     // pairings from a field that does not exist.
     expect(drawReadiness({ fieldSize: -1, locked: false })).not.toBeNull();
+  });
+});
+
+/**
+ * The same refusal for team matches, where both ways out are on the screen
+ * already — so it names the controls rather than pointing anywhere.
+ *
+ * Replaces `title={teams.length < 2 ? "Draw at least two sides first" :
+ * undefined}`, flagged in the 2026-08-18 record as the last surviving instance
+ * of the tooltip-only refusal.
+ */
+describe("whether team matches can be drawn", () => {
+  it("lets two or more sides through", () => {
+    expect(sideDrawReadiness({ sideCount: 2 })).toBeNull();
+    expect(sideDrawReadiness({ sideCount: 9 })).toBeNull();
+  });
+
+  it("refuses one side, and says a match needs two", () => {
+    const r = sideDrawReadiness({ sideCount: 1 });
+    expect(r?.problem).toContain("only one so far");
+    expect(r?.problem).toContain("two sides");
+  });
+
+  it("refuses none differently — there is nothing to add another TO", () => {
+    // "there is only one so far" is false with zero sides, and an organizer
+    // reading it goes looking for the side they have not made.
+    const r = sideDrawReadiness({ sideCount: 0 });
+    expect(r?.problem).toContain("No sides yet");
+    expect(r?.problem).not.toContain("only one");
+  });
+
+  it("names the other control by the words on it, not by where it sits", () => {
+    // A position is a claim about layout that nothing checks and a
+    // re-arrangement makes false — the "deadline above" defect. Both refusals
+    // quote the button instead.
+    for (const count of [0, 1]) {
+      const problem = sideDrawReadiness({ sideCount: count })?.problem ?? "";
+      expect(problem).toContain("Draw sides automatically");
+      expect(problem).not.toMatch(/\babove\b|\bbelow\b|next to/);
+    }
+  });
+
+  it("treats a negative count as none rather than as ready", () => {
+    expect(sideDrawReadiness({ sideCount: -1 })).not.toBeNull();
   });
 });

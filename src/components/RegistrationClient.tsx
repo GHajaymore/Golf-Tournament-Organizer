@@ -362,7 +362,17 @@ export function RegistrationClient({
                         width: 150,
                         borderColor: p.email ? undefined : "var(--color-accent)",
                       }}
-                      title={p.email ? undefined : "No email on file — this player can't sign in until one is added."}
+                      // The consequence in the accessible NAME rather than a
+                      // `title`, which never appears on a touch device. A
+                      // sighted organizer already has the accent border and
+                      // the "Required for sign-in" placeholder; somebody using
+                      // a reader had a tooltip they may never hear. A sentence
+                      // per row would be noise in a table this dense.
+                      aria-label={
+                        p.email
+                          ? `Email for ${p.name}`
+                          : `Email for ${p.name} — none on file, so they cannot sign in until one is added`
+                      }
                       onBlur={(e) => {
                         const v = e.target.value.trim();
                         if (v !== (p.email ?? "")) commitUpdate(p.id, { email: v });

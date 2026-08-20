@@ -53,25 +53,27 @@ export function CommentaryPanel({
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {/* Left in place and disabled rather than removed: a greyed
                 button with a reason is how somebody learns the feature is
-                there. The title carries the explanation, so hovering answers
-                "why can't I click this" without a second surface. */}
+                there.
+
+                The reason used to be in a `title`, and the comment here
+                defended that — "hovering answers 'why can't I click this'
+                without a second surface". Hovering does not happen on a phone,
+                and the sentence was never announced. There was a second
+                surface anyway, reading "On the paid plan"; it just said less
+                than the tooltip did. One surface now, carrying the whole
+                sentence including what to do meanwhile. */}
             <button
               type="button"
               className="btn btn-secondary"
               disabled={busy || !aiAvailable}
               onClick={draftAi}
-              title={
-                aiAvailable
-                  ? undefined
-                  : "Drafting comes with the paid plan — write your own line for now."
-              }
             >
               <i className={aiAvailable ? "ph ph-sparkle" : "ph ph-lock-simple"} />{" "}
               {busy ? "Drafting…" : "AjAi draft"}
             </button>
             {!aiAvailable && (
               <span className="text-muted" style={{ fontSize: 12, alignSelf: "center" }}>
-                On the paid plan
+                Drafting comes with the paid plan — write your own line for now.
               </span>
             )}
             <div style={{ flex: 1 }} />

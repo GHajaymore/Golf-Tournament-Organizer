@@ -232,6 +232,33 @@ describe("team screens", () => {
     expect(html).toContain("Draw sides automatically");
   });
 
+  it("says on the page why matches cannot be generated yet", () => {
+    // "Generate matches" was disabled with the reason in a `title` only — the
+    // last surviving instance of that pattern, flagged in the 2026-08-18
+    // record and left for whoever was next in this file. The refusal names the
+    // other button by the exact words on it, not by where it sits.
+    const one = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+        format={format}
+        teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
+        problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(one).toContain("A match is between two sides and there is only one so far");
+    expect(one).toContain("Draw sides automatically");
+
+    // Two sides, and the explanation goes away because the button works.
+    const two = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+        format={format}
+        teams={[
+          { id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] },
+          { id: "t2", name: "Side B", seed: 2, stageId: "r1", playingHandicap: 15, members: [] },
+        ]}
+        problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(two).not.toContain("only one so far");
+  });
+
   it("renders sides, their problems, and the unassigned list", () => {
     const html = render(
       <TeamsClient rounds={[{ id: "r1", label: "Round 1", format: "Four-Ball" }]} activeRoundId="r1"
@@ -1063,6 +1090,22 @@ describe("tee sheet", () => {
     expect(html).toContain("By position");
   });
 
+  it("names the greyed-out options and why, on the page", () => {
+    // Both button groups explained themselves with a `title` only. The names
+    // come from the ALGORITHMS and DRAW_ORDERS arrays that do the greying, so
+    // the sentence cannot come to list the wrong ones.
+    const html = render(<FoursomeMaker players={field} />);
+    expect(html).not.toContain("Needs a round to have been played");
+    expect(html).toContain("By position needs the leaderboard");
+    expect(html).toContain("Leaders out last and Leaders out first need the leaderboard");
+
+    // Gone once a round has been played and nothing is greyed.
+    const standings = field.map((p, i) => ({ playerId: p.id, position: i + 1 }));
+    const played = render(<FoursomeMaker players={field} standings={standings} />);
+    expect(played).not.toContain("needs the leaderboard");
+    expect(played).not.toContain("need the leaderboard");
+  });
+
   it("gives every group a time and a starting hole", () => {
     const html = render(<FoursomeMaker players={field} />);
     expect(html).toContain("Hole 1 · 8:00 AM");
@@ -1167,9 +1210,16 @@ describe("cut line scope", () => {
     expect(html).not.toContain("from each of");
   });
 
-  it("offers no per-flight choice when there is one flight", () => {
+  it("says on the page why there is no per-flight choice with one flight", () => {
+    // This asserted `title="Only one flight — same as overall."` — a tooltip,
+    // which never appears on a touch device and is not announced to a screen
+    // reader. The test agreeing with the code did not make the code right.
     const html = render(<CutControl {...base} scope="overall" flightCount={1} />);
-    expect(html).toContain("Only one flight");
+    expect(html).not.toContain("title=");
+    expect(html).toContain("The field is in one flight, so a per-flight cut would be the same cut");
+    // And it is not said when there are flights to cut inside.
+    const many = render(<CutControl {...base} scope="overall" flightCount={8} />);
+    expect(many).not.toContain("The field is in one flight");
   });
 
   it("warns when the cut number is as big as the field, so it cuts nobody", () => {
@@ -2258,7 +2308,13 @@ describe("locked metered features", () => {
     const html = render(<CommentaryPanel items={[]} canPost aiAvailable={false} />);
     expect(html).toContain("AjAi draft");
     expect(html).toContain("disabled");
-    expect(html).toContain("On the paid plan");
+    // The whole sentence, including what to do instead — the same standard the
+    // scorecard reader above is held to. It used to read "On the paid plan"
+    // here and keep the useful half in a `title`, which never appears on a
+    // phone and is not announced.
+    expect(html).toContain("Drafting comes with the paid plan");
+    expect(html).toContain("write your own line for now");
+    expect(html).not.toContain("title=");
   });
 
   it("renders every one of them normally when the plan allows it", async () => {

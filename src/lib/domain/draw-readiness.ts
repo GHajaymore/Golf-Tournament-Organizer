@@ -72,3 +72,31 @@ export function drawReadiness(input: DrawReadinessInput): DrawBlock | null {
   }
   return null;
 }
+
+/**
+ * The same refusal for team matches, where the remedy is on the screen itself.
+ *
+ * `drawReadiness` always has somewhere to send people, so it carries an href.
+ * This one does not and must not invent one: both ways out of "only one side"
+ * — add another team, or draw the sides automatically — are controls on the
+ * Teams & pairs screen already. So it names them by the exact words on them
+ * rather than pointing anywhere.
+ *
+ * It names them rather than saying "the button above", because a position is a
+ * claim about layout that nothing checks and a re-arrangement makes false —
+ * which is how `RoundDeadlineControl` came to tell organizers that a deadline
+ * four sections away was "above".
+ *
+ * Was `title={teams.length < 2 ? "Draw at least two sides first" : undefined}`,
+ * flagged in the 2026-08-18 session record as the last surviving instance of
+ * the tooltip-only refusal and left for whoever was next in the file.
+ */
+export function sideDrawReadiness(input: { sideCount: number }): { problem: string } | null {
+  if (input.sideCount >= 2) return null;
+  return {
+    problem:
+      input.sideCount === 1
+        ? "A match is between two sides and there is only one so far. Add another team, or use “Draw sides automatically”."
+        : "No sides yet — a match is between two of them. Add a team, or use “Draw sides automatically”.",
+  };
+}

@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { formGroups, type FormationRule, type Player } from "@/lib/domain";
+import { listNames } from "@/lib/format";
 import { useTransition } from "react";
 import { saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
 import {
@@ -157,6 +158,10 @@ export function FoursomeMaker({
 
   const active = ALGORITHMS.find((a) => a.key === algo) ?? ALGORITHMS[0];
   const activeOrder = DRAW_ORDERS.find((d) => d.key === order) ?? DRAW_ORDERS[2];
+  // Which options are greyed out, named from the arrays that grey them, so the
+  // sentence explaining it cannot come to list the wrong ones.
+  const standingsBlocked = hasStandings ? [] : ALGORITHMS.filter((a) => a.needsStandings).map((a) => a.label);
+  const orderBlocked = hasStandings ? [] : DRAW_ORDERS.filter((d) => d.needsStandings).map((d) => d.label);
 
   return (
     <>
@@ -214,7 +219,6 @@ export function FoursomeMaker({
                   disabled={off}
                   onClick={() => setAlgo(a.key)}
                   className="btn"
-                  title={off ? "Needs a round to have been played." : undefined}
                   style={{
                     border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
                     color: on ? "var(--color-accent)" : "var(--color-text)",
@@ -229,6 +233,20 @@ export function FoursomeMaker({
           <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
             {active.desc}
           </p>
+          {/* Why the greyed ones are greyed, on the page. Both groups here
+              explained themselves with a `title` only — which never appears on
+              a touch device, is not announced to a screen reader, and is the
+              pattern this codebase has already rejected twice. The options are
+              named from the array rather than described as "the greyed ones",
+              so the sentence cannot drift from what is actually disabled. */}
+          {standingsBlocked.length > 0 && (
+            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+              <i className="ph ph-info" /> {listNames(standingsBlocked)}{" "}
+              {standingsBlocked.length === 1 ? "needs" : "need"} the leaderboard, so{" "}
+              {standingsBlocked.length === 1 ? "it is" : "they are"} available only once a round has
+              been played.
+            </p>
+          )}
         </div>
 
         <div>
@@ -244,7 +262,6 @@ export function FoursomeMaker({
                   disabled={off}
                   onClick={() => setOrder(d.key)}
                   className="btn"
-                  title={off ? "Needs a round to have been played." : undefined}
                   style={{
                     border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
                     color: on ? "var(--color-accent)" : "var(--color-text)",
@@ -259,6 +276,14 @@ export function FoursomeMaker({
           <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
             {activeOrder.blurb}
           </p>
+          {orderBlocked.length > 0 && (
+            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+              <i className="ph ph-info" /> {listNames(orderBlocked)}{" "}
+              {orderBlocked.length === 1 ? "needs" : "need"} the leaderboard, so{" "}
+              {orderBlocked.length === 1 ? "it is" : "they are"} available only once a round has been
+              played.
+            </p>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>

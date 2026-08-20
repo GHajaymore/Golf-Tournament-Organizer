@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { sideDrawReadiness } from "@/lib/domain/draw-readiness";
 import {
   createTeam,
   deleteTeam,
@@ -87,6 +88,10 @@ export function TeamsClient({
   const [confirmDraw, setConfirmDraw] = useState(false);
   const [confirmMatches, setConfirmMatches] = useState(false);
   const [addingTo, setAddingTo] = useState("");
+
+  // Why matches cannot be drawn yet, or null. Rendered under the button rather
+  // than hidden in a `title`.
+  const sideBlock = sideDrawReadiness({ sideCount: teams.length });
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
     setError("");
@@ -233,13 +238,38 @@ export function TeamsClient({
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={pending || teams.length < 2}
-          title={teams.length < 2 ? "Draw at least two sides first" : undefined}
+          disabled={pending || !!sideBlock}
           onClick={() => makeMatches(false)}
         >
           <i className="ph ph-arrows-clockwise" /> {matchCount > 0 ? "Regenerate" : "Generate"} matches
         </button>
       </div>
+
+      {/* The reason the button above is dead, on the page rather than in a
+          `title` — which never appears on a touch device and is not announced.
+          The last surviving instance of that pattern, flagged in the
+          2026-08-18 session record and left for whoever was next in this file.
+
+          No link: both ways out are controls on this screen, so it names them
+          by the words on them instead of pointing somewhere. */}
+      {sideBlock && (
+        <p
+          style={{
+            fontSize: 12.5,
+            margin: 0,
+            lineHeight: 1.5,
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-start",
+            padding: "9px 11px",
+            borderRadius: 9,
+            background: "color-mix(in srgb, var(--color-text) 5%, transparent)",
+          }}
+        >
+          <i className="ph ph-info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
+          <span>{sideBlock.problem}</span>
+        </p>
+      )}
 
       {confirmMatches && (
         <div className="card elev-sm" style={{ gap: 8, borderLeft: "3px solid var(--color-accent)" }}>
