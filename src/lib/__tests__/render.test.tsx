@@ -2493,6 +2493,71 @@ describe("the two controls built after the audit", () => {
   });
 });
 
+describe("side bets", () => {
+  const field = [
+    { id: "p1", name: "zz-Ann Reyes", playing: true },
+    { id: "p2", name: "zz-Bo Kite", playing: true },
+  ];
+  const bets = async (over: Record<string, unknown> = {}) => {
+    const { ContestsClient } = await import("@/components/ContestsClient");
+    return render(
+      <ContestsClient roundLabel="Round 1" stageId="s1" field={field}
+        contests={[]} sideGames={[]} {...over} />,
+    );
+  };
+
+  it("keeps every control on the side-bets card", async () => {
+    const html = await bets();
+    for (const control of [
+      "Side bets — Round 1", "Add a bet",
+      "Settled by the scores", "You name the winner",
+      "Low gross", "Nassau", "Stake",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("does not claim there are no side bets while showing five", async () => {
+    // The empty state counted `contests` and sat ABOVE the derived pots, which
+    // are side bets with stake fields on them — so with no hand-settled
+    // contest it read "No side bets on this round yet" directly above five.
+    const html = await bets();
+    expect(html).not.toContain("No side bets on this round yet");
+    // It answers for its own group now, and says how to start one.
+    expect(html).toContain("None on this round yet");
+    expect(html.indexOf("You name the winner")).toBeLessThan(html.indexOf("None on this round yet"));
+  });
+
+  it("names both halves of the distinction, not just one", async () => {
+    // "Settled by the scores" only means something against something else, and
+    // that something was a bare list of contests under no heading at all.
+    const html = await bets();
+    expect(html.indexOf("Settled by the scores")).toBeLessThan(html.indexOf("You name the winner"));
+  });
+
+  it("explains the pot entry modes without making anyone switch to find out", async () => {
+    // The unselected mode's help was a `title` on its button, so on a phone the
+    // only way to read it was to switch — and opt-out marks the whole field as
+    // in AND paid, so trying it moves money.
+    const { POT_MODE_HELP } = await import("@/lib/domain/pot-entry");
+    const html = await bets({
+      contests: [{
+        id: "c1", kind: "closest-pin", name: "zz-Closest to the pin", hole: 7, buyInCents: 500,
+        entrantIds: [], winnerIds: [], potCents: 0, pending: [], entryMode: "opt-in", excluded: [],
+      }],
+    });
+    // The mode IN FORCE is stated visibly, as it was before.
+    expect(html).toContain(POT_MODE_HELP["opt-in"].slice(0, 40));
+    // The comparison is behind a FieldInfo, which opens on TAP — so its panel
+    // is not in a static render, and the assertion is that the opener is there
+    // and says what it opens. That is the whole difference from a `title`: an
+    // accessible name a screen reader announces and a finger can reach.
+    expect(html).toContain("More about how a pot fills");
+    // And the hover-only copy is gone.
+    expect(html).not.toContain(`title="${POT_MODE_HELP["opt-out"]}"`);
+  });
+});
+
 describe("members", () => {
   const member = (over: Record<string, unknown> = {}) => ({
     id: "m1", name: "zz-Priya Nair", email: "zz1@example.invalid", phone: "", ghin: "",

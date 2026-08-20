@@ -12,6 +12,7 @@ import {
 import { CONTEST_KINDS, CONTEST_LABEL, type ContestKind } from "@/lib/domain/contests";
 import { DERIVED_KINDS, DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
 import { PersonChip } from "@/components/PersonChip";
+import FieldInfo from "@/components/FieldInfo";
 
 /**
  * The derived pots, in the order a club would read them. Nassau is last and
@@ -126,11 +127,23 @@ export function ContestsClient({
           disabled={pending}
           onClick={() => run(() => setPotEntryMode(potType, potId, m))}
           style={{ cursor: "pointer", border: "none" }}
-          title={POT_MODE_HELP[m]}
         >
           {POT_MODE_LABEL[m]}
         </button>
       ))}
+      {/* Both modes explained on TAP, not on hover.
+          The line below shows the mode in force, which is right; the OTHER
+          mode's help was in a `title` on its button, so on a phone the only
+          way to read it was to switch — and switching is not free. Opt-out
+          marks everyone in the field as in AND as paid, so "try it and see" is
+          a change to who owes money. */}
+      <FieldInfo label="how a pot fills">
+        {POT_ENTRY_MODES.map((m) => (
+          <p key={m}>
+            <b>{POT_MODE_LABEL[m]}</b> — {POT_MODE_HELP[m]}
+          </p>
+        ))}
+      </FieldInfo>
       <span className="text-muted" style={{ fontSize: 11.5, flexBasis: "100%", lineHeight: 1.55 }}>
         {POT_MODE_HELP[isPotEntryMode(mode) ? mode : "opt-in"]}
       </span>
@@ -211,12 +224,6 @@ export function ContestsClient({
             </button>
           </div>
         </div>
-      )}
-
-      {contests.length === 0 && !adding && (
-        <p className="text-muted" style={{ fontSize: 13, margin: "10px 0 0" }}>
-          No side bets on this round yet.
-        </p>
       )}
 
       {/* The pots the CARDS settle. No winner is ever picked here, and that is
@@ -330,6 +337,31 @@ export function ContestsClient({
           );
         })}
       </div>
+
+      {/* The other half of the distinction, which had no name at all.
+          "Settled by the scores" above is only meaningful against something,
+          and that something — closest to the pin, long drive, whatever the
+          first tee invented — was a bare list of contests under no heading. So
+          the screen named one kind of pot and left the reader to work out what
+          the rest were.
+
+          The empty state moved in here too. It read "No side bets on this
+          round yet" while sitting ABOVE five side bets with stake fields on
+          them, because it counts `contests` and the derived pots are not
+          contests. It was answering a different question than the one its
+          position implied. */}
+      <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--color-divider)" }}>
+        <span className="card-kicker">You name the winner</span>
+        <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 10px", lineHeight: 1.55 }}>
+          Closest to the pin, long drive, and whatever else the first tee invented. Nothing in the
+          cards decides these, so you tick who took it.
+        </p>
+
+        {contests.length === 0 && !adding && (
+          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+            None on this round yet — start one with &ldquo;Add a bet&rdquo;.
+          </p>
+        )}
 
       {contests.map((c) => {
         const entered = new Set(c.entrantIds);
@@ -457,6 +489,7 @@ export function ContestsClient({
           </div>
         );
       })}
+      </div>
 
       {error && (
         <p style={{ fontSize: 12.5, marginTop: 10, color: "var(--color-danger)" }}>
