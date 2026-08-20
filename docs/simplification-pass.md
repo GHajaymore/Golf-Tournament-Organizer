@@ -1,8 +1,11 @@
 # The page-by-page simplification pass
 
-**Status: 4 screens done of ~25.** This file is the working state, so the pass
+**Status: 5 screens done of ~25.** This file is the working state, so the pass
 can be picked up in a fresh session without re-deriving it. Reasoning for each
 screen is in the session record of the day it was done.
+
+**Two questions are waiting on Ajay** — see "Waiting on a decision" at the end.
+Neither blocks the next screen.
 
 ## What "simplify" means here
 
@@ -184,15 +187,44 @@ form, so "From registrations" describes what the app always does and implies
 the other option turns it off. Collapsing it would remove a control and change
 what a stored column means — it wants its own decision, not a heading fix.
 
+### RegistrationClient — Registration & field (2026-08-19)
+
+**Two switches, one word, and they are not opposites.** A banner button reading
+"Close registration" (`registrationOverride` — does this tournament take entries
+at all) sat inches from a card titled "Open registration" whose button read
+"Open registration" / "Close sign-ups" (`registrationOpen` — does the public
+link exist). Both work; the name was the whole problem. The card is now
+**"Public sign-up link"** with "Publish the link" / "Take the link down".
+
+Two more from the same read:
+
+- the banner claimed closing **"only changes what this says"**. False —
+  `decideIntake` refuses on `acceptingEntries` alone, so closing turns away
+  every visitor. The mirror of the overstated course consequence fixed on
+  2026-08-18; understating one costs the same trust.
+- the two switches are independent, so a published link on a closed tournament
+  is live, copyable and refuses everybody, with a working link and a "Closed"
+  chip four inches apart and nothing joining them.
+
+**The rename rippled** into the "Invite players" refusal, which named the old
+button. That is the check to run after any rename: grep the old words.
+
 ## Not yet examined — the queue
 
 Ranked by how likely the pattern is, given size and how often the screen is
 used. Nothing below has been looked at.
 
+**Rank by heading COUNT, not by line count.** The 2026-08-19 session took
+`RegistrationClient` (866 lines, ten headings) ahead of `ScoreEntryClient`
+(1341 lines, **six** headings, one job) for that reason, and the yield was four
+findings to none. A big screen that does one thing has nowhere for a conflation
+to hide; a medium screen with ten headings has ten chances.
+
+    grep -cE 'card-kicker|card-title|<h[1-5]' src/components/X.tsx
+
 | Screen / component | Lines | Why it is on the list |
 | --- | --- | --- |
-| `ScoreEntryClient` | 1341 | **Highest value now.** Biggest screen after Stages, and the one used most during play. |
-| `RegistrationClient` | 866 | Headings include "Set up", "Status", "Open registration", "Invite players", "Add someone new" — several near-synonyms worth checking for overlap. Touched on 2026-08-19 only to add two cross-links to `/event`; not reviewed. **And it is the screen whose NAME the `/event` collision was about** — worth asking whether the registration deadline and capacity belong here rather than on Tournament details. That is Ajay's call, not a heading fix. |
+| `ScoreEntryClient` | 1341 | Biggest screen left, and the one used most during play — but only six headings, so expect findings of the LEVEL and ACTION kind (shapes 3 and 5) rather than conflated titles. |
 | `RosterClient` | 733 | Touched today for `orgKind`; not reviewed for structure. |
 | `MessagesClient` | 720 | Scope levels are inherently confusing; check the naming. |
 | `MoneyClient` | 525 | Money model changed twice this week. |
@@ -232,5 +264,33 @@ used. Nothing below has been looked at.
   `fetch failed` and reads like a total outage. The dev server also restarts
   itself on a memory threshold and can drop the tail of a run — check
   `preview_logs` before believing a failure.
+- **After any rename, grep the old words.** Renaming the "Open registration"
+  card broke a refusal elsewhere on the screen that told organizers to press it
+  by name. A refusal pointing at a button that no longer exists is worse than no
+  refusal at all.
 - Commit per screen, not per pass. Each screen is independently revertable and
   the reasoning belongs with its own diff.
+
+## Waiting on a decision — Ajay's, not a heading fix
+
+Both were found by this pass, both are recorded rather than acted on, and
+neither blocks the next screen.
+
+1. **Three meanings of "registration is open".** `LifecycleBar` on `/dashboard`
+   has a button labelled **"Open registration"** which calls
+   `setEventStatus("registration")` — it neither publishes a sign-up link nor
+   changes what `registrationStatus` decides. So the phrase means the lifecycle
+   phase, *and* `registrationOpen` (the public link), *and*
+   `acceptingEntries`. Pressing it sets the chip to "Registration open" and
+   creates no link. Renaming it changes the lifecycle vocabulary an organizer
+   learns, so it wants one decision across all three. The 2026-08-19 rename
+   took the collisions from three to two.
+2. **Which screen owns the registration deadline and the field capacity.** They
+   are SET on `/event` (Tournament details) and only DISPLAYED on
+   `/registration` — the screen actually called Registration & field. Two
+   cross-links now say where, which fixes the dead end without pre-empting the
+   answer. Moving the controls is the other answer, and it is a product call.
+
+Also noted and deliberately not acted on: **`playerCountMode` is read by nothing**
+outside the `/event` form (see the EventSetupClient entry above). Collapsing it
+would remove a control and change what a stored column means.
