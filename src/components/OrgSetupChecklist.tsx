@@ -25,7 +25,26 @@ import type { OrgSetupState } from "@/lib/domain/org-setup";
  * Renders nothing once everything that applies is done. A checklist that stays
  * on screen congratulating itself is clutter on every visit afterwards.
  */
-export function OrgSetupChecklist({ state }: { state: OrgSetupState }) {
+export function OrgSetupChecklist({
+  state,
+  currentPath,
+}: {
+  state: OrgSetupState;
+  /**
+   * The path this checklist is being rendered on.
+   *
+   * A step whose href IS this page must not be a link. On `/choose` the
+   * "Create your first tournament" row pointed at `/choose?stay=1` — the page
+   * it was already on, directly above the form that does it. Correct on the
+   * dashboard, a link to nowhere here.
+   *
+   * The row still renders, and still counts: it is a real step and it is the
+   * one a brand-new organizer does next, so dropping it would understate the
+   * work and break the "0 of 5 done" count. Only the LINK is wrong, so only
+   * the link goes.
+   */
+  currentPath?: string;
+}) {
   if (state.ready) return null;
 
   const doneCount = state.steps.length - state.remaining.length;
@@ -54,25 +73,33 @@ export function OrgSetupChecklist({ state }: { state: OrgSetupState }) {
       >
         {state.steps.map((step) => {
           const isNext = step.key === state.next?.key;
+          // Query strings and hashes are not part of "which page is this".
+          // `/choose?stay=1` and `/choose` are the same screen, and the whole
+          // point of `?stay=1` is to keep THIS page up.
+          const here = currentPath !== undefined && step.href.split(/[?#]/)[0] === currentPath;
+          const rowStyle = {
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 11,
+            padding: "11px 13px",
+            borderRadius: "var(--radius-md)",
+            background: isNext
+              ? "color-mix(in srgb, var(--color-accent) 8%, transparent)"
+              : "color-mix(in srgb, var(--color-text) 3%, transparent)",
+            border: isNext
+              ? "1px solid var(--color-accent)"
+              : "1px solid color-mix(in srgb, var(--color-text) 10%, transparent)",
+          } as const;
+          const Row = here
+            ? ({ children }: { children: React.ReactNode }) => <div style={rowStyle}>{children}</div>
+            : ({ children }: { children: React.ReactNode }) => (
+                <Link href={step.href} className="link-reset" style={rowStyle}>
+                  {children}
+                </Link>
+              );
           return (
             <li key={step.key}>
-              <Link
-                href={step.href}
-                className="link-reset"
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 11,
-                  padding: "11px 13px",
-                  borderRadius: "var(--radius-md)",
-                  background: isNext
-                    ? "color-mix(in srgb, var(--color-accent) 8%, transparent)"
-                    : "color-mix(in srgb, var(--color-text) 3%, transparent)",
-                  border: isNext
-                    ? "1px solid var(--color-accent)"
-                    : "1px solid color-mix(in srgb, var(--color-text) 10%, transparent)",
-                }}
-              >
+              <Row>
                 <i
                   className={step.done ? "ph-fill ph-check-circle" : "ph ph-circle-dashed"}
                   style={{
@@ -114,8 +141,21 @@ export function OrgSetupChecklist({ state }: { state: OrgSetupState }) {
                       <i className="ph ph-warning-circle" aria-hidden="true" /> {step.consequence}
                     </span>
                   )}
+                  {here && (
+                    // Says where the step is instead of offering a click that
+                    // reloads the page under it. No direction ("scroll down"),
+                    // because this component does not know where on the screen
+                    // it has been mounted.
+                    <span
+                      className="text-muted"
+                      style={{ display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}
+                    >
+                      <i className="ph ph-arrow-elbow-down-right" aria-hidden="true" /> You do this
+                      one on this page.
+                    </span>
+                  )}
                 </span>
-              </Link>
+              </Row>
             </li>
           );
         })}

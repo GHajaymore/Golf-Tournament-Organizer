@@ -2469,6 +2469,35 @@ describe("the setup checklist", () => {
     );
     expect(html).not.toContain("Add your members");
   });
+
+  it("does not link a step at the page it is already on", async () => {
+    // On /choose, "Create your first tournament" pointed at /choose?stay=1 —
+    // the page it was on, directly above CreateFirstTournament, the form that
+    // does it. The query string is not part of "which page is this".
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const html = render(
+      <OrgSetupChecklist currentPath="/choose"
+        state={await state({ memberCount: 0, eventCount: 0 })} />,
+    );
+    expect(html).not.toContain('href="/choose');
+    // The row itself stays: it is a real step, it is what a brand-new
+    // organizer does next, and dropping it would understate "0 of 5 done".
+    expect(html).toContain("Create your first tournament");
+    expect(html).toContain("You do this one on this page");
+    // Only that one row loses its link — the others are unaffected.
+    expect(html).toContain('href="/roster"');
+  });
+
+  it("still links it from anywhere else", async () => {
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const { SETUP_HREF } = await import("@/lib/domain/org-setup");
+    const html = render(
+      <OrgSetupChecklist currentPath="/dashboard"
+        state={await state({ memberCount: 0, eventCount: 0 })} />,
+    );
+    expect(html).toContain(`href="${SETUP_HREF.tournament}"`);
+    expect(html).not.toContain("You do this one on this page");
+  });
 });
 
 describe("the single match picker does not invent a rule", () => {
