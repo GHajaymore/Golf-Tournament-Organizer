@@ -1,9 +1,9 @@
 # The page-by-page simplification pass
 
-**Status: 7 screens done of ~25, plus two classes closed by a sweep.** This file
-is the working state, so the pass can be picked up in a fresh session without
-re-deriving it. Reasoning for each screen is in the session record of the day it
-was done.
+**Status: 10 screens done of ~25, plus two classes closed by a sweep.** This
+file is the working state, so the pass can be picked up in a fresh session
+without re-deriving it. Reasoning for each screen is in the session record of
+the day it was done.
 
 **Two questions are waiting on Ajay** — see "Waiting on a decision" at the end.
 Neither blocks the next screen.
@@ -287,8 +287,69 @@ The rule it enforces is narrow on purpose: a conditional `title` with an
 "Pin"}` is a NAME and is fine. A third test guards that distinction — a rule
 that banned names too would get deleted rather than obeyed.
 
+**Its blind spot, and it is real.** The sweep only sees *conditional* titles, so
+`title={SOME_HELP[key]}` on a set of choice buttons goes straight past it — and
+that shape carries an explanation, not a name. Two were found by hand
+afterwards: `ContestsClient`'s pot entry modes (where switching to find out
+moves money) and `MatchTiebreakControl`'s blurbs (the only place saying what
+"countback" does). **Grep for it by hand on any screen with a row of choice
+buttons:**
+
+    grep -rn 'title={[A-Z_]*\[' src/components --include=*.tsx
+
+The tell is whether the same text appears anywhere visible. If only the SELECTED
+option's help is on screen, the others are hover-only.
+
 **The lesson worth keeping:** this pattern had been rejected in writing three
 times and kept shipping. If a rule matters, sweep it; a comment is not a guard.
+
+### MessagesClient — the compose card (2026-08-19)
+
+**One question, two controls, and the answer never shown.** "Who is this for?"
+sits above a group select and "…or one person"; the person wins and nothing
+said so. Picking one sets the group select to `""`, a value none of its options
+carries, so it renders **blank** — the card asks a question and displays no
+answer while a real one is in force.
+
+Also: `canText` is false the moment a person is picked, so the whole "also send
+this as a text" block **disappears with the tick still set** and no text goes.
+
+`lib/domain/message-audience.ts`, for the same reason as `rosterSelection`:
+`ComposePanel` only renders when `composing` is true and every value it
+branches on is local, so a static render sees the opening position and nothing
+else. `ComposePanel` is exported now, the way `ImportSummary` is — otherwise a
+render test of `MessagesClient` asserts things about a panel never in the
+markup, and passes vacuously.
+
+### ContestsClient — side bets (2026-08-19)
+
+An empty state reading **"No side bets on this round yet"** directly above five
+side bets: it counted `contests`, and the derived pots are not contests. A right
+count answering a different question than its position implied.
+
+And **"Settled by the scores" only means something against something else** —
+which had no heading at all. Now "You name the winner".
+
+Third: `POT_MODE_HELP` in a `title`, where **switching to find out moves money**
+(opt-out marks the whole field in AND paid). Into a `FieldInfo`, which opens on
+tap. **The sweep did not catch this one** — see the blind spot below.
+
+### ScoreEntryClient — score entry (2026-08-19)
+
+Largely in good order; its disabled scorecard mode already carries a visible
+`mode-opt-why`, which is the pattern done right. Two findings, one mistake:
+
+- the match list was headed **"Round-robin matches"** while holding whatever
+  the round holds — a bracket's semi-finals, a single match, a play-off;
+- its empty state told a bracket organizer to generate **"the round-robin
+  schedule"**.
+
+**The mistake is the useful part.** I "fixed" a third thing — `shown.length ===
+0` rendering "No matches for that" — believing it fired for a round with no
+draw. It cannot: an early return on `!active` fifty lines above handles that,
+and my branch was dead code. The test failed on its first run. *Read the whole
+render path before concluding a branch is reachable*, and leave a comment saying
+the check was made.
 
 ## Not yet examined — the queue
 
@@ -305,17 +366,15 @@ to hide; a medium screen with ten headings has ten chances.
 
 | Screen / component | Lines · headings | Why it is on the list |
 | --- | --- | --- |
-| `MessagesClient` | 720 · 4 | Scope levels are inherently confusing; check the naming. Low heading count, so expect shapes 3, 5 and 7 rather than conflated titles. |
-| `ContestsClient` | 468 · 6 | Pot entry modes (opt-in/opt-out) are subtle, and `ContestsClient.tsx:175` says a club-funded prize "belongs in the prize list above" — **check whether that list is on this screen at all**. |
+| `MoneyClient` (player) | 525 · 5 | **Best remaining lead.** Its sections are "Side bets" and "Pots on the scores"; the organizer's equivalents are now "You name the winner" and "Settled by the scores", inside a card titled **"Side bets"** covering BOTH. So "side bets" means everything to an organizer and one subset to a player. Decide one vocabulary. (The two "above" claims in this file were checked — they are comments, and true.) |
 | `TeamsClient` | 360 · 6 | Touched 2026-08-19 for the refusal only; not reviewed for structure. |
-| `MoneyClient` | 525 · 5 | Money model changed twice that week. Two "above" claims about a side-games figure — verify them. |
-| `ScoreEntryClient` | 1341 · 6 | Biggest screen left, and the one used most during play — but six headings for one job, so expect shapes 3, 5 and 7 rather than conflated titles. Also carries a pre-existing lint warning. |
 | `ThemePicker` | 561 · 6 | Partly touched 2026-08-19 (the swatch reason). Probably genuinely one thing. |
 | `RoundAvailability` | 368 · 5 | |
 | `FloatClient` | 256 · 5 | |
-| `CourseLibrary` | 411 · — | `CourseSetupPrompt` nearby already carries a comment about copy that promises "the boxes below" — worth reading together. |
+| `CourseLibrary` | 411 · — | `CourseSetupPrompt` nearby carries a comment about copy promising "the boxes below" — worth reading together. |
 | `FoursomeMaker` | 446 · — | Touched 2026-08-19 for the refusal only. |
-| Player app (`/me`, board, card, money, rules) | — | Four tabs, deliberately minimal. Lower risk, but it is what players actually see. |
+| `/prizes` as a whole | — | Not a component — the PAGE. It stacks seven things: prizes, two skins pots, side bets, season skins, the float, the organizer ledger and the money mode. Three different subjects (what the club pays out, what players stake among themselves, how the club handles cash) under one ampersand nav label. Splitting it is a product decision, so it is Ajay's, not a heading fix. |
+| Player app (`/me`, board, card, rules) | — | Checked 2026-08-19 only far enough to confirm `/me/messages` is reachable (a header icon with an unread badge, not a fifth tab — deliberate, and now recorded in `PlayTabs`). The four tab screens themselves are unread. |
 
 **Already swept clean, so do not re-derive:** only two ampersand headings remain
 in the whole tree ("Tees & ratings", "Club colour & appearance") and both are
@@ -365,6 +424,17 @@ tooltip-refusal sweep is green and enforced by a test.
   filesystem sweep. Both were cheaper than the third occurrence would have been,
   and the tooltip one had already been rejected in writing three times without
   a single line of code stopping it.
+- **Read the whole render path before deciding a branch is reachable.** A
+  "fix" to `ScoreEntryClient`'s filter empty-state was dead code: an early
+  return fifty lines above already handled the case. The test caught it, but
+  reading the file first would have been cheaper — and where a branch turns out
+  to be unreachable, leave a comment saying so, or the next person has the same
+  idea.
+- **Verification speed.** The four-command gate is about three minutes a screen,
+  dominated by the build and by `smoke` compiling 37 routes on demand. Ajay
+  asked for it faster on 2026-08-19: `tsc --noEmit` + `vitest run` per screen
+  (~15s), full gate once per batch. Every failure that day was caught by tsc or
+  vitest, so the exposure is a broken build found a few commits late.
 - Commit per screen, not per pass. Each screen is independently revertable and
   the reasoning belongs with its own diff.
 
