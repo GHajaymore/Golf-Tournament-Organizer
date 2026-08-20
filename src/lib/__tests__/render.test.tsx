@@ -1129,6 +1129,33 @@ describe("score entry lands on the right card without asking", () => {
     bStrokes: new Array(18).fill(null),
   };
 
+  it("does not file every kind of match under one stage type", () => {
+    // The list is the matches of ONE ROUND, whatever type it is — the entry
+    // page filters state.matches by stage.id and hands them over. A bracket's
+    // semi-finals and a third-place play-off arrived under a heading reading
+    // "Round-robin matches", and an organizer looking for the semi-final there
+    // concludes they are on the wrong screen.
+    const html = render(<ScoreEntryClient matches={[match]} format="Match Play" isStaff />);
+    expect(html).not.toContain("Round-robin matches");
+    expect(html).toContain("Matches");
+  });
+
+  it("does not tell a bracket to generate a round-robin schedule", () => {
+    // The no-matches state sends an organizer to Flights, which is right — but
+    // it said "to create the round-robin schedule", and this screen shows one
+    // round of whatever type. A bracket's semi-finals and a single match arrive
+    // here too, and neither comes from a round-robin draw.
+    const empty = render(<ScoreEntryClient matches={[]} format="Match Play" isStaff />);
+    expect(empty).toContain("No matches yet");
+    expect(empty).toContain('href="/grouping"');
+    expect(empty).not.toContain("round-robin");
+
+    // A player sees the same emptiness without being sent anywhere they cannot
+    // act — that half is unchanged.
+    const player = render(<ScoreEntryClient matches={[]} format="Match Play" />);
+    expect(player).toContain("check back once flights are set");
+  });
+
   it("shows every shape match play can be recorded as", () => {
     // Visible, not hidden. The format decides which exist and the round
     // decides which is preselected — but the choice between what remains is

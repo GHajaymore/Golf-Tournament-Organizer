@@ -177,7 +177,6 @@ export function MatchTiebreakControl({
                 type="button"
                 disabled={pending}
                 onClick={() => toggle(key)}
-                title={MATCH_TIEBREAK_BLURBS[key]}
                 style={{
                   textAlign: "left",
                   padding: "7px 10px",
@@ -191,6 +190,17 @@ export function MatchTiebreakControl({
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500 }}>
                   <i className="ph ph-plus" style={{ fontSize: 11, color: "var(--color-accent-400)" }} />
                   {MATCH_TIEBREAK_LABELS[key]}
+                </div>
+                {/* The blurb was a `title`, so what "countback" actually does
+                    was hover-only — and these are exactly the names an
+                    organizer is least likely to know cold. On the button, the
+                    way the stage-type cards and the singles/sides options
+                    already do it. */}
+                <div
+                  className="text-muted"
+                  style={{ fontSize: 11, marginTop: 2, lineHeight: 1.45, maxWidth: "34ch" }}
+                >
+                  {MATCH_TIEBREAK_BLURBS[key]}
                 </div>
               </button>
             ))}

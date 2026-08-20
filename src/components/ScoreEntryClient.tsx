@@ -447,9 +447,15 @@ export function ScoreEntryClient({
     return (
       <div className="card elev-sm">
         <span className="card-title">No matches yet</span>
+        {/* "the schedule", not "the round-robin schedule". This screen shows
+            ONE ROUND, of whatever type — a Bracket Stage's semi-finals and a
+            Single Match Stage's one match arrive here too, and neither is
+            produced by a round-robin draw. Telling an organizer of a bracket to
+            generate a round-robin schedule is advice that describes something
+            they are not doing. */}
         <p className="text-muted" style={{ fontSize: 13 }}>
           {isStaff ? (
-            <>Generate flights on the <Link href="/grouping">Flights</Link> screen to create the round-robin schedule.</>
+            <>Generate flights on the <Link href="/grouping">Flights</Link> screen to draw this round&rsquo;s matches.</>
           ) : (
             "The schedule hasn't been generated yet — check back once flights are set."
           )}
@@ -692,7 +698,15 @@ export function ScoreEntryClient({
             layout the list stayed 74vh tall and pushed the card below the
             fold — picking a match appeared to do nothing at all. */}
         <div className="card elev-sm entry-matchlist" style={{ gap: 6 }}>
-          <span className="card-kicker">Round-robin matches</span>
+          {/* "Matches", not "Round-robin matches". This list is the matches of
+              ONE ROUND, whatever type that round is — the entry page filters
+              `state.matches` by `stage.id` and hands them straight over. A
+              Bracket Stage's semi-finals, a Single Match Stage's one match and
+              a third-place play-off all arrive here, and every one of them was
+              filed under a heading naming a stage type they are not. An
+              organizer looking for the semi-final under "Round-robin matches"
+              concludes they are on the wrong screen. */}
+          <span className="card-kicker">Matches</span>
 
           {/* Only worth the room once the draw is bigger than the list. Below
               that the filter costs more space than it saves. */}
@@ -761,6 +775,10 @@ export function ScoreEntryClient({
             </p>
           )}
 
+          {/* Only ever the FILTER's emptiness. A round with no matches at all
+              never reaches here — the `!active` early return above handles it
+              with its own message and a link. Checked before touching this:
+              adding a no-draw branch here would have been dead code. */}
           {shown.length === 0 && (
             <p className="text-muted" style={{ fontSize: 12, margin: "4px 0" }}>
               No matches for that.
