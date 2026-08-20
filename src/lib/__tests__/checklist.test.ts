@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { setupChecklist, isUnstarted, clubBrandingState, type ChecklistState } from "../services/checklist";
+import { NAV, screenName } from "../nav";
 
 /**
  * The setup checklist, and the question it answers on the dashboard: is this
@@ -147,5 +148,53 @@ describe("clubBrandingState", () => {
 
   it("is unbranded for a missing organization", () => {
     expect(clubBrandingState(null)).toEqual({ hasLogo: false, hasColours: false });
+  });
+});
+
+describe("a checklist row calls a screen what the sidebar calls it", () => {
+  /**
+   * This row read "Rounds & format". The screen is "Rounds & formats" — the
+   * same half-remembered name found the same day in the "Recommended flow"
+   * card on Tournament details ("Rounds & format", "Prizes & Reports"). A name
+   * typed a second time drifts once, so the labels are now read from `NAV`.
+   *
+   * Not every row is a screen name: the branding nudge deliberately reads "Add
+   * your club's logo & colours" rather than "Club settings", because it names
+   * a task. So this asserts the ROWS THAT DO name a screen, which is the ones
+   * that come back from `screenName`.
+   */
+  const state: ChecklistState = {
+    confirmed: [], waitlist: [], stages: [], groups: [], matches: [], accounts: [{}],
+    branding: { hasLogo: false, hasColours: false },
+  };
+  const navLabels = new Set(NAV.flatMap((s) => s.items.map((i) => i.label)));
+
+  it("uses the sidebar's own words for every row that names a screen", () => {
+    const rows = setupChecklist(state);
+    const named = rows.filter((r) => navLabels.has(r.label));
+    // Four of the five: the branding nudge names a task, not a screen.
+    expect(named).toHaveLength(4);
+    for (const row of named) {
+      expect(row.label, `${row.href} is called "${screenName(row.href)}"`).toBe(screenName(row.href));
+    }
+  });
+
+  it("has no row whose label is a near-miss of the screen it links to", () => {
+    // The failure mode this class of bug actually takes: not a wrong link, a
+    // wrong NAME for the right link. Anything that is neither the screen's own
+    // label nor a deliberate task description would land here.
+    for (const row of setupChecklist(state)) {
+      const real = screenName(row.href);
+      if (row.label === real) continue;
+      // The one deliberate exception, asserted by name so a second one has to
+      // be added here on purpose.
+      expect(row.label).toBe("Add your club's logo & colours");
+    }
+  });
+
+  it("falls back to the path rather than guessing for an unknown href", () => {
+    expect(screenName("/nowhere")).toBe("/nowhere");
+    // The query is not part of which screen this is.
+    expect(screenName("/registration?x=1")).toBe("Registration & field");
   });
 });

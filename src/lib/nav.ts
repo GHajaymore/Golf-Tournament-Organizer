@@ -147,3 +147,25 @@ export function navForRole(
     (s) => s.items.length > 0,
   );
 }
+
+/**
+ * A screen's own name, read from the sidebar rather than written out again.
+ *
+ * Anything that points somebody AT a screen — a checklist row, a "recommended
+ * flow", a refusal saying where to go — has to call it what the sidebar calls
+ * it, or the reader hunts for a screen that is not in the list. Writing the
+ * name out a second time is how the app came to have a checklist row reading
+ * "Rounds & format" and a flow list reading "Prizes & Reports", neither of
+ * which is a screen.
+ *
+ * Falls back to the href, which is at least true, rather than to a guess.
+ */
+export function screenName(href: string): string {
+  const path = href.split(/[?#]/)[0];
+  for (const section of NAV) {
+    for (const item of section.items) {
+      if (item.href === path) return item.label;
+    }
+  }
+  return path;
+}
