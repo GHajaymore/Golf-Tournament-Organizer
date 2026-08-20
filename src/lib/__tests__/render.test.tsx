@@ -2415,6 +2415,95 @@ describe("the two controls built after the audit", () => {
   });
 });
 
+describe("club settings", () => {
+  const club = async (over: Record<string, unknown> = {}) => {
+    const { OrganizationClient } = await import("@/components/OrganizationClient");
+    return render(
+      <OrganizationClient
+        name="Ridgeline National" shortName="" logoUrl="" city="" region="" country=""
+        brandDisplay="short" kind="club" plan="free" eventCount={2} memberCount={9} canEdit
+        {...over} />,
+    );
+  };
+
+  it("keeps every control on club settings", async () => {
+    const html = await club();
+    for (const control of [
+      "Type", "Plan", "Tournaments", "Staff",
+      "Branding", "Organization name", "Short name", "Logo URL", "Name beside the logo",
+      "Where the club is", "City", "State or region", "Country",
+      "Preview", "Save changes",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("does not file the club's address under Branding", async () => {
+    // The comment on that block said "Not branding" while it sat under a
+    // heading reading Branding. The address prefills a new course's city; it
+    // reaches no scorecard.
+    const html = await club();
+    expect(html.indexOf("Branding")).toBeLessThan(html.indexOf("Where the club is"));
+    // One control, so the heading is the label — not repeated beneath itself.
+    expect(html.match(/Where the club is/g)?.length ?? 0).toBe(1);
+  });
+
+  it("previews the header the same way twice", async () => {
+    // Two previews of one header, disagreeing. The "Preview" card
+    // re-implemented both halves by hand: `shortName || name`, which ignores
+    // the "Name beside the logo" setting three inches to its left, and
+    // charAt(0) for the monogram where brandMonogram takes two initials.
+    const { brandMonogram, brandLines } = await import("@/lib/brand");
+    const html = await club({ name: "Ridgeline National", shortName: "", brandDisplay: "full" });
+    // "RN", not "R" — and it has to appear in BOTH boxes.
+    expect(brandMonogram("Ridgeline National", "")).toBe("RN");
+    expect(html.match(/>RN</g)?.length ?? 0).toBe(2);
+    expect(html).not.toContain(">R<");
+    // And with a short name set and display "full", both show the full name.
+    const full = await club({ name: "Ridgeline National", shortName: "Ridgeline", brandDisplay: "full" });
+    expect(brandLines("Ridgeline National", "Ridgeline", "full").primary).toBe("Ridgeline National");
+    expect(full.match(/>Ridgeline National</g)?.length ?? 0).toBe(2);
+  });
+});
+
+describe("how money works", () => {
+  const money = async (over: Record<string, unknown> = {}) => {
+    const { MoneySetup } = await import("@/components/MoneySetup");
+    return render(
+      <MoneySetup mode="tournament" eventMode="" orgMode="" orgKind="club" clubName="zz-Club" {...over} />,
+    );
+  };
+
+  it("puts the club default on club settings, where the checklist sends people", async () => {
+    // SETUP_HREF.money is /organization, and orgSetupState ticks the step off
+    // `organization.moneyMode`. That column was written only from a collapsed
+    // disclosure inside a card titled "Money in this tournament", on Prizes &
+    // payouts — so the step could not be ticked by following its own link.
+    const { SETUP_HREF } = await import("@/lib/domain/org-setup");
+    expect(SETUP_HREF.money).toBe("/organization");
+    const html = await money({ mode: "organization", orgMode: "", canEdit: true });
+    for (const label of ["Costs handled outside the app", "Tournament kitty", "Split shared costs", "Follow what we are"]) {
+      expect(html, `missing club money option: ${label}`).toContain(label);
+    }
+  });
+
+  it("keeps the tournament's own choice, and says where the club default is", async () => {
+    const html = await money();
+    expect(html).toContain("Money in this tournament");
+    // Every mode is still offered here, plus "follow the club".
+    for (const label of ["Costs handled outside the app", "Tournament kitty", "Split shared costs"]) {
+      expect(html, `missing tournament money option: ${label}`).toContain(label);
+    }
+    expect(html).toContain('href="/organization"');
+  });
+
+  it("does not let a read-only viewer change the club default", async () => {
+    const html = await money({ mode: "organization", canEdit: false });
+    expect(html).toContain("Only an organization owner or admin can change this");
+    expect(html).toContain("disabled");
+  });
+});
+
 describe("registration and field", () => {
   // Another screen with no render test of its own before today.
   const reg = async (over: Record<string, unknown> = {}) => {

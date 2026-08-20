@@ -6,6 +6,7 @@ import { ThemePicker } from "@/components/ThemePicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { organizationAccessReport } from "@/lib/services/access";
 import { PlaySettings } from "@/components/PlaySettings";
+import { MoneySetup } from "@/components/MoneySetup";
 import { cleanSettings } from "@/lib/tournament-settings";
 import { isAppearance, DEFAULT_APPEARANCE } from "@/lib/themes";
 
@@ -84,6 +85,23 @@ export default async function OrganizationPage() {
             playerAccess: org.defaultPlayerAccess,
             scoreApproval: org.defaultScoreApproval,
           })}
+          canEdit={canEdit}
+        />
+      </div>
+
+      {/* The club's money default, on the screen the setup checklist has
+          always pointed at. `SETUP_HREF.money` is `/organization`, and until
+          now this page had no money control on it — the club default was a
+          collapsed disclosure inside a card titled "Money in this tournament",
+          over on Prizes & payouts. So the step could not be ticked by
+          following its own link, and `orgSetupState` reads exactly the column
+          that disclosure writes. */}
+      <div style={{ marginTop: 16 }}>
+        <MoneySetup
+          mode="organization"
+          orgMode={org.moneyMode}
+          orgKind={org.kind}
+          clubName={org.shortName || org.name}
           canEdit={canEdit}
         />
       </div>
