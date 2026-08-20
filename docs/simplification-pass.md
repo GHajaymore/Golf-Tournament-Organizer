@@ -1,8 +1,9 @@
 # The page-by-page simplification pass
 
-**Status: 5 screens done of ~25.** This file is the working state, so the pass
-can be picked up in a fresh session without re-deriving it. Reasoning for each
-screen is in the session record of the day it was done.
+**Status: 7 screens done of ~25, plus two classes closed by a sweep.** This file
+is the working state, so the pass can be picked up in a fresh session without
+re-deriving it. Reasoning for each screen is in the session record of the day it
+was done.
 
 **Two questions are waiting on Ajay** — see "Waiting on a decision" at the end.
 Neither blocks the next screen.
@@ -41,6 +42,24 @@ removes a setting, it is probably the wrong change.
    "Registration closes" and "of N capacity" read-only; both are set on
    `/event`, and neither linked there. An unset deadline rendered as "—" on the
    screen named for it, with nothing to do about it.
+7. **A control that VANISHES instead of refusing.** The roster's bulk bar
+   rendered on `addable > 0`, so ticking members already in the field made it
+   disappear — boxes tick, nothing happens, nothing to read. The remove button
+   rendered only at `entryCount === 0`, so for anybody who had played it simply
+   was not there. This codebase already names the cure (`resolveThirdPlace`,
+   `drawReadiness`): refuse with an explanation, never guess, never silently
+   disappear. **Grep for a guard immediately above a control:**
+
+       grep -rn -B 4 'className="btn' src/components/*.tsx | grep -E '\{[a-zA-Z.]+ *(===|>|<) *[^ ]+ *&&'
+
+   Judgement needed: a *state-dependent* render ("Clear" when there is
+   something to clear) is fine. A *capability* guard hiding an action is not.
+8. **A link that points at a screen the thing is not on.** `SETUP_HREF.money`
+   is `/organization`, which had **no money control on it** — the club default
+   was a disclosure inside a per-tournament card on `/prizes`. The href sweep
+   passes: it proves the route exists, not that the step's subject is there.
+   **For every checklist or "go here" link, open the target and find the
+   control.** Nothing automates this one.
 
 ## Method — TWO methods, and they find different things
 
@@ -209,6 +228,68 @@ Two more from the same read:
 **The rename rippled** into the "Invite players" refusal, which named the old
 button. That is the check to run after any rename: grep the old words.
 
+### OrganizationClient — Club settings (2026-08-19)
+
+Shape 8, and the biggest single finding of the pass so far. `SETUP_HREF.money`
+sends "Decide how money works" to `/organization`, `orgSetupState` ticks it off
+`organization.moneyMode`, and **that screen had no money control at all** — the
+club default was a collapsed disclosure inside a card titled "Money in this
+tournament" over on `/prizes`. The step could not be ticked by following its own
+link, so for a `community` or `personal` org the checklist never completes and
+never disappears.
+
+`MoneySetup` now takes `mode: "tournament" | "organization"`, the way
+`PlaySettings` already splits the same two levels. Also: the "Preview" card
+re-implemented `brandLines` and `brandMonogram` by hand and so **ignored the
+setting three inches to its left** — two previews of one header, disagreeing;
+and the city/region/country block carried the comment "Not branding" while
+sitting under a heading reading Branding.
+
+### RosterClient — Members (2026-08-19)
+
+Shape 7, twice. The bulk bar vanished when nothing could be added, and its
+count was the ADDABLE number under the word "selected" — tick five, read "2
+selected". The remove button was absent rather than refusing.
+
+**The decision moved to `lib/domain/roster-selection.ts`** — not tidiness: a
+static render cannot tick a checkbox, so leaving the rule in the component left
+the whole behaviour unassertable. Same reasoning that put `drawReadiness` in the
+domain, and the rule generalises: *if the interesting part is a refusal, put it
+where a test can reach it.*
+
+Also: the card called the list "Roster" while the sidebar and page heading call
+it Members.
+
+## Two classes closed by a sweep (2026-08-19)
+
+Worth more than either screen they came from, because a swept class cannot come
+back.
+
+### Screen names typed a second time
+
+"Rounds & format" (the screen is Rounds & formats) and "Prizes & Reports" (two
+screens, neither called that) — found in the `/event` flow card, then again in
+the per-tournament checklist hours later. `nav.ts` now exports
+**`screenName(href)`**, and both read from it. Anything that points somebody AT
+a screen must call it what the sidebar calls it.
+
+### Refusals only a mouse could read
+
+Five conditional `title` tooltips carrying the reason a control was off —
+including the one `docs/session-2026-08-18.md` §8 explicitly parked. Each fixed
+in the shape its context called for (a `drawReadiness` sibling, a line under a
+button group, a sentence already beside the control, an accessible name in a
+dense table), then **closed with a filesystem sweep**:
+`src/lib/__tests__/no-tooltip-refusals.test.ts`.
+
+The rule it enforces is narrow on purpose: a conditional `title` with an
+`undefined` branch is an EXPLANATION and is banned; `title={pinned ? "Unpin" :
+"Pin"}` is a NAME and is fine. A third test guards that distinction — a rule
+that banned names too would get deleted rather than obeyed.
+
+**The lesson worth keeping:** this pattern had been rejected in writing three
+times and kept shipping. If a rule matters, sweep it; a comment is not a guard.
+
 ## Not yet examined — the queue
 
 Ranked by how likely the pattern is, given size and how often the screen is
@@ -222,17 +303,24 @@ to hide; a medium screen with ten headings has ten chances.
 
     grep -cE 'card-kicker|card-title|<h[1-5]' src/components/X.tsx
 
-| Screen / component | Lines | Why it is on the list |
+| Screen / component | Lines · headings | Why it is on the list |
 | --- | --- | --- |
-| `ScoreEntryClient` | 1341 | Biggest screen left, and the one used most during play — but only six headings, so expect findings of the LEVEL and ACTION kind (shapes 3 and 5) rather than conflated titles. |
-| `RosterClient` | 733 | Touched today for `orgKind`; not reviewed for structure. |
-| `MessagesClient` | 720 | Scope levels are inherently confusing; check the naming. |
-| `MoneyClient` | 525 | Money model changed twice this week. |
-| `ContestsClient` | 468 | Pot entry modes (opt-in/opt-out) are subtle. |
-| `ThemePicker` | 561 | Large but probably genuinely one thing. |
-| `CourseLibrary` | 411 | |
-| `FoursomeMaker` | 446 | |
+| `MessagesClient` | 720 · 4 | Scope levels are inherently confusing; check the naming. Low heading count, so expect shapes 3, 5 and 7 rather than conflated titles. |
+| `ContestsClient` | 468 · 6 | Pot entry modes (opt-in/opt-out) are subtle, and `ContestsClient.tsx:175` says a club-funded prize "belongs in the prize list above" — **check whether that list is on this screen at all**. |
+| `TeamsClient` | 360 · 6 | Touched 2026-08-19 for the refusal only; not reviewed for structure. |
+| `MoneyClient` | 525 · 5 | Money model changed twice that week. Two "above" claims about a side-games figure — verify them. |
+| `ScoreEntryClient` | 1341 · 6 | Biggest screen left, and the one used most during play — but six headings for one job, so expect shapes 3, 5 and 7 rather than conflated titles. Also carries a pre-existing lint warning. |
+| `ThemePicker` | 561 · 6 | Partly touched 2026-08-19 (the swatch reason). Probably genuinely one thing. |
+| `RoundAvailability` | 368 · 5 | |
+| `FloatClient` | 256 · 5 | |
+| `CourseLibrary` | 411 · — | `CourseSetupPrompt` nearby already carries a comment about copy that promises "the boxes below" — worth reading together. |
+| `FoursomeMaker` | 446 · — | Touched 2026-08-19 for the refusal only. |
 | Player app (`/me`, board, card, money, rules) | — | Four tabs, deliberately minimal. Lower risk, but it is what players actually see. |
+
+**Already swept clean, so do not re-derive:** only two ampersand headings remain
+in the whole tree ("Tees & ratings", "Club colour & appearance") and both are
+plausibly one thing; no heading matches a `nav.ts` label any more; and the
+tooltip-refusal sweep is green and enforced by a test.
 
 ## Rules for whoever continues
 
@@ -268,6 +356,15 @@ to hide; a medium screen with ten headings has ten chances.
   card broke a refusal elsewhere on the screen that told organizers to press it
   by name. A refusal pointing at a button that no longer exists is worse than no
   refusal at all.
+- **If the interesting part is a REFUSAL, move it to the domain.** A static
+  render cannot tick a checkbox or click a toggle, so a rule left in a
+  component is a rule no test reads. `drawReadiness`, `sideDrawReadiness` and
+  `rosterSelection` are all there for that reason, not for tidiness.
+- **When the same defect turns up twice, stop fixing instances.** Two screen
+  names typed by hand became `screenName()`; five tooltip refusals became a
+  filesystem sweep. Both were cheaper than the third occurrence would have been,
+  and the tooltip one had already been rejected in writing three times without
+  a single line of code stopping it.
 - Commit per screen, not per pass. Each screen is independently revertable and
   the reasoning belongs with its own diff.
 
