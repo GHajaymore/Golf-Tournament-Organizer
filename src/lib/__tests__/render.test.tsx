@@ -2251,6 +2251,28 @@ describe("MessagesClient", () => {
     expect(html).toContain("No conversations yet");
   });
 
+  it("answers its own question about who a message is for", async () => {
+    // "Who is this for?" sat above two selects, and picking a person set the
+    // first one to a value none of its options carries — so it rendered blank
+    // and the card showed no answer while a real one was in force.
+    const { ComposePanel } = await import("@/components/MessagesClient");
+    const html = render(
+      <ComposePanel composable={composable} people={people} isStaff onOpen={() => {}} />,
+    );
+    expect(html).toContain("Going to everyone in");
+    expect(html).toContain("Your group — Group 1");
+    // Both selects have an accessible name; they had none at all before.
+    expect(html).toContain('aria-label="Send to a group"');
+    expect(html).toContain("…or send to one person");
+  });
+
+  it("says nothing false when there is no group to compose to", async () => {
+    const { ComposePanel } = await import("@/components/MessagesClient");
+    const html = render(<ComposePanel composable={[]} people={[]} isStaff onOpen={() => {}} />);
+    expect(html).toContain("this tournament");
+    expect(html).not.toContain("everyone in <b></b>");
+  });
+
   it("renders a thread with no preview text without falling over", async () => {
     const { MessagesClient } = await import("@/components/MessagesClient");
     const html = render(
