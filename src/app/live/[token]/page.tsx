@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { loadEventState, standingRows, settingsOf } from "@/lib/services/tournament";
+import { loadEventState, matchSettled, standingRows, settingsOf } from "@/lib/services/tournament";
 import { boardKind } from "@/lib/formats";
 import { teamStandings } from "@/lib/services/teams";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
@@ -140,9 +140,28 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
   const theme = await themeForEvent(event.id);
   const themeStyleSheet = themeCss(theme, "#player-theme");
 
-  // How far the field has actually got, which is the first thing anyone asks.
+  /**
+   * How far the field has actually got, which is the first thing anyone asks.
+   *
+   * Two readings, because the question is not the same one in both kinds of
+   * round. A round of returned cards is in when the cards are in. A round of
+   * MATCHES is over when its matches are settled — and a match won 5&4 returns
+   * fourteen holes and is finished, so counting holes there would leave the
+   * board reading "Live" for a round that ended hours ago. Once match play
+   * carries gross cards the hole count stops being silent about match rounds
+   * and starts being wrong about them, which is why this now asks.
+   *
+   * `matchSettled` is the reading the rest of the app already uses for exactly
+   * this, so the badge and the round's own progress cannot disagree.
+   */
   const started = rows.filter((r) => r.thru > 0);
-  const allIn = started.length > 0 && started.every((r) => r.thru >= holeCount);
+  const roundMatches = activeStage
+    ? state.matches.filter((m) => m.stageId === activeStage.id)
+    : [];
+  const allIn =
+    roundMatches.length > 0
+      ? roundMatches.every((m) => matchSettled(m))
+      : started.length > 0 && started.every((r) => r.thru >= holeCount);
   const roundLabel = activeStage?.description?.trim() || activeStage?.type || "";
 
   return (

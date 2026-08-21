@@ -34,7 +34,13 @@ const num = { fontVariantNumeric: "tabular-nums" as const };
  */
 function cardState(r: StandingRow, holes: number): string {
   if (r.thru <= 0) return "not started";
-  const played = r.thru >= holes ? "F" : `thru ${r.thru}`;
+  // Against what this row's own cards cover, falling back to the round's hole
+  // count for a row that has none. A Round Robin stage holds the whole round
+  // robin, so one player has three matches inside one round — eighteen holes
+  // returned is a third of their round, and calling it "F" would tell somebody
+  // still on the course that they had finished.
+  const owed = r.holesOwed > 0 ? r.holesOwed : holes;
+  const played = r.thru >= owed ? "F" : `thru ${r.thru}`;
   return r.ranked ? played : `${played} · not ranked`;
 }
 
