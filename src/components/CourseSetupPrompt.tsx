@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { saveCustomCourse } from "@/app/actions/tournament";
 import { parseCard } from "@/lib/domain/scorecard-parse";
+import { pasteSummary } from "@/lib/domain/card-paste";
 
 const BLANK_18 = new Array(18).fill("");
 
@@ -37,6 +38,8 @@ export function CourseSetupPrompt({
   const [city, setCity] = useState(eventCity);
   const [pasteText, setPasteText] = useState("");
   const [pasteProblems, setPasteProblems] = useState<string[]>([]);
+  /** What the last paste read, in words. Empty before anything is pasted. */
+  const [pasteSummaryText, setPasteSummaryText] = useState("");
   const [pars, setPars] = useState<string[]>(BLANK_18);
   const [yards, setYards] = useState<string[]>(BLANK_18);
   const [strokeIndex, setStrokeIndex] = useState<string[]>(BLANK_18);
@@ -53,12 +56,31 @@ export function CourseSetupPrompt({
    */
   const applyPaste = (text: string) => {
     const rows = text.split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
-    if (rows.length < 2) return;
+    // A short paste used to return here having written nothing and said
+    // nothing, so somebody pasting only the par row watched the screen not
+    // react. It still writes nothing — there is nothing to write — but it now
+    // says which rows it wanted.
+    if (rows.length < 2) {
+      setPasteSummaryText(pasteSummary({ rowCount: rows.length, pars: 0, strokeIndex: 0, yards: 0, problems: 0 }));
+      return;
+    }
     const card = parseCard({ pars: rows[0], strokeIndex: rows[1], yards: rows[2] ?? "" });
     if (card.pars.length) setPars(card.pars.map(String));
     if (card.strokeIndex.length) setStrokeIndex(card.strokeIndex.map(String));
     if (card.yards.length) setYards(card.yards.map(String));
     setPasteProblems(card.problems.map((pr) => pr.message));
+    // What it read, in words. The boxes this fills live inside a `<details>`
+    // that only opens when the paste went WRONG, so the case where everything
+    // worked was the case with no evidence at all.
+    setPasteSummaryText(
+      pasteSummary({
+        rowCount: rows.length,
+        pars: card.pars.length,
+        strokeIndex: card.strokeIndex.length,
+        yards: card.yards.length,
+        problems: card.problems.length,
+      }),
+    );
   };
 
   const setCell = (arr: string[], setArr: (v: string[]) => void, i: number, v: string) => {
@@ -100,6 +122,10 @@ export function CourseSetupPrompt({
     setYards(c.yards.map(String));
     setStrokeIndex(c.strokeIndex.map(String));
     setPasteProblems([]);
+    // The paste summary describes a paste, and this is not one. Left behind it
+    // would sit under the boxes saying "Read 18 pars" about a card the reader
+    // has just replaced with a different course's.
+    setPasteSummaryText(`Filled from ${c.name}.`);
   };
 
   const paste = (
@@ -118,10 +144,19 @@ export function CourseSetupPrompt({
         placeholder={"4 5 3 4 4 4 3 4 5 36 4 4 3 4 5 4 3 4 4 35 71\n7 3 11 1 15 5 17 9 13 8 4 12 2 16 6 18 10 14"}
         style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 12.5, minHeight: 66 }}
       />
+      {/* "Open it to check", because the card below is FOLDED unless the paste
+          went wrong. The old wording promised "the boxes below fill in as you
+          paste" and they do — out of sight, which is not what a reader
+          understands by that. */}
       <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0", lineHeight: 1.45 }}>
-        Copy the rows straight off the club&rsquo;s website — totals and labels are stripped automatically, and
-        the boxes below fill in as you paste.
+        Copy the rows straight off the club&rsquo;s website — totals and labels are stripped
+        automatically, and the card below fills in. Open it to check.
       </p>
+      {pasteSummaryText && (
+        <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-300)" }}>
+          <i className="ph ph-check-circle" /> {pasteSummaryText}
+        </p>
+      )}
       {pasteProblems.map((m, i) => (
         <p key={i} style={{ fontSize: 11.5, margin: "3px 0 0", color: "var(--color-danger)" }}>
           <i className="ph ph-warning-circle" /> {m}

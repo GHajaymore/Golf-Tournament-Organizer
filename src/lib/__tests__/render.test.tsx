@@ -686,6 +686,34 @@ describe("course library", () => {
     expect(html).not.toContain("Ridgeline");
   });
 
+  it("says what an unverified card costs, once, and only when one exists", () => {
+    // The badge showed the STATE on the row and left the stakes in a `title`.
+    // The stakes are the whole reason the badge exists and are not obvious: a
+    // wrong stroke index is invisible in play — it just sends handicap shots
+    // to the wrong holes, every round, for as long as the course is listed.
+    const unverified = render(
+      <CourseLibrary canEdit courses={[{ ...course, verified: false, sourceUrl: "https://zz.invalid/card" }]} />,
+    );
+    expect(unverified).toContain("stroke index");
+    expect(unverified).toContain("wrong holes");
+    // Where it came from is per-row, so it stays on the row — in the
+    // accessible name, not only in a title a phone never shows.
+    expect(unverified).toContain("imported from https://zz.invalid/card");
+
+    // Nothing to warn about when every card has been checked.
+    const verified = render(<CourseLibrary canEdit courses={[course]} />);
+    expect(verified).not.toContain("wrong holes");
+  });
+
+  it("gives the verified seal an accessible name", () => {
+    // It was an icon with no name at all: decorative markup, and the only text
+    // — who checked it — in a `title` a screen reader may never announce.
+    const html = render(
+      <CourseLibrary canEdit courses={[{ ...course, verified: true, verifiedBy: "zz-Ann Reyes" }]} />,
+    );
+    expect(html).toContain('aria-label="Card checked by zz-Ann Reyes"');
+  });
+
   it("renders a course with its tees and marks the club's home course", () => {
     const html = render(
       <CourseLibrary courses={[course]} canEdit homeCourse="Bushwood" />,
