@@ -1,10 +1,23 @@
-# The scoring input model — decided 2026-08-21, NOT YET BUILT
+# The scoring input model — decided 2026-08-21
 
 Ajay's answers to the leaderboard question, which turned out to be a question
-about something larger. Recorded before any of it is built, because the
-reasoning is not recoverable from the code that will eventually implement it.
+about something larger. Recorded before any of it was built, because the
+reasoning is not recoverable from the code that implements it.
 
-**Nothing in this document is implemented.** It is a specification.
+> **BUILT 2026-08-21.** Sections 1 to 3 and the whole of "Sequence" steps 1–3
+> are implemented — see `docs/session-2026-08-21.md` for what was done, what
+> opening the page caught that no test did, and the two questions below that are
+> still open. The reasoning here is left exactly as written; it is the record of
+> WHY, and the code is only the record of what.
+>
+> Still open, and neither answered by accident:
+> - the `matchSettled` looseness flagged at the end of §1 — untouched;
+> - **Sequence step 4, the leaderboard choice itself.** The tour-board polish it
+>   refers to has since merged to `main` (`claude/tour-leaderboard`, e3cba39).
+>   What has NOT been decided is the original question — points or a to-par
+>   board, and whose choice. §1 dissolved the blocker (a match-play event now
+>   carries real strokes, so the board would no longer be a column of zeros); it
+>   did not make the choice.
 
 ## The principle
 
