@@ -273,6 +273,47 @@ describe("team screens", () => {
     expect(html).toContain("Bob");
   });
 
+  it("says why a player cannot be added to a side", () => {
+    // "Add player" carried three conditions in one `disabled` and explained
+    // none — the same defect the Generate matches button on this very screen
+    // was fixed for. A full four-ball and an exhausted field looked identical.
+    const side = (members: number) => ({
+      id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14,
+      members: Array.from({ length: members }, (_, i) => ({
+        playerId: `p${i}`, name: `zz-P${i}`, handicap: 10, position: i,
+      })),
+    });
+    const board = (members: number, spare: number) =>
+      render(
+        <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+          format={{ ...format, min: 2, max: 2 }} teams={[side(members)]} problems={[]}
+          unassigned={Array.from({ length: spare }, (_, i) => ({
+            id: `u${i}`, name: `zz-U${i}`, handicap: 12,
+          }))}
+          matchCount={0} />,
+      );
+
+    expect(board(2, 3)).toContain("This side is full");
+    expect(board(0, 0)).toContain("already on a side");
+    // Room and somebody spare: no refusal at all.
+    expect(board(1, 3)).not.toContain("This side is full");
+    expect(board(1, 3)).not.toContain("already on a side");
+  });
+
+  it("says what the side's handicap number is", () => {
+    // It rendered as a bare "14" beside the side's name with its meaning in a
+    // `title` — an unlabelled number on a screen about handicaps, explained
+    // only to a mouse.
+    const html = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+        format={format}
+        teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
+        problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(html).toContain("Plays off 14");
+    expect(html).not.toContain("The side&#x27;s playing handicap");
+  });
+
   it("states the round's handicap terms and points at where they are set", () => {
     // The controls themselves moved onto the round card, because they are
     // settings of the round and this screen had its own round selector — the

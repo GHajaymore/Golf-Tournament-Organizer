@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { drawReadiness, sideDrawReadiness } from "../draw-readiness";
+import { drawReadiness, sideDrawReadiness, sideAddBlock } from "../draw-readiness";
 
 /**
  * The refusal at the point of consequence.
@@ -115,5 +115,64 @@ describe("whether team matches can be drawn", () => {
 
   it("treats a negative count as none rather than as ready", () => {
     expect(sideDrawReadiness({ sideCount: -1 })).not.toBeNull();
+  });
+});
+
+/**
+ * Why a player cannot be added to one side.
+ *
+ * "Add player" carried three conditions in one `disabled` and explained none,
+ * so an organizer looking at a full four-ball could not tell whether the side
+ * was full or the field was exhausted.
+ */
+describe("whether a player can join this side", () => {
+  const block = (over: Partial<Parameters<typeof sideAddBlock>[0]> = {}) =>
+    sideAddBlock({ sideSize: 1, max: 2, unassignedCount: 3, formatName: "Four-Ball", ...over });
+
+  it("lets a player join a side with room and somebody spare", () => {
+    expect(block()).toBeNull();
+  });
+
+  it("says so when the side is full", () => {
+    const r = block({ sideSize: 2 });
+    expect(r?.problem).toContain("This side is full");
+    // Names the rule rather than only asserting it.
+    expect(r?.problem).toContain("Four-Ball");
+    expect(r?.problem).toContain("2 a side");
+  });
+
+  it("says so when nobody is left to add", () => {
+    expect(block({ unassignedCount: 0 })?.problem).toContain("already on a side");
+  });
+
+  it("puts the field-level reason before the side-level one", () => {
+    // Both true at once. Telling somebody their four-ball is full sends them to
+    // remove a player and re-add them, which achieves nothing when the real
+    // problem is that there is nobody spare.
+    const r = block({ sideSize: 2, unassignedCount: 0 });
+    expect(r?.problem).toContain("already on a side");
+    expect(r?.problem).not.toContain("full");
+  });
+
+  it("copes with a format that has no name to quote", () => {
+    expect(block({ sideSize: 2, formatName: "" })?.problem).toContain("this format");
+  });
+
+  it("blocks a side already over the maximum", () => {
+    // Not expected, but a side of three in a four-ball must not be offered a
+    // fourth on the grounds that 3 is not equal to 2.
+    expect(block({ sideSize: 5, max: 2 })).not.toBeNull();
+  });
+
+  it("holds at the sizes the matrix sweeps", () => {
+    for (const max of [1, 2, 3, 4]) {
+      for (const sideSize of [0, 1, 2, 3, 4, 5]) {
+        for (const unassignedCount of [0, 1, 8, 28]) {
+          const r = sideAddBlock({ sideSize, max, unassignedCount, formatName: "Scramble" });
+          // Adding is offered EXACTLY when there is room and somebody spare.
+          expect(r === null).toBe(sideSize < max && unassignedCount > 0);
+        }
+      }
+    }
   });
 });

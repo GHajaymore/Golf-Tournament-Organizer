@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { sideDrawReadiness } from "@/lib/domain/draw-readiness";
+import { sideDrawReadiness, sideAddBlock } from "@/lib/domain/draw-readiness";
 import {
   createTeam,
   deleteTeam,
@@ -296,13 +296,23 @@ export function TeamsClient({
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
         {teams.map((t) => {
           const short = t.members.length < format.min;
+          // Why "Add player" is dead, if it is. Three reasons shared one
+          // disabled attribute and none of them was on the screen.
+          const addBlock = sideAddBlock({
+            sideSize: t.members.length,
+            max: format.max,
+            unassignedCount: unassigned.length,
+            formatName: format.name,
+          });
           return (
             <div key={t.id} className="card elev-sm" style={{ gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span className="card-title" style={{ fontSize: 14, flex: 1 }}>{t.name}</span>
-                <span className="tag tag-neutral" title="The side's playing handicap under this format">
-                  {t.playingHandicap}
-                </span>
+                {/* Says what the number IS. It rendered as a bare "14" beside
+                    the side's name with its meaning in a `title` — a number
+                    with no label, on a screen whose whole subject is handicaps,
+                    explained only to a mouse. */}
+                <span className="tag tag-neutral">Plays off {t.playingHandicap}</span>
                 <button
                   type="button"
                   className="btn btn-icon"
@@ -361,14 +371,27 @@ export function TeamsClient({
                   ))}
                 </select>
               ) : (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={pending || t.members.length >= format.max || unassigned.length === 0}
-                  onClick={() => setAddingTo(t.id)}
-                >
-                  <i className="ph ph-user-plus" /> Add player
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={pending || !!addBlock}
+                    onClick={() => setAddingTo(t.id)}
+                  >
+                    <i className="ph ph-user-plus" /> Add player
+                  </button>
+                  {/* The reason, on the card. This button carried three
+                      conditions in one `disabled` and explained none of them,
+                      so an organizer looking at a full four-ball could not tell
+                      whether the side was full or the field was exhausted. The
+                      same defect the Generate matches button on this very
+                      screen was fixed for earlier. */}
+                  {addBlock && (
+                    <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.45 }}>
+                      {addBlock.problem}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           );
