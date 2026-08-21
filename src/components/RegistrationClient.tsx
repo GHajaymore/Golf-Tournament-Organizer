@@ -342,7 +342,16 @@ export function RegistrationClient({
                         disabled={pending || locked}
                         style={{ width: 46, padding: "3px 2px", fontSize: 11 }}
                         onChange={(e) => commitUpdate(p.id, { handicapType: e.target.value })}
-                        title="Whether this handicap index is a 9-hole or 18-hole index"
+                        // The one static tooltip on this screen that was
+                        // load-bearing. This select has no visible label at
+                        // all — "18h"/"9h" beside a handicap number does not
+                        // say itself — so its meaning existed only for
+                        // somebody with a mouse to hover. As an accessible
+                        // name it is announced instead. Same treatment as the
+                        // email column two cells along, and for the same
+                        // reason: a sentence per row in a table this dense
+                        // would be noise.
+                        aria-label={`Handicap index for ${p.name} — 9-hole or 18-hole`}
                       >
                         <option value="18">18h</option>
                         <option value="9">9h</option>

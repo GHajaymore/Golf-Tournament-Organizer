@@ -579,6 +579,44 @@ tooltip-refusal sweep is green and enforced by a test.
 - Commit per screen, not per pass. Each screen is independently revertable and
   the reasoning belongs with its own diff.
 
+## Tooltip debt, frozen and queued (2026-08-21)
+
+The `no-tooltip-refusals` guard was rewritten after review found it closed one
+door of three: it matched only `title={cond ? "…" : undefined}`, so the same
+defect spelled `: ""`, written as a static sentence, or holding a template
+literal all passed. It now scans balanced braces, distinguishes an HTML `title`
+ATTRIBUTE from a React prop of the same name (`<SettingsGroup title=…>` is a
+heading, not a hover — the first widened version reported the app's own section
+titles as defects), and judges a static title by length: a name is one to three
+words, a clause is an explanation.
+
+That turned up **fourteen** real instances. Four are justified in `ALLOWED`
+with reasons. One was fixed outright — the handicap-type select on
+`/registration` had no visible label at all, so `18h`/`9h` meant nothing without
+a mouse; it now carries an `aria-label`.
+
+The remaining **nine are frozen in `KNOWN_DEBT`** and are queue work for this
+pass. The list may shrink and never grow: a fixed tooltip must be deleted from
+it, and the stale-entry test enforces that. Do not move one to `ALLOWED` to
+make a build pass — `ALLOWED` is for tooltips that are not the only place the
+information lives; these are ones where they are.
+
+| Component | Tooltip |
+| --- | --- |
+| CourseLibrary | Rounds and matches played here keep their results |
+| SeriesClient | Rounds played in this season keep their results |
+| SeriesClient | Hasn't played enough rounds to be ranked |
+| OrganizationAccess | Hasn't set a password yet |
+| ScoreEntryClient | Tees, course rating and slope — what the shots given are calculated from |
+| ScoreEntryClient | Who last wrote a score for this match, and when the card was completed |
+| TeamEntryClient | The side's playing handicap |
+| TeeEditor | What a 14.0 index plays off here |
+| choose/page | Access inherited from your organization role |
+
+Several are STATUS badges rather than blocked controls — "Hasn't set a password
+yet" on a tag is a different shape from a dead button — so the fix is usually a
+visible caption or a legend, not a refusal message. Judge each on the screen.
+
 ## Waiting on a decision — Ajay's, not a heading fix
 
 Both were found by this pass, both are recorded rather than acted on, and
