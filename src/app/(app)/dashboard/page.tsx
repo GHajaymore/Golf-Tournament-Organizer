@@ -220,7 +220,11 @@ export default async function DashboardPage() {
           either — they run no organization, so the facts come back null. */}
       {isStaff && orgSetup && (
         <div style={{ marginBottom: 16 }}>
-          <OrgSetupChecklist state={orgSetup} />
+          {/* No step points at /dashboard today, so this changes nothing now.
+              Passed anyway: it is a fact about where the component is mounted,
+              and it means a future step pointing here cannot become the same
+              link-to-the-page-you-are-on that /choose carried for weeks. */}
+          <OrgSetupChecklist state={orgSetup} currentPath="/dashboard" />
         </div>
       )}
 

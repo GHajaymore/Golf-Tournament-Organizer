@@ -14,6 +14,15 @@ import { usePathname } from "next/navigation";
  * only for a tournament that is actually splitting costs, so a Wednesday
  * league that never buys a round together still has four. Nothing had to
  * leave, and nobody is asked to read past a tab their event does not use.
+ *
+ * MESSAGES is the other player destination and is deliberately NOT here. It
+ * lives as an icon in the header (`(player)/layout.tsx`), with an unread badge
+ * — which is where a chat icon belongs and how every phone already does it. It
+ * is also the one screen a player opens because something arrived rather than
+ * because they chose to go there, and a badge answers that better than a tab.
+ * Recorded because this comment used to say "four, and deliberately only four"
+ * while a fifth screen existed one tap away, which reads as an oversight
+ * rather than a decision.
  */
 const TABS = [
   { href: "/me", label: "Today", icon: "ph-flag" },

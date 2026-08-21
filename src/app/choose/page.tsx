@@ -119,10 +119,16 @@ export default async function ChooseTournamentPage({
 
             It renders nothing at all for somebody who runs no organization (a
             player invited to a tournament) and nothing once everything that
-            applies is done, so the common case is unchanged. */}
+            applies is done, so the common case is unchanged.
+
+            `currentPath` matters here specifically: the "Create your first
+            tournament" step points at `/choose?stay=1`, which is THIS page —
+            and `CreateFirstTournament`, the form that does it, is a few lines
+            below. The row stays and still counts; it just stops offering a
+            click that reloads the page under it. */}
         {setup && (
           <div style={{ marginBottom: 18 }}>
-            <OrgSetupChecklist state={setup} />
+            <OrgSetupChecklist state={setup} currentPath="/choose" />
           </div>
         )}
 

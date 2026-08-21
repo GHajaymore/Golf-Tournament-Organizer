@@ -12,6 +12,7 @@ import {
   broadcastWithText,
 } from "@/app/actions/messaging";
 import type { ThreadListItem, ThreadView } from "@/lib/services/messaging";
+import { messageAudience } from "@/lib/domain/message-audience";
 
 /**
  * The messages screen.
@@ -511,7 +512,15 @@ function OptOutPanel({
  *  server, which is the authority. A chat scope never texts. */
 const SMS_KINDS = ["club", "event", "players", "flight", "round", "team"];
 
-function ComposePanel({
+/**
+ * Exported so the render tests can reach it at all.
+ *
+ * It only appears when `composing` is true, which is local state in the parent
+ * — so a static render of `MessagesClient` never contains this panel and every
+ * assertion about it would be vacuous. Same reason `ImportSummary` is exported
+ * from `RosterClient`.
+ */
+export function ComposePanel({
   composable,
   people,
   onOpen,
@@ -532,6 +541,13 @@ function ComposePanel({
   const [plan, setPlan] = useState<Awaited<ReturnType<typeof previewSmsBroadcast>>>(null);
   const kind = composable.find((c) => c.key === target)?.kind ?? "";
   const canText = isStaff && !person && SMS_KINDS.includes(kind);
+  // Which of the two selects wins, and what that costs — resolved in one place
+  // rather than inferred from the word "…or" inside a placeholder.
+  const audience = messageAudience({
+    personName: people.find((p) => p.email === person)?.name ?? "",
+    scopeLabel: composable.find((c) => c.key === target)?.label ?? "",
+    alsoText,
+  });
 
   // The estimate, refreshed as they type. Debounced because it counts the
   // audience server-side, and an organizer typing a paragraph should not run
@@ -586,6 +602,7 @@ function ComposePanel({
       <span className="card-kicker">Who is this for?</span>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <select
+          aria-label="Send to a group"
           value={person ? "" : target}
           onChange={(e) => {
             setTarget(e.target.value);
@@ -607,6 +624,7 @@ function ComposePanel({
           ))}
         </select>
         <select
+          aria-label="…or send to one person"
           value={person}
           onChange={(e) => setPerson(e.target.value)}
           style={{
@@ -626,6 +644,17 @@ function ComposePanel({
           ))}
         </select>
       </div>
+
+      {/* The answer to the heading, in words.
+          Two selects and the word "…or" left it to be inferred, and picking a
+          person sets the first select to "" — a value none of its options
+          carries, so it renders BLANK. The card asked "Who is this for?" and
+          then showed nothing selected while a real answer was in force. */}
+      <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+        {audience.direct ? "Going to " : "Going to everyone in "}
+        <b>{audience.name}</b>
+        {audience.detail ? ` ${audience.detail}` : "."}
+      </p>
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
@@ -707,6 +736,19 @@ function ComposePanel({
             </div>
           )}
         </div>
+      )}
+
+      {/* The whole "also send this as a text" block is gated on `canText`,
+          which is false the moment a person is picked — so an organizer who
+          ticked the box and then narrowed to one person watched the control
+          disappear with the tick still set, and the text silently does not go.
+          The button even reverts from "Send + text" to "Send" without a word.
+          Said outright, because the consequence is that somebody does not get
+          the message they were promised. */}
+      {isStaff && audience.textNote && (
+        <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+          <i className="ph ph-info" /> {audience.textNote}
+        </p>
       )}
 
       {error && <p style={{ color: "var(--color-danger)", fontSize: 12, margin: 0 }}>{error}</p>}

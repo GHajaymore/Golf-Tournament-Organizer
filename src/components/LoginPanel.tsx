@@ -333,7 +333,15 @@ export function LoginPanel({
       />
 
       <form
-        onSubmit={(e) => { e.preventDefault(); login ? submitLogin() : submitSignup(); }}
+        // `if/else`, not a ternary used as a statement. Both branches are here
+        // for their side effects, and a ternary in that position reads as
+        // though it produces something — which is what the lint rule has been
+        // saying. The front door is the last place to leave a warning standing.
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (login) submitLogin();
+          else submitSignup();
+        }}
         style={{ display: "flex", flexDirection: "column", gap: 14 }}
       >
         {!login && (

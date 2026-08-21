@@ -4,6 +4,7 @@ import { addExpense, removeExpense, recordSettlement } from "@/app/actions/expen
 import { requestContestEntry } from "@/app/actions/contests";
 import { requestSideGameEntry } from "@/app/actions/side-games";
 import type { MoneyView } from "@/lib/services/expenses";
+import { unitemisedGames } from "@/lib/domain/money-breakdown";
 import { PersonChip } from "@/components/PersonChip";
 
 /**
@@ -30,6 +31,10 @@ const money = (cents: number) => {
 
 type Scope = "group" | "everyone" | "pick";
 
+/** One shared empty list, so "no group" keeps the same identity between
+ *  renders and a `useMemo` depending on it can actually memoize. */
+const NO_IDS: string[] = [];
+
 export function MoneyClient({ view }: { view: MoneyView }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -43,7 +48,11 @@ export function MoneyClient({ view }: { view: MoneyView }) {
   const [picked, setPicked] = useState<Set<string>>(() => new Set(view.field.map((p) => p.id)));
 
   const round = view.rounds.find((r) => r.stageId === stageId) ?? null;
-  const groupIds = round?.groupPlayerIds ?? [];
+  // `NO_IDS`, not a fresh `[]`. The fallback used to allocate a new array on
+  // every render, so the memo below saw a different dependency each time and
+  // never memoized anything — which is exactly what the standing lint warning
+  // was reporting. A shared frozen empty array has a stable identity.
+  const groupIds = round?.groupPlayerIds ?? NO_IDS;
 
   /** Who this line is split between, from the scope the payer chose. */
   const shareIds = useMemo(() => {
@@ -77,6 +86,18 @@ export function MoneyClient({ view }: { view: MoneyView }) {
   };
 
   const owed = view.netCents > 0;
+
+  // The part of the pot money no line on this screen accounts for.
+  //
+  // Only CONTESTS carry a per-player figure (`yourCents`). The score pots are
+  // listed but say nothing about what they did for you, and the skins pot is
+  // not in the player app at all — yet all three are inside `gamesCents`.
+  // Subtracted from the total rather than fetched again, so it cannot disagree
+  // with the figure it explains.
+  const unaccounted = unitemisedGames(
+    view.gamesCents,
+    view.contests.map((c) => c.yourCents),
+  );
 
   /**
    * Yours first, and the rest behind a button.
@@ -257,19 +278,33 @@ export function MoneyClient({ view }: { view: MoneyView }) {
           {money(Math.abs(view.netCents))}
         </div>
         {/* The parts, always — never make the total take it on faith. */}
+        {/* "Side bets", not "Side games". Three names for one pile of money:
+            this figure said "Side games", the section below it said "Side
+            bets", and the one under that said "Pots on the scores" — so a
+            player looking for what made up "Side games" found no section by
+            that name. "Side bets" is also what the organizer's screen calls the
+            card holding both kinds, so the two screens now agree. */}
         <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 12, color: "var(--color-neutral-400)" }}>
           <span>Expenses {money(view.expensesCents)}</span>
-          {view.gamesCents !== 0 && <span>Side games {money(view.gamesCents)}</span>}
+          {view.gamesCents !== 0 && <span>Side bets {money(view.gamesCents)}</span>}
           {view.settledCents !== 0 && <span>Settled {money(view.settledCents)}</span>}
         </div>
       </section>
 
-      {/* The side bets behind the "side games" figure above. A total a player
-          cannot expand is a number they have to take on trust, and this is
-          the screen that can least afford one. */}
+      {/* Part of what makes up the "Side bets" figure in the summary. A total a
+          player cannot expand is a number they have to take on trust, and this
+          is the screen that can least afford one.
+
+          "Decided on the day", not "Side bets" — that is now the name of the
+          WHOLE, so it cannot also be the name of one of its two halves. This is
+          the half a person judges: closest to the pin, long drive, whatever the
+          first tee invented. The other half is worked out from the cards. Same
+          distinction the organizer's screen draws with "You name the winner"
+          and "Settled by the scores", in words that fit somebody who is not
+          naming anybody. */}
       {view.contests.length > 0 && (
         <section className="card elev-sm" style={{ marginTop: 12 }}>
-          <span className="card-title" style={{ fontSize: 15 }}>Side bets</span>
+          <span className="card-title" style={{ fontSize: 15 }}>Decided on the day</span>
           {view.contests.map((c) => (
             <div
               key={c.id}
@@ -403,6 +438,43 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               )}
             </div>
           ))}
+        </section>
+      )}
+
+      {/* The rest of the "Side bets" figure, which had nowhere to appear.
+          `gameNets` settles from three tables — the skins pot, side games and
+          contests — and only CONTESTS carry a per-player figure. The score pots
+          are listed but say nothing about what they did for you, and the skins
+          pot is not in the player app at all. So part of a real number had no
+          line explaining it, on the screen whose own comment says a total a
+          player cannot expand is one it can least afford.
+
+          Subtraction, not a second query: services/expenses.ts says a second
+          implementation of the skins arithmetic inside a money screen "is
+          exactly the drift this app has been burned by, and this one would
+          drift about what somebody owes". A remainder cannot disagree with its
+          own total. */}
+      {unaccounted !== 0 && (
+        <section className="card elev-sm" style={{ marginTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>
+                The rest of your side bets
+              </span>
+              <span className="text-muted" style={{ fontSize: 11.5 }}>
+                Your share of the skins and the score pots — worked out from the cards.
+              </span>
+            </span>
+            <span
+              style={{
+                fontVariantNumeric: "tabular-nums",
+                fontWeight: 600,
+                color: unaccounted > 0 ? "var(--color-accent-2-300)" : "var(--color-text)",
+              }}
+            >
+              {money(unaccounted)}
+            </span>
+          </div>
         </section>
       )}
 

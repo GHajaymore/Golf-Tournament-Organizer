@@ -1,6 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import { formGroups, type FormationRule, type Player } from "@/lib/domain";
+import { listNames } from "@/lib/format";
+import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { useTransition } from "react";
 import { saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
 import {
@@ -157,6 +159,15 @@ export function FoursomeMaker({
 
   const active = ALGORITHMS.find((a) => a.key === algo) ?? ALGORITHMS[0];
   const activeOrder = DRAW_ORDERS.find((d) => d.key === order) ?? DRAW_ORDERS[2];
+  // Which options are greyed out, named from the arrays that grey them, so the
+  // sentence explaining it cannot come to list the wrong ones.
+  const standingsBlocked = hasStandings ? [] : ALGORITHMS.filter((a) => a.needsStandings).map((a) => a.label);
+  const orderBlocked = hasStandings ? [] : DRAW_ORDERS.filter((d) => d.needsStandings).map((d) => d.label);
+  // Why the sheet cannot be saved, or null. The same rule the Flights screen
+  // uses, because a tee sheet is drawn from the field exactly as flights are.
+  // `locked` is false here: this screen has no lock of its own, and claiming
+  // one would be a refusal the app cannot back up.
+  const saveBlock = drawReadiness({ fieldSize: players.length, locked: false });
 
   return (
     <>
@@ -214,7 +225,6 @@ export function FoursomeMaker({
                   disabled={off}
                   onClick={() => setAlgo(a.key)}
                   className="btn"
-                  title={off ? "Needs a round to have been played." : undefined}
                   style={{
                     border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
                     color: on ? "var(--color-accent)" : "var(--color-text)",
@@ -229,6 +239,20 @@ export function FoursomeMaker({
           <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
             {active.desc}
           </p>
+          {/* Why the greyed ones are greyed, on the page. Both groups here
+              explained themselves with a `title` only — which never appears on
+              a touch device, is not announced to a screen reader, and is the
+              pattern this codebase has already rejected twice. The options are
+              named from the array rather than described as "the greyed ones",
+              so the sentence cannot drift from what is actually disabled. */}
+          {standingsBlocked.length > 0 && (
+            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+              <i className="ph ph-info" /> {listNames(standingsBlocked)}{" "}
+              {standingsBlocked.length === 1 ? "needs" : "need"} the leaderboard, so{" "}
+              {standingsBlocked.length === 1 ? "it is" : "they are"} available only once a round has
+              been played.
+            </p>
+          )}
         </div>
 
         <div>
@@ -244,7 +268,6 @@ export function FoursomeMaker({
                   disabled={off}
                   onClick={() => setOrder(d.key)}
                   className="btn"
-                  title={off ? "Needs a round to have been played." : undefined}
                   style={{
                     border: `1px solid ${on ? "var(--color-accent)" : "var(--color-divider)"}`,
                     color: on ? "var(--color-accent)" : "var(--color-text)",
@@ -259,6 +282,14 @@ export function FoursomeMaker({
           <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
             {activeOrder.blurb}
           </p>
+          {orderBlocked.length > 0 && (
+            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+              <i className="ph ph-info" /> {listNames(orderBlocked)}{" "}
+              {orderBlocked.length === 1 ? "needs" : "need"} the leaderboard, so{" "}
+              {orderBlocked.length === 1 ? "it is" : "they are"} available only once a round has been
+              played.
+            </p>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -351,6 +382,41 @@ export function FoursomeMaker({
             </>
           )}
         </div>
+
+        {/* Why "Save sheet" is dead, when it is.
+            Both save buttons carried `groups.length === 0` and said nothing, so
+            on the ordinary first-day state — a round with no field yet — an
+            organizer got two grey buttons and no way to tell whether the app
+            was broken, they lacked permission, or something was missing.
+
+            `drawReadiness` rather than a second rule: a tee sheet is drawn from
+            the FIELD exactly as the flights are, so this is the same refusal
+            GroupingControls already renders, with the same link to the same
+            screen. A second copy would eventually disagree about what an empty
+            field means. */}
+        {stageId && saveBlock && (
+          <p
+            style={{
+              fontSize: 12.5,
+              margin: "10px 0 0",
+              lineHeight: 1.5,
+              display: "flex",
+              gap: 8,
+              alignItems: "flex-start",
+              padding: "9px 11px",
+              borderRadius: 9,
+              background: "color-mix(in srgb, var(--color-text) 5%, transparent)",
+            }}
+          >
+            <i className="ph ph-info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
+            <span>
+              {saveBlock.problem}{" "}
+              <a href={saveBlock.href} style={{ color: "var(--color-accent-300)" }}>
+                {saveBlock.linkLabel}
+              </a>
+            </span>
+          </p>
+        )}
 
         {/* The confirmation lives here, below the toolbar, so the sentence and
             the button that acts on it are read together. */}

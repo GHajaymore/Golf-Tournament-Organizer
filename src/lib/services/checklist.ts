@@ -1,5 +1,6 @@
 import type { ChecklistItem } from "@/components/SetupChecklist";
 import { DEFAULT_THEME } from "@/lib/themes";
+import { screenName } from "@/lib/nav";
 
 /**
  * Whether a club has put its own stamp on the app yet.
@@ -44,9 +45,13 @@ export interface ChecklistState {
 
 export function setupChecklist(state: ChecklistState): ChecklistItem[] {
   const hasSchedule = state.matches.length > 0;
+  // Labels read from the sidebar, not written out again. This row said
+  // "Rounds & format"; the screen is called "Rounds & formats" — the same
+  // half-remembered name found the same day in the "Recommended flow" card on
+  // Tournament details. A name typed twice drifts once.
   const items: ChecklistItem[] = [
     {
-      label: "Registration & field",
+      label: screenName("/registration"),
       detail:
         state.confirmed.length > 0
           ? `${state.confirmed.length} confirmed${state.waitlist.length ? ` · ${state.waitlist.length} waitlisted` : ""}`
@@ -55,7 +60,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
       href: "/registration",
     },
     {
-      label: "Rounds & format",
+      label: screenName("/stages"),
       detail:
         state.stages.length > 0
           ? `${state.stages.length} round${state.stages.length === 1 ? "" : "s"} configured`
@@ -64,7 +69,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
       href: "/stages",
     },
     {
-      label: "Flights",
+      label: screenName("/grouping"),
       detail:
         state.groups.length > 0
           ? `${state.groups.length} flights · ${hasSchedule ? "schedule generated" : "schedule not generated yet"}`
@@ -73,7 +78,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
       href: "/grouping",
     },
     {
-      label: "Access & staff",
+      label: screenName("/access"),
       detail:
         state.accounts.length > 1
           ? `${state.accounts.length - 1} additional staff account${state.accounts.length - 1 === 1 ? "" : "s"}`

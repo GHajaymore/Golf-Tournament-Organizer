@@ -112,14 +112,16 @@ export function ThemePicker({
       <button
         type="button"
         disabled={pending || readOnly || !!disabledReason}
-        title={disabledReason}
         onClick={onPick}
         style={{
           textAlign: "left",
           padding: "10px 12px",
           borderRadius: 10,
           cursor: readOnly || disabledReason ? "default" : "pointer",
-          opacity: disabledReason ? 0.4 : 1,
+          // Was 0.4, which put the reason below it at about the contrast of a
+          // watermark. Dimmed enough to read as unavailable, not so far that
+          // the sentence explaining why cannot be read.
+          opacity: disabledReason ? 0.62 : 1,
           color: ground.text,
           background: selected ? s[900] : ground.bg,
           border: `1px solid ${selected ? s[500] : `color-mix(in srgb, ${ground.text} 16%, transparent)`}`,
@@ -131,7 +133,14 @@ export function ThemePicker({
           ))}
         </div>
         <div style={{ fontSize: 13, fontWeight: 600 }}>{preset.name}</div>
-        <div style={{ fontSize: 11, marginTop: 1, opacity: 0.66 }}>{preset.blurb}</div>
+        {/* The comment at the call site said this swatch "says why instead of
+            just dimming" — and it did not: the reason went into a `title`,
+            which never appears on a touch device and is not announced. On the
+            swatch now, in place of the blurb, because a swatch that cannot be
+            picked has no use for a description of what picking it would do. */}
+        <div style={{ fontSize: 11, marginTop: 1, opacity: 0.66 }}>
+          {disabledReason ?? preset.blurb}
+        </div>
       </button>
     );
   };

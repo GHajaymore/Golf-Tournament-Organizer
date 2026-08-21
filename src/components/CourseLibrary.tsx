@@ -185,13 +185,33 @@ export function CourseLibrary({
                             ? `Imported from ${c.sourceUrl} — nobody has checked it against the real card.`
                             : "Nobody has checked this card against the real one."
                         }
+                        // Where it came from is genuinely per-row, so it stays
+                        // here rather than in the shared sentence below the
+                        // table — but in the accessible name too, not only in a
+                        // `title` a phone never shows.
+                        aria-label={
+                          c.sourceUrl
+                            ? `${c.name}: unverified card, imported from ${c.sourceUrl}`
+                            : `${c.name}: unverified card`
+                        }
                       >
-                        <i className="ph ph-seal-question" /> Unverified
+                        <i className="ph ph-seal-question" aria-hidden /> Unverified
                       </span>
                     )}
                     {c.verified && c.verifiedBy && (
-                      <span className="text-muted" style={{ fontSize: 11, marginLeft: 8 }} title={`Checked by ${c.verifiedBy}`}>
-                        <i className="ph ph-seal-check" />
+                      // A seal with no accessible name at all: the icon is
+                      // decorative markup and the only text — who checked it —
+                      // was in a `title`, which a screen reader may never
+                      // announce. Named now, and the icon marked as the
+                      // decoration it is.
+                      <span
+                        className="text-muted"
+                        style={{ fontSize: 11, marginLeft: 8 }}
+                        title={`Checked by ${c.verifiedBy}`}
+                        aria-label={`Card checked by ${c.verifiedBy}`}
+                        role="img"
+                      >
+                        <i className="ph ph-seal-check" aria-hidden />
                       </span>
                     )}
                   </td>
@@ -267,6 +287,25 @@ export function CourseLibrary({
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* What "Unverified" costs, once for the table.
+          The badge showed the STATE on the row — which the comment above it
+          claims credit for — and left the stakes in a `title`. The stakes are
+          the whole reason the badge exists, and they are not obvious: a wrong
+          stroke index is invisible in play. It does not look wrong, it just
+          sends handicap shots to the wrong holes, every round, for as long as
+          the course is on the list.
+
+          One sentence rather than one per row: it is the same sentence for
+          every unverified card, and repeating it down a table is noise. */}
+      {courses.some((c) => !c.verified) && (
+        <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+          <i className="ph ph-seal-question" /> An <b>unverified</b> card was imported and nobody has
+          checked it against the real one. The part that matters is the stroke index: it is invisible
+          in play, so a wrong one quietly sends handicap shots to the wrong holes for as long as the
+          course is on this list.
+        </p>
       )}
 
       {/* A club plays at its own course. Setting it here means every new

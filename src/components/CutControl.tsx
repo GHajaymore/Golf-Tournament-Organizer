@@ -151,7 +151,7 @@ export function CutControl({
               />
               Overall
             </label>
-            <label className="seg-opt" title={flights < 2 ? "Only one flight — same as overall." : undefined}>
+            <label className="seg-opt">
               <input
                 type="radio"
                 name={`cutscope-${formId}`}
@@ -166,6 +166,11 @@ export function CutControl({
             {perFlight
               ? `${bucketSurvivors} from each of ${flights} flights — ${survivors} of ${confirmedCount} advance into ${roundLabel}.`
               : `${survivors} of ${confirmedCount} advance into ${roundLabel}.`}
+            {/* Why "Per flight" is dead, in the sentence that is already here
+                rather than in a `title` nobody on a phone can reach. The same
+                pattern removed from the draw button, Teams & pairs and the tee
+                sheet. */}
+            {flights < 2 && " The field is in one flight, so a per-flight cut would be the same cut."}
           </span>
         </div>
       )}

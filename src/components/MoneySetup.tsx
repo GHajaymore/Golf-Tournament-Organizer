@@ -11,7 +11,7 @@ import {
 import { orgProfile } from "@/lib/domain/org-profile";
 
 /**
- * How this tournament handles money.
+ * How money is handled — for ONE TOURNAMENT, or for the whole club.
  *
  * Three modes and an explanation of each, because the difference between a
  * kitty and a split is not obvious from the names and choosing wrong is not
@@ -22,27 +22,46 @@ import { orgProfile } from "@/lib/domain/org-profile";
  * The tournament's own setting is offered alongside "follow the club", so an
  * organizer can go back to the default rather than being stuck with a choice
  * made once for one weekend.
+ *
+ * TWO MODES, and the reason is a defect this component used to carry. The club
+ * default was a DISCLOSURE inside the tournament card, on Prizes & payouts —
+ * so the setting an entire club runs on was collapsed inside a card titled
+ * "Money in this tournament", on a per-tournament screen. Meanwhile
+ * `SETUP_HREF.money` sent "Decide how money works" to `/organization`, which
+ * had no money control at all: an organizer who followed the checklist arrived
+ * at Club settings and found nothing, and the step — which reads
+ * `organization.moneyMode` — could never be ticked by following its own link.
+ *
+ * So each level now lives on the screen named for it, the way `PlaySettings`
+ * already splits tournament settings from house defaults. Prizes & payouts
+ * keeps the tournament's own choice and says where the club default is.
  */
 export function MoneySetup({
-  eventMode,
+  mode,
+  eventMode = "",
   orgMode,
   orgKind,
   clubName,
-  isAdmin,
+  canEdit = true,
 }: {
-  eventMode: string;
+  /** Which level this instance sets. */
+  mode: "tournament" | "organization";
+  /** Tournament mode only — this tournament's own choice, "" to follow the club. */
+  eventMode?: string;
   orgMode: string;
   orgKind: string;
   clubName: string;
-  isAdmin: boolean;
+  /** Organization mode only — whether this person may change the club default. */
+  canEdit?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [showClub, setShowClub] = useState(false);
+  const isTournament = mode === "tournament";
 
   const inherited = resolveMoneyMode({ eventMode: "", orgMode, orgKind });
   const active = resolveMoneyMode({ eventMode, orgMode, orgKind });
   const profile = orgProfile(orgKind);
+  const locked = !isTournament && !canEdit;
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
     startTransition(async () => {
@@ -62,16 +81,18 @@ export function MoneySetup({
         borderRadius: "var(--radius-md)",
         border: `1px solid ${checked ? "var(--color-accent)" : "var(--color-divider)"}`,
         background: checked ? "color-mix(in srgb, var(--color-accent) 7%, transparent)" : "transparent",
-        cursor: pending ? "default" : "pointer",
+        cursor: pending || locked ? "default" : "pointer",
         marginBottom: 6,
       }}
     >
       <input
         type="radio"
-        name="money-mode"
+        name={`money-mode-${mode}`}
         checked={checked}
-        disabled={pending}
-        onChange={() => run(() => setEventMoneyMode(value))}
+        disabled={pending || locked}
+        onChange={() =>
+          run(() => (isTournament ? setEventMoneyMode(value) : setOrgMoneyMode(value)))
+        }
         style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
       />
       <span style={{ minWidth: 0 }}>
@@ -82,6 +103,50 @@ export function MoneySetup({
       </span>
     </label>
   );
+
+  // The club default, on Club settings, where the setup checklist has always
+  // said it is. Same three modes plus "follow what we are", which is the kind's
+  // own default and the only honest way back to unset.
+  if (!isTournament) {
+    return (
+      <section className="card elev-sm" style={{ gap: 10 }}>
+        <span className="card-title" style={{ fontSize: 15 }}>Money at {clubName || "this club"}</span>
+        <p className="text-muted" style={{ fontSize: 12.5, margin: "-2px 0 4px", lineHeight: 1.55 }}>
+          What every tournament here uses unless it says otherwise. Changing it does not touch a
+          tournament that has already made its own choice.
+        </p>
+
+        {option(
+          "",
+          `Follow what we are — a ${profile.noun} means ${MONEY_MODE_LABEL[resolveMoneyMode({ eventMode: "", orgMode: "", orgKind })].toLowerCase()}`,
+          "No club-wide answer. Each tournament falls back to what suits this kind of organization.",
+          orgMode === "",
+        )}
+
+        {MONEY_MODES.map((m) => option(m, MONEY_MODE_LABEL[m], MONEY_MODE_HELP[m], orgMode === m))}
+
+        {error && (
+          <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
+            <i className="ph ph-warning-circle" /> {error}
+          </p>
+        )}
+
+        {locked && (
+          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            Only an organization owner or admin can change this.
+          </p>
+        )}
+
+        <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
+          {/* Says what it actually does rather than leaving the reader to
+              work out what "the default" resolves to. */}
+          <i className="ph ph-info" /> A tournament that has not chosen for itself uses:{" "}
+          <strong style={{ color: "var(--color-text)" }}>{MONEY_MODE_LABEL[inherited]}</strong>.
+          {" "}Each one can still be set on its own Prizes &amp; payouts screen.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="card elev-sm" style={{ marginTop: 16, gap: 10 }}>
@@ -108,52 +173,15 @@ export function MoneySetup({
         </p>
       )}
 
-      {/* The club default, behind a disclosure. Most organizers set the
-          tournament in front of them and never need this; the one who runs
-          every event the same way needs it once. */}
-      {isAdmin && (
-        <>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setShowClub((v) => !v)}
-            style={{ alignSelf: "flex-start", fontSize: 12.5 }}
-          >
-            <i className={showClub ? "ph ph-caret-up" : "ph ph-caret-down"} /> Club default
-          </button>
-          {showClub && (
-            <div style={{ paddingLeft: 4 }}>
-              <p className="text-muted" style={{ fontSize: 12, margin: "0 0 7px", lineHeight: 1.6 }}>
-                What every tournament at {clubName || "this club"} uses unless it says otherwise. Changing this
-                does not touch a tournament that has made its own choice.
-              </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                <button
-                  type="button"
-                  className={`tag ${orgMode === "" ? "tag-accent" : "tag-neutral"}`}
-                  disabled={pending}
-                  onClick={() => run(() => setOrgMoneyMode(""))}
-                  style={{ cursor: "pointer", border: "none" }}
-                >
-                  Follow what we are ({profile.label})
-                </button>
-                {MONEY_MODES.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    className={`tag ${orgMode === m ? "tag-accent" : "tag-neutral"}`}
-                    disabled={pending}
-                    onClick={() => run(() => setOrgMoneyMode(m))}
-                    style={{ cursor: "pointer", border: "none" }}
-                  >
-                    {MONEY_MODE_LABEL[m]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
+      {/* Where the club default is, rather than a copy of it collapsed inside
+          a card about one tournament. It used to be a disclosure here, which
+          put a club-wide setting two clicks deep on a per-tournament screen —
+          and left Club settings, where the setup checklist sends people to
+          "Decide how money works", with no money control on it at all. */}
+      <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        <i className="ph ph-buildings" /> The default for every tournament at{" "}
+        {clubName || "this club"} is on <a href="/organization">Club settings</a>.
+      </p>
 
       <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
         <i className="ph ph-info" /> In force for this tournament:{" "}

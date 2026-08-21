@@ -232,6 +232,33 @@ describe("team screens", () => {
     expect(html).toContain("Draw sides automatically");
   });
 
+  it("says on the page why matches cannot be generated yet", () => {
+    // "Generate matches" was disabled with the reason in a `title` only — the
+    // last surviving instance of that pattern, flagged in the 2026-08-18
+    // record and left for whoever was next in this file. The refusal names the
+    // other button by the exact words on it, not by where it sits.
+    const one = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+        format={format}
+        teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
+        problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(one).toContain("A match is between two sides and there is only one so far");
+    expect(one).toContain("Draw sides automatically");
+
+    // Two sides, and the explanation goes away because the button works.
+    const two = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+        format={format}
+        teams={[
+          { id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] },
+          { id: "t2", name: "Side B", seed: 2, stageId: "r1", playingHandicap: 15, members: [] },
+        ]}
+        problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(two).not.toContain("only one so far");
+  });
+
   it("renders sides, their problems, and the unassigned list", () => {
     const html = render(
       <TeamsClient rounds={[{ id: "r1", label: "Round 1", format: "Four-Ball" }]} activeRoundId="r1"
@@ -244,6 +271,47 @@ describe("team screens", () => {
     expect(html).toContain("Side A");
     expect(html).toContain("has 1 of 2 players");
     expect(html).toContain("Bob");
+  });
+
+  it("says why a player cannot be added to a side", () => {
+    // "Add player" carried three conditions in one `disabled` and explained
+    // none — the same defect the Generate matches button on this very screen
+    // was fixed for. A full four-ball and an exhausted field looked identical.
+    const side = (members: number) => ({
+      id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14,
+      members: Array.from({ length: members }, (_, i) => ({
+        playerId: `p${i}`, name: `zz-P${i}`, handicap: 10, position: i,
+      })),
+    });
+    const board = (members: number, spare: number) =>
+      render(
+        <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+          format={{ ...format, min: 2, max: 2 }} teams={[side(members)]} problems={[]}
+          unassigned={Array.from({ length: spare }, (_, i) => ({
+            id: `u${i}`, name: `zz-U${i}`, handicap: 12,
+          }))}
+          matchCount={0} />,
+      );
+
+    expect(board(2, 3)).toContain("This side is full");
+    expect(board(0, 0)).toContain("already on a side");
+    // Room and somebody spare: no refusal at all.
+    expect(board(1, 3)).not.toContain("This side is full");
+    expect(board(1, 3)).not.toContain("already on a side");
+  });
+
+  it("says what the side's handicap number is", () => {
+    // It rendered as a bare "14" beside the side's name with its meaning in a
+    // `title` — an unlabelled number on a screen about handicaps, explained
+    // only to a mouse.
+    const html = render(
+      <TeamsClient rounds={[{ id: "r1", label: "R1", format: "Four-Ball" }]} activeRoundId="r1"
+        format={format}
+        teams={[{ id: "t1", name: "Side A", seed: 1, stageId: "r1", playingHandicap: 14, members: [] }]}
+        problems={[]} unassigned={[]} matchCount={0} />,
+    );
+    expect(html).toContain("Plays off 14");
+    expect(html).not.toContain("The side&#x27;s playing handicap");
   });
 
   it("states the round's handicap terms and points at where they are set", () => {
@@ -457,6 +525,147 @@ describe("rounds and format", () => {
   it("renders a tournament with no rounds at all", () => {
     expect(() => render(<StagesClient {...base} stages={[]} />)).not.toThrow();
   });
+
+  // What a round DECIDES is not a customization, and used to sit two clicks
+  // deep: expand the round, expand "Customize this round", then scroll. A
+  // Single Match Stage with no rule set is an unconfigured round, not a
+  // customized one, and a third-place play-off is something plenty of clubs
+  // run every year. These assert the controls are in the markup with the
+  // Customize panel CLOSED — which is what "one click, not two" means here.
+  describe("what the round decides is reachable in one click", () => {
+    const closedPanel = (html: string) => {
+      // The proof the assertions above it mean anything: if the Customize
+      // panel were open, everything would be in the markup for the wrong
+      // reason. "Result calculation" only ever renders inside it.
+      expect(html).not.toContain("Result calculation");
+    };
+
+    it("shows the third-place play-off on a Bracket Stage", () => {
+      const html = render(
+        <StagesClient {...base}
+          stages={[stage({ id: "b1", position: 0, type: "Bracket Stage" })]}
+          thirdPlaces={{
+            b1: { on: true, problem: "", aName: "Ann Reyes", bName: "Bo Kite", made: false },
+          }} />,
+      );
+      expect(html).toContain("Third and fourth");
+      expect(html).toContain("Play off for third");
+      expect(html).toContain("Ann Reyes");
+      closedPanel(html);
+    });
+
+    it("shows the pairing rule on a Single Match Stage", () => {
+      const html = render(
+        <StagesClient {...base}
+          stages={[stage({ id: "sm1", position: 0, type: "Single Match Stage" })]}
+          singleMatches={{
+            sm1: {
+              stageId: "sm1", rule: null, ruleLabel: "No pairing set",
+              resolution: { pairing: null, problem: "This round has no pairing rule set — choose who plays it." },
+              aName: "", bName: "", matchId: null, canCreate: false, stale: false,
+              rounds: [], players: [],
+            },
+          }} />,
+      );
+      expect(html).toContain("The match");
+      expect(html).toContain("No pairing set");
+      closedPanel(html);
+    });
+
+    it("shows the qualification cut on a Qualification Stage", () => {
+      const html = render(
+        <StagesClient {...base}
+          stages={[stage({ id: "q1", position: 0, type: "Qualification Stage" })]} />,
+      );
+      expect(html).toContain("Qualification cut");
+      closedPanel(html);
+    });
+
+    it("says nothing at all on a round that decides nothing of its own", () => {
+      // SettingsGroup renders no heading when it has no children, so a plain
+      // Round Robin must not grow an empty "What this round decides".
+      const html = render(
+        <StagesClient {...base} chainsRounds={false} stages={[stage({ position: 0 })]} />,
+      );
+      expect(html).not.toContain("What this round decides");
+    });
+  });
+
+  // The guard against a "simplification" that quietly drops a setting. Every
+  // control the round card carried before the separation is asserted present,
+  // by its own visible label, with the panel open.
+  it("keeps every control on the round card", () => {
+    // Two points-scored Round Robin rounds with the carry question unanswered:
+    // that is what opens the Customize panel on a static render.
+    const html = render(
+      <StagesClient {...base} chainsRounds
+        flightCount={2}
+        stages={[
+          stage({ id: "r1", position: 0, attendance: { in: 18, out: 2, inByDefault: 5 } }),
+          stage({ id: "r2", position: 1, carryAsked: false }),
+        ]}
+        venues={[{ id: "c1", name: "Bushwood" }, { id: "c2", name: "Augusta" }]} />,
+    );
+    for (const control of [
+      // The header row of the open round
+      "Format", "Holes", "Played on", "Course", "Remove stage",
+      // Inside "Customize this round"
+      "Result calculation",
+      "When scores are due", "Completion deadline", "Scoring window",
+      "Sign-up deadline",
+      "Before the next round", "Carry forward points into Round 2", "Cut the field for Round 2",
+      "Generate", "Tiebreakers",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("names the scoring window once, not twice", () => {
+    // The group was titled "On the day" and blurbed "whether scores can still
+    // go in", above one control labelled "Scoring window" blurbed "Whether
+    // scores can still be entered for this round." The same trap this pass
+    // walked into on PlaySettings, already sitting on this screen.
+    const html = render(
+      <StagesClient {...base} chainsRounds
+        stages={[stage({ id: "r1", position: 0 }), stage({ id: "r2", position: 1, carryAsked: false })]} />,
+    );
+    expect(html).toContain("Scoring window");
+    expect(html).not.toContain("Whether scores can still be entered for this round");
+  });
+
+  it("promises two tiebreaker questions only where there are two", () => {
+    // The 1./2. numbering is conditional on Match Play; the blurb was not, so
+    // a stroke-play round robin advertised a second question and numbers that
+    // never rendered.
+    const open = (format: string) =>
+      render(
+        <StagesClient {...base} chainsRounds
+          stages={[
+            stage({ id: "r1", position: 0, format }),
+            stage({ id: "r2", position: 1, format, carryAsked: false }),
+          ]} />,
+      );
+    expect(open("Match Play")).toContain("Two separate questions");
+    expect(open("Stroke Play")).not.toContain("Two separate questions");
+  });
+
+  it("says what a closed round decides, not just 'Standard settings'", () => {
+    // A bracket playing off for third and a single match with a real pairing
+    // both used to summarise as "Standard settings" — the two settings hardest
+    // to reach were the only two the closed row never mentioned. Three stages,
+    // so none opens by default.
+    const html = render(
+      <StagesClient {...base}
+        stages={[
+          stage({ id: "r1", position: 0 }),
+          stage({ id: "b1", position: 1, type: "Bracket Stage" }),
+          stage({ id: "q1", position: 2, type: "Qualification Stage" }),
+        ]}
+        thirdPlaces={{ b1: { on: true, problem: "waiting on the semi-finals", aName: "", bName: "", made: false } }} />,
+    );
+    expect(html).toContain("Plays off for third");
+    expect(html).toContain("Top 8 overall");
+  });
 });
 
 describe("course library", () => {
@@ -475,6 +684,46 @@ describe("course library", () => {
     const html = render(<CourseLibrary courses={[]} canEdit />);
     expect(html).toContain("Paste a card");
     expect(html).not.toContain("Ridgeline");
+  });
+
+  it("names the prize list, which another card points at by name", async () => {
+    // The table's card was the only untitled one on the screen, and the
+    // side-bets card refers to "the prize list" — pointing at something no
+    // heading called that. The empty state also said "above", a claim about
+    // layout that nothing checks.
+    const { PrizesClient } = await import("@/components/PrizesClient");
+    const html = render(<PrizesClient prizes={[]} players={[]} />);
+    expect(html).toContain("Prizes");
+    expect(html).toContain("Add a prize");
+    expect(html).not.toContain("specials above");
+  });
+
+  it("says what an unverified card costs, once, and only when one exists", () => {
+    // The badge showed the STATE on the row and left the stakes in a `title`.
+    // The stakes are the whole reason the badge exists and are not obvious: a
+    // wrong stroke index is invisible in play — it just sends handicap shots
+    // to the wrong holes, every round, for as long as the course is listed.
+    const unverified = render(
+      <CourseLibrary canEdit courses={[{ ...course, verified: false, sourceUrl: "https://zz.invalid/card" }]} />,
+    );
+    expect(unverified).toContain("stroke index");
+    expect(unverified).toContain("wrong holes");
+    // Where it came from is per-row, so it stays on the row — in the
+    // accessible name, not only in a title a phone never shows.
+    expect(unverified).toContain("imported from https://zz.invalid/card");
+
+    // Nothing to warn about when every card has been checked.
+    const verified = render(<CourseLibrary canEdit courses={[course]} />);
+    expect(verified).not.toContain("wrong holes");
+  });
+
+  it("gives the verified seal an accessible name", () => {
+    // It was an icon with no name at all: decorative markup, and the only text
+    // — who checked it — in a `title` a screen reader may never announce.
+    const html = render(
+      <CourseLibrary canEdit courses={[{ ...course, verified: true, verifiedBy: "zz-Ann Reyes" }]} />,
+    );
+    expect(html).toContain('aria-label="Card checked by zz-Ann Reyes"');
   });
 
   it("renders a course with its tees and marks the club's home course", () => {
@@ -922,6 +1171,37 @@ describe("tee sheet", () => {
     expect(html).toContain("By position");
   });
 
+  it("says why the tee sheet cannot be saved on an empty field", () => {
+    // Both save buttons carried `groups.length === 0` and said nothing, so on
+    // the ordinary first-day state an organizer got two grey buttons and no
+    // way to tell whether the app was broken or something was missing.
+    // drawReadiness rather than a second rule: a tee sheet is drawn from the
+    // FIELD exactly as flights are.
+    const html = render(<FoursomeMaker players={[]} stageId="s1" />);
+    expect(html).toContain("empty field");
+    expect(html).toContain('href="/registration"');
+
+    // A field that exists gets no refusal.
+    const drawn = render(<FoursomeMaker players={field} stageId="s1" />);
+    expect(drawn).not.toContain("empty field");
+  });
+
+  it("names the greyed-out options and why, on the page", () => {
+    // Both button groups explained themselves with a `title` only. The names
+    // come from the ALGORITHMS and DRAW_ORDERS arrays that do the greying, so
+    // the sentence cannot come to list the wrong ones.
+    const html = render(<FoursomeMaker players={field} />);
+    expect(html).not.toContain("Needs a round to have been played");
+    expect(html).toContain("By position needs the leaderboard");
+    expect(html).toContain("Leaders out last and Leaders out first need the leaderboard");
+
+    // Gone once a round has been played and nothing is greyed.
+    const standings = field.map((p, i) => ({ playerId: p.id, position: i + 1 }));
+    const played = render(<FoursomeMaker players={field} standings={standings} />);
+    expect(played).not.toContain("needs the leaderboard");
+    expect(played).not.toContain("need the leaderboard");
+  });
+
   it("gives every group a time and a starting hole", () => {
     const html = render(<FoursomeMaker players={field} />);
     expect(html).toContain("Hole 1 · 8:00 AM");
@@ -944,6 +1224,33 @@ describe("score entry lands on the right card without asking", () => {
     aStrokes: new Array(18).fill(null),
     bStrokes: new Array(18).fill(null),
   };
+
+  it("does not file every kind of match under one stage type", () => {
+    // The list is the matches of ONE ROUND, whatever type it is — the entry
+    // page filters state.matches by stage.id and hands them over. A bracket's
+    // semi-finals and a third-place play-off arrived under a heading reading
+    // "Round-robin matches", and an organizer looking for the semi-final there
+    // concludes they are on the wrong screen.
+    const html = render(<ScoreEntryClient matches={[match]} format="Match Play" isStaff />);
+    expect(html).not.toContain("Round-robin matches");
+    expect(html).toContain("Matches");
+  });
+
+  it("does not tell a bracket to generate a round-robin schedule", () => {
+    // The no-matches state sends an organizer to Flights, which is right — but
+    // it said "to create the round-robin schedule", and this screen shows one
+    // round of whatever type. A bracket's semi-finals and a single match arrive
+    // here too, and neither comes from a round-robin draw.
+    const empty = render(<ScoreEntryClient matches={[]} format="Match Play" isStaff />);
+    expect(empty).toContain("No matches yet");
+    expect(empty).toContain('href="/grouping"');
+    expect(empty).not.toContain("round-robin");
+
+    // A player sees the same emptiness without being sent anywhere they cannot
+    // act — that half is unchanged.
+    const player = render(<ScoreEntryClient matches={[]} format="Match Play" />);
+    expect(player).toContain("check back once flights are set");
+  });
 
   it("shows every shape match play can be recorded as", () => {
     // Visible, not hidden. The format decides which exist and the round
@@ -1026,9 +1333,16 @@ describe("cut line scope", () => {
     expect(html).not.toContain("from each of");
   });
 
-  it("offers no per-flight choice when there is one flight", () => {
+  it("says on the page why there is no per-flight choice with one flight", () => {
+    // This asserted `title="Only one flight — same as overall."` — a tooltip,
+    // which never appears on a touch device and is not announced to a screen
+    // reader. The test agreeing with the code did not make the code right.
     const html = render(<CutControl {...base} scope="overall" flightCount={1} />);
-    expect(html).toContain("Only one flight");
+    expect(html).not.toContain("title=");
+    expect(html).toContain("The field is in one flight, so a per-flight cut would be the same cut");
+    // And it is not said when there are flights to cut inside.
+    const many = render(<CutControl {...base} scope="overall" flightCount={8} />);
+    expect(many).not.toContain("The field is in one flight");
   });
 
   it("warns when the cut number is as big as the field, so it cuts nobody", () => {
@@ -2060,6 +2374,28 @@ describe("MessagesClient", () => {
     expect(html).toContain("No conversations yet");
   });
 
+  it("answers its own question about who a message is for", async () => {
+    // "Who is this for?" sat above two selects, and picking a person set the
+    // first one to a value none of its options carries — so it rendered blank
+    // and the card showed no answer while a real one was in force.
+    const { ComposePanel } = await import("@/components/MessagesClient");
+    const html = render(
+      <ComposePanel composable={composable} people={people} isStaff onOpen={() => {}} />,
+    );
+    expect(html).toContain("Going to everyone in");
+    expect(html).toContain("Your group — Group 1");
+    // Both selects have an accessible name; they had none at all before.
+    expect(html).toContain('aria-label="Send to a group"');
+    expect(html).toContain("…or send to one person");
+  });
+
+  it("says nothing false when there is no group to compose to", async () => {
+    const { ComposePanel } = await import("@/components/MessagesClient");
+    const html = render(<ComposePanel composable={[]} people={[]} isStaff onOpen={() => {}} />);
+    expect(html).toContain("this tournament");
+    expect(html).not.toContain("everyone in <b></b>");
+  });
+
   it("renders a thread with no preview text without falling over", async () => {
     const { MessagesClient } = await import("@/components/MessagesClient");
     const html = render(
@@ -2117,7 +2453,13 @@ describe("locked metered features", () => {
     const html = render(<CommentaryPanel items={[]} canPost aiAvailable={false} />);
     expect(html).toContain("AjAi draft");
     expect(html).toContain("disabled");
-    expect(html).toContain("On the paid plan");
+    // The whole sentence, including what to do instead — the same standard the
+    // scorecard reader above is held to. It used to read "On the paid plan"
+    // here and keep the useful half in a `title`, which never appears on a
+    // phone and is not announced.
+    expect(html).toContain("Drafting comes with the paid plan");
+    expect(html).toContain("write your own line for now");
+    expect(html).not.toContain("title=");
   });
 
   it("renders every one of them normally when the plan allows it", async () => {
@@ -2274,6 +2616,421 @@ describe("the two controls built after the audit", () => {
   });
 });
 
+describe("side bets", () => {
+  const field = [
+    { id: "p1", name: "zz-Ann Reyes", playing: true },
+    { id: "p2", name: "zz-Bo Kite", playing: true },
+  ];
+  const bets = async (over: Record<string, unknown> = {}) => {
+    const { ContestsClient } = await import("@/components/ContestsClient");
+    return render(
+      <ContestsClient roundLabel="Round 1" stageId="s1" field={field}
+        contests={[]} sideGames={[]} {...over} />,
+    );
+  };
+
+  it("keeps every control on the side-bets card", async () => {
+    const html = await bets();
+    for (const control of [
+      "Side bets — Round 1", "Add a bet",
+      "Settled by the scores", "You name the winner",
+      "Low gross", "Nassau", "Stake",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("does not claim there are no side bets while showing five", async () => {
+    // The empty state counted `contests` and sat ABOVE the derived pots, which
+    // are side bets with stake fields on them — so with no hand-settled
+    // contest it read "No side bets on this round yet" directly above five.
+    const html = await bets();
+    expect(html).not.toContain("No side bets on this round yet");
+    // It answers for its own group now, and says how to start one.
+    expect(html).toContain("None on this round yet");
+    expect(html.indexOf("You name the winner")).toBeLessThan(html.indexOf("None on this round yet"));
+  });
+
+  it("names both halves of the distinction, not just one", async () => {
+    // "Settled by the scores" only means something against something else, and
+    // that something was a bare list of contests under no heading at all.
+    const html = await bets();
+    expect(html.indexOf("Settled by the scores")).toBeLessThan(html.indexOf("You name the winner"));
+  });
+
+  it("explains the pot entry modes without making anyone switch to find out", async () => {
+    // The unselected mode's help was a `title` on its button, so on a phone the
+    // only way to read it was to switch — and opt-out marks the whole field as
+    // in AND paid, so trying it moves money.
+    const { POT_MODE_HELP } = await import("@/lib/domain/pot-entry");
+    const html = await bets({
+      contests: [{
+        id: "c1", kind: "closest-pin", name: "zz-Closest to the pin", hole: 7, buyInCents: 500,
+        entrantIds: [], winnerIds: [], potCents: 0, pending: [], entryMode: "opt-in", excluded: [],
+      }],
+    });
+    // The mode IN FORCE is stated visibly, as it was before.
+    expect(html).toContain(POT_MODE_HELP["opt-in"].slice(0, 40));
+    // The comparison is behind a FieldInfo, which opens on TAP — so its panel
+    // is not in a static render, and the assertion is that the opener is there
+    // and says what it opens. That is the whole difference from a `title`: an
+    // accessible name a screen reader announces and a finger can reach.
+    expect(html).toContain("More about how a pot fills");
+    // And the hover-only copy is gone.
+    expect(html).not.toContain(`title="${POT_MODE_HELP["opt-out"]}"`);
+  });
+});
+
+describe("the weekly sign-up calendar", () => {
+  const round = (over: Record<string, unknown> = {}) => ({
+    stageId: "s1", label: "Round 7", status: "in" as const, explicit: true,
+    locked: false, playedOn: "2026-09-09", ...over,
+  });
+  const cal = async (rounds: ReturnType<typeof round>[]) => {
+    const { AvailabilityCalendar } = await import("@/components/AvailabilityCalendar");
+    return render(
+      <AvailabilityCalendar rounds={rounds} today="2026-09-01" pending={false} onAnswer={() => {}} />,
+    );
+  };
+
+  it("tells a screen reader whether the player is in or out", async () => {
+    // The square was `<button role="gridcell">`, and overriding a button's
+    // implicit role with gridcell takes aria-pressed with it — the attribute is
+    // not supported there. So the one screen whose entire question is "am I
+    // playing on these dates" announced no state at all. The lint rule had been
+    // saying so and reading as a nag.
+    const html = await cal([round({ status: "in" })]);
+    expect(html).toContain('aria-pressed="true"');
+    const out = await cal([round({ status: "out" })]);
+    expect(out).toContain('aria-pressed="false"');
+  });
+
+  it("keeps the cell role on a container rather than on the button", async () => {
+    const html = await cal([round()]);
+    // A gridcell exists...
+    expect(html).toContain('role="gridcell"');
+    // ...and it is not the button, which keeps its own role and its state.
+    expect(html).not.toMatch(/<button[^>]*role="gridcell"/);
+  });
+
+  it("keeps the weeks it already had in the data", async () => {
+    // `m.weeks` is an array of weeks and the markup called .flat() on it, so a
+    // screen reader got forty-two cells in one undifferentiated run.
+    const html = await cal([round()]);
+    expect(html).toContain('role="row"');
+    expect(html).toContain('role="grid"');
+    // September 2026 spans five weeks; the point is only that there is more
+    // than one, so the flattening cannot come back unnoticed.
+    expect((html.match(/role="row"/g) ?? []).length).toBeGreaterThan(1);
+  });
+
+  it("does not make a tappable square out of a day with no round", async () => {
+    // A grid of thirty tappable nothings is how a player taps the wrong one.
+    const html = await cal([round()]);
+    // Far more cells than rounds, and exactly one button among them.
+    expect((html.match(/role="gridcell"/g) ?? []).length).toBeGreaterThan(5);
+    expect((html.match(/aria-pressed/g) ?? []).length).toBe(1);
+  });
+});
+
+describe("members", () => {
+  const member = (over: Record<string, unknown> = {}) => ({
+    id: "m1", name: "zz-Priya Nair", email: "zz1@example.invalid", phone: "", ghin: "",
+    homeClub: "", gender: "", preferredTee: "", memberNumber: "", handicap: 12,
+    handicapType: "18", handicapSource: "manual", status: "active", notes: "",
+    entryCount: 0, lastEvent: "", entered: false, ...over,
+  });
+  const roster = async (members: ReturnType<typeof member>[]) => {
+    const { RosterClient } = await import("@/components/RosterClient");
+    return render(
+      <RosterClient clubName="zz-Club" orgKind="club" eventName="zz-Cup" fieldLocked={false}
+        members={members} fieldSize={members.length} unlinkedCount={0} />,
+    );
+  };
+
+  it("keeps every control on the members screen", async () => {
+    const html = await roster([member()]);
+    for (const control of [
+      "Active members", "Inactive", "In zz-Cup", "Type",
+      "Members (1)", "Search name, email, number", "Show inactive",
+      "Add member", "Import CSV",
+      "Name", "Index", "Contact", "Played", "Last event",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("calls the list what the sidebar calls it", async () => {
+    // The page heading and the sidebar both say Members; the card said
+    // "Roster". One screen, one list, two names.
+    const html = await roster([member()]);
+    expect(html).toContain("Members (1)");
+    expect(html).not.toContain("Roster (1)");
+  });
+
+  it("keeps the remove button on screen and says why it refuses", async () => {
+    // It used to render only when entryCount was 0, so for anybody who had
+    // played the control simply was not there — and an organizer wondering why
+    // had nothing to read. Present and refusing now, with the reason in the
+    // accessible name, because a `title` never appears on a phone.
+    const played = await roster([member({ entryCount: 3 })]);
+    expect(played).toContain("Cannot remove zz-Priya Nair");
+    expect(played).toContain("they have played in 3 tournaments");
+    expect(played).toContain("Set them inactive instead");
+    // And the rule once for the whole table, for anybody not using a reader.
+    expect(played).toContain("A member who has played cannot be removed");
+
+    // Somebody who has played nothing can still be removed, and the sentence
+    // does not appear for a table where it applies to nobody.
+    const fresh = await roster([member({ entryCount: 0 })]);
+    expect(fresh).toContain("Remove zz-Priya Nair from the roster");
+    expect(fresh).not.toContain("A member who has played cannot be removed");
+  });
+
+  it("counts one tournament without the plural", async () => {
+    const html = await roster([member({ entryCount: 1 })]);
+    expect(html).toContain("played in 1 tournament.");
+  });
+});
+
+describe("club settings", () => {
+  const club = async (over: Record<string, unknown> = {}) => {
+    const { OrganizationClient } = await import("@/components/OrganizationClient");
+    return render(
+      <OrganizationClient
+        name="Ridgeline National" shortName="" logoUrl="" city="" region="" country=""
+        brandDisplay="short" kind="club" plan="free" eventCount={2} memberCount={9} canEdit
+        {...over} />,
+    );
+  };
+
+  it("keeps every control on club settings", async () => {
+    const html = await club();
+    for (const control of [
+      "Type", "Plan", "Tournaments", "Staff",
+      "Branding", "Organization name", "Short name", "Logo URL", "Name beside the logo",
+      "Where the club is", "City", "State or region", "Country",
+      "Preview", "Save changes",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("does not file the club's address under Branding", async () => {
+    // The comment on that block said "Not branding" while it sat under a
+    // heading reading Branding. The address prefills a new course's city; it
+    // reaches no scorecard.
+    const html = await club();
+    expect(html.indexOf("Branding")).toBeLessThan(html.indexOf("Where the club is"));
+    // One control, so the heading is the label — not repeated beneath itself.
+    expect(html.match(/Where the club is/g)?.length ?? 0).toBe(1);
+  });
+
+  it("previews the header the same way twice", async () => {
+    // Two previews of one header, disagreeing. The "Preview" card
+    // re-implemented both halves by hand: `shortName || name`, which ignores
+    // the "Name beside the logo" setting three inches to its left, and
+    // charAt(0) for the monogram where brandMonogram takes two initials.
+    const { brandMonogram, brandLines } = await import("@/lib/brand");
+    const html = await club({ name: "Ridgeline National", shortName: "", brandDisplay: "full" });
+    // "RN", not "R" — and it has to appear in BOTH boxes.
+    expect(brandMonogram("Ridgeline National", "")).toBe("RN");
+    expect(html.match(/>RN</g)?.length ?? 0).toBe(2);
+    expect(html).not.toContain(">R<");
+    // And with a short name set and display "full", both show the full name.
+    const full = await club({ name: "Ridgeline National", shortName: "Ridgeline", brandDisplay: "full" });
+    expect(brandLines("Ridgeline National", "Ridgeline", "full").primary).toBe("Ridgeline National");
+    expect(full.match(/>Ridgeline National</g)?.length ?? 0).toBe(2);
+  });
+});
+
+describe("how money works", () => {
+  const money = async (over: Record<string, unknown> = {}) => {
+    const { MoneySetup } = await import("@/components/MoneySetup");
+    return render(
+      <MoneySetup mode="tournament" eventMode="" orgMode="" orgKind="club" clubName="zz-Club" {...over} />,
+    );
+  };
+
+  it("puts the club default on club settings, where the checklist sends people", async () => {
+    // SETUP_HREF.money is /organization, and orgSetupState ticks the step off
+    // `organization.moneyMode`. That column was written only from a collapsed
+    // disclosure inside a card titled "Money in this tournament", on Prizes &
+    // payouts — so the step could not be ticked by following its own link.
+    const { SETUP_HREF } = await import("@/lib/domain/org-setup");
+    expect(SETUP_HREF.money).toBe("/organization");
+    const html = await money({ mode: "organization", orgMode: "", canEdit: true });
+    for (const label of ["Costs handled outside the app", "Tournament kitty", "Split shared costs", "Follow what we are"]) {
+      expect(html, `missing club money option: ${label}`).toContain(label);
+    }
+  });
+
+  it("keeps the tournament's own choice, and says where the club default is", async () => {
+    const html = await money();
+    expect(html).toContain("Money in this tournament");
+    // Every mode is still offered here, plus "follow the club".
+    for (const label of ["Costs handled outside the app", "Tournament kitty", "Split shared costs"]) {
+      expect(html, `missing tournament money option: ${label}`).toContain(label);
+    }
+    expect(html).toContain('href="/organization"');
+  });
+
+  it("does not let a read-only viewer change the club default", async () => {
+    const html = await money({ mode: "organization", canEdit: false });
+    expect(html).toContain("Only an organization owner or admin can change this");
+    expect(html).toContain("disabled");
+  });
+});
+
+describe("registration and field", () => {
+  // Another screen with no render test of its own before today.
+  const reg = async (over: Record<string, unknown> = {}) => {
+    const { RegistrationClient } = await import("@/components/RegistrationClient");
+    return render(
+      <RegistrationClient
+        confirmed={[]} waitlist={[]} pendingEntries={[]} locked={false} isAdmin roster={[]}
+        event={{
+          name: "zz-Club Championship", capacity: 32, status: "registration", regDeadline: "",
+          registrationOverride: null, inviteMessage: "Come and play", organizationName: "zz-Club",
+          dates: "", course: "", city: "", registrationOpen: false, registrationApproval: "auto",
+          requirePhone: false, phoneLocked: false, registrationToken: "",
+          ...over,
+        }} />,
+    );
+  };
+
+  it("keeps every control on the registration screen", async () => {
+    const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    for (const control of [
+      "Confirmed", "Waitlisted", "Registration closes", "Status",
+      "Public sign-up link", "Take the link down", "When someone registers",
+      "Auto-confirm to capacity", "Approve each entry", "Require a mobile number",
+      "Invite players", "Message", "Add someone new", "Player name",
+      "Close registration",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("does not give two different switches the same name", async () => {
+    // The banner's "Close registration" is registrationOverride — whether this
+    // tournament takes entries at all. The card's switch is registrationOpen —
+    // whether the public link exists. They are not opposites, and both used to
+    // say "registration": the card was titled "Open registration" and its
+    // button read "Open registration" / "Close sign-ups", inches under a button
+    // reading "Close registration".
+    const html = await reg({ registrationOpen: false });
+    expect(html).toContain("Publish the link");
+    expect(html).not.toContain(">Open registration<");
+    // The refusal in "Invite players" names the button by the words on it — a
+    // refusal pointing at a button that no longer exists is worse than none.
+    expect(html).toContain("Publish the sign-up link first");
+  });
+
+  it("says when a published link is turning everybody away", async () => {
+    // Both switches are real and independent: decideIntake checks
+    // registrationOpen AND registrationStatus. A live, copyable link on a
+    // closed tournament refuses every visitor, and the screen said nothing.
+    const html = await reg({
+      registrationOpen: true, registrationToken: "zztok", registrationOverride: true,
+    });
+    expect(html).toContain("The link is live but this tournament is not taking");
+    // And not when the tournament is actually accepting entries.
+    const open = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    expect(open).not.toContain("The link is live but");
+  });
+
+  it("does not tell an organizer that closing is cosmetic", async () => {
+    // "closing only changes what this says" was false. registrationStatus
+    // returning acceptingEntries:false makes decideIntake refuse the entry.
+    const html = await reg({ registrationOverride: true });
+    expect(html).not.toContain("only changes what this says");
+    // The specific sentence, not just the words "sign-up link" — those also
+    // appear in the invite card's refusal, which would pass this vacuously.
+    expect(html).toContain("while it is closed the sign-up link turns everyone else away");
+  });
+});
+
+describe("tournament details", () => {
+  // Neither this component nor the /event page had a render test — the screen
+  // was covered by smoke alone, which proves it does not 500 and nothing else.
+  const setup = async (over: Record<string, unknown> = {}) => {
+    const { EventSetupClient } = await import("@/components/EventSetupClient");
+    return render(
+      <EventSetupClient
+        playersCount={24}
+        courses={[{ name: "Bushwood", city: "Chicago", address: "" }]}
+        initial={{
+          name: "zz-Club Championship", dates: "", format: "match", course: "Bushwood",
+          courseMode: "fixed", city: "Chicago", address: "", regDeadline: "", capacity: 32,
+          playerCountMode: "registration", manualPlayerCount: 0, sideStyle: "individual",
+          ...over,
+        }} />,
+    );
+  };
+
+  it("keeps every control on the setup card", async () => {
+    // The guard against a separation becoming a removal. Manual mode, so the
+    // target and its Apply button are in the markup too.
+    const html = await setup({ playerCountMode: "manual", manualPlayerCount: 24 });
+    for (const control of [
+      "Tournament identity", "Tournament name", "Tournament dates",
+      "The kind of golf", "Scoring", "Match play", "Stroke play", "How do people play?",
+      "Venue", "Golf course", "City", "Address",
+      "Registration", "Registration deadline", "Field capacity",
+      "Where the field size comes from", "Player count", "From registrations",
+      "Target player count", "Apply",
+      // The save button reads "Saved" until something is dirty, which on a
+      // fresh render is always.
+      "Summary", "Recommended flow", "Saved",
+    ]) {
+      expect(html, `missing control: ${control}`).toContain(control);
+    }
+  });
+
+  it("does not file the scoring questions under Tournament identity", async () => {
+    // A name and a date say WHICH tournament this is. Match-versus-stroke and
+    // singles-versus-sides say what kind of golf it is, and both used to sit
+    // under "Tournament identity" where nobody would look for them.
+    const html = await setup();
+    expect(html.indexOf("Tournament identity")).toBeLessThan(html.indexOf("The kind of golf"));
+    expect(html.indexOf("The kind of golf")).toBeLessThan(html.indexOf("How do people play?"));
+  });
+
+  it("does not name a section after a screen that already has that name", async () => {
+    // "Registration & field" is the SIDEBAR SCREEN at /registration. A section
+    // of this card wore the same name, and the Recommended flow card below it
+    // told organizers to go to "Registration & field" — meaning the screen.
+    const html = await setup();
+    // Once, in the Recommended flow list, where it means the screen.
+    expect(html.match(/Registration &amp; field/g)?.length ?? 0).toBe(1);
+  });
+
+  it("separates the field-resizing tool from the registration rules", async () => {
+    // The deadline and the capacity decide whether the public form takes an
+    // entry. "Player count" → Manual → Apply waitlists confirmed players,
+    // invents placeholder rows and deletes scored matches. One heading held
+    // all three.
+    const html = await setup({ playerCountMode: "manual" });
+    expect(html.indexOf("Field capacity")).toBeLessThan(html.indexOf("Where the field size comes from"));
+    expect(html.indexOf("Where the field size comes from")).toBeLessThan(html.indexOf("Player count"));
+  });
+
+  it("names real screens in the recommended flow", async () => {
+    const { NAV } = await import("@/lib/nav");
+    const labels = new Set(NAV.flatMap((s) => s.items.map((i) => i.label)));
+    const html = await setup();
+    // Every screen the flow names has to be one the sidebar actually offers.
+    // The list used to say "Rounds & format" (it is Rounds & formats) and
+    // "Prizes & Reports" (two screens, neither called that).
+    for (const label of ["Rounds &amp; formats", "Tee sheet", "Score entry", "Qualification", "Bracket", "Prizes &amp; payouts", "Reports &amp; export", "Flights"]) {
+      const plain = label.replace(/&amp;/g, "&");
+      expect(labels, `not a real screen: ${plain}`).toContain(plain);
+      expect(html, `not named in the flow: ${plain}`).toContain(label);
+    }
+  });
+});
+
 describe("the setup checklist", () => {
   const state = async (over: Record<string, unknown> = {}) => {
     const { orgSetupState } = await import("@/lib/domain/org-setup");
@@ -2327,6 +3084,35 @@ describe("the setup checklist", () => {
       <OrgSetupChecklist state={await state({ kind: "personal", eventCount: 0, memberCount: 0 })} />,
     );
     expect(html).not.toContain("Add your members");
+  });
+
+  it("does not link a step at the page it is already on", async () => {
+    // On /choose, "Create your first tournament" pointed at /choose?stay=1 —
+    // the page it was on, directly above CreateFirstTournament, the form that
+    // does it. The query string is not part of "which page is this".
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const html = render(
+      <OrgSetupChecklist currentPath="/choose"
+        state={await state({ memberCount: 0, eventCount: 0 })} />,
+    );
+    expect(html).not.toContain('href="/choose');
+    // The row itself stays: it is a real step, it is what a brand-new
+    // organizer does next, and dropping it would understate "0 of 5 done".
+    expect(html).toContain("Create your first tournament");
+    expect(html).toContain("You do this one on this page");
+    // Only that one row loses its link — the others are unaffected.
+    expect(html).toContain('href="/roster"');
+  });
+
+  it("still links it from anywhere else", async () => {
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const { SETUP_HREF } = await import("@/lib/domain/org-setup");
+    const html = render(
+      <OrgSetupChecklist currentPath="/dashboard"
+        state={await state({ memberCount: 0, eventCount: 0 })} />,
+    );
+    expect(html).toContain(`href="${SETUP_HREF.tournament}"`);
+    expect(html).not.toContain("You do this one on this page");
   });
 });
 

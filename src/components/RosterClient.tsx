@@ -4,6 +4,7 @@ import { listNames } from "@/lib/format";
 import { fieldRosterSummary } from "@/lib/domain/roster-link";
 import { csvSizeRefusal } from "@/lib/csv";
 import { orgProfile } from "@/lib/domain/org-profile";
+import { rosterSelection } from "@/lib/domain/roster-selection";
 import {
   addMember,
   updateMember,
@@ -111,7 +112,12 @@ export function RosterClient({
   const inactiveCount = members.length - activeCount;
   // Only members not already entered can be added, so the button count matches
   // what will actually happen.
-  const addable = visible.filter((m) => selected.has(m.id) && !m.entered && m.status === "active");
+  const chosen = visible.filter((m) => selected.has(m.id));
+  const addable = chosen.filter((m) => !m.entered && m.status === "active");
+  // What ticking those boxes will actually do, and why the rest will not —
+  // decided in the domain, because a static render cannot tick a checkbox and
+  // a refusal no test can reach is a refusal nobody checks.
+  const pick = rosterSelection(chosen, eventName);
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => {
     setError("");
@@ -445,8 +451,13 @@ export function RosterClient({
       {/* ── Roster table ────────────────────────────────────────────────── */}
       <div className="card elev-sm">
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {/* "Members", the name the sidebar and the page heading use. The
+              card called the same list "Roster", so one screen gave one list
+              two names — the duplicate door nav.ts warns about in its own
+              comment. The word survives in prose, where a synonym is just
+              English, but not as a second label. */}
           <span className="card-title" style={{ fontSize: 15, marginRight: "auto" }}>
-            Roster ({visible.length})
+            Members ({visible.length})
           </span>
           <input
             className="input"
@@ -491,12 +502,24 @@ export function RosterClient({
 
         {importResult && <ImportSummary result={importResult} onDismiss={() => setImportResult(null)} />}
 
-        {addable.length > 0 && (
+        {/* Shown whenever anything is ticked, not only when something can be
+            added. It used to render on `addable.length > 0`, so ticking three
+            members who are already in the field made the whole bar VANISH —
+            boxes tick, nothing appears, and there is nothing on screen saying
+            why. That is the failure this codebase names outright: refuse with
+            an explanation, never silently disappear.
+
+            And the count said "<b>{addable.length}</b> selected", which is not
+            what was selected. Tick five where two can be added and it read "2
+            selected", which reads as the checkboxes being broken. Both numbers
+            are stated now — the selection, and what will actually happen. */}
+        {chosen.length > 0 && (
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: 10,
+              flexWrap: "wrap",
               padding: "9px 12px",
               marginTop: 10,
               borderRadius: "var(--radius-md)",
@@ -505,18 +528,31 @@ export function RosterClient({
             }}
           >
             <span>
-              <b>{addable.length}</b> selected
+              <b>{pick.selected}</b> selected
+              {pick.problem && (
+                <span className="text-muted" style={{ marginLeft: 6, fontSize: 12 }}>
+                  · {pick.problem}
+                </span>
+              )}
             </span>
             <button
               type="button"
               className="btn btn-primary"
               style={{ marginLeft: "auto" }}
-              disabled={pending || fieldLocked}
+              disabled={pending || fieldLocked || addable.length === 0}
               onClick={addSelectedToEvent}
-              title={fieldLocked ? "Unlock the tournament to change the field" : undefined}
             >
-              <i className="ph ph-user-plus" /> Add to {eventName}
+              <i className="ph ph-user-plus" /> Add {addable.length} to {eventName}
             </button>
+            {fieldLocked && (
+              // Was a `title` only, which never appears on a phone and is not
+              // announced to a screen reader — the exact weak pattern called
+              // out when the draw button was fixed.
+              <span className="text-muted" style={{ fontSize: 12, flexBasis: "100%" }}>
+                <i className="ph ph-lock-simple" /> The tournament is locked — unlock it on Tournament
+                details to change the field.
+              </span>
+            )}
           </div>
         )}
 
@@ -629,23 +665,45 @@ export function RosterClient({
                     >
                       <i className={m.status === "active" ? "ph ph-archive" : "ph ph-arrow-counter-clockwise"} />
                     </button>
-                    {m.entryCount === 0 && (
-                      <button
-                        type="button"
-                        className="btn btn-icon"
-                        title="Remove from roster"
-                        disabled={pending}
-                        onClick={() => run(() => deleteMember(m.id))}
-                      >
-                        <i className="ph ph-trash" />
-                      </button>
-                    )}
+                    {/* Present and refusing, rather than absent. It used to
+                        render only when entryCount was 0, so the control simply
+                        was not there for anybody who had played — and an
+                        organizer wondering why they cannot remove a member had
+                        nothing on screen to read. The reason is in the
+                        accessible name, and in a sentence under the table for
+                        everybody else; a `title` alone never appears on a phone
+                        and is not announced to a screen reader. */}
+                    <button
+                      type="button"
+                      className="btn btn-icon"
+                      aria-label={
+                        m.entryCount > 0
+                          ? `Cannot remove ${m.name} — they have played in ${m.entryCount} tournament${m.entryCount === 1 ? "" : "s"}. Set them inactive instead.`
+                          : `Remove ${m.name} from the roster`
+                      }
+                      disabled={pending || m.entryCount > 0}
+                      onClick={() => run(() => deleteMember(m.id))}
+                    >
+                      <i className="ph ph-trash" />
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        )}
+
+        {/* The rule behind the greyed-out bin, said once for the whole table
+            rather than not at all. It is the same answer the "Inactive · kept
+            for past results" stat card gives, and the archive button that does
+            it is in the same row. */}
+        {visible.some((m) => m.entryCount > 0) && (
+          <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", lineHeight: 1.5 }}>
+            <i className="ph ph-info" /> A member who has played cannot be removed — their results
+            would lose the person they belong to. Set them inactive instead: they drop out of every
+            field and stay in the record.
+          </p>
         )}
       </div>
     </>

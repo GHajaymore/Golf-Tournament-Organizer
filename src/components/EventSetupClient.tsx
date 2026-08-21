@@ -260,6 +260,18 @@ export function EventSetupClient({
             </div>
             {f.dates && <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>{f.dates}</p>}
           </div>
+        </div>
+
+        {/* Neither of the two questions below is IDENTITY, and both used to sit
+            under that heading — "Scoring" beside the dates, and "How do people
+            play?" straight after it. A name and a date say which tournament
+            this is; match-versus-stroke and singles-versus-sides say what kind
+            of golf it is. Somebody looking for either would not look under
+            "Tournament identity", and the file already carries the scar of that
+            confusion: the comment below records "Scoring" being renamed from
+            "Format" for the same reason. */}
+        <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>The kind of golf</span>
+        <div>
           <div className="field">
             {/* "Scoring", not "Format". It used to say Format, and every round
                 ALSO has a format — Four-Ball, Foursomes, Scramble. An organizer
@@ -290,7 +302,7 @@ export function EventSetupClient({
         {/* The question nothing used to ask. Answering it decides which format
             new rounds start on and puts Teams & pairs in the sidebar — it locks
             nothing, and every round can still be set to anything. */}
-        <div className="field" style={{ marginTop: 4 }}>
+        <div className="field">
           <label>
             How do people play?
             <FieldInfo label="how people play">
@@ -402,7 +414,21 @@ export function EventSetupClient({
           <div className="field"><label>Address</label><input className="input" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder="Street, city, state zip" /></div>
         </div>
 
-        <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Registration &amp; field</span>
+        {/* Was one heading, "Registration &amp; field", over three unrelated
+            things — and it collided by name with the SCREEN called Registration
+            & field at /registration, which the "Recommended flow" card on this
+            very page then told organizers to go to. Two different things
+            wearing one name is how somebody ends up on the wrong one.
+
+            What actually sat under it: the deadline and the capacity, which
+            together decide whether the public form takes an entry
+            (`registrationState` reads exactly those two) — and then a control
+            called "Player count" whose Apply button waitlists confirmed
+            players, invents placeholder rows named "Player N", DELETES SCORED
+            MATCHES and rebuilds the schedule. That is not a registration
+            setting; it is a tool that rewrites the field. Filed under its own
+            heading below. */}
+        <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Registration</span>
         <div className="pair-grid">
           <div className="field">
             <label>Registration deadline</label>
@@ -426,6 +452,7 @@ export function EventSetupClient({
             </div>
           </div>
         </div>
+        <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Where the field size comes from</span>
         <div className="field">
           <label>Player count</label>
           <div className="seg">
@@ -536,12 +563,20 @@ export function EventSetupClient({
         </div>
         <div className="card elev-sm">
           <span className="card-title" style={{ fontSize: 15 }}>Recommended flow</span>
+          {/* Every name here is a screen, so every name has to be the one in
+              the sidebar. "Rounds & format" is called Rounds & formats;
+              "Prizes & Reports" is two screens, Prizes & payouts and Reports &
+              export; and "(Match Points, Qualification)" ran a SETTING on
+              Rounds & formats together with the Qualification SCREEN, in one
+              parenthesis. A guide that half-remembers the names sends people
+              hunting for a screen that is not in the list. */}
           <ol style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.9, color: "var(--color-text)" }}>
             <li>Registration &amp; field → Flights</li>
-            <li>Rounds &amp; format (Match Points, Qualification)</li>
+            <li>Rounds &amp; formats — the rounds, and how each is scored</li>
             <li>Launch → setup locks</li>
-            <li>Tee sheet → run rounds &amp; enter scores</li>
-            <li>Bracket → Prizes &amp; Reports</li>
+            <li>Tee sheet → Score entry</li>
+            <li>Qualification → Bracket</li>
+            <li>Prizes &amp; payouts → Reports &amp; export</li>
           </ol>
         </div>
       </div>

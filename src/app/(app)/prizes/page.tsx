@@ -227,11 +227,11 @@ export default async function PrizesPage({
           belongs under the thing it configures rather than above it. */}
       {isStaff && (
         <MoneySetup
+          mode="tournament"
           eventMode={state.event.moneyMode}
           orgMode={org?.moneyMode ?? ""}
           orgKind={org?.kind ?? ""}
           clubName={org?.shortName || org?.name || ""}
-          isAdmin={session.role === "admin"}
         />
       )}
     </>

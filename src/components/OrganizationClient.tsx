@@ -71,9 +71,13 @@ export function OrganizationClient(props: Props) {
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
         <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Club settings</h2>
+        {/* Described the branding card and nothing else, on a page that also
+            holds the theme, the house play settings, the money default and
+            staff access. An intro naming one of five cards reads as a
+            description of the page. */}
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          Branding here applies to every tournament this organization runs — the console header and printed
-          scorecards and reports.
+          Everything here applies to every tournament this organization runs — the branding on the console
+          header and printed scorecards, the look, how money works by default, and who has access.
         </p>
       </div>
 
@@ -104,7 +108,11 @@ export function OrganizationClient(props: Props) {
 
       <div className="page-split" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 16, alignItems: "start" }}>
         <div className="card elev-sm" style={{ gap: 12 }}>
-          <span className="card-title" style={{ fontSize: 15 }}>Branding</span>
+          {/* A kicker, not a card title, so it names the section it heads
+              rather than the whole card — the card also holds "Where the club
+              is", which is not branding. Same treatment as the sections on
+              Tournament details. */}
+          <span className="card-kicker">Branding</span>
 
           <div className="field">
             <label>Organization name</label>
@@ -223,13 +231,24 @@ export function OrganizationClient(props: Props) {
             </div>
           </div>
 
-          {/* Where the club is. Not branding — it prefills a new course's city
-              and scopes the course search, so an organizer adding a card is not
-              typing their own town every time. */}
+          {/* "Not branding" — the comment here said exactly that, while the
+              block sat under a heading reading "Branding" and under a page
+              blurb promising branding applies to "the console header and
+              printed scorecards and reports". The club's address does none of
+              those things: it prefills a new course's city and scopes the
+              course search, so an organizer adding a card is not typing their
+              own town every time.
+
+              A heading of its own, and the label is dropped rather than
+              repeated under it — one control, so the heading IS the label. The
+              three inputs keep their own aria-labels. */}
+          <span
+            className="card-kicker"
+            style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}
+          >
+            Where the club is <span className="text-muted">· optional</span>
+          </span>
           <div>
-            <label style={{ display: "block", marginBottom: 6 }}>
-              Where the club is <span className="text-muted">· optional</span>
-            </label>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
               <input
                 className="input"
@@ -303,6 +322,19 @@ export function OrganizationClient(props: Props) {
           <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0" }}>
             How the header will look.
           </p>
+          {/* Reads `brandLines` and `brandMonogram`, the same helpers the
+              sidebar itself uses — and the same ones the preview beside the
+              toggle uses.
+
+              This card used to re-implement both by hand: `shortName || name`
+              for the text, which IGNORES the "Name beside the logo" setting
+              three inches to its left, and `charAt(0)` for the monogram, where
+              `brandMonogram` keeps an all-caps short name whole ("CDG", not
+              "C") and takes two initials from two words. So a club set to show
+              its full name saw the short one here, and "Ridgeline National"
+              previewed as "RN" in one box and "R" in the other. Two previews of
+              one header, disagreeing, on the screen whose whole job is showing
+              a club what its header looks like. */}
           <div
             style={{
               border: "1px solid var(--color-divider)",
@@ -331,15 +363,20 @@ export function OrganizationClient(props: Props) {
                   placeItems: "center",
                   background: "color-mix(in srgb, var(--color-accent) 16%, transparent)",
                   color: "var(--color-accent)",
-                  fontSize: 13,
+                  fontSize: brandMonogram(name, shortName).length > 1 ? 11 : 13,
                   fontWeight: 600,
                 }}
               >
-                {(shortName || name || "?").trim().charAt(0).toUpperCase()}
+                {brandMonogram(name, shortName)}
               </div>
             )}
-            <span style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>
-              {shortName || name || "Your organization"}
+            <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15, minWidth: 0 }}>
+              <span style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>
+                {preview.primary || "Your organization"}
+              </span>
+              {preview.secondary && (
+                <span style={{ fontSize: 10.5, color: "var(--color-neutral-500)" }}>{preview.secondary}</span>
+              )}
             </span>
           </div>
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
