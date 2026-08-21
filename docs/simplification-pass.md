@@ -1,9 +1,9 @@
 # The page-by-page simplification pass
 
-**Status: 10 screens done of ~25, plus two classes closed by a sweep.** This
-file is the working state, so the pass can be picked up in a fresh session
-without re-deriving it. Reasoning for each screen is in the session record of
-the day it was done.
+**Status: 13 screens done of ~25, plus three classes swept.** This file is the
+working state, so the pass can be picked up in a fresh session without
+re-deriving it. Reasoning for each screen is in the session record of the day it
+was done.
 
 **Two questions are waiting on Ajay** — see "Waiting on a decision" at the end.
 Neither blocks the next screen.
@@ -303,6 +303,27 @@ option's help is on screen, the others are hover-only.
 **The lesson worth keeping:** this pattern had been rejected in writing three
 times and kept shipping. If a rule matters, sweep it; a comment is not a guard.
 
+### Disabled controls with no reason on screen
+
+Swept after the same defect appeared twice in `TeamsClient`:
+
+    grep -rnE 'disabled=\{[^}]*\|\|[^}]*\}' src/components src/app --include=*.tsx
+
+Thirty-odd hits, and **most are correctly left alone** — a save button dead on
+an empty required field is self-evident, because the empty field is right there.
+The rule is not "explain every disabled control", it is "explain one whose
+reason is not on the screen". Over-explaining is its own noise.
+
+Not swept by a test, because the judgement cannot be automated: whether the
+reason is visible is a question about the rest of the render, not about the
+`disabled` expression.
+
+**Already checked and fine, so do not re-check:** `ClearScores` (picking nothing
+*means* everyone, so the label becomes "Clear the whole round" — it can never
+read "Clear 0 selected") and `MatchTiebreakControl`'s standard-countback button
+(dead only when the sequence displayed directly above it already is the
+standard). The one real hit was `FoursomeMaker`, fixed with `drawReadiness`.
+
 ### MessagesClient — the compose card (2026-08-19)
 
 **One question, two controls, and the answer never shown.** "Who is this for?"
@@ -351,6 +372,38 @@ and my branch was dead code. The test failed on its first run. *Read the whole
 render path before concluding a branch is reachable*, and leave a comment saying
 the check was made.
 
+### MoneyClient — the player's money (2026-08-19)
+
+**Three names for one pile of money**: the summary said "Side games", the
+section under it "Side bets", the one under that "Pots on the scores". And
+"Side bets" is what the ORGANIZER's card holding both kinds is called.
+
+Then the real one: `gameNets` settles from three tables and **the skins pot is
+not in the player app at all**, so part of a real number had no line explaining
+it. The remainder is derived by SUBTRACTION — a remainder cannot disagree with
+the total it is defined from, and `services/expenses.ts` warns explicitly
+against a second implementation of the skins arithmetic.
+
+### TeamsClient — Teams & pairs (2026-08-19)
+
+"Add player" was disabled on three conditions and explained none, so a full
+four-ball and an exhausted field looked identical. `sideAddBlock` joins
+`sideDrawReadiness` in `draw-readiness.ts` — same file, same subject.
+
+**Note the shape of the discovery:** this was the SECOND instance in a file
+already fixed for the same defect that morning. Fixing one button did not make
+me look at its siblings.
+
+### `/me` (Today) — a bare rank addressed to one person (2026-08-19)
+
+The player's own screen showed **"Position 2"** when three were level on 2. A
+board printing 2 three times is at least legible; on `/me` the number is
+addressed to one person and is what they quote in the bar. `meFor` already had
+the whole of `standingRows` and passed on one row.
+
+`RoundAvailability` and `FloatClient` were read in the same pass and
+**deliberately left alone** — competently built.
+
 ## Not yet examined — the queue
 
 Ranked by how likely the pattern is, given size and how often the screen is
@@ -366,15 +419,17 @@ to hide; a medium screen with ten headings has ten chances.
 
 | Screen / component | Lines · headings | Why it is on the list |
 | --- | --- | --- |
-| `MoneyClient` (player) | 525 · 5 | **Best remaining lead.** Its sections are "Side bets" and "Pots on the scores"; the organizer's equivalents are now "You name the winner" and "Settled by the scores", inside a card titled **"Side bets"** covering BOTH. So "side bets" means everything to an organizer and one subset to a player. Decide one vocabulary. (The two "above" claims in this file were checked — they are comments, and true.) |
-| `TeamsClient` | 360 · 6 | Touched 2026-08-19 for the refusal only; not reviewed for structure. |
+| `/prizes` as a whole | — | **Best remaining lead, and it is Ajay's call.** Not a component — the PAGE. It stacks seven things: prizes, two skins pots, side bets, season skins, the float, the organizer ledger and the money mode. Three different subjects (what the club pays out, what players stake among themselves, how the club handles cash) under one ampersand nav label. Splitting it is a product decision. |
 | `ThemePicker` | 561 · 6 | Partly touched 2026-08-19 (the swatch reason). Probably genuinely one thing. |
-| `RoundAvailability` | 368 · 5 | |
-| `FloatClient` | 256 · 5 | |
 | `CourseLibrary` | 411 · — | `CourseSetupPrompt` nearby carries a comment about copy promising "the boxes below" — worth reading together. |
-| `FoursomeMaker` | 446 · — | Touched 2026-08-19 for the refusal only. |
-| `/prizes` as a whole | — | Not a component — the PAGE. It stacks seven things: prizes, two skins pots, side bets, season skins, the float, the organizer ledger and the money mode. Three different subjects (what the club pays out, what players stake among themselves, how the club handles cash) under one ampersand nav label. Splitting it is a product decision, so it is Ajay's, not a heading fix. |
-| Player app (`/me`, board, card, rules) | — | Checked 2026-08-19 only far enough to confirm `/me/messages` is reachable (a header icon with an unread badge, not a fifth tab — deliberate, and now recorded in `PlayTabs`). The four tab screens themselves are unread. |
+| `/me/board`, `/me/card`, `/me/rules` | 95 · 3, 133 · 3, 156 · 4 | The remaining player tabs. `/me` itself was done 2026-08-19; these three are unread. Small, and what players actually see. |
+| `AvailabilityCalendar` | — | Carries a pre-existing lint warning (`aria-pressed` on a `gridcell`), so it needs a read anyway. |
+| `LoginPanel` | — | Also carries a pre-existing lint warning. The front door, so worth a look on its own merit. |
+
+**Deliberately left alone after reading**, so nobody re-opens them:
+`RoundAvailability`, `FloatClient`, `MatchTiebreakControl` (beyond the blurb
+fix), `ClearScores`. All competently built. The pass does not change things for
+the sake of it — a screen read and left is a screen done.
 
 **Already swept clean, so do not re-derive:** only two ampersand headings remain
 in the whole tree ("Tees & ratings", "Club colour & appearance") and both are
@@ -435,6 +490,20 @@ tooltip-refusal sweep is green and enforced by a test.
   asked for it faster on 2026-08-19: `tsc --noEmit` + `vitest run` per screen
   (~15s), full gate once per batch. Every failure that day was caught by tsc or
   vitest, so the exposure is a broken build found a few commits late.
+- **A mid-session idea is a NEW BRANCH, not a new commit on this one.** Learned
+  the hard way on 2026-08-19: a leaderboard request arrived mid-pass, it got
+  built into the pass branch, and Ajay rightly stopped it — *"I dont want any
+  mix up and stay with the normal flow."* It is now parked on
+  `claude/tour-leaderboard`.
+
+  The reason is not tidiness. **The pass and a product change carry different
+  risk.** A wrong heading is a wording fix; a wrong leaderboard is a table
+  people watch live during a competition. Bundled, either the whole branch waits
+  on a look or the product change ships without one — and **nothing in this pass
+  has been seen rendering.**
+- **A screen read and left alone is a screen done.** Record it in the queue as
+  read, so the next session does not re-open it. Not changing something is a
+  result.
 - Commit per screen, not per pass. Each screen is independently revertable and
   the reasoning belongs with its own diff.
 
@@ -461,3 +530,29 @@ neither blocks the next screen.
 Also noted and deliberately not acted on: **`playerCountMode` is read by nothing**
 outside the `/event` form (see the EventSetupClient entry above). Collapsing it
 would remove a control and change what a stored column means.
+
+3. **The leaderboard: points or a tour-style board, and whose choice.** Asked
+   for mid-session on 2026-08-19 and **parked on `claude/tour-leaderboard`**,
+   not abandoned. Ajay chose "polish the stroke board" and "the organizer picks,
+   per tournament" — but those two pull against each other, and the second
+   cannot be built yet:
+
+   **A match-play event has no stroke data at all.** Every match-play standing
+   row hard-codes `gross: 0, net: 0, toPar: 0, thru: 0`
+   (`services/tournament.ts:905`), so a to-par board there is a column of zeros.
+   Wiring the choice today would hand exactly the club that wants it an empty
+   board.
+
+   The order is: the polish (done, on that branch) → aggregate strokes into
+   match-play standings → then the choice. The middle step is the real work and
+   is written up in `docs/session-2026-08-19.md`: the strokes exist in
+   `MatchScorecard` keyed `(matchId, slot)`, and **what is missing is the join,
+   not the arithmetic** — resolve to `(playerId, stageId)` and reuse
+   `parseStrokeCards` → `aggregateStroke` rather than writing a second copy of
+   the allowance and countback rules. It must invent nothing: a match scored by
+   hole winners has no card and contributes no holes.
+
+   It also touches the qualification and cut logic, where the board and the
+   engine have already disagreed about who advances. That is the COMBINATIONS
+   class `docs/audit-2026-08-12.md` exists for — it wants the matrix sweep and a
+   human watching it.
