@@ -13,11 +13,14 @@ export function LeaderboardBoard({
   isStableford = false,
   rows,
   isStaff = false,
+  holes = 18,
 }: {
   isStroke: boolean;
   isStableford?: boolean;
   rows: StandingRow[];
   isStaff?: boolean;
+  /** The round length, so a finished nine-hole card reads F rather than 9. */
+  holes?: number;
 }) {
   const [view, setView] = useState<"overall" | "flight">("overall");
 
@@ -47,7 +50,7 @@ export function LeaderboardBoard({
       </div>
 
       {view === "overall" ? (
-        <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} />
+        <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} holes={holes} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {flights.map((f) => {
@@ -55,7 +58,7 @@ export function LeaderboardBoard({
             return (
               <div key={f}>
                 <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{f}</div>
-                <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={fr} />
+                <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={fr} holes={holes} />
               </div>
             );
           })}
@@ -71,7 +74,7 @@ export function LeaderboardBoard({
             ungrouped.length > 0 && (
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Ungrouped</div>
-                <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={ungrouped} />
+                <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={ungrouped} holes={holes} />
               </div>
             )
           )}

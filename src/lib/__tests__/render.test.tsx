@@ -2072,6 +2072,69 @@ describe("the board answers 'where am I' first", () => {
     row({ id: "p3", rank: 3, name: "C. Reid", toPar: 3, thru: 14 }),
   ];
 
+  it("reads like a tour leaderboard on a stroke round", async () => {
+    // Ajay: the leaderboard should offer a real PGA experience. Three
+    // conventions it did not follow, all presentation of numbers the standings
+    // already produce.
+    const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+    const html = render(
+      <LeaderboardTable isStroke rows={[
+        row({ id: "p1", rank: 1, name: "A. Moore", toPar: -4, thru: 18, advancing: true }),
+        row({ id: "p2", rank: 2, name: "B. Ellis", toPar: -1, thru: 18, advancing: true }),
+        row({ id: "p3", rank: 2, name: "C. Reid", toPar: -1, thru: 12 }),
+        row({ id: "p4", rank: 4, name: "D. Shaw", toPar: 3, thru: 0 }),
+      ]} />,
+    );
+    // The column is a POSITION now, not a row number.
+    expect(html).toContain("Pos");
+    // A shared second is T2 for both, and nobody is printed as a bare 2.
+    expect(html.match(/>T2</g)?.length ?? 0).toBe(2);
+    // Finished reads F; still out reads the hole; not started reads nothing.
+    expect(html).toContain(">F<");
+    expect(html).toContain(">12<");
+    // Under par takes the good colour; over par does not.
+    expect(html).toContain("var(--color-accent-2-300)");
+  });
+
+  it("draws the cut where the app puts it, and says so in words", async () => {
+    // A coloured rule is a convention somebody has to already know, and a
+    // screen reader hears nothing at all from a border.
+    const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+    const html = render(
+      <LeaderboardTable isStroke rows={[
+        row({ id: "p1", rank: 1, advancing: true }),
+        row({ id: "p2", rank: 2, advancing: true }),
+        row({ id: "p3", rank: 3, advancing: false }),
+      ]} />,
+    );
+    expect(html).toContain("The line is the cut");
+    expect(html).toContain("2 players advance");
+
+    // No line when everybody gets through — it would separate nothing.
+    const allIn = render(
+      <LeaderboardTable isStroke rows={[row({ id: "p1", advancing: true })]} />,
+    );
+    expect(allIn).not.toContain("The line is the cut");
+  });
+
+  it("says F on a nine-hole round at nine", async () => {
+    const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+    const nine = render(<LeaderboardTable isStroke holes={9} rows={[row({ thru: 9 })]} />);
+    expect(nine).toContain(">F<");
+    // And the same card on an eighteen-hole round is still out there.
+    const full = render(<LeaderboardTable isStroke rows={[row({ thru: 9 })]} />);
+    expect(full).not.toContain(">F<");
+  });
+
+  it("leaves the match-play board alone", async () => {
+    // The tour conventions are the stroke board's. Match play is scored in
+    // points and holes up, and none of this applies to it.
+    const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+    const html = render(<LeaderboardTable isStroke={false} rows={[row()]} />);
+    expect(html).toContain("Pts");
+    expect(html).not.toContain("The line is the cut");
+  });
+
   it("puts your own position above the list", async () => {
     const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
     const html = render(
