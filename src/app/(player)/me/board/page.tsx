@@ -76,8 +76,15 @@ export default async function PlayBoardPage() {
       >
         {stage?.description?.trim() || stage?.type || "Standings"}
       </div>
+      {/* "Board", the word on the tab the player just tapped.
+          This screen called itself "Board" in both of its refusal states and
+          "Leaderboard" here, so the same page had two names depending on what
+          it could show. Its sibling tabs both use their tab's own word — "My
+          card", "Rules" — so this was also the one breaking the app's own
+          convention. The kicker above already names the round, which is the
+          part a player actually needs. */}
       <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: "6px 0 18px" }}>
-        Leaderboard
+        Board
       </h1>
 
       <PlayerLeaderboard

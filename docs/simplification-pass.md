@@ -1,9 +1,9 @@
 # The page-by-page simplification pass
 
-**Status: 13 screens done of ~25, plus three classes swept.** This file is the
-working state, so the pass can be picked up in a fresh session without
-re-deriving it. Reasoning for each screen is in the session record of the day it
-was done.
+**Status: 15 screens of ~25, three classes swept, and `next lint` clean.** This
+file is the working state, so the pass can be picked up in a fresh session
+without re-deriving it. Reasoning for each screen is in the session record of the
+day it was done.
 
 **Two questions are waiting on Ajay** — see "Waiting on a decision" at the end.
 Neither blocks the next screen.
@@ -394,6 +394,29 @@ four-ball and an exhausted field looked identical. `sideAddBlock` joins
 already fixed for the same defect that morning. Fixing one button did not make
 me look at its siblings.
 
+### AvailabilityCalendar — a lint warning that was a real defect (2026-08-19)
+
+`aria-pressed` on `role="gridcell"`. Not a nag: the square was
+`<button role="gridcell">`, and overriding a button's implicit role takes the
+attribute with it — so on **the one screen whose entire question is "am I
+playing on these dates"**, a screen-reader user was told no state at all.
+
+Fixing it meant looking at the grid, which turned up `m.weeks.flat()` — **the
+rows existed in the data and the markup threw them away**, leaving forty-two
+cells as direct children of `role="grid"`.
+
+**The trap:** `display: contents` on the new cell wrapper is the tidy way to keep
+the button as the grid item, and it has a long history of dropping the element
+out of the accessibility tree. That would have traded one missing role for
+another and looked finished.
+
+**The lesson, and it generalised:** the other three standing lint warnings got
+the same look instead of the same shrug, and all three were real — a ternary
+used as a statement in `LoginPanel`, and two `useMemo`s whose `?? []` allocated
+a fresh array every render so they memoized nothing. **`next lint` is now
+clean.** Warnings that stand get read as noise, and then a real one hides among
+them.
+
 ### `/me` (Today) — a bare rank addressed to one person (2026-08-19)
 
 The player's own screen showed **"Position 2"** when three were level on 2. A
@@ -420,16 +443,18 @@ to hide; a medium screen with ten headings has ten chances.
 | Screen / component | Lines · headings | Why it is on the list |
 | --- | --- | --- |
 | `/prizes` as a whole | — | **Best remaining lead, and it is Ajay's call.** Not a component — the PAGE. It stacks seven things: prizes, two skins pots, side bets, season skins, the float, the organizer ledger and the money mode. Three different subjects (what the club pays out, what players stake among themselves, how the club handles cash) under one ampersand nav label. Splitting it is a product decision. |
-| `ThemePicker` | 561 · 6 | Partly touched 2026-08-19 (the swatch reason). Probably genuinely one thing. |
-| `CourseLibrary` | 411 · — | `CourseSetupPrompt` nearby carries a comment about copy promising "the boxes below" — worth reading together. |
-| `/me/board`, `/me/card`, `/me/rules` | 95 · 3, 133 · 3, 156 · 4 | The remaining player tabs. `/me` itself was done 2026-08-19; these three are unread. Small, and what players actually see. |
-| `AvailabilityCalendar` | — | Carries a pre-existing lint warning (`aria-pressed` on a `gridcell`), so it needs a read anyway. |
-| `LoginPanel` | — | Also carries a pre-existing lint warning. The front door, so worth a look on its own merit. |
+| `CourseLibrary` | 411 · — | The last unread component of any size. `CourseSetupPrompt` nearby carries a comment about copy promising "the boxes below" — worth reading together. |
+| `ThemePicker` | 561 · 6 | Partly touched 2026-08-19 (the swatch reason). Probably genuinely one thing, so expect to read it and leave it. |
+| `BracketClient`, `PrizesClient`, `SeriesClient`, `ReportsClient` | — | Never listed and never read. Lower priority — none has a heading count worth the name — but they are what "of ~25" means. |
 
 **Deliberately left alone after reading**, so nobody re-opens them:
 `RoundAvailability`, `FloatClient`, `MatchTiebreakControl` (beyond the blurb
-fix), `ClearScores`. All competently built. The pass does not change things for
-the sake of it — a screen read and left is a screen done.
+fix), `ClearScores`, `/me/card`, `/me/rules`. All competently built — `/me/card`
+in particular already does what this pass spent the day adding elsewhere: three
+refusal states, each explaining itself, one of them linking onward.
+
+**A screen read and left is a screen done.** Not changing something is a result,
+and recording it is what stops the next session re-deriving the same conclusion.
 
 **Already swept clean, so do not re-derive:** only two ampersand headings remain
 in the whole tree ("Tees & ratings", "Club colour & appearance") and both are
@@ -504,6 +529,15 @@ tooltip-refusal sweep is green and enforced by a test.
 - **A screen read and left alone is a screen done.** Record it in the queue as
   read, so the next session does not re-open it. Not changing something is a
   result.
+- **Take a standing lint warning seriously once.** Four had been sitting in this
+  repo long enough to read as furniture; three were real defects, one of them an
+  accessibility hole on the screen it mattered most on. If a warning is genuinely
+  not worth fixing, silence it with a reason — leaving it teaches everyone to
+  scroll past the next one.
+- **Match the heading to the door somebody came through.** `/me/board` headed
+  itself "Board" in two states and "Leaderboard" in a third, while both its
+  sibling tabs used their tab's own word. One screen, one name — including
+  across its own refusal states.
 - Commit per screen, not per pass. Each screen is independently revertable and
   the reasoning belongs with its own diff.
 
