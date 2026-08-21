@@ -686,6 +686,18 @@ describe("course library", () => {
     expect(html).not.toContain("Ridgeline");
   });
 
+  it("names the prize list, which another card points at by name", async () => {
+    // The table's card was the only untitled one on the screen, and the
+    // side-bets card refers to "the prize list" — pointing at something no
+    // heading called that. The empty state also said "above", a claim about
+    // layout that nothing checks.
+    const { PrizesClient } = await import("@/components/PrizesClient");
+    const html = render(<PrizesClient prizes={[]} players={[]} />);
+    expect(html).toContain("Prizes");
+    expect(html).toContain("Add a prize");
+    expect(html).not.toContain("specials above");
+  });
+
   it("says what an unverified card costs, once, and only when one exists", () => {
     // The badge showed the STATE on the row and left the stakes in a `title`.
     // The stakes are the whole reason the badge exists and are not obvious: a

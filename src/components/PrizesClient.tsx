@@ -94,7 +94,12 @@ export function PrizesClient({
         </div>
       </div>
 
+      {/* Named. This was the only untitled card on the screen, and it is the
+          prize list itself — which the side-bets card further down refers to
+          by name ("a club-funded prize belongs in the prize list…"), pointing
+          at something no heading called that. */}
       <div className="card elev-sm">
+        <span className="card-title" style={{ fontSize: 15 }}>Prizes</span>
         <div className="table-scroll">
           <table className="table">
             <thead>
@@ -156,7 +161,12 @@ export function PrizesClient({
               {prizes.length === 0 && (
                 <tr>
                   <td colSpan={5} className="text-muted" style={{ fontSize: 13, padding: 16 }}>
-                    No prizes yet — add flight winners, skins, closest-to-pin, long drive, and any specials above.
+                    {/* Names the control rather than pointing at a position.
+                        "above" is a claim about layout that nothing checks and
+                        a re-arrangement makes false — the defect this pass
+                        found three times in one file on StagesClient. */}
+                    No prizes yet — use &ldquo;Add a prize&rdquo; for flight winners, skins,
+                    closest-to-pin, long drive and any specials.
                   </td>
                 </tr>
               )}

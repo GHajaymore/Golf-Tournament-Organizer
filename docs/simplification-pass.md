@@ -1,9 +1,13 @@
 # The page-by-page simplification pass
 
-**Status: 15 screens of ~25, three classes swept, and `next lint` clean.** This
-file is the working state, so the pass can be picked up in a fresh session
-without re-deriving it. Reasoning for each screen is in the session record of the
-day it was done.
+**Status: 20 screens of ~25, three classes swept, `next lint` clean.** This file
+is the working state, so the pass can be picked up in a fresh session without
+re-deriving it. Reasoning for each screen is in the session record of the day it
+was done.
+
+**What is left is one product decision and four small components** — see the
+queue. The pattern-hunting phase is essentially finished: the greps below all
+come back clean.
 
 **Two questions are waiting on Ajay** — see "Waiting on a decision" at the end.
 Neither blocks the next screen.
@@ -417,6 +421,28 @@ a fresh array every render so they memoized nothing. **`next lint` is now
 clean.** Warnings that stand get read as noise, and then a real one hides among
 them.
 
+### The two course screens (2026-08-19)
+
+`CourseSetupPrompt`: **a successful paste said nothing.** The copy promises the
+boxes below "fill in as you paste", and they live inside a `<details>` folded
+shut unless the paste went WRONG — so the case where everything worked was the
+case with no evidence. A previous session had fixed the failure half and left
+this one. And a one-row paste returned early with no state written and no
+problem reported.
+
+`CourseLibrary`: the "Unverified" badge showed the state on the row and left the
+**stakes** in a `title` — and the stakes are the whole reason the badge exists.
+A wrong stroke index is invisible in play; it just sends handicap shots to the
+wrong holes for as long as the course is listed. One sentence under the table,
+only when something is unverified.
+
+### `PrizesClient` — the list nothing called by its name (2026-08-19)
+
+The prize table sat in **the only untitled card on the screen** — while a card
+further down the same page pointed at it by name, "a club-funded prize belongs
+in the prize list above". "The prize list" named nothing, and it pointed by
+POSITION. Headed "Prizes" now, and both references name it instead.
+
 ### `/me` (Today) — a bare rank addressed to one person (2026-08-19)
 
 The player's own screen showed **"Position 2"** when three were level on 2. A
@@ -442,16 +468,28 @@ to hide; a medium screen with ten headings has ten chances.
 
 | Screen / component | Lines · headings | Why it is on the list |
 | --- | --- | --- |
-| `/prizes` as a whole | — | **Best remaining lead, and it is Ajay's call.** Not a component — the PAGE. It stacks seven things: prizes, two skins pots, side bets, season skins, the float, the organizer ledger and the money mode. Three different subjects (what the club pays out, what players stake among themselves, how the club handles cash) under one ampersand nav label. Splitting it is a product decision. |
-| `CourseLibrary` | 411 · — | The last unread component of any size. `CourseSetupPrompt` nearby carries a comment about copy promising "the boxes below" — worth reading together. |
-| `ThemePicker` | 561 · 6 | Partly touched 2026-08-19 (the swatch reason). Probably genuinely one thing, so expect to read it and leave it. |
-| `BracketClient`, `PrizesClient`, `SeriesClient`, `ReportsClient` | — | Never listed and never read. Lower priority — none has a heading count worth the name — but they are what "of ~25" means. |
+| `/prizes` as a whole | — | **The only substantial thing left, and it is Ajay's call.** Not a component — the PAGE. It stacks seven things: prizes, two skins pots, side bets, season skins, the float, the organizer ledger and the money mode. Three different subjects (what the club pays out, what players stake among themselves, how the club handles cash) under one ampersand nav label. Splitting it is a product decision. |
+| `SeriesClient` | 383 · 2 | Never read. Season standings — two headings in 383 lines, so expect shapes 3, 5 and 7 rather than conflated titles. |
+| `ReportsClient` | 166 · 2 | Never read. Small. |
+| `TeeEditor`, `RosterPicker`, `OrganizationAccess` | — | Never listed. Small supporting components rather than screens. |
 
 **Deliberately left alone after reading**, so nobody re-opens them:
 `RoundAvailability`, `FloatClient`, `MatchTiebreakControl` (beyond the blurb
-fix), `ClearScores`, `/me/card`, `/me/rules`. All competently built — `/me/card`
-in particular already does what this pass spent the day adding elsewhere: three
-refusal states, each explaining itself, one of them linking onward.
+fix), `ClearScores`, `/me/card`, `/me/rules`, `ThemePicker`, `BracketClient`.
+
+Three of those are worth knowing about, because they are the pattern done right
+and are the best models in the codebase for the rest of it:
+
+- **`/me/card`** — three refusal states, each explaining itself, one linking
+  onward.
+- **`ThemePicker`** — a Save button disabled on an indistinct colour pair, with
+  the reason rendered AND the sentence ending "…to save", so the disabled
+  control explains itself by name.
+- **`BracketClient`** — heads itself `readOnly ? "Live bracket" : "Bracket
+  manager"`, which looks like the `/me/board` defect and is not: that one showed
+  the same reader two names depending on what data existed, this shows different
+  names to different ROLES. Useful signalling, and both contain the sidebar's
+  word.
 
 **A screen read and left is a screen done.** Not changing something is a result,
 and recording it is what stops the next session re-deriving the same conclusion.

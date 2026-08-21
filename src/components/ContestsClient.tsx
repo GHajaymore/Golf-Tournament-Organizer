@@ -184,9 +184,13 @@ export function ContestsClient({
         )}
       </div>
       <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 0", lineHeight: 1.55 }}>
+        {/* "under Prizes", not "in the prize list above". The list it meant had
+            no heading at all until this pass named it, so the sentence pointed
+            at something nothing on the screen called that — and pointed by
+            POSITION, which is a claim nothing checks. */}
         Player-funded: everyone in the pot puts in, the winner takes it, and it lands in the same
-        settle-up as the expenses. A club-funded prize belongs in the prize list above instead —
-        nobody owes anybody for those.
+        settle-up as the expenses. A club-funded prize belongs under <b>Prizes</b> on this screen
+        instead — nobody owes anybody for those.
       </p>
 
       {adding && (
