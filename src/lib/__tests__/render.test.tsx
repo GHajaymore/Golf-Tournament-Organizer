@@ -1131,6 +1131,21 @@ describe("tee sheet", () => {
     expect(html).toContain("By position");
   });
 
+  it("says why the tee sheet cannot be saved on an empty field", () => {
+    // Both save buttons carried `groups.length === 0` and said nothing, so on
+    // the ordinary first-day state an organizer got two grey buttons and no
+    // way to tell whether the app was broken or something was missing.
+    // drawReadiness rather than a second rule: a tee sheet is drawn from the
+    // FIELD exactly as flights are.
+    const html = render(<FoursomeMaker players={[]} stageId="s1" />);
+    expect(html).toContain("empty field");
+    expect(html).toContain('href="/registration"');
+
+    // A field that exists gets no refusal.
+    const drawn = render(<FoursomeMaker players={field} stageId="s1" />);
+    expect(drawn).not.toContain("empty field");
+  });
+
   it("names the greyed-out options and why, on the page", () => {
     // Both button groups explained themselves with a `title` only. The names
     // come from the ALGORITHMS and DRAW_ORDERS arrays that do the greying, so
