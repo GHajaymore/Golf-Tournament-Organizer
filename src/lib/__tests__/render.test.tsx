@@ -2641,6 +2641,58 @@ describe("side bets", () => {
   });
 });
 
+describe("the weekly sign-up calendar", () => {
+  const round = (over: Record<string, unknown> = {}) => ({
+    stageId: "s1", label: "Round 7", status: "in" as const, explicit: true,
+    locked: false, playedOn: "2026-09-09", ...over,
+  });
+  const cal = async (rounds: ReturnType<typeof round>[]) => {
+    const { AvailabilityCalendar } = await import("@/components/AvailabilityCalendar");
+    return render(
+      <AvailabilityCalendar rounds={rounds} today="2026-09-01" pending={false} onAnswer={() => {}} />,
+    );
+  };
+
+  it("tells a screen reader whether the player is in or out", async () => {
+    // The square was `<button role="gridcell">`, and overriding a button's
+    // implicit role with gridcell takes aria-pressed with it — the attribute is
+    // not supported there. So the one screen whose entire question is "am I
+    // playing on these dates" announced no state at all. The lint rule had been
+    // saying so and reading as a nag.
+    const html = await cal([round({ status: "in" })]);
+    expect(html).toContain('aria-pressed="true"');
+    const out = await cal([round({ status: "out" })]);
+    expect(out).toContain('aria-pressed="false"');
+  });
+
+  it("keeps the cell role on a container rather than on the button", async () => {
+    const html = await cal([round()]);
+    // A gridcell exists...
+    expect(html).toContain('role="gridcell"');
+    // ...and it is not the button, which keeps its own role and its state.
+    expect(html).not.toMatch(/<button[^>]*role="gridcell"/);
+  });
+
+  it("keeps the weeks it already had in the data", async () => {
+    // `m.weeks` is an array of weeks and the markup called .flat() on it, so a
+    // screen reader got forty-two cells in one undifferentiated run.
+    const html = await cal([round()]);
+    expect(html).toContain('role="row"');
+    expect(html).toContain('role="grid"');
+    // September 2026 spans five weeks; the point is only that there is more
+    // than one, so the flattening cannot come back unnoticed.
+    expect((html.match(/role="row"/g) ?? []).length).toBeGreaterThan(1);
+  });
+
+  it("does not make a tappable square out of a day with no round", async () => {
+    // A grid of thirty tappable nothings is how a player taps the wrong one.
+    const html = await cal([round()]);
+    // Far more cells than rounds, and exactly one button among them.
+    expect((html.match(/role="gridcell"/g) ?? []).length).toBeGreaterThan(5);
+    expect((html.match(/aria-pressed/g) ?? []).length).toBe(1);
+  });
+});
+
 describe("members", () => {
   const member = (over: Record<string, unknown> = {}) => ({
     id: "m1", name: "zz-Priya Nair", email: "zz1@example.invalid", phone: "", ghin: "",

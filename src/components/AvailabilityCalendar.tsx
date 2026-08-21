@@ -108,29 +108,52 @@ export function AvailabilityCalendar({
             )}
           </div>
 
+          {/* The weekday strip sits OUTSIDE the grid. It is `aria-hidden`
+              decoration — every square already carries its own date in its
+              accessible name — and a `row` of nothing but hidden cells is an
+              empty row to anything reading the structure. */}
           <div
-            role="grid"
-            aria-label={m.label}
+            aria-hidden
             style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 4 }}
           >
             {WEEKDAY_INITIALS.map((d, i) => (
               <div
                 key={`${d}${i}`}
-                aria-hidden
                 className="text-muted"
                 style={{ textAlign: "center", fontSize: 10.5, letterSpacing: "0.06em", paddingBottom: 2 }}
               >
                 {d}
               </div>
             ))}
+          </div>
 
-            {m.weeks.flat().map((day) => (
-              <Square
-                key={day.iso}
-                day={day}
-                pending={pending}
-                onAnswer={onAnswer}
-              />
+          {/* Rows, because a grid has them and this one already had them in
+              the DATA — `m.weeks` is an array of weeks and the markup called
+              `.flat()` on it. Thrown away, a screen reader got forty-two cells
+              in a row with no week structure at all, on a calendar whose whole
+              question is "which dates am I playing".
+
+              This is also what makes the `aria-pressed` fix legal: see Square. */}
+          <div
+            role="grid"
+            aria-label={m.label}
+            style={{ display: "grid", gap: 4 }}
+          >
+            {m.weeks.map((week, wi) => (
+              <div
+                key={week[0]?.iso ?? wi}
+                role="row"
+                style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 4 }}
+              >
+                {week.map((day) => (
+                  <Square
+                    key={day.iso}
+                    day={day}
+                    pending={pending}
+                    onAnswer={onAnswer}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         </section>
@@ -219,28 +242,49 @@ function Square({
     round.locked ? "" : `. Tap to mark ${round.status === "in" ? "not playing" : "playing"}.`
   }`;
 
+  // The cell is the CONTAINER and the button lives inside it.
+  //
+  // It used to be one element — `<button role="gridcell">` — and overriding a
+  // button's implicit role with `gridcell` takes `aria-pressed` with it:
+  // `gridcell` does not support the attribute, so a screen-reader user was told
+  // nothing at all about whether they were in or out. On the one screen whose
+  // entire question is "am I playing on these dates". The lint rule had been
+  // saying so and reading as a nag.
   return (
-    <button
-      type="button"
-      role="gridcell"
-      className="touch-target"
-      disabled={pending || round.locked}
-      // One tap flips the answer. A segmented In/Out inside a 44px square is
-      // two targets nobody can hit; the state is unambiguous on the face of
-      // the square, so the tap has only one thing it can mean.
-      onClick={() => onAnswer(round.stageId, round.status === "in" ? "out" : "in")}
-      aria-label={label}
-      aria-pressed={round.status === "in"}
-      title={label}
-      style={{
-        ...base,
-        cursor: round.locked ? "default" : "pointer",
-        ...TONE_STYLE[tone],
-      }}
-    >
-      <span style={{ fontWeight: 600, lineHeight: 1 }}>{day.day}</span>
-      <i className={`ph ${TONE_ICON[tone]}`} style={{ fontSize: 13, lineHeight: 1 }} aria-hidden />
-    </button>
+    // NOT `display: contents` on this wrapper. It would be the tidy way to keep
+    // the button as the grid item, and it has a long history of dropping the
+    // element it is on OUT of the accessibility tree — which would trade one
+    // missing role for another and leave the fix looking done. An ordinary box
+    // with the button stretched to fill it costs nothing and is not a bet on
+    // browser behaviour.
+    <div role="gridcell" style={{ display: "flex" }}>
+      <button
+        type="button"
+        className="touch-target"
+        disabled={pending || round.locked}
+        // One tap flips the answer. A segmented In/Out inside a 44px square is
+        // two targets nobody can hit; the state is unambiguous on the face of
+        // the square, so the tap has only one thing it can mean.
+        onClick={() => onAnswer(round.stageId, round.status === "in" ? "out" : "in")}
+        aria-label={label}
+        aria-pressed={round.status === "in"}
+        title={label}
+        style={{
+          ...base,
+          // Fills the cell, which is now the grid item. `flex: 1` rather than
+          // `width: 100%` because the wrapper is a flex box; `minWidth: 0`
+          // because a grid child will not shrink below its content otherwise
+          // and a seven-column month on a 320px phone needs it to.
+          flex: 1,
+          minWidth: 0,
+          cursor: round.locked ? "default" : "pointer",
+          ...TONE_STYLE[tone],
+        }}
+      >
+        <span style={{ fontWeight: 600, lineHeight: 1 }}>{day.day}</span>
+        <i className={`ph ${TONE_ICON[tone]}`} style={{ fontSize: 13, lineHeight: 1 }} aria-hidden />
+      </button>
+    </div>
   );
 }
 
