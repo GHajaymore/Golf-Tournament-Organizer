@@ -6,6 +6,7 @@ import {
   type MatchResolution,
 } from "./match";
 import { breakMatchTie, type MatchTiebreakKey } from "./match-tiebreak";
+import { inputChoices } from "../formats";
 import type { HoleResult } from "./types";
 
 /**
@@ -229,8 +230,14 @@ function grossHoles(
  *
  * Stroke-based formats have no concept of winning a hole, so offering "hole
  * result" there would be offering a shape the scoring cannot read.
+ *
+ * This used to test `format === "Match Play"` here, which made the catalog and
+ * the entry screen two places that both knew which formats produce no card —
+ * and they had already drifted: Nassau resolves from HOLE RESULTS and was
+ * offered only a gross card. The list now comes from the format's own
+ * declaration, so adding a format declares its input once. See
+ * `GolfFormat.inputs`.
  */
 export function entryModesFor(format: string): MatchEntryMode[] {
-  const matchPlay = format === "Match Play";
-  return matchPlay ? ["hole-results", "gross-cards", "match-result"] : ["gross-cards"];
+  return inputChoices(format);
 }

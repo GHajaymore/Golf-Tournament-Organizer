@@ -4,6 +4,7 @@ import {
   setStageDeadline,
   setStageCarry,
   setStageScoringBasis,
+  setStageScoreInput,
   setStageFormat,
   setStageHoles,
   setStagePlayedOn,
@@ -12,7 +13,8 @@ import {
   generateNextRound,
 } from "@/app/actions/tournament";
 import { setStageCourse } from "@/app/actions/courses";
-import { GOLF_FORMATS } from "@/lib/formats";
+import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices } from "@/lib/formats";
+import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
 import { isTeamFormat } from "@/lib/side-style";
 import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-dates";
 import FieldInfo from "@/components/FieldInfo";
@@ -58,6 +60,11 @@ export interface StageView {
   playedOn: string;
   deadline: string;
   scoringBasis: string;
+  /**
+   * The committee's override for how scores are RECORDED, or "" to use the
+   * input the format declares. See `GolfFormat.inputs`.
+   */
+  scoreInput: string;
   carryEnabled: boolean;
   carryPct: number;
   /** Whether the organizer has answered the carry-forward question either way. */
@@ -484,6 +491,7 @@ function StageCard({
 }) {
   const [deadline, setDeadline] = useState(stage.deadline);
   const [basis, setBasis] = useState(stage.scoringBasis);
+  const [scoreInput, setScoreInput] = useState(stage.scoreInput);
   const [format, setFormat] = useState(stage.format);
   const [holes, setHoles] = useState(stage.holes);
   const [playedOn, setPlayedOn] = useState(stage.playedOn);
@@ -535,6 +543,10 @@ function StageCard({
   const commitBasis = (next: string) => {
     setBasis(next);
     startTransition(() => setStageScoringBasis(stage.id, next));
+  };
+  const commitScoreInput = (next: string) => {
+    setScoreInput(next);
+    startTransition(() => setStageScoreInput(stage.id, next));
   };
 
   const activeFormat = GOLF_FORMATS.find((f) => f.name === format);
@@ -1041,6 +1053,71 @@ function StageCard({
                 ))}
               </div>
             </div>
+
+            {/* Only where the format offers a choice at all — which is the
+                "opt out, not opt in" rule made visible. Every other round
+                takes a card and has nothing to decide, so it gets no control
+                rather than a control with one option in it. */}
+            {inputChoices(format).length > 1 && (
+              <div className="field" style={{ width: 420 }}>
+                <label>
+                  How scores are recorded
+                  <FieldInfo label="how scores are recorded">
+                    <p>
+                      Separate from <b>Result calculation</b> above, and the distinction is the
+                      point: gross or net is what the round is played FOR, this is what the field
+                      writes DOWN.
+                    </p>
+                    <p>
+                      A full card is the raw fact — net, Stableford and every tiebreaker are
+                      readings of it, so a card can be re-scored if the round changes from gross to
+                      net. Hole results and a final margin cannot: the strokes were never recorded.
+                    </p>
+                    <p>
+                      Ask for cards from a match-play day when you want the round to count for
+                      handicapping. Under WHS a match-play score is acceptable only when a full
+                      card is returned.
+                    </p>
+                  </FieldInfo>
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {inputChoices(format).map((key) => {
+                    const info = MATCH_ENTRY_MODES.find((m) => m.key === key);
+                    const natural = key === declaredInput(format);
+                    return (
+                      <label key={key} style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13 }}>
+                        <input
+                          type="radio"
+                          name={`score-input-${stage.id}`}
+                          // "" resolves to the format's own answer, so the
+                          // natural option is the one lit when nobody has
+                          // chosen — the round is not silently overridden.
+                          checked={scoreInput === key || (scoreInput === "" && natural)}
+                          disabled={pending}
+                          // Choosing the natural input CLEARS the override
+                          // rather than storing it. A round that says nothing
+                          // follows its format when the format's mind changes.
+                          onChange={() => commitScoreInput(natural ? "" : key)}
+                          style={{ marginTop: 3 }}
+                        />
+                        <span>
+                          {info?.label ?? key}
+                          {natural && <span className="text-muted"> — what {format} produces</span>}
+                          {key === DEFAULT_INPUT && !natural && (
+                            <span className="text-muted"> — counts for handicapping</span>
+                          )}
+                          {info?.blurb && (
+                            <span className="text-muted" style={{ display: "block", fontSize: 11.5, lineHeight: 1.5 }}>
+                              {info.blurb}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Was two headings for one thing: a group titled "On the day"
                 blurbed "whether scores can still go in", holding one control

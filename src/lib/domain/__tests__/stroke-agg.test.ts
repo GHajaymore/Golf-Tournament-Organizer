@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { aggregateStroke, emptyAgg, netOf, type StrokeCard } from "../stroke-agg";
+import { aggregateStroke, emptyAgg, isRanked, netOf, type StrokeCard } from "../stroke-agg";
 import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "../index";
 
 /**
@@ -138,6 +138,11 @@ describe("what it counts", () => {
       gross: 0,
       thru: 0,
       parThru: 0,
+      // Nothing owed and nothing stopped short: a player with no card has not
+      // failed to finish one. `isRanked` reads this as unranked on `thru`
+      // alone, which is what keeps a field yet to tee off off the sheet.
+      holesOwed: 0,
+      stoppedShort: false,
       strokesReceived: 0,
       points: 0,
       holesByStage: new Map(),
@@ -149,5 +154,102 @@ describe("what it counts", () => {
     // net total drifts a shot from the sum of its own cards.
     const a = aggregateStroke([card("r1", 5), card("r2", 5)], opts(() => HOME, 9)).get("p1")!;
     expect(netOf(a)).toBe(a.gross - Math.round(a.strokesReceived));
+  });
+});
+
+/**
+ * A card that stopped short.
+ *
+ * Rule 3.2a(3): a match ends when one side leads by more holes than remain, so
+ * a match won 5&4 leaves four holes that were never played. Rule 3.2b: a hole
+ * or a match may be conceded, and a conceded hole carries no score at all.
+ *
+ * Nothing here may invent a number for those holes. Ranking on the holes
+ * actually played would present fourteen against somebody else's eighteen as
+ * comparable, and net double bogey — the right answer for a handicap record —
+ * puts a score on a results board the player never made.
+ */
+describe("a finished card with holes that were never played", () => {
+  /** Fourteen holes returned out of eighteen, as a 5&4 match leaves. */
+  const short = (finished: boolean): StrokeCard => ({
+    playerId: "p1",
+    stageId: "r1",
+    strokes: [...new Array(14).fill(4), null, null, null, null],
+    finished,
+  });
+
+  it("is flagged as stopped short, and only when the match is over", () => {
+    const done = aggregateStroke([short(true)], opts(() => HOME)).get("p1")!;
+    expect(done.thru).toBe(14);
+    expect(done.holesOwed).toBe(18);
+    expect(done.stoppedShort).toBe(true);
+    expect(isRanked(done)).toBe(false);
+
+    // The identical card, mid-round. An ordinary live leaderboard reads "thru
+    // 14" and ranks it, and always has; this must not regress.
+    const live = aggregateStroke([short(false)], opts(() => HOME)).get("p1")!;
+    expect(live.thru).toBe(14);
+    expect(live.stoppedShort).toBe(false);
+    expect(isRanked(live)).toBe(true);
+  });
+
+  it("leaves a finished card that went the distance ranked", () => {
+    const full: StrokeCard = { playerId: "p1", stageId: "r1", strokes: new Array(18).fill(4), finished: true };
+    const a = aggregateStroke([full], opts(() => HOME)).get("p1")!;
+    expect(a.stoppedShort).toBe(false);
+    expect(isRanked(a)).toBe(true);
+  });
+
+  it("counts holes owed off the round's own card, not the stored array", () => {
+    // A nine-hole round is nine owed, however long the array happens to be.
+    const nine = { pars: new Array(9).fill(4) as number[], holeDifficulty: [1, 2, 3, 4, 5, 6, 7, 8, 9] };
+    const a = aggregateStroke(
+      [{ playerId: "p1", stageId: "r1", strokes: new Array(9).fill(4), finished: true }],
+      opts(() => nine),
+    ).get("p1")!;
+    expect(a.holesOwed).toBe(9);
+    expect(a.stoppedShort).toBe(false);
+  });
+
+  it("does not rank a player who returned nothing", () => {
+    expect(isRanked(emptyAgg())).toBe(false);
+  });
+});
+
+/**
+ * Two cards in one round.
+ *
+ * A Round Robin stage holds the whole round robin, so a flight of four gives
+ * each player three matches — three cards, one round. The totals add up (par
+ * and strokes received both accumulate per hole played); the countback cannot,
+ * because it reads a card and there is no single card to read.
+ */
+describe("more than one card for the same round", () => {
+  it("adds the totals and empties that round's countback card", () => {
+    const a = aggregateStroke(
+      [
+        { playerId: "p1", stageId: "r1", strokes: new Array(18).fill(4) },
+        { playerId: "p1", stageId: "r1", strokes: new Array(18).fill(5) },
+      ],
+      opts(() => HOME),
+    ).get("p1")!;
+    expect(a.thru).toBe(36);
+    expect(a.gross).toBe(18 * 4 + 18 * 5);
+    expect(a.holesOwed).toBe(36);
+    // Emptied rather than left holding whichever card was queried last, which
+    // would separate a tie on an arbitrary one of the two.
+    expect(a.holesByStage.get("r1")).toEqual({ gross: [], net: [] });
+  });
+
+  it("keeps the countback card for a round the player played once", () => {
+    const a = aggregateStroke(
+      [
+        { playerId: "p1", stageId: "r1", strokes: new Array(18).fill(4) },
+        { playerId: "p1", stageId: "r2", strokes: new Array(18).fill(5) },
+      ],
+      opts(() => HOME),
+    ).get("p1")!;
+    expect(a.holesByStage.get("r1")!.gross).toHaveLength(18);
+    expect(a.holesByStage.get("r2")!.gross).toHaveLength(18);
   });
 });

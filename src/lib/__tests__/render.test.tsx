@@ -433,7 +433,7 @@ describe("leaderboards for every format", () => {
 describe("rounds and format", () => {
   const stage = (over: Partial<StageView> = {}): StageView => ({
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
-    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", carryEnabled: false, carryPct: 0,
+    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
     carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, ...over,
   });
@@ -1040,7 +1040,7 @@ describe("flight board", () => {
 describe("round card — which nine and the deadline", () => {
   const stage = (over: Partial<StageView> = {}): StageView => ({
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
-    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", carryEnabled: false, carryPct: 0,
+    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
     carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, ...over,
   });
@@ -2144,6 +2144,8 @@ describe("the board answers 'where am I' first", () => {
   const row = (over: Partial<StandingRow> = {}): StandingRow => ({
     id: "p1",
     rank: 1,
+    ranked: true,
+    holesOwed: 18,
     name: "A. Moore",
     flight: "—",
     advancing: false,

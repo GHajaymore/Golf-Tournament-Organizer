@@ -12,6 +12,7 @@ import {
 } from "@/lib/domain";
 import { firstName } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
+import { declaredInput, inputOverrideApplies, resolveScoreInput } from "@/lib/formats";
 import {
   matchStatusKey,
   filterMatches,
@@ -60,19 +61,45 @@ import { VenuePrompt, type VenueCourse } from "./VenuePrompt";
  * green. But that is a question about what someone happens to be holding, not
  * a setting, so it belongs behind the card rather than in front of it.
  */
+/**
+ * The screen's word for each recorded shape.
+ *
+ * The domain names them by what they ARE; these keys are historical UI labels,
+ * and "handicap" in particular means "the full card" rather than anything about
+ * handicaps. Mapped in one place so the two vocabularies meet exactly once.
+ */
+const UI_KEY_OF: Record<MatchEntryMode, "holes" | "result" | "handicap"> = {
+  "gross-cards": "handicap",
+  "hole-results": "holes",
+  "match-result": "result",
+};
+
 export function defaultEntryMode(
   format: string,
   netMode: boolean,
   courseKnown: boolean,
+  /** The round's `scoreInput` — "" where the committee has said nothing. */
+  scoreInput = "",
 ): "holes" | "result" | "handicap" {
-  // A stroke-based round has nothing else it can be.
-  if (format !== "Match Play") return "handicap";
+  // The committee's decision beats every default below it. That is what the
+  // setting is for: a club that wants full cards from its match-play day gets
+  // them, because under WHS a match-play score counts for handicapping only
+  // when a full card is returned.
+  if (inputOverrideApplies(format, scoreInput)) {
+    return UI_KEY_OF[resolveScoreInput(format, scoreInput)];
+  }
   // Net match play off a full card lets the app allocate the shots itself,
   // off the course's stroke index. Taking hole results instead means trusting
   // that four people did the same allocation in their heads on the 14th tee.
+  // A round whose format cannot produce a card is unaffected — `inputChoices`
+  // always contains one, so this only ever moves a match round.
   if (netMode && courseKnown) return "handicap";
-  // Gross: who won each hole is what a player actually writes down.
-  return "holes";
+  // Otherwise the format's own answer: a card for everything that produces
+  // one, hole results for match play, which is what a player actually writes
+  // down. Read off the catalog rather than tested by name here — the entry
+  // screen and the catalog were two places that both knew which formats
+  // produce no card, and they had already drifted over Nassau.
+  return UI_KEY_OF[declaredInput(format)];
 }
 
 /** Who took the hole, as one glyph in a scorecard column. */
@@ -220,6 +247,7 @@ export function ScoreEntryClient({
   yards: yardsProp = [],
   strokeIndex: strokeIndexProp = [],
   netMode = false,
+  scoreInput = "",
   courseKnown = true,
   isAdmin = false,
   venues = [],
@@ -235,6 +263,11 @@ export function ScoreEntryClient({
   yards?: number[];
   strokeIndex?: number[];
   netMode?: boolean;
+  /**
+   * The round's `scoreInput` — the committee's override for how scores are
+   * recorded, or "" where they have said nothing and the format decides.
+   */
+  scoreInput?: string;
   /** Whether real par/stroke-index data backs this event. False for a league
    *  with no fixed venue, where scorecard entry can't be offered yet. */
   courseKnown?: boolean;
@@ -292,7 +325,7 @@ export function ScoreEntryClient({
   // Lazy initializer: derived once from the round, then owned by the
   // organizer if they change it.
   const [mode, setMode] = useState<"holes" | "result" | "handicap">(() =>
-    defaultEntryMode(format, netMode, courseKnown),
+    defaultEntryMode(format, netMode, courseKnown, scoreInput),
   );
 
   /**
@@ -368,7 +401,7 @@ export function ScoreEntryClient({
   // below from painting once against a shape it cannot score.
   const effectiveMode = availableModes.some((m) => m.key === mode)
     ? mode
-    : defaultEntryMode(format, netMode, courseKnown);
+    : defaultEntryMode(format, netMode, courseKnown, scoreInput);
   const activeMode = availableModes.find((m) => m.key === effectiveMode) ?? availableModes[0];
   const [winner, setWinner] = useState<Winner>("A");
   const [margin, setMargin] = useState("");

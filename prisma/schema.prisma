@@ -1049,6 +1049,24 @@ model Stage {
   handicapAllowance Int @default(0)
 
   /**
+   * Committee override for how this round's scores are RECORDED.
+   * "gross-cards" | "hole-results" | "match-result" — see MatchEntryMode in
+   * lib/domain/match-entry.ts, and GolfFormat.inputs for what each format
+   * offers.
+   * Empty means "use the input the format declares", exactly as zero does for
+   * handicapAllowance and an empty array does for allowanceWeights — so every
+   * round that existed before this field records exactly what it always did.
+   * A value the format does not offer is IGNORED rather than honoured
+   * (resolveScoreInput), because a stored string is caller-supplied and
+   * "final result only" on a Stableford round is a shape no engine can read.
+   * It exists for one real case: a club that wants full cards from its
+   * match-play day, because under WHS a match-play score is acceptable for
+   * handicapping only when a full card is returned. That is the difference
+   * between a round counting and not, which is not a preference.
+   */
+  scoreInput String @default("")
+
+  /**
    * Per-player allowance shares for this round, best player first — the
    * committee's version of greensomes' 60/40 or a scramble's descending
    * table.

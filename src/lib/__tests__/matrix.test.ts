@@ -1,12 +1,29 @@
 import { describe, it, expect } from "vitest";
-import { FORMAT_NAMES, entryModeFor, findFormat, isManualFormat, isPlayable, needsTeams, sideSizeRange } from "@/lib/formats";
+import {
+  DEFAULT_INPUT,
+  FORMAT_NAMES,
+  declaredInput,
+  entryModeFor,
+  findFormat,
+  inputChoices,
+  isManualFormat,
+  isPlayable,
+  needsTeams,
+  resolveScoreInput,
+  sideSizeRange,
+} from "@/lib/formats";
 import { STAGE_TYPES, generatesPairings, isPlayingRound, stageTypeInfo } from "@/lib/stage-types";
 import { bracketSizeFor, buildBracket, seedOrder } from "@/lib/domain/bracket";
 import { flightCountFor } from "@/lib/domain/grouping";
 import { survivorCount, survivors, type CutCandidate, type CutRule } from "@/lib/domain/cut";
 import { aggregateStats, rankPlayers } from "@/lib/domain/standings";
+import { entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
+import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/domain/match-cards";
+import { aggregateStroke, isRanked, type StrokeCard } from "@/lib/domain/stroke-agg";
+import { resolveMatch } from "@/lib/domain/match";
+import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "@/lib/domain";
 import { DEFAULT_SCORING } from "@/lib/domain/types";
-import type { Match, Player } from "@/lib/domain/types";
+import type { HoleResult, Match, Player } from "@/lib/domain/types";
 
 /**
  * The combination sweep.
@@ -250,5 +267,210 @@ describe("standings, at every field size", () => {
   it("ranks an empty field without throwing", () => {
     const stats = aggregateStats([], [], DEFAULT_SCORING);
     expect(rankPlayers([], stats, DEFAULT_SCORING, [])).toEqual([]);
+  });
+});
+
+/**
+ * What every format asks to be RECORDED.
+ *
+ * The default is a real card, and a format may opt OUT of that — never opt in.
+ * Swept across the whole catalog so a format added tomorrow is checked the day
+ * it appears, which is the point of this file: the cells nobody thought about
+ * are the ones that broke.
+ */
+describe("the input model, on every format", () => {
+  /** Overrides a caller could actually send. Two are junk on purpose: a
+   *  `"use server"` export is a public HTTP endpoint and its argument types are
+   *  erased at runtime, so these ARE reachable. */
+  const OVERRIDES = ["", "gross-cards", "hole-results", "match-result", "nonsense", "  "];
+
+  for (const format of FORMAT_NAMES) {
+    it(`${format} declares an input and never resolves outside it`, () => {
+      const choices = inputChoices(format);
+      expect(choices.length).toBeGreaterThanOrEqual(1);
+      // No duplicates: a picker listing one shape twice is a picker nobody can
+      // read an answer off.
+      expect(new Set(choices).size).toBe(choices.length);
+      // A full card is ALWAYS available. That is "opt out, not opt in" made
+      // structural — a format may say a reduced shape is its natural one, and
+      // may not say a club is forbidden to return cards. Under WHS a match
+      // score counts for handicapping only when a full card comes back.
+      expect(choices, `${format} must allow a card`).toContain(DEFAULT_INPUT);
+      // The natural input is the first, and it is one of the choices.
+      expect(choices).toContain(declaredInput(format));
+      expect(declaredInput(format)).toBe(choices[0]);
+
+      for (const override of OVERRIDES) {
+        const got = resolveScoreInput(format, override);
+        expect(choices, `${format} + "${override}"`).toContain(got);
+      }
+      // Null and undefined are the same "no opinion" as "".
+      expect(resolveScoreInput(format, null)).toBe(declaredInput(format));
+      expect(resolveScoreInput(format, undefined)).toBe(declaredInput(format));
+      expect(resolveScoreInput(format, "nonsense")).toBe(declaredInput(format));
+
+      // The entry screen and the catalog answer with the same list. They were
+      // two places that both knew which formats produce no card, and they had
+      // already drifted over Nassau.
+      expect(entryModesFor(format)).toEqual(choices);
+    });
+
+    it(`${format} only offers a reduced input its engine can read`, () => {
+      const choices = inputChoices(format);
+      const reduced = choices.filter((c) => c !== DEFAULT_INPUT);
+      if (reduced.length === 0) return;
+      // Hole results and a final margin are match-play shapes: they say who
+      // won the hole, and a stroke engine has no such concept. Offering one on
+      // a stroke format would be offering a shape the scoring cannot read.
+      expect(["match", "nassau"], `${format} offers ${reduced.join(", ")}`).toContain(
+        findFormat(format).engine,
+      );
+      // Nassau slices one match into three bets. "3&2" cannot say who took the
+      // front nine, so two of the three would have to be invented.
+      if (findFormat(format).engine === "nassau") {
+        expect(choices).not.toContain("match-result" as MatchEntryMode);
+      }
+    });
+  }
+});
+
+/**
+ * Match cards, joined and added up, at every field size.
+ *
+ * The combination this whole change lives in: a round-robin stage holds the
+ * WHOLE round robin, so one player has several matches inside one round, and
+ * at least one of those matches ends early. Field sizes start at ONE — a
+ * one-player round has no matches at all, and a two-player round is a single
+ * match that may itself be the one that stopped short.
+ *
+ * Asserted against the Rules of Golf: Rule 3.2a(3) ends a match when a side
+ * leads by more holes than remain, and Rule 3.2b lets a hole be conceded. The
+ * five-and-four card below is a legal card that stops on the 14th — not
+ * "AAAAABBBB", which is A five up with four to play and therefore a match that
+ * ended before B won anything.
+ */
+describe("match cards, at every field size", () => {
+  const CARD = {
+    pars: new Array(18).fill(4) as number[],
+    holeDifficulty: Array.from({ length: 18 }, (_, i) => i + 1),
+  };
+  const AGG_OPTS = {
+    courseFor: () => CARD,
+    handicapFor: () => 0,
+    holeStrokesReceived,
+    stablefordPointsForHole,
+    allocationHoles,
+  };
+
+  /** Halved over the full eighteen: a finished match with a complete card. */
+  const HALVED: HoleResult[] = new Array(18).fill("H");
+  /** A up five after fourteen with four to play — the match ends 5&4. */
+  const FIVE_AND_FOUR: HoleResult[] = [
+    ...new Array(5).fill("A"),
+    ...new Array(9).fill("H"),
+    ...new Array(4).fill(null),
+  ];
+
+  const cardFor = (holes: HoleResult[]) =>
+    JSON.stringify(holes.map((h) => (h === null ? null : 4)));
+
+  for (const n of FIELD_SIZES) {
+    it(`joins and ranks a ${n}-player round robin honestly`, () => {
+      const players = field(n);
+      const matches: MatchForCards[] = [];
+      for (let i = 0; i < players.length; i += 1) {
+        for (let j = i + 1; j < players.length; j += 1) {
+          // The FIRST match of the round ends early; everything else goes the
+          // distance. Every match in the round is decided either way.
+          const holes = matches.length === 0 ? FIVE_AND_FOUR : HALVED;
+          matches.push({
+            id: `m${i}-${j}`,
+            stageId: "s1",
+            playerAId: players[i].id,
+            playerBId: players[j].id,
+            holes: JSON.stringify(holes),
+            forfeitedBy: "",
+          });
+        }
+      }
+
+      const rows = matches.flatMap((m) => {
+        const holes = JSON.parse(m.holes) as HoleResult[];
+        return [
+          { matchId: m.id, slot: "A", strokes: cardFor(holes) },
+          { matchId: m.id, slot: "B", strokes: cardFor(holes) },
+        ];
+      });
+
+      const joined = matchStrokeCards(rows, matches);
+      // Two cards per match, and never a player who is not in the field.
+      expect(joined).toHaveLength(matches.length * 2);
+      const ids = new Set(players.map((p) => p.id));
+      for (const c of joined) {
+        expect(ids.has(c.playerId), `unknown player ${c.playerId}`).toBe(true);
+        expect(c.stageId).toBe("s1");
+      }
+
+      // Every match in this round is DECIDED — that is what settles the
+      // bracket, the standings and the money, and it stays true of the one
+      // that ended on the 14th. The card question is asked separately below,
+      // and the two must not be merged.
+      for (const m of matches) {
+        const holes = JSON.parse(m.holes) as HoleResult[];
+        expect(resolveMatch(holes).winner, `${m.id} has no winner`).not.toBeNull();
+        expect(matchCardFinished(m)).toBe(true);
+      }
+
+      const cards: StrokeCard[] = joined.map((c) => ({
+        playerId: c.playerId,
+        stageId: c.stageId,
+        strokes: JSON.parse(c.strokes) as (number | null)[],
+        finished: c.finished,
+      }));
+      const agg = aggregateStroke(cards, AGG_OPTS);
+
+      // Who was in the match that stopped short.
+      const shortened = new Set(
+        matches.length ? [matches[0].playerAId, matches[0].playerBId] : [],
+      );
+
+      for (const p of players) {
+        const a = agg.get(p.id);
+        if (!a) {
+          // A one-player round has no matches and therefore no cards. Nobody
+          // is ranked, and nothing throws.
+          expect(n).toBe(1);
+          continue;
+        }
+        finite(a.gross, "gross");
+        finite(a.thru, "thru");
+        finite(a.parThru, "parThru");
+        finite(a.holesOwed, "holesOwed");
+        // Never more holes played than the round asked for.
+        expect(a.thru).toBeLessThanOrEqual(a.holesOwed);
+        // One card per match played, eighteen holes owed for each.
+        const played = matches.filter((m) => m.playerAId === p.id || m.playerBId === p.id).length;
+        expect(a.holesOwed).toBe(played * 18);
+
+        if (shortened.has(p.id)) {
+          // Four holes conceded and never played. Shown on the board with the
+          // holes actually played, and NOT ranked: fourteen against somebody
+          // else's eighteen is not a comparison, and nothing may invent a
+          // score for a hole nobody played.
+          expect(a.stoppedShort, `${p.id} played ${a.thru} of ${a.holesOwed}`).toBe(true);
+          expect(isRanked(a)).toBe(false);
+          expect(a.thru).toBeLessThan(a.holesOwed);
+        } else {
+          expect(a.stoppedShort).toBe(false);
+          expect(isRanked(a)).toBe(true);
+          expect(a.thru).toBe(a.holesOwed);
+        }
+      }
+    });
+  }
+
+  it("joins nothing from an empty round without throwing", () => {
+    expect(matchStrokeCards([], [])).toEqual([]);
+    expect(aggregateStroke([], AGG_OPTS).size).toBe(0);
   });
 });

@@ -108,6 +108,9 @@ export default async function StagesPage() {
     playedOn: s.playedOn,
     deadline: s.deadline,
     scoringBasis: s.scoringBasis,
+    // How scores are RECORDED, as opposed to how they are scored. "" means
+    // the round takes whatever its format declares.
+    scoreInput: s.scoreInput,
     carryEnabled: s.carryForwardEnabled,
     carryPct: s.carryForwardPct,
     carryAsked: s.carryForwardAsked,

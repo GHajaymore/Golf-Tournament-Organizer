@@ -9,7 +9,8 @@ import { prisma } from "../db";
 import { effectiveAllowance } from "./teams";
 import {
   holeStrokesReceived, stablefordPointsForHole, allocationHoles, playingHandicapFrom } from "../domain";
-import { aggregateStroke, emptyAgg, netOf, type StrokeCard } from "../domain/stroke-agg";
+import { aggregateStroke, emptyAgg, isRanked, netOf, type StrokeCard } from "../domain/stroke-agg";
+import { matchStrokeCards } from "../domain/match-cards";
 import { countbackCompare } from "../domain/stroke-countback";
 import { resolveCourse } from "../courses";
 import { todayIso } from "../deadline";
@@ -252,6 +253,16 @@ export interface StrokeStanding {
   toPar: number;
   points: number;
   thru: number;
+  /** Holes the cards counted here cover, so a screen can say "14 of 18". */
+  holesOwed: number;
+  /**
+   * Whether this player holds a POSITION, as opposed to appearing on the sheet.
+   *
+   * A card that stopped short — a match won 5&4, four holes conceded and never
+   * played — is shown with the holes actually played and is not ranked. See
+   * `isRanked`; `rank` is 0 for everyone this is false for.
+   */
+  ranked: boolean;
   rank: number;
 }
 
@@ -373,14 +384,23 @@ export function chainRoundStandings(
 }
 
 /** Cards come out of the database with strokes as a JSON string; unparseable
- *  ones are dropped rather than guessed at. */
+ *  ones are dropped rather than guessed at.
+ *
+ *  `finished` rides through untouched. A `Scorecard` row never sets it — a
+ *  round that is open can still gain holes — and a match card sets it when its
+ *  match is over. See `matchStrokeCards`. */
 export function parseStrokeCards(
-  rows: Array<{ playerId: string; stageId: string; strokes: string }>,
+  rows: Array<{ playerId: string; stageId: string; strokes: string; finished?: boolean }>,
 ): StrokeCard[] {
   const out: StrokeCard[] = [];
   for (const r of rows) {
     try {
-      out.push({ playerId: r.playerId, stageId: r.stageId, strokes: JSON.parse(r.strokes) });
+      out.push({
+        playerId: r.playerId,
+        stageId: r.stageId,
+        strokes: JSON.parse(r.strokes),
+        finished: r.finished,
+      });
     } catch {
       // A corrupt card is skipped, not treated as a round of zeros.
     }
@@ -414,7 +434,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return null;
 
-  const [accounts, players, groups, stages, matches, bracketWinners, scorecards, venues, tees] = await Promise.all([
+  const [accounts, players, groups, stages, matches, bracketWinners, scorecards, matchCards, venues, tees] = await Promise.all([
     prisma.account.findMany({ where: { eventId }, orderBy: { name: "asc" } }),
     prisma.player.findMany({ where: { eventId }, orderBy: { seed: "asc" } }),
     prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
@@ -440,6 +460,16 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     }),
     prisma.bracketWinner.findMany({ where: { eventId } }),
     prisma.scorecard.findMany({ where: { eventId } }),
+    /**
+     * The strokes recorded for match play.
+     *
+     * Written by `saveMatchScorecard` since net match play was added, and read
+     * by exactly one screen until now — so a match-play event held real cards
+     * and every board in the app showed it as having none. `matchStrokeCards`
+     * resolves `(matchId, slot)` to `(playerId, stageId)` and the ordinary
+     * stroke aggregation takes it from there.
+     */
+    prisma.matchScorecard.findMany({ where: { eventId } }),
     // The tournament's venues, so a round played at another club is scored
     // against that club's card rather than the first round's.
     prisma.course.findMany({ where: { events: { some: { eventId } } } }),
@@ -609,8 +639,28 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     ? standingsUnit(strokeUnitStage.format, strokeUnitStage.scoringBasis)
     : "strokes";
 
+  /**
+   * Every card the field has returned, whichever table it lives in.
+   *
+   * A stroke round writes `Scorecard`; a match round writes `MatchScorecard`
+   * keyed by slot. They are the same fact — a player's gross strokes, hole by
+   * hole — so they are added up by the same function, with the same allowance
+   * and the same countback. Writing a second copy of that arithmetic for match
+   * play is precisely how two screens come to disagree about one player's net
+   * score.
+   *
+   * Team cards are not here: `TeamScorecard` holds a SIDE's card, and in a
+   * shared-ball format there is one card for two people. Crediting it to either
+   * of them would put a round on the board that neither played.
+   */
+  const joinedMatchCards = matchStrokeCards(matchCards, matches).filter((c) =>
+    strokeRoundIds.has(c.stageId),
+  );
   const strokeAgg = aggregateStroke(
-    parseStrokeCards(scorecards.filter((c) => strokeRoundIds.has(c.stageId))),
+    parseStrokeCards([
+      ...scorecards.filter((c) => strokeRoundIds.has(c.stageId)),
+      ...joinedMatchCards,
+    ]),
     {
       courseFor,
       handicapFor,
@@ -651,11 +701,25 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
       const a = strokeAgg.get(p.id) ?? emptyAgg();
-      return { player: p, gross: a.gross, net: netOf(a), toPar: a.gross - a.parThru, points: a.points, thru: a.thru, rank: 0 };
+      return {
+        player: p,
+        gross: a.gross,
+        net: netOf(a),
+        toPar: a.gross - a.parThru,
+        points: a.points,
+        thru: a.thru,
+        holesOwed: a.holesOwed,
+        ranked: isRanked(a),
+        rank: 0,
+      };
     })
     .sort((x, y) => {
-      const started = (y.thru > 0 ? 1 : 0) - (x.thru > 0 ? 1 : 0);
+      // Unranked rows go to the bottom, together — a player who returned no
+      // card and a player whose card stopped short are both on the sheet
+      // without a position, and neither may sit between two ranked players.
+      const started = (y.ranked ? 1 : 0) - (x.ranked ? 1 : 0);
       if (started !== 0) return started;
+      if (!x.ranked) return 0;
       if (stableford) return y.points - x.points;
       const byScore = grossBasis
         ? x.gross - y.gross || x.net - y.net
@@ -688,10 +752,18 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    */
   for (let i = 0; i < strokeStandings.length; i += 1) {
     const s = strokeStandings[i];
+    // No position for a player who is on the sheet without one — nobody who
+    // returned nothing, and nobody whose card stopped short. Zero rather than a
+    // number, so a reader that forgets to check cannot quietly present a place
+    // that was never awarded.
+    if (!s.ranked) {
+      s.rank = 0;
+      continue;
+    }
     const prev = i > 0 ? strokeStandings[i - 1] : null;
     const sameScore =
       prev !== null &&
-      prev.thru > 0 === s.thru > 0 &&
+      prev.ranked &&
       (stableford
         ? prev.points === s.points
         : prev.gross === s.gross && prev.net === s.net);
@@ -704,7 +776,11 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // Qualification: format-aware — top N by net (stroke) or points (match), per flight or overall.
   let qualifierIds: Set<string>;
   if (isStroke) {
-    const scored = strokeStandings.filter((s) => s.thru > 0);
+    // Ranked, not merely started. A card that stopped short holds no position,
+    // and a player with no position cannot take a qualifying place off somebody
+    // who has one — which is exactly how a board and an engine come to disagree
+    // about who advances.
+    const scored = strokeStandings.filter((s) => s.ranked);
     if (event.qualifyMode === "overall") {
       qualifierIds = new Set(scored.slice(0, event.qualifyOverall).map((s) => s.player.id));
     } else {
@@ -774,7 +850,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
         ? overall.filter((rp) => contestedIds.has(rp.player.id))
         : overall;
       const ranked: CutCandidate[] = isStroke
-        ? strokeStandings.filter((s) => s.thru > 0).map((s) => ({ id: s.player.id, groupId: s.player.groupId }))
+        ? strokeStandings.filter((s) => s.ranked).map((s) => ({ id: s.player.id, groupId: s.player.groupId }))
         : stillIn.map((rp) => ({ id: rp.player.id, groupId: rp.player.groupId }));
       advancingIds = survivors(ranked, cutRule);
     }
@@ -872,6 +948,7 @@ export function standingRows(state: EventState): StandingRow[] {
     return state.strokeStandings.map((s) => ({
       id: s.player.id,
       rank: s.rank,
+      ranked: s.ranked,
       name: s.player.name,
       flight: flight(s.player.id),
       advancing: state.advancingIds.has(s.player.id),
@@ -887,27 +964,48 @@ export function standingRows(state: EventState): StandingRow[] {
       toPar: s.toPar,
       points: s.points,
       thru: s.thru,
+      holesOwed: s.holesOwed,
     }));
   }
-  return state.overall.map((r) => ({
-    id: r.player.id,
-    rank: r.rank,
-    name: r.player.name,
-    flight: flight(r.player.id),
-    advancing: state.advancingIds.has(r.player.id),
-    record: fmtRecord(r.stats),
-    diff: fmtDiff(r.stats),
-    pts: fmtPts(r.stats.totalPoints),
-    played: r.stats.played,
-    wins: r.stats.wins,
-    ties: r.stats.ties,
-    losses: r.stats.losses,
-    gross: 0,
-    net: 0,
-    toPar: 0,
-    points: 0,
-    thru: 0,
-  }));
+  /**
+   * The stroke columns of a match-play row.
+   *
+   * These were `gross: 0, net: 0, toPar: 0, thru: 0` for every match-play row
+   * in the app, which is why a to-par board in a match-play event was a column
+   * of zeros — the cards were in `MatchScorecard` and nothing joined them. They
+   * now carry whatever the player actually returned, which is nothing at all
+   * when the round was recorded hole-by-hole rather than as a card. A match
+   * player's POSITION is still their match points: `rank` comes from the
+   * chained standings above and this changes none of it.
+   */
+  const strokeBy = new Map(state.strokeStandings.map((s) => [s.player.id, s]));
+  return state.overall.map((r) => {
+    const s = strokeBy.get(r.player.id);
+    return {
+      id: r.player.id,
+      rank: r.rank,
+      // A match-play row is ranked on points, and it always has been. The
+      // stroke columns beside it may be blank or short without costing anybody
+      // their place in the standings.
+      ranked: true,
+      name: r.player.name,
+      flight: flight(r.player.id),
+      advancing: state.advancingIds.has(r.player.id),
+      record: fmtRecord(r.stats),
+      diff: fmtDiff(r.stats),
+      pts: fmtPts(r.stats.totalPoints),
+      played: r.stats.played,
+      wins: r.stats.wins,
+      ties: r.stats.ties,
+      losses: r.stats.losses,
+      gross: s?.gross ?? 0,
+      net: s?.net ?? 0,
+      toPar: s?.toPar ?? 0,
+      points: s?.points ?? 0,
+      thru: s?.thru ?? 0,
+      holesOwed: s?.holesOwed ?? 0,
+    };
+  });
 }
 
 export interface Highlight {
@@ -922,7 +1020,9 @@ export function computeHighlights(state: EventState): Highlight[] {
   const fmt = (n: number) => (Math.round(n * 100) / 100).toString();
 
   if (state.isStroke) {
-    const scored = state.strokeStandings.filter((s) => s.thru > 0);
+    // Only players who hold a position. A leader is the top of a ranking, and a
+    // card that stopped short is not in one.
+    const scored = state.strokeStandings.filter((s) => s.ranked);
     if (!scored.length) return out;
     const stableford = state.activeStage?.scoringBasis === "stableford";
     const lead = scored[0];

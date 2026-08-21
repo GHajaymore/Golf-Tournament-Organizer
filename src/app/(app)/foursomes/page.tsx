@@ -51,7 +51,10 @@ export default async function FoursomesPage({
    */
   const standings: Standing[] = state.isStroke
     ? state.strokeStandings
-        .filter((s) => s.thru > 0)
+        // Ranked, not merely started: a card that stopped short holds no
+        // position, and drawing "leaders out last" off a rank of 0 would put
+        // those players out first for a reason nobody chose.
+        .filter((s) => s.ranked)
         .map((s) => ({ playerId: s.player.id, position: s.rank }))
     : state.overall
         .filter((r) => r.stats.played > 0)

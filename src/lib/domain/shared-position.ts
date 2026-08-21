@@ -22,17 +22,29 @@ export interface PositionRow {
   rank: number;
   /** Holes played. Zero means they have not started. */
   thru: number;
+  /**
+   * Whether this row holds a position at all.
+   *
+   * A card that stopped short — a match won 5&4, four holes conceded and never
+   * played — is shown on the board without one, and its `rank` is 0. Without
+   * this, every such row would look level with every other and a player would
+   * be told they were "T0".
+   */
+  ranked: boolean;
 }
 
 /**
- * "T2" for a shared position, "2" for a solo one, "" when they have no score.
+ * "T2" for a shared position, "2" for a solo one, "" when they have none.
  *
  * Returns the text rather than a boolean so the caller cannot render the
  * convention two different ways on two different screens.
  */
 export function positionLabel(rows: PositionRow[], playerId: string): string {
   const mine = rows.find((r) => r.id === playerId);
-  if (!mine || mine.thru <= 0) return "";
-  const sharing = rows.filter((r) => r.thru > 0 && r.rank === mine.rank).length;
+  // Both, and they are different questions. `thru` is whether a card exists to
+  // report on; `ranked` is whether it earned a place. A 5&4 card has the first
+  // and not the second.
+  if (!mine || mine.thru <= 0 || !mine.ranked) return "";
+  const sharing = rows.filter((r) => r.thru > 0 && r.ranked && r.rank === mine.rank).length;
   return sharing > 1 ? `T${mine.rank}` : `${mine.rank}`;
 }
