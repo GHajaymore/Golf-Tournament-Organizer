@@ -3226,6 +3226,37 @@ describe("play settings name one thing per heading", () => {
   });
 });
 
+describe("the lifecycle button names the phase, not the link", () => {
+  const summary = {
+    name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play",
+    players: 33, flights: 8, rounds: 4,
+  };
+  const bar = async (status: string) => {
+    const { LifecycleBar } = await import("@/components/LifecycleBar");
+    return render(
+      <LifecycleBar status={status} isAdmin configUnlocked={false} summary={summary} matchesScored={0} />,
+    );
+  };
+
+  it("says what it does — move a phase — rather than promising a link", async () => {
+    // It calls setEventStatus("registration"). It publishes no sign-up link
+    // and does not change what registrationStatus decides, so "Open
+    // registration" promised the one thing it did not do — while the public
+    // link and the accepting-entries switch used the same word a few inches
+    // away. Ajay's call 2026-08-21: the phase takes a different word.
+    const html = await bar("draft");
+    expect(html).toContain("Start taking entries");
+    expect(html).not.toContain("Open registration");
+  });
+
+  it("leaves the later steps alone", async () => {
+    // Only the draft step was ambiguous; renaming the rest would churn
+    // vocabulary an organizer has already learned.
+    expect(await bar("registration")).toContain("Mark ready");
+    expect(await bar("ready")).toContain("Launch tournament");
+  });
+});
+
 describe("the draw's refusal", () => {
   const controls = async (players: unknown[], locked = false) => {
     const { GroupingControls } = await import("@/components/GroupingControls");

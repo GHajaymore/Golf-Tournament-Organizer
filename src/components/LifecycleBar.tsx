@@ -35,7 +35,22 @@ export function LifecycleBar({
   const mismatch = lifecycleMismatch({ status, matchesScored, playersEntered: summary.players });
 
   const next = () => {
-    if (status === "draft") return { label: "Open registration", run: () => setEventStatus("registration") };
+    /**
+     * "Start taking entries", not "Open registration".
+     *
+     * This moves the tournament to the `registration` PHASE. It publishes no
+     * sign-up link and does not change what `registrationStatus` decides — so
+     * the old label promised the one thing it did not do, while two other
+     * controls a few inches away used the same word for the public link and
+     * for accepting entries. Three things, one word.
+     *
+     * Ajay's call, 2026-08-21: the phase takes a different word and
+     * "registration" is left meaning the public sign-up link, which is what it
+     * means to a player. Renamed rather than made to publish a link too —
+     * that would change behaviour for every existing tournament and put a
+     * public form live for an organizer who only moved a phase.
+     */
+    if (status === "draft") return { label: "Start taking entries", run: () => setEventStatus("registration") };
     if (status === "registration") return { label: "Mark ready", run: () => setEventStatus("ready") };
     if (status === "ready") return { label: "Launch tournament", run: null }; // opens modal
     if (status === "live") return { label: "Complete tournament", run: () => setEventStatus("completed") };
