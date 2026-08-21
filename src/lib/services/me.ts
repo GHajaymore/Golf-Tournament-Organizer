@@ -4,6 +4,7 @@ import { generatesPairings } from "@/lib/stage-types";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows, type EventState } from "@/lib/services/tournament";
 import { filledHoles } from "@/lib/domain/card-approval";
+import { positionLabel } from "@/lib/domain/shared-position";
 
 /**
  * Everything the player-facing screens need about *this* person, in one place.
@@ -76,7 +77,14 @@ export interface Me {
   name: string;
   /** My row in the standings — position and score, from the same engine the
    *  leaderboard uses rather than a second calculation. */
-  standing: { rank: number; toPar: number; thru: number; points: number } | null;
+  standing: {
+    rank: number;
+    /** The rank as it should be SHOWN — "T2" when shared. */
+    position: string;
+    toPar: number;
+    thru: number;
+    points: number;
+  } | null;
   round: MyRound | null;
 }
 
@@ -150,13 +158,25 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
   // Position from the same standingRows the leaderboard renders — never a
   // second calculation, which is how two screens come to disagree about who
   // is winning.
-  const standing = standingRows(state).find((r) => r.id === playerId) ?? null;
+  const rows = standingRows(state);
+  const standing = rows.find((r) => r.id === playerId) ?? null;
+  // "T2" when the position is shared. Whether it IS shared is a fact about the
+  // field, so it cannot be read off one row — which is exactly how the screen
+  // came to tell a player they were second while two others were equally
+  // second. This function had the whole list in hand and passed on one row.
+  const position = positionLabel(rows, playerId);
 
   return {
     playerId,
     name: player?.name ?? "",
     standing: standing
-      ? { rank: standing.rank, toPar: standing.toPar, thru: standing.thru, points: standing.points }
+      ? {
+          rank: standing.rank,
+          position,
+          toPar: standing.toPar,
+          thru: standing.thru,
+          points: standing.points,
+        }
       : null,
     round: {
       stageId: stage.id,

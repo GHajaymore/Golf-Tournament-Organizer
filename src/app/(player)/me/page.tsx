@@ -88,6 +88,12 @@ export default async function PlayTodayPage() {
               <div style={{ fontSize: 11.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>
                 {me.standing && me.standing.thru > 0 ? "Position" : "Not started"}
               </div>
+              {/* "T2", not "2", when the position is shared.
+                  It showed the bare rank, which is right on a board where the
+                  reader can see the rows either side of them — and wrong here,
+                  where the number is addressed to ONE person. Three players
+                  level on 2 were each told they were second, and that is the
+                  number they quote in the bar. */}
               <div
                 style={{
                   fontFamily: "var(--font-heading)",
@@ -96,7 +102,7 @@ export default async function PlayTodayPage() {
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
-                {me.standing && me.standing.thru > 0 ? me.standing.rank : "–"}
+                {me.standing?.position || "–"}
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
