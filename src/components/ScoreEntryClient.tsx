@@ -192,6 +192,10 @@ const TAG_CLASS: Record<MatchStatusKey, string> = {
  * implementations of one rule — and a bulk action built on the first would
  * quietly disagree with the second.
  */
+/** One shared empty card, so "no match selected" keeps the same identity
+ *  between renders and the `useMemo` depending on it can actually memoize. */
+const NO_HOLES: HoleResult[] = [];
+
 function statusOf(holes: HoleResult[], confirmStatus: string): { tag: string; tagClass: string } {
   const key = matchStatusKey({
     complete: resolveMatch(holes).complete,
@@ -421,7 +425,10 @@ export function ScoreEntryClient({
   const pars = active?.pars?.length ? active.pars : parsProp;
   const yards = active?.yards?.length ? active.yards : yardsProp;
   const strokeIndex = active?.strokeIndex?.length ? active.strokeIndex : strokeIndexProp;
-  const holes = active ? holesById[active.id] ?? active.holes : [];
+  // `NO_HOLES`, not a fresh `[]`. The fallback allocated a new array on every
+  // render, so `resolveMatch` re-ran on every render of a screen that is used
+  // hole by hole on a phone — the standing lint warning, and it was right.
+  const holes = active ? holesById[active.id] ?? active.holes : NO_HOLES;
   const resolution = useMemo(() => resolveMatch(holes), [holes]);
   const activeStatus = active ? statusById[active.id] ?? active.status : "pending";
   const totalHoles = holes.length || 18;

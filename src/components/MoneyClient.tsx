@@ -31,6 +31,10 @@ const money = (cents: number) => {
 
 type Scope = "group" | "everyone" | "pick";
 
+/** One shared empty list, so "no group" keeps the same identity between
+ *  renders and a `useMemo` depending on it can actually memoize. */
+const NO_IDS: string[] = [];
+
 export function MoneyClient({ view }: { view: MoneyView }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -44,7 +48,11 @@ export function MoneyClient({ view }: { view: MoneyView }) {
   const [picked, setPicked] = useState<Set<string>>(() => new Set(view.field.map((p) => p.id)));
 
   const round = view.rounds.find((r) => r.stageId === stageId) ?? null;
-  const groupIds = round?.groupPlayerIds ?? [];
+  // `NO_IDS`, not a fresh `[]`. The fallback used to allocate a new array on
+  // every render, so the memo below saw a different dependency each time and
+  // never memoized anything — which is exactly what the standing lint warning
+  // was reporting. A shared frozen empty array has a stable identity.
+  const groupIds = round?.groupPlayerIds ?? NO_IDS;
 
   /** Who this line is split between, from the scope the payer chose. */
   const shareIds = useMemo(() => {
