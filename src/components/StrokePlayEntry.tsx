@@ -5,6 +5,7 @@ import { CardPhotoReader } from "@/components/CardPhotoReader";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { ScorecardTable, type CardBrand } from "@/components/ScorecardTable";
 import { computeStrokeCard, toParText, parseStrokesTranscript } from "@/lib/domain";
+import { cardTotals, TOTAL_LABEL } from "@/lib/domain/card-totals";
 import { isCardLocked } from "@/lib/domain/card-approval";
 import { saveScorecard } from "@/app/actions/tournament";
 
@@ -27,6 +28,8 @@ export function StrokePlayEntry({
   shotsByPlayer = {},
   cardScanAvailable = true,
   brand,
+  scoringBasis = "both",
+  format = "",
 }: {
   players: StrokePlayer[];
   pars: number[];
@@ -54,6 +57,13 @@ export function StrokePlayEntry({
    *  group of cards at once and deliberately carries no mark: four logos down
    *  a phone screen is clutter, not a scorecard. */
   brand?: CardBrand | null;
+  /** How this round is scored — gross | net | both | stableford. Decides
+   *  which totals the card reports. Defaults to "both", which is the three
+   *  figures a caller that says nothing used to get. */
+  scoringBasis?: string;
+  /** The round's format. Wins over `scoringBasis` where the two contradict
+   *  each other — a Stableford is won on points whatever the basis says. */
+  format?: string;
 }) {
   const [playerId, setPlayerId] = useState(players[0]?.id ?? "");
   const [cards, setCards] = useState<Record<string, (number | null)[]>>(() => {
@@ -233,11 +243,42 @@ export function StrokePlayEntry({
             ))}
           </select>
         </div>
+        {/* The figures this round is actually scored on, in reading order.
+            All four used to show on every card, so a gross medal reported a
+            Net and a Stableford total the tournament never reads, and a
+            Stableford round gave "to par" equal billing with the points it is
+            won on. Two of four numbers being noise is worse than two numbers:
+            on a phone in the sun the reader has to work out which is theirs.
+            `cardTotals` is derived from the round, so this cannot drift from
+            how the round is scored. */}
         <div style={{ display: "flex", gap: 18, textAlign: "center" }}>
-          <div><div className="card-kicker">Gross</div><div style={{ fontFamily: "var(--font-heading)", fontSize: 22 }}>{card.gross || "—"}</div></div>
-          <div><div className="card-kicker">Net</div><div style={{ fontFamily: "var(--font-heading)", fontSize: 22 }}>{card.played ? card.net : "—"}</div></div>
-          <div><div className="card-kicker">To par</div><div style={{ fontFamily: "var(--font-heading)", fontSize: 22, color: "var(--color-accent-200)" }}>{card.played ? toParText(card.toPar) : "—"}</div></div>
-          <div><div className="card-kicker">Stableford</div><div style={{ fontFamily: "var(--font-heading)", fontSize: 22, color: "var(--color-accent-2-300)" }}>{card.played ? card.points : "—"}</div></div>
+          {cardTotals(scoringBasis, format).map((t) => (
+            <div key={t}>
+              <div className="card-kicker">{TOTAL_LABEL[t]}</div>
+              <div
+                style={{
+                  fontFamily: "var(--font-heading)",
+                  fontSize: 22,
+                  color:
+                    t === "toPar"
+                      ? "var(--color-accent-200)"
+                      : t === "points"
+                        ? "var(--color-accent-2-300)"
+                        : undefined,
+                }}
+              >
+                {t === "gross"
+                  ? card.gross || "—"
+                  : !card.played
+                    ? "—"
+                    : t === "net"
+                      ? card.net
+                      : t === "toPar"
+                        ? toParText(card.toPar)
+                        : card.points}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

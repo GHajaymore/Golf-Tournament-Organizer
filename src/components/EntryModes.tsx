@@ -25,6 +25,9 @@ export interface EntryRound {
   /** The committee's override for how this round's scores are recorded, or ""
    *  to take the input its format declares. */
   scoreInput: string;
+  /** gross | net | both | stableford — how this round is won, and so which
+   *  totals its card reports. */
+  scoringBasis: string;
   /**
    * The venue for this round, when one is set on the round itself. "" means it
    * inherits — the tournament's sole venue, then the event's own course.
@@ -270,6 +273,8 @@ export function EntryModes({
           teeGroups={round.stroke.teeGroups}
           shotsByPlayer={round.stroke.shotsByPlayer}
           brand={brand}
+          scoringBasis={round.scoringBasis}
+          format={round.format}
         />
       )}
 

@@ -404,6 +404,8 @@ export default async function EntryPage() {
         matches: stageMatches,
         netMode,
         scoreInput: stage.scoreInput,
+        // How this round is won, which decides which totals its card reports.
+        scoringBasis: stage.scoringBasis,
         courseId: stage.courseId ?? "",
         /**
          * The venue this round will actually be scored against.

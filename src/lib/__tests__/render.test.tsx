@@ -1571,6 +1571,32 @@ describe("stroke-play card", () => {
     expect(html).toContain("Hole 1, par 4");
   });
 
+  it("reports the totals this round is won on, not all four every time", () => {
+    // A gross medal used to display a Net and a Stableford figure the
+    // tournament never reads. Two of four numbers being noise is worse than
+    // two numbers: on a phone in the sun the reader has to work out which
+    // one is theirs.
+    const gross = render(<StrokePlayEntry {...base} cardsByPlayer={{}} scoringBasis="gross" />);
+    expect(gross).toContain("To par");
+    expect(gross).not.toContain("Stableford");
+    expect(gross).not.toContain(">Net<");
+
+    const net = render(<StrokePlayEntry {...base} cardsByPlayer={{}} scoringBasis="net" />);
+    expect(net).toContain("Net");
+    expect(net).not.toContain("Stableford");
+  });
+
+  it("leads with points on a Stableford even when the basis says otherwise", () => {
+    // Rule 21.1 — most points wins. The format and the basis are two settings
+    // that can contradict each other, and the one that is a fact about the
+    // game wins.
+    const html = render(
+      <StrokePlayEntry {...base} cardsByPlayer={{}} scoringBasis="gross" format="Stableford" />,
+    );
+    expect(html).toContain("Stableford");
+    expect(html.indexOf("Stableford")).toBeLessThan(html.indexOf("Gross"));
+  });
+
   it("carries the club's mark, the same as the card the player holds", () => {
     // The organizer's card and the player's are the same card. Branding one
     // and not the other would mean a returned card and the phone it was
