@@ -22,6 +22,8 @@
  * Safe to interrupt and safe to re-run. It is polite to the directory: one
  * request at a time, with a pause between them.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { courseFrom, hitsFrom } from "../src/lib/domain/course-directory";
 
@@ -80,11 +82,35 @@ class QuotaExhausted extends Error {}
 /**
  * A free key raises the allowance well above the anonymous one.
  *
- * Read from the environment rather than committed: it is a credential, the
- * repository is public, and rule 2 does not make exceptions for small ones.
- *   OPENGOLF_API_KEY=ogapi_… npx tsx ... scripts/import-course-catalog.ts --all
+ * Read from the environment or from `.env`, which is gitignored — it is a
+ * credential and this repository is public. `.env` is the easier of the two:
+ * put the key there once and every later run picks it up, rather than
+ * remembering to prefix the command.
+ *
+ *   .env:  OPENGOLF_API_KEY=ogapi_…
+ *   or:    OPENGOLF_API_KEY=ogapi_… npx tsx … --all
+ *
+ * Read by hand rather than with dotenv. Prisma loads `.env` for its own
+ * connection, which is why the database works here, but it does not put the
+ * file's other keys on `process.env` — so a key sitting in `.env` was being
+ * silently ignored and the run went out anonymous.
  */
-const API_KEY = process.env.OPENGOLF_API_KEY?.trim() ?? "";
+function envKey(): string {
+  const fromEnv = process.env.OPENGOLF_API_KEY?.trim();
+  if (fromEnv) return fromEnv;
+  try {
+    const text = readFileSync(resolve(process.cwd(), ".env"), "utf8");
+    for (const line of text.split(/\r?\n/)) {
+      const m = /^\s*(?:export\s+)?OPENGOLF_API_KEY\s*=\s*(.*)$/.exec(line);
+      if (m) return m[1].trim().replace(/^["']|["']$/g, "");
+    }
+  } catch {
+    // No .env, or unreadable. Anonymous is a valid way to run this.
+  }
+  return "";
+}
+
+const API_KEY = envKey();
 
 async function getJson(path: string): Promise<unknown | null> {
   let refused = false;
