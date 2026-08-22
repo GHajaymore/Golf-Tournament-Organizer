@@ -255,10 +255,23 @@ export async function brandForEvent(eventId: string): Promise<EventBrand | null>
  */
 export async function cardBrand(
   eventId: string,
-): Promise<{ name: string; logoUrl: string; secondary: string } | null> {
+): Promise<{ name: string; logoUrl: string; secondary: string; homeCourseId: string } | null> {
   const brand = await brandForEvent(eventId);
   if (!brand) return null;
-  return { name: brand.name, logoUrl: brand.logoUrl, secondary: brand.secondary };
+  // The club's own course, so a card can tell "our course" from "somebody
+  // else's". At home the club's mark heads the card; away, the course leads
+  // and the club is named beneath it. Read here rather than by each page, so
+  // the two cards cannot disagree about which case they are in.
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { organization: { select: { defaultCourseId: true } } },
+  });
+  return {
+    name: brand.name,
+    logoUrl: brand.logoUrl,
+    secondary: brand.secondary,
+    homeCourseId: event?.organization?.defaultCourseId ?? "",
+  };
 }
 
 /** The organizations a person owns, administers, or is staff in. */

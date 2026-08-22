@@ -124,6 +124,11 @@ export default async function PlayCardPage() {
       playerName={me.name}
       roundLabel={me.round.label}
       courseName={known ? card.name : ""}
+      // Whether that course is the club's own. At home the club's mark heads
+      // the card; away, the course leads and the club is named beneath it — a
+      // society's outing at Pebble Beach should not look like the society owns
+      // the course.
+      venueIsHome={!!brand?.homeCourseId && brand.homeCourseId === (venue?.id ?? "")}
       holes={holes}
       pars={known ? card.pars.slice(0, holes) : []}
       yards={known ? card.yards.slice(0, holes) : []}

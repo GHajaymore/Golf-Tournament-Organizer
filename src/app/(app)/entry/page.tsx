@@ -65,6 +65,8 @@ export default async function EntryPage() {
   const cardedVenues = venues.filter(
     (c) => parseHoleArray(c.pars) !== null && parseHoleArray(c.strokeIndex) !== null,
   );
+  // The club's mark and its own course, read once for this screen.
+  const brand = await cardBrand(session.eventId);
   const courseMode = courseModeOf(state.event.courseMode);
   // An open-course tournament is never blocked on a missing event course —
   // the venue is named per match, at scoring time, by whoever was there.
@@ -563,7 +565,12 @@ export default async function EntryPage() {
       // The club's badge at the head of the card. Same reader the console
       // header and the player's own card use, so an organizer checking a
       // returned card and the player who returned it see one club, not two.
-      brand={await cardBrand(session.eventId)}
+      brand={brand}
+      // Whether this tournament is played on the club's OWN course. At home the
+      // club's mark heads the card; away, the course leads and the club is
+      // named beneath it — a society's outing at Pebble Beach should not read
+      // as though the society owns the course.
+      venueIsHome={!!brand?.homeCourseId && brand.homeCourseId === (soleVenue?.id ?? "")}
     />
   );
 }

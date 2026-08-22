@@ -1,5 +1,6 @@
 "use client";
 import { toParText } from "@/lib/domain";
+import { cardHeading } from "@/lib/domain/card-heading";
 
 /**
  * A scorecard, the way a scorecard looks.
@@ -57,6 +58,8 @@ export function ScorecardTable({
   onSet,
   scoreLabel = "Score",
   brand,
+  courseName = "",
+  venueIsHome = false,
 }: {
   holes: number;
   pars: number[];
@@ -65,6 +68,12 @@ export function ScorecardTable({
   strokes: (number | null)[];
   /** The club's mark, for the head of the card. Omit for an unbranded one. */
   brand?: CardBrand | null;
+  /** The course this card is for. A scorecard is the COURSE's card, so this
+   *  leads the heading — see `cardHeading`. */
+  courseName?: string;
+  /** Whether that course is the club's own. Then the club's mark alone heads
+   *  the card, because it really is their card rather than a claim. */
+  venueIsHome?: boolean;
   /** Handicap strokes per hole, from the server's allocation. */
   shotsPerHole?: number[];
   /** Shown beside the net total, so the number can be checked. */
@@ -73,6 +82,20 @@ export function ScorecardTable({
   onSet?: (hole: number, value: number | null) => void;
   scoreLabel?: string;
 }) {
+  /**
+   * Whose name tops this card.
+   *
+   * One rule, in the domain, so the player's card on a phone and the
+   * organizer's on the console cannot disagree about whose card it is.
+   */
+  const heading = cardHeading({
+    courseName,
+    clubName: brand?.name,
+    clubSecondary: brand?.secondary,
+    clubLogoUrl: brand?.logoUrl,
+    venueIsHome,
+  });
+
   const isEighteen = holes > 9;
   const front = Array.from({ length: Math.min(9, holes) }, (_, i) => i);
   const back = isEighteen ? Array.from({ length: holes - 9 }, (_, i) => i + 9) : [];
@@ -171,7 +194,7 @@ export function ScorecardTable({
 
           `logoUrl` points at an arbitrary external host, so a plain <img> —
           the same reason and the same exemption OrgBrand carries. */}
-      {brand?.name && (
+      {heading && (
         <div
           style={{
             display: "flex",
@@ -182,10 +205,14 @@ export function ScorecardTable({
             marginBottom: 10,
           }}
         >
-          {brand.logoUrl && (
+          {/* The logo sits beside the CLUB name, wherever that ends up.
+              When the course leads, a mark next to the course name reads as
+              that course's mark, and it is the club's — so on somebody
+              else's course it drops to the second line, with the club. */}
+          {heading.logoUrl && !heading.leadIsCourse && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={brand.logoUrl}
+              src={heading.logoUrl}
               alt=""
               style={{ height: 28, width: "auto", maxWidth: 120, objectFit: "contain", flex: "none" }}
             />
@@ -202,11 +229,22 @@ export function ScorecardTable({
                 whiteSpace: "nowrap",
               }}
             >
-              {brand.name}
+              {heading.primary}
             </span>
-            {brand.secondary && (
-              <span className="text-muted" style={{ display: "block", fontSize: 11.5 }}>
-                {brand.secondary}
+            {heading.secondary && (
+              <span
+                className="text-muted"
+                style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}
+              >
+                {heading.logoUrl && heading.leadIsCourse && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={heading.logoUrl}
+                    alt=""
+                    style={{ height: 14, width: "auto", maxWidth: 44, objectFit: "contain", flex: "none" }}
+                  />
+                )}
+                {heading.secondary}
               </span>
             )}
           </span>

@@ -3580,6 +3580,52 @@ describe("the scorecard carries the club's own mark", () => {
     expect(await card(undefined)).not.toContain("<img");
   });
 
+  it("leads with the course when it is not the club's own", async () => {
+    // A scorecard is the COURSE's card. Heading a society's outing at Pebble
+    // Beach with the society's name reads as though the society owns it.
+    const { ScorecardTable } = await import("@/components/ScorecardTable");
+    const html = render(
+      <ScorecardTable
+        holes={18}
+        pars={new Array(18).fill(4)}
+        strokes={new Array(18).fill(null)}
+        brand={{ name: "Bushwood", logoUrl: "https://x.test/l.png" }}
+        courseName="Pebble Beach Golf Links"
+      />,
+    );
+    expect(html).toContain("Pebble Beach Golf Links");
+    expect(html).toContain("Bushwood");
+    expect(html.indexOf("Pebble Beach")).toBeLessThan(html.indexOf("Bushwood"));
+  });
+
+  it("leads with the club at the club's own course", async () => {
+    const { ScorecardTable } = await import("@/components/ScorecardTable");
+    const html = render(
+      <ScorecardTable
+        holes={18}
+        pars={new Array(18).fill(4)}
+        strokes={new Array(18).fill(null)}
+        brand={{ name: "Bushwood" }}
+        courseName="Bushwood Links"
+        venueIsHome
+      />,
+    );
+    expect(html.indexOf("Bushwood")).toBeLessThan(html.indexOf("Par"));
+  });
+
+  it("says the name once when the club and the course are the same place", async () => {
+    const { ScorecardTable } = await import("@/components/ScorecardTable");
+    const html = render(
+      <ScorecardTable
+        holes={18}
+        pars={new Array(18).fill(4)}
+        strokes={new Array(18).fill(null)}
+        brand={{ name: "Bushwood" }}
+        courseName="Bushwood Golf Club"
+      />,
+    );
+    expect(html.split("Bushwood").length - 1).toBe(1);
+  });
   it("never puts our name on a club's card", async () => {
     // `EventBrand` carries showAttribution, and the sidebar honours it by
     // printing "Powered by TourneyHQ" beside the club's mark. That is right in

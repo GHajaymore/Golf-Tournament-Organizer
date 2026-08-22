@@ -76,6 +76,7 @@ export function EntryModes({
   courseLibrary = [],
   cardScanAvailable = true,
   brand,
+  venueIsHome = false,
 }: {
   rounds: EntryRound[];
   activeIndex: number;
@@ -109,6 +110,9 @@ export function EntryModes({
   courseLibrary?: VenueCourse[];
   /** The club's mark, for the head of the stroke card. */
   brand?: CardBrand | null;
+  /** Whether this tournament is played on the club's own course. Decides
+   *  whether the club's mark heads the card or the course does. */
+  venueIsHome?: boolean;
 }) {
   const [importing, setImporting] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -282,6 +286,8 @@ export function EntryModes({
           brand={brand}
           scoringBasis={round.scoringBasis}
           format={round.format}
+          courseName={round.venue?.name || courseName}
+          venueIsHome={venueIsHome}
         />
       )}
 

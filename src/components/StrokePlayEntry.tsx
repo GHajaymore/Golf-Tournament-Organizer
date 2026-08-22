@@ -30,6 +30,8 @@ export function StrokePlayEntry({
   brand,
   scoringBasis = "both",
   format = "",
+  courseName = "",
+  venueIsHome = false,
 }: {
   players: StrokePlayer[];
   pars: number[];
@@ -64,6 +66,11 @@ export function StrokePlayEntry({
   /** The round's format. Wins over `scoringBasis` where the two contradict
    *  each other — a Stableford is won on points whatever the basis says. */
   format?: string;
+  /** The course this round is played on. A scorecard is the COURSE's card,
+   *  so this heads it — see `cardHeading`. */
+  courseName?: string;
+  /** Whether that course is the club's own. */
+  venueIsHome?: boolean;
 }) {
   const [playerId, setPlayerId] = useState(players[0]?.id ?? "");
   const [cards, setCards] = useState<Record<string, (number | null)[]>>(() => {
@@ -392,6 +399,8 @@ export function StrokePlayEntry({
           strokeIndex={strokeIndex}
           strokes={strokes}
           brand={brand}
+          courseName={courseName}
+          venueIsHome={venueIsHome}
           shotsPerHole={Array.from({ length: holes }, (_, i) => shotsByPlayer[playerId]?.[i] ?? 0)}
           onSet={(i: number, v: number | null) => setCards((prev) => {
             const next = [...(prev[playerId] ?? new Array(holes).fill(null))];

@@ -39,6 +39,7 @@ export function PlayerCard({
   playerName,
   roundLabel,
   courseName = "",
+  venueIsHome = false,
   holes,
   pars,
   yards,
@@ -55,6 +56,9 @@ export function PlayerCard({
   roundLabel: string;
   /** The round's venue, when it is not simply the tournament's. */
   courseName?: string;
+  /** Whether that course is the club's own — decides whether the club's mark
+   *  heads the card or is named beneath the course. */
+  venueIsHome?: boolean;
   holes: number;
   pars: number[];
   yards: number[];
@@ -281,6 +285,8 @@ export function PlayerCard({
               shotsPerHole={shotsPerHole}
               playingHandicap={playingHandicap}
               brand={brand}
+              courseName={courseName}
+              venueIsHome={venueIsHome}
               onSet={setHole}
             />
           )}
