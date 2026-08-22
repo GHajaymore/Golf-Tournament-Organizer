@@ -1,5 +1,6 @@
 import "server-only";
 import { isPlayingRound } from "../stage-types";
+import { resolveRoundHandicap } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { isManualFormat } from "../formats";
 import { courseForRound, applyNine, cleanNine } from "./course-resolution";
@@ -421,12 +422,43 @@ export function strokeHandicapResolver(ctx: {
   courseHcp9: Map<string, number>;
   courseHcp18: Map<string, number>;
   fallback: Map<string, number>;
+  /**
+   * What this round says about this player, if anything — a committee's
+   * override, or the value frozen when the round's first card came in.
+   *
+   * Optional, and absent means exactly what happened before: the roster's
+   * handicap, converted for the tee, read live. So adding this changed no
+   * score anywhere until something started supplying it.
+   *
+   * It resolves at COURSE handicap level, not Playing Handicap, so the round's
+   * allowance still applies on top. A committee overriding a player's handicap
+   * is saying what he plays off, not switching off the format's 95%. Keeping
+   * both in the same unit is also what stops this becoming the kind of bug
+   * where one screen prices a card off an index and another off a Course
+   * Handicap — the audit found exactly that, five shots apart on one screen.
+   *
+   * The allowance itself is a ROUND setting and is already protected by
+   * `isSetupLocked` once a tournament is live. A second lock for the same job
+   * would be a second reader of one rule.
+   */
+  roundHandicapFor?: (
+    playerId: string,
+    stageId: string,
+  ) => { frozen?: number | null; override?: number | null } | null;
 }): (playerId: string, stageId: string) => number {
   return (playerId, stageId) => {
     const stage = ctx.stageById.get(stageId);
     const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance) : 100;
     const byRound = stage?.holes === 9 ? ctx.courseHcp9 : ctx.courseHcp18;
-    return playingHandicapFrom(byRound.get(playerId) ?? ctx.fallback.get(playerId) ?? 0, allowance);
+    const member = byRound.get(playerId) ?? ctx.fallback.get(playerId) ?? 0;
+    // One reader for the rule — `resolveRoundHandicap` — so the board, the
+    // screen that shows the number and the freeze that writes it cannot
+    // disagree about which of the three sources wins.
+    const resolved = resolveRoundHandicap({
+      ...(ctx.roundHandicapFor?.(playerId, stageId) ?? {}),
+      member,
+    });
+    return playingHandicapFrom(resolved.handicap, allowance);
   };
 }
 

@@ -142,9 +142,14 @@ describe("individual standings play off the Playing Handicap", () => {
     // off 100% and nobody could see why the numbers differed from the sheet.
     const src = read("src/lib/services/tournament.ts");
     expect(src).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance\)/);
-    expect(src).toMatch(
-      /playingHandicapFrom\(byRound\.get\(playerId\) \?\? ctx\.fallback\.get\(playerId\) \?\? 0, allowance\)/,
-    );
+    // The per-round Course Handicap still reaches playingHandicapFrom with the
+    // round's allowance. Asserted on the two facts rather than on one exact
+    // expression: the round-handicap override put `resolveRoundHandicap`
+    // between them, and a test pinned to the wording failed while the
+    // behaviour it names was untouched. What matters is that the number going
+    // in is this round's Course Handicap and the allowance is applied to it.
+    expect(src).toMatch(/const member = byRound\.get\(playerId\) \?\? ctx\.fallback\.get\(playerId\) \?\? 0;/);
+    expect(src).toMatch(/playingHandicapFrom\(resolved\.handicap, allowance\)/);
   });
 
   it("leaves flight formation on the Course Handicap", () => {

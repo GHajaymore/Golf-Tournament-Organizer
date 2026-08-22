@@ -117,3 +117,29 @@ describe("numbers that are not numbers", () => {
     expect(resolveRoundHandicap({ member: 12.6 }).handicap).toBe(13);
   });
 });
+
+describe("supplying nothing changes nothing", () => {
+  it("hands back the member's handicap untouched when it is a whole number", () => {
+    // The hook was added to a resolver every net score in the app goes
+    // through. Absent, it must be the identity — otherwise adding the feature
+    // re-scored every card in every tournament before anyone used it.
+    for (const h of [0, 1, 7, 12, 18, 22, 36, 54]) {
+      expect(resolveRoundHandicap({ member: h }).handicap, `member ${h}`).toBe(h);
+    }
+  });
+
+  it("rounds a fractional Course Handicap to the shot it allocates", () => {
+    // holeStrokesReceived walks whole shots. A 12.4 carried through would give
+    // 12 on some holes and 13 on others by float comparison, which is how a
+    // player ends up with a stroke on the wrong hole.
+    expect(resolveRoundHandicap({ member: 12.5 }).handicap).toBe(13);
+    expect(resolveRoundHandicap({ member: -0.4 }).handicap).toBe(-0);
+  });
+
+  it("keeps a plus handicap negative rather than clamping it to scratch", () => {
+    // A +2 player gives shots back. Clamping to 0 would quietly hand the best
+    // golfer in the field two strokes they are not entitled to.
+    expect(resolveRoundHandicap({ member: -2 }).handicap).toBe(-2);
+    expect(resolveRoundHandicap({ frozen: -2, member: 5 }).handicap).toBe(-2);
+  });
+});
