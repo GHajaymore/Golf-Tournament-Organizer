@@ -67,22 +67,58 @@ const STATES = [
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Thrown when the directory says we have had our allowance for today.
+ *
+ * A quota is not a fact about a golf course. Left to the ordinary path, an
+ * exhausted allowance would mark every remaining course "unreadable" and write
+ * that to the catalogue — our billing status recorded as the state of the
+ * world, and invisible afterwards. So it stops the run instead.
+ */
+class QuotaExhausted extends Error {}
+
+/**
+ * A free key raises the allowance well above the anonymous one.
+ *
+ * Read from the environment rather than committed: it is a credential, the
+ * repository is public, and rule 2 does not make exceptions for small ones.
+ *   OPENGOLF_API_KEY=ogapi_… npx tsx ... scripts/import-course-catalog.ts --all
+ */
+const API_KEY = process.env.OPENGOLF_API_KEY?.trim() ?? "";
+
 async function getJson(path: string): Promise<unknown | null> {
+  let refused = false;
   for (let attempt = 0; attempt < RETRIES; attempt += 1) {
     try {
       const res = await fetch(`${BASE}${path}`, {
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+          ...(API_KEY ? { "X-API-Key": API_KEY } : {}),
+        },
         signal: AbortSignal.timeout(20000),
       });
-      if (res.ok) return (await res.json()) as unknown;
+      if (res.ok) {
+        const body = (await res.json()) as { limit_hit?: boolean; error?: string };
+        // The directory answers 200 with a limit_hit body rather than a 429,
+        // so the status code alone would have sailed straight past this.
+        if (body?.limit_hit) throw new QuotaExhausted(body.error ?? "Daily limit reached.");
+        return body as unknown;
+      }
       // 429 and 5xx mean "ask again". A 404 is an answer, and retrying it is
       // three times the load for the same nothing.
       if (res.status !== 429 && res.status < 500) return null;
-    } catch {
+      if (res.status === 429) refused = true;
+    } catch (e) {
+      if (e instanceof QuotaExhausted) throw e;
       // Timeout or connection reset — the same treatment.
     }
     await sleep(PAUSE_MS * (attempt + 1) * 4);
   }
+  // Refused every time it was asked. Some endpoints answer 200 with a
+  // limit_hit body and some answer 429, and this is the second kind — which
+  // read as "this state has no golf courses" until somebody noticed Indiana
+  // had gone empty. Stop rather than write that down.
+  if (refused) throw new QuotaExhausted("the daily request allowance is used up.");
   return null;
 }
 
@@ -197,6 +233,20 @@ async function main() {
 
 main()
   .catch((e) => {
+    if (e instanceof QuotaExhausted) {
+      // Stopped, not failed. Everything already stored is good, and re-running
+      // resumes — the upsert is keyed on the directory's own id.
+      console.error(
+        `\nStopped: the directory says ${e.message}\n` +
+          "Nothing was recorded as unreadable on account of it — a quota is not a fact\n" +
+          "about a golf course. What is already catalogued is unaffected.\n\n" +
+          "A free key raises the allowance (opengolfapi.org/developer). Then:\n" +
+          "  OPENGOLF_API_KEY=ogapi_... npx tsx --require ./scripts/server-shim.cjs scripts/import-course-catalog.ts --all\n" +
+          "Or wait for the anonymous allowance to reset and re-run; it picks up where it left off.",
+      );
+      process.exitCode = 2;
+      return;
+    }
     console.error(e);
     process.exitCode = 1;
   })
