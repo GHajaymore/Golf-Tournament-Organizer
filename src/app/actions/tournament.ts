@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
-import { settingsOf, effectiveScoreStatus, loadEventState } from "@/lib/services/tournament";
+import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
 import {
   canEnterScores,
   canPlayerSavePartial,
@@ -21,8 +21,13 @@ import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, statusAfterEdit, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes } from "@/lib/domain/score-payload";
-import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
-import { isReturnedCard } from "@/lib/domain/round-handicap";
+import { freezeRoundHandicaps, roundHandicapRows } from "@/lib/services/round-handicap";
+import {
+  acceptsHandicapChange,
+  isReturnedCard,
+  roundHandicapOf,
+  FROZEN_HANDICAP_REFUSAL,
+} from "@/lib/domain/round-handicap";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
@@ -954,6 +959,118 @@ export async function setStageHoles(stageId: string, holes: number) {
   refresh();
 }
 
+/* ── Per-round handicaps ──────────────────────────────────────────────────
+   What one player plays off in ONE round. The rule is in
+   lib/domain/round-handicap.ts and the freeze is in
+   lib/services/round-handicap.ts; these are the two doors an organizer uses.
+
+   Deliberately NOT behind assertUnlocked. Rounds are made weeks ahead and a
+   wrong roster handicap should simply be fixable — including, and especially,
+   once the tournament is live, which is when somebody notices. The freeze is
+   the lock here: a round that has cards in it refuses, and CLAUDE.md rule 5
+   says a second lock concept would just be a second reader of one rule. The
+   round's ALLOWANCE stays governed by isSetupLocked, as a round setting. */
+
+/**
+ * Decide what a player plays off in one round. Null clears the decision, and
+ * the round goes back to the roster handicap.
+ */
+export async function setRoundHandicapOverride(
+  stageId: string,
+  playerId: string,
+  value: number | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireStaffEvent();
+  // Both ids checked against this event, for the reason saveScorecard has the
+  // same two lines: the (stageId, playerId) pair is caller-supplied and is
+  // half of a unique key, so an unscoped write reaches another club's round.
+  await assertEventStage(eventId, stageId);
+  await assertEventPlayer(eventId, playerId);
+
+  const existing = await prisma.roundHandicap.findFirst({
+    where: { eventId, stageId, playerId },
+    select: { id: true, frozen: true },
+  });
+  // One reader for "may this change", shared with the screen that hides the
+  // control — a hidden control stops nobody from calling this action.
+  if (!acceptsHandicapChange(existing?.frozen != null)) {
+    return { ok: false, error: FROZEN_HANDICAP_REFUSAL };
+  }
+
+  // A handicap is a whole number of strokes here, as it is everywhere else in
+  // the app, and the type on this signature is erased at runtime. Plus
+  // handicaps are real, so the floor is below zero; the ceiling is WHS's.
+  const clean =
+    value === null || !Number.isFinite(value)
+      ? null
+      : Math.min(54, Math.max(-10, Math.round(value)));
+
+  await prisma.roundHandicap.upsert({
+    where: { stageId_playerId: { stageId, playerId } },
+    update: { override: clean },
+    create: { eventId, stageId, playerId, override: clean },
+  });
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Write this round's decision onto every later round as its own fact.
+ *
+ * "He plays off 12 all week" is a thing organizers say, and the requirement
+ * says an override belongs to one round. Both are satisfied by copying rather
+ * than inheriting: each round ends up holding its own number, which one of
+ * them can then be changed without touching the others.
+ *
+ * Later rounds only — an earlier round has already been played or is being
+ * played, and this is a decision about what is still to come. A frozen round
+ * is skipped rather than refused: it is not a failure that the rounds already
+ * scored keep what they were scored against.
+ */
+export async function applyRoundHandicapToRest(
+  stageId: string,
+  playerId: string,
+): Promise<{ ok: boolean; written: number; skipped: number; error?: string }> {
+  const eventId = await requireStaffEvent();
+  await assertEventStage(eventId, stageId);
+  await assertEventPlayer(eventId, playerId);
+
+  const [from, stages] = await Promise.all([
+    prisma.roundHandicap.findFirst({
+      where: { eventId, stageId, playerId },
+      select: { override: true },
+    }),
+    prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
+  ]);
+  if (from?.override == null) {
+    return { ok: false, written: 0, skipped: 0, error: "Set this round's handicap first." };
+  }
+
+  const here = stages.findIndex((s) => s.id === stageId);
+  if (here < 0) return { ok: false, written: 0, skipped: 0, error: "That round isn't in this tournament." };
+  // Rounds the field actually plays. A cut or a bracket seeding round is not
+  // somewhere a handicap gets used.
+  const later = playingStages(stages.slice(here + 1));
+  if (later.length === 0) return { ok: true, written: 0, skipped: 0 };
+
+  const frozenRows = await prisma.roundHandicap.findMany({
+    where: { eventId, playerId, stageId: { in: later.map((s) => s.id) }, frozen: { not: null } },
+    select: { stageId: true },
+  });
+  const frozen = new Set(frozenRows.map((r) => r.stageId));
+  const open = later.filter((s) => !frozen.has(s.id));
+
+  for (const s of open) {
+    await prisma.roundHandicap.upsert({
+      where: { stageId_playerId: { stageId: s.id, playerId } },
+      update: { override: from.override },
+      create: { eventId, stageId: s.id, playerId, override: from.override },
+    });
+  }
+  refresh();
+  return { ok: true, written: open.length, skipped: frozen.size };
+}
+
 /* ── Tiebreakers & qualification ──────────────────────────────────────── */
 
 export async function saveTiebreakers(order: string[]) {
@@ -1492,6 +1609,14 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     netTees[0]?.id ?? null,
     holeCount,
   );
+  // What this ROUND says they play off, which is not always what the roster
+  // says. This path converts its own handicaps rather than going through the
+  // board's resolver, so without these two lines a net match is the one round
+  // type that ignores an override — silently, and after the organizer has been
+  // shown a control that appeared to work.
+  const netRound = await roundHandicapRows(eventId, match.stageId);
+  const netFor = (p: { id: string; handicap: number } | null) =>
+    p ? roundHandicapOf(netRound.get(p.id), netHcp.get(p.id) ?? p.handicap) : 0;
   // The card the round is actually played on: the round's nine, with its
   // stroke indexes re-ranked 1..9. Passing the full eighteen allocated strokes
   // off the wrong holes AND sized the match at eighteen holes, so a nine-hole
@@ -1500,8 +1625,8 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   const holes = deriveNetHoles(
     strokesA,
     strokesB,
-    netMode && playerA ? netHcp.get(playerA.id) ?? playerA.handicap : 0,
-    netMode && playerB ? netHcp.get(playerB.id) ?? playerB.handicap : 0,
+    netMode ? netFor(playerA) : 0,
+    netMode ? netFor(playerB) : 0,
     roundCard.strokeIndex,
     holeCount,
   );
@@ -1655,14 +1780,43 @@ async function recomputeTeamMatch(
   });
   const allowance = effectiveAllowance(formatName, stage?.handicapAllowance ?? 0);
 
+  /**
+   * What each player on a side plays off in this round.
+   *
+   * Course Handicaps, and the round's own numbers on top of them. This scored
+   * off `Player.handicap` — the roster INDEX, unconverted — while the Teams
+   * screen priced the identical side through `teamsForStage`, which converts
+   * for the tees. So a club that rates its tees saw one side handicap on
+   * screen and was scored by another: the 2026-08-12 audit's defect exactly,
+   * in the one place it had not been looked for. Both read the same rule now.
+   */
+  const teeRows = await prisma.tee.findMany({
+    where: { course: { events: { some: { eventId } } } },
+    orderBy: [{ position: "asc" }],
+  });
+  const teamRatings = new Map(
+    teeRows.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+  );
+  const teamRound = await roundHandicapRows(eventId, match.stageId);
+
   const sideCard = async (teamId: string) => {
     const [cards, members] = await Promise.all([
       prisma.teamScorecard.findMany({ where: { stageId: match.stageId, matchId: match.id, teamId } }),
       prisma.teamMember.findMany({
         where: { teamId },
-        include: { player: { select: { id: true, handicap: true } } },
+        include: {
+          player: { select: { id: true, handicap: true, handicapType: true, teeId: true } },
+        },
       }),
     ]);
+    const teamHcp = courseHandicapMap(
+      members.map((m) => m.player),
+      teamRatings,
+      teeRows[0]?.id ?? null,
+      holeCount,
+    );
+    const playsOff = (p: { id: string; handicap: number }) =>
+      roundHandicapOf(teamRound.get(p.id), teamHcp.get(p.id) ?? p.handicap);
     const parse = (s: string): (number | null)[] => {
       try {
         return JSON.parse(s) as (number | null)[];
@@ -1673,7 +1827,7 @@ async function recomputeTeamMatch(
     if (format.ball === "single") {
       const one = cards.find((c) => c.playerId === "");
       const hcp = sidePlayingHandicap(
-        members.map((m) => m.player.handicap),
+        members.map((m) => playsOff(m.player)),
         formatName,
         stage?.handicapAllowance ?? 0,
         stage?.allowanceWeights,
@@ -1684,7 +1838,7 @@ async function recomputeTeamMatch(
       members.map((m) => ({
         playerId: m.playerId,
         strokes: parse(cards.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
-        courseHandicap: m.player.handicap,
+        courseHandicap: playsOff(m.player),
       })),
       course.pars.slice(0, holeCount),
       course.strokeIndex.slice(0, holeCount),
@@ -2637,7 +2791,14 @@ export async function importScores(
     );
     const ch = courseHandicapMap(players, teeRatings, tees[0]?.id ?? null, holes);
     const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
-    netHcp = new Map([...ch].map(([id, v]) => [id, playingHandicapFrom(v, allowance)]));
+    // Through the round's own handicaps, so a file of net scores converts back
+    // to the same gross the board would have derived. Converting off the roster
+    // where the round holds an override would bake the difference into stored
+    // strokes — the one place an error stops being recomputable.
+    const importRound = await roundHandicapRows(eventId, stageId);
+    netHcp = new Map(
+      [...ch].map(([id, v]) => [id, playingHandicapFrom(roundHandicapOf(importRound.get(id), v), allowance)]),
+    );
     netSi = resolveCourse(event).strokeIndex.slice(0, holes);
     if (netSi.length === 0) {
       return {

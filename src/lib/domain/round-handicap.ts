@@ -97,6 +97,22 @@ export function resolveRoundHandicap(input: RoundHandicapInput): ResolvedRoundHa
 }
 
 /**
+ * One player's handicap for one round, given the round's row and today's roster
+ * number.
+ *
+ * The shorthand every scoring path uses, so that honouring a round's handicap
+ * is one call rather than four transcriptions of the same three-way choice. A
+ * missing row means the roster number, untouched — which is what every one of
+ * those paths did before this existed.
+ */
+export function roundHandicapOf(
+  row: { frozen?: number | null; override?: number | null } | null | undefined,
+  member: number,
+): number {
+  return resolveRoundHandicap({ frozen: row?.frozen, override: row?.override, member }).handicap;
+}
+
+/**
  * The value to freeze for a round that is about to receive its first card.
  *
  * Deliberately the same resolution the board was already using, so freezing
@@ -136,6 +152,16 @@ export function isReturnedCard(strokes: readonly (number | null)[]): boolean {
 export function roundHandicapKey(stageId: string, playerId: string): string {
   return `${stageId}:${playerId}`;
 }
+
+/**
+ * What an organizer is told when a round's handicaps have already been frozen.
+ *
+ * One sentence, in one place, so the screen and the action say the same thing —
+ * and it says WHY rather than "not allowed". An organizer who reads "cards are
+ * in" knows what to do next; one who reads a refusal tries again.
+ */
+export const FROZEN_HANDICAP_REFUSAL =
+  "Cards are in for this round, so it keeps the handicaps it was scored against. Clear the round's scores to score it again.";
 
 /**
  * Whether a round still accepts handicap changes.

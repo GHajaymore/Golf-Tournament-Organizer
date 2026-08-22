@@ -118,11 +118,33 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     expect(teams).toMatch(/courseHcp\.get\(m\.playerId\) \?\? m\.player\.handicap/);
   });
 
-  it("allocates net match play off Course Handicaps", () => {
+  it("scores a team match off the same handicaps the Teams screen shows", () => {
+    // These were two different numbers. `recomputeTeamMatch` priced the side
+    // off `Player.handicap` — the roster INDEX — while `teamsForStage` showed
+    // the same side converted for its tees, so a club that rated its tees was
+    // shown one side handicap and scored by another. One conversion, read the
+    // same way in both places, and the round's own numbers on top of it.
+    const recompute = actions.slice(actions.indexOf("async function recomputeTeamMatch"));
+    expect(recompute).toMatch(/courseHandicapMap\(/);
+    expect(recompute).toMatch(/roundHandicapOf\(teamRound\.get\(p\.id\), teamHcp\.get\(p\.id\)/);
+    expect(recompute).toMatch(/members\.map\(\(m\) => playsOff\(m\.player\)\)/);
+    expect(recompute).toMatch(/courseHandicap: playsOff\(m\.player\)/);
+    expect(recompute).not.toMatch(/courseHandicap: m\.player\.handicap/);
+  });
+
+  it("allocates net match play off the round's Course Handicap", () => {
+    // The guarantee, not a spelling: the strokes handed to deriveNetHoles pass
+    // through BOTH resolutions — the tee conversion, and what this round says
+    // the player plays off. Either one missing is a wrong answer with no
+    // symptom, since an unrated course and a round with no override both leave
+    // the number untouched.
     const save = actions.slice(actions.indexOf("saveMatchScorecard"));
-    expect(save).toMatch(/netHcp\.get\(playerA\.id\)/);
-    expect(save).toMatch(/netHcp\.get\(playerB\.id\)/);
+    expect(save).toMatch(/roundHandicapOf\(netRound\.get\(p\.id\), netHcp\.get\(p\.id\)/);
+    expect(save).toMatch(/netMode \? netFor\(playerA\) : 0/);
+    expect(save).toMatch(/netMode \? netFor\(playerB\) : 0/);
     expect(save).not.toMatch(/netMode \? playerA\?\.handicap/);
+    // Behaviour, against a rated tee and a real override:
+    // round-handicap.audit.test.ts, "a net match is priced off the round".
   });
 
   it("falls back to the raw index everywhere, so unrated courses are unchanged", () => {
@@ -130,7 +152,9 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     // invisible until a club actually enters a rating.
     expect(service).toMatch(/courseHcp\.get\(p\.id\) \?\? p\.handicap/);
     expect(teams).toMatch(/\?\? m\.player\.handicap/);
-    expect(actions).toMatch(/\?\? playerA\.handicap/);
+    // Net match play resolves both players through one helper now, so the
+    // fallback is written once — `p` is whichever of the two is being priced.
+    expect(actions).toMatch(/netHcp\.get\(p\.id\) \?\? p\.handicap/);
   });
 });
 

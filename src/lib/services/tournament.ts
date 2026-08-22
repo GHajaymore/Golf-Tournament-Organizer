@@ -539,6 +539,17 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const courseHcp18 = courseHandicapMap(confirmed, teeRatings, defaultTeeId, 18);
   const courseHcp9 = courseHandicapMap(confirmed, teeRatings, defaultTeeId, 9);
   const courseHcp = activeHoles === 9 ? courseHcp9 : courseHcp18;
+  /**
+   * A player's handicap for FLIGHTING and standings, which is deliberately the
+   * roster's and not the round's.
+   *
+   * A per-round override says what somebody receives in one round. It is not a
+   * statement about how good they are, and flights, seeding and the draw are
+   * about how good they are — a committee giving a visitor two extra shots for
+   * an afternoon must not thereby move them into a different flight for the
+   * week. The round's own number is applied where a card is priced, in
+   * `handicapFor` below.
+   */
   const hcpOf = (p: { id: string; handicap: number }) => courseHcp.get(p.id) ?? p.handicap;
   const waitlist = players.filter((p) => p.status === "waitlisted");
 

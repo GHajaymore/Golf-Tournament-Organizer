@@ -1,7 +1,11 @@
 import "server-only";
 import { prisma } from "../db";
 import { courseHandicapMap } from "../domain/handicap";
-import { handicapToFreeze } from "../domain/round-handicap";
+import {
+  handicapToFreeze,
+  resolveRoundHandicap,
+  type HandicapSource,
+} from "../domain/round-handicap";
 
 /**
  * Freezing what a round is scored against, the moment it starts being scored.
@@ -110,4 +114,103 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
   ]);
 
   return pending.length;
+}
+
+/** What one round says about its players: the committee's decision and the frozen fact. */
+export type RoundHandicapRows = Map<string, { frozen: number | null; override: number | null }>;
+
+/**
+ * What a round says about each of its players, for the scoring paths that
+ * build their own handicaps.
+ *
+ * `loadEventState` supplies the same rows to the board through
+ * `strokeHandicapResolver`. Net match play, the team engines and the net
+ * importer each convert their own handicaps, so each of them needs this too —
+ * otherwise an organizer sets an override and one round type quietly ignores
+ * it, which is worse than not offering the control at all.
+ *
+ * Empty for a round nobody has said anything about, and `roundHandicapOf` then
+ * hands back the roster number unchanged.
+ */
+export async function roundHandicapRows(eventId: string, stageId: string): Promise<RoundHandicapRows> {
+  const rows = await prisma.roundHandicap.findMany({
+    where: { eventId, stageId },
+    select: { playerId: true, override: true, frozen: true },
+  });
+  return new Map(rows.map((r) => [r.playerId, { frozen: r.frozen, override: r.override }]));
+}
+
+/** One player's handicap for one round, as the round configuration screen shows it. */
+export interface RoundHandicapView {
+  playerId: string;
+  name: string;
+  /** What the roster says today, converted for this round's tees and holes. */
+  member: number;
+  /** The committee's decision for this round, or null. */
+  override: number | null;
+  /** What the round was scored against, once its first card landed. */
+  frozen: number | null;
+  /** The number this round actually uses — a Course Handicap, before allowance. */
+  handicap: number;
+  source: HandicapSource;
+  /** False once the round is frozen: the screen says why rather than disabling a box. */
+  editable: boolean;
+  /** What today's number would be, when a frozen round disagrees with it. */
+  differsFromCurrent: number | null;
+}
+
+/**
+ * Every player's handicap for one round, resolved.
+ *
+ * Through `resolveRoundHandicap`, the same reader the board uses, so the number
+ * an organizer is shown here is the number their cards are being priced off. A
+ * screen computing its own would be the 2026-08-12 defect all over again: two
+ * places pricing one card, and only one of them right.
+ *
+ * In roster order, because that is the order the organizer just read the
+ * handicaps in on the previous screen.
+ */
+export async function roundHandicapsFor(eventId: string, stageId: string): Promise<RoundHandicapView[]> {
+  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { holes: true } });
+  if (!stage) return [];
+
+  const [rows, players, tees] = await Promise.all([
+    prisma.roundHandicap.findMany({
+      where: { eventId, stageId },
+      select: { playerId: true, override: true, frozen: true },
+    }),
+    prisma.player.findMany({
+      where: { eventId, status: "confirmed" },
+      select: { id: true, name: true, handicap: true, handicapType: true, teeId: true },
+      orderBy: { seed: "asc" },
+    }),
+    prisma.tee.findMany({
+      where: { course: { events: { some: { eventId } } } },
+      orderBy: [{ position: "asc" }],
+    }),
+  ]);
+
+  const holes = stage.holes === 9 ? 9 : 18;
+  const teeRatings = new Map(
+    tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+  );
+  const courseHcp = courseHandicapMap(players, teeRatings, tees[0]?.id ?? null, holes);
+  const byPlayer = new Map(rows.map((r) => [r.playerId, r]));
+
+  return players.map((p) => {
+    const row = byPlayer.get(p.id) ?? null;
+    const member = courseHcp.get(p.id) ?? p.handicap;
+    const resolved = resolveRoundHandicap({ frozen: row?.frozen, override: row?.override, member });
+    return {
+      playerId: p.id,
+      name: p.name,
+      member,
+      override: row?.override ?? null,
+      frozen: row?.frozen ?? null,
+      handicap: resolved.handicap,
+      source: resolved.source,
+      editable: resolved.editable,
+      differsFromCurrent: resolved.differsFromCurrent,
+    };
+  });
 }
