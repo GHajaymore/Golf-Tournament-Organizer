@@ -32,10 +32,18 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
   const [note, setNote] = useState("");
   const [pending, startTransition] = useTransition();
 
-  const frozen = rows.filter((r) => r.frozen !== null);
   const overridden = rows.filter((r) => r.source === "override");
   const differing = rows.filter((r) => r.differsFromCurrent !== null);
-  const isFrozen = frozen.length > 0;
+  /**
+   * Settled — the round has been scored, so its handicaps are not up for
+   * discussion.
+   *
+   * Read from `editable`, not from whether a frozen value is stored. A round
+   * played before the freeze existed has cards and nothing frozen; keying on
+   * the stored value would print "everyone plays off the roster" over a round
+   * whose cards are in, and offer a control the action then refuses.
+   */
+  const isFrozen = rows.length > 0 && rows.every((r) => !r.editable);
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, said = "") => {
     setError("");

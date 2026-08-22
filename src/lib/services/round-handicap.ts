@@ -2,7 +2,9 @@ import "server-only";
 import { prisma } from "../db";
 import { courseHandicapMap } from "../domain/handicap";
 import {
+  acceptsHandicapChange,
   handicapToFreeze,
+  isReturnedCard,
   resolveRoundHandicap,
   type HandicapSource,
 } from "../domain/round-handicap";
@@ -116,6 +118,35 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
   return pending.length;
 }
 
+/**
+ * Whether this round has a card with a score on it — in any of the three
+ * shapes a round can be scored in.
+ *
+ * The question `acceptsHandicapChange` was always meant to be asked. Asking
+ * "is there a frozen row" instead gives the same answer for every round played
+ * since the freeze existed, and the WRONG answer for every round played before
+ * it: those have cards and no frozen row, so the screen would offer to change a
+ * handicap that re-scores cards already in.
+ */
+export async function roundHasReturnedCard(eventId: string, stageId: string): Promise<boolean> {
+  const [stroke, match, team] = await Promise.all([
+    prisma.scorecard.findMany({ where: { eventId, stageId }, select: { strokes: true } }),
+    prisma.matchScorecard.findMany({
+      where: { eventId, match: { stageId } },
+      select: { strokes: true },
+    }),
+    prisma.teamScorecard.findMany({ where: { eventId, stageId }, select: { strokes: true } }),
+  ]);
+  return [...stroke, ...match, ...team].some((c) => {
+    try {
+      return isReturnedCard(JSON.parse(c.strokes) as (number | null)[]);
+    } catch {
+      // A card nobody can parse is not a score.
+      return false;
+    }
+  });
+}
+
 /** What one round says about its players: the committee's decision and the frozen fact. */
 export type RoundHandicapRows = Map<string, { frozen: number | null; override: number | null }>;
 
@@ -174,6 +205,11 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { holes: true } });
   if (!stage) return [];
 
+  // Scored, whether or not anything is frozen. A round played before the freeze
+  // existed has cards and no rows, and offering to change its handicaps would
+  // be offering to re-score them.
+  const returned = await roundHasReturnedCard(eventId, stageId);
+
   const [rows, players, tees] = await Promise.all([
     prisma.roundHandicap.findMany({
       where: { eventId, stageId },
@@ -209,7 +245,7 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
       frozen: row?.frozen ?? null,
       handicap: resolved.handicap,
       source: resolved.source,
-      editable: resolved.editable,
+      editable: resolved.editable && acceptsHandicapChange(returned),
       differsFromCurrent: resolved.differsFromCurrent,
     };
   });

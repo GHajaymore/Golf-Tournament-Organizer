@@ -5,7 +5,11 @@ import { PrismaClient } from "@prisma/client";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 import { loadEventState } from "@/lib/services/tournament";
-import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
+import {
+  freezeRoundHandicaps,
+  roundHandicapsFor,
+  roundHasReturnedCard,
+} from "@/lib/services/round-handicap";
 
 /**
  * A round keeps the handicap it was played off.
@@ -261,6 +265,41 @@ describe("what counts as a round having been played", () => {
 
     await prisma.player.update({ where: { id: p.id }, data: { handicap: 5 } });
     expect(await boardHandicap(event.id, stages[0].id, p.id)).toBe(5);
+  });
+
+  it("treats a round scored before the freeze existed as scored", async () => {
+    // Found on the Demo Cup: seven cards with scores on them and no frozen row,
+    // because they were entered before any of this shipped. Keyed on the stored
+    // row, the screen offered to change those players' handicaps — which would
+    // have re-priced seven cards already in. The question is whether the round
+    // has been SCORED.
+    const { event, players, stages } = await tournament("legacy", [12]);
+    const [p] = players;
+    await card(event.id, stages[0].id, p.id);
+
+    expect(await roundHasReturnedCard(event.id, stages[0].id)).toBe(true);
+    const [view] = await roundHandicapsFor(event.id, stages[0].id);
+    expect(view.editable).toBe(false);
+    // Nothing is frozen yet, so it still resolves live — which is exactly why
+    // refusing is not enough on its own.
+    expect(view.frozen).toBeNull();
+  });
+
+  it("an empty card is not a scored round", async () => {
+    // A cut writes one of these for every survivor.
+    const { event, players, stages } = await tournament("empty-cards", [12]);
+    await prisma.scorecard.create({
+      data: {
+        eventId: event.id,
+        stageId: stages[0].id,
+        playerId: players[0].id,
+        strokes: JSON.stringify(new Array(18).fill(null)),
+      },
+    });
+
+    expect(await roundHasReturnedCard(event.id, stages[0].id)).toBe(false);
+    const [view] = await roundHandicapsFor(event.id, stages[0].id);
+    expect(view.editable).toBe(true);
   });
 
   it("clearing the whole round releases the freeze; clearing one card does not", async () => {

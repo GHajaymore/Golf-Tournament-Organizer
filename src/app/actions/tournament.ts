@@ -21,7 +21,11 @@ import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, statusAfterEdit, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes } from "@/lib/domain/score-payload";
-import { freezeRoundHandicaps, roundHandicapRows } from "@/lib/services/round-handicap";
+import {
+  freezeRoundHandicaps,
+  roundHandicapRows,
+  roundHasReturnedCard,
+} from "@/lib/services/round-handicap";
 import {
   acceptsHandicapChange,
   isReturnedCard,
@@ -987,6 +991,19 @@ export async function setRoundHandicapOverride(
   await assertEventStage(eventId, stageId);
   await assertEventPlayer(eventId, playerId);
 
+  // The question is whether the round has been SCORED, not whether a row
+  // happens to exist. Those agree for every round played since the freeze
+  // existed, and differ for every round played before it: cards in, no frozen
+  // row, and an override here would silently re-price them.
+  //
+  // Freezing on the way past is what makes that safe rather than merely
+  // refused — a played round with no frozen value is still being resolved live,
+  // so a roster edit would move it whatever this action does. It freezes at
+  // what the board is using right now, so nothing on any screen changes.
+  if (await roundHasReturnedCard(eventId, stageId)) {
+    await freezeRoundHandicaps(eventId, stageId);
+    return { ok: false, error: FROZEN_HANDICAP_REFUSAL };
+  }
   const existing = await prisma.roundHandicap.findFirst({
     where: { eventId, stageId, playerId },
     select: { id: true, frozen: true },
@@ -1058,6 +1075,15 @@ export async function applyRoundHandicapToRest(
     select: { stageId: true },
   });
   const frozen = new Set(frozenRows.map((r) => r.stageId));
+  // And any round already scored, frozen row or not — same reason as above,
+  // and it freezes those rather than leaving them live.
+  for (const s of later) {
+    if (frozen.has(s.id)) continue;
+    if (await roundHasReturnedCard(eventId, s.id)) {
+      await freezeRoundHandicaps(eventId, s.id);
+      frozen.add(s.id);
+    }
+  }
   const open = later.filter((s) => !frozen.has(s.id));
 
   for (const s of open) {
