@@ -617,6 +617,80 @@ Several are STATUS badges rather than blocked controls — "Hasn't set a passwor
 yet" on a tag is a different shape from a dead button — so the fix is usually a
 visible caption or a legend, not a refusal message. Judge each on the screen.
 
+## The menu and submenu names — review 2026-08-21, NOT yet changed
+
+Asked for because a lot moved during this pass and the names should read
+professionally. Worth doing now for a reason beyond taste: `screenName()` reads
+labels straight out of `nav.ts`, so checklists, refusals and "go here" copy all
+call a screen whatever the sidebar calls it. Renaming a nav label now
+propagates correctly instead of drifting — which is exactly what made
+"Rounds & format" and "Prizes & Reports" wrong before.
+
+Current: **Overview** (Dashboard · Live leaderboard · This week · Rules
+reference) · **Play** (My round) · **Club** (Members · Season standings · Club
+settings) · **Set up** (Tournament details · Registration & field · Rounds &
+formats · Flights · Teams & pairs · Access & staff) · **Manage** (Tee sheet ·
+Score entry · Qualification · Bracket · Announcements · Messages) ·
+**Results** (Prizes & payouts · Reports & export).
+
+### Three findings that are defects, not taste
+
+1. **"Club" is wrong for two of the three org kinds.** The section is headed
+   "Club" and holds "Club settings" — for a SOCIETY and for a one-off OUTING
+   too. `navForRole(viewRole, settings, opts)` never receives the org kind, so
+   it cannot say otherwise. Meanwhile `orgProfile(kind).noun` already exists and
+   already produces club / society / outing — it was added so
+   `OrgSetupChecklist` would stop saying "Setting up your personal". The nav is
+   the last place still asserting every outfit is a club. Fix: pass the kind,
+   and use the noun. This is the whole point of `org-profile.ts` and the nav is
+   the one screen not asking it.
+
+2. **"Teams & pairs" contradicts the app's own vocabulary.** That screen says
+   SIDE twelve times — "Draw sides automatically", "The side's playing
+   handicap", `sideDrawReadiness`'s refusals — and the domain agrees:
+   `sideSize`, `sideStyle`, `wantsTeams`. Only the menu says "teams and pairs".
+   An organizer reads "Teams & pairs" in the sidebar, lands on a screen about
+   sides, and has to work out they are the same thing. Fix: one word. **Sides**
+   is the domain's word and covers pairs and fours without an ampersand.
+
+3. **"Manage" says nothing.** Every other section names a subject — Overview,
+   Club, Set up, Results. "Manage" names a verb that applies to all of them,
+   and it holds the six screens used while golf is actually being played. Fix:
+   name the phase, e.g. **On the day** — which is already the phrase this app
+   uses for exactly that idea, in the round settings group.
+
+### The ampersand audit
+
+The pass treats an ampersand in a HEADING as the tell for two things sharing
+one name. In a nav LABEL it is weaker evidence — a compound name can be
+legitimate — so each was tested rather than swept:
+
+| Label | Verdict |
+| --- | --- |
+| Registration & field | **One thing.** Who is in the tournament, and how they got there. Keep. |
+| Rounds & formats | **One thing.** A format is a property of a round; the screen sets both together. Keep. |
+| Access & staff | **One thing.** Who may get in, and who they are. Keep. |
+| Prizes & payouts | **One thing.** The prize list and what it pays. Keep. |
+| Teams & pairs | **Two words for one thing** — and neither is the word the screen uses. See finding 2. |
+| Reports & export | **Borderline.** A report and an export are arguably one act. Low priority. |
+
+So the ampersands are mostly fine, and the one that is not is not an ampersand
+problem — it is a vocabulary problem.
+
+### Smaller notes
+
+- **"Live leaderboard"** claims live before anybody has scored. The player's
+  equivalent tab is now just "Board". Not worth churning; noted.
+- **Announcements vs Messages** are genuinely different — a broadcast and a
+  conversation — and the names carry that. No change.
+- **"My round"** is right, and matches the player app's own words.
+
+### Not started
+
+Nothing above is implemented. Findings 1 and 3 need Ajay's word on the
+replacement wording; finding 2 is a straight rename to the word the app
+already uses everywhere else.
+
 ## Waiting on a decision — Ajay's, not a heading fix
 
 Both were found by this pass, both are recorded rather than acted on, and
