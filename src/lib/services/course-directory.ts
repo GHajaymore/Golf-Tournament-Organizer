@@ -118,9 +118,20 @@ export async function searchDirectory(query: string): Promise<DirectoryHit[]> {
   // Two characters matches half the country and returns nothing useful.
   if (q.length < 3) return [];
 
+  // Name OR city. "Cincinnati" found nothing while every course in it was
+  // sitting in the catalogue, and typing where you play is at least as natural
+  // as typing what it is called — especially for a society deciding where to
+  // hold an outing.
   const local = await prisma.courseCatalog.findMany({
-    where: { name: { contains: q, mode: "insensitive" } },
-    orderBy: [{ name: "asc" }],
+    where: {
+      OR: [
+        { name: { contains: q, mode: "insensitive" } },
+        { city: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    // Courses with a card first: a club searching wants one it can score on,
+    // and the ones we could not read should not crowd out the ones we could.
+    orderBy: [{ cardProblem: "asc" }, { name: "asc" }],
     take: 20,
     select: { id: true, name: true, city: true, state: true, par: true, website: true },
   });

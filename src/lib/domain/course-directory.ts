@@ -178,6 +178,27 @@ export function cardFrom(holes: unknown): DirectoryCard {
   const problems = cardProblems({ pars, strokeIndex }, 18);
   if (problems.length > 0) return { usable: false, reason: problems[0] };
 
+  /**
+   * A par total no 18-hole course has.
+   *
+   * Found in the catalogue: "Beaver Creek Meadows Golf Course, par 79". Every
+   * check above passes — each par is between 3 and 6, the stroke index is a
+   * clean permutation, the holes are in a plausible order — and the card is
+   * still not this course's. Real eighteens run 66 to 74; 60 to 78 is generous
+   * on both sides and still catches a card where the source has muddled a
+   * hole's par with something else.
+   *
+   * Cheap, and the kind of check that only exists because somebody looked at
+   * the imported data rather than at the importer.
+   */
+  const total = pars.reduce((s, p) => s + p, 0);
+  if (total < 60 || total > 78) {
+    return {
+      usable: false,
+      reason: `The directory's card for this course adds up to par ${total}, which no eighteen-hole course plays.`,
+    };
+  }
+
   if (parsAreSorted(pars)) {
     return {
       usable: false,

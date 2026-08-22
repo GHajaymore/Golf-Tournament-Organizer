@@ -95,6 +95,29 @@ describe("a card that must be refused", () => {
     expect(card.reason).toContain("exactly once");
   });
 
+  it("refuses a par total no eighteen-hole course plays", () => {
+    // Found in the catalogue after importing Ohio: "Beaver Creek Meadows Golf
+    // Course, par 79". Every other check passes — pars in range, a clean
+    // stroke index, a plausible routing — and the card is still not this
+    // course's. Real eighteens run 66 to 74.
+    const pars = [5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 4, 4, 4, 4];
+    expect(pars.reduce((a, b) => a + b, 0)).toBe(79);
+    const card = cardFrom(holes(pars, PEBBLE_SI));
+    expect(card.usable).toBe(false);
+    if (card.usable) return;
+    expect(card.reason).toContain("par 79");
+  });
+
+  it("accepts the pars real courses actually play", () => {
+    // 70, 71, 72 are the ordinary ones and must not be caught by the check
+    // above — a guard that refuses real cards is worse than no guard.
+    for (const last of [3, 4, 5]) {
+      const pars = [...PEBBLE_PARS.slice(0, 17), last];
+      const total = pars.reduce((a, b) => a + b, 0);
+      expect(cardFrom(holes(pars, PEBBLE_SI)).usable, `par ${total}`).toBe(true);
+    }
+  });
+
   it("refuses a course with no card at all, and says so plainly", () => {
     const none = cardFrom([]);
     expect(none.usable).toBe(false);
