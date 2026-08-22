@@ -6,6 +6,7 @@ import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
 import type { CardBrand } from "@/components/ScorecardTable";
 import { RoundApproval } from "@/components/RoundApproval";
+import { RoundVenue } from "@/components/RoundVenue";
 import { VoiceAsk } from "./VoiceAsk";
 import { entryModeFor } from "@/lib/formats";
 import type { VoiceContext } from "@/lib/domain/voice-query";
@@ -24,6 +25,21 @@ export interface EntryRound {
   /** The committee's override for how this round's scores are recorded, or ""
    *  to take the input its format declares. */
   scoreInput: string;
+  /**
+   * The venue for this round, when one is set on the round itself. "" means it
+   * inherits — the tournament's sole venue, then the event's own course.
+   */
+  courseId: string;
+  /**
+   * The card this round will actually be scored against, and whether that
+   * card exists.
+   *
+   * Resolved on the server, where the whole chain is visible: the match's
+   * venue, then the round's, then the tournament's, then the event. A screen
+   * that worked it out again from `courseId` would be a second reader of the
+   * same rule, and the two would disagree the first time the chain changed.
+   */
+  venue: { name: string; courseId: string; hasCard: boolean } | null;
   stroke: {
     holes: number;
     stageId: string;
@@ -203,6 +219,22 @@ export function EntryModes({
             onDone={() => setImporting(false)}
           />
         </div>
+      )}
+
+      {/* Where this round was played, and its card if the venue has none.
+          Stroke mode only: match play asks the same question per match, one
+          screen down, because two members of a league really do play their
+          match wherever suits them. Two pickers for one answer is worse than
+          none. */}
+      {mode === "stroke" && (
+        <RoundVenue
+          key={round.stageId}
+          stageId={round.stroke.stageId}
+          courseId={round.courseId}
+          venues={venues}
+          venue={round.venue}
+          canEdit={isStaff}
+        />
       )}
 
       {mode === "match" ? (

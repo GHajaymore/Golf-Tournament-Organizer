@@ -42,6 +42,7 @@ export function CourseLibrary({
   canEdit,
   clubCity = "",
   homeCourse = null,
+  openCourseId = null,
 }: {
   courses: ClubCourse[];
   /** The club's city, so a local course does not need retyping. */
@@ -49,20 +50,43 @@ export function CourseLibrary({
   canEdit: boolean;
   /** The club's own course, if set — new tournaments start there. */
   homeCourse?: string | null;
+  /** A course to open the card editor on, from `?course=<id>`. Score entry
+   *  links here rather than growing a second card editor of its own. */
+  openCourseId?: string | null;
 }) {
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(courses.filter((c) => c.inEvent).map((c) => c.id)),
   );
+  /**
+   * The course to open the editor on, from `?course=<id>`.
+   *
+   * Resolved as the initial state rather than in an effect, so the editor is
+   * open in the first render — somebody who followed "correct this card" from
+   * score entry arrives looking at the boxes, not at a table they have to
+   * find their course in again.
+   */
+  const opened = openCourseId ? courses.find((c) => c.id === openCourseId) ?? null : null;
+  /**
+   * The card in the boxes, or empty boxes for a course that hasn't got one.
+   *
+   * `clubCourses` falls back to a placeholder card so a cardless row stays
+   * visible and editable. Loading that placeholder INTO the editor would
+   * present eighteen 4s and a 1–18 index as this course's card and invite
+   * somebody to save them, which is how the invented data this app deleted
+   * would come straight back.
+   */
+  const cardOf = (c: ClubCourse, values: number[]) => (c.hasCard ? values.map(String) : BLANK);
+
   const [homeCourseId, setHomeCourseId] = useState<string | null>(homeCourse);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(opened?.id ?? null);
   const [adding, setAdding] = useState(false);
   const [pasting, setPasting] = useState(false);
   const [searching, setSearching] = useState(false);
-  const [name, setName] = useState("");
-  const [city, setCity] = useState("");
-  const [pars, setPars] = useState<string[]>(BLANK);
-  const [yards, setYards] = useState<string[]>(BLANK);
-  const [si, setSi] = useState<string[]>(BLANK);
+  const [name, setName] = useState(opened?.name ?? "");
+  const [city, setCity] = useState(opened?.city ?? "");
+  const [pars, setPars] = useState<string[]>(opened ? cardOf(opened, opened.pars) : BLANK);
+  const [yards, setYards] = useState<string[]>(opened ? cardOf(opened, opened.yards) : BLANK);
+  const [si, setSi] = useState<string[]>(opened ? cardOf(opened, opened.strokeIndex) : BLANK);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   /** The open "check the source" report, if one has been asked for. */
@@ -87,9 +111,11 @@ export function CourseLibrary({
     setEditing(c.id);
     setName(c.name);
     setCity(c.city);
-    setPars(c.pars.map(String));
-    setYards(c.yards.map(String));
-    setSi(c.strokeIndex.map(String));
+    // Empty boxes for a course with no card, rather than the placeholder the
+    // service falls back to — see `cardOf`.
+    setPars(cardOf(c, c.pars));
+    setYards(cardOf(c, c.yards));
+    setSi(cardOf(c, c.strokeIndex));
     setError("");
   };
 

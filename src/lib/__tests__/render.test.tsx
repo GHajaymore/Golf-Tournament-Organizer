@@ -1445,6 +1445,30 @@ describe("course card verification", () => {
     expect(html).not.toContain(">72<");
   });
 
+  it("opens the editor on the course score entry sent someone to correct", () => {
+    // Open in the FIRST render, not after an effect: somebody who followed
+    // "correct this card" arrives looking at the boxes rather than at a table
+    // they have to find their course in again.
+    const html = render(
+      <CourseLibrary courses={[{ ...course, verified: false }]} canEdit openCourseId="c1" />,
+    );
+    expect(html).toContain("Save course");
+  });
+
+  it("opens a cardless course on empty boxes, not on the placeholder", () => {
+    // clubCourses falls back to eighteen 4s and a 1-18 index so a cardless row
+    // stays editable. Loading that INTO the editor would present invented
+    // numbers as this course's card and invite somebody to save them.
+    const html = render(
+      <CourseLibrary
+        courses={[{ ...course, verified: false, hasCard: false }]}
+        canEdit
+        openCourseId="c1"
+      />,
+    );
+    expect(html).not.toContain('value="4"');
+  });
+
   it("offers to re-check a course that came from the directory", () => {
     const fromDirectory = {
       ...course,
@@ -1549,6 +1573,75 @@ describe("stroke-play card", () => {
 
   it("stays unbranded when the club has set no mark", () => {
     expect(render(<StrokePlayEntry {...base} cardsByPlayer={{}} />)).not.toContain("<img");
+  });
+});
+
+describe("where this round was played", () => {
+  const twoVenues = [{ id: "c1", name: "Bushwood" }, { id: "c2", name: "Ridgeline" }];
+  const carded = { name: "Bushwood", courseId: "c1", hasCard: true };
+  const venue = async (props: Record<string, unknown>) => {
+    const { RoundVenue } = await import("@/components/RoundVenue");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return render(<RoundVenue stageId="s1" courseId="" venues={[]} venue={carded} canEdit {...(props as any)} />);
+  };
+
+  it("asks nothing when the tournament has one venue and it has a card", async () => {
+    // There is nothing to choose. The venue is already named in the header
+    // beside the dates, and a locked dropdown of one is furniture.
+    expect(await venue({ venues: [{ id: "c1", name: "Bushwood" }] })).toBe("");
+    expect(await venue({ venues: [] })).toBe("");
+  });
+
+  it("offers the choice once the tournament has more than one", async () => {
+    // A multi-day event rotating courses, or a league with no fixed venue:
+    // the round has to say which card it is scored against.
+    const html = await venue({ venues: twoVenues });
+    expect(html).toContain("Played at");
+    expect(html).toContain("Ridgeline");
+  });
+
+  it("names what an unset venue inherits, rather than showing a blank", async () => {
+    const html = await venue({ venues: twoVenues });
+    expect(html).toContain("Bushwood (inherited)");
+  });
+
+  it("says a venue has no card, however many venues there are", async () => {
+    // The case the course importer creates: a course arrives with its name
+    // and its rated tees because the directory's hole data could not be
+    // trusted. Scoring a round there computes net and Stableford against
+    // nothing, so this is raised where the scores are about to be entered.
+    const html = await venue({
+      venues: [{ id: "c1", name: "Bushwood" }],
+      venue: { name: "Bushwood", courseId: "c1", hasCard: false },
+    });
+    expect(html).toContain("has no card yet");
+  });
+
+  it("sends the correction to the one card editor rather than growing another", async () => {
+    // Two writers of the same eighteen numbers is how the event's own card
+    // came to disagree with its venue's, and be silently ignored. So this
+    // links, deep, into the course library's editor — and it links whether
+    // the card is missing or merely wrong, because "the S.I. on hole 7 is
+    // not ours" is the correction that actually gets made mid-round.
+    const missing = await venue({ venue: { name: "Bushwood", courseId: "c1", hasCard: false } });
+    expect(missing).toContain("/event?course=c1");
+    expect(missing).not.toContain("Paste the card");
+
+    const present = await venue({ venues: twoVenues });
+    expect(present).toContain("/event?course=c1");
+    expect(present).toContain("Check par and stroke index");
+  });
+
+  it("shows none of it to someone who cannot edit the tournament", async () => {
+    // A player entering their own card does not set the venue for the field.
+    expect(await venue({ venues: twoVenues, canEdit: false })).toBe("");
+    expect(
+      await venue({
+        venues: twoVenues,
+        canEdit: false,
+        venue: { name: "Bushwood", courseId: "c1", hasCard: false },
+      }),
+    ).toBe("");
   });
 });
 

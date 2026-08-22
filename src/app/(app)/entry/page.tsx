@@ -404,6 +404,26 @@ export default async function EntryPage() {
         matches: stageMatches,
         netMode,
         scoreInput: stage.scoreInput,
+        courseId: stage.courseId ?? "",
+        /**
+         * The venue this round will actually be scored against.
+         *
+         * Round's own venue, then the tournament's sole one — the same order
+         * `courseForMatch` falls through, resolved here so the screen reads
+         * one answer rather than working it out a second time. `hasCard` is
+         * the point of it: a venue can be attached to a tournament and have no
+         * par or stroke index at all, which is what an import arrives as when
+         * the directory's card could not be trusted.
+         */
+        venue: (() => {
+          const v = stageCourse ?? soleVenue;
+          if (!v) return null;
+          return {
+            name: v.name,
+            courseId: v.id,
+            hasCard: parseHoleArray(v.pars) !== null && parseHoleArray(v.strokeIndex) !== null,
+          };
+        })(),
         stroke: {
           holes: holeCount,
           stageId: stage.id,

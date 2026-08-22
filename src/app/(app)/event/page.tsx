@@ -13,7 +13,20 @@ import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
 
 
-export default async function EventPage() {
+export default async function EventPage({
+  searchParams,
+}: {
+  /**
+   * `?course=<id>` opens that course's card editor.
+   *
+   * Score entry links here when the round's venue has no card, or when
+   * somebody reading the card below spots something wrong. There is one card
+   * editor in this app; the alternative to deep-linking it was growing a
+   * second one on the entry screen, which is how the event's own card came to
+   * disagree with its venue's.
+   */
+  searchParams: Promise<{ course?: string }>;
+}) {
   const session = await requireScreen("event");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
@@ -28,6 +41,12 @@ export default async function EventPage() {
     select: { defaultCourseId: true, logoUrl: true, themeKey: true, themeHex: true },
   });
   const homeCourseId = org?.defaultCourseId ?? null;
+
+  // Checked against the club's own courses rather than trusted: this arrives
+  // off the query string, and opening an editor for a row that is not theirs
+  // would be the screen contradicting every action behind it.
+  const requestedCourse = (await searchParams).course ?? "";
+  const openCourseId = courses.some((c) => c.id === requestedCourse) ? requestedCourse : null;
 
   // Access is per-event *or* inherited from running the organization, so this
   // reads the same list the switch action authorizes against — checking
@@ -100,6 +119,11 @@ export default async function EventPage() {
           courses={courses}
           canEdit={session.viewRole === "admin"}
           homeCourse={homeCourseId}
+          // Checked against the club's own courses rather than trusted: this
+          // arrives off the query string, and opening an editor for a row that
+          // is not theirs would be the screen contradicting every action
+          // behind it.
+          openCourseId={openCourseId}
         />
       </div>
 
