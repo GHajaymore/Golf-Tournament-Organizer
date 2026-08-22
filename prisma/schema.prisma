@@ -207,6 +207,7 @@ model Organization {
   events       Event[]
   series       Series[]
   threads      Thread[]
+  honours      HonoursEntry[]
   subscription Subscription?
 }
 
@@ -2136,4 +2137,69 @@ model CourseCatalog {
 
   @@index([name])
   @@index([state])
+}
+
+/**
+ * A name on the club's board — the permanent record, not a view of the data.
+ * Deliberately DENORMALISED, and that is the whole design. Every field a board
+ * needs is captured when the committee confirms it, so the record survives
+ * everything that happens afterwards: a member leaving the roster, a tournament
+ * being renamed, an event deleted under the retention policy, or a scoring
+ * correction that would otherwise re-decide a championship years later. A board
+ * that changes when you fix a bug is not a board.
+ * There is no foreign key to Event for the same reason. `eventId` is kept so a
+ * confirmed tournament can be recognised, but the entry does not depend on the
+ * row still existing — a club's oldest records are exactly the ones whose
+ * events are gone.
+ * Unique on (eventId, playerId) rather than on eventId alone: the same player
+ * cannot be recorded twice for one tournament, but two CAN share a title. The
+ * domain refuses to break a tie precisely so a committee can declare a shared
+ * one, and a schema that forbade it would make that refusal a dead end.
+ */
+model HonoursEntry {
+  id             String @id @default(cuid())
+  organizationId String
+
+  /**
+   * The tournament this was won in. No FK — see the note above.
+   */
+  eventId   String
+  /**
+   * What the tournament was called when it was won.
+   */
+  eventName String
+  /**
+   * The club's own dates, as written.
+   */
+  dates     String @default("")
+  /**
+   * The year the board files it under. 0 when the dates say nothing.
+   */
+  year      Int    @default(0)
+
+  /**
+   * Who won. Kept for linking to a member's history where they still exist.
+   */
+  playerId     String @default("")
+  /**
+   * Their name AS CONFIRMED. The board shows this, never a lookup.
+   */
+  championName String
+
+  /**
+   * A committee's own words: a play-off, a shared title, a countback.
+   */
+  note String @default("")
+
+  /**
+   * Says who, and when. A board without that cannot answer a question in ten
+   * years' time, which is the only timescale a board is for.
+   */
+  confirmedBy String   @default("")
+  confirmedAt DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, playerId])
+  @@index([organizationId])
 }
