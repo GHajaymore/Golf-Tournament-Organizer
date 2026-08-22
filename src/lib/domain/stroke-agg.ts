@@ -127,6 +127,22 @@ export const emptyAgg = (): StrokeAgg => ({
  * well as through eighteen — which matters most in exactly the case this was
  * extracted for, a league night that gets rained off.
  */
+/**
+ * One card, keyed by whose it is and which round it belongs to.
+ *
+ * The separator here was a literal NUL byte, put there by a `perl -0pi` edit
+ * and invisible ever since. Two costs. Every tool that sniffs for binary
+ * content — grep among them — treated this scoring engine as a binary file and
+ * skipped it, so searches of the codebase silently missed it. And the key was
+ * one well-meant "strip the control characters" cleanup away from becoming
+ * `playerIdstageId`, where two different (player, round) pairs can produce the
+ * same string and a round quietly stops being counted twice.
+ *
+ * The same edit did this to match-cards.ts, where it was caught and fixed. A
+ * named separator that cannot appear in a cuid, written down on purpose.
+ */
+const cardKey = (playerId: string, stageId: string) => `${playerId}|${stageId}`;
+
 export function aggregateStroke(cards: StrokeCard[], opts: StrokeAggOptions): Map<string, StrokeAgg> {
   const out = new Map<string, StrokeAgg>();
   /**
@@ -181,7 +197,7 @@ export function aggregateStroke(cards: StrokeCard[], opts: StrokeAggOptions): Ma
     // will never be played. See StrokeAgg.stoppedShort.
     if (card.finished && returned < pars.length) a.stoppedShort = true;
 
-    const key = `${card.playerId} ${card.stageId}`;
+    const key = cardKey(card.playerId, card.stageId);
     const seen = (cardsPerStage.get(key) ?? 0) + 1;
     cardsPerStage.set(key, seen);
     // The first card for a round is that round's countback card. A second one
