@@ -21,6 +21,8 @@ import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, statusAfterEdit, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes } from "@/lib/domain/score-payload";
+import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
+import { isReturnedCard } from "@/lib/domain/round-handicap";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
@@ -1405,6 +1407,10 @@ export async function saveScorecard(stageId: string, playerId: string, strokes: 
     },
     create: { eventId, stageId, playerId, strokes: JSON.stringify(clean) },
   });
+  // The round is now being scored, so what it is scored against stops moving.
+  // After the write, never before: a card that failed validation above did not
+  // start a round. An empty save does not either — see isReturnedCard.
+  if (isReturnedCard(clean)) await freezeRoundHandicaps(eventId, stageId);
   refresh();
 }
 
@@ -1445,6 +1451,9 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     update: { strokes: JSON.stringify(clean) },
     create: { eventId, matchId, slot, strokes: JSON.stringify(clean) },
   });
+  // Net match play prices this card off a handicap too, so the same round is
+  // frozen by the same rule as a stroke round.
+  if (isReturnedCard(clean)) await freezeRoundHandicaps(eventId, match.stageId);
 
   const [cardA, cardB, playerA, playerB, event, stage] = await Promise.all([
     prisma.matchScorecard.findUnique({ where: { matchId_slot: { matchId, slot: "A" } } }),
@@ -1611,6 +1620,9 @@ export async function saveTeamScorecard(
     update: { strokes: JSON.stringify(cleanCard) },
     create: { eventId, stageId, matchId, teamId, playerId, strokes: JSON.stringify(cleanCard) },
   });
+  // A side's card is aggregated net of each partner's handicap, so a team
+  // round freezes on its first card like any other.
+  if (isReturnedCard(cleanCard)) await freezeRoundHandicaps(eventId, stageId);
 
   // Team match play: recompute the match from both sides' cards, so the same
   // resolveMatch that decides singles decides this too.
@@ -2643,6 +2655,9 @@ export async function importScores(
 
   const problems: string[] = [];
   let written = 0;
+  // Whether any imported card carried a stroke, rather than merely a row —
+  // an import of blank cards is a field, not a round that has been played.
+  let returned = false;
 
   for (const row of rows) {
     // Both stroke shapes, gross and net: they arrive as the same per-player
@@ -2674,6 +2689,7 @@ export async function importScores(
         update: { strokes: JSON.stringify(strokes) },
         create: { eventId, stageId, playerId: row.playerId, strokes: JSON.stringify(strokes) },
       });
+      if (isReturnedCard(strokes)) returned = true;
       written += 1;
       continue;
     }
@@ -2734,6 +2750,11 @@ export async function importScores(
 
     problems.push("Unknown import shape.");
   }
+
+  // An imported card is a returned card. Once, after the file rather than per
+  // row: freezing is a fact about the round, and the first row already decided
+  // it.
+  if (returned) await freezeRoundHandicaps(eventId, stageId);
 
   refresh();
   return { ok: written > 0, written, problems: problems.length ? problems : undefined };
@@ -2816,6 +2837,21 @@ export async function clearRoundScores(
       ...(scoped.length ? { playerId: { in: scoped } } : {}),
     },
   });
+
+  // Clearing the WHOLE round un-plays it, so the handicaps it froze are
+  // released and the round can be fixed and scored again. A frozen number
+  // whose round has no cards left protects nothing and reads as a refusal
+  // ("cards are in") on a round that is visibly empty.
+  //
+  // Only for the whole round. Clearing one player's card leaves the rest
+  // standing, and the round they were scored against must not move under
+  // them. The override is a committee decision and survives either way.
+  if (!scoped.length) {
+    await prisma.roundHandicap.updateMany({
+      where: { eventId, stageId },
+      data: { frozen: null, frozenAt: null },
+    });
+  }
 
   refresh();
   return { ok: true, cleared };

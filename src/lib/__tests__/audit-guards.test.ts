@@ -967,3 +967,47 @@ describe("which model each AI call uses", () => {
     expect(unlisted, "add it to MODEL_FOR with a note on why that model").toEqual([]);
   });
 });
+
+describe("a round freezes the handicaps it is scored against", () => {
+  /**
+   * CLAUDE.md rule 5: a guard you must remember to call is a guard that will be
+   * forgotten. `freezeRoundHandicaps` is exactly that shape — every door that
+   * stores a returned card has to call it, and a door that forgets loses
+   * nothing visible on the day. It silently leaves that round's handicaps live,
+   * so a roster edit weeks later re-scores a finished round: the defect the
+   * whole feature exists to prevent, reappearing through one missed path.
+   *
+   * So the doors are enumerated from the SOURCE rather than by hand. A fifth
+   * way to store a card fails this test the day it is written.
+   */
+  const bodies = actions("tournament.ts");
+  const stores = bodies.filter((a) => /(scorecard|matchScorecard|teamScorecard)\.upsert\(/.test(a.body));
+
+  it("finds the actions that store cards", () => {
+    expect(stores.map((a) => a.name).sort()).toEqual([
+      "importScores",
+      "saveMatchScorecard",
+      "saveScorecard",
+      "saveTeamScorecard",
+    ]);
+  });
+
+  for (const a of stores) {
+    it(`${a.name} freezes the round after storing the card`, () => {
+      expect(a.body, `${a.name} stores a card without freezing its round`).toMatch(/freezeRoundHandicaps\(/);
+      // After the write, not before. Freezing first would freeze a round on a
+      // card that then failed to store — and a card refused for being invalid
+      // would still have stopped an organizer fixing a handicap.
+      expect(a.body.search(/scorecard\.upsert\(/i)).toBeLessThan(a.body.indexOf("freezeRoundHandicaps("));
+    });
+
+    it(`${a.name} only freezes on a card that carries a score`, () => {
+      // An empty card row is a field, not a round that has been played: a cut
+      // writes one for every survivor. Freezing on the row would tell an
+      // organizer that cards are in a fortnight before anyone tees off.
+      expect(a.body, `${a.name} freezes without asking whether a score arrived`).toMatch(
+        /isReturnedCard\(|if \(returned\)/,
+      );
+    });
+  }
+});
