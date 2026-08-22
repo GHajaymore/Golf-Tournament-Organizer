@@ -35,8 +35,15 @@ export interface RosterRow {
   notes: string;
   entryCount: number;
   lastEvent: string;
-  /** Already in the tournament currently open. */
+  /** Has an entry of any kind in the tournament currently open. */
   entered: boolean;
+  /**
+   * Whether that entry is a place in the field or a place in the queue.
+   *
+   * "in field" was shown for both, which is wrong for the waitlisted member
+   * and misleading for the organizer deciding who else to add.
+   */
+  entryStatus: "in" | "waitlisted" | "out";
 }
 
 interface Props {
@@ -85,6 +92,8 @@ export function RosterClient({
   const [importResult, setImportResult] = useState<MemberImportResult | null>(null);
   const [query, setQuery] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  /** all | in this tournament | not in it. Not everyone plays every event. */
+  const [entryFilter, setEntryFilter] = useState<"all" | "in" | "out">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   /** Whose handicap record is open. One at a time — see the trigger below. */
@@ -101,6 +110,11 @@ export function RosterClient({
     const q = query.trim().toLowerCase();
     return members.filter((m) => {
       if (!showInactive && m.status !== "active") return false;
+      // Not everyone plays every tournament, and signing a field up means
+      // looking at the ones who are NOT in it yet. Searching a name at a time
+      // was the only way to find them.
+      if (entryFilter === "in" && m.entryStatus === "out") return false;
+      if (entryFilter === "out" && m.entryStatus !== "out") return false;
       if (!q) return true;
       return (
         m.name.toLowerCase().includes(q) ||
@@ -109,7 +123,7 @@ export function RosterClient({
         m.homeClub.toLowerCase().includes(q)
       );
     });
-  }, [members, query, showInactive]);
+  }, [members, query, showInactive, entryFilter]);
 
   const activeCount = members.filter((m) => m.status === "active").length;
   const inactiveCount = members.length - activeCount;
@@ -473,6 +487,23 @@ export function RosterClient({
             <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
             Show inactive
           </label>
+          {/* Which of these members are in THIS tournament. A club roster
+              outlives any one event and most of it is usually not playing, so
+              signing a field up means looking at the people who are not in it
+              yet — and searching one name at a time was the only way. */}
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }} className="text-muted">
+            <span>Show</span>
+            <select
+              className="input"
+              style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
+              value={entryFilter}
+              onChange={(e) => setEntryFilter(e.target.value as "all" | "in" | "out")}
+            >
+              <option value="all">everyone</option>
+              <option value="in">only those in {eventName}</option>
+              <option value="out">only those not in it</option>
+            </select>
+          </label>
           {!adding && !editing && (
             <>
               <button
@@ -618,13 +649,17 @@ export function RosterClient({
                     )}
                     {/* The event is named once in the header stat — repeating it
                         on every row wrapped the tag and crushed the name column. */}
-                    {m.entered && (
+                    {m.entryStatus !== "out" && (
                       <span
                         className="tag tag-neutral"
                         style={{ marginLeft: 6, fontSize: 10, whiteSpace: "nowrap" }}
-                        title={`Already in ${eventName}`}
+                        title={
+                          m.entryStatus === "waitlisted"
+                            ? `Signed up for ${eventName}, waiting for a place`
+                            : `Already in ${eventName}`
+                        }
                       >
-                        in field
+                        {m.entryStatus === "waitlisted" ? "waitlisted" : "in field"}
                       </span>
                     )}
                     {m.status !== "active" && (

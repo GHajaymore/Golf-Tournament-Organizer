@@ -867,7 +867,7 @@ describe("roster CSV import", () => {
   const row = (over: Partial<RosterRow> = {}): RosterRow => ({
     id: "m1", name: "Ann Doyle", email: "ann@x.test", phone: "", ghin: "", homeClub: "",
     gender: "", preferredTee: "", memberNumber: "", handicap: 12.4, handicapType: "18",
-    handicapSource: "manual", status: "active", notes: "", entryCount: 0, lastEvent: "",
+    handicapSource: "manual", status: "active", notes: "", entryCount: 0, lastEvent: "", entryStatus: "out",
     entered: false, ...over,
   });
   const result = (over: Partial<MemberImportResult> = {}): MemberImportResult => ({
@@ -3115,12 +3115,62 @@ describe("the weekly sign-up calendar", () => {
   });
 });
 
+describe("the roster and the tournament in front of it", () => {
+  const member = (over: Partial<RosterRow> = {}): RosterRow => ({
+    id: "m1", name: "zz-Priya Nair", email: "", phone: "", ghin: "",
+    homeClub: "", gender: "", preferredTee: "", memberNumber: "", handicap: 12,
+    handicapType: "18", handicapSource: "manual", status: "active", notes: "",
+    entryCount: 0, lastEvent: "", entered: false, entryStatus: "out", ...over,
+  });
+  const roster = async (members: RosterRow[]) => {
+    const { RosterClient } = await import("@/components/RosterClient");
+    return render(
+      <RosterClient clubName="zz-Club" orgKind="club" eventName="zz-Cup" fieldLocked={false}
+        members={members} fieldSize={members.length} unlinkedCount={0} />,
+    );
+  };
+
+  it("does not call a waitlisted member 'in field'", async () => {
+    // They signed up and have no place. The person who most needs to know is
+    // the organizer on this screen working out who else to add — and the roster
+    // read every Player row as an entry whatever its status, so a full
+    // tournament showed its whole queue as already playing.
+    const html = await roster([member({ id: "w", name: "zz-Waiting", entered: true, entryStatus: "waitlisted" })]);
+    expect(html).toContain("waitlisted");
+    expect(html).not.toContain("in field");
+  });
+
+  it("still says 'in field' for somebody who actually has a place", async () => {
+    const html = await roster([member({ entered: true, entryStatus: "in" })]);
+    expect(html).toContain("in field");
+    expect(html).not.toContain("waitlisted");
+  });
+
+  it("tags nobody who is not entered at all", async () => {
+    // Most of a club roster is not in any one tournament. That is the ordinary
+    // case, not an omission.
+    const html = await roster([member()]);
+    expect(html).not.toContain("in field");
+    expect(html).not.toContain("waitlisted");
+  });
+
+  it("offers to show only the members who are NOT in this tournament", async () => {
+    // Signing a field up means looking at exactly those people, and searching
+    // one name at a time was the only way to find them.
+    const html = await roster([member()]);
+    expect(html).toContain("only those not in it");
+    expect(html).toContain("only those in zz-Cup");
+  });
+});
+
 describe("members", () => {
-  const member = (over: Record<string, unknown> = {}) => ({
+  // Typed as the row the component takes, so a new required field fails here
+  // rather than widening to `string` and passing anything.
+  const member = (over: Partial<RosterRow> = {}): RosterRow => ({
     id: "m1", name: "zz-Priya Nair", email: "zz1@example.invalid", phone: "", ghin: "",
     homeClub: "", gender: "", preferredTee: "", memberNumber: "", handicap: 12,
     handicapType: "18", handicapSource: "manual", status: "active", notes: "",
-    entryCount: 0, lastEvent: "", entered: false, ...over,
+    entryCount: 0, lastEvent: "", entered: false, entryStatus: "out", ...over,
   });
   const roster = async (members: ReturnType<typeof member>[]) => {
     const { RosterClient } = await import("@/components/RosterClient");

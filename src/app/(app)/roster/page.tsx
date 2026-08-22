@@ -31,10 +31,31 @@ export default async function RosterPage() {
   // "add to this tournament" can never create a duplicate entry.
   const entered = await prisma.player.findMany({
     where: { eventId: session.eventId },
-    select: { id: true, name: true, memberId: true, email: true },
+    select: { id: true, name: true, memberId: true, email: true, status: true },
   });
   const enteredIds = new Set(entered.map((p) => p.memberId).filter(Boolean) as string[]);
   const enteredEmails = new Set(entered.map((p) => p.email.trim().toLowerCase()).filter(Boolean));
+
+  /**
+   * In the field, waiting for a place in it, or not entered at all.
+   *
+   * `entered` is every Player row whatever its status, so a WAITLISTED member
+   * was tagged "in field" on this screen. They are not in it, and the person
+   * who most needs to know that is the organizer standing on this page working
+   * out who else to add. It stays invisible until a club fills a tournament,
+   * which is precisely the moment it starts mattering.
+   */
+  const waitlisted = entered.filter((p) => p.status === "waitlisted");
+  const waitlistedIds = new Set(waitlisted.map((p) => p.memberId).filter(Boolean) as string[]);
+  const waitlistedEmails = new Set(
+    waitlisted.map((p) => p.email.trim().toLowerCase()).filter(Boolean),
+  );
+  const entryStatusOf = (m: { id: string; email: string }): "in" | "waitlisted" | "out" => {
+    const email = m.email.trim().toLowerCase();
+    if (waitlistedIds.has(m.id) || (email && waitlistedEmails.has(email))) return "waitlisted";
+    if (enteredIds.has(m.id) || (email && enteredEmails.has(email))) return "in";
+    return "out";
+  };
 
   // The other half of the count. Without it the card reports how many MEMBERS
   // are playing while reading as how many PEOPLE are — which is how a club
@@ -53,6 +74,7 @@ export default async function RosterPage() {
       members={members.map((m) => ({
         ...m,
         entered: enteredIds.has(m.id) || (!!m.email && enteredEmails.has(m.email.toLowerCase())),
+        entryStatus: entryStatusOf(m),
       }))}
     />
   );
