@@ -62,7 +62,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
         return;
       }
       const tees = res.teeCount
-        ? ` and ${res.teeCount} rated tee ${res.teeCount === 1 ? "set" : "sets"}`
+        ? `, with ${res.teeCount} rated tee ${res.teeCount === 1 ? "set" : "sets"}`
         : "";
       // Two genuinely different outcomes, said differently. "Imported" when
       // the card came with it; when the card was refused the club has a job
@@ -73,7 +73,10 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
           ? { kind: "ok", text: `${hit.name} added, with its card${tees}. Check it against your own before you score with it.` }
           : {
               kind: "partial",
-              text: `${hit.name} added${tees}, but without a card — ${res.cardProblem ?? "the directory has no usable one."} Paste or type the card below.`,
+              // Names the missing thing and where to put it, without naming a
+              // control that may not be on this screen — this component is
+              // rendered both beside the course library and on score entry.
+              text: `${hit.name} added${tees}, but without a card. ${res.cardProblem ?? "The directory has no usable one."} Add its par and stroke index before scoring a round there.`,
             },
       );
       if (res.courseId) onImported?.(res.courseId);
