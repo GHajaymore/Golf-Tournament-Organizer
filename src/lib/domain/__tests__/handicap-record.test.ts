@@ -4,7 +4,10 @@ import {
   adjustedGrossScore,
   scoreDifferential,
   clubHandicapFrom,
+  handicapRecordFrom,
+  maySuggestFor,
   MAX_HANDICAP,
+  type RoundForRecord,
 } from "../handicap-record";
 
 /**
@@ -217,5 +220,105 @@ describe("end to end, one member's season", () => {
     expect(r.lowestCounted).toBe(1);
     expect(r.handicap).toBeGreaterThan(5);
     expect(r.handicap).toBeLessThan(20);
+  });
+});
+
+describe("a member's whole record", () => {
+  const PAR_TOTAL = PARS.reduce((a, b) => a + b, 0);
+  const round = (over: number, extra: Partial<RoundForRecord> = {}): RoundForRecord => ({
+    playedOn: "2026-05-01",
+    strokes: PARS.map((p, i) => p + (i < over ? 1 : 0)),
+    pars: PARS,
+    strokeIndex: SI,
+    holes: 18,
+    courseHandicap: 12,
+    tee: BLUE,
+    ...extra,
+  });
+
+  it("counts the rounds it can and says what it left out", () => {
+    // A member looking at "handicap from 3 rounds" when they played six will
+    // assume the app lost three of them. Naming each exclusion is the whole
+    // point of returning them.
+    const r = handicapRecordFrom([
+      round(10),
+      round(12),
+      round(14),
+      round(8, { tee: null }),
+      round(8, { holes: 9 }),
+      round(8, { strokes: PARS.map((p, i) => (i < 7 ? null : p)) }),
+    ]);
+    expect(r.differentials).toHaveLength(3);
+    expect(r.skipped["unrated-tee"]).toBe(1);
+    expect(r.skipped["nine-hole"]).toBe(1);
+    expect(r.skipped.incomplete).toBe(1);
+    expect(r.suggestion).not.toBeNull();
+  });
+
+  it("skips a nine-hole round rather than halving its differential", () => {
+    // The Rules pair two nine-hole differentials into one eighteen-hole score.
+    // Treating nine holes as eighteen would compute a differential off half a
+    // round against a full course rating — wrong, and wrong in the direction
+    // that flatters the player.
+    const r = handicapRecordFrom([round(10, { holes: 9 })]);
+    expect(r.differentials).toEqual([]);
+    expect(r.skipped["nine-hole"]).toBe(1);
+  });
+
+  it("orders by the day the round was PLAYED, not the day it was entered", () => {
+    // A club catching up on last month's cards in one evening must not
+    // reorder a member's record, because the twenty-score window is about
+    // golf rather than data entry.
+    const r = handicapRecordFrom([
+      // Kept under 18, because the helper adds a shot to the first N holes —
+      // beyond eighteen every card is "bogey everywhere" and they stop differing.
+      round(18, { playedOn: "2026-06-01" }),
+      round(2, { playedOn: "2026-01-01" }),
+      round(10, { playedOn: "2026-03-01" }),
+    ]);
+    // Oldest first: the January round (2 over) is the lowest differential.
+    expect(r.differentials[0]).toBeLessThan(r.differentials[1]);
+    expect(r.differentials[1]).toBeLessThan(r.differentials[2]);
+  });
+
+  it("issues nothing from two usable rounds, however many were played", () => {
+    const r = handicapRecordFrom([round(10), round(12), round(8, { tee: null })]);
+    expect(r.suggestion).toBeNull();
+    expect(r.skipped["unrated-tee"]).toBe(1);
+  });
+
+  it("returns an empty record rather than throwing on no rounds", () => {
+    const r = handicapRecordFrom([]);
+    expect(r.suggestion).toBeNull();
+    expect(r.differentials).toEqual([]);
+  });
+
+  it("produces a sane handicap from a real-looking season", () => {
+    const rounds = [14, 18, 12, 20, 16, 15, 11, 19].map((over, i) =>
+      round(over, { playedOn: `2026-0${i + 1}-15` }),
+    );
+    const r = handicapRecordFrom(rounds);
+    expect(r.differentials).toHaveLength(8);
+    expect(r.suggestion!.lowestCounted).toBe(2);
+    // Around 11 over the rating off a 144 slope: single figures, not 30.
+    expect(r.suggestion!.handicap).toBeGreaterThan(0);
+    expect(r.suggestion!.handicap).toBeLessThan(15);
+    expect(PAR_TOTAL).toBe(72);
+  });
+});
+
+describe("whose handicap this is", () => {
+  it("never suggests over a GHIN figure", () => {
+    // The association is the authority and this is the fallback. Suggesting a
+    // replacement for a licensed figure is the one thing this must not do.
+    expect(maySuggestFor("ghin")).toBe(false);
+    expect(maySuggestFor("GHIN")).toBe(false);
+    expect(maySuggestFor(" ghin ")).toBe(false);
+  });
+
+  it("suggests for a hand-entered or absent handicap", () => {
+    expect(maySuggestFor("manual")).toBe(true);
+    expect(maySuggestFor("none")).toBe(true);
+    expect(maySuggestFor("")).toBe(true);
   });
 });

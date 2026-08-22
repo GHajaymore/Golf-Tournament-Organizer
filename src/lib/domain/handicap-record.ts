@@ -190,3 +190,108 @@ export function clubHandicapFrom(differentials: readonly number[]): ClubHandicap
     adjustment: row.adjustment,
   };
 }
+
+/* ── A member's whole record ──────────────────────────────────────────────── */
+
+/** One returned card, with everything needed to price it. */
+export interface RoundForRecord {
+  /** ISO date the round was played, for ordering. Empty sorts oldest. */
+  playedOn: string;
+  strokes: readonly (number | null)[];
+  pars: readonly number[];
+  strokeIndex: readonly number[];
+  holes: number;
+  /** The player's course handicap for THAT round, as it was played. */
+  courseHandicap: number;
+  /** The tee actually played. Null where the club never rated it. */
+  tee: TeeRating | null;
+}
+
+/** Why a returned card did not reach the record. */
+export type SkipReason = "unrated-tee" | "nine-hole" | "incomplete";
+
+export interface HandicapRecord {
+  /** The club handicap these rounds support, or null if too few count. */
+  suggestion: ClubHandicap | null;
+  /** The differentials that counted, oldest first. */
+  differentials: number[];
+  /** What was left out, and why, so the screen can say rather than imply. */
+  skipped: Record<SkipReason, number>;
+}
+
+/**
+ * A member's club handicap from their returned cards.
+ *
+ * The pure half of the feature: the service gathers rounds from the database
+ * and this decides what they mean, so the judgement can be tested against the
+ * Rules without one.
+ *
+ * Three kinds of round are counted OUT rather than quietly dropped, because a
+ * member looking at "handicap from 6 rounds" when they played fourteen will
+ * assume the app has lost eight of them:
+ *
+ *   unrated-tee — no Course Rating and Slope, so no differential exists.
+ *   nine-hole   — the Rules combine two nine-hole differentials into one
+ *                 eighteen-hole score, which needs pairing rules this does not
+ *                 implement yet. Skipping is honest; treating nine holes as
+ *                 eighteen would halve every differential.
+ *   incomplete  — more than a third of the card missing.
+ *
+ * Ordered by the date the round was PLAYED, not the date the card was entered.
+ * The twenty-score window is about golf, and a club catching up on last
+ * month's cards in one evening must not reorder a member's record.
+ */
+export function handicapRecordFrom(rounds: readonly RoundForRecord[]): HandicapRecord {
+  const skipped: Record<SkipReason, number> = { "unrated-tee": 0, "nine-hole": 0, incomplete: 0 };
+  const dated: Array<{ playedOn: string; differential: number }> = [];
+
+  for (const round of rounds) {
+    if (round.holes !== 18) {
+      skipped["nine-hole"] += 1;
+      continue;
+    }
+    if (!round.tee || !round.tee.slopeRating || !round.tee.courseRating) {
+      skipped["unrated-tee"] += 1;
+      continue;
+    }
+
+    const adj = adjustedGrossScore({
+      strokes: round.strokes,
+      pars: round.pars,
+      courseHandicap: round.courseHandicap,
+      strokeIndex: round.strokeIndex,
+      holes: 18,
+    });
+    if (!adj.usable) {
+      skipped.incomplete += 1;
+      continue;
+    }
+
+    const differential = scoreDifferential(adj.adjusted, round.tee);
+    if (differential === null) {
+      skipped["unrated-tee"] += 1;
+      continue;
+    }
+    dated.push({ playedOn: round.playedOn, differential });
+  }
+
+  // Oldest first, because clubHandicapFrom takes the most recent LAST. A
+  // stable sort keeps two rounds on the same day in the order they arrived.
+  dated.sort((a, b) => a.playedOn.localeCompare(b.playedOn));
+  const differentials = dated.map((d) => d.differential);
+
+  return { suggestion: clubHandicapFrom(differentials), differentials, skipped };
+}
+
+/**
+ * Whether this member's handicap is ours to suggest at all.
+ *
+ * An association figure is the authority and a club handicap is the fallback —
+ * the order `docs/requirement-per-round-handicap.md` sets out. A member whose
+ * handicap comes from GHIN gets their record shown and no suggestion attached
+ * to it, because suggesting a replacement for a licensed figure is the one
+ * thing this feature must not do.
+ */
+export function maySuggestFor(handicapSource: string): boolean {
+  return handicapSource.trim().toLowerCase() !== "ghin";
+}
