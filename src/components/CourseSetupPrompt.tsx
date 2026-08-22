@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { saveCustomCourse } from "@/app/actions/tournament";
-import { parseCard } from "@/lib/domain/scorecard-parse";
+import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
 import { pasteSummary } from "@/lib/domain/card-paste";
 import { CourseSearch } from "@/components/CourseSearch";
 
@@ -56,16 +56,20 @@ export function CourseSetupPrompt({
    * reason score entry became unreachable for any event without a course.
    */
   const applyPaste = (text: string) => {
-    const rows = text.split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
+    // Which row is which comes from what the rows CALL themselves, so pasting
+    // the whole table works and the "Hole 1 2 3 …" header is dropped rather
+    // than read as the pars.
+    const rows = assignCardRows(text);
+    const rowCount = [rows.pars, rows.strokeIndex, rows.yards].filter(Boolean).length;
     // A short paste used to return here having written nothing and said
     // nothing, so somebody pasting only the par row watched the screen not
     // react. It still writes nothing — there is nothing to write — but it now
     // says which rows it wanted.
-    if (rows.length < 2) {
-      setPasteSummaryText(pasteSummary({ rowCount: rows.length, pars: 0, strokeIndex: 0, yards: 0, problems: 0 }));
+    if (!rows.pars || !rows.strokeIndex) {
+      setPasteSummaryText(pasteSummary({ rowCount, pars: 0, strokeIndex: 0, yards: 0, problems: 0 }));
       return;
     }
-    const card = parseCard({ pars: rows[0], strokeIndex: rows[1], yards: rows[2] ?? "" });
+    const card = parseCard(rows);
     if (card.pars.length) setPars(card.pars.map(String));
     if (card.strokeIndex.length) setStrokeIndex(card.strokeIndex.map(String));
     if (card.yards.length) setYards(card.yards.map(String));
@@ -75,7 +79,7 @@ export function CourseSetupPrompt({
     // worked was the case with no evidence at all.
     setPasteSummaryText(
       pasteSummary({
-        rowCount: rows.length,
+        rowCount,
         pars: card.pars.length,
         strokeIndex: card.strokeIndex.length,
         yards: card.yards.length,
@@ -132,7 +136,7 @@ export function CourseSetupPrompt({
   const paste = (
     <div className="field" style={{ flexBasis: "100%" }}>
       <label>
-        Paste the card <span className="text-muted">— par, stroke index, then yardage; one row each</span>
+        Paste the card <span className="text-muted">— the whole table is fine; rows are read by their labels</span>
       </label>
       <textarea
         className="input"

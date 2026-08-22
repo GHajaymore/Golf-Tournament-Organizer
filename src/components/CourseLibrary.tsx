@@ -13,7 +13,7 @@ import {
   applySourceCard,
 } from "@/app/actions/courses";
 import { CourseSearch } from "./CourseSearch";
-import { parseCard } from "@/lib/domain/scorecard-parse";
+import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
 import { isDirectorySource, type CardDifference } from "@/lib/domain/course-directory";
 import type { ClubCourse } from "@/lib/services/courses";
 
@@ -101,11 +101,11 @@ export function CourseLibrary({
   const nums = (a: string[]) => a.map((v) => parseInt(v, 10)).map((n) => (Number.isFinite(n) ? n : 0));
 
   /**
-   * Fill the boxes from three rows off the club's website.
+   * Fill the boxes from a card pasted off the club's website.
    *
-   * Rows in the order a card is read: par, stroke index, yardage. Totals and
-   * labels are stripped by `parseCard`, so the row can be copied straight out
-   * of the table without editing it first.
+   * Rows are identified by what they call themselves — Par, S.I., Yards — so
+   * selecting the whole table works, which is the ordinary thing to do with a
+   * table. Order does not matter and the hole-number header is dropped.
    *
    * A short or unreadable paste says so rather than half-filling in silence —
    * the failure mode here is someone pasting the par row alone and watching
@@ -115,13 +115,16 @@ export function CourseLibrary({
     setPasteCard(text);
     setPasteNote("");
     setPasteProblems([]);
-    const rows = text.split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
-    if (rows.length === 0) return;
-    if (rows.length < 2) {
-      setPasteProblems(["Two rows at least — par on the first, stroke index on the second."]);
+    if (!text.trim()) return;
+    // Which row is which comes from what the rows CALL themselves, so pasting
+    // the whole table off a club's website works — the "Hole 1 2 3 …" header
+    // identifies itself and is dropped rather than being read as the pars.
+    const rows = assignCardRows(text, 18);
+    if (!rows.pars || !rows.strokeIndex) {
+      setPasteProblems(["Two rows at least — the par row and the stroke index row."]);
       return;
     }
-    const card = parseCard({ pars: rows[0], strokeIndex: rows[1], yards: rows[2] ?? "" }, 18);
+    const card = parseCard(rows, 18);
     if (!card.ok) {
       setPasteProblems(card.problems.map((p) => `${p.row}: ${p.message}`));
       return;

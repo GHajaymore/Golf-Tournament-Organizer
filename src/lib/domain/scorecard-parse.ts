@@ -256,3 +256,131 @@ export function parseCard(
   const strokeIndex = parseCardRow(input.strokeIndex, holes).values;
   return validateCard(pars, yards, strokeIndex, holes);
 }
+
+/* ── Which pasted row is which ─────────────────────────────────────────────── */
+
+/** A pasted card split into the three rows a card editor needs. */
+export interface AssignedCardRows {
+  pars: string;
+  strokeIndex: string;
+  yards: string;
+  /** What each row was recognised as, in the order pasted, for the note the
+   *  screen shows back. Empty where a row was skipped. */
+  recognised: string[];
+  /** Whether the labels decided it, as opposed to falling back to position. */
+  byLabel: boolean;
+}
+
+/** What a row calls itself, if anything. */
+type RowKind = "par" | "si" | "yards" | "holes" | "unlabelled";
+
+/**
+ * The words clubs actually print at the head of each row.
+ *
+ * Matched against the leading text of the line only, so a "Yards" column
+ * heading buried mid-row cannot reclassify a par row. Stroke index is the
+ * longest list because nobody agrees what to call it: S.I., Index, HCP,
+ * Handicap, Stroke are all in common use on real cards.
+ */
+const ROW_LABELS: Array<{ kind: RowKind; re: RegExp }> = [
+  { kind: "holes", re: /^(hole|holes|#|no\.?)\b/ },
+  { kind: "par", re: /^par\b/ },
+  { kind: "si", re: /^(s\s*\.?\s*i|stroke|index|hcp|hdcp|handicap|hdc)\b/ },
+  { kind: "yards", re: /^(yard|yds?|yardage|metre|meter|mtrs?|length|distance|tee)\b/ },
+];
+
+function kindOf(line: string): RowKind {
+  // Leading text only — the label, before any numbers start.
+  const lead = line.replace(/^[^a-z0-9#]+/i, "").toLowerCase();
+  for (const { kind, re } of ROW_LABELS) if (re.test(lead)) return kind;
+  return "unlabelled";
+}
+
+/** Exactly 1..n ascending — a hole-number header, not a card row. */
+function looksLikeHoleNumbers(values: number[], holes: number): boolean {
+  if (values.length !== holes) return false;
+  return values.every((v, i) => v === i + 1);
+}
+
+/**
+ * Work out which pasted row is the par, which the stroke index, which the
+ * yardage — by reading what the rows call themselves.
+ *
+ * This used to be positional: line one par, line two stroke index, line three
+ * yardage. That assumes somebody selected exactly three rows in exactly that
+ * order, and the ordinary thing to do with a table on a club's website is
+ * select the whole thing. Then the "Hole 1 2 3 …" header became the pars and
+ * the paste failed with "every hole needs a par between 3 and 6" — true, and
+ * no help at all in working out what went wrong.
+ *
+ * Labels first, position as the fallback, so a bare three-row paste keeps
+ * working exactly as it did. Rows that identify themselves as hole numbers are
+ * dropped, and so is an unlabelled 1..18 ascending row where there are enough
+ * others to fill the card — that shape is a header, and reading it as a stroke
+ * index would allocate every handicap stroke to the wrong hole.
+ */
+export function assignCardRows(text: string, holes = 18): AssignedCardRows {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const out: AssignedCardRows = { pars: "", strokeIndex: "", yards: "", recognised: [], byLabel: false };
+
+  const leftovers: string[] = [];
+  for (const line of lines) {
+    const kind = kindOf(line);
+    if (kind === "holes") {
+      out.recognised.push("hole numbers");
+      continue;
+    }
+    // First labelled row of each kind wins. A card printed with a yardage row
+    // per tee set gives several; the first is as good a choice as any, and
+    // silently taking the last would depend on paste order again.
+    if (kind === "par" && !out.pars) {
+      out.pars = line;
+      out.byLabel = true;
+      out.recognised.push("par");
+      continue;
+    }
+    if (kind === "si" && !out.strokeIndex) {
+      out.strokeIndex = line;
+      out.byLabel = true;
+      out.recognised.push("stroke index");
+      continue;
+    }
+    if (kind === "yards" && !out.yards) {
+      out.yards = line;
+      out.byLabel = true;
+      out.recognised.push("yardage");
+      continue;
+    }
+    if (kind !== "unlabelled") {
+      // A second par/SI/yardage row — a card with several tee sets.
+      out.recognised.push("");
+      continue;
+    }
+    leftovers.push(line);
+  }
+
+  // Unlabelled rows fill whatever is still missing, in card order. Hole-number
+  // rows are dropped first, and only while enough others remain to fill the
+  // slots — so a genuine 1..18 stroke index still gets in on a card that has
+  // nothing else to offer.
+  const needed = [!out.pars, !out.strokeIndex, !out.yards].filter(Boolean).length;
+  const usable =
+    leftovers.length > needed
+      ? leftovers.filter((l) => !looksLikeHoleNumbers(parseCardRow(l, holes).values, holes))
+      : leftovers;
+
+  for (const line of usable) {
+    if (!out.pars) {
+      out.pars = line;
+      out.recognised.push("par");
+    } else if (!out.strokeIndex) {
+      out.strokeIndex = line;
+      out.recognised.push("stroke index");
+    } else if (!out.yards) {
+      out.yards = line;
+      out.recognised.push("yardage");
+    }
+  }
+
+  return out;
+}
