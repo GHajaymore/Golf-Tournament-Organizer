@@ -3115,6 +3115,76 @@ describe("the weekly sign-up calendar", () => {
   });
 });
 
+describe("the honours board", () => {
+  const entry = (over: Record<string, unknown> = {}) => ({
+    id: "h1", eventId: "e1", eventName: "zz Club Championship", dates: "May 2026",
+    year: 2026, championName: "zz Alex Vaughn", confirmedBy: "zz Secretary", note: "", ...over,
+  });
+  const board = async (groups: unknown[], pending: unknown[] = [], canEdit = true) => {
+    const { HonoursBoard } = await import("@/components/HonoursBoard");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return render(<HonoursBoard board={groups as any} pending={pending as any} canEdit={canEdit} />);
+  };
+
+  it("shows a confirmed champion and who said so", async () => {
+    // "Says who" is the question a board gets asked, years later, by somebody
+    // who was not there.
+    const html = await board([{ year: 2026, entries: [entry()] }]);
+    expect(html).toContain("zz Alex Vaughn");
+    expect(html).toContain("confirmed by zz Secretary");
+  });
+
+  it("says the board is empty rather than showing nothing at all", async () => {
+    expect(await board([])).toContain("Nothing on the board yet");
+  });
+
+  it("keeps a proposal visibly apart from the record", async () => {
+    // A fresh computation must never read as a result. The heading is the
+    // whole guard: one section is what the club decided, the other is what the
+    // app thinks.
+    const html = await board(
+      [{ year: 2026, entries: [entry()] }],
+      [{ eventId: "e2", eventName: "zz Summer Cup", dates: "Aug 2026", year: 2026,
+         suggestion: { ok: true, playerId: "p2", name: "zz Sam Okafor", runnersUp: [] } }],
+    );
+    expect(html).toContain("Finished, not yet on the board");
+    expect(html).toContain("Standings say");
+  });
+
+  it("asks the committee to decide a tie instead of naming somebody", async () => {
+    // The app refuses to break a tie, so the screen has to offer the choice —
+    // otherwise the refusal is a dead end and the tournament never goes up.
+    const html = await board([], [{
+      eventId: "e3", eventName: "zz Winter Meeting", dates: "", year: 2025,
+      suggestion: { ok: false, reason: "tied", tied: [
+        { playerId: "a", name: "zz Alex Vaughn", rank: 1 },
+        { playerId: "b", name: "zz Sam Okafor", rank: 1 },
+      ] },
+    }]);
+    expect(html).toContain("committee decides this one");
+    expect(html).toContain("zz Alex Vaughn and zz Sam Okafor");
+  });
+
+  it("gives a reason when it will not propose anybody", async () => {
+    const html = await board([], [{
+      eventId: "e4", eventName: "zz Empty Cup", dates: "", year: 0,
+      suggestion: { ok: false, reason: "no-results", tied: [] },
+    }]);
+    expect(html).toContain("nobody can be named");
+  });
+
+  it("offers no confirming and no removing to somebody who cannot edit", async () => {
+    const html = await board(
+      [{ year: 2026, entries: [entry()] }],
+      [{ eventId: "e5", eventName: "zz X", dates: "", year: 2026,
+         suggestion: { ok: true, playerId: "p", name: "zz Winner", runnersUp: [] } }],
+      false,
+    );
+    expect(html).not.toContain("Put on the board");
+    expect(html).not.toContain("off the board");
+  });
+});
+
 describe("the roster and the tournament in front of it", () => {
   const member = (over: Partial<RosterRow> = {}): RosterRow => ({
     id: "m1", name: "zz-Priya Nair", email: "", phone: "", ghin: "",

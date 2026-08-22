@@ -52,16 +52,22 @@ export async function honoursBoard(organizationId: string) {
     where: { organizationId },
     orderBy: [{ year: "desc" }, { eventName: "asc" }],
   });
+  // `id` and `note` travel with the entry: the id is what removing one needs,
+  // and the note is the committee's own words about a play-off or a shared
+  // title. Dropping them made a board whose remove button had nothing to
+  // remove — caught by the type checker on the way in, not by a test.
   return honoursByYear(
     rows.map((r) => ({
+      id: r.id,
       eventId: r.eventId,
       eventName: r.eventName,
       dates: r.dates,
       year: r.year,
       championName: r.championName,
       confirmedBy: r.confirmedBy,
+      note: r.note,
     })),
-  );
+  ) as Array<{ year: number; entries: BoardLine[] }>;
 }
 
 /**

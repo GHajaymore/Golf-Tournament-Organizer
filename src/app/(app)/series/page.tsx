@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { SeriesClient } from "@/components/SeriesClient";
 import { seriesForOrg, seriesTable } from "@/lib/services/series";
+import { honoursBoard, championSuggestions } from "@/lib/services/honours";
+import { HonoursBoard } from "@/components/HonoursBoard";
 import { organizationIdForEvent } from "@/lib/services/roster";
 
 /**
@@ -24,6 +26,10 @@ export default async function SeriesPage({
   if (!organizationId) redirect("/dashboard");
 
   const seasons = await seriesForOrg(organizationId);
+  // The club's permanent record, beside the season it is running. Both are
+  // history that outlives whichever tournament happens to be open.
+  const board = await honoursBoard(organizationId);
+  const pending = session.viewRole === "admin" ? await championSuggestions(organizationId) : [];
   const active = seasons.find((s) => s.id === params.id) ?? seasons[0] ?? null;
   const table = active ? await seriesTable(active.id) : null;
 
@@ -48,6 +54,10 @@ export default async function SeriesPage({
         currentEventSeriesId={currentEvent?.seriesId ?? null}
         canEdit={session.viewRole === "admin"}
       />
+      {/* The permanent record, under the season currently being played. Both
+          are club history that outlives whichever tournament happens to be
+          open, which is why they share a screen. */}
+      <HonoursBoard board={board} pending={pending} canEdit={session.viewRole === "admin"} />
     </>
   );
 }
