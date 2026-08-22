@@ -169,6 +169,12 @@ export function validateCard(
         holes: odd,
       });
     }
+    // The two checks every hole passing individually cannot catch. Shared, so
+    // a card typed, pasted, imported or photographed is held to one standard —
+    // they used to live only in the directory importer, and Green Crest's
+    // scrambled card sailed straight through the paste box.
+    const shape = implausibleCard(pars, holes);
+    if (shape) problems.push({ row: "pars", message: shape, holes: [] });
   }
 
   // ── Yards ─────────────────────────────────────────────────────────────
@@ -383,4 +389,47 @@ export function assignCardRows(text: string, holes = 18): AssignedCardRows {
   }
 
   return out;
+}
+
+/**
+ * What is wrong with a set of pars that every hole passing on its own cannot
+ * show, or null when the shape is fine.
+ *
+ * Two checks, both learned from real data rather than imagined.
+ *
+ * **Sorted rather than routed.** Green Crest Golf Course comes out of the
+ * public directory as five par 5s, then six par 4s, then seven par 3s: a valid
+ * stroke index, a par total matching the course's own, and every hole in range.
+ * No golf course is routed in descending par, and a card like that is wrong on
+ * every hole while passing every arithmetic test. All-equal pars are exempt —
+ * a flat card is a placeholder, not a scrambled one.
+ *
+ * **A total nobody plays.** "Beaver Creek Meadows Golf Course, par 79" is in
+ * the same directory. Real eighteens run 66 to 74; the band here is generous on
+ * both sides and still catches it. Scaled for nine holes, where the same
+ * reasoning gives roughly half.
+ *
+ * Lives here, beside the row parsing, because EVERY way a card enters this app
+ * goes through `validateCard` — typed, pasted, imported or photographed — and a
+ * check that guards only one of them guards none of them.
+ */
+export function implausibleCard(pars: number[], holes = 18): string | null {
+  if (pars.length !== holes) return null;
+
+  const total = pars.reduce((sum, p) => sum + p, 0);
+  const low = holes === 9 ? 30 : 60;
+  const high = holes === 9 ? 39 : 78;
+  if (total < low || total > high) {
+    return `These pars add up to ${total}, which no ${holes}-hole course plays. Check the row lines up with the holes.`;
+  }
+
+  if (new Set(pars).size > 1) {
+    const up = pars.every((p, i) => i === 0 || p >= pars[i - 1]);
+    const down = pars.every((p, i) => i === 0 || p <= pars[i - 1]);
+    if (up || down) {
+      return "These pars are in sorted order rather than hole order, so the card would be wrong on every hole. Check they are listed as the course is played.";
+    }
+  }
+
+  return null;
 }

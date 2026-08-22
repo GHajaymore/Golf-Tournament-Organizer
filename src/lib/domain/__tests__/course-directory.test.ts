@@ -105,7 +105,10 @@ describe("a card that must be refused", () => {
     const card = cardFrom(holes(pars, PEBBLE_SI));
     expect(card.usable).toBe(false);
     if (card.usable) return;
-    expect(card.reason).toContain("par 79");
+    // The wording comes from the shared check in scorecard-parse.ts now, so
+    // this asserts the number and the refusal rather than the sentence.
+    expect(card.reason).toContain("79");
+    expect(card.reason).toContain("no 18-hole course plays");
   });
 
   it("accepts the pars real courses actually play", () => {

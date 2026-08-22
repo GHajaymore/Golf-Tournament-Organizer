@@ -1,4 +1,5 @@
 import { cardProblems } from "./venue";
+import { implausibleCard } from "./scorecard-parse";
 
 /**
  * Reading a course card out of a public course directory.
@@ -116,27 +117,7 @@ function genderOf(raw: unknown): string {
   return "any";
 }
 
-/**
- * Are these pars in sorted order rather than playing order?
- *
- * This is the check that matters, and no existing validator catches it. Green
- * Crest Golf Course comes back as five par 5s, then six par 4s, then seven par
- * 3s — a valid stroke index, a par total that matches the course's, and a hole
- * order that is pure database artefact. No golf course is routed that way.
- *
- * A card like that passes every arithmetic test and is wrong on every hole:
- * par decides Stableford points and every "±" on a board, so importing it
- * would silently mis-score the entire course.
- *
- * All-equal pars are exempt. A flat card is a placeholder rather than a
- * scrambled one, and it is caught by the range check instead.
- */
-function parsAreSorted(pars: number[]): boolean {
-  if (new Set(pars).size < 2) return false;
-  const up = pars.every((p, i) => i === 0 || p >= pars[i - 1]);
-  const down = pars.every((p, i) => i === 0 || p <= pars[i - 1]);
-  return up || down;
-}
+
 
 /**
  * The card, if it can be trusted enough to score with.
@@ -179,33 +160,16 @@ export function cardFrom(holes: unknown): DirectoryCard {
   if (problems.length > 0) return { usable: false, reason: problems[0] };
 
   /**
-   * A par total no 18-hole course has.
+   * The shape checks, from the one place that holds them.
    *
-   * Found in the catalogue: "Beaver Creek Meadows Golf Course, par 79". Every
-   * check above passes — each par is between 3 and 6, the stroke index is a
-   * clean permutation, the holes are in a plausible order — and the card is
-   * still not this course's. Real eighteens run 66 to 74; 60 to 78 is generous
-   * on both sides and still catches a card where the source has muddled a
-   * hole's par with something else.
-   *
-   * Cheap, and the kind of check that only exists because somebody looked at
-   * the imported data rather than at the importer.
+   * These lived here, which meant they guarded the directory import and
+   * nothing else: the same scrambled card pasted in by hand was accepted
+   * without complaint. They now sit in `scorecard-parse.ts`, where every way a
+   * card enters this app goes past them — typed, pasted, imported, or read off
+   * a photograph.
    */
-  const total = pars.reduce((s, p) => s + p, 0);
-  if (total < 60 || total > 78) {
-    return {
-      usable: false,
-      reason: `The directory's card for this course adds up to par ${total}, which no eighteen-hole course plays.`,
-    };
-  }
-
-  if (parsAreSorted(pars)) {
-    return {
-      usable: false,
-      reason:
-        "The directory lists this course's pars in sorted order rather than hole order, so the card would be wrong on every hole.",
-    };
-  }
+  const shape = implausibleCard(pars, 18);
+  if (shape) return { usable: false, reason: shape };
 
   return { usable: true, pars, strokeIndex, yards };
 }
