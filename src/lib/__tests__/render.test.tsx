@@ -1503,6 +1503,21 @@ describe("stroke-play card", () => {
     const html = render(<StrokePlayEntry {...base} cardsByPlayer={{}} />);
     expect(html).toContain("Hole 1, par 4");
   });
+
+  it("carries the club's mark, the same as the card the player holds", () => {
+    // The organizer's card and the player's are the same card. Branding one
+    // and not the other would mean a returned card and the phone it was
+    // entered on disagreed about whose tournament it is.
+    const html = render(
+      <StrokePlayEntry {...base} cardsByPlayer={{}} brand={{ name: "Bushwood", logoUrl: "https://x.test/l.png" }} />,
+    );
+    expect(html).toContain("Bushwood");
+    expect(html).toContain("https://x.test/l.png");
+  });
+
+  it("stays unbranded when the club has set no mark", () => {
+    expect(render(<StrokePlayEntry {...base} cardsByPlayer={{}} />)).not.toContain("<img");
+  });
 });
 
 describe("course setup prompt", () => {
@@ -1587,6 +1602,21 @@ describe("printed foursome cards", () => {
 
   it("renders nothing at all with no saved sheet", () => {
     expect(render(<TeeSheetPrint {...base} groups={[]} />)).toBe("");
+  });
+
+  it("prints the club's logo beside its name", () => {
+    // The card a group carries to the first tee is the club's card. The name
+    // was already on it; the badge that is on the paper one was not.
+    const html = render(<TeeSheetPrint {...base} clubLogoUrl="https://x.test/l.png" />);
+    expect(html).toContain("https://x.test/l.png");
+    expect(html).toContain("Cinci Desi Golf");
+  });
+
+  it("prints the name alone for a club with no logo", () => {
+    // No logo means no mark — never ours in its place.
+    const html = render(<TeeSheetPrint {...base} />);
+    expect(html).not.toContain("<img");
+    expect(html).toContain("Cinci Desi Golf");
   });
 });
 
@@ -3341,6 +3371,62 @@ describe("play settings name one thing per heading", () => {
     // It appears on the organization screen as well, so a change here lands
     // on two screens.
     expect(await panel("organization")).toContain("How scores get in");
+  });
+});
+
+describe("the scorecard carries the club's own mark", () => {
+  const card = async (brand?: { name: string; logoUrl?: string; secondary?: string } | null) => {
+    const { ScorecardTable } = await import("@/components/ScorecardTable");
+    return render(
+      <ScorecardTable
+        holes={18}
+        pars={new Array(18).fill(4)}
+        strokes={new Array(18).fill(null)}
+        brand={brand}
+      />,
+    );
+  };
+
+  it("puts the club's name and logo at the head of the card", async () => {
+    // The app already renders a club's mark in the sidebar, the play shell and
+    // the reports. The scorecard — the screen that most wants to look like the
+    // club's own — was the one place that did not.
+    const html = await card({ name: "Bushwood", logoUrl: "https://x.test/l.png" });
+    expect(html).toContain("Bushwood");
+    expect(html).toContain("https://x.test/l.png");
+  });
+
+  it("shows the name alone when there is no logo", async () => {
+    // Most clubs have a name long before they host an image somewhere.
+    const html = await card({ name: "Bushwood" });
+    expect(html).toContain("Bushwood");
+    expect(html).not.toContain("<img");
+  });
+
+  it("renders no header at all when unbranded", async () => {
+    // Absent rather than falling back to the TourneyHQ mark. An unbranded card
+    // should look like plain paper, not like it belongs to us — which is why
+    // this does NOT use OrgBrand, whose fallback is right in a sidebar.
+    const html = await card(null);
+    expect(html).not.toContain("<img");
+    expect(html).toContain("Par");
+  });
+
+  it("leaves every existing caller unchanged", async () => {
+    // The prop is optional and omitted by default, so a card that never passes
+    // one renders exactly what it rendered before.
+    expect(await card(undefined)).not.toContain("<img");
+  });
+
+  it("never puts our name on a club's card", async () => {
+    // `EventBrand` carries showAttribution, and the sidebar honours it by
+    // printing "Powered by TourneyHQ" beside the club's mark. That is right in
+    // a sidebar and wrong on a scorecard, which is why `CardBrand` has no such
+    // field and `cardBrand()` is the only way a page gets one.
+    for (const html of [await card({ name: "Bushwood", logoUrl: "https://x.test/l.png" }), await card(null)]) {
+      expect(html).not.toContain("TourneyHQ");
+      expect(html).not.toContain("Powered by");
+    }
   });
 });
 

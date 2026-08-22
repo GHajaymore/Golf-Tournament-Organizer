@@ -10,6 +10,7 @@ import { courseForRound, applyNine, cleanNine } from "@/lib/services/course-reso
 import { holeStrokesReceived, allocationHoles } from "@/lib/domain";
 import { prisma } from "@/lib/db";
 import { meFor } from "@/lib/services/me";
+import { cardBrand } from "@/lib/services/organization";
 import { PlayerCard } from "@/components/PlayerCard";
 
 /**
@@ -32,6 +33,9 @@ export default async function PlayCardPage() {
 
   const settings = settingsOf(state.event);
   const me = await meFor(state, session.email);
+  // The club's mark for the head of the card. Same reader every other card in
+  // the app uses, so no two of them can disagree about the club's name.
+  const brand = await cardBrand(session.eventId);
 
   if (!me.playerId || !me.round) {
     return (
@@ -127,6 +131,9 @@ export default async function PlayCardPage() {
       shotsPerHole={shots}
       playingHandicap={playing}
       status={me.round.card?.status ?? "entered"}
+      // The club's badge at the head of the card, so the card a player holds
+      // carries the mark that is on the paper one.
+      brand={brand}
       initialStrokes={me.round.card?.strokes ?? []}
     />
   );

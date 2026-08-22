@@ -172,6 +172,7 @@ export default async function FoursomesPage({
       <TeeSheetPrint
         groups={printGroups}
         clubName={brand?.name ?? ""}
+        clubLogoUrl={brand?.logoUrl ?? ""}
         courseName={course.name || state.event.course}
         dates={state.event.dates}
         roundLabel={`Round ${Math.max(1, rounds.findIndex((r) => r.id === stage?.id) + 1)}`}

@@ -21,6 +21,22 @@ import { toParText } from "@/lib/domain";
  * working shown is a number a player has to take on trust — and they will not.
  */
 
+/**
+ * The club's mark as a scorecard needs it: a name, a logo, an optional second
+ * line, and nothing else.
+ *
+ * Declared here rather than importing `Brand` from OrgBrand, and exported so
+ * every screen that puts a card on the page threads the same shape. `Brand`
+ * also carries `monogram` and `showAttribution`, which belong to a sidebar mark
+ * and mean nothing on a scorecard — taking the whole type would invite somebody
+ * to render a TourneyHQ credit onto a club's card.
+ */
+export interface CardBrand {
+  name: string;
+  logoUrl?: string;
+  secondary?: string;
+}
+
 const sum = (arr: Array<number | null | undefined>, from: number, to: number): number => {
   let total = 0;
   for (let i = from; i < to; i += 1) {
@@ -40,12 +56,15 @@ export function ScorecardTable({
   playingHandicap,
   onSet,
   scoreLabel = "Score",
+  brand,
 }: {
   holes: number;
   pars: number[];
   yards?: number[];
   strokeIndex?: number[];
   strokes: (number | null)[];
+  /** The club's mark, for the head of the card. Omit for an unbranded one. */
+  brand?: CardBrand | null;
   /** Handicap strokes per hole, from the server's allocation. */
   shotsPerHole?: number[];
   /** Shown beside the net total, so the number can be checked. */
@@ -135,6 +154,64 @@ export function ScorecardTable({
 
   return (
     <div>
+      {/* The club's own mark, at the top of the card, the way it is at the top
+          of the paper one.
+
+          The app already carries a club's logo and name — the sidebar, the play
+          shell and the reports all render them — and the scorecard, the screen
+          that most wants to look like the club's own, was the one place that
+          did not. A card with somebody else's branding on it is a form; a card
+          with the club's badge is their card.
+
+          Optional, and absent by default, so every existing caller renders
+          exactly what it rendered before. Absent rather than falling back to
+          the TourneyHQ mark: an unbranded card should look like plain paper,
+          not like it belongs to us. `OrgBrand` does fall back that way, which
+          is right in a sidebar and wrong here, so this does not use it.
+
+          `logoUrl` points at an arbitrary external host, so a plain <img> —
+          the same reason and the same exemption OrgBrand carries. */}
+      {brand?.name && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "0 2px 10px",
+            borderBottom: "1px solid var(--color-divider)",
+            marginBottom: 10,
+          }}
+        >
+          {brand.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={brand.logoUrl}
+              alt=""
+              style={{ height: 28, width: "auto", maxWidth: 120, objectFit: "contain", flex: "none" }}
+            />
+          )}
+          <span style={{ minWidth: 0 }}>
+            <span
+              style={{
+                display: "block",
+                fontFamily: "var(--font-heading)",
+                fontSize: 15,
+                fontWeight: 600,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {brand.name}
+            </span>
+            {brand.secondary && (
+              <span className="text-muted" style={{ display: "block", fontSize: 11.5 }}>
+                {brand.secondary}
+              </span>
+            )}
+          </span>
+        </div>
+      )}
       <div className="sc-wrap">
         <table className="sc" style={{ minWidth: isEighteen ? 960 : 560 }}>
           <thead>

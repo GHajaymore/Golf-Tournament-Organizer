@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { CardPhotoReader } from "@/components/CardPhotoReader";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
-import { ScorecardTable } from "@/components/ScorecardTable";
+import { ScorecardTable, type CardBrand } from "@/components/ScorecardTable";
 import { computeStrokeCard, toParText, parseStrokesTranscript } from "@/lib/domain";
 import { isCardLocked } from "@/lib/domain/card-approval";
 import { saveScorecard } from "@/app/actions/tournament";
@@ -26,6 +26,7 @@ export function StrokePlayEntry({
   teeGroups = [],
   shotsByPlayer = {},
   cardScanAvailable = true,
+  brand,
 }: {
   players: StrokePlayer[];
   pars: number[];
@@ -47,6 +48,12 @@ export function StrokePlayEntry({
   /** Handicap strokes per hole, per player, from the real course-handicap
    *  allocation on the server. Absent for an event with no tee ratings. */
   shotsByPlayer?: Record<string, number[]>;
+  /** The club's mark, for the head of the card. The grid below is ONE player's
+   *  card — the picker above chooses whose — so this is one badge on one card,
+   *  the same as the player holds on their phone. The hole-by-hole view is a
+   *  group of cards at once and deliberately carries no mark: four logos down
+   *  a phone screen is clutter, not a scorecard. */
+  brand?: CardBrand | null;
 }) {
   const [playerId, setPlayerId] = useState(players[0]?.id ?? "");
   const [cards, setCards] = useState<Record<string, (number | null)[]>>(() => {
@@ -343,6 +350,7 @@ export function StrokePlayEntry({
           yards={yards}
           strokeIndex={strokeIndex}
           strokes={strokes}
+          brand={brand}
           shotsPerHole={Array.from({ length: holes }, (_, i) => shotsByPlayer[playerId]?.[i] ?? 0)}
           onSet={(i: number, v: number | null) => setCards((prev) => {
             const next = [...(prev[playerId] ?? new Array(holes).fill(null))];

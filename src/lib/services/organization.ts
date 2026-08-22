@@ -243,6 +243,24 @@ export async function brandForEvent(eventId: string): Promise<EventBrand | null>
   };
 }
 
+/**
+ * The same brand, narrowed to what belongs at the head of a scorecard.
+ *
+ * A card wants a name, a logo and the second line if the club asked for both.
+ * It must never carry `showAttribution` — a "Powered by TourneyHQ" line on a
+ * club's own scorecard is our mark on their paper — and `monogram` is a sidebar
+ * fallback that would put grey initials where a club simply has no logo. Every
+ * screen that renders a card goes through here, so none of them can pass the
+ * whole brand by accident.
+ */
+export async function cardBrand(
+  eventId: string,
+): Promise<{ name: string; logoUrl: string; secondary: string } | null> {
+  const brand = await brandForEvent(eventId);
+  if (!brand) return null;
+  return { name: brand.name, logoUrl: brand.logoUrl, secondary: brand.secondary };
+}
+
 /** The organizations a person owns, administers, or is staff in. */
 export async function organizationsFor(email: string) {
   const user = await prisma.user.findUnique({ where: { email } });

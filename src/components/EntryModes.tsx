@@ -4,6 +4,7 @@ import { ScoreImport } from "./ScoreImport";
 import { ClearScores } from "./ClearScores";
 import { ScoreEntryClient, type EntryMatch } from "@/components/ScoreEntryClient";
 import { StrokePlayEntry } from "@/components/StrokePlayEntry";
+import type { CardBrand } from "@/components/ScorecardTable";
 import { RoundApproval } from "@/components/RoundApproval";
 import { VoiceAsk } from "./VoiceAsk";
 import { entryModeFor } from "@/lib/formats";
@@ -55,6 +56,7 @@ export function EntryModes({
   openCourse = false,
   courseLibrary = [],
   cardScanAvailable = true,
+  brand,
 }: {
   rounds: EntryRound[];
   activeIndex: number;
@@ -86,6 +88,8 @@ export function EntryModes({
   openCourse?: boolean;
   /** This club's saved courses, offered before anyone types a card by hand. */
   courseLibrary?: VenueCourse[];
+  /** The club's mark, for the head of the stroke card. */
+  brand?: CardBrand | null;
 }) {
   const [importing, setImporting] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -233,6 +237,7 @@ export function EntryModes({
           cardStatus={round.stroke.cardStatus}
           teeGroups={round.stroke.teeGroups}
           shotsByPlayer={round.stroke.shotsByPlayer}
+          brand={brand}
         />
       )}
 

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
-import { ScorecardTable } from "@/components/ScorecardTable";
+import { ScorecardTable, type CardBrand } from "@/components/ScorecardTable";
 import { saveScorecard, certifyScorecard } from "@/app/actions/tournament";
 import { RuleCite } from "@/components/RuleCite";
 import { toParText } from "@/lib/domain";
@@ -46,6 +46,7 @@ export function PlayerCard({
   shotsPerHole = [],
   playingHandicap = 0,
   status,
+  brand,
   initialStrokes,
 }: {
   stageId: string;
@@ -63,6 +64,9 @@ export function PlayerCard({
   /** The Playing Handicap those strokes add up to, for the header. */
   playingHandicap?: number;
   status: string;
+  /** The club's mark, for the head of the card — the badge that is on the
+   *  paper one. Optional; an unbranded card simply has no header. */
+  brand?: CardBrand | null;
   /** The card as already returned. Opening blank and then saving would erase
    *  a round that was half entered on the ninth tee. */
   initialStrokes: (number | null)[];
@@ -276,6 +280,7 @@ export function PlayerCard({
               strokes={strokes}
               shotsPerHole={shotsPerHole}
               playingHandicap={playingHandicap}
+              brand={brand}
               onSet={setHole}
             />
           )}

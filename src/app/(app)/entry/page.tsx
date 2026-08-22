@@ -1,5 +1,6 @@
 import { requireScreen } from "@/lib/page-helpers";
 import { clubCourses } from "@/lib/services/courses";
+import { cardBrand } from "@/lib/services/organization";
 import { loadEventState, effectiveScoreStatus, settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { redirect } from "next/navigation";
@@ -528,6 +529,10 @@ export default async function EntryPage() {
       eventDates={state.event.dates}
       isAdmin={session.viewRole === "admin"}
       venues={venues.map((v) => ({ id: v.id, name: v.name }))}
+      // The club's badge at the head of the card. Same reader the console
+      // header and the player's own card use, so an organizer checking a
+      // returned card and the player who returned it see one club, not two.
+      brand={await cardBrand(session.eventId)}
     />
   );
 }

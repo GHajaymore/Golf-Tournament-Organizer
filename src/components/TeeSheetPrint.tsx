@@ -26,6 +26,7 @@ export interface PrintGroup {
 export function TeeSheetPrint({
   groups,
   clubName,
+  clubLogoUrl = "",
   courseName,
   dates,
   roundLabel,
@@ -35,6 +36,10 @@ export function TeeSheetPrint({
 }: {
   groups: PrintGroup[];
   clubName: string;
+  /** The club's logo, printed beside its name. Empty for a club that has not
+   *  set one, in which case the name alone heads the card — the same rule the
+   *  on-screen card follows, and no TourneyHQ mark on a club's paper. */
+  clubLogoUrl?: string;
   courseName: string;
   dates: string;
   roundLabel: string;
@@ -95,8 +100,21 @@ export function TeeSheetPrint({
       <div id="foursome-cards">
         {printable.map((g) => (
           <div key={g.name} className="foursome-card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-              <strong style={{ fontSize: 16 }}>{clubName || courseName}</strong>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                {/* The club's own badge on the card its members carry round.
+                    An arbitrary external host, so a plain <img> — the same
+                    reason and the same exemption the on-screen card carries. */}
+                {clubLogoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={clubLogoUrl}
+                    alt=""
+                    style={{ height: 30, width: "auto", maxWidth: 110, objectFit: "contain" }}
+                  />
+                )}
+                <strong style={{ fontSize: 16 }}>{clubName || courseName}</strong>
+              </span>
               <span style={{ fontSize: 12 }}>{[courseName, dates].filter(Boolean).join(" · ")}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 10 }}>
