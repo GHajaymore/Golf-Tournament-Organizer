@@ -14,6 +14,8 @@
 // That second distinction is the one that decides the scorecard shape, so it
 // is worth getting right before any UI is built on top of it.
 
+import type { MatchEntryMode } from "./domain/match-entry";
+
 export type ScoringFamily = "match" | "stroke" | "points" | "team";
 
 /** Whether each player keeps a card, or the side shares one. */
@@ -89,6 +91,34 @@ export interface GolfFormat {
   /** Why a scored format isn't playable yet. Shown in the picker. */
   pendingReason?: string;
   /**
+   * What a round of this format asks to be RECORDED, best answer first.
+   *
+   * **The default is a real card.** Every player writes down hole-by-hole gross
+   * strokes and the app derives the result from how the tournament is set up —
+   * net or gross, pairs, teams, tiebreakers. A gross card is the raw fact and
+   * everything else is a reading of it, so the app should never ask for a
+   * number it can compute. Absent therefore means `["gross-cards"]`, and most
+   * formats say nothing here.
+   *
+   * A format may OPT OUT, not opt in. Reduced input is a named capability of
+   * the formats that genuinely produce no card — match play, where a player
+   * writes down who won the hole and nobody records a 6 on a hole they have
+   * already lost — and never something an organizer assembles by accident.
+   *
+   * The FIRST entry is the format's natural input and the one a round gets
+   * without anybody choosing; the rest are what the organizer may switch it to.
+   * `gross-cards` is always available (`inputChoices` puts it back if a format
+   * ever leaves it out), because a club is entitled to ask its field for cards
+   * whatever the format — under WHS a match-play score counts for handicapping
+   * when a full card is returned, which is the difference between a round
+   * counting and not.
+   *
+   * Declared here beside `sideSize` and `allowance` rather than being a free
+   * per-round setting, so the default is right more often and setup asks fewer
+   * questions.
+   */
+  inputs?: MatchEntryMode[];
+  /**
    * The app holds this round but does not score it.
    *
    * The one honest way to support the formats clubs invent. Everything
@@ -120,6 +150,12 @@ export const GOLF_FORMATS: GolfFormat[] = [
     ball: "individual",
     engine: "match",
     allowance: 100,
+    // The one format that genuinely produces no card. A player tracks who won
+    // the hole and stops counting once it is lost, so hole results are what
+    // actually exists at the end of the round; the full card is available for
+    // the club that wants one for the handicap record, and the bare result for
+    // the match phoned in from the green.
+    inputs: ["hole-results", "gross-cards", "match-result"],
     scored: true,
     playable: true,
   },
@@ -176,6 +212,12 @@ export const GOLF_FORMATS: GolfFormat[] = [
     ball: "individual",
     engine: "nassau",
     allowance: 100,
+    // Three bets sliced from one match, and `playNassau` slices the HOLE
+    // RESULTS — so hole-by-hole is its natural input and a full card works
+    // because the holes derive from it. A bare final result deliberately does
+    // not: "3&2" says nothing about who took the front nine, and two of the
+    // three bets would be invented.
+    inputs: ["hole-results", "gross-cards"],
     scored: true,
     playable: true,
   },
@@ -429,6 +471,61 @@ export function entryModeFor(formatName: string): EntryMode {
     default:
       return "match";
   }
+}
+
+/**
+ * The shape every round starts from: a real card.
+ *
+ * Named rather than repeated, because "the default is a card" is the whole
+ * principle and it should be stated in one place.
+ */
+export const DEFAULT_INPUT: MatchEntryMode = "gross-cards";
+
+/**
+ * What this format may be recorded in, natural input first.
+ *
+ * A full card is always in the list, wherever it appears in the format's own
+ * declaration. That is the "opt out, not opt in" rule made structural: a
+ * format can say a reduced shape is its natural one, and cannot say that a
+ * club may not return cards.
+ */
+export function inputChoices(formatName: string): MatchEntryMode[] {
+  const declared = lookupFormat(formatName)?.inputs ?? [DEFAULT_INPUT];
+  return declared.includes(DEFAULT_INPUT) ? declared : [...declared, DEFAULT_INPUT];
+}
+
+/** The input a round of this format gets when nobody has chosen one. */
+export function declaredInput(formatName: string): MatchEntryMode {
+  return inputChoices(formatName)[0];
+}
+
+/**
+ * The input a round is actually recorded in: the format's, unless the
+ * organizer has overruled it.
+ *
+ * An override the format does not offer is ignored rather than honoured. A
+ * stored string is caller-supplied — a `"use server"` export is a public HTTP
+ * endpoint, and TypeScript types are erased at runtime — so "final result
+ * only" on a Stableford round has to resolve to something the engine can read
+ * rather than to a shape it cannot. Making the wrong thing unrepresentable
+ * beats documenting that callers must check.
+ *
+ * Empty means "no opinion", the same reading `handicapAllowance: 0` and
+ * `allowanceWeights: []` already have on a round.
+ */
+export function resolveScoreInput(
+  formatName: string,
+  override?: string | null,
+): MatchEntryMode {
+  const choices = inputChoices(formatName);
+  const wanted = (override ?? "").trim() as MatchEntryMode;
+  return choices.includes(wanted) ? wanted : choices[0];
+}
+
+/** True when the organizer has asked for something the format does not offer. */
+export function inputOverrideApplies(formatName: string, override?: string | null): boolean {
+  const wanted = (override ?? "").trim();
+  return wanted !== "" && inputChoices(formatName).includes(wanted as MatchEntryMode);
 }
 
 /** Formats played by teams rather than individuals. */

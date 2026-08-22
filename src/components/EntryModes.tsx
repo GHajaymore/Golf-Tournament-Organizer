@@ -20,6 +20,9 @@ export interface EntryRound {
   drawsPairings: boolean;
   matches: EntryMatch[];
   netMode: boolean;
+  /** The committee's override for how this round's scores are recorded, or ""
+   *  to take the input its format declares. */
+  scoreInput: string;
   stroke: {
     holes: number;
     stageId: string;
@@ -209,6 +212,7 @@ export function EntryModes({
           yards={yards}
           strokeIndex={strokeIndex}
           netMode={round.netMode}
+          scoreInput={round.scoreInput}
           courseKnown={courseKnown}
           isAdmin={isAdmin}
           venues={venues}

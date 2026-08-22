@@ -3,6 +3,18 @@ import { toParText } from "@/lib/domain";
 export interface StandingRow {
   id: string;
   rank: number;
+  /**
+   * Whether this row holds a position, as opposed to appearing without one.
+   *
+   * A card that stopped short — a match won 5&4, four holes conceded and never
+   * played — is SHOWN with the holes actually played and is not ranked. Nothing
+   * may invent a score for a hole nobody played (Rule 3.2b), and ranking a
+   * fourteen-hole card against an eighteen-hole one presents two numbers as
+   * comparable when they are not.
+   *
+   * `rank` is 0 wherever this is false.
+   */
+  ranked: boolean;
   name: string;
   flight: string;
   advancing: boolean;
@@ -20,6 +32,22 @@ export interface StandingRow {
   toPar: number;
   points: number;
   thru: number;
+  /** Holes the counted cards cover, so "thru" can read "14 of 18". */
+  holesOwed: number;
+}
+
+/**
+ * Why a row on the sheet has no position, in the reader's words.
+ *
+ * Empty for a row that holds a position, and for a player who has returned
+ * nothing at all — an empty row explains itself, and captioning every player
+ * yet to tee off would bury the two or three this is for.
+ */
+function unrankedNote(r: StandingRow): string {
+  if (r.ranked || r.thru <= 0) return "";
+  return r.holesOwed > r.thru
+    ? `Not ranked — ${r.thru} of ${r.holesOwed} holes played`
+    : "Not ranked — card incomplete";
 }
 
 /** Renders the standings for either format. `compact` = the dashboard preview. */
@@ -56,8 +84,20 @@ export function LeaderboardTable({
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} style={rowStyle(r.advancing)}>
-                <td style={{ ...num, color: "var(--color-neutral-400)" }}>{r.thru > 0 ? r.rank : "—"}</td>
-                <td style={{ fontWeight: 500 }}>{r.name}</td>
+                {/* No position where none was earned — but the card beside it
+                    is still shown. That is the whole of "show, do not rank". */}
+                <td style={{ ...num, color: "var(--color-neutral-400)" }}>{r.ranked ? r.rank : "—"}</td>
+                <td style={{ fontWeight: 500 }}>
+                  {r.name}
+                  {/* On the page, not in a tooltip. A reader who finds someone
+                      unranked needs the reason where they are looking, and a
+                      `title` is invisible on the phone this is read on. */}
+                  {unrankedNote(r) && (
+                    <div className="text-muted" style={{ fontWeight: 400, fontSize: "0.85em" }}>
+                      {unrankedNote(r)}
+                    </div>
+                  )}
+                </td>
                 <td className="text-muted">{r.flight}</td>
                 {!compact && <td style={{ textAlign: "center", ...num }}>{r.thru > 0 ? r.thru : "—"}</td>}
                 {!compact && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.gross : "—"}</td>}

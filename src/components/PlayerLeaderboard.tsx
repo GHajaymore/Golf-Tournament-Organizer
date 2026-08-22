@@ -23,6 +23,27 @@ import type { StandingRow } from "./LeaderboardTable";
 
 const num = { fontVariantNumeric: "tabular-nums" as const };
 
+/**
+ * Where the card is, in the words a player uses: "F", "thru 14", "not started".
+ *
+ * A card that stopped short says so on the same line. A match won 5&4 leaves
+ * four holes conceded and never played (Rule 3.2b), and the card is complete as
+ * a RESULT while being short as a CARD — so the player is on the board with the
+ * holes they played and no position beside them. Told here, in the row, rather
+ * than left as an unexplained dash where the rank should be.
+ */
+function cardState(r: StandingRow, holes: number): string {
+  if (r.thru <= 0) return "not started";
+  // Against what this row's own cards cover, falling back to the round's hole
+  // count for a row that has none. A Round Robin stage holds the whole round
+  // robin, so one player has three matches inside one round — eighteen holes
+  // returned is a third of their round, and calling it "F" would tell somebody
+  // still on the course that they had finished.
+  const owed = r.holesOwed > 0 ? r.holesOwed : holes;
+  const played = r.thru >= owed ? "F" : `thru ${r.thru}`;
+  return r.ranked ? played : `${played} · not ranked`;
+}
+
 /** Under par earns colour; level and over stay in text. */
 function scoreColour(toPar: number, isStableford: boolean): string {
   if (isStableford) return "var(--color-text)";
@@ -108,16 +129,10 @@ export function PlayerLeaderboard({
             You
           </span>
           <span style={{ ...num, fontSize: 17, fontWeight: 700 }}>
-            {you.thru > 0 ? you.rank : "–"}
+            {you.ranked ? you.rank : "–"}
           </span>
           <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--color-neutral-400)" }}>
-            {isStroke
-              ? you.thru > 0
-                ? you.thru >= holes
-                  ? "F"
-                  : `thru ${you.thru}`
-                : "not started"
-              : you.record}
+            {isStroke ? cardState(you, holes) : you.record}
           </span>
           <span
             style={{
@@ -143,7 +158,11 @@ export function PlayerLeaderboard({
 
       <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {rows.map((r, i) => {
-        const leader = i === 0 && r.thru > 0;
+        // Two different questions, and a 5&4 card answers them differently.
+        // `started` is "is there a card to show" and decides whether a score
+        // appears; `r.ranked` is "does this row hold a position" and decides
+        // the number down the left and who is called the leader.
+        const leader = i === 0 && r.ranked;
         const started = r.thru > 0;
         const isYou = !!youId && r.id === youId;
 
@@ -186,10 +205,10 @@ export function PlayerLeaderboard({
                   minWidth: 26,
                   fontSize: leader ? 17 : 15,
                   fontWeight: leader ? 700 : 500,
-                  color: started ? "var(--color-text)" : "var(--color-neutral-400)",
+                  color: r.ranked ? "var(--color-text)" : "var(--color-neutral-400)",
                 }}
               >
-                {started ? r.rank : "–"}
+                {r.ranked ? r.rank : "–"}
               </span>
 
               <span style={{ flex: 1, minWidth: 0 }}>
@@ -219,13 +238,7 @@ export function PlayerLeaderboard({
                     // is a placeholder for a table cell that must not be blank —
                     // it is not a label, and it reads as noise on a line of prose.
                     r.flight === "—" ? "" : r.flight,
-                    isStroke
-                      ? started
-                        ? r.thru >= holes
-                          ? "F"
-                          : `thru ${r.thru}`
-                        : "not started"
-                      : r.record,
+                    isStroke ? cardState(r, holes) : r.record,
                   ]
                     .filter(Boolean)
                     .join(" · ")}

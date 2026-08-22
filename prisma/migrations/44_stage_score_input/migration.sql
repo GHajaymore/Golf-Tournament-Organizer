@@ -1,0 +1,21 @@
+-- Stage.scoreInput — the committee's override for how a round's scores are
+-- RECORDED, as opposed to how they are scored.
+--
+-- The default is a real card: every player writes down hole-by-hole gross
+-- strokes and the app derives the result from how the tournament is set up.
+-- Reduced input is the exception, declared by the formats that genuinely
+-- produce no card — match play, where a player records who won the hole and
+-- nobody writes down a 6 on a hole they have already lost. See
+-- GolfFormat.inputs in src/lib/formats.ts.
+--
+-- Empty means "use the input the format declares", the same reading
+-- handicapAllowance = 0 and allowanceWeights = '{}' already have on this
+-- table. Every existing round therefore records exactly what it always did.
+--
+-- The override exists for one real case: a club that wants full cards from its
+-- match-play day, because under WHS a match-play score is acceptable for
+-- handicapping only when a full card is returned.
+--
+-- Purely additive, with a default, so no existing row changes behaviour and no
+-- INSERT that omits the column can fail.
+ALTER TABLE "Stage" ADD COLUMN "scoreInput" TEXT NOT NULL DEFAULT '';

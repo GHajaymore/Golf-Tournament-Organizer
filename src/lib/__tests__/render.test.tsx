@@ -433,7 +433,7 @@ describe("leaderboards for every format", () => {
 describe("rounds and format", () => {
   const stage = (over: Partial<StageView> = {}): StageView => ({
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
-    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", carryEnabled: false, carryPct: 0,
+    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
     carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, ...over,
   });
@@ -459,6 +459,34 @@ describe("rounds and format", () => {
         stages={[stage(), stage({ id: "r2", position: 2, carryAsked: false })]} />,
     );
     expect(html).toContain("Carry forward");
+  });
+
+  /**
+   * How scores are RECORDED, offered only where the format produces something
+   * other than a card.
+   *
+   * The panel is open here because the carry-forward question is unanswered,
+   * which is the only way this component shows its inside without a click.
+   */
+  it("offers the input choice on match play and nowhere else", () => {
+    const matchPlay = render(
+      <StagesClient {...base} chainsRounds
+        stages={[stage(), stage({ id: "r2", position: 2, carryAsked: false })]} />,
+    );
+    expect(matchPlay).toContain("How scores are recorded");
+    expect(matchPlay).toContain("Hole-by-hole result");
+    expect(matchPlay).toContain("Final result only");
+
+    // Stroke play produces a card and has nothing to decide, so it gets no
+    // control rather than a control with one option in it.
+    const strokePlay = render(
+      <StagesClient {...base} chainsRounds
+        stages={[
+          stage({ format: "Stroke Play", scoringBasis: "stableford" }),
+          stage({ id: "r2", position: 2, format: "Stroke Play", scoringBasis: "stableford", carryAsked: false }),
+        ]} />,
+    );
+    expect(strokePlay).not.toContain("How scores are recorded");
   });
 
   it("warns when a carried-forward round changes what it measures", () => {
@@ -1040,7 +1068,7 @@ describe("flight board", () => {
 describe("round card — which nine and the deadline", () => {
   const stage = (over: Partial<StageView> = {}): StageView => ({
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
-    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", carryEnabled: false, carryPct: 0,
+    holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
     carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
     matchCount: 0, courseId: null, nine: "full", teamScoring: null, ...over,
   });
@@ -2144,6 +2172,8 @@ describe("the board answers 'where am I' first", () => {
   const row = (over: Partial<StandingRow> = {}): StandingRow => ({
     id: "p1",
     rank: 1,
+    ranked: true,
+    holesOwed: 18,
     name: "A. Moore",
     flight: "—",
     advancing: false,
@@ -2208,6 +2238,94 @@ describe("the board answers 'where am I' first", () => {
       />,
     );
     expect(html).toContain("not started");
+  });
+
+  /**
+   * A card that stopped short.
+   *
+   * Rule 3.2a(3) ends a match when a side leads by more holes than remain, so
+   * a match won 5&4 leaves four holes conceded under Rule 3.2b and never
+   * played. The player is SHOWN with the holes they played and holds no
+   * position — and the board has to say which, because an unexplained dash
+   * where the rank should be reads as a bug.
+   */
+  it("shows a card that stopped short without giving it a position", async () => {
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const html = render(
+      <PlayerLeaderboard
+        isStroke
+        rows={[
+          row({ id: "p1", name: "A. Moore", toPar: -4 }),
+          row({ id: "p9", name: "D. Shaw", thru: 14, rank: 0, ranked: false, toPar: 2 }),
+        ]}
+        holes={18}
+        youId="p9"
+      />,
+    );
+    expect(html).toContain("D. Shaw");
+    // Said on the page, in the row. Not in a `title` — see
+    // no-tooltip-refusals.test.ts for why that is not an explanation.
+    expect(html).toContain("not ranked");
+    // And their card is still there to read.
+    expect(html).toContain("thru 14");
+  });
+
+  /**
+   * "F" is a claim about the player's round, not about eighteen holes.
+   *
+   * Found by opening the board: a Round Robin stage holds the whole round
+   * robin, so a flight of four gives each player three matches inside ONE
+   * round. Measured against the round's hole count, fifty holes out of
+   * fifty-four read as "F" — the board telling two players still short of a
+   * full round that they had finished.
+   */
+  it("measures 'F' against what the player's own cards cover", async () => {
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const html = render(
+      <PlayerLeaderboard
+        isStroke
+        holes={18}
+        rows={[
+          row({ id: "p1", name: "C. Roe", thru: 54, holesOwed: 54, toPar: 0 }),
+          row({ id: "p2", name: "A. Vale", thru: 50, holesOwed: 54, rank: 0, ranked: false, toPar: 0 }),
+        ]}
+      />,
+    );
+    expect(html).toContain("thru 50 · not ranked");
+    // The player who played all three of their matches HAS finished.
+    expect(html).toContain("C. Roe");
+    expect(html).not.toContain("thru 54");
+  });
+
+  it("captions the organizer's board with how much of the card came back", async () => {
+    const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+    const html = render(
+      <LeaderboardTable
+        isStroke
+        rows={[
+          row({ id: "p1", name: "A. Moore", toPar: -4 }),
+          row({
+            id: "p9",
+            name: "D. Shaw",
+            thru: 50,
+            holesOwed: 54,
+            rank: 0,
+            ranked: false,
+            toPar: 2,
+          }),
+        ]}
+      />,
+    );
+    expect(html).toContain("Not ranked — 50 of 54 holes played");
+    // A player yet to tee off is not captioned: an empty row explains itself,
+    // and labelling the whole field would bury the two rows this is for.
+    const early = render(
+      <LeaderboardTable
+        isStroke
+        rows={[row({ id: "p8", name: "E. Vance", thru: 0, rank: 0, ranked: false })]}
+      />,
+    );
+    expect(early).not.toContain("Not ranked");
   });
 });
 

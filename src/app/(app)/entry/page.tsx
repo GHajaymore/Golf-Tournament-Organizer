@@ -393,6 +393,7 @@ export default async function EntryPage() {
         drawsPairings: generatesPairings(stage.type),
         matches: stageMatches,
         netMode,
+        scoreInput: stage.scoreInput,
         stroke: {
           holes: holeCount,
           stageId: stage.id,

@@ -86,7 +86,11 @@ export default async function PlayTodayPage() {
           >
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 11.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>
-                {me.standing && me.standing.thru > 0 ? "Position" : "Not started"}
+                {/* Off the position itself, not off "has anyone written a
+                    hole". A card that stopped short has holes and no position,
+                    and labelling the dash beneath it "Position" would present
+                    a place that was never awarded. */}
+                {me.standing?.position ? "Position" : me.standing && me.standing.thru > 0 ? "Not ranked" : "Not started"}
               </div>
               {/* "T2", not "2", when the position is shared.
                   It showed the bare rank, which is right on a board where the
@@ -107,7 +111,12 @@ export default async function PlayTodayPage() {
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 11.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>
-                {me.standing && me.standing.thru >= (round?.holes ?? 18) ? "Final" : `Thru ${me.standing?.thru ?? 0}`}
+                {/* Against what this player's own cards cover, not the
+                    round's hole count. A round robin puts three matches in one
+                    round, so eighteen holes returned is a third of it. */}
+                {me.standing && me.standing.holesOwed > 0 && me.standing.thru >= me.standing.holesOwed
+                  ? "Final"
+                  : `Thru ${me.standing?.thru ?? 0}`}
               </div>
               <div
                 style={{

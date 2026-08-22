@@ -79,10 +79,13 @@ export interface Me {
    *  leaderboard uses rather than a second calculation. */
   standing: {
     rank: number;
-    /** The rank as it should be SHOWN — "T2" when shared. */
+    /** The rank as it should be SHOWN — "T2" when shared. Empty when there is
+     *  no position to report: nothing returned, or a card that stopped short. */
     position: string;
     toPar: number;
     thru: number;
+    /** Holes the counted cards cover. `thru` against this is "50 of 54". */
+    holesOwed: number;
     points: number;
   } | null;
   round: MyRound | null;
@@ -175,6 +178,11 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
           position,
           toPar: standing.toPar,
           thru: standing.thru,
+          // What the counted cards add up to, so "Final" is a fact about this
+          // player's own card rather than a guess from the round's hole count.
+          // A round robin gives one player three matches inside one round, so
+          // "eighteen holes returned" is not the end of their round.
+          holesOwed: standing.holesOwed,
           points: standing.points,
         }
       : null,

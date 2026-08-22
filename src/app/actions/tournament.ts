@@ -53,7 +53,8 @@ import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
 import { applyNine, cleanNine } from "@/lib/services/course-resolution";
-import { findFormat, isPlayable } from "@/lib/formats";
+import { findFormat, inputChoices, isPlayable } from "@/lib/formats";
+import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 
@@ -903,6 +904,33 @@ export async function setStageScoringBasis(stageId: string, basis: string) {
     where: { id: stageId, eventId },
     data: { scoringBasis: value },
   });
+  refresh();
+}
+
+/**
+ * The committee's override for how this round's scores are RECORDED.
+ *
+ * Distinct from `setStageScoringBasis`, which decides how they are SCORED.
+ * Gross or net is what the round is played for; a card or hole results is what
+ * the field writes down, and a gross card can be re-scored either way while
+ * hole results cannot.
+ *
+ * Empty clears it and returns the round to the input its format declares,
+ * exactly as a zero allowance does. A value the format does not offer is
+ * refused rather than stored: this is a `"use server"` export, so it is a
+ * public HTTP endpoint that will be called with whatever the caller likes, and
+ * "final result only" on a Stableford round would be a shape no engine reads.
+ */
+export async function setStageScoreInput(stageId: string, input: string) {
+  const eventId = await requireStaffEvent();
+  await assertUnlocked(eventId);
+  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { format: true } });
+  if (!stage) return;
+  const wanted = (input ?? "").trim();
+  // "" always means "no opinion" and is always allowed; anything else must be
+  // one of the shapes the format actually offers.
+  const value = wanted === "" || inputChoices(stage.format).includes(wanted as MatchEntryMode) ? wanted : "";
+  await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { scoreInput: value } });
   refresh();
 }
 
@@ -2027,6 +2055,10 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
         holes: s.holes,
         deadline: "",
         scoringBasis: s.scoringBasis,
+        // How the round is RECORDED travels with its shape, the same as how it
+        // is scored. A club that asks for cards from its match-play day is
+        // running that tournament again next year for the same reason.
+        scoreInput: s.scoreInput,
         carryForwardEnabled: s.carryForwardEnabled,
         carryForwardPct: s.carryForwardPct,
         cutEnabled: s.cutEnabled,

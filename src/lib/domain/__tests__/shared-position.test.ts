@@ -10,7 +10,12 @@ import { positionLabel, type PositionRow } from "../shared-position";
  * are equally second is not what the results sheet says.
  */
 
-const row = (id: string, rank: number, thru = 18): PositionRow => ({ id, rank, thru });
+const row = (id: string, rank: number, thru = 18, ranked = true): PositionRow => ({
+  id,
+  rank,
+  thru,
+  ranked,
+});
 
 describe("a player's own position", () => {
   it("is bare when nobody shares it", () => {
@@ -24,6 +29,20 @@ describe("a player's own position", () => {
     expect(positionLabel(rows, "c")).toBe("T2");
     // And the player below a tie is not marked.
     expect(positionLabel(rows, "d")).toBe("4");
+  });
+
+  /**
+   * Rule 3.2b: a hole may be conceded, and a match won 5&4 leaves four holes
+   * that were never played. Such a card is shown on the board with the holes
+   * actually played and holds no position — so there is nothing to report here,
+   * and two of them are not "T0" with each other.
+   */
+  it("gives no position to a card that stopped short", () => {
+    const rows = [row("a", 1), row("b", 0, 14, false), row("c", 0, 14, false)];
+    expect(positionLabel(rows, "b")).toBe("");
+    expect(positionLabel(rows, "c")).toBe("");
+    // And they do not make the ranked player's position look shared.
+    expect(positionLabel(rows, "a")).toBe("1");
   });
 
   it("marks a tie for the lead", () => {

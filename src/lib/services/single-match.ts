@@ -109,10 +109,12 @@ export async function singleMatchFor(eventId: string, stageId: string): Promise<
   };
 
   const resolution = resolveSingleMatch(rule, {
-    // Only players who have posted something can be seeded — a standing built
-    // on nobody having played is not a standing.
+    // Only players who hold a POSITION can be seeded — a standing built on
+    // nobody having played is not a standing, and neither is one built on a
+    // card that stopped short. Seeding a play-off off a rank of 0 would put
+    // the unranked at the top of the list.
     standingIds: state.isStroke
-      ? state.strokeStandings.filter((s) => s.thru > 0).map((s) => s.player.id)
+      ? state.strokeStandings.filter((s) => s.ranked).map((s) => s.player.id)
       : state.overall.filter((r) => r.stats.played > 0).map((r) => r.player.id),
     winnerOfStage: winnerOfStageFrom(matches),
     fieldIds: state.confirmed.map((p) => p.id),
