@@ -1,5 +1,6 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
-import { loadEventState, parseMatchTiebreakers, settingsOf } from "@/lib/services/tournament";
+import { loadEventState, parseMatchTiebreakers, playingStages, settingsOf } from "@/lib/services/tournament";
+import { roundHandicapsFor, type RoundHandicapView } from "@/lib/services/round-handicap";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
@@ -98,6 +99,19 @@ export default async function StagesPage() {
     };
   }
 
+  /**
+   * What each player plays off, per round.
+   *
+   * Only for rounds the field actually plays — a handicap is something a card
+   * is priced with, and a cut or a bracket seeding round has no card. Resolved
+   * on the server through the same reader the board uses, so the number an
+   * organizer is shown is the number their scores are being worked out from.
+   */
+  const roundHandicaps: Record<string, RoundHandicapView[]> = {};
+  for (const s of playingStages(state.stages)) {
+    roundHandicaps[s.id] = await roundHandicapsFor(session.eventId, s.id);
+  }
+
   const stages = state.stages.map((s) => ({
     id: s.id,
     position: s.position,
@@ -126,6 +140,7 @@ export default async function StagesPage() {
     // the Teams screen behind a second round selector, so a format was chosen
     // in one place and priced in another.
     teamScoring: teamScoringFor(s),
+    handicaps: roundHandicaps[s.id] ?? [],
     attendance: !tracksPerRound(attendanceMode as AttendanceMode)
       ? null
       : (() => {

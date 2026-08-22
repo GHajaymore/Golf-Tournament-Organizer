@@ -435,7 +435,7 @@ describe("rounds and format", () => {
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
     holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
     carryAsked: false, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
-    matchCount: 0, courseId: null, nine: "full", teamScoring: null, ...over,
+    matchCount: 0, courseId: null, nine: "full", teamScoring: null, handicaps: [], ...over,
   });
   const base = {
     rrMatchesPerPlayer: 3,
@@ -1070,7 +1070,7 @@ describe("round card — which nine and the deadline", () => {
     id: "r1", position: 1, type: "Round Robin", description: "", format: "Match Play",
     holes: 18, playedOn: "", deadline: "", scoringBasis: "gross", scoreInput: "", carryEnabled: false, carryPct: 0,
     carryAsked: true, cutEnabled: false, cutMode: "count", cutCount: 8, cutPercent: 50, cutScope: "overall", deadlineOverride: null, optDeadline: "", attendance: null,
-    matchCount: 0, courseId: null, nine: "full", teamScoring: null, ...over,
+    matchCount: 0, courseId: null, nine: "full", teamScoring: null, handicaps: [], ...over,
   });
   const base = {
     rrMatchesPerPlayer: 3,
@@ -2152,6 +2152,78 @@ describe("round handicap controls", () => {
     // Every team format prices its sides somehow, so this one is never hidden.
     const { RoundTeamScoring } = await import("@/components/RoundTeamScoring");
     expect(render(<RoundTeamScoring stageId="s1" info={info()} />)).toContain("Handicap allowance");
+  });
+});
+
+describe("what a player plays off in one round", () => {
+  const row = (over: Record<string, unknown> = {}) => ({
+    playerId: "p1", name: "Ainsley", member: 12, override: null as number | null,
+    frozen: null as number | null, handicap: 12, source: "member" as const,
+    editable: true, differsFromCurrent: null as number | null,
+    ...over,
+  });
+
+  it("says nothing has been changed, rather than showing a field of boxes", async () => {
+    // Almost every round wants the roster handicap. A row of inputs would
+    // suggest an organizer is expected to fill them in.
+    const { RoundHandicaps } = await import("@/components/RoundHandicaps");
+    const html = render(<RoundHandicaps stageId="s1" rows={[row()]} />);
+    expect(html).toContain("Everyone plays off their handicap from the roster");
+    expect(html).toContain("Set one for this round");
+  });
+
+  it("counts the players a committee has decided for", async () => {
+    const { RoundHandicaps } = await import("@/components/RoundHandicaps");
+    const html = render(
+      <RoundHandicaps
+        stageId="s1"
+        rows={[row({ override: 8, handicap: 8, source: "override" }), row({ playerId: "p2", name: "Brody" })]}
+      />,
+    );
+    expect(html).toContain("1</b> player has a handicap set for this round");
+  });
+
+  it("says cards are in, rather than disabling a box with no explanation", async () => {
+    const { RoundHandicaps } = await import("@/components/RoundHandicaps");
+    const html = render(
+      <RoundHandicaps
+        stageId="s1"
+        rows={[row({ frozen: 12, handicap: 12, source: "frozen", editable: false })]}
+      />,
+    );
+    expect(html).toContain("keeps the handicaps it was scored against");
+    expect(html).not.toContain("Set one for this round");
+  });
+
+  it("answers 'why is my net different in round one' without being asked", async () => {
+    // The frozen round disagrees with today's roster. Volunteered, because
+    // without it somebody eventually decides the app is wrong and re-enters
+    // the round.
+    const { RoundHandicaps } = await import("@/components/RoundHandicaps");
+    const html = render(
+      <RoundHandicaps
+        stageId="s1"
+        rows={[row({ frozen: 14, handicap: 14, source: "frozen", editable: false, differsFromCurrent: 9 })]}
+      />,
+    );
+    expect(html).toContain("was scored off");
+    expect(html).toContain("14");
+    expect(html).toContain("9");
+  });
+
+  it("writes a plus handicap and scratch the way a golfer says them", async () => {
+    // A plus player is "+2", never "-2", and nobody plays off "0".
+    const { RoundHandicaps } = await import("@/components/RoundHandicaps");
+    const html = render(
+      <RoundHandicaps
+        stageId="s1"
+        rows={[
+          row({ member: 0, frozen: -2, handicap: -2, source: "frozen", editable: false, differsFromCurrent: 0 }),
+        ]}
+      />,
+    );
+    expect(html).toContain("+2");
+    expect(html).toContain("scratch");
   });
 });
 

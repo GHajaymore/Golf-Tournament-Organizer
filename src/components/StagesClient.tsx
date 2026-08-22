@@ -31,6 +31,8 @@ import {
 } from "@/lib/stage-types";
 import { ScoringClient } from "./ScoringClient";
 import { RoundTeamScoring, type RoundScoringInfo } from "./RoundTeamScoring";
+import { RoundHandicaps } from "./RoundHandicaps";
+import type { RoundHandicapView } from "@/lib/services/round-handicap";
 import { MatchTiebreakControl } from "./MatchTiebreakControl";
 import type { MatchTiebreakKey } from "@/lib/domain/match-tiebreak";
 import { SingleMatchRulePicker } from "@/components/SingleMatchRulePicker";
@@ -90,6 +92,12 @@ export interface StageView {
   nine: string;
   /** How this round prices its sides, or null for an individual format. */
   teamScoring: RoundScoringInfo | null;
+  /**
+   * What each player plays off in this round, resolved — the roster's handicap,
+   * the committee's decision for the round, or what the round was scored
+   * against once its cards came in. Empty for a round the field does not play.
+   */
+  handicaps: RoundHandicapView[];
 }
 
 export interface ScoringValues {
@@ -925,6 +933,20 @@ function StageCard({
           </SectionLabel>
           <div style={{ marginTop: 6 }}>
             <RoundTeamScoring stageId={stage.id} info={stage.teamScoring} />
+          </div>
+        </div>
+      )}
+
+      {/* Who plays off what, in THIS round. Beside the allowance for the same
+          reason the allowance is here: the two together are what a card is
+          priced with, and an organizer who fixes a handicap on the roster
+          should be able to see, on the round, that the round already has
+          one. */}
+      {stage.handicaps.length > 0 && (
+        <div>
+          <SectionLabel>Handicaps for this round</SectionLabel>
+          <div style={{ marginTop: 6 }}>
+            <RoundHandicaps stageId={stage.id} rows={stage.handicaps} />
           </div>
         </div>
       )}
