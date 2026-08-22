@@ -701,7 +701,7 @@ describe("course library", () => {
     id: "c1", name: "Bushwood", city: "Chicago",
     pars: Array(18).fill(4), yards: Array(18).fill(400),
     strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
-    inEvent: true, source: "manual", verified: true, verifiedBy: "", sourceUrl: "",
+    inEvent: true, source: "manual", verified: true, verifiedBy: "", sourceUrl: "", hasCard: true,
     tees: [{ id: "t1", name: "Blue", gender: "men", courseRating: 71.5, slopeRating: 125, par: 72, rated: true }],
   };
 
@@ -1431,8 +1431,40 @@ describe("course card verification", () => {
     source: "imported",
     verifiedBy: "",
     sourceUrl: "https://bushwood.example/card",
+    hasCard: true,
     tees: [],
   };
+
+  it("says so when a course has no card at all, rather than printing a par", () => {
+    // An imported course whose card the directory got wrong arrives with its
+    // name and its tees and nothing else. It used to print "72" — the sum of
+    // the placeholder the service falls back to — presented as this course's
+    // par, which is the exact mistake deleting the bundled courses was for.
+    const html = render(<CourseLibrary courses={[{ ...course, verified: false, hasCard: false }]} canEdit />);
+    expect(html).toContain("No card yet");
+    expect(html).not.toContain(">72<");
+  });
+
+  it("offers to re-check a course that came from the directory", () => {
+    const fromDirectory = {
+      ...course,
+      verified: false,
+      sourceUrl: "https://api.opengolfapi.org/api/v1/courses/abc123",
+    };
+    const html = render(<CourseLibrary courses={[fromDirectory]} canEdit />);
+    expect(html).toContain("Check source");
+    // And says what it does on the page rather than in a tooltip — an
+    // organizer will not press something that might rewrite a card they
+    // confirmed, so "It never writes" has to be readable.
+    expect(html).toContain("never writes");
+  });
+
+  it("does not offer it for a card typed in by hand", () => {
+    // There is nothing to check it against, and a database arguing with a
+    // card the club typed is not a feature.
+    const html = render(<CourseLibrary courses={[{ ...course, verified: false }]} canEdit />);
+    expect(html).not.toContain("Check source");
+  });
 
   it("marks an unchecked card on the row", () => {
     // The thing that can be wrong — the stroke index — is invisible in play.

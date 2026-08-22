@@ -185,13 +185,18 @@ export function CourseSetupPrompt({
         )}
       </p>
 
-      {/* Above the club's own list, because that is the order the work
-          happens in: find the course, it joins the library, then pick it. The
-          three paths on this screen now run fastest-first — look it up, pick
-          one you already have, paste the card, type it — and the slow ones
-          stay first-class, because the directory is US-only and a club it has
-          never heard of must not be stuck. */}
-      {isStaff && <CourseSearch />}
+      {/* Above the club's own list, because that is the order the work happens
+          in: find the course, it joins the library, then pick it. The paths run
+          fastest-first — look it up, pick one you already have, paste the card,
+          type it — and the slow ones stay first-class, because the directory is
+          US-only and a club it has never heard of must not be stuck.
+
+          Only where this screen is the whole story. On Score entry it is:
+          scoring is blocked and there is no course library on the page. On
+          Event setup the library sits above with its own lookup, and two
+          identical search boxes on one screen is not two ways in, it is one
+          thing rendered twice. */}
+      {isStaff && blocking && <CourseSearch />}
 
       {saved.length > 0 && (
         <div style={{ marginBottom: 16 }}>

@@ -591,18 +591,15 @@ export async function importCourseFromDirectory(directoryId: string): Promise<Di
       name: course.name,
       city: [course.city, course.state].filter(Boolean).join(", "),
       address: course.address,
-      pars: course.card.usable
-        ? JSON.stringify(course.card.pars)
-        : JSON.stringify(new Array(18).fill(4)),
-      yards: course.card.usable
-        ? JSON.stringify(course.card.yards)
-        : JSON.stringify(new Array(18).fill(0)),
-      // A placeholder that is at least a valid permutation, so net scoring
-      // stays coherent until the club enters the real card — the same fallback
-      // `saveClubCourse` uses when the stroke index is left blank.
-      strokeIndex: course.card.usable
-        ? JSON.stringify(course.card.strokeIndex)
-        : JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      // Empty, not plausible, when the card was refused. This is the rule
+      // `COURSES = []` was written for: "every consumer of pars or stroke
+      // index can tell 'unknown' from 'a par 72', and the ones that need real
+      // data refuse instead of inventing an answer." A placeholder card of
+      // eighteen 4s would report par 72 for a course whose real par is 70 and
+      // score every round against numbers nobody has ever played.
+      pars: course.card.usable ? JSON.stringify(course.card.pars) : "",
+      yards: course.card.usable ? JSON.stringify(course.card.yards) : "",
+      strokeIndex: course.card.usable ? JSON.stringify(course.card.strokeIndex) : "",
       source: "imported",
       sourceUrl: directorySourceUrl(course.id),
       tees: {

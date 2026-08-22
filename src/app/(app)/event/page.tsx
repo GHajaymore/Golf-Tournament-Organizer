@@ -1,7 +1,6 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { PlaySettings } from "@/components/PlaySettings";
-import { CourseSetupPrompt } from "@/components/CourseSetupPrompt";
 import { CourseLibrary } from "@/components/CourseLibrary";
 import { clubCourses } from "@/lib/services/courses";
 import { accessibleEvents } from "@/lib/services/access";
@@ -104,14 +103,16 @@ export default async function EventPage() {
         />
       </div>
 
-      <div style={{ marginTop: 16 }}>
-        <CourseSetupPrompt
-          eventCourse={e.course}
-          eventCity={e.city}
-          isStaff={session.viewRole === "admin" || session.viewRole === "assistant"}
-          blocking={false}
-        />
-      </div>
+      {/* The event-level "Course card" section used to sit here, and it was
+          the same job done twice on one screen — worse, done twice into two
+          different places. It wrote the card onto the EVENT
+          (`customPars`/`customStrokeIndex`); the Courses section above writes
+          it onto the venue. `courseForRound` prefers the venue, so an
+          organizer who typed a card here on a tournament that already had a
+          venue watched it be silently ignored.
+          Nothing is lost: Courses above can look a course up, add one, or
+          paste a card, and every one of those produces a real venue with tees
+          and a verification state, which the event card never had. */}
 
       <div style={{ marginTop: 16 }}>
         <PlaySettings

@@ -233,8 +233,20 @@ export function CourseLibrary({
                       </span>
                     )}
                   </td>
+                  {/* The course's par, or the fact that it hasn't got one.
+                      A cardless venue used to print "72" here — the sum of the
+                      placeholder the service falls back to so the row stays
+                      editable — which is a par nobody has played, presented as
+                      this course's. Importing a course whose card the directory
+                      got wrong is exactly how a club ends up looking at it. */}
                   <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {c.pars.reduce((s, p) => s + p, 0)}
+                    {c.hasCard ? (
+                      c.pars.reduce((s, p) => s + p, 0)
+                    ) : (
+                      <span className="text-muted" style={{ fontSize: 11.5, fontVariantNumeric: "normal" }}>
+                        No card yet
+                      </span>
+                    )}
                   </td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                     {canEdit && (

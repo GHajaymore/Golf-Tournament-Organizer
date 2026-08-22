@@ -8,7 +8,7 @@ import { entitlementForEvent } from "@/lib/services/entitlements";
 import { EntryModes, type EntryRound } from "@/components/EntryModes";
 import { CourseSetupPrompt } from "@/components/CourseSetupPrompt";
 import { prisma } from "@/lib/db";
-import { resolveCourse, hasCourseData, needsCourseData } from "@/lib/courses";
+import { resolveCourse, hasCourseData, needsCourseData, parseHoleArray } from "@/lib/courses";
 import { courseForMatch, applyNine, type Nine } from "@/lib/services/course-resolution";
 import type { HoleResult } from "@/lib/domain";
 import { needsTeams, findFormat, entryModeFor } from "@/lib/formats";
@@ -56,10 +56,19 @@ export default async function EntryPage() {
 
   // A tournament with venues has course data even when the event itself names
   // no course — that's exactly the rotating or venue-less case.
+  //
+  // A venue with a CARD, though. Being attached to a venue is not the same as
+  // knowing its par and stroke index: a course imported from the directory
+  // arrives with its name and its rated tees and, when the directory's card
+  // could not be trusted, no card at all. Counting those rows unblocked score
+  // entry for a tournament with nothing to score against.
+  const cardedVenues = venues.filter(
+    (c) => parseHoleArray(c.pars) !== null && parseHoleArray(c.strokeIndex) !== null,
+  );
   const courseMode = courseModeOf(state.event.courseMode);
   // An open-course tournament is never blocked on a missing event course —
   // the venue is named per match, at scoring time, by whoever was there.
-  const courseKnown = hasCourseData(state.event) || venues.length > 0 || courseMode === "open";
+  const courseKnown = hasCourseData(state.event) || cardedVenues.length > 0 || courseMode === "open";
   if (scoringNeedsCourse && !courseKnown) {
     // The club's own courses, so an organizer picks one instead of pasting a
     // card the app is already holding.

@@ -12,6 +12,9 @@ export interface ClubCourse {
   strokeIndex: number[];
   /** Whether this tournament is allowed to be played on it. */
   inEvent: boolean;
+  /** Whether a real card is stored, as opposed to the placeholder this
+   *  service falls back to so a cardless course stays editable. */
+  hasCard: boolean;
   /** manual | imported | preset — how the card got here. */
   source: string;
   /** Whether someone at the club has confirmed the card against the real one.
@@ -74,6 +77,12 @@ export async function clubCourses(organizationId: string, eventId: string): Prom
     pars: parseHoleArray(c.pars) ?? DEFAULT_PARS,
     yards: parseHoleArray(c.yards) ?? DEFAULT_YARDS,
     strokeIndex: parseHoleArray(c.strokeIndex) ?? DEFAULT_SI,
+    // Whether those numbers are the course's or this function's. The fallback
+    // above keeps the row editable, and without this flag the screen cannot
+    // tell the two apart — it printed "72" for a venue with no card at all,
+    // which is a par nobody has played and exactly what removing the bundled
+    // courses was meant to stop.
+    hasCard: parseHoleArray(c.pars) !== null && parseHoleArray(c.strokeIndex) !== null,
     inEvent: selected.has(c.id),
     source: c.source,
     verified: c.verifiedAt !== null,
@@ -110,6 +119,8 @@ export async function eventCourses(eventId: string): Promise<ClubCourse[]> {
       verifiedBy: l.course.verifiedBy,
       sourceUrl: l.course.sourceUrl,
       pars: parseHoleArray(l.course.pars) ?? DEFAULT_PARS,
+      hasCard:
+        parseHoleArray(l.course.pars) !== null && parseHoleArray(l.course.strokeIndex) !== null,
       tees: l.course.tees.map((t) => ({
         id: t.id,
         name: t.name,
