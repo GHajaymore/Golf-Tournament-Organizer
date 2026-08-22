@@ -7,7 +7,11 @@ import { canEnterScores } from "@/lib/tournament-settings";
 import { playsInMatch } from "@/lib/services/match-access";
 import { COURSES, parseHoleArray } from "@/lib/courses";
 import { parseCard } from "@/lib/domain/scorecard-parse";
-import { searchDirectory, fetchDirectoryCourse } from "@/lib/services/course-directory";
+import {
+  searchDirectory,
+  fetchDirectoryCourse,
+  fetchLiveDirectoryCourse,
+} from "@/lib/services/course-directory";
 import {
   cardDifferences,
   directorySourceUrl,
@@ -660,7 +664,7 @@ export async function checkCourseAgainstSource(courseId: string): Promise<Source
     return { ok: false, error: "This course wasn't imported from the directory, so there's nothing to check it against." };
   }
 
-  const fresh = await fetchDirectoryCourse(directoryId);
+  const fresh = await fetchLiveDirectoryCourse(directoryId);
   if (!fresh) return { ok: false, error: "The course directory didn't answer. Try again in a moment." };
 
   const confirmed = course.verifiedAt !== null;
@@ -698,7 +702,7 @@ export async function applySourceCard(courseId: string): Promise<CourseResult> {
   const directoryId = directoryIdFrom(course.sourceUrl);
   if (!directoryId) return { ok: false, error: "This course wasn't imported from the directory." };
 
-  const fresh = await fetchDirectoryCourse(directoryId);
+  const fresh = await fetchLiveDirectoryCourse(directoryId);
   if (!fresh) return { ok: false, error: "The course directory didn't answer. Try again in a moment." };
   if (!fresh.card.usable) return { ok: false, error: fresh.card.reason };
 

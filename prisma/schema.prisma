@@ -61,13 +61,11 @@ model Organization {
    * club | community | personal — see lib/domain/org-profile.ts, which is the
    * authoritative list and declares what each one MEANS. Do not re-decide the
    * behaviour of a kind by comparing this string; ask `orgProfile()`.
-   *
    * club      a club, course or resort. Shared roster, no ledger — the shop
-   *           takes the entry fee and pays the winner, so the app says who won.
+   * takes the entry fee and pays the winner, so the app says who won.
    * community a society, league or regular group. Shared roster AND a ledger:
-   *           somebody fronted the minibus and is owed by nine others.
+   * somebody fronted the minibus and is owed by nine others.
    * personal  one organizer running an outing, with their own list of players.
-   *
    * This comment used to read `personal | club`, disagreeing with the four
    * kinds in org-profile.ts. Settled on 2026-08-18: org-profile is
    * authoritative, and `course` was dropped there because it held the same
@@ -85,6 +83,7 @@ model Organization {
   // Branding, applied to the console header and printed output for every
   // tournament this organization owns.
   /**
+   * /**
    * /**
    * /**
    * /**
@@ -988,7 +987,6 @@ model Stage {
   singleMatchRule     String   @default("")
   /**
    * Whether a Bracket Stage plays off for third.
-   *
    * Off by default — plenty of clubs send everyone to the bar instead, and a
    * fixture nobody asked for is worse than a missing one. The MATCH is not
    * stored here: the pairing is the two beaten semi-finalists and is derived
@@ -1805,7 +1803,7 @@ model SideGameEntry {
    * about MONEY — "took himself out" and "has not paid yet" settle
    * differently, so they are not one column.
    */
-  excluded  Boolean @default(false)
+  excluded   Boolean @default(false)
 
   sideGame SideGame @relation(fields: [sideGameId], references: [id], onDelete: Cascade)
 
@@ -1965,7 +1963,6 @@ model SmsDelivery {
 
 /**
  * An outbound email that did not reach its recipient.
- *
  * Recorded because every email send in this app is fire-and-forget by design —
  * the on-screen confirmation is the real receipt, and a bounced confirmation
  * must never undo a real entry. That leaves a failure with nowhere to appear.
@@ -1987,7 +1984,7 @@ model EmailFailure {
   /**
    * The provider's message, verbatim, for support.
    */
-  detail String  @default("")
+  detail String @default("")
 
   /**
    * Who missed out. Empty for password resets: the organizer's action there is
@@ -2004,12 +2001,10 @@ model EmailFailure {
 
 /**
  * A line in a tournament's kitty — the FLOAT money mode.
- *
  * Deliberately not an Expense with a negative amount. The split ledger next
  * door divides amounts between players, and a negative there would silently
  * invert a debt; `direction` says which way the money went and cannot be
  * mistaken for a discount.
- *
  * Also deliberately not per player. A float is one pot belonging to the
  * tournament: fees have already left the entrants' hands, so there is nobody
  * to owe anybody. Per-player reconciliation ("did all forty pay?") is a real
@@ -2034,9 +2029,11 @@ model TournamentFund {
    * entry-fee | prize | trophy | catering | other. Free text, because a club
    * will always have a category nobody predicted.
    */
-  category String @default("")
-  /** The calendar day, ISO — a day, not an instant. */
-  occurredOn String @default("")
+  category    String @default("")
+  /**
+   * The calendar day, ISO — a day, not an instant.
+   */
+  occurredOn  String @default("")
 
   createdBy String   @default("")
   createdAt DateTime @default(now())
@@ -2045,4 +2042,58 @@ model TournamentFund {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId, stageId])
+}
+
+/**
+ * Every course the public directory knows, held locally.
+ * Not a Course. A Course belongs to an organization and is a club's own
+ * record, edited and verified by them; this is the shared catalogue searches
+ * run against, and adding one to a club COPIES it into a Course so the club's
+ * corrections stay theirs and a later refresh of the catalogue cannot
+ * overwrite them.
+ * Keyed by the directory's own id, so re-running the import updates rather
+ * than duplicating.
+ * The card is stored EXACTLY as the importer judged it: the hole arrays are
+ * empty where `cardFrom` refused the source, and `cardProblem` says why. A
+ * catalogue that quietly filled those in would put a fabricated par 72 in
+ * front of every club in the country, which is the mistake deleting the
+ * bundled courses was for, at 16,822 times the scale.
+ */
+model CourseCatalog {
+  /**
+   * The directory's id, not ours.
+   */
+  id      String @id
+  name    String
+  city    String @default("")
+  state   String @default("")
+  website String @default("")
+  address String @default("")
+  /**
+   * The course's nominal par, for the search list and as a check on a
+   * pasted card's total. 0 when the directory does not say.
+   */
+  par     Int    @default(0)
+
+  /**
+   * JSON number arrays, or "" where the source had no card worth trusting.
+   */
+  pars        String @default("")
+  yards       String @default("")
+  strokeIndex String @default("")
+  /**
+   * JSON array of { name, gender, courseRating, slopeRating, par, yards }.
+   */
+  tees        String @default("[]")
+  /**
+   * Why the card was refused, in the words a club needs. Empty when it was
+   * taken — so this doubles as the flag for "catalogued without a card".
+   */
+  cardProblem String @default("")
+
+  fetchedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([state])
 }
