@@ -1469,6 +1469,17 @@ describe("course card verification", () => {
     expect(html).not.toContain('value="4"');
   });
 
+  it("offers paste inside the editor, not only as a way to create a course", () => {
+    // "Paste a card" on the toolbar CREATES a course, so it was no use to
+    // anyone correcting one — and score entry now sends people here to enter
+    // a card for a venue that already exists. Fifty-four boxes when a
+    // twenty-second paste exists a button away is a bad handoff.
+    const html = render(
+      <CourseLibrary courses={[{ ...course, verified: false }]} canEdit openCourseId="c1" />,
+    );
+    expect(html).toContain("Paste the card");
+  });
+
   it("offers to re-check a course that came from the directory", () => {
     const fromDirectory = {
       ...course,

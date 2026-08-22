@@ -13,6 +13,7 @@ import {
   applySourceCard,
 } from "@/app/actions/courses";
 import { CourseSearch } from "./CourseSearch";
+import { parseCard } from "@/lib/domain/scorecard-parse";
 import { isDirectorySource, type CardDifference } from "@/lib/domain/course-directory";
 import type { ClubCourse } from "@/lib/services/courses";
 
@@ -89,11 +90,49 @@ export function CourseLibrary({
   const [si, setSi] = useState<string[]>(opened ? cardOf(opened, opened.strokeIndex) : BLANK);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  /** The paste box inside the editor, and what the last paste made of it. */
+  const [pasteCard, setPasteCard] = useState("");
+  const [pasteNote, setPasteNote] = useState("");
+  const [pasteProblems, setPasteProblems] = useState<string[]>([]);
   /** The open "check the source" report, if one has been asked for. */
   const [check, setCheck] = useState<SourceCheck | null>(null);
   const [pending, startTransition] = useTransition();
 
   const nums = (a: string[]) => a.map((v) => parseInt(v, 10)).map((n) => (Number.isFinite(n) ? n : 0));
+
+  /**
+   * Fill the boxes from three rows off the club's website.
+   *
+   * Rows in the order a card is read: par, stroke index, yardage. Totals and
+   * labels are stripped by `parseCard`, so the row can be copied straight out
+   * of the table without editing it first.
+   *
+   * A short or unreadable paste says so rather than half-filling in silence —
+   * the failure mode here is someone pasting the par row alone and watching
+   * nothing happen.
+   */
+  const applyPastedCard = (text: string) => {
+    setPasteCard(text);
+    setPasteNote("");
+    setPasteProblems([]);
+    const rows = text.split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
+    if (rows.length === 0) return;
+    if (rows.length < 2) {
+      setPasteProblems(["Two rows at least — par on the first, stroke index on the second."]);
+      return;
+    }
+    const card = parseCard({ pars: rows[0], strokeIndex: rows[1], yards: rows[2] ?? "" }, 18);
+    if (!card.ok) {
+      setPasteProblems(card.problems.map((p) => `${p.row}: ${p.message}`));
+      return;
+    }
+    setPars(card.pars.map(String));
+    setSi(card.strokeIndex.map(String));
+    if (card.yards.length === 18) setYards(card.yards.map(String));
+    setPasteNote(
+      `Read 18 pars and 18 stroke indexes${card.yards.length === 18 ? " and 18 yardages" : ""}. Check the boxes below, then save.`,
+    );
+  };
 
   const resetForm = () => {
     setName("");
@@ -614,6 +653,38 @@ export function CourseLibrary({
               <label>City</label>
               <input className="input" value={city} disabled={pending} onChange={(e) => setCity(e.target.value)} />
             </div>
+          </div>
+
+          {/* Paste, in the editor rather than beside it.
+              "Paste a card" up there CREATES a course, so it was no use to
+              anyone correcting one — and score entry now sends people here to
+              enter a card for a venue that already exists. Handing them
+              fifty-four boxes when a twenty-second paste exists a button away
+              is a bad handoff.
+              This fills the boxes and nothing else. Save still goes through
+              `saveClubCourse`, so it is an input aid to the one editor, not a
+              second writer of the same eighteen numbers. */}
+          <div className="field" style={{ marginBottom: 10 }}>
+            <label>Paste the card — par, stroke index, then yardage; one row each</label>
+            <textarea
+              className="input"
+              rows={3}
+              value={pasteCard}
+              disabled={pending}
+              onChange={(e) => applyPastedCard(e.target.value)}
+              placeholder={"4 5 4 4 3 5 3 4 4 36 4 4 3 4 5 4 4 3 5 36 72\n6 10 12 16 14 2 18 4 8 3 9 17 7 1 13 11 15 5"}
+              style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 12 }}
+            />
+            {pasteNote && (
+              <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-300)" }}>
+                <i className="ph ph-check-circle" /> {pasteNote}
+              </p>
+            )}
+            {pasteProblems.map((m, i) => (
+              <p key={i} style={{ fontSize: 11.5, margin: "3px 0 0", color: "var(--color-danger)" }}>
+                <i className="ph ph-warning-circle" /> {m}
+              </p>
+            ))}
           </div>
 
           <p className="text-muted" style={{ fontSize: 12, margin: "0 0 8px" }}>
