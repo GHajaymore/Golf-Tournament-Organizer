@@ -14,6 +14,7 @@
 // That second distinction is the one that decides the scorecard shape, so it
 // is worth getting right before any UI is built on top of it.
 
+import { SCRAMBLE_WEIGHTS_2, SCRAMBLE_WEIGHTS_4 } from "./domain/team";
 import type { MatchEntryMode } from "./domain/match-entry";
 
 export type ScoringFamily = "match" | "stroke" | "points" | "team";
@@ -323,6 +324,23 @@ export const GOLF_FORMATS: GolfFormat[] = [
     // No published WHS allowance; this is the widely used club convention.
     allowance: 25,
     allowanceIsConvention: true,
+    // The descending table the scoring ACTUALLY applies.
+    //
+    // It was only reachable through a regex on the format's NAME inside
+    // `sidePlayingHandicap`, so the Rounds screen read `weightsBySideSize`,
+    // found nothing, and showed the organizer a flat 25% of the combined
+    // handicaps while the scorer used 25/20/15/10 of each. For a side off
+    // 6/14/22/31 that is 18 shots against 11 — one round, priced two ways on
+    // two screens, and neither says the other exists.
+    //
+    // Declared here so both readers see the same thing, and so a club adding
+    // a scramble variant declares its shares rather than hoping its name
+    // contains the word.
+    weightsBySideSize: {
+      2: SCRAMBLE_WEIGHTS_2,
+      3: [25, 20, 15],
+      4: SCRAMBLE_WEIGHTS_4,
+    },
     scored: true,
     playable: true,
   },
@@ -336,6 +354,15 @@ export const GOLF_FORMATS: GolfFormat[] = [
     engine: "team-single",
     allowance: 25,
     allowanceIsConvention: true,
+    // Same table as a plain scramble — see the note on that entry. It survived
+    // the first pass of this fix because its allowance carried no comment and
+    // the edit matched on one; the sweep in `shares-agree.test.ts` is what
+    // found it, which is the argument for the sweep.
+    weightsBySideSize: {
+      2: SCRAMBLE_WEIGHTS_2,
+      3: [25, 20, 15],
+      4: SCRAMBLE_WEIGHTS_4,
+    },
     scored: true,
     playable: true,
   },
