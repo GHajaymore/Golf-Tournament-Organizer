@@ -505,6 +505,24 @@ export default async function LoginPage() {
               <h4>One roster, every event</h4>
               <p>Entering somebody in a tournament adds them to the club list. Handicaps, tees and contact details carry to the next one — and a blank box never overwrites what you already had.</p>
             </div>
+            {/* Three more the page did not claim, and each is a thing the app
+                now does that nothing on this list implied. Twelve keeps the
+                three-column grid square. */}
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s7-6.1 7-11a7 7 0 10-14 0c0 4.9 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" /></svg>
+              <h4>Your course, not a guess</h4>
+              <p>Look it up and its card and rated tee sets arrive with it. Where the public data can&rsquo;t be trusted we say so and leave the card blank, rather than handing you a par nobody has played.</p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 9.5h19M7 9.5V19M12 9.5V19M17 9.5V19" /></svg>
+              <h4>The card, as it is on paper</h4>
+              <p>Your club&rsquo;s mark at the head of it, the course leading, par and stroke index where you expect them — and the round&rsquo;s format decides what it asks for: every hole, who won each one, or just the margin.</p>
+            </div>
+            <div className="feat">
+              <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.8l2.6 5.6 6 .8-4.4 4.2 1.1 6.1L12 16.6 6.7 19.5l1.1-6.1L3.4 9.2l6-.8z" /></svg>
+              <h4>However you&rsquo;re organised</h4>
+              <p>A club with a members&rsquo; roster, a society playing a different course each month, or four of you on a Saturday. Each gets the parts that apply and is never asked about the rest.</p>
+            </div>
           </div>
         </div>
       </section>
