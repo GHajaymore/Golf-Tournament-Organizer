@@ -231,7 +231,14 @@ export function EntryModes({
           none. */}
       {mode === "stroke" && (
         <RoundVenue
-          key={round.stageId}
+          /* `venue-` prefixed, NOT the bare stage id.
+             ScoreEntryClient and StrokePlayEntry are siblings of this in the
+             same fragment and are already keyed on the stage id. Two siblings
+             sharing a key is undefined, and what React actually did was leave
+             the previous instance mounted: switching rounds stacked one more
+             copy of this card each time, so a three-round tournament showed
+             three identical "no card yet" warnings. */
+          key={`venue-${round.stageId}`}
           stageId={round.stroke.stageId}
           courseId={round.courseId}
           venues={venues}
