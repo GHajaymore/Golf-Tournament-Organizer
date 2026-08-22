@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { matchCardFinished, matchStrokeCards, type MatchForCards } from "../match-cards";
+import {
+  matchCardFinished,
+  matchStrokeCards,
+  withoutSupersededStrokeCards,
+  type MatchForCards,
+} from "../match-cards";
 
 /**
  * The join, and the line it must not cross.
@@ -106,5 +111,74 @@ describe("whether a match card can still gain holes", () => {
     // The safe direction: an unreadable result must not silently declare a
     // card closed and take a player off the board.
     expect(matchCardFinished(match({ holes: "not json" }))).toBe(false);
+  });
+});
+
+describe("one round is counted once", () => {
+  /**
+   * The two card tables are normally exclusive, and nothing enforces it.
+   *
+   * A stage that draws pairings can legitimately use STROKE entry — EntryModes
+   * falls to "stroke" when the round's format is a stroke one, and the
+   * organizer can switch the mode by hand — so a Round Robin scored as a medal
+   * writes `Scorecard` rows while its matches exist. Changing a round's Format
+   * after cards are in leaves the old rows behind too: only `clearRoundScores`
+   * ever deletes a card, and Format stays editable while setup is unlocked.
+   *
+   * Before match cards were read at all this could not bite. Now both lists
+   * reach `aggregateStroke`, which adds gross and holesOwed once per card and
+   * cannot tell a duplicate from the several cards a Round Robin player
+   * legitimately returns.
+   */
+  const joined = (playerId: string, stageId: string) => ({
+    playerId, stageId, strokes: "[4,4,4]", finished: true,
+  });
+
+  it("drops a stroke card for a round the player also has match cards in", () => {
+    const rows = [{ playerId: "p1", stageId: "s1", strokes: "[5,5,5]" }];
+    expect(withoutSupersededStrokeCards(rows, [joined("p1", "s1")])).toEqual([]);
+  });
+
+  it("keeps a stroke card for a round with no match cards", () => {
+    // The Round-Robin-scored-as-a-medal case: pairings exist, nobody used
+    // match entry, and the medal cards are the only record there is. Dropping
+    // them would lose a whole round.
+    const rows = [{ playerId: "p1", stageId: "s2", strokes: "[5,5,5]" }];
+    expect(withoutSupersededStrokeCards(rows, [joined("p1", "s1")])).toEqual(rows);
+  });
+
+  it("is per player as well as per round", () => {
+    // One player entered by match, another by card, in the same round.
+    const rows = [
+      { playerId: "p1", stageId: "s1", strokes: "[5,5,5]" },
+      { playerId: "p2", stageId: "s1", strokes: "[6,6,6]" },
+    ];
+    expect(withoutSupersededStrokeCards(rows, [joined("p1", "s1")])).toEqual([rows[1]]);
+  });
+
+  it("leaves everything alone when there are no match cards at all", () => {
+    // Every pure stroke event in the database. This must be a no-op for them.
+    const rows = [{ playerId: "p1", stageId: "s1", strokes: "[5,5,5]" }];
+    expect(withoutSupersededStrokeCards(rows, [])).toBe(rows);
+  });
+
+  it("does not touch the several cards a round robin legitimately returns", () => {
+    // Three matches in one stage is three cards for one player, and none of
+    // them is a duplicate of another.
+    const three = [joined("p1", "s1"), joined("p1", "s1"), joined("p1", "s1")];
+    expect(withoutSupersededStrokeCards([], three)).toEqual([]);
+    expect(three).toHaveLength(3);
+  });
+});
+
+describe("the dedupe key cannot collide", () => {
+  it("does not run two ids together", () => {
+    // Found the hard way: the separator between the two ids was lost, leaving
+    // `${playerId}${stageId}`. Then player "ab" in round "c" and player "a" in
+    // round "bc" share one key, and one of them loses a card that is not a
+    // duplicate of anything.
+    const rows = [{ playerId: "a", stageId: "bc", strokes: "[4]" }];
+    const joined = [{ playerId: "ab", stageId: "c", strokes: "[4]", finished: true }];
+    expect(withoutSupersededStrokeCards(rows, joined)).toEqual(rows);
   });
 });

@@ -10,7 +10,7 @@ import { effectiveAllowance } from "./teams";
 import {
   holeStrokesReceived, stablefordPointsForHole, allocationHoles, playingHandicapFrom } from "../domain";
 import { aggregateStroke, emptyAgg, isRanked, netOf, type StrokeCard } from "../domain/stroke-agg";
-import { matchStrokeCards } from "../domain/match-cards";
+import { matchStrokeCards, withoutSupersededStrokeCards } from "../domain/match-cards";
 import { countbackCompare } from "../domain/stroke-countback";
 import { resolveCourse } from "../courses";
 import { todayIso } from "../deadline";
@@ -658,7 +658,16 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   );
   const strokeAgg = aggregateStroke(
     parseStrokeCards([
-      ...scorecards.filter((c) => strokeRoundIds.has(c.stageId)),
+      // One round, counted once. A player can hold rows in BOTH tables for one
+      // round — a pairings stage scored as a medal writes `Scorecard` while its
+      // matches exist, and changing a round's Format leaves the old rows behind
+      // because only `clearRoundScores` ever deletes a card. Summing them
+      // doubles a gross and reports 36 holes owed for an eighteen-hole round.
+      // See `withoutSupersededStrokeCards` for why the match cards win.
+      ...withoutSupersededStrokeCards(
+        scorecards.filter((c) => strokeRoundIds.has(c.stageId)),
+        joinedMatchCards,
+      ),
       ...joinedMatchCards,
     ]),
     {

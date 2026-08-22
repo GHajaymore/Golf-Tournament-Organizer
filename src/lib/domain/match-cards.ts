@@ -104,6 +104,51 @@ export function matchCardFinished(m: { holes: string; forfeitedBy?: string | nul
  * three matches inside one round. That is not an error and they are all
  * returned; `aggregateStroke` is what has to cope with it.
  */
+/**
+ * Drop a `Scorecard` row for any round where the same player also has match
+ * cards, so one round is counted once.
+ *
+ * The two tables are normally exclusive — the stroke entry screen writes
+ * `Scorecard`, the match screen writes `MatchScorecard` — but nothing enforces
+ * it, and they can both hold a card for one player in one round:
+ *
+ *   - A stage that draws pairings can legitimately use STROKE entry.
+ *     `EntryModes` falls to `"stroke"` when the round's format is a stroke one,
+ *     and the organizer can switch the mode by hand on any round. So a Round
+ *     Robin scored as a medal writes `Scorecard` rows while its matches exist.
+ *   - Changing a round's Format after cards are in leaves the old rows behind.
+ *     Nothing clears them: only the explicit `clearRoundScores` action deletes
+ *     a card, and Format stays editable for as long as setup is unlocked — the
+ *     demo tournament sits in Draft with 48 results, so this is the ordinary
+ *     state, not a corner.
+ *
+ * Until match cards were read at all this could not bite. Now both lists reach
+ * `aggregateStroke`, which adds `gross` and `holesOwed` once per card and
+ * cannot tell a duplicate from the several cards a Round Robin player
+ * legitimately returns — one per match. The round would be counted twice: a
+ * doubled gross, `holesOwed` of 36 for an eighteen-hole round, and a player
+ * silently unranked by a `stoppedShort` that is an artefact of the arithmetic.
+ *
+ * The MATCH cards win, for the same reason the countback empties a duplicated
+ * entry rather than picking: they are the more specific record, tied to an
+ * actual match, and in the format-change case they are the live one while the
+ * `Scorecard` is the leftover. Where that understates a round it understates
+ * VISIBLY — `thru` and `stoppedShort` say so — which is the right direction.
+ * Summing overstates, and an overstated gross reads as a real score.
+ */
+export function withoutSupersededStrokeCards<T extends { playerId: string; stageId: string }>(
+  strokeRows: T[],
+  joined: JoinedCard[],
+): T[] {
+  if (joined.length === 0) return strokeRows;
+  // Separated, so two ids cannot run together into one key: "ab" + "c" and
+  // "a" + "bc" are different rounds and must not share an entry. The pipe
+  // cannot occur in a cuid.
+  const key = (playerId: string, stageId: string) => `${playerId}|${stageId}`;
+  const covered = new Set(joined.map((c) => key(c.playerId, c.stageId)));
+  return strokeRows.filter((r) => !covered.has(key(r.playerId, r.stageId)));
+}
+
 export function matchStrokeCards(cards: MatchCardRow[], matches: MatchForCards[]): JoinedCard[] {
   const byId = new Map(matches.map((m) => [m.id, m]));
   const finishedById = new Map(matches.map((m) => [m.id, matchCardFinished(m)]));
