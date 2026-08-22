@@ -73,6 +73,16 @@ Before creating a migration, read the SQL it generated. Prisma emits everything 
 drift, so an unrelated `DROP DEFAULT` can ride along with a one-line change. If that happens,
 fix the *schema* so it matches the database rather than accepting the drop.
 
+**A new model means restarting the dev server, not just recompiling.** A running Next process
+holds the generated client in memory, so `prisma.yourNewModel` stays `undefined` however many
+times the page hot-reloads — and the screen fails with `Cannot read properties of undefined
+(reading 'findMany')`, which reads like a bug in the query rather than a stale process. It
+happened twice on 2026-08-22, to `courseCatalog` and then `honoursEntry`. It never reproduces
+in production, because a deploy is always a fresh build.
+
+So after `prisma migrate deploy`: `npx prisma generate`, then stop and restart the dev server
+before believing anything the browser tells you.
+
 ## Design
 
 - Two grounds, one set of tokens: `DARK_GROUND` and `LIGHT_GROUND` in `src/lib/themes.ts`.
