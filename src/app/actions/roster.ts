@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { upsertMember } from "@/lib/services/roster";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
+import { memberHandicapRecord, type MemberRecord } from "@/lib/services/handicap-record";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
 import { parseHandicapInput, looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
@@ -491,4 +492,86 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
 
   refresh();
   return { ok: true, added, waitlisted, skipped, needContact, needEmail, needPhone };
+}
+
+/* ── The club handicap a member's own cards support ───────────────────────── */
+
+/**
+ * A member's handicap record, for the panel on the roster.
+ *
+ * Read-only, and computed on demand for ONE member rather than for the whole
+ * roster. `memberHandicapRecord` runs several queries per member; doing it for
+ * a club of two hundred on every page load would be six hundred queries to
+ * render a list nobody has asked a question about yet. A committee reviews one
+ * member at a time, which is the shape this matches.
+ */
+export async function memberHandicapSuggestion(
+  memberId: string,
+): Promise<{ ok: boolean; error?: string; record?: MemberRecord }> {
+  const { organizationId } = await requireRosterOrg();
+  // Narrowed here, where the id arrives, and not only inside the service. The
+  // service scopes too, but an action that reads as if it trusts a caller's
+  // row id is one somebody will later copy — which is what audit-idor.test.ts
+  // is checking for, and it was right to stop this.
+  const member = await prisma.member.findFirst({
+    where: { id: memberId, organizationId },
+    select: { id: true },
+  });
+  if (!member) return { ok: false, error: "Member not found." };
+
+  const record = await memberHandicapRecord(organizationId, memberId);
+  if (!record) return { ok: false, error: "Member not found." };
+  return { ok: true, record };
+}
+
+/**
+ * Take the handicap this member's cards support.
+ *
+ * **Takes no handicap value.** The number is recomputed here and applied from
+ * this side, so a caller cannot post whatever figure they like — a `"use
+ * server"` export is a public HTTP endpoint and a handicap posted off the wire
+ * would be a free hand into every net score the club plays.
+ *
+ * Refuses where an association holds the member's handicap. GHIN is the
+ * authority and this is the fallback, per
+ * `docs/requirement-per-round-handicap.md`; replacing a licensed figure with
+ * one worked out from a club's own cards is the single thing this feature must
+ * never do, and the screen hiding the button is not enough on its own.
+ *
+ * Existing rounds are untouched. `Player.handicap` is each event's own snapshot
+ * and a played round keeps what it was played off — the freeze already
+ * guarantees that, and it is why this can move the roster figure safely.
+ */
+export async function acceptClubHandicap(
+  memberId: string,
+): Promise<{ ok: boolean; error?: string; handicap?: number }> {
+  const { organizationId } = await requireRosterOrg();
+  // The same narrowing as above, and it matters more here: this one writes.
+  const member = await prisma.member.findFirst({
+    where: { id: memberId, organizationId },
+    select: { id: true },
+  });
+  if (!member) return { ok: false, error: "Member not found." };
+
+  const record = await memberHandicapRecord(organizationId, memberId);
+  if (!record) return { ok: false, error: "Member not found." };
+  if (!record.maySuggest) {
+    return {
+      ok: false,
+      error: "This member's handicap comes from their association. TourneyHQ won't overwrite it.",
+    };
+  }
+  if (!record.suggestion) {
+    return { ok: false, error: "Not enough approved cards yet — three rounds are the minimum." };
+  }
+
+  await prisma.member.update({
+    where: { id: memberId },
+    // `manual` rather than a new source: a committee accepting a suggestion is
+    // the club setting the handicap, which is exactly what manual means. A
+    // third value would need every reader of handicapSource to learn it.
+    data: { handicap: record.suggestion.handicap, handicapSource: "manual" },
+  });
+  revalidatePath("/", "layout");
+  return { ok: true, handicap: record.suggestion.handicap };
 }

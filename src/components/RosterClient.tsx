@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useMemo, useRef, useState, useTransition } from "react";
+import { ClubHandicapPanel } from "@/components/ClubHandicapPanel";
 import { listNames } from "@/lib/format";
 import { fieldRosterSummary } from "@/lib/domain/roster-link";
 import { csvSizeRefusal } from "@/lib/csv";
@@ -86,6 +87,8 @@ export function RosterClient({
   const [showInactive, setShowInactive] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
+  /** Whose handicap record is open. One at a time — see the trigger below. */
+  const [recordFor, setRecordFor] = useState<string | null>(null);
   const [form, setForm] = useState<MemberInput>(BLANK);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState("");
@@ -596,7 +599,8 @@ export function RosterClient({
             </thead>
             <tbody>
               {visible.map((m) => (
-                <tr key={m.id} style={{ opacity: m.status === "active" ? 1 : 0.55 }}>
+                <Fragment key={m.id}>
+                <tr style={{ opacity: m.status === "active" ? 1 : 0.55 }}>
                   <td>
                     <input
                       type="checkbox"
@@ -645,6 +649,20 @@ export function RosterClient({
                   <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{m.entryCount}</td>
                   <td className="text-muted" style={{ fontSize: 12 }}>{m.lastEvent || "—"}</td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    {/* What this member's own approved cards say they should
+                        play off. Opened one member at a time: the record costs
+                        several queries each, and a club of two hundred would
+                        pay six hundred of them to draw a list nobody has asked
+                        a question about. */}
+                    <button
+                      type="button"
+                      className="btn btn-icon"
+                      aria-label={`Handicap record for ${m.name}`}
+                      disabled={pending}
+                      onClick={() => setRecordFor(recordFor === m.id ? null : m.id)}
+                    >
+                      <i className="ph ph-list-numbers" />
+                    </button>
                     <button
                       type="button"
                       className="btn btn-icon"
@@ -688,6 +706,19 @@ export function RosterClient({
                     </button>
                   </td>
                 </tr>
+                {recordFor === m.id && (
+                  <tr>
+                    <td colSpan={7} style={{ paddingTop: 0 }}>
+                      <ClubHandicapPanel
+                        memberId={m.id}
+                        memberName={m.name}
+                        currentHandicap={m.handicap}
+                        onClose={() => setRecordFor(null)}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
