@@ -1,6 +1,6 @@
 import "server-only";
 import { isPlayingRound } from "../stage-types";
-import { resolveRoundHandicap } from "../domain/round-handicap";
+import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { isManualFormat } from "../formats";
 import { courseForRound, applyNine, cleanNine } from "./course-resolution";
@@ -466,7 +466,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return null;
 
-  const [accounts, players, groups, stages, matches, bracketWinners, scorecards, matchCards, venues, tees] = await Promise.all([
+  const [accounts, players, groups, stages, matches, bracketWinners, scorecards, matchCards, venues, tees, roundHandicaps] = await Promise.all([
     prisma.account.findMany({ where: { eventId }, orderBy: { name: "asc" } }),
     prisma.player.findMany({ where: { eventId }, orderBy: { seed: "asc" } }),
     prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
@@ -508,6 +508,10 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     // Tees carry the Course Rating and Slope that turn a Handicap Index into
     // the strokes a player actually receives here.
     prisma.tee.findMany({ where: { course: { events: { some: { eventId } } } }, orderBy: [{ position: "asc" }] }),
+    // What each round says a player plays off — a committee's override, or the
+    // value frozen when that round's first card came in. Rows exist only where
+    // there is something to say; no row means the roster handicap, read live.
+    prisma.roundHandicap.findMany({ where: { eventId } }),
   ]);
 
   const scoring = scoringFrom(event);
@@ -604,6 +608,9 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // the event's card is only the fallback for a round that names no venue.
   const isStroke = event.format === "stroke";
   const stageById = new Map(stages.map((s) => [s.id, s]));
+  const roundHandicapBy = new Map(
+    roundHandicaps.map((r) => [roundHandicapKey(r.stageId, r.playerId), { frozen: r.frozen, override: r.override }]),
+  );
 
   /**
    * Playing Handicap, not Course Handicap: the format's allowance — 95% for an
@@ -618,6 +625,9 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     courseHcp9,
     courseHcp18,
     fallback: courseHcp,
+    // One lookup, built once, so every board in this event reads the same row.
+    // A round with no row resolves exactly as it did before this existed.
+    roundHandicapFor: (playerId, stageId) => roundHandicapBy.get(roundHandicapKey(stageId, playerId)) ?? null,
   });
 
   /**

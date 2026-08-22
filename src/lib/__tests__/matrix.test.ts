@@ -22,6 +22,14 @@ import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/d
 import { aggregateStroke, isRanked, type StrokeCard } from "@/lib/domain/stroke-agg";
 import { resolveMatch } from "@/lib/domain/match";
 import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "@/lib/domain";
+import {
+  handicapToFreeze,
+  isReturnedCard,
+  resolveRoundHandicap,
+  roundHandicapKey,
+} from "@/lib/domain/round-handicap";
+import { playingHandicapFrom } from "@/lib/domain/handicap";
+import { effectiveAllowance } from "@/lib/services/teams";
 import { DEFAULT_SCORING } from "@/lib/domain/types";
 import type { HoleResult, Match, Player } from "@/lib/domain/types";
 
@@ -472,5 +480,118 @@ describe("match cards, at every field size", () => {
   it("joins nothing from an empty round without throwing", () => {
     expect(matchStrokeCards([], [])).toEqual([]);
     expect(aggregateStroke([], AGG_OPTS).size).toBe(0);
+  });
+});
+
+describe("round handicaps, at every field size and every allowance", () => {
+  /**
+   * What a player plays off in one round, swept across the cross product that
+   * actually occurs: three sources, every allowance a round can carry, and
+   * fields from one.
+   *
+   * The invariants are the promises made to Ajay on 2026-08-22, not the current
+   * behaviour — a frozen round cannot move, an override belongs to its own
+   * round, and both are COURSE handicaps that the allowance is applied to
+   * afterwards rather than instead of.
+   */
+  // 0 means "the organizer said nothing", which takes the format's own
+  // allowance; the rest are the ones a committee actually sets.
+  const ALLOWANCES = [0, 50, 85, 90, 95, 100];
+  // A plus-handicap player is in here deliberately: the arithmetic runs through
+  // Math.round on a negative number, and a field of scratch and better is the
+  // one nobody sweeps.
+  const MEMBER = [-3, 0, 1, 12, 28, 54];
+
+  for (const n of FIELD_SIZES) {
+    it(`resolves every source coherently for a field of ${n}`, () => {
+      for (let i = 0; i < n; i += 1) {
+        const member = MEMBER[i % MEMBER.length];
+
+        const plain = resolveRoundHandicap({ member });
+        expect(plain.handicap).toBe(member);
+        expect(plain.source).toBe("member");
+        expect(plain.editable).toBe(true);
+        expect(plain.differsFromCurrent).toBeNull();
+
+        const overridden = resolveRoundHandicap({ member, override: member + 4 });
+        expect(overridden.handicap).toBe(member + 4);
+        expect(overridden.source).toBe("override");
+        // Before a card arrives an override is a decision that can be changed.
+        // That is the whole reason it is not frozen at round creation.
+        expect(overridden.editable).toBe(true);
+
+        // The freeze takes whatever the round was already using, so freezing
+        // re-scores nothing — including when an override is what it was using.
+        expect(handicapToFreeze({ member })).toBe(member);
+        expect(handicapToFreeze({ member, override: member + 4 })).toBe(member + 4);
+
+        const frozen = handicapToFreeze({ member, override: member + 4 });
+        for (const later of MEMBER) {
+          // A roster edit AND a change of mind about the override, both after
+          // the cards are in. Neither may move the round.
+          const played = resolveRoundHandicap({ frozen, member: later, override: later - 2 });
+          expect(played.handicap).toBe(frozen);
+          expect(played.source).toBe("frozen");
+          expect(played.editable).toBe(false);
+          finite(played.handicap, "frozen handicap");
+          expect(Number.isInteger(played.handicap)).toBe(true);
+
+          // The explanation for "why is my net different in round one" — set
+          // when, and only when, there is a difference to explain.
+          const current = later - 2;
+          expect(played.differsFromCurrent).toBe(frozen === current ? null : current);
+        }
+      }
+    });
+
+    it(`applies the round's allowance on top, not instead, for a field of ${n}`, () => {
+      for (const format of FORMAT_NAMES) {
+        for (const pct of ALLOWANCES) {
+          const allowance = effectiveAllowance(format, pct);
+          expect(allowance).toBeGreaterThan(0);
+
+          for (let i = 0; i < n; i += 1) {
+            const member = MEMBER[i % MEMBER.length];
+            // Both directions: a committee cutting a scratch player to plus two
+            // is what puts a negative through the rounding.
+            for (const override of [member + 4, member - 4]) {
+              // Same unit throughout. The override replaces the COURSE handicap
+              // and the allowance then prices it, exactly as it prices the
+              // roster number. One screen taking the override as a Playing
+              // Handicap is the five-shot disagreement the 2026-08-12 audit
+              // found, in a different disguise.
+              const off = resolveRoundHandicap({ member, override }).handicap;
+              const playing = playingHandicapFrom(off, allowance);
+              expect(playing).toBe(playingHandicapFrom(override, allowance));
+              finite(playing, "playing handicap");
+              expect(Number.isInteger(playing)).toBe(true);
+              // An allowance can only shrink a handicap, never grow one, and it
+              // keeps its sign — a plus player stays a plus player.
+              expect(Math.abs(playing)).toBeLessThanOrEqual(Math.abs(override));
+              expect(Math.sign(playing) === Math.sign(override) || playing === 0).toBe(true);
+            }
+          }
+        }
+      }
+    });
+  }
+
+  it("a card row is not a returned card", () => {
+    // The cut writes an empty card for every survivor, and score entry saves a
+    // partial one hole by hole. Freezing on the row would tell an organizer
+    // that cards are in a fortnight before anyone tees off.
+    expect(isReturnedCard(new Array(18).fill(null))).toBe(false);
+    expect(isReturnedCard([])).toBe(false);
+    expect(isReturnedCard(new Array(9).fill(null))).toBe(false);
+    const one: (number | null)[] = new Array(18).fill(null);
+    one[7] = 5;
+    expect(isReturnedCard(one)).toBe(true);
+  });
+
+  it("keys a row the way the database's own constraint does", () => {
+    // Two maps keyed differently is how one reader finds an override the other
+    // misses.
+    expect(roundHandicapKey("s1", "p1")).toBe(roundHandicapKey("s1", "p1"));
+    expect(roundHandicapKey("s1", "p1")).not.toBe(roundHandicapKey("p1", "s1"));
   });
 });

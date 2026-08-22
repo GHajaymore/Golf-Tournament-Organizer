@@ -144,6 +144,12 @@ export const CLONE_IGNORED_RELATIONS = [
   "bracketWinners",
   "commentary",
   "scorecards",
+  // What last year's rounds were played off, and the committee's decisions
+  // about them. Both are facts about rounds that have been played, on entries
+  // this copy does not carry — and a handicap is the one number that must be
+  // read fresh, since the whole point of the feature is that a round takes the
+  // handicap in force when it is played. A copy has played nothing yet.
+  "roundHandicaps",
   "matchScorecards",
   "teams",
   "teamScorecards",

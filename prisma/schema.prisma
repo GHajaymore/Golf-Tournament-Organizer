@@ -82,15 +82,9 @@ model Organization {
 
   // Branding, applied to the console header and printed output for every
   // tournament this organization owns.
+
   /**
-   * /**
-   * /**
-   * /**
-   * /**
-   * /**
-   * /**
-   * /**
-   * /** Absolute https:// URL to a logo image. A URL rather than an upload
+   * Absolute https:// URL to a logo image. A URL rather than an upload
    * because file uploads need blob storage; this works with the club's
    * existing website assets and can be swapped for an upload later without
    * changing anything that reads it.
@@ -836,6 +830,7 @@ model Event {
   bracketWinners  BracketWinner[]
   commentary      Commentary[]
   scorecards      Scorecard[]
+  roundHandicaps  RoundHandicap[]
   matchScorecards MatchScorecard[]
   teams           Team[]
   teamScorecards  TeamScorecard[]
@@ -1452,6 +1447,51 @@ model Scorecard {
    */
   approvedBy String    @default("")
   approvedAt DateTime?
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, playerId])
+  @@index([eventId])
+}
+
+/**
+ * What one player plays off in ONE round.
+ * Same shape as Scorecard above — a row per round per player — deliberately, so
+ * there is one pattern for "a fact about this player in this round" rather than
+ * two.
+ * The app derives net scores and stores none of them, which is right. But a
+ * handicap read live means an organizer editing a roster handicap in round three
+ * silently re-scores round one: a finished round, possibly a settled cut,
+ * possibly a pot already paid out. So the INPUT is frozen rather than the
+ * output. Net stays derived; what it derives from stops moving.
+ * A row is only written when there is something to say. No row means the player
+ * plays off the roster handicap, which is the requirement's default.
+ * Resolution lives in `src/lib/domain/round-handicap.ts` and nowhere else —
+ * frozen > override > member. Both numbers are COURSE handicaps, the same unit
+ * the roster and the board use, so the round's allowance still applies on top.
+ * Mixing units is the defect the 2026-08-12 audit found, where one screen priced
+ * a card off an index and another off a Course Handicap, five shots apart.
+ */
+model RoundHandicap {
+  id       String @id @default(cuid())
+  eventId  String
+  stageId  String
+  playerId String
+
+  /**
+   * The committee's decision for this round, set before play. Null = none.
+   */
+  override Int?
+
+  /**
+   * What this round was actually scored against. Written once, when the round's
+   * first card is returned, and never rewritten — including when the override
+   * changes afterwards. An organizer who changes their mind after cards are in
+   * has changed their mind; a played round is not a thing anyone gets to change
+   * their mind about.
+   */
+  frozen   Int?
+  frozenAt DateTime?
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 

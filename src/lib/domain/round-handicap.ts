@@ -109,6 +109,35 @@ export function handicapToFreeze(input: Omit<RoundHandicapInput, "frozen">): num
 }
 
 /**
+ * Whether a card counts as RETURNED — the event that freezes a round.
+ *
+ * A card row is not the same thing as a card. A cut writes an empty card for
+ * every survivor so the round has a field, and score entry saves a partial one
+ * hole by hole; neither is a score. Freezing on the row would freeze rounds
+ * that have not been played, which is how an organizer fixing a handicap a
+ * fortnight before the round is told they are too late.
+ *
+ * One stroke is enough. A player standing on the second tee has returned
+ * nothing under the Rules, but the app has already put that hole on the board
+ * and priced it off a handicap — and it is the pricing this protects.
+ */
+export function isReturnedCard(strokes: readonly (number | null)[]): boolean {
+  return strokes.some((s) => typeof s === "number" && s > 0);
+}
+
+/**
+ * The key for a (round, player) row, in the order the database's own unique
+ * constraint uses.
+ *
+ * Exported so every screen and service that indexes these rows spells the key
+ * the same way. Two maps keyed differently is how one reader ends up finding an
+ * override the other misses.
+ */
+export function roundHandicapKey(stageId: string, playerId: string): string {
+  return `${stageId}:${playerId}`;
+}
+
+/**
  * Whether a round still accepts handicap changes.
  *
  * One reader, so the screen that hides the control and the action that refuses
