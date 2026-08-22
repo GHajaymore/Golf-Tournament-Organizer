@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { saveCustomCourse } from "@/app/actions/tournament";
 import { parseCard } from "@/lib/domain/scorecard-parse";
 import { pasteSummary } from "@/lib/domain/card-paste";
+import { CourseSearch } from "@/components/CourseSearch";
 
 const BLANK_18 = new Array(18).fill("");
 
@@ -184,6 +185,14 @@ export function CourseSetupPrompt({
         )}
       </p>
 
+      {/* Above the club's own list, because that is the order the work
+          happens in: find the course, it joins the library, then pick it. The
+          three paths on this screen now run fastest-first — look it up, pick
+          one you already have, paste the card, type it — and the slow ones
+          stay first-class, because the directory is US-only and a club it has
+          never heard of must not be stuck. */}
+      {isStaff && <CourseSearch />}
+
       {saved.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: "block", marginBottom: 6 }}>Your club&rsquo;s courses</label>
@@ -202,7 +211,7 @@ export function CourseSetupPrompt({
             ))}
           </div>
           <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0" }}>
-            Pick one to fill the card below, or add a new course by pasting it.
+            Pick one to fill the card below — a course you just looked up appears here too.
           </p>
         </div>
       )}

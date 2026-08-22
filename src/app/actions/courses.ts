@@ -5,8 +5,16 @@ import { getSession } from "@/lib/auth";
 import { settingsOf } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
 import { playsInMatch } from "@/lib/services/match-access";
-import { COURSES } from "@/lib/courses";
+import { COURSES, parseHoleArray } from "@/lib/courses";
 import { parseCard } from "@/lib/domain/scorecard-parse";
+import { searchDirectory, fetchDirectoryCourse } from "@/lib/services/course-directory";
+import {
+  cardDifferences,
+  directorySourceUrl,
+  directoryIdFrom,
+  type CardDifference,
+  type DirectoryHit,
+} from "@/lib/domain/course-directory";
 import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
 import { cardProblems, matchCourse, teeProblems } from "@/lib/domain/venue";
 
@@ -505,6 +513,211 @@ export async function importClubCourseCard(input: {
 
   refresh();
   return { ok: true, courseId: created.id };
+}
+
+/* ── Importing a course from the public directory ─────────────────────────── */
+
+export interface DirectorySearchResult {
+  ok: boolean;
+  error?: string;
+  hits?: DirectoryHit[];
+}
+
+/**
+ * Search the public course directory.
+ *
+ * Read-only and organization-scoped only because everything on this screen is
+ * — there is no row here to own. Coverage is US-only, so no results is an
+ * ordinary answer rather than a failure, and the screen says which it was.
+ */
+export async function searchCourseDirectory(query: string): Promise<DirectorySearchResult> {
+  await requireOrganizerOrg();
+  const hits = await searchDirectory(query);
+  return { ok: true, hits };
+}
+
+export interface DirectoryImportResult extends CourseResult {
+  /** What came in, so the screen can say what still needs doing. */
+  cardImported?: boolean;
+  teeCount?: number;
+  /** Why the card was refused, when it was. Not an error: the course is still
+   *  worth having, and this is the club's next job rather than a failure. */
+  cardProblem?: string;
+}
+
+/**
+ * Add a course from the directory.
+ *
+ * The card is imported ONLY if it survives `cardFrom` — a directory assembled
+ * from community mapping is right most of the time and confidently wrong the
+ * rest, and the two look identical in JSON. Green Crest comes back with its
+ * pars sorted longest-to-shortest: a valid stroke index, a par total matching
+ * the course's own, and a hole order that is pure database artefact. Writing
+ * that card would mis-score every hole on the course, invisibly.
+ *
+ * When the card is refused the course is still created, with its name, city
+ * and rated tee sets — that is the tedious part, and the tees are the field
+ * free sources usually drop entirely. The card is left at the app's
+ * placeholder and the refusal is returned so the screen can say what is
+ * missing and point at the paste box.
+ *
+ * Either way the row lands as `imported` and unverified. That state already
+ * exists and already renders as untrusted; this adds no second flag.
+ */
+export async function importCourseFromDirectory(directoryId: string): Promise<DirectoryImportResult> {
+  const { organizationId } = await requireOrganizerOrg();
+
+  const course = await fetchDirectoryCourse(directoryId);
+  if (!course) {
+    return {
+      ok: false,
+      error: "The course directory didn't answer. Try again, or paste the card in below.",
+    };
+  }
+
+  // Adding the same course twice would leave the club choosing between two
+  // identical venues with no way to tell them apart.
+  const already = await prisma.course.findFirst({
+    where: { organizationId, name: course.name },
+    select: { id: true },
+  });
+  if (already) {
+    return { ok: false, error: `${course.name} is already in your course library.`, courseId: already.id };
+  }
+
+  const created = await prisma.course.create({
+    data: {
+      organizationId,
+      name: course.name,
+      city: [course.city, course.state].filter(Boolean).join(", "),
+      address: course.address,
+      pars: course.card.usable
+        ? JSON.stringify(course.card.pars)
+        : JSON.stringify(new Array(18).fill(4)),
+      yards: course.card.usable
+        ? JSON.stringify(course.card.yards)
+        : JSON.stringify(new Array(18).fill(0)),
+      // A placeholder that is at least a valid permutation, so net scoring
+      // stays coherent until the club enters the real card — the same fallback
+      // `saveClubCourse` uses when the stroke index is left blank.
+      strokeIndex: course.card.usable
+        ? JSON.stringify(course.card.strokeIndex)
+        : JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      source: "imported",
+      sourceUrl: directorySourceUrl(course.id),
+      tees: {
+        create: course.tees.map((t, i) => ({
+          name: t.name,
+          gender: t.gender,
+          courseRating: t.courseRating,
+          slopeRating: t.slopeRating,
+          par: t.par,
+          position: i,
+        })),
+      },
+    },
+  });
+
+  refresh();
+  return {
+    ok: true,
+    courseId: created.id,
+    cardImported: course.card.usable,
+    teeCount: course.tees.length,
+    cardProblem: course.card.usable ? undefined : course.card.reason,
+  };
+}
+
+export interface SourceCheckResult {
+  ok: boolean;
+  error?: string;
+  /** Whether a person at the club has confirmed the stored card. */
+  confirmed?: boolean;
+  /** Holes where the source and the club's card disagree. Empty means agree. */
+  differences?: CardDifference[];
+  /** Why there is nothing to compare against, when the source has no usable
+   *  card any more. */
+  sourceProblem?: string;
+}
+
+/**
+ * Ask the source whether anything about this course has changed.
+ *
+ * This NEVER writes. A confirmed card is a person at the club stating a fact
+ * about a real course; the source is a community database that this app has
+ * already watched be wrong. So the source can report a difference and it can
+ * explain it, but it cannot overrule the human — the same refuse-and-explain
+ * shape as `drawReadiness` and `resolveThirdPlace`.
+ *
+ * Silence would be wrong too. Clubs do re-index their holes and rebuild tees,
+ * and a club that has done so wants to hear about it. So the difference is
+ * offered, and `applySourceCard` is the separate, deliberate act of taking it.
+ */
+export async function checkCourseAgainstSource(courseId: string): Promise<SourceCheckResult> {
+  const { organizationId } = await requireOrganizerOrg();
+  const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
+  if (!course) return { ok: false, error: "Course not found." };
+
+  const directoryId = directoryIdFrom(course.sourceUrl);
+  if (!directoryId) {
+    return { ok: false, error: "This course wasn't imported from the directory, so there's nothing to check it against." };
+  }
+
+  const fresh = await fetchDirectoryCourse(directoryId);
+  if (!fresh) return { ok: false, error: "The course directory didn't answer. Try again in a moment." };
+
+  const confirmed = course.verifiedAt !== null;
+  if (!fresh.card.usable) {
+    return { ok: true, confirmed, differences: [], sourceProblem: fresh.card.reason };
+  }
+
+  return {
+    ok: true,
+    confirmed,
+    differences: cardDifferences(
+      {
+        pars: parseHoleArray(course.pars) ?? [],
+        strokeIndex: parseHoleArray(course.strokeIndex) ?? [],
+      },
+      { pars: fresh.card.pars, strokeIndex: fresh.card.strokeIndex },
+    ),
+  };
+}
+
+/**
+ * Take the source's card, because somebody at the club looked at the
+ * differences and decided the source is right.
+ *
+ * Separate from checking on purpose: this is the only path by which a
+ * directory can overwrite a club's card, and it exists only behind a human who
+ * has seen exactly what it will change. Taking it counts as confirming the
+ * card — they have just read it hole by hole — so it lands verified, by them.
+ */
+export async function applySourceCard(courseId: string): Promise<CourseResult> {
+  const { organizationId } = await requireOrganizerOrg();
+  const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
+  if (!course) return { ok: false, error: "Course not found." };
+
+  const directoryId = directoryIdFrom(course.sourceUrl);
+  if (!directoryId) return { ok: false, error: "This course wasn't imported from the directory." };
+
+  const fresh = await fetchDirectoryCourse(directoryId);
+  if (!fresh) return { ok: false, error: "The course directory didn't answer. Try again in a moment." };
+  if (!fresh.card.usable) return { ok: false, error: fresh.card.reason };
+
+  const session = await getSession();
+  await prisma.course.update({
+    where: { id: courseId },
+    data: {
+      pars: JSON.stringify(fresh.card.pars),
+      strokeIndex: JSON.stringify(fresh.card.strokeIndex),
+      yards: JSON.stringify(fresh.card.yards),
+      verifiedAt: new Date(),
+      verifiedBy: session?.name ?? "",
+    },
+  });
+  refresh();
+  return { ok: true, courseId };
 }
 
 /* ── Naming the venue for one match, in an open-course tournament ────────── */

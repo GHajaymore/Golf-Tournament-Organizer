@@ -9,8 +9,23 @@ import {
   setHomeCourse,
   verifyCourseCard,
   unverifyCourseCard,
+  checkCourseAgainstSource,
+  applySourceCard,
 } from "@/app/actions/courses";
+import { CourseSearch } from "./CourseSearch";
+import { isDirectorySource, type CardDifference } from "@/lib/domain/course-directory";
 import type { ClubCourse } from "@/lib/services/courses";
+
+/** The result of asking the directory whether a course has changed. */
+interface SourceCheck {
+  courseId: string;
+  name: string;
+  /** Whether somebody at the club has confirmed the stored card. */
+  confirmed: boolean;
+  differences: CardDifference[];
+  /** Why there was nothing to compare, when the source's card is unusable. */
+  sourceProblem: string;
+}
 
 const BLANK = new Array(18).fill("");
 
@@ -42,6 +57,7 @@ export function CourseLibrary({
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [pasting, setPasting] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
   const [pars, setPars] = useState<string[]>(BLANK);
@@ -49,6 +65,8 @@ export function CourseLibrary({
   const [si, setSi] = useState<string[]>(BLANK);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  /** The open "check the source" report, if one has been asked for. */
+  const [check, setCheck] = useState<SourceCheck | null>(null);
   const [pending, startTransition] = useTransition();
 
   const nums = (a: string[]) => a.map((v) => parseInt(v, 10)).map((n) => (Number.isFinite(n) ? n : 0));
@@ -245,6 +263,38 @@ export function CourseLibrary({
                         >
                           {c.verified ? "Unverify" : "Verify card"}
                         </button>
+                        {/* Only where there is something to check against.
+                            Offered from `sourceUrl` rather than a stored flag,
+                            so the button appears exactly when the server will
+                            honour it. */}
+                        {isDirectorySource(c.sourceUrl) && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ fontSize: 12, padding: "3px 9px", marginRight: 6 }}
+                            disabled={pending}
+                            onClick={() =>
+                              startTransition(async () => {
+                                setCheck(null);
+                                setError("");
+                                const res = await checkCourseAgainstSource(c.id);
+                                if (!res.ok) {
+                                  setError(res.error ?? "Couldn't reach the course directory.");
+                                  return;
+                                }
+                                setCheck({
+                                  courseId: c.id,
+                                  name: c.name,
+                                  confirmed: !!res.confirmed,
+                                  differences: res.differences ?? [],
+                                  sourceProblem: res.sourceProblem ?? "",
+                                });
+                              })
+                            }
+                          >
+                            Check source
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="btn btn-secondary"
@@ -299,6 +349,113 @@ export function CourseLibrary({
 
           One sentence rather than one per row: it is the same sentence for
           every unverified card, and repeating it down a table is noise. */}
+      {/* What the directory says now, and nothing more.
+          Checking never writes. A confirmed card is a person at this club
+          stating a fact about a real course; the source is a community
+          database this app has already watched be wrong — pars sorted
+          longest-to-shortest on a real course, with a valid stroke index and
+          the right total, so every arithmetic check passed. So the source may
+          report a difference and explain it, and it may not overrule anyone.
+          Taking it is the separate, deliberate button below. */}
+      {check && (
+        <div
+          className="card elev-sm"
+          style={{ borderLeft: "3px solid var(--color-accent)", gap: 8, marginBottom: 4 }}
+        >
+          <span className="card-title" style={{ fontSize: 14 }}>
+            {check.name} — what the directory says now
+          </span>
+
+          {check.sourceProblem ? (
+            <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+              Nothing to compare: {check.sourceProblem} Your card is unaffected.
+            </p>
+          ) : check.differences.length === 0 ? (
+            <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+              No change — the directory&rsquo;s card matches yours hole for hole.
+            </p>
+          ) : (
+            <>
+              <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+                {check.differences.length}{" "}
+                {check.differences.length === 1 ? "hole differs" : "holes differ"}.{" "}
+                {check.confirmed
+                  ? "Somebody here confirmed this card, so nothing changes unless you say so — clubs do re-index their holes, and community data is also just wrong sometimes."
+                  : "Nobody has confirmed this card yet, so the directory is as good a guess as what is stored — but check it against your own card before taking it."}
+              </p>
+              <div style={{ overflowX: "auto" }}>
+                <table className="table" style={{ fontSize: 12, minWidth: 320 }}>
+                  <thead>
+                    <tr>
+                      <th>Hole</th>
+                      <th>What</th>
+                      <th>Yours</th>
+                      <th>Directory</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {check.differences.map((d) => (
+                      <tr key={`${d.hole}-${d.field}`}>
+                        <td>{d.hole}</td>
+                        <td>{d.field === "par" ? "Par" : "Stroke index"}</td>
+                        <td style={{ fontVariantNumeric: "tabular-nums" }}>{d.ours}</td>
+                        <td style={{ fontVariantNumeric: "tabular-nums" }}>{d.theirs}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {check.differences.length > 0 && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ fontSize: 12 }}
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    const res = await applySourceCard(check.courseId);
+                    if (!res.ok) {
+                      setError(res.error ?? "Couldn't take the directory's card.");
+                      return;
+                    }
+                    // Reading the differences hole by hole and accepting them
+                    // IS checking the card, so it lands confirmed rather than
+                    // going back to unverified.
+                    setNotice(`${check.name} now matches the directory, and is marked as checked by you.`);
+                    setCheck(null);
+                  })
+                }
+              >
+                <i className="ph ph-download-simple" /> Take the directory&rsquo;s card
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ fontSize: 12 }}
+              onClick={() => setCheck(null)}
+            >
+              {check.differences.length > 0 ? "Leave mine as it is" : "Close"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* What "Check source" does, said once for the table rather than hidden
+          in a tooltip on every row. The reassurance is the whole point of the
+          button — an organizer will not press something that might quietly
+          rewrite a card they confirmed. */}
+      {canEdit && courses.some((c) => isDirectorySource(c.sourceUrl)) && (
+        <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
+          <i className="ph ph-arrows-clockwise" /> <b>Check source</b> asks the directory whether an
+          imported card has changed. It never writes: you see what differs and decide.
+        </p>
+      )}
+
       {courses.some((c) => !c.verified) && (
         <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
           <i className="ph ph-seal-question" /> An <b>unverified</b> card was imported and nobody has
@@ -368,6 +525,15 @@ export function CourseLibrary({
         </p>
       )}
 
+      {canEdit && searching && (
+        <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>
+          <CourseSearch />
+          <button type="button" className="btn btn-ghost" style={{ alignSelf: "flex-start" }} onClick={() => setSearching(false)}>
+            Done
+          </button>
+        </div>
+      )}
+
       {canEdit && pasting && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <CardImport defaultCity={clubCity} onDone={() => setPasting(false)} />
@@ -377,9 +543,16 @@ export function CourseLibrary({
         </div>
       )}
 
-      {canEdit && !adding && !editing && !pasting && (
+      {canEdit && !adding && !editing && !pasting && !searching && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" className="btn" onClick={() => { resetForm(); setAdding(true); }}>
+          {/* Fastest first. Looking a course up fills the card AND the rated
+              tee sets, which is the part a club otherwise types twice — but it
+              covers US courses only, so the two paths that always work stay
+              right beside it rather than behind it. */}
+          <button type="button" className="btn" onClick={() => { setCheck(null); setSearching(true); }}>
+            <i className="ph ph-magnifying-glass" /> Look up a course
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => { resetForm(); setAdding(true); }}>
             <i className="ph ph-plus" /> Add a course
           </button>
           {/* The bundled "presets" that used to sit here were four invented
