@@ -3344,6 +3344,54 @@ describe("play settings name one thing per heading", () => {
   });
 });
 
+describe("the organization roles read as Commissioner", () => {
+  const report = {
+    events: [{ id: "e1", name: "Spring Medal", dates: "May 14" }],
+    people: [
+      {
+        email: "pro@club.test", name: "The Pro", orgRole: "owner", memberId: "m1",
+        hasLogin: true, access: { e1: { role: "admin", source: "organization" } },
+      },
+    ],
+  };
+  const panel = async () => {
+    const { OrganizationAccess } = await import("@/components/OrganizationAccess");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return render(<OrganizationAccess report={report as any} canEdit />);
+  };
+
+  it("shows Commissioner and never Owner", async () => {
+    // Ajay's call 2026-08-21. "Owner" is false for the most professional
+    // audience: at a club the person in this seat is usually the professional
+    // or the competition secretary, an employee. The club holds the account.
+    const html = await panel();
+    expect(html).toContain("Commissioner");
+    expect(html).not.toContain("Owner");
+  });
+
+  it("still says the role holds the billing", async () => {
+    // The one thing that distinguishes this role from Admin — their powers are
+    // identical, `canAdministerOrg` is `owner || admin`. "Owner" implied money;
+    // "Commissioner" does not, so the sentence has to carry it. If this
+    // assertion is ever deleted, the distinction goes with it.
+    expect(await panel()).toMatch(/billing/i);
+  });
+
+  it("shows the person stored as `owner` under the new label", async () => {
+    // The mapping, which is the thing that could break: the label changed and
+    // the stored value did not, because `owner` gates sixteen authorization
+    // sites. This fixture's person has orgRole "owner", so a checked control
+    // proves the label is reading that value rather than a renamed one.
+    //
+    // Not asserted via `value="owner"`: the radios carry the value in an
+    // onChange closure, so it never reaches the markup. Asserting a string
+    // that cannot appear would be a test that only ever proved itself wrong.
+    const html = await panel();
+    expect(html).toContain("Commissioner");
+    expect(html).toContain("checked");
+  });
+});
+
 describe("the lifecycle button names the phase, not the link", () => {
   const summary = {
     name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play",

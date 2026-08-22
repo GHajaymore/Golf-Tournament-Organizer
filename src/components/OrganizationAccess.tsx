@@ -7,13 +7,46 @@ import {
 } from "@/app/actions/organization";
 import type { AccessReport } from "@/lib/services/access";
 
+/**
+ * "Commissioner", not "Owner". Ajay's call, 2026-08-21 — a considered choice,
+ * so do not quietly "correct" it back.
+ *
+ * The stored value stays `owner`, deliberately. It is read by sixteen places in
+ * the access layer — `canAdministerOrg`, the seat count in `limits.ts`,
+ * `org-access.ts`, the org-owner backfill — and every one of them is an
+ * authorization decision. Renaming a string that gates authorization, to change
+ * a word no user can see, is risk bought for nothing. What people read is this
+ * map, and this map is the whole of it.
+ *
+ * Why not "Owner" or "Account holder": at a club the person in this seat is
+ * usually the PROFESSIONAL or the competition secretary — an employee. The club
+ * holds the account; they only run it. Any word asserting ownership is
+ * therefore false for the most professional audience, while being exactly right
+ * for a society. "Commissioner" describes CONTROL rather than property, which
+ * is true for the pro, the society captain and one person running an outing
+ * alike.
+ *
+ * The known cost, accepted: a golf club has a Captain, a Secretary and a
+ * President, and no Commissioner — so it reads as borrowed at a club, and it
+ * does not by itself say "billing". The sentence below carries the billing
+ * meaning explicitly for that reason, and it must keep doing so.
+ *
+ * Rejected: "Captain", which is the right word in the real world and cannot be
+ * had — `captainId` already means a FLIGHT's captain, and one word with two
+ * meanings is the defect this codebase keeps unwinding. "Head" reads as Head
+ * Professional. "Organizer" is taken by the per-event role below.
+ */
 const ORG_ROLE_OPTS = [
-  { v: "owner", l: "Owner" },
+  { v: "owner", l: "Commissioner" },
   { v: "admin", l: "Admin" },
   { v: "member", l: "Member" },
 ];
 
-const ORG_ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Member" };
+const ORG_ROLE_LABEL: Record<string, string> = {
+  owner: "Commissioner",
+  admin: "Admin",
+  member: "Member",
+};
 const EVENT_ROLE_LABEL: Record<string, string> = { admin: "Organizer", assistant: "Assistant", player: "Player" };
 
 export function OrganizationAccess({ report, canEdit }: { report: AccessReport; canEdit: boolean }) {
@@ -51,9 +84,15 @@ export function OrganizationAccess({ report, canEdit }: { report: AccessReport; 
         <div className="card elev-sm">
           <span className="card-title" style={{ fontSize: 15 }}>Organization staff ({staff.length})</span>
           <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 4px" }}>
-            <b>Owner</b> — billing and ownership. <b>Admin</b> — organizer on every tournament this
-            organization runs, without being added to each one. <b>Member</b> — staff pool; access only where
-            explicitly given on an event.
+            {/* The Commissioner line must keep saying BILLING. The word
+                describes control, not money — unlike "Owner", which said it by
+                implication — so if this sentence is ever shortened, the one
+                thing that actually distinguishes this role from Admin
+                disappears with it. Their powers are otherwise identical:
+                `canAdministerOrg` is `owner || admin`. */}
+            <b>Commissioner</b> — runs this account, holds the billing, and cannot be removed.{" "}
+            <b>Admin</b> — organizer on every tournament this organization runs, without being added to
+            each one. <b>Member</b> — staff pool; access only where explicitly given on an event.
           </p>
           <div className="table-scroll">
             <table className="table" style={{ fontSize: 13 }}>
