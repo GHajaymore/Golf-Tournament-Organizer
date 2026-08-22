@@ -6,6 +6,8 @@ import { syncPlayerAccount } from "@/lib/services/player-access";
 import { upsertMember } from "@/lib/services/roster";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
 import { memberHandicapRecord, type MemberRecord } from "@/lib/services/handicap-record";
+import { championFor } from "@/lib/services/honours";
+import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
 import { parseHandicapInput, looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
@@ -574,4 +576,122 @@ export async function acceptClubHandicap(
   });
   revalidatePath("/", "layout");
   return { ok: true, handicap: record.suggestion.handicap };
+}
+
+/* ── The club's board ─────────────────────────────────────────────────────── */
+
+/**
+ * Put a name on the board.
+ *
+ * **Takes no champion.** The name is recomputed here from the tournament's own
+ * standings, so a caller cannot post whoever they like onto a permanent record
+ * — a `"use server"` export is a public HTTP endpoint. `playerName` is accepted
+ * ONLY to break a tie the app refuses to break itself, and even then it must be
+ * one of the tied players.
+ *
+ * Everything is written denormalised. Once confirmed, this entry never changes
+ * again: not when a member leaves the roster, not when the tournament is
+ * renamed, and not when a scoring correction would otherwise re-decide it.
+ */
+export async function confirmChampion(
+  eventId: string,
+  /** Only for a tie. Must be one of the players who finished level. */
+  playerId?: string,
+  note = "",
+): Promise<RosterResult & { championName?: string }> {
+  const { organizationId } = await requireRosterOrg();
+
+  const found = await championFor(organizationId, eventId);
+  if (!found) return { ok: false, error: "Tournament not found." };
+
+  const { suggestion } = found;
+
+  // A clean winner: the app's own answer, never the caller's.
+  if (suggestion.ok) {
+    const entry = await writeHonours({
+      organizationId,
+      eventId,
+      event: found.event,
+      playerId: suggestion.playerId,
+      championName: suggestion.name,
+      note,
+    });
+    return { ok: true, championName: entry.championName };
+  }
+
+  // A tie is the ONE case a committee's choice is needed, and the choice is
+  // still constrained to the players who actually finished level. Anything
+  // else — an unfinished tournament, an empty board — is refused outright with
+  // the reason, rather than accepting a name for a result that does not exist.
+  if (suggestion.reason !== "tied") {
+    return { ok: false, error: CHAMPION_REFUSAL[suggestion.reason] };
+  }
+  const chosen = suggestion.tied.find((p) => p.playerId === playerId);
+  if (!chosen) {
+    return {
+      ok: false,
+      error: `Pick which of the tied players won: ${suggestion.tied.map((p) => p.name).join(", ")}.`,
+    };
+  }
+  const entry = await writeHonours({
+    organizationId,
+    eventId,
+    event: found.event,
+    playerId: chosen.playerId,
+    championName: chosen.name,
+    note,
+  });
+  return { ok: true, championName: entry.championName };
+}
+
+/** The one place a board entry is written. */
+async function writeHonours(input: {
+  organizationId: string;
+  eventId: string;
+  event: { name: string; dates: string; year: number };
+  playerId: string;
+  championName: string;
+  note: string;
+}) {
+  const session = await getSession();
+  return prisma.honoursEntry.upsert({
+    where: { eventId_playerId: { eventId: input.eventId, playerId: input.playerId } },
+    // Re-confirming the same player is not an error — it re-stamps who said so,
+    // which is the field a board is asked about years later.
+    update: {
+      note: input.note.trim().slice(0, 300),
+      confirmedBy: session?.name ?? "",
+      confirmedAt: new Date(),
+    },
+    create: {
+      organizationId: input.organizationId,
+      eventId: input.eventId,
+      eventName: input.event.name,
+      dates: input.event.dates,
+      year: input.event.year,
+      playerId: input.playerId,
+      championName: input.championName,
+      note: input.note.trim().slice(0, 300),
+      confirmedBy: session?.name ?? "",
+    },
+  });
+}
+
+/**
+ * Take a name back off the board.
+ *
+ * A club that confirmed the wrong player has to be able to fix it, and the
+ * alternative — editing the row — would let a name be changed without anyone
+ * re-confirming it. Removing and confirming again leaves `confirmedBy` honest.
+ */
+export async function removeFromHonours(entryId: string): Promise<RosterResult> {
+  const { organizationId } = await requireRosterOrg();
+  const entry = await prisma.honoursEntry.findFirst({
+    where: { id: entryId, organizationId },
+    select: { id: true },
+  });
+  if (!entry) return { ok: false, error: "That board entry isn't this club's." };
+  await prisma.honoursEntry.delete({ where: { id: entryId } });
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
