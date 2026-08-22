@@ -39,6 +39,15 @@ npx tsc --noEmit && npx vitest run && npx next lint && NEXT_DIST_DIR=.next-ci np
 because neither tsc nor the unit tests render a server component — a screen can throw on every
 request with a clean build and 1300 green tests.
 
+The command above runs the DEFAULT config, which excludes `*.audit.test.ts` — those need a real
+database and live in `vitest.audit.config.ts`. Anything whose behaviour is only provable against
+real rows (handicap resolution, authorization, money) is asserted there, so a change to one of
+those areas is not verified until you have also run:
+
+```bash
+npx vitest run --config vitest.audit.config.ts
+```
+
 Use `NEXT_DIST_DIR=.next-ci` for builds while a dev server is running; sharing `.next` between
 them corrupts it.
 
