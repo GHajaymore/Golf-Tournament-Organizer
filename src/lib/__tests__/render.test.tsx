@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { TeamEntryMode } from "@/lib/domain/team-entry";
 import type { StandingRow } from "@/components/LeaderboardTable";
 
 /**
@@ -2107,6 +2108,11 @@ describe("round handicap controls", () => {
     shares: null as number[] | null, recommendedShares: null as number[] | null,
     sharesOverridden: false,
     countBest: 1 as number | null, countBestOverridden: false, maxSide: 2,
+    // A shared ball by default, which is the shape with no choice in it —
+    // the tests that care about the choice pass their own.
+    entryChoices: ["side-only"] as TeamEntryMode[],
+    entryMode: "side-only" as TeamEntryMode,
+    sideOnlyCost: null as string | null,
     ...over,
   });
 
@@ -2227,6 +2233,67 @@ describe("what a player plays off in one round", () => {
   });
 });
 
+describe("whose card a team round is written on", () => {
+  const scoring = async (over: Record<string, unknown>) => {
+    const { RoundTeamScoring } = await import("@/components/RoundTeamScoring");
+    return render(
+      <RoundTeamScoring stageId="s1" info={{
+        name: "Foursomes", allowance: 50, recommendedAllowance: 50,
+        allowanceOverridden: false, allowanceIsConvention: false,
+        shares: null, recommendedShares: null, sharesOverridden: false,
+        countBest: null, countBestOverridden: false, maxSide: 2,
+        entryChoices: ["side-only"], entryMode: "side-only", sideOnlyCost: null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...over } as any} />,
+    );
+  };
+
+  it("states the fact for a shared ball rather than offering a choice", async () => {
+    // Rule 22: one ball, alternating strokes. A dropdown with one option is a
+    // question with one answer, and offering the other option would invite
+    // somebody to invent a round nobody played.
+    const html = await scoring({});
+    expect(html).toContain("One ball, one card");
+    expect(html).not.toContain("Scores are entered as");
+  });
+
+  it("offers the choice where both are physically real", async () => {
+    // Rule 23: each player plays their own ball, so both scores exist and are
+    // on the paper card.
+    const html = await scoring({
+      name: "Four-Ball",
+      entryChoices: ["per-player", "side-only"],
+      entryMode: "per-player",
+      sideOnlyCost: "Recording only the side's score means this round cannot count towards anybody's handicap.",
+    });
+    expect(html).toContain("Scores are entered as");
+    expect(html).toContain("Each player&#x27;s own card");
+  });
+
+  it("says what the reduced option costs, beside the control", async () => {
+    // Not a footnote and not a title — see no-tooltip-refusals.test.ts. The
+    // cost is that the round stops counting for anybody's handicap, and it is
+    // given up silently because the entry screen afterwards looks the same.
+    const html = await scoring({
+      name: "Four-Ball",
+      entryChoices: ["per-player", "side-only"],
+      entryMode: "side-only",
+      sideOnlyCost: "Recording only the side's score means this round cannot count towards anybody's handicap.",
+    });
+    expect(html).toContain("cannot count towards anybody");
+  });
+
+  it("says nothing about the cost until the reduced option is actually chosen", async () => {
+    const html = await scoring({
+      name: "Four-Ball",
+      entryChoices: ["per-player", "side-only"],
+      entryMode: "per-player",
+      sideOnlyCost: "Recording only the side's score means this round cannot count towards anybody's handicap.",
+    });
+    expect(html).not.toContain("cannot count towards anybody");
+  });
+});
+
 describe("club convention vs published allowance", () => {
   it("says when a recommendation is convention rather than a standard", async () => {
     // A scramble has no published WHS allowance — only what clubs do. Saying
@@ -2238,6 +2305,8 @@ describe("club convention vs published allowance", () => {
         allowanceOverridden: false, allowanceIsConvention: true,
         shares: null, recommendedShares: null, sharesOverridden: false,
         countBest: null, countBestOverridden: false, maxSide: 4,
+        // A scramble is one ball, so there is no choice of card to offer.
+        entryChoices: ["side-only"], entryMode: "side-only", sideOnlyCost: null,
       }} />,
     );
     expect(html).toContain("not a published standard");

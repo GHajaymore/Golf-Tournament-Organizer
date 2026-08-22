@@ -144,3 +144,19 @@ describe("swept across the whole catalogue", () => {
     }
   });
 });
+
+describe("sharing Stage.scoreInput with the match-play axis", () => {
+  it("never honours a value belonging to the other axis", async () => {
+    // Both overrides live in one column, because a round is either a match
+    // round or a team round and never both. What makes that safe is that each
+    // resolver is TOTAL: handed a value it does not offer, it falls back to
+    // its own natural shape rather than returning something the screen cannot
+    // render. Asserted rather than assumed — this is the reason there is no
+    // migration for this feature.
+    const { resolveScoreInput } = await import("@/lib/formats");
+    expect(resolveScoreInput("Match Play", "side-only")).toBe("hole-results");
+    expect(resolveScoreInput("Stroke Play", "per-player")).toBe("gross-cards");
+    expect(resolveTeamEntry("Four-Ball", "match-result")).toBe("per-player");
+    expect(resolveTeamEntry("Foursomes", "gross-cards")).toBe("side-only");
+  });
+});

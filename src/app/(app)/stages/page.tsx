@@ -14,6 +14,7 @@ import { unratedWarning } from "@/lib/services/handicaps";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { DescribeTournament } from "@/components/DescribeTournament";
 import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
+import { teamEntryChoices, resolveTeamEntry, sideOnlyCost } from "@/lib/domain/team-entry";
 import { effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import type { RoundScoringInfo } from "@/components/RoundTeamScoring";
 
@@ -31,11 +32,18 @@ function teamScoringFor(s: {
   handicapAllowance: number;
   allowanceWeights: number[];
   countBest: number;
+  scoreInput: string;
 }): RoundScoringInfo | null {
   if (!needsTeams(s.format)) return null;
   const f = findFormat(s.format);
   const declared = f.weightsBySideSize?.[f.sideSize] ?? null;
   return {
+    // Whose card this round is written on. Derived from the format's `ball`
+    // rather than stored, so a shared-ball round can never be offered
+    // per-player entry — there was no individual ball to record.
+    entryChoices: teamEntryChoices(s.format),
+    entryMode: resolveTeamEntry(s.format, s.scoreInput) ?? "side-only",
+    sideOnlyCost: sideOnlyCost(s.format),
     name: f.name,
     allowance: effectiveAllowance(s.format, s.handicapAllowance),
     recommendedAllowance: f.allowance,

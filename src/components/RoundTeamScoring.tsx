@@ -1,6 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
+import { TEAM_ENTRY_MODES, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { setStageAllowance, setStageAllowanceWeights, setStageCountBest } from "@/app/actions/teams";
+import { setStageScoreInput } from "@/app/actions/tournament";
 import FieldInfo from "@/components/FieldInfo";
 
 /**
@@ -33,6 +35,17 @@ export interface RoundScoringInfo {
   countBestOverridden: boolean;
   /** Most players a side can hold — the ceiling on "best N of". */
   maxSide: number;
+  /**
+   * Whose card this round is written on, and whether there is a choice at all.
+   *
+   * One entry means there is none: a shared ball has one line on the paper
+   * card and nothing else exists. The screen states that rather than offering
+   * it, because a dropdown with one option is a question with one answer.
+   */
+  entryChoices: TeamEntryMode[];
+  entryMode: TeamEntryMode;
+  /** What taking the side's card alone gives up, where it is a choice. */
+  sideOnlyCost: string | null;
 }
 
 export function RoundTeamScoring({ stageId, info }: { stageId: string; info: RoundScoringInfo }) {
@@ -55,6 +68,54 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* Whose card this round is written on.
+          One choice means there is no choice: a shared ball has one line on
+          the paper card, so the screen states the fact instead of offering a
+          dropdown with one option. That is the difference from the incumbent,
+          whose help centre carries an article on how to switch an alternate
+          shot event to team entry — their organizers are offered a wrong
+          option and go looking for support. */}
+      {info.entryChoices.length === 1 ? (
+        <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+          One ball, one card — the side&rsquo;s strokes are entered on a single line, the way{" "}
+          {info.name} is written down on paper.
+        </p>
+      ) : (
+        <>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, flexWrap: "wrap" }}>
+            <span className="text-muted">Scores are entered as</span>
+            <select
+              className="input"
+              style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
+              disabled={pending}
+              value={info.entryMode}
+              onChange={(e) =>
+                // `setStageScoreInput` returns nothing — it either writes the
+                // value or discards one the format does not offer, and the
+                // refresh brings back whichever it settled on.
+                run(async () => {
+                  await setStageScoreInput(stageId, e.target.value);
+                  return { ok: true };
+                })
+              }
+            >
+              {info.entryChoices.map((key: TeamEntryMode) => (
+                <option key={key} value={key}>
+                  {TEAM_ENTRY_MODES.find((m) => m.key === key)?.label ?? key}
+                </option>
+              ))}
+            </select>
+          </label>
+          {/* Beside the control, because that is where the choice is made —
+              not in a footnote and not in a title. */}
+          {info.entryMode === "side-only" && info.sideOnlyCost && (
+            <p style={{ fontSize: 11.5, margin: 0, lineHeight: 1.6, color: "var(--color-accent)" }}>
+              <i className="ph ph-warning-circle" /> {info.sideOnlyCost}
+            </p>
+          )}
+        </>
+      )}
+
       {/* Reads as a plain statement of what the format recommends until
           someone chooses to change it — almost every round wants the
           recommendation, and a row of inputs would imply otherwise. */}

@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -938,9 +939,23 @@ export async function setStageScoreInput(stageId: string, input: string) {
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { format: true } });
   if (!stage) return;
   const wanted = (input ?? "").trim();
-  // "" always means "no opinion" and is always allowed; anything else must be
-  // one of the shapes the format actually offers.
-  const value = wanted === "" || inputChoices(stage.format).includes(wanted as MatchEntryMode) ? wanted : "";
+  /**
+   * "" always means "no opinion" and is always allowed; anything else must be
+   * one of the shapes the format actually offers.
+   *
+   * Two axes share this column, because a round is either a match round or a
+   * team round and never both: how a MATCH is written down (gross cards, hole
+   * results, a bare result) and whose CARD a team round is on (each player's,
+   * or the side's). Only one of them offers anything for a given format, so
+   * asking both is the same guard rather than a looser one — and a foursomes
+   * round cannot be handed "match-result", nor a singles match "side-only".
+   */
+  const value =
+    wanted === "" ||
+    inputChoices(stage.format).includes(wanted as MatchEntryMode) ||
+    teamEntryChoices(stage.format).includes(wanted as TeamEntryMode)
+      ? wanted
+      : "";
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { scoreInput: value } });
   refresh();
 }
