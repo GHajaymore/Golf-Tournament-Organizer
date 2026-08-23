@@ -13,6 +13,10 @@ export const CLONED_EVENT_FIELDS = [
   "organizationId",
   "format",
   "course",
+  // Carried with the name beside it. A tournament cloned from last year is
+  // played at the same course until somebody says otherwise, and the club
+  // still owns that course — the id stays valid.
+  "courseId",
   "city",
   "address",
   "customPars",
@@ -85,6 +89,8 @@ export const CLONED_EVENT_FIELDS = [
  */
 export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   id: "the copy is a different tournament",
+  courseRef:
+    "the relation object for courseId, which IS carried — a relation is navigated, never written, so copying it is not a thing that can be done",
   createdAt: "set on insert",
   updatedAt: "set on insert",
   name: "supplied by the organizer",

@@ -11,6 +11,8 @@ interface EventForm {
   dates: string;
   format: string;
   course: string;
+  /** The club course this points at, or "" — see the note on Event.courseId. */
+  courseId: string;
   courseMode: string;
   city: string;
   address: string;
@@ -23,6 +25,7 @@ interface EventForm {
 }
 
 interface CourseOption {
+  id: string;
   name: string;
   city: string;
   address: string;
@@ -78,15 +81,25 @@ export function EventSetupClient({
   // fixed course), or "" (none yet). The open mode is checked first because
   // it is the one case with no course name to recognise — reading the name
   // alone would show it as "no course selected yet" and quietly lose it.
-  const presetNames = new Set(courses.map((c) => c.name));
+  /**
+   * Which row the picker starts on — an id now, not a name.
+   *
+   * Open mode is read first because it is the one case with no course to
+   * recognise; reading the name alone showed it as "nothing selected yet"
+   * and quietly lost it. Then the stored id. A tournament saved before this
+   * column existed has no id, so its NAME is matched once to find the row —
+   * that is the migration path for anything the backfill could not resolve,
+   * and it costs nothing to keep.
+   */
+  const byName = new Map(courses.map((c) => [c.name, c.id]));
   const initialSelect =
     initial.courseMode === "open"
       ? "__open"
-      : initial.course === ""
-        ? ""
-        : presetNames.has(initial.course)
-          ? initial.course
-          : "__other";
+      : initial.courseId
+        ? initial.courseId
+        : initial.course === ""
+          ? ""
+          : (byName.get(initial.course) ?? "__other");
   const [courseSelect, setCourseSelect] = useState(initialSelect);
   const [zip, setZip] = useState("");
   const [zipMsg, setZipMsg] = useState("Enter a US zip to fill in the city/state.");
@@ -128,20 +141,38 @@ export function EventSetupClient({
     if (v) set("regDeadline", v);
   };
 
+  /**
+   * One choice writes both fields.
+   *
+   * The id is what was picked; the name is that course's name kept beside
+   * it, because `resolveCourse` and a dozen screens still resolve a card by
+   * name. Set together and never separately, so they cannot come to
+   * disagree — the failure that makes two sources of truth worse than one.
+   */
   const onSelectCourse = (val: string) => {
     setCourseSelect(val);
     if (val === "") {
-      setF((prev) => ({ ...prev, course: "", city: "", address: "", courseMode: "fixed" }));
+      setF((prev) => ({ ...prev, course: "", city: "", address: "", courseId: "", courseMode: "fixed" }));
     } else if (val === "__open") {
-      // Deliberately clears the venue: an open tournament has no course until
-      // a card is entered, and leaving a stale name here would score every
+      // Deliberately clears the venue: an open tournament has no course
+      // until a card is entered, and a stale name here would score every
       // match against a venue nobody played.
-      setF((prev) => ({ ...prev, course: "", city: "", address: "", courseMode: "open" }));
+      setF((prev) => ({ ...prev, course: "", city: "", address: "", courseId: "", courseMode: "open" }));
     } else if (val === "__other") {
-      setF((prev) => ({ ...prev, course: "", courseMode: "fixed" }));
+      // Typed in by hand, so there is no club course to point at.
+      setF((prev) => ({ ...prev, course: "", courseId: "", courseMode: "fixed" }));
     } else {
-      const c = courses.find((x) => x.name === val);
-      if (c) setF((prev) => ({ ...prev, course: c.name, city: c.city, address: c.address, courseMode: "fixed" }));
+      const c = courses.find((x) => x.id === val);
+      if (c) {
+        setF((prev) => ({
+          ...prev,
+          course: c.name,
+          city: c.city,
+          address: c.address,
+          courseId: c.id,
+          courseMode: "fixed",
+        }));
+      }
     }
   };
 
@@ -373,7 +404,7 @@ export function EventSetupClient({
              * used everywhere — it narrows, it shows the town — while what it
              * saves is untouched.
              */
-            options={courses.map((c) => ({ id: c.name, name: c.name, city: c.city }))}
+            options={courses.map((c) => ({ id: c.id, name: c.name, city: c.city }))}
             value={courseSelect}
             onChange={onSelectCourse}
             noneLabel="— Select a course —"
@@ -382,7 +413,7 @@ export function EventSetupClient({
             // go and add the course somewhere else first, then come back.
             onEnterNew={(name) => {
               setCourseSelect("__other");
-              setF((prev) => ({ ...prev, course: name, courseMode: "fixed" }));
+              setF((prev) => ({ ...prev, course: name, courseId: "", courseMode: "fixed" }));
             }}
             extras={[
               { id: "__other", label: "Other (enter manually)" },
@@ -561,7 +592,7 @@ export function EventSetupClient({
             onClick={() => {
               startTransition(() =>
                 saveEvent({
-                  name: f.name, dates: f.dates, format: f.format, course: f.course, city: f.city,
+                  name: f.name, dates: f.dates, format: f.format, course: f.course, courseId: f.courseId, city: f.city,
                   address: f.address, regDeadline: f.regDeadline, capacity: f.capacity, playerCountMode: f.playerCountMode,
                   courseMode: f.courseMode, sideStyle: f.sideStyle,
                 }),

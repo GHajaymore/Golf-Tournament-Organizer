@@ -279,6 +279,7 @@ model Course {
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   events       EventCourse[]
   stages       Stage[]
+  defaultFor   Event[]
   matches      Match[]
   tees         Tee[]
   homeFor      Organization[] @relation("OrgHomeCourse")
@@ -597,6 +598,25 @@ model Event {
   dates             String
   format            String @default("match") // match | stroke
   course            String
+  /**
+   * The club course this tournament is played at, when it is one of theirs.
+   *
+   * `course` above is a NAME, and was the only venue this model had — it
+   * predates the Course library, and `resolveCourse` still matches on it.
+   * Every other venue in the app (a round's, a match's) is an id, so the
+   * tournament's own was the last thing picked by typing a string.
+   *
+   * Both are written together and from the same choice, so they cannot
+   * disagree: the id is what was picked, the name is that course's name kept
+   * beside it for the readers that still resolve by name. Null for a
+   * tournament at a course the club has not catalogued, which stays a
+   * perfectly ordinary thing to have.
+   *
+   * SetNull rather than Cascade: deleting a course must never delete a
+   * tournament, exactly as it does not delete a round.
+   */
+  courseId          String?
+  courseRef         Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
   city              String
   address           String
   // Set when `course` doesn't match a built-in preset — the organizer's own
@@ -847,6 +867,7 @@ model Event {
   threads         Thread[]
 
   @@index([organizationId])
+  @@index([courseId])
 }
 
 model Account {

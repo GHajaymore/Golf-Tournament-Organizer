@@ -575,6 +575,7 @@ export async function saveEvent(data: {
   dates: string;
   format: string;
   course: string;
+  courseId: string;
   city: string;
   address: string;
   regDeadline: string;
@@ -585,6 +586,30 @@ export async function saveEvent(data: {
 }) {
   const eventId = await requireAdminEvent();
   await assertUnlocked(eventId);
+
+  /**
+   * The course id is proven to be this club's before it is stored.
+   *
+   * A `"use server"` export is a public HTTP endpoint whatever the screen
+   * sends, and an unchecked id here would point a tournament at another
+   * organization's card — scoring every round against a stranger's par and
+   * stroke index. An id that does not survive this becomes empty rather than
+   * refusing the save: the venue is one field of many on this form, and the
+   * name beside it still names the course.
+   */
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { organizationId: true },
+  });
+  const owned = data.courseId?.trim()
+    ? await prisma.course.findFirst({
+        // Narrowed where the id arrives, not through a variable: the club
+        // boundary has to be visible in the same clause as the id.
+        where: { id: data.courseId.trim(), organizationId: event?.organizationId ?? "" },
+        select: { id: true },
+      })
+    : null;
+  const courseId = owned?.id ?? null;
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -592,6 +617,10 @@ export async function saveEvent(data: {
       dates: data.dates,
       format: data.format === "stroke" ? "stroke" : "match",
       course: data.course,
+      // The id and the name together, from the one choice the organizer
+      // made. Null where they typed a name by hand or the id was not this
+      // club's — the name still names the course either way.
+      courseId,
       city: data.city,
       address: data.address,
       // Only ever the two known values — an unrecognised mode would decide

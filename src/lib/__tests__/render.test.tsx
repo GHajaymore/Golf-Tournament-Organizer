@@ -3690,10 +3690,10 @@ describe("tournament details", () => {
     return render(
       <EventSetupClient
         playersCount={24}
-        courses={[{ name: "Bushwood", city: "Chicago", address: "" }]}
+        courses={[{ id: "c1", name: "Bushwood", city: "Chicago", address: "" }]}
         initial={{
           name: "zz-Club Championship", dates: "", format: "match", course: "Bushwood",
-          courseMode: "fixed", city: "Chicago", address: "", regDeadline: "", capacity: 32,
+          courseId: "c1", courseMode: "fixed", city: "Chicago", address: "", regDeadline: "", capacity: 32,
           playerCountMode: "registration", manualPlayerCount: 0, sideStyle: "individual",
           ...over,
         }} />,

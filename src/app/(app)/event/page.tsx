@@ -105,10 +105,13 @@ export default async function EventPage({
           name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,
           address: e.address, regDeadline: e.regDeadline, capacity: e.capacity,
           playerCountMode: e.playerCountMode, manualPlayerCount: e.manualPlayerCount,
-          courseMode: e.courseMode, sideStyle: e.sideStyle,
+          courseMode: e.courseMode, sideStyle: e.sideStyle, courseId: e.courseId ?? "",
         }}
         playersCount={state.confirmed.length}
-        courses={courses.map((c) => ({ name: c.name, city: c.city, address: "" }))}
+        // The id travels now. It was dropped here, which is the whole reason
+        // the tournament's venue was the one thing in the app picked by
+        // typing a name — the screen never had anything else to pick by.
+        courses={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, address: "" }))}
       />
 
       {/* Always available, never a blocker here. A tournament may not need
