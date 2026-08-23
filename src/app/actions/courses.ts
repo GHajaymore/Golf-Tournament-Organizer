@@ -521,10 +521,17 @@ export async function importClubCourseCard(input: {
 
 /* ── Importing a course from the public directory ─────────────────────────── */
 
+/** A hit, plus whether this club already has it. */
+export interface DirectorySearchHit extends DirectoryHit {
+  /** True when the club has already added this course. Shown rather than
+   *  hidden: the course is still the right answer, it just needs no action. */
+  inLibrary: boolean;
+}
+
 export interface DirectorySearchResult {
   ok: boolean;
   error?: string;
-  hits?: DirectoryHit[];
+  hits?: DirectorySearchHit[];
 }
 
 /**
@@ -538,9 +545,23 @@ export async function searchCourseDirectory(
   query: string,
   localOnly = false,
 ): Promise<DirectorySearchResult> {
-  await requireOrganizerOrg();
+  const { organizationId } = await requireOrganizerOrg();
   const hits = await searchDirectory(query, localOnly);
-  return { ok: true, hits };
+
+  /**
+   * Which of these the club already has.
+   *
+   * Without it the obvious thing to do with a course you already added is
+   * add it again — the button says "Add to library" and nothing contradicts
+   * it. `Course.sourceUrl` already carries the directory id it came from, so
+   * this is a lookup rather than a new column.
+   */
+  const mine = await prisma.course.findMany({
+    where: { organizationId },
+    select: { sourceUrl: true },
+  });
+  const have = new Set(mine.map((c) => directoryIdFrom(c.sourceUrl)).filter(Boolean));
+  return { ok: true, hits: hits.map((h) => ({ ...h, inLibrary: have.has(h.id) })) };
 }
 
 export interface DirectoryImportResult extends CourseResult {

@@ -1,8 +1,12 @@
 "use client";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { searchCourseDirectory, importCourseFromDirectory } from "@/app/actions/courses";
-import { DIRECTORY_ATTRIBUTION, type DirectoryHit } from "@/lib/domain/course-directory";
+import {
+  searchCourseDirectory,
+  importCourseFromDirectory,
+  type DirectorySearchHit,
+} from "@/app/actions/courses";
+import { DIRECTORY_ATTRIBUTION } from "@/lib/domain/course-directory";
 
 /**
  * Look a course up instead of typing fifty-four numbers.
@@ -30,7 +34,7 @@ import { DIRECTORY_ATTRIBUTION, type DirectoryHit } from "@/lib/domain/course-di
 export function CourseSearch({ onImported }: { onImported?: (courseId: string) => void }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<DirectoryHit[] | null>(null);
+  const [hits, setHits] = useState<DirectorySearchHit[] | null>(null);
   const [error, setError] = useState("");
   /** What the last import did, in the club's terms. */
   const [note, setNote] = useState<{ kind: "ok" | "partial"; text: string } | null>(null);
@@ -91,7 +95,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  const importOne = (hit: DirectoryHit) => {
+  const importOne = (hit: DirectorySearchHit) => {
     setError("");
     setNote(null);
     setBusyId(hit.id);
@@ -203,18 +207,29 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
                       Club" is several real courses, and a non-US row has no
                       state to tell them apart with. */}
                   {[h.city, h.state, h.country].filter(Boolean).join(", ")}
-                  {h.par > 0 && ` · par ${h.par}`}
+                  {/* Par doubles as "does it arrive with a card". A course
+                      without one still imports — name, city and rated tees —
+                      but the club has a card to enter before they can score
+                      a round there, and finding that out after adding it is
+                      the wrong moment. */}
+                  {h.par > 0 ? ` · par ${h.par}` : " · no card yet"}
                 </span>
               </span>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                style={{ fontSize: 12 }}
-                disabled={pending}
-                onClick={() => importOne(h)}
-              >
-                <i className="ph ph-download-simple" /> {busyId === h.id ? "Adding…" : "Add to library"}
-              </button>
+              {h.inLibrary ? (
+                <span className="tag tag-neutral" style={{ fontSize: 11.5 }}>
+                  <i className="ph ph-check" /> In your library
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: 12 }}
+                  disabled={pending}
+                  onClick={() => importOne(h)}
+                >
+                  <i className="ph ph-download-simple" /> {busyId === h.id ? "Adding…" : "Add to library"}
+                </button>
+              )}
             </div>
           ))}
           {/* ODbL 1.0 permits commercial use WITH attribution, so this is a

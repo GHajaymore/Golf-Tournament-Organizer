@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { rankCourseHits } from "@/lib/domain/course-ranking";
 import { parseHoleArray } from "@/lib/courses";
 import {
   hitsFrom,
@@ -148,17 +149,20 @@ export async function searchDirectory(
     // Courses with a card first: a club searching wants one it can score on,
     // and the ones we could not read should not crowd out the ones we could.
     orderBy: [{ cardProblem: "asc" }, { name: "asc" }],
-    take: 20,
+    // Wider than the twenty shown, because the ranking below decides which
+    // twenty those are. Taking 20 alphabetically and then ranking them only
+    // reorders whatever happened to start with a digit.
+    take: 100,
     // country included so a club outside the US can tell two courses of the
     // same name apart — a non-US row has no state to do that with.
     select: {
       id: true, name: true, city: true, state: true, country: true, par: true, website: true,
     },
   });
-  if (local.length > 0 || localOnly) return local;
+  if (local.length > 0 || localOnly) return rankCourseHits(local, q).slice(0, 20);
 
   const payload = await getJson(`/v1/courses/search?q=${encodeURIComponent(q.slice(0, 80))}`);
-  return hitsFrom(payload).slice(0, 20);
+  return rankCourseHits(hitsFrom(payload), q).slice(0, 20);
 }
 
 /** One course in full — its card, if it has a usable one, and its rated tees. */
