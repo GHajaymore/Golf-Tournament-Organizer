@@ -29,14 +29,21 @@ export function TeamEntryClient({
   teams,
   pars,
   strokeIndex,
-  sharesOneCard,
+  note,
   holes,
 }: {
   round: string;
   teams: TeamEntryRow[];
   pars: number[];
   strokeIndex: number[];
-  sharesOneCard: boolean;
+  /**
+   * What this round is written down as, from `teamEntryNote`.
+   *
+   * Passed in rather than worked out here, because the answer depends on the
+   * committee's setting as well as the format, and this screen deciding it
+   * separately is exactly how it came to ignore that setting.
+   */
+  note: string;
   holes: number;
 }) {
   const [pending, startTransition] = useTransition();
@@ -88,9 +95,7 @@ export function TeamEntryClient({
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
         {round} —{" "}
-        {sharesOneCard
-          ? "one card per side; the partners play a single ball."
-          : "one card each; the side's score is taken from the better ball on every hole."}
+        {note}
       </p>
 
       {error && <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>{error}</p>}

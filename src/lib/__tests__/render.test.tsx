@@ -58,6 +58,7 @@ import { SeriesClient } from "@/components/SeriesClient";
 import { TeeEditor } from "@/components/TeeEditor";
 import { TeamsClient } from "@/components/TeamsClient";
 import { TeamEntryClient } from "@/components/TeamEntryClient";
+import { teamEntryNote } from "@/lib/domain/team-entry";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import {
   SkinsLeaderboard,
@@ -333,31 +334,57 @@ describe("team screens", () => {
     expect(html).not.toContain("aria-label=\"Handicap allowance percent\"");
   });
 
-  it("renders team score entry for both card shapes", () => {
+  it("renders team score entry in each shape a round can be written down", () => {
+    // The note comes from the rule rather than a literal, so a test cannot
+    // pass while the screen says something the rule does not.
     const own = render(
-      <TeamEntryClient round="Four-Ball" sharesOneCard={false} holes={18}
+      <TeamEntryClient round="Four-Ball" note={teamEntryNote("Four-Ball")} holes={18}
         pars={Array(18).fill(4)} strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         teams={[{ teamId: "t1", teamName: "Side A", matchId: "m1", opponentName: "Side B",
           playingHandicap: 14, grossTotal: 0, netTotal: 0, played: 0,
           cards: [{ playerId: "p1", playerName: "Ann", handicap: 8, strokes: Array(18).fill(null) }] }]} />,
     );
-    expect(own).toContain("one card each");
+    expect(own).toContain("One card each");
     expect(own).toContain("Ann");
 
     const shared = render(
-      <TeamEntryClient round="Scramble" sharesOneCard holes={18}
+      <TeamEntryClient round="Scramble" note={teamEntryNote("Scramble")} holes={18}
         pars={Array(18).fill(4)} strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
         teams={[{ teamId: "t1", teamName: "Side A", matchId: "", playingHandicap: 7,
           grossTotal: 0, netTotal: 0, played: 0,
           cards: [{ playerId: "", playerName: "", handicap: 0, strokes: Array(18).fill(null) }] }]} />,
     );
-    expect(shared).toContain("one card per side");
+    expect(shared).toContain("One card per side");
     expect(shared).toContain("Team card");
+  });
+
+  it("tells a side-only four-ball which number to write down", () => {
+    /**
+     * The case this screen used to get wrong twice over. A four-ball set to
+     * "one card for the side" was shown a card per player, ignoring the
+     * setting entirely; and even now it honours it, "one card for the side"
+     * does not say WHICH score goes in the box. The individual balls are not
+     * recorded, so there is no better NET ball to take — it is the better
+     * ball's GROSS, and a scorer entering net scores would produce a round
+     * that validates perfectly and is wrong by the side's handicap.
+     */
+    const html = render(
+      <TeamEntryClient round="Four-Ball" note={teamEntryNote("Four-Ball", "side-only")} holes={18}
+        pars={Array(18).fill(4)} strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        teams={[{ teamId: "t1", teamName: "Side A", matchId: "m1", opponentName: "Side B",
+          playingHandicap: 14, grossTotal: 0, netTotal: 0, played: 0,
+          cards: [{ playerId: "", playerName: "", handicap: 0, strokes: Array(18).fill(null) }] }]} />,
+    );
+    expect(html).toContain("gross");
+    // The apostrophe is left out of the match: React escapes it, and pinning
+    // the entity would be pinning React rather than the sentence.
+    expect(html).toContain("playing handicap rather than from the better net ball");
+    expect(html).toContain("Team card");
   });
 
   it("renders team entry with no sides drawn", () => {
     const html = render(
-      <TeamEntryClient round="Scramble" sharesOneCard holes={18} pars={[]} strokeIndex={[]} teams={[]} />,
+      <TeamEntryClient round="Scramble" note={teamEntryNote("Scramble")} holes={18} pars={[]} strokeIndex={[]} teams={[]} />,
     );
     expect(html).toContain("No sides drawn yet");
   });

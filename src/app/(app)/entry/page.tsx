@@ -11,7 +11,7 @@ import { prisma } from "@/lib/db";
 import { resolveCourse, hasCourseData, needsCourseData, parseHoleArray } from "@/lib/courses";
 import { courseForMatch, applyNine, type Nine } from "@/lib/services/course-resolution";
 import type { HoleResult } from "@/lib/domain";
-import { needsTeams, findFormat, entryModeFor } from "@/lib/formats";
+import { needsTeams, entryModeFor } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import { aggregateTeamCard, singleBallTeamCard } from "@/lib/domain/team";
@@ -23,6 +23,7 @@ import { standingRows } from "@/lib/services/tournament";
 import { usesStandardBoard } from "@/lib/formats";
 import type { VoiceContext } from "@/lib/domain/voice-query";
 import { courseModeOf, needsVenue } from "@/lib/domain/venue";
+import { resolveTeamEntry, teamEntryNote } from "@/lib/domain/team-entry";
 
 export default async function EntryPage() {
   const session = await requireScreen("entry");
@@ -97,7 +98,22 @@ export default async function EntryPage() {
   // count depends on the format, and there is no A/B slot to fill.
   const activeStage = state.activeStage ?? state.stages[0] ?? null;
   if (activeStage && needsTeams(activeStage.format)) {
-    const format = findFormat(activeStage.format);
+    /**
+     * Whose card this round is written on — the committee's answer, not the
+     * format's raw one.
+     *
+     * This screen used to ask the format's raw `ball` in three places:
+     * many card rows to build, which scorer to run, and what to tell the
+     * scorer. All three ignored the setting on the Rounds screen, so a club
+     * that chose "one card for the side" for its four-ball was shown a card
+     * per player anyway — the setting saved, displayed as saved, and did
+     * nothing where it mattered.
+     *
+     * resolveTeamEntry also refuses an override the format cannot honour, so
+     * a stored "per-player" on a foursomes round opens one card for the side
+     * rather than asking for two scores where one ball was played.
+     */
+    const sideOnly = resolveTeamEntry(activeStage.format, activeStage.scoreInput) === "side-only";
     const holeCount = activeStage.holes === 9 ? 9 : 18;
     const teams = await teamsForStage(session.eventId, activeStage.id, activeStage.format, activeStage.handicapAllowance, holeCount, activeStage.allowanceWeights);
     const teamById = new Map(teams.map((t) => [t.id, t]));
@@ -125,7 +141,7 @@ export default async function EntryPage() {
       const t = teamById.get(teamId);
       if (!t) return;
       const cardRows =
-        format.ball === "single"
+        sideOnly
           ? [{ playerId: "", playerName: "", handicap: 0, strokes: strokesFor(teamId, matchId, "") }]
           : t.members.map((m) => ({
               playerId: m.playerId,
@@ -134,7 +150,7 @@ export default async function EntryPage() {
               strokes: strokesFor(teamId, matchId, m.playerId),
             }));
       const card =
-        format.ball === "single"
+        sideOnly
           ? singleBallTeamCard(
               cardRows[0].strokes,
               teamCourse.pars.slice(0, holeCount),
@@ -204,7 +220,7 @@ export default async function EntryPage() {
           teams={visible}
           pars={courseKnown ? teamCourse.pars.slice(0, holeCount) : []}
           strokeIndex={courseKnown ? teamCourse.strokeIndex.slice(0, holeCount) : []}
-          sharesOneCard={format.ball === "single"}
+          note={teamEntryNote(activeStage.format, activeStage.scoreInput)}
           holes={holeCount}
         />
       </>

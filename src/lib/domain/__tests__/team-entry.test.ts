@@ -5,6 +5,7 @@ import {
   resolveTeamEntry,
   sideOnlyCost,
   TEAM_ENTRY_MODES,
+  teamEntryNote,
 } from "../team-entry";
 import { GOLF_FORMATS, needsTeams, findFormat } from "@/lib/formats";
 
@@ -158,5 +159,75 @@ describe("sharing Stage.scoreInput with the match-play axis", () => {
     expect(resolveScoreInput("Stroke Play", "per-player")).toBe("gross-cards");
     expect(resolveTeamEntry("Four-Ball", "match-result")).toBe("per-player");
     expect(resolveTeamEntry("Foursomes", "gross-cards")).toBe("side-only");
+  });
+});
+
+
+describe("what the scorer is told to write down", () => {
+  /**
+   * The gap this closed. The entry screen decided its own sentence from the
+   * format's raw `ball`, so a four-ball set to "one card for the side" was
+   * told "one card each" AND shown a card per player — the committee's
+   * setting saved, displayed as saved, and ignored where it mattered.
+   */
+  it("says nothing for a format with no sides", () => {
+    for (const f of GOLF_FORMATS.filter((x) => !needsTeams(x.name))) {
+      expect(teamEntryNote(f.name), f.name).toBe("");
+    }
+  });
+
+  it("gives every team format a sentence in its natural shape", () => {
+    for (const f of GOLF_FORMATS.filter((x) => needsTeams(x.name))) {
+      expect(teamEntryNote(f.name).length, f.name).toBeGreaterThan(20);
+    }
+  });
+
+  it("never mentions a better ball where the side plays one ball", () => {
+    // In foursomes there is no second ball to be better than, and saying so
+    // would imply detail had been given up when none exists.
+    for (const f of GOLF_FORMATS.filter((x) => needsTeams(x.name) && x.ball === "single")) {
+      expect(teamEntryNote(f.name), f.name).not.toContain("better ball");
+      expect(teamEntryNote(f.name, "side-only"), f.name).not.toContain("better ball");
+    }
+  });
+
+  it("says GROSS when a two-ball side records one score", () => {
+    // The number itself is ambiguous without this. With the individual balls
+    // gone there is no better NET ball to take, so a scorer entering net
+    // scores would produce a round that validates and is wrong by the side's
+    // handicap.
+    for (const f of GOLF_FORMATS.filter((x) => needsTeams(x.name) && x.ball !== "single")) {
+      const note = teamEntryNote(f.name, "side-only");
+      expect(note, f.name).toContain("gross");
+      expect(note, f.name).toContain("playing handicap");
+    }
+  });
+
+  it("ignores an override the format cannot honour", () => {
+    // A stored "per-player" on a one-ball round — set before the format was
+    // changed, or posted straight at the endpoint — must not produce a
+    // sentence asking for two scores where one ball was played.
+    for (const f of GOLF_FORMATS.filter((x) => needsTeams(x.name) && x.ball === "single")) {
+      expect(teamEntryNote(f.name, "per-player"), f.name).toBe(teamEntryNote(f.name));
+    }
+  });
+
+  it("changes what it says when the committee changes the setting", () => {
+    // The whole point: on a format where side-only IS a choice, choosing it
+    // must reach the scorer.
+    for (const f of GOLF_FORMATS.filter((x) => needsTeams(x.name) && x.ball !== "single")) {
+      expect(teamEntryNote(f.name, "side-only"), f.name).not.toBe(teamEntryNote(f.name, "per-player"));
+    }
+  });
+
+  it("warns about the net as well as the handicap where side-only is a choice", () => {
+    // Two consequences, not one. Losing the handicap score was already said;
+    // that the NET TOTAL itself differs from the same round entered card by
+    // card was not, and it is the one that shows up on the leaderboard.
+    for (const f of GOLF_FORMATS.filter((x) => sideOnlyCost(x.name))) {
+      const cost = sideOnlyCost(f.name)!;
+      expect(cost, f.name).toContain("handicap");
+      expect(cost, f.name).toContain("net ball");
+    }
   });
 });

@@ -105,6 +105,40 @@ export function sideOnlyCost(formatName: string): string | null {
   return (
     "Recording only the side's score means this round cannot count towards anybody's handicap. " +
     "A four-ball counts for handicapping when a player's own ball is written down, and this gives " +
-    "that up for the whole field."
+    "that up for the whole field. It also changes the net score: with no individual balls to " +
+    "compare, the side's net comes from the side's playing handicap rather than from the better " +
+    "net ball, so it will not always match the same round entered card by card."
+  );
+}
+
+
+/**
+ * What the entry screen says this round is written down as.
+ *
+ * Here rather than in the component because it answers a question the screen
+ * currently leaves open, and two clubs answering it differently is a silent
+ * data problem: WHICH NUMBER goes in the box. For a side-only four-ball that
+ * is the better ball's GROSS — the individual balls are gone, so there is no
+ * better net ball to take. Nobody would guess that from "one card for the
+ * side", and the scorer typing net scores into it would produce a round that
+ * validates perfectly and is wrong by the side's handicap.
+ *
+ * Empty string for a format with no sides, where the question does not arise.
+ */
+export function teamEntryNote(formatName: string, override?: string | null): string {
+  const mode = resolveTeamEntry(formatName, override);
+  if (!mode) return "";
+  if (mode === "per-player") {
+    return "One card each. The side's score is taken from the better ball on every hole.";
+  }
+  // One ball really is one score. Nothing has been given up and saying so
+  // would imply otherwise.
+  if (findFormat(formatName).ball === "single") {
+    return "One card per side — the partners play a single ball, so there is one score to write down.";
+  }
+  return (
+    "One card for the side. Write the better ball's gross score on each hole — the individual " +
+    "balls are not recorded, so the side's net comes from the side's playing handicap rather " +
+    "than from the better net ball."
   );
 }
