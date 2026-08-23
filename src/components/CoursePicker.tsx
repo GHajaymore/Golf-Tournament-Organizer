@@ -1,6 +1,11 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { rankCourses, tierOf, Tier } from "@/lib/domain/course-ranking";
+import {
+  searchCourseDirectory,
+  importCourseFromDirectory,
+  type DirectorySearchHit,
+} from "@/app/actions/courses";
 
 /**
  * Choosing a course, in the one way this app chooses a course.
@@ -51,6 +56,24 @@ export interface CoursePickerProps {
    * manually", and that is the moment it would disappear.
    */
   extras?: ReadonlyArray<{ id: string; label: string }>;
+  /**
+   * Look beyond the club's own courses when they do not have it.
+   *
+   * A library of four courses is not an answer to "where are we playing" for
+   * a society that plays somewhere new every month. With this on, a query
+   * the library cannot satisfy falls through to the catalogue of every
+   * course the app knows about, and picking one adds it to the library on
+   * the way past.
+   */
+  searchDirectory?: boolean;
+  /**
+   * Take a name that is in neither list.
+   *
+   * The last rung. A club playing a course nobody has catalogued still has
+   * to be able to say where they played, and a picker whose final answer is
+   * "not found" makes the app the obstacle.
+   */
+  onEnterNew?: (name: string) => void;
   disabled?: boolean;
   /** Shown under the control — a caller's note about what the choice affects. */
   hint?: string;
@@ -63,6 +86,8 @@ export function CoursePicker({
   label = "Course",
   noneLabel,
   extras = [],
+  searchDirectory = false,
+  onEnterNew,
   disabled = false,
   hint,
 }: CoursePickerProps) {
@@ -71,6 +96,10 @@ export function CoursePicker({
   const [active, setActive] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [found, setFound] = useState<DirectorySearchHit[]>([]);
+  const [adding, setAdding] = useState("");
+  const [, startAdd] = useTransition();
+  const seq = useRef(0);
 
   const chosen = options.find((o) => o.id === value) ?? null;
   // An extra choice is a real answer too, and the box has to say so rather
@@ -102,12 +131,52 @@ export function CoursePicker({
     return ranked.slice(0, 50);
   }, [options, query]);
 
+  /**
+   * Ask the catalogue only when the club's own list has nothing.
+   *
+   * Order matters: a club that owns the course should never be shown a
+   * directory copy of it to import a second time. And the lookup waits for
+   * the typing to settle, so it costs one query per question rather than one
+   * per keystroke — the catalogue read is cheap but it is not free.
+   */
+  useEffect(() => {
+    const q = query.trim();
+    if (!searchDirectory || q.length < 3 || shown.length > 0) {
+      setFound([]);
+      return;
+    }
+    const mine = (seq.current += 1);
+    const t = setTimeout(async () => {
+      const res = await searchCourseDirectory(q, true);
+      // A query the reader has already typed past.
+      if (mine !== seq.current) return;
+      setFound(res.ok ? (res.hits ?? []).filter((h) => !h.inLibrary).slice(0, 8) : []);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, searchDirectory, shown.length]);
+
   const pick = (id: string) => {
     onChange(id);
     setQuery("");
     setOpen(false);
     setActive(-1);
     inputRef.current?.blur();
+  };
+
+  /**
+   * Add a directory course to the library, then choose it.
+   *
+   * One motion, because the club asked for a venue and not for an import.
+   * If the import fails the picker stays open with the query intact rather
+   * than closing on a choice that did not happen.
+   */
+  const takeFromDirectory = (hit: DirectorySearchHit) => {
+    setAdding(hit.id);
+    startAdd(async () => {
+      const res = await importCourseFromDirectory(hit.id);
+      setAdding("");
+      if (res.ok && res.courseId) pick(res.courseId);
+    });
   };
 
   const describe = (o: CourseOption): string =>
@@ -246,7 +315,72 @@ export function CoursePicker({
               </span>
             </button>
           ))}
-          {shown.length === 0 && (
+          {/* Everything the app knows about, that this club does not own yet.
+              Labelled, because adding a course to the library is a different
+              act from choosing one already in it, and the row does both. */}
+          {found.length > 0 && (
+            <>
+              <p
+                className="text-muted"
+                style={{ fontSize: 11, margin: 0, padding: "6px 10px 2px", lineHeight: 1.4 }}
+              >
+                Not in your courses yet — from the course directory
+              </p>
+              {found.map((h) => (
+                <button
+                  key={h.id}
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  onClick={() => takeFromDirectory(h)}
+                  disabled={adding !== ""}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "7px 10px",
+                    fontSize: 13,
+                    border: "none",
+                    borderLeft: "2px solid transparent",
+                    background: "transparent",
+                    color: "var(--color-text)",
+                    cursor: "pointer",
+                  }}
+                >
+                  {h.name}
+                  <span className="text-muted" style={{ marginLeft: 6, fontSize: 11.5 }}>
+                    {[h.city, h.state, h.country].filter(Boolean).join(", ")}
+                    {h.par > 0 ? "" : " · no card yet"}
+                    {adding === h.id ? " · adding…" : ""}
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
+
+          {/* The last rung. A club playing somewhere nobody has catalogued must
+              still be able to say where they played — a picker whose final
+              answer is "not found" makes the app the obstacle. */}
+          {onEnterNew && query.trim().length >= 3 && (
+            <button
+              type="button"
+              role="option"
+              aria-selected={false}
+              className="btn btn-ghost"
+              style={{ width: "100%", justifyContent: "flex-start", fontSize: 13 }}
+              onClick={() => {
+                const name = query.trim();
+                onEnterNew(name);
+                setOpen(false);
+                setQuery("");
+                setActive(-1);
+              }}
+            >
+              <i className="ph ph-plus" /> Use &ldquo;{query.trim()}&rdquo;
+            </button>
+          )}
+
+          {shown.length === 0 && found.length === 0 && !onEnterNew && (
             <p className="text-muted" style={{ fontSize: 12, margin: 0, padding: "8px 10px", lineHeight: 1.5 }}>
               None of your courses match that. Try fewer letters, or add the course to your library
               first.

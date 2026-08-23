@@ -572,6 +572,7 @@ export function CourseLibrary({
             value={homeCourseId ?? ""}
             disabled={pending}
             noneLabel="None — choose per tournament"
+            searchDirectory
             hint="applies to new tournaments; existing ones keep their venues"
             onChange={(chosen) => {
               const id = chosen || null;

@@ -377,6 +377,13 @@ export function EventSetupClient({
             value={courseSelect}
             onChange={onSelectCourse}
             noneLabel="— Select a course —"
+            searchDirectory
+            // A society playing somewhere new every month should not have to
+            // go and add the course somewhere else first, then come back.
+            onEnterNew={(name) => {
+              setCourseSelect("__other");
+              setF((prev) => ({ ...prev, course: name, courseMode: "fixed" }));
+            }}
             extras={[
               { id: "__other", label: "Other (enter manually)" },
               { id: "__open", label: "No fixed course — players choose" },
