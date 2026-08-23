@@ -201,6 +201,35 @@ async function getJson(path: string): Promise<unknown | null> {
 
 /** Every course id the directory lists for one state. */
 /**
+ * Courses refused under a rule that no longer refuses them.
+ *
+ * The catalogue stores WHY a card was turned away, which means a rule change
+ * can be undone precisely rather than by re-fetching everything. Accepting
+ * nine-hole courses recovered 119 of them; a blanket --refresh over Ohio to
+ * find those would have spent 471 requests, against an allowance of 500 a
+ * day, to change 119 rows.
+ *
+ * It reads the stored reason rather than a list of ids, so the next time a
+ * rule loosens the fix is a pattern here rather than a migration. A row is
+ * only re-fetched when the CURRENT rules would plainly do better; anything
+ * ambiguous is left alone, because re-asking is what costs.
+ */
+async function refusedUnderOldRules(): Promise<Array<{ id: string; country: string }>> {
+  const rows = await prisma.courseCatalog.findMany({
+    where: { NOT: { cardProblem: "" } },
+    select: { id: true, country: true, cardProblem: true },
+  });
+  return rows
+    .filter((r) => {
+      // "The directory has 9 holes for this course, not 18." Nine holes is
+      // now a golf course rather than a broken eighteen.
+      const m = /has (\d+) holes for this course, not 18/.exec(r.cardProblem);
+      return !!m && m[1] === "9";
+    })
+    .map((r) => ({ id: r.id, country: r.country }));
+}
+
+/**
  * Drop the ids already catalogued.
  *
  * Without this a daily run spends its whole allowance re-fetching courses it
@@ -434,6 +463,7 @@ async function main() {
   const all = args.includes("--all");
   const world = args.includes("--world");
   const refresh = args.includes("--refresh");
+  const recheck = args.includes("--recheck");
   const one = args.indexOf("--state");
   const states = all ? STATES : one >= 0 && args[one + 1] ? [args[one + 1].toUpperCase()] : [];
 
@@ -449,7 +479,7 @@ async function main() {
   const b = args.indexOf("--budget");
   const budget = b >= 0 && Number(args[b + 1]) > 0 ? Math.floor(Number(args[b + 1])) : Infinity;
 
-  if (states.length === 0 && !world) {
+  if (states.length === 0 && !world && !recheck) {
     console.log(
       [
         "Usage:",
@@ -458,12 +488,28 @@ async function main() {
         "  --world               every course the directory has, anywhere",
         "  --budget 400          stop after N courses (the daily allowance is 500)",
         "  --refresh             re-fetch courses already catalogued",
+        "  --recheck             re-fetch only what an old rule wrongly refused",
       ].join(EOL),
     );
     return;
   }
 
   const tally: Tally = { withCard: 0, withoutCard: 0, skipped: 0 };
+
+  if (recheck) {
+    const stale = await refusedUnderOldRules();
+    const take = stale.slice(0, budget === Infinity ? stale.length : budget);
+    console.log(
+      `${stale.length} course(s) were refused by a rule that no longer refuses them` +
+        (take.length < stale.length ? `; taking ${take.length} within the budget` : ""),
+    );
+    await fetchAll(take, tally);
+    console.log(
+      `Re-checked ${take.length}: ${tally.withCard} now have a card, ` +
+        `${tally.withoutCard} still do not, ${tally.skipped} unreadable.`,
+    );
+    return;
+  }
 
   if (world) {
     await walkWorld(budget, refresh, tally);
