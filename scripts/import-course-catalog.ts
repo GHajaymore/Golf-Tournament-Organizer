@@ -43,7 +43,17 @@ const BASE = "https://api.opengolfapi.org";
  * only recorded as unreadable once it has refused three times — otherwise the
  * catalogue silently reflects our own impatience rather than the source.
  */
-const PAUSE_MS = 350;
+/**
+ * Gentle on purpose, and gentler than it used to be.
+ *
+ * Six in flight every 350ms is about seventeen requests a second, which the
+ * directory answers with burst refusals — and those read as "the allowance is
+ * used up" and ended runs with hundreds of requests still unspent. Since a
+ * run now takes a bounded daily slice rather than trying to import a country
+ * in one sitting, speed buys nothing: 400 courses at this pace is a couple of
+ * minutes, and it is a couple of minutes that actually finishes.
+ */
+const PAUSE_MS = 750;
 const RETRIES = 3;
 /**
  * How many courses are in flight at once.
@@ -58,7 +68,7 @@ const RETRIES = 3;
  * invisible: the fast version did not error, it recorded 374 real courses as
  * unreadable and moved on.
  */
-const CONCURRENCY = 6;
+const CONCURRENCY = 2;
 const PAGE = 100;
 
 /** Every US state and territory the directory indexes by code. */
@@ -116,8 +126,26 @@ function envKey(): string {
 
 const API_KEY = envKey();
 
+/**
+ * A 429 is not the same thing as being out of allowance.
+ *
+ * Two different refusals arrive as the same status code: asking too fast in a
+ * burst, which wants a pause, and having spent the day's requests, which
+ * wants tomorrow. Treating the first as the second stopped a run with 244 of
+ * 500 still unspent and announced "the daily request allowance is used up" —
+ * the same shape of mistake as the 374 courses once recorded as unreadable,
+ * which were really this script going too fast.
+ *
+ * `X-RateLimit-Remaining` tells them apart, so it is read rather than guessed.
+ * Only a zero there, or the `limit_hit` body some endpoints answer with, ends
+ * the run.
+ */
+function outOfAllowance(res: Response): boolean {
+  const left = Number(res.headers.get("x-ratelimit-remaining"));
+  return Number.isFinite(left) && left <= 0;
+}
+
 async function getJson(path: string): Promise<unknown | null> {
-  let refused = false;
   for (let attempt = 0; attempt < RETRIES; attempt += 1) {
     try {
       const res = await fetch(`${BASE}${path}`, {
@@ -130,25 +158,34 @@ async function getJson(path: string): Promise<unknown | null> {
       if (res.ok) {
         const body = (await res.json()) as { limit_hit?: boolean; error?: string };
         // The directory answers 200 with a limit_hit body rather than a 429,
-        // so the status code alone would have sailed straight past this.
-        if (body?.limit_hit) throw new QuotaExhausted(body.error ?? "Daily limit reached.");
+        // Some endpoints answer 200 with a limit_hit body rather than a 429,
+        // so the status code alone would sail straight past this. It gets the
+        // same header check: the directory sent limit_hit with 244 of 500
+        // still on the clock, so this too is a burst signal more often than
+        // it is the end of the day.
+        if (body?.limit_hit) {
+          if (outOfAllowance(res)) throw new QuotaExhausted(body.error ?? "Daily limit reached.");
+          await sleep(PAUSE_MS * (attempt + 1) * 4);
+          continue;
+        }
         return body as unknown;
       }
       // 429 and 5xx mean "ask again". A 404 is an answer, and retrying it is
       // three times the load for the same nothing.
       if (res.status !== 429 && res.status < 500) return null;
-      if (res.status === 429) refused = true;
+      if (res.status === 429) {
+        // Out of allowance is final; too fast is not.
+        if (outOfAllowance(res)) throw new QuotaExhausted("the daily request allowance is used up.");
+      }
     } catch (e) {
       if (e instanceof QuotaExhausted) throw e;
       // Timeout or connection reset — the same treatment.
     }
     await sleep(PAUSE_MS * (attempt + 1) * 4);
   }
-  // Refused every time it was asked. Some endpoints answer 200 with a
-  // limit_hit body and some answer 429, and this is the second kind — which
-  // read as "this state has no golf courses" until somebody noticed Indiana
-  // had gone empty. Stop rather than write that down.
-  if (refused) throw new QuotaExhausted("the daily request allowance is used up.");
+  // Refused every time it was asked, with allowance still on the clock. That
+  // is this script being impatient, not the directory being out — so the
+  // course is skipped and the run carries on rather than stopping the day.
   return null;
 }
 
@@ -327,51 +364,59 @@ async function walkWorld(budget: number, refresh: boolean, tally: Tally): Promis
   if (offset > 0) console.log(`Resuming the world walk at offset ${offset}.`);
 
   /**
-   * The cursor only advances past a page that was FULLY consumed.
+   * The cursor is saved even when the run is cut short — hence the finally.
    *
-   * The first version advanced a whole page whenever it moved at all, so a
-   * budget that ran out 25 courses into a page of 100 left the other 75
-   * behind — permanently, because tomorrow started at the next page. The
-   * catalogue would have filled with quiet holes that no run ever revisited.
+   * Running out of allowance THROWS, and the first version wrote the cursor
+   * on the line after the loop, which that throw skipped. A run that walked to
+   * offset 3,000 and then hit the wall threw away every listing request it had
+   * just spent, and the next one started again at the top. Stopping early is
+   * the normal way a daily run ends, so it is the path that must save its
+   * place.
    *
-   * Staying put costs one listing request tomorrow to re-read a page whose
-   * first 25 are now catalogued and skipped for free.
+   * And the cursor only advances past a page that was FULLY consumed. The
+   * first version advanced a whole page whenever it moved at all, so a budget
+   * running out 25 courses into a page of 100 left the other 75 behind
+   * permanently — the catalogue would have filled with quiet holes that no
+   * later run revisited. Staying put costs one listing request tomorrow to
+   * re-read a page whose first 25 are now catalogued and skipped for free.
    */
-  for (;;) {
-    if (spent >= budget) break;
-    const payload = await getJson(`/api/v1/courses/search?limit=${PAGE}&offset=${offset}`);
-    const hits = hitsFrom(payload);
-    if (hits.length === 0) {
-      // The end. Back to the top next time, which is how a course added to
-      // the directory later is ever picked up.
-      console.log("Reached the end of the directory. The next run starts again at the top.");
-      offset = 0;
-      break;
-    }
+  try {
+    for (;;) {
+      if (spent >= budget) break;
+      const payload = await getJson(`/api/v1/courses/search?limit=${PAGE}&offset=${offset}`);
+      const hits = hitsFrom(payload);
+      if (hits.length === 0) {
+        // The end. Back to the top next time, which is how a course added to
+        // the directory later is ever picked up.
+        console.log("Reached the end of the directory. The next run starts again at the top.");
+        offset = 0;
+        break;
+      }
 
-    const listed = hits.map((h) => ({ id: h.id, country: h.country }));
-    const fresh = refresh ? listed : await unseen(listed);
-    const take = fresh.slice(0, budget - spent);
-    if (take.length > 0) {
-      await fetchAll(take, tally);
-      spent += take.length;
-      console.log(
-        `offset ${offset}: ${take.length} fetched (${tally.withCard} with cards so far), ` +
-          `${spent}/${budget} of today's slice used`,
-      );
+      const listed = hits.map((h) => ({ id: h.id, country: h.country }));
+      const fresh = refresh ? listed : await unseen(listed);
+      const take = fresh.slice(0, budget - spent);
+      if (take.length > 0) {
+        await fetchAll(take, tally);
+        spent += take.length;
+        console.log(
+          `offset ${offset}: ${take.length} fetched (${tally.withCard} with cards so far), ` +
+            `${spent}/${budget} of today's slice used`,
+        );
+      }
+      // Budget ran out part-way through this page: stay on it.
+      if (take.length < fresh.length) break;
+      if (hits.length < PAGE) {
+        console.log("Reached the end of the directory. The next run starts again at the top.");
+        offset = 0;
+        break;
+      }
+      offset += PAGE;
+      await sleep(PAUSE_MS);
     }
-    // Budget ran out part-way through this page: stay on it.
-    if (take.length < fresh.length) break;
-    if (hits.length < PAGE) {
-      console.log("Reached the end of the directory. The next run starts again at the top.");
-      offset = 0;
-      break;
-    }
-    offset += PAGE;
-    await sleep(PAUSE_MS);
+  } finally {
+    writeCursor(offset);
   }
-
-  writeCursor(offset);
 }
 
 async function main() {
