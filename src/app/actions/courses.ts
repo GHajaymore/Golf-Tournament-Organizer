@@ -6,7 +6,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
 import { playsInMatch } from "@/lib/services/match-access";
 import { COURSES, parseHoleArray } from "@/lib/courses";
-import { parseCard } from "@/lib/domain/scorecard-parse";
+import { parseCard, cardRefusal } from "@/lib/domain/scorecard-parse";
 import {
   searchDirectory,
   fetchDirectoryCourse,
@@ -20,7 +20,7 @@ import {
   type DirectoryHit,
 } from "@/lib/domain/course-directory";
 import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
-import { cardProblems, matchCourse, teeProblems } from "@/lib/domain/venue";
+import { matchCourse, teeProblems } from "@/lib/domain/venue";
 
 /**
  * The club's course library, and which venue a round or match was played on.
@@ -125,6 +125,26 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
       : JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
   };
 
+  /**
+   * The same standard as every other way a card gets in.
+   *
+   * This checked the stroke index and nothing else, so a par of 9, a total
+   * no course plays, or a routing sorted longest-to-shortest all saved
+   * without complaint — while the identical card pasted two panels away was
+   * refused. The editor is where a club types a card by hand, which is
+   * exactly where a typo lives.
+   *
+   * Checked against what will be STORED, not what was typed: the blanks are
+   * filled in above, and a blank card legitimately becomes a flat par-72
+   * placeholder that the check passes.
+   */
+  const refusal = cardRefusal(
+    JSON.parse(data.pars) as number[],
+    JSON.parse(data.yards) as number[],
+    JSON.parse(data.strokeIndex) as number[],
+  );
+  if (refusal) return { ok: false, error: refusal };
+
   if (input.id) {
     const existing = await prisma.course.findFirst({ where: { id: input.id, organizationId } });
     if (!existing) return { ok: false, error: "Course not found." };
@@ -159,6 +179,13 @@ export async function addPresetCourse(presetName: string): Promise<CourseResult>
   const { organizationId } = await requireOrganizerOrg();
   const preset = COURSES.find((c) => c.name === presetName);
   if (!preset) return { ok: false, error: "Unknown course." };
+
+  // Bundled data gets the same check as typed data. A preset is shipped
+  // rather than entered, so this should never fire — which is exactly why it
+  // is worth having: a bad one would otherwise propagate into every library
+  // that added it, silently, and look like the club's own mistake.
+  const refusal = cardRefusal(preset.pars, preset.yards, preset.strokeIndex, 18);
+  if (refusal) return { ok: false, error: refusal };
 
   const already = await prisma.course.findFirst({ where: { organizationId, name: preset.name } });
   if (already) return { ok: true, courseId: already.id };
@@ -831,8 +858,13 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
     // The card is checked before it is stored, not after it has scored a
     // round. A stroke index that isn't a full 1..18 puts handicap strokes on
     // the wrong holes, and every total still looks perfectly ordinary.
-    const problems = cardProblems({ pars: c.pars, strokeIndex: c.strokeIndex }, 18);
-    if (problems.length) return { ok: false, error: problems[0] };
+    // The full standard, not a subset of it. cardProblems catches a par out
+    // of range and a stroke index that is not a permutation; it does not
+    // catch a card whose pars are in sorted order or add up to a total no
+    // course plays — and this is the path a player reaches on the first tee,
+    // with nobody checking behind them.
+    const refusal = cardRefusal(c.pars, c.yards ?? [], c.strokeIndex, 18);
+    if (refusal) return { ok: false, error: refusal };
 
     // Don't create a second row for a course the club already has — that is
     // how a library becomes three Maketewahs with one usable card between them.

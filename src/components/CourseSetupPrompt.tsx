@@ -106,7 +106,23 @@ export function CourseSetupPrompt({
     if (siNums.some((n) => !Number.isFinite(n) || n < 1 || n > 18) || siSet.size !== 18) {
       return setError("Stroke index must use each number 1–18 exactly once.");
     }
-    startTransition(() => void saveCustomCourse(name.trim(), city.trim(), parNums, yardNums, siNums));
+    /**
+     * The server's answer is shown, not discarded.
+     *
+     * This was `void saveCustomCourse(...)`, which was harmless while the
+     * action could not refuse anything. It can now — a card whose pars are in
+     * sorted order or add up to a total no course plays is turned away — and a
+     * refusal nobody sees is not a refusal: the screen would have closed on a
+     * save that never happened.
+     *
+     * The checks above stay. They are the same rules said instantly, next to
+     * the boxes; this is the backstop that a caller cannot skip, because a
+     * "use server" export is a public endpoint whatever the screen does.
+     */
+    startTransition(async () => {
+      const res = await saveCustomCourse(name.trim(), city.trim(), parNums, yardNums, siNums);
+      if (!res.ok) setError(res.error ?? "That card doesn't look right yet.");
+    });
   };
 
   if (!isStaff) {

@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
@@ -1494,12 +1495,23 @@ export async function saveCustomCourse(
   pars: number[],
   yards: number[],
   strokeIndex: number[],
-) {
+): Promise<{ ok: boolean; error?: string }> {
   // Deliberately no assertUnlocked: this supplies missing reference data
   // (par/yardage/stroke index) for scoring math, not a structural change to
   // the field/schedule — and the gap is most likely to surface exactly when
   // the event is already live and staff are trying to enter scores.
   const eventId = await requireStaffEvent();
+
+  /**
+   * The same standard as every other way a card gets in.
+   *
+   * This wrote whatever it was handed straight onto the Event — no par range,
+   * no stroke index check, nothing. It is a `"use server"` export, so it is a
+   * public HTTP endpoint, and the card it stores is what every round of the
+   * tournament is then scored against.
+   */
+  const refusal = cardRefusal(pars, yards, strokeIndex, 18);
+  if (refusal) return { ok: false as const, error: refusal };
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -1511,6 +1523,7 @@ export async function saveCustomCourse(
     },
   });
   refresh();
+  return { ok: true };
 }
 
 export async function saveScorecard(stageId: string, playerId: string, strokes: (number | null)[]) {

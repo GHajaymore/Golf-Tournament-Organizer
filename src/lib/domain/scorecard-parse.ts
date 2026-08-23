@@ -433,3 +433,38 @@ export function implausibleCard(pars: number[], holes = 18): string | null {
 
   return null;
 }
+
+
+/**
+ * The one sentence that refuses a card, wherever a card is written.
+ *
+ * `validateCard` already holds every rule. What was missing was anywhere that
+ * MADE the write paths use it: pasting a card ran the full check, a player
+ * naming a new course at score entry got a weaker one, the library editor
+ * checked only the stroke index, and the score-entry course setup checked
+ * nothing at all. Four ways in, four standards, and the weakest of them was
+ * the one a player reaches on the first tee.
+ *
+ * So this is the single refusal every write path calls. It returns null when
+ * the card is fit to store, and otherwise the first problem phrased for the
+ * person holding the card — naming the hole, because "invalid card" tells
+ * somebody nothing about what to look at.
+ *
+ * Reporting the FIRST problem rather than all of them is deliberate here:
+ * these callers have one error line, unlike the paste screen which lists
+ * every problem beside the boxes as you type.
+ */
+export function cardRefusal(
+  pars: number[],
+  yards: number[],
+  strokeIndex: number[],
+  holes = 18,
+): string | null {
+  const card = validateCard(pars, yards, strokeIndex, holes);
+  if (card.ok) return null;
+  const first = card.problems[0];
+  if (!first) return null;
+  if (first.holes.length === 0) return first.message;
+  const which = first.holes.length === 1 ? "hole" : "holes";
+  return `${first.message} Check ${which} ${first.holes.join(", ")}.`;
+}
