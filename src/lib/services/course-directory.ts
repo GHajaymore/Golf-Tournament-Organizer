@@ -115,7 +115,21 @@ function fromCatalog(row: {
  * Coverage is US-only either way, so an empty list is an ordinary answer for a
  * UK or Irish club rather than an error, and the screen says as much.
  */
-export async function searchDirectory(query: string): Promise<DirectoryHit[]> {
+/**
+ * @param localOnly Search the catalogue and stop there.
+ *
+ * The screen searches as you type, and the live directory is metered — 500
+ * requests a day, shared with the importer and the "check source" button. The
+ * catalogue holds a fraction of the directory today, so most keystroke
+ * searches would miss it and go straight out to the network: a club typing
+ * "Ballybunion" would spend eight requests reaching the answer. So typing
+ * reads what we already hold, and asking for the full directory is a
+ * deliberate press.
+ */
+export async function searchDirectory(
+  query: string,
+  localOnly = false,
+): Promise<DirectoryHit[]> {
   const q = query.trim();
   // Two characters matches half the country and returns nothing useful.
   if (q.length < 3) return [];
@@ -141,7 +155,7 @@ export async function searchDirectory(query: string): Promise<DirectoryHit[]> {
       id: true, name: true, city: true, state: true, country: true, par: true, website: true,
     },
   });
-  if (local.length > 0) return local;
+  if (local.length > 0 || localOnly) return local;
 
   const payload = await getJson(`/v1/courses/search?q=${encodeURIComponent(q.slice(0, 80))}`);
   return hitsFrom(payload).slice(0, 20);

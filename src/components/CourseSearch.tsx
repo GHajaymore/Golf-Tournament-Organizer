@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { searchCourseDirectory, importCourseFromDirectory } from "@/app/actions/courses";
 import { DIRECTORY_ATTRIBUTION, type DirectoryHit } from "@/lib/domain/course-directory";
@@ -7,13 +7,19 @@ import { DIRECTORY_ATTRIBUTION, type DirectoryHit } from "@/lib/domain/course-di
 /**
  * Look a course up instead of typing fifty-four numbers.
  *
- * The rung above pasting: search a public directory of US courses, pick the
- * one you play, and its card and rated tee sets land in the club's library.
+ * The rung above pasting: type a few letters, pick the course you play, and
+ * its card and rated tee sets land in the club's library.
  *
- * It is an accelerator, never the only way in. Coverage is US-only, so a UK or
- * Irish club gets nothing here and must still paste or type — which is why
- * this sits ABOVE those paths on the screen rather than replacing them, and
- * why finding nothing is worded as an ordinary answer rather than a failure.
+ * RESULTS ARRIVE AS YOU TYPE. Pressing a button to see whether a search
+ * found anything is a whole extra decision on a screen a club meets once,
+ * while they are still deciding whether this app knows about their course at
+ * all. The answer should just appear.
+ *
+ * Coverage is worldwide — the directory is OpenStreetMap underneath, and the
+ * catalogue behind this holds courses from every continent, not just US ones
+ * as it did when this screen was written. It is uneven rather than complete,
+ * which is why this sits ABOVE pasting and typing rather than replacing them,
+ * and why finding nothing is worded as an ordinary answer.
  *
  * Nothing it imports is trusted. A card that survives import lands `imported`
  * and unverified, and a card the directory got wrong is refused outright with
@@ -31,7 +37,16 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
   const [busyId, setBusyId] = useState("");
   const [pending, startTransition] = useTransition();
 
-  const search = () => {
+  /**
+   * Which search the results on screen belong to.
+   *
+   * Typing "Pebble" fires several searches and they can come back in any
+   * order, so a slow answer for "Peb" must not replace the answer for
+   * "Pebble". The counter is the only thing that makes as-you-type safe.
+   */
+  const seq = useRef(0);
+
+  const search = (localOnly = false) => {
     const q = query.trim();
     setError("");
     setNote(null);
@@ -39,8 +54,11 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
       setError("Type at least three letters of the course name.");
       return;
     }
+    const mine = (seq.current += 1);
     startTransition(async () => {
-      const res = await searchCourseDirectory(q);
+      const res = await searchCourseDirectory(q, localOnly);
+      // A search the user has already typed past.
+      if (mine !== seq.current) return;
       if (!res.ok) {
         setError(res.error ?? "Couldn't reach the course directory.");
         setHits(null);
@@ -49,6 +67,29 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
       setHits(res.hits ?? []);
     });
   };
+
+  /**
+   * Search a beat after the typing stops, not on every keystroke.
+   *
+   * 300ms is long enough that "Pebble Beach" is one search rather than
+   * twelve, and short enough that it still feels like the list is following
+   * along. Under three letters the box is cleared rather than searched:
+   * two letters match half the world and the answer would be noise.
+   */
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 3) {
+      seq.current += 1;
+      setHits(null);
+      setError("");
+      return;
+    }
+    const t = setTimeout(() => search(true), 300);
+    return () => clearTimeout(t);
+    // `search` is stable enough for this: it reads `query` from the same
+    // render this effect belongs to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   const importOne = (hit: DirectoryHit) => {
     setError("");
@@ -86,7 +127,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ display: "block", marginBottom: 6 }}>Look up a course</label>
+      <label style={{ display: "block", marginBottom: 6 }}>Find a course</label>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <input
           className="input"
@@ -99,11 +140,13 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
               search();
             }
           }}
-          placeholder="e.g. Green Crest"
+          placeholder="Course or town — results appear as you type"
           aria-label="Search for a course by name"
         />
-        <button type="button" className="btn btn-secondary" onClick={search} disabled={pending}>
-          <i className="ph ph-magnifying-glass" /> {pending && !busyId ? "Searching…" : "Search"}
+        {/* Typing reads the catalogue; this asks the directory itself, which
+            is the metered call. Worth a press rather than a keystroke. */}
+        <button type="button" className="btn btn-secondary" onClick={() => search()} disabled={pending}>
+          <i className="ph ph-magnifying-glass" /> {pending && !busyId ? "Searching…" : "Search the full directory"}
         </button>
       </div>
 
@@ -127,11 +170,13 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
       )}
 
       {hits !== null && hits.length === 0 && !error && (
-        // An ordinary answer, not a failure. The directory covers US courses
-        // only, and a club outside it should be pointed at the path that works
-        // for them rather than left wondering what went wrong.
+        // An ordinary answer, not a failure. Coverage is worldwide but uneven,
+        // so the honest line is "not in the directory", not "not in the US" —
+        // which is what this said, and which told every club outside America
+        // to stop trying.
         <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
-          No match. The directory covers US courses only — paste your card below, or type it in.
+          Nothing matching that. Try the town it is in, or paste your card below and it takes
+          about twenty seconds.
         </p>
       )}
 
@@ -154,7 +199,10 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
               <span style={{ minWidth: 0, fontSize: 13 }}>
                 {h.name}
                 <span className="text-muted" style={{ marginLeft: 6, fontSize: 11.5 }}>
-                  {[h.city, h.state].filter(Boolean).join(", ")}
+                  {/* Country included: with a worldwide directory, "Royal Golf
+                      Club" is several real courses, and a non-US row has no
+                      state to tell them apart with. */}
+                  {[h.city, h.state, h.country].filter(Boolean).join(", ")}
                   {h.par > 0 && ` · par ${h.par}`}
                 </span>
               </span>

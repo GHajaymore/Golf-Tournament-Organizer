@@ -534,9 +534,12 @@ export interface DirectorySearchResult {
  * — there is no row here to own. Coverage is US-only, so no results is an
  * ordinary answer rather than a failure, and the screen says which it was.
  */
-export async function searchCourseDirectory(query: string): Promise<DirectorySearchResult> {
+export async function searchCourseDirectory(
+  query: string,
+  localOnly = false,
+): Promise<DirectorySearchResult> {
   await requireOrganizerOrg();
-  const hits = await searchDirectory(query);
+  const hits = await searchDirectory(query, localOnly);
   return { ok: true, hits };
 }
 
