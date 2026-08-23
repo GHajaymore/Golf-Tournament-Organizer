@@ -22,12 +22,16 @@
  * Safe to interrupt and safe to re-run. It is polite to the directory: one
  * request at a time, with a pause between them.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { courseFrom, hitsFrom } from "../src/lib/domain/course-directory";
 
 const prisma = new PrismaClient();
+
+/** Written out rather than escaped inline — a literal newline in a shell-
+ *  authored edit is how this file got a broken string twice. */
+const EOL = String.fromCharCode(10);
 
 const BASE = "https://api.opengolfapi.org";
 /**
@@ -149,13 +153,32 @@ async function getJson(path: string): Promise<unknown | null> {
 }
 
 /** Every course id the directory lists for one state. */
-async function idsInState(code: string): Promise<string[]> {
-  const ids: string[] = [];
+/**
+ * Drop the ids already catalogued.
+ *
+ * Without this a daily run spends its whole allowance re-fetching courses it
+ * already has, and never reaches the ones it does not — which would look
+ * like the import being stuck rather than being wasteful.
+ *
+ * A course whose card was REFUSED is still "already catalogued". The refusal
+ * is a judgement about the source data, and the source changes about never;
+ * re-asking daily would spend the allowance re-confirming the same no. Use
+ * --refresh to go back over them deliberately.
+ */
+async function unseen<T extends { id: string }>(rows: T[]): Promise<T[]> {
+  const known = new Set(
+    (await prisma.courseCatalog.findMany({ select: { id: true } })).map((r) => r.id),
+  );
+  return rows.filter((r) => !known.has(r.id));
+}
+
+async function idsInState(code: string): Promise<Array<{ id: string; country: string }>> {
+  const ids: Array<{ id: string; country: string }> = [];
   for (let offset = 0; ; offset += PAGE) {
     const payload = await getJson(`/api/v1/courses/state/${code}?limit=${PAGE}&offset=${offset}`);
     const hits = hitsFrom(payload);
     if (hits.length === 0) break;
-    ids.push(...hits.map((h) => h.id));
+    ids.push(...hits.map((h) => ({ id: h.id, country: h.country })));
     if (hits.length < PAGE) break;
     await sleep(PAUSE_MS);
   }
@@ -170,7 +193,19 @@ async function idsInState(code: string): Promise<string[]> {
  * imported cleanly last month and comes back unusable today keeps the good one,
  * because the directory losing data is not the club's problem.
  */
-async function store(id: string, payload: unknown): Promise<"card" | "no-card" | "skip"> {
+/**
+ * The country comes from the LISTING, not the course.
+ *
+ * The detail payload has no country field at all — `country_iso` exists only
+ * on a search row. Reading it off the course would have quietly stored every
+ * course in the world with a blank country, which is exactly what the first
+ * version of this did: 583 rows, every one of them blank.
+ */
+async function store(
+  id: string,
+  payload: unknown,
+  country: string,
+): Promise<"card" | "no-card" | "skip"> {
   const c = courseFrom(payload);
   if (!c) return "skip";
 
@@ -179,6 +214,9 @@ async function store(id: string, payload: unknown): Promise<"card" | "no-card" |
     name: c.name,
     city: c.city,
     state: c.state,
+    // Never blanked by a listing that did not say: a country we already
+    // hold is better than an empty one.
+    ...(country ? { country } : {}),
     website: c.website,
     address: c.address,
     par: usable ? c.card.pars.reduce((s, p) => s + p, 0) : 0,
@@ -203,59 +241,209 @@ async function store(id: string, payload: unknown): Promise<"card" | "no-card" |
   return usable ? "card" : "no-card";
 }
 
+/** Running totals for a whole run, however it was scoped. */
+interface Tally {
+  withCard: number;
+  withoutCard: number;
+  skipped: number;
+}
+
+/**
+ * Fetch and store a batch of courses, one request each.
+ *
+ * A shared queue rather than fixed slices: courses that need retries take far
+ * longer than the rest, and slicing would leave five workers idle while the
+ * sixth ground through them.
+ */
+async function fetchAll(rows: Array<{ id: string; country: string }>, tally: Tally): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = next;
+      next += 1;
+      if (i >= rows.length) return;
+      const { id, country } = rows[i];
+      const payload = await getJson(`/api/v1/courses/${encodeURIComponent(id)}`);
+      if (!payload) {
+        tally.skipped += 1;
+      } else {
+        const result = await store(id, payload, country);
+        if (result === "card") tally.withCard += 1;
+        else if (result === "no-card") tally.withoutCard += 1;
+        else tally.skipped += 1;
+      }
+      await sleep(PAUSE_MS);
+    }
+  };
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+}
+
+/**
+ * Where the world walk got to, so tomorrow does not start again at the top.
+ *
+ * A listing page costs exactly what a course costs: one request. Enumerating
+ * ~30,000 courses is ~300 of them, so a daily run that re-walked the listing
+ * from zero would spend most of a 500-request allowance rediscovering what it
+ * already knows, and the further it got the worse it would be — which reads
+ * like the import being stuck rather than being wasteful.
+ *
+ * A file rather than a table, because this is the script's own bookkeeping and
+ * no screen has any use for it. Losing it costs one wasted day of listing
+ * calls and nothing else: the walk restarts at the top, skips everything
+ * already catalogued, and carries on. Degraded, not broken.
+ */
+const CURSOR_FILE = resolve(__dirname, "..", ".course-walk.json");
+
+function readCursor(): number {
+  try {
+    const raw = JSON.parse(readFileSync(CURSOR_FILE, "utf8")) as { offset?: unknown };
+    const n = Number(raw?.offset);
+    return Number.isInteger(n) && n >= 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeCursor(offset: number): void {
+  try {
+    writeFileSync(CURSOR_FILE, JSON.stringify({ offset }, null, 2));
+  } catch {
+    // Not worth failing a good run over. The next run starts at the top and
+    // skips what is already catalogued.
+  }
+}
+
+/**
+ * Walk the whole directory, a page at a time, until the budget is spent.
+ *
+ * Interleaved rather than "list everything, then fetch everything", because
+ * the listing is not free. Each page is filtered against what is already
+ * catalogued before a single course is fetched, so a page of courses we
+ * already hold costs one request rather than a hundred.
+ */
+async function walkWorld(budget: number, refresh: boolean, tally: Tally): Promise<void> {
+  let offset = readCursor();
+  let spent = 0;
+  if (offset > 0) console.log(`Resuming the world walk at offset ${offset}.`);
+
+  /**
+   * The cursor only advances past a page that was FULLY consumed.
+   *
+   * The first version advanced a whole page whenever it moved at all, so a
+   * budget that ran out 25 courses into a page of 100 left the other 75
+   * behind — permanently, because tomorrow started at the next page. The
+   * catalogue would have filled with quiet holes that no run ever revisited.
+   *
+   * Staying put costs one listing request tomorrow to re-read a page whose
+   * first 25 are now catalogued and skipped for free.
+   */
+  for (;;) {
+    if (spent >= budget) break;
+    const payload = await getJson(`/api/v1/courses/search?limit=${PAGE}&offset=${offset}`);
+    const hits = hitsFrom(payload);
+    if (hits.length === 0) {
+      // The end. Back to the top next time, which is how a course added to
+      // the directory later is ever picked up.
+      console.log("Reached the end of the directory. The next run starts again at the top.");
+      offset = 0;
+      break;
+    }
+
+    const listed = hits.map((h) => ({ id: h.id, country: h.country }));
+    const fresh = refresh ? listed : await unseen(listed);
+    const take = fresh.slice(0, budget - spent);
+    if (take.length > 0) {
+      await fetchAll(take, tally);
+      spent += take.length;
+      console.log(
+        `offset ${offset}: ${take.length} fetched (${tally.withCard} with cards so far), ` +
+          `${spent}/${budget} of today's slice used`,
+      );
+    }
+    // Budget ran out part-way through this page: stay on it.
+    if (take.length < fresh.length) break;
+    if (hits.length < PAGE) {
+      console.log("Reached the end of the directory. The next run starts again at the top.");
+      offset = 0;
+      break;
+    }
+    offset += PAGE;
+    await sleep(PAUSE_MS);
+  }
+
+  writeCursor(offset);
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const all = args.includes("--all");
+  const world = args.includes("--world");
+  const refresh = args.includes("--refresh");
   const one = args.indexOf("--state");
   const states = all ? STATES : one >= 0 && args[one + 1] ? [args[one + 1].toUpperCase()] : [];
 
-  if (states.length === 0) {
-    console.log("Usage: --all, or --state OH");
+  /**
+   * How many courses this run may fetch.
+   *
+   * The anonymous allowance is 500 a day and one course is one request. A run
+   * that simply starts and hits the wall is safe — the script stops cleanly —
+   * but it leaves nothing for anyone using the app that day, because the same
+   * allowance serves the live "check source" button. So a run takes a slice
+   * and stops, and tomorrow takes the next one.
+   */
+  const b = args.indexOf("--budget");
+  const budget = b >= 0 && Number(args[b + 1]) > 0 ? Math.floor(Number(args[b + 1])) : Infinity;
+
+  if (states.length === 0 && !world) {
+    console.log(
+      [
+        "Usage:",
+        "  --state OH            one US state",
+        "  --all                 every US state",
+        "  --world               every course the directory has, anywhere",
+        "  --budget 400          stop after N courses (the daily allowance is 500)",
+        "  --refresh             re-fetch courses already catalogued",
+      ].join(EOL),
+    );
     return;
   }
 
-  let withCard = 0;
-  let withoutCard = 0;
-  let skipped = 0;
+  const tally: Tally = { withCard: 0, withoutCard: 0, skipped: 0 };
 
-  for (const code of states) {
-    const ids = await idsInState(code);
-    console.log(`${code}: ${ids.length} courses listed`);
-
-    // A shared queue rather than fixed slices: courses that need retries take
-    // far longer than the rest, and slicing would leave five workers idle
-    // while the sixth ground through them.
-    let next = 0;
-    const worker = async () => {
-      for (;;) {
-        const i = next;
-        next += 1;
-        if (i >= ids.length) return;
-        const id = ids[i];
-        const payload = await getJson(`/api/v1/courses/${encodeURIComponent(id)}`);
-        if (!payload) {
-          skipped += 1;
-        } else {
-          const result = await store(id, payload);
-          if (result === "card") withCard += 1;
-          else if (result === "no-card") withoutCard += 1;
-          else skipped += 1;
-        }
-        await sleep(PAUSE_MS);
+  if (world) {
+    await walkWorld(budget, refresh, tally);
+  } else {
+    let spent = 0;
+    for (const code of states) {
+      if (spent >= budget) {
+        console.log(`Budget of ${budget} reached — stopping. Re-run to take the next slice.`);
+        break;
       }
-    };
-    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-    console.log(`${code}: done — ${withCard} with cards, ${withoutCard} without, ${skipped} unreadable`);
+      const listed = await idsInState(code);
+      // Resume before spending: the expensive call is the per-course one.
+      const fresh = refresh ? listed : await unseen(listed);
+      const ids = fresh.slice(0, budget - spent);
+      spent += ids.length;
+      console.log(
+        `${code}: ${listed.length} listed, ${fresh.length} not yet catalogued, fetching ${ids.length}`,
+      );
+      await fetchAll(ids, tally);
+      console.log(
+        `${code}: done — ${tally.withCard} with cards, ${tally.withoutCard} without, ${tally.skipped} unreadable`,
+      );
+    }
   }
 
   // Said out loud, because a silent count of "16,822 courses imported" would
   // read as 16,822 usable cards, and it is not.
   console.log(
-    `\nCatalogue: ${withCard} courses with a card the app will score against, ` +
-      `${withoutCard} catalogued without one (the directory's card could not be trusted), ` +
-      `${skipped} unreadable.`,
+    EOL +
+      `Catalogue: ${tally.withCard} courses with a card the app will score against, ` +
+      `${tally.withoutCard} catalogued without one (the directory's card could not be trusted), ` +
+      `${tally.skipped} unreadable.`,
   );
 }
+
 
 main()
   .catch((e) => {

@@ -245,6 +245,47 @@ describe("re-checking a course against the source", () => {
   });
 });
 
+describe("where a course is in the world", () => {
+  /**
+   * The directory is global — it was walked state by state only because the
+   * one listing endpoint that takes a place is per US state. A course outside
+   * the US has no `state` at all, so without a country it is stored with two
+   * blank location fields and cannot be told from any other course of the
+   * same name.
+   */
+  it("reads the country off a search row", () => {
+    const hits = hitsFrom({
+      courses: [{ id: "x", name: "'t Kruisselt", city: "Ootmarsum", country_iso: "NL" }],
+    });
+    expect(hits[0].country).toBe("NL");
+  });
+
+  it("upper-cases it, because a filter that is case-sensitive is a filter that misses", () => {
+    expect(hitsFrom({ courses: [{ id: "x", name: "Y", country_iso: "nl" }] })[0].country).toBe("NL");
+  });
+
+  it("is empty rather than guessed when the row does not say", () => {
+    expect(hitsFrom({ courses: [{ id: "x", name: "Y" }] })[0].country).toBe("");
+  });
+
+  it("does NOT come from the course detail, which has no country at all", () => {
+    /**
+     * The bug this pins. `country_iso` exists only on a search row; the detail
+     * payload has no country field of any kind. Reading it off the course
+     * stored every course in the world with a blank country — 583 rows, every
+     * one of them blank, and nothing failed to say so.
+     *
+     * So the importer carries the country from the LISTING into `store`, and
+     * this test exists to stop anyone "tidying" that up.
+     */
+    const detail = courseFrom({
+      id: "x", course_name: "Golf de Chantilly", city: "Chantilly", holes_data: [], tees: [],
+    });
+    expect(detail).not.toBeNull();
+    expect(detail!.country).toBe("");
+  });
+});
+
 describe("the licence", () => {
   it("names OpenStreetMap and ODbL, because that is the condition of use", () => {
     // ODbL 1.0 permits commercial use WITH attribution. This is an obligation,

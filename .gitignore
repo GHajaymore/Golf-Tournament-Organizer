@@ -55,3 +55,6 @@ tsconfig.tsbuildinfo
 /.next-e2e
 /test-results
 /playwright-report
+
+# The world-walk cursor: the importer's own bookkeeping, not app data.
+.course-walk.json

@@ -63,6 +63,7 @@ function fromCatalog(row: {
   name: string;
   city: string;
   state: string;
+  country: string;
   website: string;
   address: string;
   pars: string;
@@ -89,6 +90,7 @@ function fromCatalog(row: {
     name: row.name,
     city: row.city,
     state: row.state,
+    country: row.country,
     website: row.website,
     address: row.address,
     // The catalogue stores what the importer JUDGED — empty arrays where the
@@ -133,7 +135,11 @@ export async function searchDirectory(query: string): Promise<DirectoryHit[]> {
     // and the ones we could not read should not crowd out the ones we could.
     orderBy: [{ cardProblem: "asc" }, { name: "asc" }],
     take: 20,
-    select: { id: true, name: true, city: true, state: true, par: true, website: true },
+    // country included so a club outside the US can tell two courses of the
+    // same name apart — a non-US row has no state to do that with.
+    select: {
+      id: true, name: true, city: true, state: true, country: true, par: true, website: true,
+    },
   });
   if (local.length > 0) return local;
 

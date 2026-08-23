@@ -2108,6 +2108,15 @@ model CourseCatalog {
   name    String
   city    String @default("")
   state   String @default("")
+  /**
+   * ISO 3166-1 alpha-2, from the directory. Empty where it does not say.
+   *
+   * The directory is global — it was walked state by state only because the
+   * only listing endpoint is per US state, which made it look US-only. A
+   * course outside the US has no `state` at all, so without this a Dutch
+   * club is stored with two blank location fields and is unfindable.
+   */
+  country String @default("")
   website String @default("")
   address String @default("")
   /**
@@ -2137,6 +2146,7 @@ model CourseCatalog {
 
   @@index([name])
   @@index([state])
+  @@index([country])
 }
 
 /**

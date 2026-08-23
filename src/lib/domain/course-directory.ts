@@ -58,6 +58,8 @@ export interface DirectoryHit {
   name: string;
   city: string;
   state: string;
+  /** ISO 3166-1 alpha-2. Empty where the directory does not say. */
+  country: string;
   /** The course's nominal par, shown so a picker can tell two courses apart. */
   par: number;
   website: string;
@@ -93,6 +95,7 @@ export interface DirectoryCourse {
   name: string;
   city: string;
   state: string;
+  country: string;
   website: string;
   address: string;
   card: DirectoryCard;
@@ -185,6 +188,7 @@ export function hitsFrom(payload: unknown): DirectoryHit[] {
       name: str(c.course_name) || str(c.name),
       city: str(c.city),
       state: str(c.state),
+      country: str(c.country_iso).toUpperCase(),
       par: num(c.par),
       website: str(c.website),
     }))
@@ -205,6 +209,7 @@ export function courseFrom(payload: unknown): DirectoryCourse | null {
     name,
     city: str(c.city),
     state: str(c.state),
+    country: str(c.country_iso).toUpperCase(),
     website: str(c.website),
     address: str(c.address),
     card: cardFrom(c.holes_data),
