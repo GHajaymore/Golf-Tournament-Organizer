@@ -1,3 +1,4 @@
+import { COURSE_REF } from "./course-resolution";
 import "server-only";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
@@ -57,7 +58,7 @@ export async function skinsPotFor(
   const [pot, stage, event] = await Promise.all([
     prisma.skinsPot.findUnique({ where: { stageId_net: { stageId, net } }, include: { entrants: true } }),
     prisma.stage.findUnique({ where: { id: stageId }, select: { id: true, eventId: true, holes: true } }),
-    prisma.event.findUnique({ where: { id: eventId } }),
+    prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
   ]);
   if (!stage || stage.eventId !== eventId || !event) return null;
 

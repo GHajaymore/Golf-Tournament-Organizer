@@ -1,3 +1,4 @@
+import { COURSE_REF } from "@/lib/services/course-resolution";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { loadEventState, matchSettled, standingRows, settingsOf } from "@/lib/services/tournament";
@@ -71,7 +72,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 export default async function PublicLeaderboardPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const event = await prisma.event.findUnique({ where: { shareToken: token } });
+  const event = await prisma.event.findUnique({ where: { shareToken: token }, include: COURSE_REF });
   // Same response whether the token is wrong or the organizer has unpublished:
   // a 404 either way, so the link can be switched off without confirming that
   // the tournament exists.

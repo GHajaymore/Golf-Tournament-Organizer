@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { courseForRound, applyNine, cleanNine } from "./course-resolution";
+import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { teeRatingFor } from "./handicaps";
 import { courseHandicap } from "../domain/handicap";
 import { resolveRoundHandicap } from "../domain/round-handicap";
@@ -96,7 +96,7 @@ export async function memberHandicapRecord(
       where: { id: { in: stageIds } },
       select: { id: true, eventId: true, holes: true, playedOn: true, courseId: true, nine: true },
     }),
-    prisma.event.findMany({ where: { id: { in: eventIds } } }),
+    prisma.event.findMany({ where: { id: { in: eventIds } }, include: COURSE_REF }),
     prisma.course.findMany({ where: { events: { some: { eventId: { in: eventIds } } } } }),
     prisma.tee.findMany({ where: { course: { events: { some: { eventId: { in: eventIds } } } } } }),
     // What each round was actually played off, where it has been frozen. This

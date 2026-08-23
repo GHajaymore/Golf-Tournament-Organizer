@@ -1,3 +1,4 @@
+import { COURSE_REF } from "./course-resolution";
 import "server-only";
 import { prisma } from "../db";
 import { formGroups, roundRobinSchedule } from "../domain";
@@ -154,7 +155,7 @@ export async function repairPlayerPairings(eventId: string, playerId: string): P
 }
 
 export async function regenerateGroupsAndSchedule(eventId: string): Promise<void> {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return;
 
   const formationRule = event.formationRule as FormationRule;
@@ -296,7 +297,7 @@ export async function generateCutRound(eventId: string, stageId: string): Promis
   if (!stage || stage.eventId !== eventId || !isPlayingRound(stage.type)) return;
 
   const [event, allStages, confirmed, allMatches, groups] = await Promise.all([
-    prisma.event.findUnique({ where: { id: eventId } }),
+    prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
     prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
     prisma.player.findMany({ where: { eventId, status: "confirmed" }, orderBy: { seed: "asc" } }),
     prisma.match.findMany({ where: { eventId } }),

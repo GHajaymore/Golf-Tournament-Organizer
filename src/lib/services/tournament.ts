@@ -3,7 +3,7 @@ import { isPlayingRound } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { isManualFormat } from "../formats";
-import { courseForRound, applyNine, cleanNine } from "./course-resolution";
+import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { survivors, currentRoundCutRule, type CutCandidate } from "../domain/cut";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { prisma } from "../db";
@@ -472,11 +472,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    */
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    include: {
-      courseRef: {
-        select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true },
-      },
-    },
+    include: COURSE_REF,
   });
   if (!event) return null;
 

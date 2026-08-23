@@ -1,4 +1,5 @@
 "use server";
+import { COURSE_REF } from "@/lib/services/course-resolution";
 import { revalidatePath } from "next/cache";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
@@ -228,7 +229,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const cleanEmail = (input.email ?? "").trim().toLowerCase();
   if (!cleanEmail) return { ok: false, error: "Email is required — it's how this player signs in." };
   if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return { ok: false, error: "Event not found." };
   // The same rule the public form follows. An organizer typing someone in must
   // not be able to create an entrant the tournament cannot reach, when the
@@ -422,7 +423,7 @@ export interface CsvImportResult {
 export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return { imported: 0, skippedDuplicates: 0, skippedInvalid: 0, error: "Event not found." };
 
   /**
@@ -1685,7 +1686,7 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     prisma.matchScorecard.findUnique({ where: { matchId_slot: { matchId, slot: "B" } } }),
     prisma.player.findUnique({ where: { id: match.playerAId } }),
     prisma.player.findUnique({ where: { id: match.playerBId } }),
-    prisma.event.findUnique({ where: { id: eventId } }),
+    prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
     prisma.stage.findUnique({ where: { id: match.stageId } }),
   ]);
   const course = resolveCourse({
@@ -1694,6 +1695,10 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     customPars: event?.customPars ?? "",
     customYards: event?.customYards ?? "",
     customStrokeIndex: event?.customStrokeIndex ?? "",
+    // Passed explicitly: this site builds the fields by hand rather than
+    // handing the row over, so without this line it would go on resolving by
+    // name however the query above changed.
+    courseRef: event?.courseRef ?? null,
   });
   // Handicap strokes only apply when the round is scored Net — a Gross round
   // uses the same card, decided scratch (lower strokes wins the hole).
@@ -1874,7 +1879,7 @@ async function recomputeTeamMatch(
   formatName: string,
   holeCount: number,
 ): Promise<void> {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return;
   const course = resolveCourse(event);
   const format = findFormat(formatName);
@@ -1994,7 +1999,7 @@ export async function confirmMatch(matchId: string) {
   const eventId = session.eventId;
 
   const [event, match] = await Promise.all([
-    prisma.event.findUnique({ where: { id: eventId } }),
+    prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
     prisma.match.findUnique({ where: { id: matchId } }),
   ]);
   if (!event || !match || match.eventId !== eventId) return;
@@ -2879,7 +2884,7 @@ export async function importScores(
   let netSi: number[] = [];
   if (isNet) {
     const [event, players, tees] = await Promise.all([
-      prisma.event.findUnique({ where: { id: eventId } }),
+      prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
       prisma.player.findMany({
         where: { eventId, status: "confirmed" },
         select: { id: true, handicap: true, handicapType: true, teeId: true },

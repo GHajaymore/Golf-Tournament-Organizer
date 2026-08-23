@@ -1,3 +1,4 @@
+import { COURSE_REF } from "@/lib/services/course-resolution";
 import { prisma } from "@/lib/db";
 import { getPlaySession } from "@/lib/play-auth";
 import { settingsOf } from "@/lib/services/tournament";
@@ -25,7 +26,7 @@ export default async function PlayPage() {
   if (!session) return <PlayClient stage="code" />;
 
   const [event, match] = await Promise.all([
-    prisma.event.findUnique({ where: { id: session.eventId } }),
+    prisma.event.findUnique({ where: { id: session.eventId }, include: COURSE_REF }),
     prisma.match.findFirst({
       where: {
         stageId: session.stageId,

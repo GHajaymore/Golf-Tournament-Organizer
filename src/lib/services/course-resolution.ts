@@ -54,6 +54,21 @@ export interface EventCourseFields {
   customStrokeIndex: string;
 }
 
+/**
+ * The join that switches a query from resolving by name to resolving by id.
+ *
+ * One definition, because this is the migration: a screen still resolving by
+ * name is a screen whose query has not had this added yet, and `include:
+ * COURSE_REF` is the whole change. Written out at each site it would drift —
+ * a select missing `strokeIndex` would parse to null and fall silently back
+ * to the old path, which is the one failure here nothing would report.
+ */
+export const COURSE_REF = {
+  courseRef: {
+    select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true },
+  },
+} as const;
+
 export type Nine = "full" | "front" | "back";
 
 export interface ResolvedCourse {
