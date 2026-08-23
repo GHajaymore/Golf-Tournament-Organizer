@@ -10,6 +10,7 @@ import {
   matchStrokesGiven,
   type HoleResult,
 } from "@/lib/domain";
+import { CoursePicker } from "@/components/CoursePicker";
 import { firstName } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { declaredInput, inputOverrideApplies, resolveScoreInput } from "@/lib/formats";
@@ -1005,31 +1006,25 @@ export function ScoreEntryClient({
                 when the tournament has more than one venue — otherwise it
                 would state the obvious on every screen. */}
             {venues.length > 1 && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-                <span className="text-muted">Played at</span>
-                <select
-                  className="input"
-                  style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
-                  value={courseByMatch[active.id] ?? ""}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    setCourseByMatch((prev) => ({ ...prev, [active.id]: id }));
-                    startTransition(() =>
-                      void setMatchCourse(active.id, id || null, totalHoles === 9 ? nineByMatch[active.id] ?? "front" : "full"),
-                    );
-                  }}
-                >
-                  {/* Empty means inherit — from the round, then the event. The
-                      label names whatever that resolves to, so "inherit" is a
-                      visible default rather than a blank. */}
-                  <option value="">
-                    {active.courseName ? `${active.courseName} (inherited)` : "Not set"}
-                  </option>
-                  {venues.map((v) => (
-                    <option key={v.id} value={v.id}>{v.name}</option>
-                  ))}
-                </select>
-              </label>
+              <CoursePicker
+                label="Played at"
+                options={venues}
+                value={courseByMatch[active.id] ?? ""}
+                // Empty means inherit — from the round, then the event. The
+                // label names whatever that resolves to, so "inherit" is a
+                // visible default rather than a blank.
+                noneLabel={active.courseName ? `${active.courseName} (inherited)` : "Not set"}
+                onChange={(id) => {
+                  setCourseByMatch((prev) => ({ ...prev, [active.id]: id }));
+                  startTransition(() =>
+                    void setMatchCourse(
+                      active.id,
+                      id || null,
+                      totalHoles === 9 ? nineByMatch[active.id] ?? "front" : "full",
+                    ),
+                  );
+                }}
+              />
             )}
 
             {/* Which nine, when this round is 9 holes. Front and back carry

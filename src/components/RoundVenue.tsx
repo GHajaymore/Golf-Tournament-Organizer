@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setStageCourse } from "@/app/actions/courses";
+import { CoursePicker } from "@/components/CoursePicker";
 
 /**
  * Which course this round is scored against — stated where the scores go in.
@@ -68,33 +69,23 @@ export function RoundVenue({
       }}
     >
       {venues.length > 1 && (
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, flexWrap: "wrap" }}>
-          <span className="text-muted">Played at</span>
-          <select
-            className="input"
-            style={{ width: "auto" }}
-            disabled={pending}
-            value={courseId}
-            onChange={(e) =>
-              startTransition(async () => {
-                const res = await setStageCourse(stageId, e.target.value || null);
-                if (!res.ok) setError(res.error ?? "Couldn't set the venue for this round.");
-                else router.refresh();
-              })
-            }
-          >
-            {/* Empty means inherit, and the label names what that resolves to
-                — the same wording the per-match picker uses, so a blank is
-                never presented as "nowhere". */}
-            <option value="">{venue ? `${venue.name} (inherited)` : "Not set"}</option>
-            {venues.map((v) => (
-              <option key={v.id} value={v.id}>{v.name}</option>
-            ))}
-          </select>
-          <span className="text-muted" style={{ fontSize: 11.5 }}>
-            The card this whole round is scored against.
-          </span>
-        </label>
+        <CoursePicker
+          label="Played at"
+          options={venues}
+          value={courseId}
+          disabled={pending}
+          // Empty means inherit, and the label names what that resolves to,
+          // so a blank is never presented as "nowhere".
+          noneLabel={venue ? `${venue.name} (inherited)` : "Not set"}
+          hint="The card this whole round is scored against."
+          onChange={(id) =>
+            startTransition(async () => {
+              const res = await setStageCourse(stageId, id || null);
+              if (!res.ok) setError(res.error ?? "Couldn't set the venue for this round.");
+              else router.refresh();
+            })
+          }
+        />
       )}
 
       {missingCard ? (

@@ -13,6 +13,7 @@ import {
   applySourceCard,
 } from "@/app/actions/courses";
 import { CourseSearch } from "./CourseSearch";
+import { CoursePicker } from "@/components/CoursePicker";
 import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
 import { isDirectorySource, type CardDifference } from "@/lib/domain/course-directory";
 import type { ClubCourse } from "@/lib/services/courses";
@@ -554,15 +555,26 @@ export function CourseLibrary({
           going to change. Societies leave it unset — several venues is their
           normal case, not an exception. */}
       {courses.length > 0 && canEdit && (
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, flexWrap: "wrap" }}>
-          <span>Club&rsquo;s home course</span>
-          <select
-            className="input"
-            style={{ width: "auto" }}
+        <div style={{ maxWidth: 340 }}>
+          <CoursePicker
+            label="Club’s home course"
+            // The town and the card status come free here, and this is the
+            // list where they matter most: a club with two courses called
+            // Hillcrest cannot tell them apart by name, and setting a home
+            // course that has no card yet is worth knowing before every new
+            // tournament starts there.
+            options={courses.map((c) => ({
+              id: c.id,
+              name: c.name,
+              city: c.city,
+              hasCard: c.hasCard,
+            }))}
             value={homeCourseId ?? ""}
             disabled={pending}
-            onChange={(e) => {
-              const id = e.target.value || null;
+            noneLabel="None — choose per tournament"
+            hint="applies to new tournaments; existing ones keep their venues"
+            onChange={(chosen) => {
+              const id = chosen || null;
               setHomeCourseId(id);
               setError("");
               startTransition(async () => {
@@ -571,16 +583,8 @@ export function CourseLibrary({
                 else setNotice(id ? "New tournaments will start at this course." : "Home course cleared.");
               });
             }}
-          >
-            <option value="">None — choose per tournament</option>
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <span className="text-muted" style={{ fontSize: 12 }}>
-            applies to new tournaments; existing ones keep their venues
-          </span>
-        </label>
+          />
+        </div>
       )}
 
       {selectedCount > 1 && (

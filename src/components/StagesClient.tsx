@@ -17,6 +17,7 @@ import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices } from "@/lib/
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
 import { isTeamFormat } from "@/lib/side-style";
 import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-dates";
+import { CoursePicker } from "@/components/CoursePicker";
 import FieldInfo from "@/components/FieldInfo";
 import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP } from "@/lib/domain/cut";
 import { chainIssues, issuesForRound, carryForwardPrompt, type CarryPrompt } from "@/lib/format-chain";
@@ -869,19 +870,15 @@ function StageCard({
         {/* Only where the tournament rotates venues. One course means the
             whole event is played there and asking would be noise. */}
         {venues.length > 1 && (
-          <div className="field" style={{ minWidth: 170 }}>
-            <label>Course</label>
-            <select
-              className="input"
+          <div style={{ minWidth: 200 }}>
+            <CoursePicker
+              label="Course"
+              options={venues}
               value={courseId ?? ""}
               disabled={pending}
-              onChange={(e) => commitVenue(e.target.value || null, nine)}
-            >
-              <option value="">Same as the tournament</option>
-              {venues.map((v) => (
-                <option key={v.id} value={v.id}>{v.name}</option>
-              ))}
-            </select>
+              noneLabel="Same as the tournament"
+              onChange={(id) => commitVenue(id || null, nine)}
+            />
           </div>
         )}
         <button

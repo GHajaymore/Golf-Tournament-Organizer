@@ -390,6 +390,53 @@ describe("team screens", () => {
   });
 });
 
+describe("picking a course, wherever you pick one", () => {
+  /**
+   * One control, used everywhere a venue is chosen. Each screen used to roll
+   * its own — a bare select here, a text field there — so the same act looked
+   * different depending where you stood, and only one of them could narrow a
+   * long list.
+   */
+  const courses = [
+    { id: "c1", name: "Hillcrest Golf Course", city: "Montpelier", country: "US", hasCard: true },
+    { id: "c2", name: "Green Crest Golf Course", city: "Middletown", country: "US", hasCard: false },
+    { id: "c3", name: "Golf de Chantilly", city: "Chantilly", country: "FR", hasCard: true },
+  ];
+
+  const picker = async (over: Record<string, unknown> = {}) => {
+    const { CoursePicker } = await import("@/components/CoursePicker");
+    return render(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      <CoursePicker options={courses} value="c1" onChange={() => {}} {...(over as any)} />,
+    );
+  };
+
+  it("shows the chosen course rather than an empty box", async () => {
+    // A picker that forgets its own answer is the commonest way one of these
+    // goes wrong, and the round already has a venue.
+    expect(await picker()).toContain("Hillcrest Golf Course");
+  });
+
+  it("is a combobox, so the narrowing is announced and not just drawn", async () => {
+    const html = await picker();
+    expect(html).toContain('role="combobox"');
+  });
+
+  it("labels itself for whatever screen it is on", async () => {
+    expect(await picker({ label: "Round venue" })).toContain("Round venue");
+  });
+
+  it("carries the caller's note about what the choice affects", async () => {
+    const html = await picker({ hint: "applies to new tournaments" });
+    expect(html).toContain("applies to new tournaments");
+  });
+
+  it("offers no empty choice unless the caller allows one", async () => {
+    // A round that must be played somewhere should not offer "none".
+    expect(await picker()).not.toContain("None —");
+  });
+});
+
 describe("leaderboards for every format", () => {
   it("renders a team board, unplayed sides unranked", () => {
     const html = render(
@@ -554,8 +601,15 @@ describe("rounds and format", () => {
       <StagesClient {...base} stages={[stage()]}
         venues={[{ id: "c1", name: "Bushwood" }, { id: "c2", name: "Augusta" }]} />,
     );
-    expect(two).toContain("Augusta");
-    expect(one.match(/Bushwood/g)?.length ?? 0).toBeLessThan(two.match(/Bushwood/g)?.length ?? 99);
+    /**
+     * The venue names are no longer in the markup until the picker is
+     * opened — a native <select> put every option in the DOM, and the shared
+     * CoursePicker renders its list on demand. So the assertion is what the
+     * test always meant: the control is OFFERED when there is a choice to
+     * make, and absent when there is not.
+     */
+    const comboboxes = (html: string) => html.split('role="combobox"').length - 1;
+    expect(comboboxes(two)).toBeGreaterThan(comboboxes(one));
   });
 
   it("knows a stroke-play round follows a round robin, whatever the format", () => {
@@ -1662,7 +1716,9 @@ describe("where this round was played", () => {
     // the round has to say which card it is scored against.
     const html = await venue({ venues: twoVenues });
     expect(html).toContain("Played at");
-    expect(html).toContain("Ridgeline");
+    // The other venue appears once the list is opened; what the markup has
+    // to show before that is the control itself.
+    expect(html).toContain('role="combobox"');
   });
 
   it("names what an unset venue inherits, rather than showing a blank", async () => {

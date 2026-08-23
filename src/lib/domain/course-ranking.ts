@@ -85,18 +85,46 @@ export function tierOf(hit: { name: string; city: string }, query: string): Tier
  * Stable and total: two runs of the same query give the same list, which
  * matters because this list moves under the reader's fingers as they type.
  */
-export function rankCourseHits<T extends DirectoryHit>(hits: readonly T[], query: string): T[] {
-  const scored = hits.map((h) => ({
-    hit: h,
-    tier: tierOf(h, query),
-    hasCard: h.par > 0,
+/**
+ * Order any list of courses by what the query is aiming at.
+ *
+ * Generic because the same order has to hold everywhere a course is chosen —
+ * the club's own library, a round's venue, the public directory. Three
+ * screens with three sort orders is three different answers to "which course
+ * did I mean".
+ *
+ * `hasCard` decides the tie-break within a tier: a course you can score a
+ * round on today outranks one that still needs its card typed in. Callers
+ * that have no such distinction pass nothing.
+ */
+export function rankCourses<T extends { name: string; city?: string }>(
+  items: readonly T[],
+  query: string,
+  hasCard: (item: T) => boolean = () => false,
+): T[] {
+  const scored = items.map((item) => ({
+    item,
+    tier: tierOf({ name: item.name, city: item.city ?? "" }, query),
+    card: hasCard(item),
   }));
   scored.sort((a, b) => {
     if (a.tier !== b.tier) return a.tier - b.tier;
-    if (a.hasCard !== b.hasCard) return a.hasCard ? -1 : 1;
-    const byLength = a.hit.name.length - b.hit.name.length;
+    if (a.card !== b.card) return a.card ? -1 : 1;
+    const byLength = a.item.name.length - b.item.name.length;
     if (byLength !== 0) return byLength;
-    return a.hit.name.localeCompare(b.hit.name);
+    return a.item.name.localeCompare(b.item.name);
   });
-  return scored.map((s) => s.hit);
+  return scored.map((s) => s.item);
+}
+
+/**
+ * The same order, for a directory hit.
+ *
+ * A thin wrapper rather than a second implementation: the club picking a
+ * course from its own library and the club looking one up in the directory
+ * are the same act, and a list that sorted differently between the two would
+ * be the app disagreeing with itself about which course you meant.
+ */
+export function rankCourseHits<T extends DirectoryHit>(hits: readonly T[], query: string): T[] {
+  return rankCourses(hits, query, (h) => h.par > 0);
 }
