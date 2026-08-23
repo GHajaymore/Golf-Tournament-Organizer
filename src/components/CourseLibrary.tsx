@@ -41,6 +41,7 @@ const BLANK = new Array(18).fill("");
 export function CourseLibrary({
   courses,
   canEdit,
+  cardScanAvailable = true,
   clubCity = "",
   homeCourse = null,
   openCourseId = null,
@@ -49,6 +50,9 @@ export function CourseLibrary({
   /** The club's city, so a local course does not need retyping. */
   clubCity?: string;
   canEdit: boolean;
+  /** False when this club's plan doesn't include card reading. Resolved on
+   *  the server so the locked state renders before a photo is taken. */
+  cardScanAvailable?: boolean;
   /** The club's own course, if set — new tournaments start there. */
   homeCourse?: string | null;
   /** A course to open the card editor on, from `?course=<id>`. Score entry
@@ -616,7 +620,7 @@ export function CourseLibrary({
 
       {canEdit && pasting && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <CardImport defaultCity={clubCity} onDone={() => setPasting(false)} />
+          <CardImport defaultCity={clubCity} cardScanAvailable={cardScanAvailable} onDone={() => setPasting(false)} />
           <button type="button" className="btn btn-ghost" style={{ alignSelf: "flex-start" }} onClick={() => setPasting(false)}>
             Done
           </button>

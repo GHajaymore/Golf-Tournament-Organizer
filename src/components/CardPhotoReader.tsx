@@ -3,6 +3,7 @@ import { useRef, useState, useTransition } from "react";
 import { readScorecardPhoto, readGroupCardPhoto } from "@/app/actions/card-photo";
 import FieldInfo from "@/components/FieldInfo";
 import { LockedFeature } from "@/components/LockedFeature";
+import { shrinkPhoto } from "@/lib/photo-upload";
 
 /**
  * Read a paper card from a photograph, then hand the numbers to a person.
@@ -41,22 +42,6 @@ export interface CardPhotoReaderProps {
   available?: boolean;
 }
 
-/** Downscale before upload: a 12-megapixel photo is far more than is needed to
- *  read two-digit numbers, and it costs the organizer's data on a phone. */
-async function shrink(file: File, maxEdge = 1600): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
-  const w = Math.round(bitmap.width * scale);
-  const h = Math.round(bitmap.height * scale);
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("no canvas");
-  ctx.drawImage(bitmap, 0, 0, w, h);
-  bitmap.close?.();
-  return canvas.toDataURL("image/jpeg", 0.85);
-}
 
 /** "hole 4" / "holes 4, 9 and 11" — named, because a count sends somebody hunting. */
 function holeList(holes: number[]): string {
@@ -90,7 +75,7 @@ export function CardPhotoReader({
     startTransition(async () => {
       let dataUrl: string;
       try {
-        dataUrl = await shrink(file);
+        dataUrl = await shrinkPhoto(file);
       } catch {
         setError("Couldn't read that image. Try another photo.");
         return;

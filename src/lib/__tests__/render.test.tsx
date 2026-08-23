@@ -2952,6 +2952,25 @@ describe("locked metered features", () => {
     expect(html).toContain("4 players on this card");
     expect(html).not.toContain("Read from a photo");
   });
+
+  it("shows the course card camera as locked rather than hiding it", async () => {
+    const { CourseCardCamera } = await import("@/components/CourseCardCamera");
+    const html = render(<CourseCardCamera holes={18} onReading={() => {}} available={false} />);
+    expect(html).toContain("On the paid plan");
+    // And the way in that always works, because pasting a card is free.
+    expect(html).toContain("Paste or type the rows below");
+    expect(html).not.toContain("Photograph the card");
+  });
+
+  it("renders the course card camera normally when the plan allows it", async () => {
+    const { CourseCardCamera } = await import("@/components/CourseCardCamera");
+    const html = render(<CourseCardCamera holes={9} onReading={() => {}} />);
+    expect(html).toContain("Photograph the card");
+    // The hole count is on screen: a nine-hole card read as eighteen is the
+    // expensive mistake here, and it is the one thing the reader is told.
+    expect(html).toContain("9 holes");
+    expect(html).not.toContain("On the paid plan");
+  });
 });
 
 describe("the two controls built after the audit", () => {

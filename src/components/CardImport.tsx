@@ -2,6 +2,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { importClubCourseCard } from "@/app/actions/courses";
 import { parseCard, type CardProblem } from "@/lib/domain/scorecard-parse";
+import { CourseCardCamera } from "@/components/CourseCardCamera";
 
 /**
  * Add a course by pasting its card.
@@ -23,10 +24,15 @@ import { parseCard, type CardProblem } from "@/lib/domain/scorecard-parse";
  */
 export function CardImport({
   defaultCity = "",
+  cardScanAvailable = true,
   onDone,
 }: {
   /** The club's city, so a local course doesn't need retyping. */
   defaultCity?: string;
+  /** False when this club's plan doesn't include card reading. Passed in
+   *  rather than discovered, so the locked state renders before a photo is
+   *  taken and uploaded. */
+  cardScanAvailable?: boolean;
   onDone?: () => void;
 }) {
   const [name, setName] = useState("");
@@ -143,6 +149,23 @@ export function CardImport({
           </div>
         </div>
       </div>
+
+      <CourseCardCamera
+        available={cardScanAvailable}
+        holes={holes}
+        disabled={pending}
+        onReading={({ pars: p, strokeIndex: si, yards: y }) => {
+          // Replaces rather than merges, unlike score entry. A card is read
+          // as one card: keeping half of a previous reading beside half of
+          // this one would produce a routing that exists on no course, and
+          // it would reconcile.
+          setPars(p);
+          setStrokeIndex(si);
+          // Only when this photo produced one, so a readable yardage row is
+          // not wiped by a second photo taken to fix the pars.
+          if (y) setYards(y);
+        }}
+      />
 
       <Row
         label="Par"

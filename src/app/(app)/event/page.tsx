@@ -11,6 +11,7 @@ import { EventSwitcher } from "@/components/EventSwitcher";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
+import { entitlementForEvent } from "@/lib/services/entitlements";
 
 
 export default async function EventPage({
@@ -118,6 +119,9 @@ export default async function EventPage({
         <CourseLibrary
           courses={courses}
           canEdit={session.viewRole === "admin"}
+          // Resolved here rather than in the component: a locked feature has
+          // to be visible before somebody photographs a card and uploads it.
+          cardScanAvailable={(await entitlementForEvent(session.eventId, "cardScan")).allowed}
           homeCourse={homeCourseId}
           // Checked against the club's own courses rather than trusted: this
           // arrives off the query string, and opening an editor for a row that

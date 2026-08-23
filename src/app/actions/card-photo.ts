@@ -15,6 +15,11 @@ import {
   parseGroupCardReading,
   type GroupCardReading,
 } from "@/lib/domain/group-card-reading";
+import {
+  courseCardPrompt,
+  parseCourseCardReading,
+  type CourseCardReading,
+} from "@/lib/domain/course-card-photo";
 
 /**
  * Read a photographed scorecard into proposed scores.
@@ -302,5 +307,109 @@ export async function readGroupCardPhoto(
     };
   } catch {
     return { ok: false, configured: true, error: "Could not reach the reader. Enter the scores by hand." };
+  }
+}
+
+
+export interface CourseCardPhotoResult {
+  ok: boolean;
+  error?: string;
+  /** Present only on success. Proposed rows — nothing is stored. */
+  reading?: CourseCardReading;
+  configured?: boolean;
+}
+
+/**
+ * Read a CLUB'S OWN CARD — the blank one — from a photograph.
+ *
+ * The third reader in this file and the one with the most at stake. A played
+ * card is one round, certified by the player who played it. A club's card is
+ * entered once and then scores every round played at that course forever, and
+ * a stroke index off by one hole never looks wrong afterwards — it just gives
+ * shots to the wrong holes, in every match, for years.
+ *
+ * Which is why this does even less than the others. It fills the boxes on the
+ * card review screen and stops. That screen already validates as you type,
+ * names the hole that is wrong, and refuses to save a card that does not
+ * reconcile — the same check a pasted or typed card goes through. Nothing here
+ * decides whether a card is any good; see course-card-photo.ts.
+ *
+ * Organizer only, not staff. The save this feeds (importClubCourseCard) is
+ * admin-only, so reading must be too — otherwise an assistant can spend the
+ * club's money on a screen they cannot submit from.
+ */
+export async function readCourseCardPhoto(
+  dataUrl: string,
+  holeCount: number,
+): Promise<CourseCardPhotoResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Not signed in." };
+  if (session.role !== "admin") return { ok: false, error: "Organizer access required." };
+
+  // Checked before the rate limit, so a malformed upload does not spend
+  // somebody's budget, and before the API call, so it never leaves the server.
+  if (dataUrl.length > MAX_DATA_URL_BYTES) {
+    return { ok: false, error: "That image is too large. Try a smaller photo." };
+  }
+  const image = readDataUrl(dataUrl);
+  if (!image) {
+    return { ok: false, error: "That doesn't look like a photo. Use a JPEG, PNG or WebP." };
+  }
+
+  const limit = await checkRateLimit("card-photo", session.accountId);
+  if (!limit.allowed) return { ok: false, error: limit.message };
+
+  // The club's plan, reached through the event the organizer is signed in to —
+  // planForEvent resolves the owning organization, which is whose plan this is.
+  const entitled = await entitlementForEvent(session.eventId, "cardScan");
+  if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
+
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) {
+    return {
+      ok: false,
+      configured: false,
+      error: "Reading cards from a photo is not switched on. Type the card in below.",
+    };
+  }
+
+  const holes = holeCount === 9 ? 9 : 18;
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        // Haiku, as everywhere in this file. Lower volume than the other two —
+        // a course is read once, not once a round — and the review screen in
+        // front of it is stricter than either.
+        model: "claude-haiku-4-5",
+        // Three rows rather than one, and yardages are three digits.
+        max_tokens: 700,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: image.media, data: image.base64 } },
+              { type: "text", text: courseCardPrompt(holes) },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      // The status, never the body.
+      return { ok: false, configured: true, error: `Could not read the card (${res.status}).` };
+    }
+    const data = (await res.json()) as { content?: Array<{ text?: string }> };
+    const reply = data.content?.[0]?.text ?? "";
+    // Untrusted from here: shape and every value are checked, and whether the
+    // card is fit to save is decided afterwards by validateCard.
+    return { ok: true, configured: true, reading: parseCourseCardReading(extractReadingJson(reply), holes) };
+  } catch {
+    return { ok: false, configured: true, error: "Could not reach the reader. Type the card in below." };
   }
 }
