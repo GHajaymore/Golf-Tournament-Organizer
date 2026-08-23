@@ -599,7 +599,7 @@ export async function saveEvent(data: {
    */
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { organizationId: true },
+    select: { organizationId: true, course: true, courseId: true },
   });
   const owned = data.courseId?.trim()
     ? await prisma.course.findFirst({
@@ -610,6 +610,25 @@ export async function saveEvent(data: {
       })
     : null;
   const courseId = owned?.id ?? null;
+
+  /**
+   * Changing the venue drops the card that belonged to the old one.
+   *
+   * customPars/Yards/StrokeIndex are the event's OWN card, entered for
+   * whatever course it was set to at the time. Nothing cleared them when the
+   * course changed, so a tournament moved from one course to another kept
+   * scoring against the first one's stroke index while displaying the
+   * second one's name — found on real data: an event reading "Blue Ash Golf
+   * Course" still carrying Pebble Beach's card.
+   *
+   * Only on a CHANGE, so re-saving the form for any other reason leaves a
+   * hand-entered card alone.
+   */
+  const movedVenue =
+    !!event && (event.course !== data.course || (event.courseId ?? null) !== courseId);
+  const clearedCard = movedVenue
+    ? { customPars: "", customYards: "", customStrokeIndex: "" }
+    : {};
   await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -621,6 +640,7 @@ export async function saveEvent(data: {
       // made. Null where they typed a name by hand or the id was not this
       // club's — the name still names the course either way.
       courseId,
+      ...clearedCard,
       city: data.city,
       address: data.address,
       // Only ever the two known values — an unrecognised mode would decide

@@ -463,7 +463,21 @@ export function strokeHandicapResolver(ctx: {
 }
 
 export async function loadEventState(eventId: string): Promise<EventState | null> {
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  /**
+   * The event, with the club course it points at.
+   *
+   * `courseRef` is what makes every screen fed by this state resolve its card
+   * by the id the organizer picked rather than by the name beside it. One
+   * join, loaded once per request, and the resolution functions stay pure.
+   */
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      courseRef: {
+        select: { id: true, name: true, city: true, pars: true, yards: true, strokeIndex: true },
+      },
+    },
+  });
   if (!event) return null;
 
   const [accounts, players, groups, stages, matches, bracketWinners, scorecards, matchCards, venues, tees, roundHandicaps] = await Promise.all([

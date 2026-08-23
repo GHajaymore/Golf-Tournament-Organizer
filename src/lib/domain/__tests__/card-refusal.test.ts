@@ -124,6 +124,8 @@ describe("every path that stores a card uses it", () => {
       "never writes: it reports cardDifferences for a human to act on, by design, so the source can never outrank the club",
     "tournament.ts:saveMatchScorecard":
       "writes a PLAYER’s strokes, not a course card — the strokeIndex it names is read from the course to allocate shots",
+    "tournament.ts:saveEvent":
+      "CLEARS the event’s card when the venue changes, never writes one — blank hole arrays are the absence of a card, and refusing to blank one would keep the previous course’s stroke index on a tournament that has moved",
     "tournament.ts:cloneEvent":
       "copies a card already stored on the event it is cloning, which was checked when it was first written; re-refusing it would make an old tournament un-copyable",
   };

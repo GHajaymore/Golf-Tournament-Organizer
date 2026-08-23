@@ -147,3 +147,79 @@ describe("nine selection", () => {
     }
   });
 });
+
+
+describe("the tournament's own course, by id", () => {
+  /**
+   * Event.courseId is what the organizer picked; Event.course is the name
+   * kept beside it. Until this, only the name was ever read — so a club with
+   * two courses of the same name, or a course renamed after the tournament
+   * was set up, resolved to whichever row the name happened to hit.
+   *
+   * Reading it is opt-in per query, so these tests pin both halves: what a
+   * caller that loaded the row gets, and that a caller which did not is
+   * completely unaffected.
+   */
+  const withRef = (over: Partial<EventCourseFields> = {}): EventCourseFields => ({
+    ...blankEvent,
+    courseRef: stored("Blue Ash", 5),
+    ...over,
+  });
+
+  it("scores against the course the organizer picked", () => {
+    const c = courseForRound(null, withRef());
+    expect(c?.name).toBe("Blue Ash");
+    expect(c?.pars[0]).toBe(5);
+    expect(c?.source).toBe("event");
+  });
+
+  it("beats the name beside it, because the id is what was chosen", () => {
+    // The event's own custom card must not win over the row that was picked.
+    const c = courseForRound(null, withRef({
+      course: "Typed By Hand",
+      customPars: arr(3),
+      customYards: arr(300),
+      customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+    }));
+    expect(c?.name).toBe("Blue Ash");
+  });
+
+  it("still loses to a round venue, which is more specific", () => {
+    // The hierarchy is unchanged: match beats round beats event.
+    const c = courseForRound(stored("Royal Crest", 3), withRef());
+    expect(c?.name).toBe("Royal Crest");
+    expect(c?.source).toBe("round");
+  });
+
+  it("and to a match venue", () => {
+    const c = courseForMatch(stored("Hillcrest", 3), stored("Royal Crest", 4), withRef());
+    expect(c?.name).toBe("Hillcrest");
+    expect(c?.source).toBe("match");
+  });
+
+  it("falls through to the event's own card when the row will not parse", () => {
+    // A broken row must not take a working card away. COURSES is empty — the
+    // bundled presets were removed as invented layouts — so the event's own
+    // custom card is what "the old path" actually means here.
+    const broken = { ...stored("Blue Ash"), pars: "not json" };
+    const c = courseForRound(null, {
+      ...blankEvent,
+      course: "Typed By Hand",
+      customPars: arr(4),
+      customYards: arr(400),
+      customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      courseRef: broken,
+    });
+    expect(c?.name).toBe("Typed By Hand");
+    expect(c?.pars[0]).toBe(4);
+  });
+
+  it("changes nothing for a caller that did not load the row", () => {
+    // The whole migration rests on this: an unchanged query is unchanged
+    // behaviour, so the readers can be moved one at a time.
+    const base = { ...blankEvent, course: "Typed By Hand", customPars: arr(4), customYards: arr(400), customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)) };
+    const before = courseForRound(null, base);
+    const after = courseForRound(null, { ...base, courseRef: null });
+    expect(after).toEqual(before);
+  });
+});

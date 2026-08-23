@@ -33,6 +33,20 @@ export interface StoredCourse {
 
 /** The event's own course fields — a preset name or a saved custom card. */
 export interface EventCourseFields {
+  /**
+   * The club course this tournament points at, when the caller loaded it.
+   *
+   * OPTIONAL on purpose. Adding it to a query is what switches that screen
+   * from resolving by name to resolving by id, so the migration is one select
+   * at a time rather than one commit that moves every card at once. A caller
+   * that has not been changed passes nothing and behaves exactly as before.
+   *
+   * It wins over the name below because it is what the organizer actually
+   * picked; the name is a label kept beside it. If its card will not parse,
+   * resolution falls through to the old path rather than returning nothing —
+   * a broken row must not take a working card away.
+   */
+  courseRef?: StoredCourse | null;
   course: string;
   city: string;
   customPars: string;
@@ -62,6 +76,10 @@ function fromStored(c: StoredCourse, source: ResolvedCourse["source"]): Resolved
 }
 
 function fromEvent(event: EventCourseFields): ResolvedCourse | null {
+  if (event.courseRef) {
+    const resolved = fromStored(event.courseRef, "event");
+    if (resolved) return resolved;
+  }
   const preset = COURSES.find((c: CoursePreset) => c.name === event.course);
   if (preset) {
     return {

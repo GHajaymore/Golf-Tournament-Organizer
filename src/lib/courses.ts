@@ -1,6 +1,7 @@
 // Course presets for the scorecard generator. In production these would live in
 // a Courses table; for the pilot they are a static catalog of realistic layouts.
 
+import type { StoredCourse } from "./services/course-resolution";
 import { lookupFormat } from "./formats";
 
 export interface CoursePreset {
@@ -58,6 +59,20 @@ export function findCourse(name: string): CoursePreset {
 
 /** The subset of Event fields needed to resolve real course data. */
 export interface EventCourseFields {
+  /**
+   * The club course this tournament points at, when the caller loaded it.
+   *
+   * OPTIONAL on purpose. Adding it to a query is what switches that screen
+   * from resolving by name to resolving by id, so the migration is one select
+   * at a time rather than one commit that moves every card at once. A caller
+   * that has not been changed passes nothing and behaves exactly as before.
+   *
+   * It wins over the name below because it is what the organizer actually
+   * picked; the name is a label kept beside it. If its card will not parse,
+   * resolution falls through to the old path rather than returning nothing —
+   * a broken row must not take a working card away.
+   */
+  courseRef?: StoredCourse | null;
   course: string;
   city: string;
   customPars: string;
@@ -136,6 +151,22 @@ export function needsCourseData(stages: ScoringShape[]): boolean {
  * `hasCourseData` first.
  */
 export function resolveCourse(event: EventCourseFields): CoursePreset {
+  // The id the organizer picked, before the name they picked it by.
+  if (event.courseRef) {
+    const pars = parseHoleArray(event.courseRef.pars);
+    const yards = parseHoleArray(event.courseRef.yards);
+    const strokeIndex = parseHoleArray(event.courseRef.strokeIndex);
+    if (pars && yards && strokeIndex) {
+      return {
+        name: event.courseRef.name,
+        city: event.courseRef.city,
+        address: "",
+        pars,
+        yards,
+        strokeIndex,
+      };
+    }
+  }
   const known = COURSES.find((c) => c.name === event.course);
   if (known) return known;
   const pars = parseHoleArray(event.customPars);
