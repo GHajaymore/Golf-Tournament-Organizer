@@ -6,6 +6,7 @@ import {
   sideOnlyCost,
   TEAM_ENTRY_MODES,
   teamEntryNote,
+  teamEntryFixedReason,
 } from "../team-entry";
 import { GOLF_FORMATS, needsTeams, findFormat } from "@/lib/formats";
 
@@ -228,6 +229,96 @@ describe("what the scorer is told to write down", () => {
       const cost = sideOnlyCost(f.name)!;
       expect(cost, f.name).toContain("handicap");
       expect(cost, f.name).toContain("net ball");
+    }
+  });
+});
+
+describe("a side score is only enough when the round is won on gross", () => {
+  /**
+   * Rule 23.2b: in a handicap four-ball the side's score for a hole is the
+   * lower NET score of the partners. That cannot be recovered from one team
+   * number — each partner receives strokes off their own handicap, so which
+   * ball is better can differ hole by hole from which gross is lower.
+   *
+   * On gross it is exactly recoverable: the side's score IS the better
+   * ball's gross. So the option is right for one and wrong for the other,
+   * and it is offered for one and not the other.
+   */
+  const twoBall = GOLF_FORMATS.filter((f) => needsTeams(f.name) && f.ball !== "single");
+
+  it("offers both ways of writing a gross round down", () => {
+    for (const f of twoBall) {
+      expect(teamEntryChoices(f.name, "gross"), f.name).toEqual(["per-player", "side-only"]);
+    }
+  });
+
+  it("offers only per-player once anything but gross decides the round", () => {
+    // "both" counts as net: a net leaderboard is still produced, and it would
+    // be produced from a number that is not the better net ball.
+    for (const basis of ["net", "both", "stableford"]) {
+      for (const f of twoBall) {
+        expect(teamEntryChoices(f.name, basis), `${f.name} on ${basis}`).toEqual(["per-player"]);
+      }
+    }
+  });
+
+  it("ignores a side-only override stored before the round became net", () => {
+    // The realistic path in: a committee sets one card for the side while the
+    // round is gross, then switches it to net. The stored override must not
+    // survive that, and nothing needs migrating for it not to.
+    for (const f of twoBall) {
+      expect(resolveTeamEntry(f.name, "side-only", "net"), f.name).toBe("per-player");
+      expect(resolveTeamEntry(f.name, "side-only", "gross"), f.name).toBe("side-only");
+    }
+  });
+
+  it("leaves a one-ball format alone whatever the round is won on", () => {
+    // Foursomes has one ball on every basis, so nothing here may touch it.
+    for (const f of GOLF_FORMATS.filter((x) => needsTeams(x.name) && x.ball === "single")) {
+      for (const basis of ["gross", "net", "both", "stableford"]) {
+        expect(teamEntryChoices(f.name, basis), `${f.name} on ${basis}`).toEqual(["side-only"]);
+      }
+    }
+  });
+
+  it("warns about the cost only where the choice exists", () => {
+    for (const f of twoBall) {
+      expect(sideOnlyCost(f.name, "gross"), f.name).toBeTruthy();
+      // Nothing to weigh up when there is nothing to choose.
+      expect(sideOnlyCost(f.name, "net"), f.name).toBeNull();
+    }
+  });
+});
+
+describe("why a round offers no choice", () => {
+  it("says nothing while there is still a choice to make", () => {
+    for (const f of GOLF_FORMATS.filter((x) => needsTeams(x.name) && x.ball !== "single")) {
+      expect(teamEntryFixedReason(f.name, "gross"), f.name).toBe("");
+    }
+  });
+
+  it("gives the one-ball reason for a one-ball format", () => {
+    for (const f of GOLF_FORMATS.filter((x) => needsTeams(x.name) && x.ball === "single")) {
+      expect(teamEntryFixedReason(f.name), f.name).toContain("One ball");
+    }
+  });
+
+  it("gives the net reason for a net two-ball format, not the one-ball one", () => {
+    // The bug this prevents: telling a club "one ball, one card" about their
+    // four-ball, which is simply false. Two ways to have no choice, two
+    // reasons.
+    for (const f of GOLF_FORMATS.filter((x) => needsTeams(x.name) && x.ball !== "single")) {
+      const why = teamEntryFixedReason(f.name, "net");
+      expect(why, f.name).not.toContain("One ball");
+      expect(why, f.name).toContain("net");
+      // And what to change if they wanted the other shape.
+      expect(why, f.name).toContain("gross");
+    }
+  });
+
+  it("says nothing at all for a format with no sides", () => {
+    for (const f of GOLF_FORMATS.filter((x) => !needsTeams(x.name))) {
+      expect(teamEntryFixedReason(f.name), f.name).toBe("");
     }
   });
 });

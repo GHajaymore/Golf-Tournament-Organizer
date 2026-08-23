@@ -14,7 +14,7 @@ import { unratedWarning } from "@/lib/services/handicaps";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { DescribeTournament } from "@/components/DescribeTournament";
 import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
-import { teamEntryChoices, resolveTeamEntry, sideOnlyCost } from "@/lib/domain/team-entry";
+import { teamEntryChoices, resolveTeamEntry, sideOnlyCost, teamEntryFixedReason } from "@/lib/domain/team-entry";
 import { effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import type { RoundScoringInfo } from "@/components/RoundTeamScoring";
 
@@ -33,6 +33,7 @@ function teamScoringFor(s: {
   allowanceWeights: number[];
   countBest: number;
   scoreInput: string;
+  scoringBasis: string;
 }): RoundScoringInfo | null {
   if (!needsTeams(s.format)) return null;
   const f = findFormat(s.format);
@@ -41,9 +42,12 @@ function teamScoringFor(s: {
     // Whose card this round is written on. Derived from the format's `ball`
     // rather than stored, so a shared-ball round can never be offered
     // per-player entry — there was no individual ball to record.
-    entryChoices: teamEntryChoices(s.format),
-    entryMode: resolveTeamEntry(s.format, s.scoreInput) ?? "side-only",
-    sideOnlyCost: sideOnlyCost(s.format),
+    entryChoices: teamEntryChoices(s.format, s.scoringBasis),
+    entryMode: resolveTeamEntry(s.format, s.scoreInput, s.scoringBasis) ?? "side-only",
+    sideOnlyCost: sideOnlyCost(s.format, s.scoringBasis),
+    // Why there is no choice, where there is none — a net four-ball has no
+    // choice for a different reason than a foursomes does.
+    fixedReason: teamEntryFixedReason(s.format, s.scoringBasis),
     name: f.name,
     allowance: effectiveAllowance(s.format, s.handicapAllowance),
     recommendedAllowance: f.allowance,

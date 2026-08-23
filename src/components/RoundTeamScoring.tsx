@@ -46,6 +46,8 @@ export interface RoundScoringInfo {
   entryMode: TeamEntryMode;
   /** What taking the side's card alone gives up, where it is a choice. */
   sideOnlyCost: string | null;
+  /** Why this round offers no choice, where it offers none. */
+  fixedReason: string;
 }
 
 export function RoundTeamScoring({ stageId, info }: { stageId: string; info: RoundScoringInfo }) {
@@ -77,8 +79,7 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
           option and go looking for support. */}
       {info.entryChoices.length === 1 ? (
         <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
-          One ball, one card — the side&rsquo;s strokes are entered on a single line, the way{" "}
-          {info.name} is written down on paper.
+          {info.fixedReason}
         </p>
       ) : (
         <>

@@ -936,7 +936,12 @@ export async function setStageScoringBasis(stageId: string, basis: string) {
 export async function setStageScoreInput(stageId: string, input: string) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
-  const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { format: true } });
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    // The basis as well as the format: whether a two-ball side may record
+    // one score depends on whether the round is won on gross or on net.
+    select: { format: true, scoringBasis: true },
+  });
   if (!stage) return;
   const wanted = (input ?? "").trim();
   /**
@@ -953,7 +958,7 @@ export async function setStageScoreInput(stageId: string, input: string) {
   const value =
     wanted === "" ||
     inputChoices(stage.format).includes(wanted as MatchEntryMode) ||
-    teamEntryChoices(stage.format).includes(wanted as TeamEntryMode)
+    teamEntryChoices(stage.format, stage.scoringBasis).includes(wanted as TeamEntryMode)
       ? wanted
       : "";
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { scoreInput: value } });

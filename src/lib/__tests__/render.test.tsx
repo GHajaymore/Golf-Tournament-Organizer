@@ -58,7 +58,7 @@ import { SeriesClient } from "@/components/SeriesClient";
 import { TeeEditor } from "@/components/TeeEditor";
 import { TeamsClient } from "@/components/TeamsClient";
 import { TeamEntryClient } from "@/components/TeamEntryClient";
-import { teamEntryNote } from "@/lib/domain/team-entry";
+import { teamEntryNote, teamEntryFixedReason } from "@/lib/domain/team-entry";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import {
   SkinsLeaderboard,
@@ -2140,6 +2140,7 @@ describe("round handicap controls", () => {
     entryChoices: ["side-only"] as TeamEntryMode[],
     entryMode: "side-only" as TeamEntryMode,
     sideOnlyCost: null as string | null,
+    fixedReason: "",
     ...over,
   });
 
@@ -2270,6 +2271,7 @@ describe("whose card a team round is written on", () => {
         shares: null, recommendedShares: null, sharesOverridden: false,
         countBest: null, countBestOverridden: false, maxSide: 2,
         entryChoices: ["side-only"], entryMode: "side-only", sideOnlyCost: null,
+        fixedReason: teamEntryFixedReason("Foursomes"),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...over } as any} />,
     );
@@ -2284,6 +2286,26 @@ describe("whose card a team round is written on", () => {
     expect(html).not.toContain("Scores are entered as");
   });
 
+  it("gives a NET four-ball its own reason, not the one-ball one", async () => {
+    /**
+     * Rule 23.2b: in a handicap four-ball the side's score is the lower NET
+     * ball, which a single team number cannot produce. So a net four-ball
+     * has no choice either — but for a different reason, and telling a club
+     * "one ball, one card" about their four-ball would be simply false.
+     */
+    const html = await scoring({
+      name: "Four-Ball",
+      entryChoices: ["per-player"],
+      entryMode: "per-player",
+      fixedReason: teamEntryFixedReason("Four-Ball", "net"),
+    });
+    expect(html).not.toContain("One ball, one card");
+    expect(html).toContain("scored on net");
+    // And the way to get the other shape back, rather than a dead end.
+    expect(html).toContain("gross");
+    expect(html).not.toContain("Scores are entered as");
+  });
+
   it("offers the choice where both are physically real", async () => {
     // Rule 23: each player plays their own ball, so both scores exist and are
     // on the paper card.
@@ -2292,6 +2314,7 @@ describe("whose card a team round is written on", () => {
       entryChoices: ["per-player", "side-only"],
       entryMode: "per-player",
       sideOnlyCost: "Recording only the side's score means this round cannot count towards anybody's handicap.",
+      fixedReason: "",
     });
     expect(html).toContain("Scores are entered as");
     expect(html).toContain("Each player&#x27;s own card");
@@ -2306,6 +2329,7 @@ describe("whose card a team round is written on", () => {
       entryChoices: ["per-player", "side-only"],
       entryMode: "side-only",
       sideOnlyCost: "Recording only the side's score means this round cannot count towards anybody's handicap.",
+      fixedReason: "",
     });
     expect(html).toContain("cannot count towards anybody");
   });
@@ -2316,6 +2340,7 @@ describe("whose card a team round is written on", () => {
       entryChoices: ["per-player", "side-only"],
       entryMode: "per-player",
       sideOnlyCost: "Recording only the side's score means this round cannot count towards anybody's handicap.",
+      fixedReason: "",
     });
     expect(html).not.toContain("cannot count towards anybody");
   });
@@ -2334,6 +2359,7 @@ describe("club convention vs published allowance", () => {
         countBest: null, countBestOverridden: false, maxSide: 4,
         // A scramble is one ball, so there is no choice of card to offer.
         entryChoices: ["side-only"], entryMode: "side-only", sideOnlyCost: null,
+        fixedReason: "",
       }} />,
     );
     expect(html).toContain("not a published standard");

@@ -54,19 +54,38 @@ export const TEAM_ENTRY_MODES: Array<{ key: TeamEntryMode; label: string; blurb:
  * that article is the argument: their organizers set up alternate shot, get
  * individual entry, and go looking for support.
  */
-export function teamEntryChoices(formatName: string): TeamEntryMode[] {
+export function teamEntryChoices(formatName: string, scoringBasis = "gross"): TeamEntryMode[] {
   if (!needsTeams(formatName)) return [];
   // One ball, one card. The other option is not withheld — it does not exist.
   if (findFormat(formatName).ball === "single") return ["side-only"];
-  // Two balls: both scores are real and both are on the paper card. Recording
-  // only the side's is allowed because it LOSES detail rather than inventing
-  // it, which is the direction the rule permits.
-  return ["per-player", "side-only"];
+  /**
+   * Two balls: whether the side's score alone is enough depends on how the
+   * round is WON, and that is the half this rule was missing.
+   *
+   * Gross — the side's score for a hole IS the better ball's gross, so
+   * writing that one number down loses nothing that decides the
+   * competition. Recording only the side's score is exactly right.
+   *
+   * Net, both or Stableford — Rule 23.2b makes the side's score the lower
+   * NET ball, and that cannot be recovered from a side total. Each partner
+   * receives their own strokes off their own handicap, so which ball is
+   * better can differ hole by hole from which gross is lower. Deriving a
+   * net from a side handicap instead produces a number belonging to no
+   * recognised competition, and it would sit on the leaderboard looking
+   * exactly like a four-ball result.
+   *
+   * So the option is not offered rather than warned about — CLAUDE.md:
+   * prefer making the wrong thing unrepresentable over documenting that
+   * callers must check.
+   */
+  return scoringBasis.trim().toLowerCase() === "gross"
+    ? ["per-player", "side-only"]
+    : ["per-player"];
 }
 
 /** The shape a round takes without anybody choosing. */
-export function declaredTeamEntry(formatName: string): TeamEntryMode | null {
-  return teamEntryChoices(formatName)[0] ?? null;
+export function declaredTeamEntry(formatName: string, scoringBasis = "gross"): TeamEntryMode | null {
+  return teamEntryChoices(formatName, scoringBasis)[0] ?? null;
 }
 
 /**
@@ -77,8 +96,12 @@ export function declaredTeamEntry(formatName: string): TeamEntryMode | null {
  * before the format was changed, or posted straight at the endpoint — must not
  * open an entry screen asking for two scores where one ball was played.
  */
-export function resolveTeamEntry(formatName: string, override?: string | null): TeamEntryMode | null {
-  const choices = teamEntryChoices(formatName);
+export function resolveTeamEntry(
+  formatName: string,
+  override?: string | null,
+  scoringBasis = "gross",
+): TeamEntryMode | null {
+  const choices = teamEntryChoices(formatName, scoringBasis);
   if (choices.length === 0) return null;
   const wanted = (override ?? "").trim() as TeamEntryMode;
   return choices.includes(wanted) ? wanted : choices[0];
@@ -100,8 +123,11 @@ export function resolveTeamEntry(formatName: string, override?: string | null): 
  * This belongs BESIDE the control, not in a footnote and not in a `title` —
  * see `no-tooltip-refusals.test.ts`.
  */
-export function sideOnlyCost(formatName: string): string | null {
-  if (!teamEntryChoices(formatName).includes("per-player")) return null;
+export function sideOnlyCost(formatName: string, scoringBasis = "gross"): string | null {
+  // Fewer than two choices means there is nothing to warn about: either the
+  // side plays one ball, or the round is scored on net and side-only is not
+  // offered at all.
+  if (teamEntryChoices(formatName, scoringBasis).length < 2) return null;
   return (
     "Recording only the side's score means this round cannot count towards anybody's handicap. " +
     "A four-ball counts for handicapping when a player's own ball is written down, and this gives " +
@@ -125,8 +151,12 @@ export function sideOnlyCost(formatName: string): string | null {
  *
  * Empty string for a format with no sides, where the question does not arise.
  */
-export function teamEntryNote(formatName: string, override?: string | null): string {
-  const mode = resolveTeamEntry(formatName, override);
+export function teamEntryNote(
+  formatName: string,
+  override?: string | null,
+  scoringBasis = "gross",
+): string {
+  const mode = resolveTeamEntry(formatName, override, scoringBasis);
   if (!mode) return "";
   if (mode === "per-player") {
     return "One card each. The side's score is taken from the better ball on every hole.";
@@ -140,5 +170,31 @@ export function teamEntryNote(formatName: string, override?: string | null): str
     "One card for the side. Write the better ball's gross score on each hole — the individual " +
     "balls are not recorded, so the side's net comes from the side's playing handicap rather " +
     "than from the better net ball."
+  );
+}
+
+/**
+ * Why this round offers no choice of input, where it offers none.
+ *
+ * The Rounds screen used to state the one-ball reason for every
+ * single-choice round, which was true while one ball was the only way to
+ * have no choice. A net four-ball now also has none, and telling a club
+ * "one ball, one card" about their four-ball would be simply false.
+ *
+ * Empty string where there IS a choice, or no sides at all.
+ */
+export function teamEntryFixedReason(formatName: string, scoringBasis = "gross"): string {
+  const choices = teamEntryChoices(formatName, scoringBasis);
+  if (choices.length !== 1) return "";
+  if (findFormat(formatName).ball === "single") {
+    return (
+      "One ball, one card — the side's strokes are entered on a single line, the way " +
+      `${findFormat(formatName).name} is written down on paper.`
+    );
+  }
+  return (
+    "Each player's own card, because this round is scored on net. The side's score is the " +
+    "better NET ball, which needs both players' strokes — a single team score cannot produce " +
+    "it. Scoring the round on gross would allow one card for the side."
   );
 }

@@ -113,7 +113,9 @@ export default async function EntryPage() {
      * a stored "per-player" on a foursomes round opens one card for the side
      * rather than asking for two scores where one ball was played.
      */
-    const sideOnly = resolveTeamEntry(activeStage.format, activeStage.scoreInput) === "side-only";
+    const sideOnly =
+      resolveTeamEntry(activeStage.format, activeStage.scoreInput, activeStage.scoringBasis) ===
+      "side-only";
     const holeCount = activeStage.holes === 9 ? 9 : 18;
     const teams = await teamsForStage(session.eventId, activeStage.id, activeStage.format, activeStage.handicapAllowance, holeCount, activeStage.allowanceWeights);
     const teamById = new Map(teams.map((t) => [t.id, t]));
@@ -220,7 +222,7 @@ export default async function EntryPage() {
           teams={visible}
           pars={courseKnown ? teamCourse.pars.slice(0, holeCount) : []}
           strokeIndex={courseKnown ? teamCourse.strokeIndex.slice(0, holeCount) : []}
-          note={teamEntryNote(activeStage.format, activeStage.scoreInput)}
+          note={teamEntryNote(activeStage.format, activeStage.scoreInput, activeStage.scoringBasis)}
           holes={holeCount}
         />
       </>
