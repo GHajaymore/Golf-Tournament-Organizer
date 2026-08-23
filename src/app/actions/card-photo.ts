@@ -20,6 +20,10 @@ import {
   parseCourseCardReading,
   type CourseCardReading,
 } from "@/lib/domain/course-card-photo";
+import {
+  readDataUrl,
+  MAX_DATA_URL_BYTES,
+} from "@/lib/domain/image-upload";
 
 /**
  * Read a photographed scorecard into proposed scores.
@@ -54,10 +58,8 @@ export interface CardPhotoResult {
  * Phone cameras produce 3-6MB, and base64 adds a third. Eight covers a modern
  * photo without letting a request body become a way to exhaust the server.
  */
-const MAX_DATA_URL_BYTES = 8 * 1024 * 1024;
 
 /** Formats a phone actually produces, and that the API accepts. */
-const ALLOWED_MEDIA = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 
 /** Organizer or assistant, on the active tournament. */
 async function requireStaff(): Promise<{ eventId: string; who: string }> {
@@ -71,22 +73,6 @@ async function requireStaff(): Promise<{ eventId: string; who: string }> {
   return { eventId: session.eventId, who: session.accountId };
 }
 
-/**
- * Split a data URL into its media type and payload, refusing anything else.
- *
- * Parsed rather than trusted: the string arrives over HTTP, and forwarding an
- * arbitrary one to an external API would make this endpoint a way to post
- * whatever somebody likes using our key.
- */
-function readDataUrl(dataUrl: string): { media: string; base64: string } | null {
-  const m = /^data:([a-z]+\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$/i.exec(dataUrl.trim());
-  if (!m) return null;
-  const media = m[1].toLowerCase();
-  if (!(ALLOWED_MEDIA as readonly string[]).includes(media)) return null;
-  const base64 = m[2].replace(/\s+/g, "");
-  if (base64.length === 0) return null;
-  return { media, base64 };
-}
 
 export async function readScorecardPhoto(
   stageId: string,
