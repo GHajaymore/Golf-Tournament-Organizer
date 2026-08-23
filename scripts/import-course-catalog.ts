@@ -53,7 +53,7 @@ const BASE = "https://api.opengolfapi.org";
  * in one sitting, speed buys nothing: 400 courses at this pace is a couple of
  * minutes, and it is a couple of minutes that actually finishes.
  */
-const PAUSE_MS = 750;
+const PAUSE_MS = 600;
 const RETRIES = 3;
 /**
  * How many courses are in flight at once.
@@ -68,7 +68,7 @@ const RETRIES = 3;
  * invisible: the fast version did not error, it recorded 374 real courses as
  * unreadable and moved on.
  */
-const CONCURRENCY = 2;
+const CONCURRENCY = 1;
 const PAGE = 100;
 
 /** Every US state and territory the directory indexes by code. */
@@ -127,6 +127,24 @@ function envKey(): string {
 const API_KEY = envKey();
 
 /**
+ * The rate-limit headers cannot tell a burst from the end of the day.
+ *
+ * Measured: ten requests fired at once all came back 429 with
+ * `X-RateLimit-Remaining: 0` and `X-RateLimit-Reset` at midnight UTC — and a
+ * single unhurried request a second later reported 493 of 500 still
+ * available. The refusal reports the same numbers whether you have spent the
+ * day or merely asked too fast in one second, so reading them decides
+ * nothing. An earlier version of this file trusted them and stopped runs with
+ * hundreds of requests unspent.
+ *
+ * What does distinguish the two is ASKING AGAIN SLOWLY. A burst penalty
+ * clears in seconds; a spent day does not. So a refusal is retried at
+ * widening intervals, and only a refusal that survives all of them ends the
+ * run — by which point the distinction has stopped mattering, because either
+ * way there is nothing useful left to do today.
+ */
+const BACKOFF_MS = [5000, 15000, 45000];
+/**
  * A 429 is not the same thing as being out of allowance.
  *
  * Two different refusals arrive as the same status code: asking too fast in a
@@ -157,15 +175,11 @@ async function getJson(path: string): Promise<unknown | null> {
       });
       if (res.ok) {
         const body = (await res.json()) as { limit_hit?: boolean; error?: string };
-        // The directory answers 200 with a limit_hit body rather than a 429,
         // Some endpoints answer 200 with a limit_hit body rather than a 429,
-        // so the status code alone would sail straight past this. It gets the
-        // same header check: the directory sent limit_hit with 244 of 500
-        // still on the clock, so this too is a burst signal more often than
-        // it is the end of the day.
+        // so the status alone would sail straight past this. Same treatment as
+        // a 429: back off and ask again.
         if (body?.limit_hit) {
-          if (outOfAllowance(res)) throw new QuotaExhausted(body.error ?? "Daily limit reached.");
-          await sleep(PAUSE_MS * (attempt + 1) * 4);
+          await sleep(BACKOFF_MS[attempt] ?? 45000);
           continue;
         }
         return body as unknown;
@@ -173,20 +187,16 @@ async function getJson(path: string): Promise<unknown | null> {
       // 429 and 5xx mean "ask again". A 404 is an answer, and retrying it is
       // three times the load for the same nothing.
       if (res.status !== 429 && res.status < 500) return null;
-      if (res.status === 429) {
-        // Out of allowance is final; too fast is not.
-        if (outOfAllowance(res)) throw new QuotaExhausted("the daily request allowance is used up.");
-      }
     } catch (e) {
       if (e instanceof QuotaExhausted) throw e;
       // Timeout or connection reset — the same treatment.
     }
-    await sleep(PAUSE_MS * (attempt + 1) * 4);
+    await sleep(BACKOFF_MS[attempt] ?? 45000);
   }
-  // Refused every time it was asked, with allowance still on the clock. That
-  // is this script being impatient, not the directory being out — so the
-  // course is skipped and the run carries on rather than stopping the day.
-  return null;
+  // Refused at 5s, then 15s, then 45s. Whatever the headers claim, something
+  // that will not answer after a minute of backing off has nothing more to
+  // give today, and carrying on would just be asking a wall.
+  throw new QuotaExhausted("it is still refusing requests after backing off for a minute.");
 }
 
 /** Every course id the directory lists for one state. */
