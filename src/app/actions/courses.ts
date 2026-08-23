@@ -271,13 +271,31 @@ export async function setStageCourse(
   nine = "full",
   force = false,
 ): Promise<CourseResult> {
-  const { eventId } = await requireOrganizerOrg();
+  const { eventId, organizationId } = await requireOrganizerOrg();
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
   if (!stage) return { ok: false, error: "Round not found." };
 
   if (courseId) {
-    const allowed = await prisma.eventCourse.findFirst({ where: { eventId, courseId } });
-    if (!allowed) return { ok: false, error: "That course isn't one of this tournament's venues." };
+    /**
+     * Any of the CLUB's courses, not only the ones already on this
+     * tournament — and picking one adds it.
+     *
+     * This refused anything that was not already a venue, which meant the
+     * round-level picker could only ever restate a choice made somewhere
+     * else: a tournament with one venue had nothing to offer, so the venue
+     * could not be corrected from score entry at all. Adding a venue to the
+     * event is precisely what this action is for, exactly as nameMatchVenue
+     * already does when a player names a course.
+     *
+     * Scoped to the ORGANIZATION, which is the boundary that matters: a
+     * course id off the wire is an arbitrary row until this narrows it, and
+     * unscoped it would point a round at another club's par and stroke index.
+     */
+    const owned = await prisma.course.findFirst({
+      where: { id: courseId, organizationId },
+      select: { id: true },
+    });
+    if (!owned) return { ok: false, error: "That course isn't in this club's library." };
   }
 
   /**
@@ -295,6 +313,17 @@ export async function setStageCourse(
   if (!force) {
     const cards = await enteredCardCount(eventId, stageId);
     if (cards > 0) return { ok: false, needsConfirm: true, cards };
+  }
+
+  // Linked before the round points at it, so the tournament's venue list and
+  // the round agree. Idempotent: choosing a venue it already has changes
+  // nothing.
+  if (courseId) {
+    await prisma.eventCourse.upsert({
+      where: { eventId_courseId: { eventId, courseId } },
+      update: {},
+      create: { eventId, courseId },
+    });
   }
 
   await prisma.stage.update({

@@ -29,6 +29,7 @@ export function RoundVenue({
   stageId,
   courseId,
   venues,
+  library = [],
   venue,
   canEdit,
 }: {
@@ -37,6 +38,16 @@ export function RoundVenue({
   courseId: string;
   /** Every venue this tournament may be played on. */
   venues: Array<{ id: string; name: string }>;
+  /**
+   * Every course the club has, not only the ones already on this tournament.
+   *
+   * With one venue there was nothing to offer, so the picker hid and the
+   * round's venue could only be corrected from the Rounds screen — which is
+   * the wrong place to be standing when you have just been handed a card
+   * from a course the tournament does not know about. Choosing one adds it
+   * to the tournament's venues, which is what the action does now.
+   */
+  library?: Array<{ id: string; name: string; city?: string }>;
   /** The venue this round resolves to, and whether it has a card. */
   venue: { name: string; courseId: string; hasCard: boolean } | null;
   canEdit: boolean;
@@ -58,7 +69,19 @@ export function RoundVenue({
   const missingCard = !!venue && !venue.hasCard;
   // Nothing to say when there is one venue, it has a card, and the header
   // already names it. A locked dropdown of one is furniture.
-  if (!canEdit || (venues.length < 2 && !missingCard)) return null;
+  /**
+   * Shown when there is a real choice to make.
+   *
+   * Two venues is one. A card missing from the venue is another. And the
+   * club having OTHER courses is the third — that one used to be invisible,
+   * so a single-venue tournament could not have a round's venue corrected
+   * here at all, however many courses the club owned.
+   *
+   * With none of the three it stays hidden: the venue is already named in
+   * the header beside the dates, and a dropdown of one is furniture.
+   */
+  const elsewhereToPlay = library.some((c) => !venues.some((v) => v.id === c.id));
+  if (!canEdit || (venues.length < 2 && !elsewhereToPlay && !missingCard)) return null;
 
   /**
    * The one card editor, opened on this course.
@@ -78,10 +101,16 @@ export function RoundVenue({
         ...(missingCard ? { borderLeft: "3px solid var(--color-accent)" } : {}),
       }}
     >
-      {venues.length > 1 && (
+      {(venues.length > 1 || library.length > 0) && (
         <CoursePicker
           label="Played at"
-          options={venues}
+          /* The tournament's own venues first, then the rest of the club's
+             library — same list, in the order a round is most likely to
+             want. Deduped, because a venue is in both. */
+          options={[
+            ...venues,
+            ...library.filter((c) => !venues.some((v) => v.id === c.id)),
+          ]}
           value={courseId}
           disabled={pending}
           // Empty means inherit, and the label names what that resolves to,

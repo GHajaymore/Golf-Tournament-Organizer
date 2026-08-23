@@ -1736,6 +1736,27 @@ describe("where this round was played", () => {
     expect(html).toContain("Bushwood (inherited)");
   });
 
+  it("offers the club's other courses when the tournament has only one venue", async () => {
+    /**
+     * The picker used to hide entirely below two venues, so a round's venue
+     * could only be corrected from the Rounds screen — the wrong place to be
+     * standing when somebody hands you a card from a course this tournament
+     * has never heard of. Choosing one adds it to the tournament's venues.
+     */
+    const html = await venue({
+      venues: [{ id: "c1", name: "Bushwood" }],
+      library: [{ id: "c1", name: "Bushwood" }, { id: "c2", name: "Blue Ash", city: "Blue Ash" }],
+    });
+    expect(html).toContain('role="combobox"');
+  });
+
+  it("still shows nothing when there is genuinely nowhere else to play", async () => {
+    // One venue and no library is a tournament with one course. A picker
+    // there is a question with one answer.
+    const html = await venue({ venues: [{ id: "c1", name: "Bushwood" }], library: [] });
+    expect(html).not.toContain('role="combobox"');
+  });
+
   it("says a venue has no card, however many venues there are", async () => {
     // The case the course importer creates: a course arrives with its name
     // and its rated tees because the directory's hole data could not be

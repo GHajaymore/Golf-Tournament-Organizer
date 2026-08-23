@@ -263,6 +263,7 @@ export function EntryModes({
           stageId={round.stroke.stageId}
           courseId={round.courseId}
           venues={venues}
+          library={courseLibrary}
           venue={round.venue}
           canEdit={isStaff}
         />
