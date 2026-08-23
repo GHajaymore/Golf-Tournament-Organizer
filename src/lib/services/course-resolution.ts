@@ -1,4 +1,4 @@
-import { COURSES, parseHoleArray, type CoursePreset } from "../courses";
+import { parseHoleArray } from "../courses";
 
 /**
  * Which course a round or a match was actually played on.
@@ -94,17 +94,6 @@ function fromEvent(event: EventCourseFields): ResolvedCourse | null {
   if (event.courseRef) {
     const resolved = fromStored(event.courseRef, "event");
     if (resolved) return resolved;
-  }
-  const preset = COURSES.find((c: CoursePreset) => c.name === event.course);
-  if (preset) {
-    return {
-      name: preset.name,
-      city: preset.city,
-      pars: preset.pars,
-      yards: preset.yards,
-      strokeIndex: preset.strokeIndex,
-      source: "event",
-    };
   }
   const pars = parseHoleArray(event.customPars);
   const yards = parseHoleArray(event.customYards);

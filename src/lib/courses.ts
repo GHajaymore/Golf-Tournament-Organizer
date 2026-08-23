@@ -16,25 +16,6 @@ export interface CoursePreset {
   strokeIndex: number[];
 }
 
-/**
- * No bundled courses.
- *
- * This held four invented layouts — Ridgeline National, Cedar Hollow Links,
- * Blackpine Dunes, Willow Creek CC — with invented pars and stroke indexes,
- * and the design handoff was explicit that they were placeholder: "Copy
- * text/sample data (player names, course names) is illustrative demo content
- * — replace with real data."
- *
- * They were worse than unfinished. An organizer picked one from a dropdown
- * believing it was real, and every net score and every toughest-N tiebreak
- * was then computed against a card that does not exist. Nothing on screen
- * said so.
- *
- * A club enters its own course once, with tees and ratings, in the course
- * library. That is real data, and it is the only kind this app should score
- * against.
- */
-export const COURSES: CoursePreset[] = [];
 
 /**
  * A course we know nothing about.
@@ -52,10 +33,6 @@ export const UNKNOWN_COURSE: CoursePreset = {
   yards: [],
   strokeIndex: [],
 };
-
-export function findCourse(name: string): CoursePreset {
-  return COURSES.find((c) => c.name === name) ?? UNKNOWN_COURSE;
-}
 
 /** The subset of Event fields needed to resolve real course data. */
 export interface EventCourseFields {
@@ -95,8 +72,22 @@ export function parseHoleArray(json: string): number[] | null {
  * present). False for a blank or unrecognized course name, which is when
  * scoring math would otherwise silently run against fake demo-course data.
  */
-export function hasCourseData(event: Pick<EventCourseFields, "course" | "customPars" | "customYards" | "customStrokeIndex">): boolean {
-  if (COURSES.some((c) => c.name === event.course)) return true;
+export function hasCourseData(
+  event: Pick<
+    EventCourseFields,
+    "course" | "customPars" | "customYards" | "customStrokeIndex" | "courseRef"
+  >,
+): boolean {
+  /**
+   * The picked course counts, and had to be added here deliberately.
+   *
+   * This gates score entry. Since saveEvent clears the event's own card when
+   * the venue changes, a club that picks a course from their library has a
+   * courseId and NO custom card — so without this line the answer is "no
+   * course data" and the entry screen blocks a tournament whose venue is
+   * perfectly well known.
+   */
+  if (event.courseRef && parseHoleArray(event.courseRef.pars)) return true;
   return !!(parseHoleArray(event.customPars) && parseHoleArray(event.customYards) && parseHoleArray(event.customStrokeIndex));
 }
 
@@ -167,8 +158,6 @@ export function resolveCourse(event: EventCourseFields): CoursePreset {
       };
     }
   }
-  const known = COURSES.find((c) => c.name === event.course);
-  if (known) return known;
   const pars = parseHoleArray(event.customPars);
   const yards = parseHoleArray(event.customYards);
   const strokeIndex = parseHoleArray(event.customStrokeIndex);

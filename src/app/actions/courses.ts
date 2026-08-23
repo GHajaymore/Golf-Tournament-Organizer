@@ -5,7 +5,7 @@ import { getSession } from "@/lib/auth";
 import { settingsOf } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
 import { playsInMatch } from "@/lib/services/match-access";
-import { COURSES, parseHoleArray } from "@/lib/courses";
+import { parseHoleArray } from "@/lib/courses";
 import { parseCard, cardRefusal } from "@/lib/domain/scorecard-parse";
 import {
   searchDirectory,
@@ -174,35 +174,6 @@ export async function deleteClubCourse(courseId: string): Promise<CourseResult> 
   return { ok: true };
 }
 
-/** Copy a built-in preset into the club library so it can be assigned. */
-export async function addPresetCourse(presetName: string): Promise<CourseResult> {
-  const { organizationId } = await requireOrganizerOrg();
-  const preset = COURSES.find((c) => c.name === presetName);
-  if (!preset) return { ok: false, error: "Unknown course." };
-
-  // Bundled data gets the same check as typed data. A preset is shipped
-  // rather than entered, so this should never fire — which is exactly why it
-  // is worth having: a bad one would otherwise propagate into every library
-  // that added it, silently, and look like the club's own mistake.
-  const refusal = cardRefusal(preset.pars, preset.yards, preset.strokeIndex, 18);
-  if (refusal) return { ok: false, error: refusal };
-
-  const already = await prisma.course.findFirst({ where: { organizationId, name: preset.name } });
-  if (already) return { ok: true, courseId: already.id };
-
-  const created = await prisma.course.create({
-    data: {
-      organizationId,
-      name: preset.name,
-      city: preset.city,
-      pars: JSON.stringify(preset.pars),
-      yards: JSON.stringify(preset.yards),
-      strokeIndex: JSON.stringify(preset.strokeIndex),
-    },
-  });
-  refresh();
-  return { ok: true, courseId: created.id };
-}
 
 /**
  * Set the club's own course.
@@ -647,7 +618,7 @@ export async function importCourseFromDirectory(directoryId: string): Promise<Di
       city: [course.city, course.state].filter(Boolean).join(", "),
       address: course.address,
       // Empty, not plausible, when the card was refused. This is the rule
-      // `COURSES = []` was written for: "every consumer of pars or stroke
+      // The empty-card convention was written for: "every consumer of pars or stroke
       // index can tell 'unknown' from 'a par 72', and the ones that need real
       // data refuse instead of inventing an answer." A placeholder card of
       // eighteen 4s would report par 72 for a course whose real par is 70 and

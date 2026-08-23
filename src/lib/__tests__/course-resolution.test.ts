@@ -6,6 +6,7 @@ import {
   type StoredCourse,
   type EventCourseFields,
 } from "../services/course-resolution";
+import { hasCourseData } from "../courses";
 
 const arr = (n: number) => JSON.stringify(new Array(18).fill(n));
 
@@ -221,5 +222,38 @@ describe("the tournament's own course, by id", () => {
     const before = courseForRound(null, base);
     const after = courseForRound(null, { ...base, courseRef: null });
     expect(after).toEqual(before);
+  });
+});
+
+describe("whether a tournament has course data at all", () => {
+  /**
+   * This gates score entry, and it nearly blocked the ordinary case.
+   *
+   * saveEvent clears the event's own card when the venue changes, so a club
+   * that picks a course from their library has a courseId and NO custom card.
+   * Reading only the custom fields, that is "no course data" — and the entry
+   * screen refuses a tournament whose venue is perfectly well known.
+   */
+  const blank = { course: "", customPars: "", customYards: "", customStrokeIndex: "" };
+
+  it("counts a course picked from the library, with no custom card", () => {
+    expect(hasCourseData({ ...blank, courseRef: stored("Blue Ash") })).toBe(true);
+  });
+
+  it("still counts a card typed onto the event itself", () => {
+    const si = JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1));
+    expect(
+      hasCourseData({ ...blank, customPars: arr(4), customYards: arr(400), customStrokeIndex: si }),
+    ).toBe(true);
+  });
+
+  it("is false when there is genuinely nothing", () => {
+    expect(hasCourseData({ ...blank, courseRef: null })).toBe(false);
+  });
+
+  it("does not count a picked course whose card will not parse", () => {
+    // Pointing at a row is not the same as that row having numbers on it.
+    const broken = { ...stored("Blue Ash"), pars: "not json" };
+    expect(hasCourseData({ ...blank, courseRef: broken })).toBe(false);
   });
 });
