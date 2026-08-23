@@ -43,6 +43,16 @@ export function RoundVenue({
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
+  /**
+   * What a venue change would re-score, once the action has refused it.
+   *
+   * A venue change moves no stroke. It moves the STROKE INDEX those strokes
+   * are scored against, so the handicap shots land on different holes and
+   * every net result in the round changes with nothing on screen looking any
+   * different. The count has to come from the server, and the organizer
+   * cannot weigh the decision before they have it.
+   */
+  const [pendingVenue, setPendingVenue] = useState<{ id: string; cards: number } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const missingCard = !!venue && !venue.hasCard;
@@ -81,11 +91,62 @@ export function RoundVenue({
           onChange={(id) =>
             startTransition(async () => {
               const res = await setStageCourse(stageId, id || null);
+              if (res.needsConfirm) {
+                setPendingVenue({ id, cards: res.cards ?? 0 });
+                return;
+              }
               if (!res.ok) setError(res.error ?? "Couldn't set the venue for this round.");
               else router.refresh();
             })
           }
         />
+      )}
+
+      {/* Beside the control, and holding the number the server counted. The
+          decision is not "change the venue" — it is "re-score 37 cards that
+          are already in", and nobody can make that one without the count. */}
+      {pendingVenue && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: "8px 10px",
+            border: "1px solid var(--color-accent)",
+            borderRadius: 8,
+            fontSize: 12.5,
+            lineHeight: 1.55,
+          }}
+        >
+          <b>
+            <i className="ph ph-warning" /> This round already has {pendingVenue.cards} card
+            {pendingVenue.cards === 1 ? "" : "s"} entered.
+          </b>
+          <div className="text-muted" style={{ marginTop: 4 }}>
+            Changing where it was played re-scores them. No stroke is altered — the shots are
+            allocated off the new course&rsquo;s stroke index instead, so every net result in the
+            round can move and nothing on screen looks any different afterwards.
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={pending}
+              onClick={() => {
+                const chosen = pendingVenue.id;
+                setPendingVenue(null);
+                startTransition(async () => {
+                  const res = await setStageCourse(stageId, chosen || null, "full", true);
+                  if (!res.ok) setError(res.error ?? "Couldn't set the venue for this round.");
+                  else router.refresh();
+                });
+              }}
+            >
+              Change it anyway
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => setPendingVenue(null)}>
+              Leave it as it is
+            </button>
+          </div>
+        </div>
       )}
 
       {missingCard ? (

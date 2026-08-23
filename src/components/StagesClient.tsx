@@ -527,12 +527,36 @@ function StageCard({
       }).ask,
   );
   const [formatInfoOpen, setFormatInfoOpen] = useState(false);
+  /**
+   * What a format change would re-score, once the action has refused it.
+   *
+   * Held rather than confirmed inline because the number is the whole point:
+   * "this changes the result of 37 cards" is a different decision from
+   * "change the format", and the organizer cannot make the first one until
+   * the server has counted.
+   */
+  const [formatCards, setFormatCards] = useState<{ format: string; cards: number } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const commitFormat = (v: string) => {
     setFormat(v);
-    startTransition(() => setStageFormat(stage.id, v));
+    // The action refuses when the round already holds cards, and says how
+    // many. Changing a format re-scores every one of them: the strokes stay,
+    // what they MEAN changes.
+    startTransition(async () => {
+      const res = await setStageFormat(stage.id, v);
+      if (res?.needsConfirm) setFormatCards({ format: v, cards: res.cards ?? 0 });
+    });
   };
+  const confirmFormat = () => {
+    const pendingChange = formatCards;
+    if (!pendingChange) return;
+    setFormatCards(null);
+    startTransition(async () => {
+      await setStageFormat(stage.id, pendingChange.format, true);
+    });
+  };
+
   const commitPlayedOn = (v: string) => {
     setPlayedOn(v);
     startTransition(() => setStagePlayedOn(stage.id, v));
@@ -789,6 +813,49 @@ function StageCard({
               ))}
             </optgroup>
           </select>
+          {/* Beside the control that caused it, not in a toast that has gone
+              by the time the organizer decides. The COUNT is the decision:
+              "re-score 37 cards" is a different question from "change the
+              format", and only the server can answer the first. */}
+          {formatCards && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: "8px 10px",
+                border: "1px solid var(--color-accent)",
+                borderRadius: 8,
+                fontSize: 12.5,
+                lineHeight: 1.55,
+              }}
+            >
+              <b>
+                <i className="ph ph-warning" /> This round already has {formatCards.cards} card
+                {formatCards.cards === 1 ? "" : "s"} entered.
+              </b>
+              <div className="text-muted" style={{ marginTop: 4 }}>
+                Changing the format re-scores every one of them. No stroke is altered — the
+                same numbers are simply counted a different way, so the results change and
+                nothing on screen looks any different afterwards.
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <button type="button" className="btn btn-secondary" disabled={pending} onClick={confirmFormat}>
+                  Change it anyway
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    // Put the dropdown back to what is actually stored, or it
+                    // keeps showing a format the round does not have.
+                    setFormat(stage.format);
+                    setFormatCards(null);
+                  }}
+                >
+                  Keep {stage.format}
+                </button>
+              </div>
+            </div>
+          )}
           {activePending && (
             <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
               This round is set to {activePending.name}, which can be configured but not yet

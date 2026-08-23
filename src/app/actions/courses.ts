@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { enteredCardCount } from "@/lib/services/round-cards";
 import { getSession } from "@/lib/auth";
 import { settingsOf } from "@/lib/services/tournament";
 import { canEnterScores } from "@/lib/tournament-settings";
@@ -33,6 +34,11 @@ import { matchCourse, teeProblems } from "@/lib/domain/venue";
 export interface CourseResult {
   ok: boolean;
   error?: string;
+  /** Set when the change would re-score a round that already holds cards.
+   *  Not an error: the organizer may well mean it, and comes back with
+   *  force once they have been told what it costs. */
+  needsConfirm?: boolean;
+  cards?: number;
   courseId?: string;
 }
 
@@ -263,6 +269,7 @@ export async function setStageCourse(
   stageId: string,
   courseId: string | null,
   nine = "full",
+  force = false,
 ): Promise<CourseResult> {
   const { eventId } = await requireOrganizerOrg();
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
@@ -271,6 +278,23 @@ export async function setStageCourse(
   if (courseId) {
     const allowed = await prisma.eventCourse.findFirst({ where: { eventId, courseId } });
     if (!allowed) return { ok: false, error: "That course isn't one of this tournament's venues." };
+  }
+
+  /**
+   * A venue change RE-SCORES a round that already has cards.
+   *
+   * Not a single stroke moves, which is why this needs saying out loud: the
+   * numbers all stay where they are and the results computed from them
+   * change underneath, because the shots are allocated off a different
+   * stroke index. Nothing on any screen would look different afterwards.
+   *
+   * Same shape as the field resize: refuse, say how much is affected, and
+   * let the organizer come back with force. An untouched round reports zero
+   * and changes without a fuss.
+   */
+  if (!force) {
+    const cards = await enteredCardCount(eventId, stageId);
+    if (cards > 0) return { ok: false, needsConfirm: true, cards };
   }
 
   await prisma.stage.update({

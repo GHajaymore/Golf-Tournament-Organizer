@@ -156,20 +156,37 @@ export function EntryModes({
                 ))}
               </select>
             )}
-            <div className="seg">
+            {/**
+              * How the scores are TYPED IN, which is not what the round is.
+              *
+              * These said "Match play" and "Stroke play", which are the names
+              * of two formats — so on a Match Play round the screen appeared
+              * to offer changing it to Stroke Play, and on a Stroke Play round
+              * the same control looked like it was already wrong. It changes
+              * neither: it picks which screen you enter on, it is per round,
+              * it lives in the browser, and it writes nothing.
+              *
+              * Named after what each one asks you for instead. A round's real
+              * format is stated beside it, so the two can never be confused
+              * for one another again.
+              */}
+            <div className="seg" role="radiogroup" aria-label="How to enter the scores">
               <label className="seg-opt">
                 <input type="radio" name="entrytop" checked={mode === "match"} onChange={() => setMode("match")} />
-                Match play
+                Match by match
               </label>
               <label className="seg-opt">
                 <input type="radio" name="entrytop" checked={mode === "stroke"} onChange={() => setMode("stroke")} />
-                Stroke play
+                Whole field
               </label>
             </div>
             {(courseName || eventDates) && (
               <span className="text-muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
                 <i className="ph ph-map-pin" style={{ marginRight: 4 }} />
-                {[courseName, eventDates].filter(Boolean).join(" · ")}
+                {/* The round's real format leads, because the control above
+                    used to be the only thing on this screen naming a format
+                    and it was naming the wrong one. */}
+                {[round?.format, courseName, eventDates].filter(Boolean).join(" · ")}
               </span>
             )}
             {isStaff && (

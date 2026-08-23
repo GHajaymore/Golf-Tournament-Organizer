@@ -2,6 +2,7 @@
 import { COURSE_REF } from "@/lib/services/course-resolution";
 import { revalidatePath } from "next/cache";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
+import { enteredCardCount } from "@/lib/services/round-cards";
 import { teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
@@ -1016,12 +1017,25 @@ export async function setStageScoreInput(stageId: string, input: string) {
   refresh();
 }
 
-export async function setStageFormat(stageId: string, format: string) {
+export async function setStageFormat(stageId: string, format: string, force = false) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
+  /**
+   * Changing a format re-scores every card in the round.
+   *
+   * The strokes are untouched; what they MEAN changes. The same eighteen
+   * numbers read as Stableford points, as a medal total, or as holes won,
+   * and switching between those silently rewrites the result of a round
+   * somebody has already played.
+   */
+  if (!force) {
+    const cards = await enteredCardCount(eventId, stageId);
+    if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
+  }
   const value = FORMAT_NAMES.includes(format) ? format : "Match Play";
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { format: value } });
   refresh();
+  return { ok: true as const };
 }
 
 export async function setStageHoles(stageId: string, holes: number) {
