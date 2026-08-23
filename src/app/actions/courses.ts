@@ -370,8 +370,30 @@ export async function setMatchCourse(
   }
 
   if (courseId) {
-    const allowed = await prisma.eventCourse.findFirst({ where: { eventId: session.eventId, courseId } });
-    if (!allowed) return { ok: false, error: "That course isn't one of this tournament's venues." };
+    /**
+     * Any of the CLUB's courses, and picking one adds it to the tournament.
+     *
+     * The same change as setStageCourse, for the same reason: this refused
+     * anything not already a venue, so a tournament with one course could not
+     * have a match's venue corrected at all — and a match venue is exactly
+     * the case where somewhere new turns up, because two members of a league
+     * really do play wherever suits them.
+     *
+     * Scoped to the event's OWN organization, not the session's: a player may
+     * reach this, and nameMatchVenue already lets them name a club course for
+     * their own match, so this opens nothing that path did not. What it must
+     * not do is reach another club's card.
+     */
+    const owned = await prisma.course.findFirst({
+      where: { id: courseId, organizationId: event.organizationId },
+      select: { id: true },
+    });
+    if (!owned) return { ok: false, error: "That course isn't in this club's library." };
+    await prisma.eventCourse.upsert({
+      where: { eventId_courseId: { eventId: session.eventId, courseId } },
+      update: {},
+      create: { eventId: session.eventId, courseId },
+    });
   }
 
   await prisma.match.update({

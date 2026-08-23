@@ -178,11 +178,49 @@ describe("your own match", () => {
     expect((await prisma.match.findUniqueOrThrow({ where: { id: myMatchId } })).courseId).toBe(awayCourseId);
   });
 
-  it("still refuses a course that is not one of this tournament's venues", async () => {
-    const foreign = await prisma.course.create({
+  it("accepts a club course that is not yet a venue, and adds it", () => {
+    // The rule this replaced refused anything not already on the tournament,
+    // which meant a one-course event could not record that a pairing moved.
+    // Adding the venue is the point, not a side effect.
+    return (async () => {
+      const spare = await prisma.course.create({
+        data: {
+          organizationId: orgId,
+          name: `${TAG} not yet a venue`,
+          city: "",
+          pars: JSON.stringify(new Array(18).fill(4)),
+          yards: JSON.stringify(new Array(18).fill(400)),
+          strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+        },
+      });
+      await signIn("meddler");
+      const res = await setMatchCourse(myMatchId, spare.id);
+      expect(res.ok).toBe(true);
+      const link = await prisma.eventCourse.findFirst({
+        where: { eventId, courseId: spare.id },
+      });
+      expect(link, "choosing it should add it to the tournament").not.toBeNull();
+      await prisma.eventCourse.deleteMany({ where: { courseId: spare.id } });
+      await prisma.match.update({ where: { id: myMatchId }, data: { courseId: awayCourseId } });
+      await prisma.course.delete({ where: { id: spare.id } });
+    })();
+  });
+
+  it("refuses ANOTHER CLUB'S course, which is the boundary that matters", async () => {
+    /**
+     * Never covered until now. The only refusal test here used a course in
+     * the SAME club, so it was asserting a product rule — one this change
+     * deliberately reverses — while the rule that actually protects anything
+     * went untested. Pointing a match at another organization's course would
+     * score it against a stranger's par and stroke index.
+     */
+    const otherOrg = await prisma.organization.create({
+      data: { name: `${TAG} other club`, kind: "club" },
+    });
+    const theirs = await prisma.course.create({
       data: {
-        organizationId: orgId,
-        name: `${TAG} not a venue`,
+        organizationId: otherOrg.id,
+        name: `${TAG} someone elses`,
         city: "",
         pars: JSON.stringify(new Array(18).fill(4)),
         yards: JSON.stringify(new Array(18).fill(400)),
@@ -190,9 +228,12 @@ describe("your own match", () => {
       },
     });
     await signIn("meddler");
-    const res = await setMatchCourse(myMatchId, foreign.id);
+    const res = await setMatchCourse(myMatchId, theirs.id);
     expect(res.ok).toBe(false);
-    await prisma.course.delete({ where: { id: foreign.id } });
+    const link = await prisma.eventCourse.findFirst({ where: { eventId, courseId: theirs.id } });
+    expect(link, "and it must not be linked either").toBeNull();
+    await prisma.course.delete({ where: { id: theirs.id } });
+    await prisma.organization.delete({ where: { id: otherOrg.id } });
   });
 });
 

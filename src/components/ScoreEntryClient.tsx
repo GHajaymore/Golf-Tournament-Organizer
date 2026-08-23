@@ -1005,10 +1005,17 @@ export function ScoreEntryClient({
             {/* Which card this match is being scored against. Only meaningful
                 when the tournament has more than one venue — otherwise it
                 would state the obvious on every screen. */}
-            {venues.length > 1 && (
+            {/* Shown when there is somewhere else this match could have been
+                played — the tournament's other venues, or any other course
+                the club has. It used to need two venues on the tournament,
+                so a one-course event could not record that a pairing moved. */}
+            {(venues.length > 1 || courseLibrary.some((c) => !venues.some((v) => v.id === c.id))) && (
               <CoursePicker
                 label="Played at"
-                options={venues}
+                options={[
+                  ...venues,
+                  ...courseLibrary.filter((c) => !venues.some((v) => v.id === c.id)),
+                ]}
                 value={courseByMatch[active.id] ?? ""}
                 // Empty means inherit — from the round, then the event. The
                 // label names whatever that resolves to, so "inherit" is a
