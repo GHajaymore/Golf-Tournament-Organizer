@@ -2867,8 +2867,7 @@ describe("locked metered features", () => {
     const html = render(
       <CardPhotoReader
         stageId="s1"
-        playerId="p1"
-        playerName="Rita"
+        players={[{ id: "p1", name: "Rita" }]}
         holeCount={18}
         onReading={() => {}}
         available={false}
@@ -2921,14 +2920,37 @@ describe("locked metered features", () => {
       render(
         <CardPhotoReader
           stageId="s1"
-          playerId="p1"
-          playerName="Rita"
+          players={[{ id: "p1", name: "Rita" }]}
           holeCount={18}
           onReading={() => {}}
         />,
       ),
     ).toContain("Read from a photo");
     expect(render(<CommentaryPanel items={[]} canPost />)).not.toContain("On the paid plan");
+  });
+
+  it("offers one reading for the whole card when more than one player is on it", async () => {
+    // The failure this replaces: a fourball photographing the same piece of
+    // paper four times, because the control only ever offered one player.
+    const { CardPhotoReader } = await import("@/components/CardPhotoReader");
+    const html = render(
+      <CardPhotoReader
+        stageId="s1"
+        players={[
+          { id: "p1", name: "Rita" },
+          { id: "p2", name: "Sam" },
+          { id: "p3", name: "Priya" },
+          { id: "p4", name: "Marco" },
+        ]}
+        holeCount={18}
+        onReading={() => {}}
+      />,
+    );
+    expect(html).toContain("Read the whole card");
+    // One photo, not four — said on the screen, because a scorer who does not
+    // know that will take four.
+    expect(html).toContain("4 players on this card");
+    expect(html).not.toContain("Read from a photo");
   });
 });
 

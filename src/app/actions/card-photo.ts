@@ -10,6 +10,11 @@ import {
   cardReadingPrompt,
   type CardReading,
 } from "@/lib/domain/card-reading";
+import {
+  groupCardPrompt,
+  parseGroupCardReading,
+  type GroupCardReading,
+} from "@/lib/domain/group-card-reading";
 
 /**
  * Read a photographed scorecard into proposed scores.
@@ -168,6 +173,133 @@ export async function readScorecardPhoto(
     const reply = data.content?.[0]?.text ?? "";
     // Untrusted from here: shape, length and every value are checked.
     return { ok: true, configured: true, reading: parseCardReading(extractReadingJson(reply), holes) };
+  } catch {
+    return { ok: false, configured: true, error: "Could not reach the reader. Enter the scores by hand." };
+  }
+}
+
+export interface GroupPhotoResult {
+  ok: boolean;
+  error?: string;
+  /** Present only on success. Proposed cards — nothing is stored. */
+  reading?: GroupCardReading;
+  configured?: boolean;
+}
+
+/**
+ * Read EVERY player on a photographed card, in one call.
+ *
+ * The same guards as `readScorecardPhoto`, in the same order, and the same
+ * promise: **this action never saves anything.** It proposes a card per player
+ * for a human to check, and the scores then go through the ordinary entry path
+ * — which lands them at `entered`, where the players certify and the committee
+ * approves, exactly as a hand-typed card does.
+ *
+ * One call rather than four. A fourball used to photograph the same piece of
+ * paper once per player, which is four uploads and four times the cost for one
+ * card. It is also more accurate: the model sees every row at once, so the
+ * names discriminate each other rather than being matched in isolation.
+ *
+ * The players are supplied from the round's own field, so the model is
+ * verifying names it has been given rather than identifying strangers — and
+ * `parseGroupCardReading` still refuses to attach a row whose name it cannot
+ * place. See the note there on why identity is the strict half.
+ */
+export async function readGroupCardPhoto(
+  stageId: string,
+  playerIds: string[],
+  dataUrl: string,
+): Promise<GroupPhotoResult> {
+  const { eventId, who } = await requireStaff();
+
+  const stage = await prisma.stage.findFirst({
+    where: { id: stageId, eventId },
+    select: { holes: true },
+  });
+  if (!stage) return { ok: false, error: "Round not found." };
+
+  // Every id narrowed to this tournament in the query itself, so a foreign one
+  // can only fail to match. The GROUP is what the model is told to look for,
+  // so an id from elsewhere would put a stranger's name in the prompt.
+  const group = await prisma.player.findMany({
+    // Deduped and capped inline rather than through a named intermediate,
+    // because a variable is how an id stops visibly being narrowed by the
+    // eventId beside it — which is the one thing this query is for.
+    where: {
+      id: {
+        in: [...new Set(playerIds.filter((id) => typeof id === "string" && id.trim()))].slice(0, 8),
+      },
+      eventId,
+    },
+    select: { id: true, name: true },
+  });
+  if (group.length === 0) return { ok: false, error: "Nobody on that card is in this tournament." };
+
+  if (dataUrl.length > MAX_DATA_URL_BYTES) {
+    return { ok: false, error: "That image is too large. Try a smaller photo." };
+  }
+  const image = readDataUrl(dataUrl);
+  if (!image) {
+    return { ok: false, error: "That doesn't look like a photo. Use a JPEG, PNG or WebP." };
+  }
+
+  // One card is one call, so it costs one unit of the same budget however many
+  // players are on it — which is the point.
+  const limit = await checkRateLimit("card-photo", who);
+  if (!limit.allowed) return { ok: false, error: limit.message };
+
+  const entitled = await entitlementForEvent(eventId, "cardScan");
+  if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
+
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) {
+    return {
+      ok: false,
+      configured: false,
+      error: "Reading cards from a photo is not switched on. Enter the scores by hand.",
+    };
+  }
+
+  const holes = holesPlayed(stage.holes);
+  const roster = group.map((p) => ({ playerId: p.id, name: p.name }));
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        // Haiku, for the reasons on readScorecardPhoto — narrow extraction
+        // rather than judgement, and nothing here is saved without a person
+        // checking it. The token budget rises with the number of rows.
+        model: "claude-haiku-4-5",
+        max_tokens: 250 * Math.max(1, roster.length),
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: image.media, data: image.base64 } },
+              { type: "text", text: groupCardPrompt(holes, roster.map((p) => p.name)) },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      // The status, never the body — an upstream error can quote the request,
+      // and this one contained a photograph of somebody's card.
+      return { ok: false, configured: true, error: `Could not read the card (${res.status}).` };
+    }
+    const data = (await res.json()) as { content?: Array<{ text?: string }> };
+    const reply = data.content?.[0]?.text ?? "";
+    return {
+      ok: true,
+      configured: true,
+      // Untrusted from here: shape, every score, and every name.
+      reading: parseGroupCardReading(extractReadingJson(reply), holes, roster),
+    };
   } catch {
     return { ok: false, configured: true, error: "Could not reach the reader. Enter the scores by hand." };
   }

@@ -305,23 +305,23 @@ export function StrokePlayEntry({
       {/* Beside the mic because it answers the same question — how do I get
           this card in without typing it. Both fill the grid below and neither
           saves; the organizer's own submit is still what writes anything. */}
-      {player && (
+      {cardPlayers.length > 0 && (
         <div style={{ marginTop: 10 }}>
           <CardPhotoReader
             available={cardScanAvailable}
             stageId={stageId}
-            playerId={player.id}
-            playerName={player.name}
+            players={cardPlayers}
             holeCount={holes}
-            onReading={(read) =>
+            onReading={(rows) =>
               setCards((prev) => {
-                // Merge rather than replace: a hole the reader could not make
-                // out must not wipe a score already typed in by hand.
-                const current = prev[player.id] ?? new Array(holes).fill(null);
-                return {
-                  ...prev,
-                  [player.id]: current.map((existing, i) => read[i] ?? existing ?? null),
-                };
+                const next = { ...prev };
+                for (const { playerId: id, strokes } of rows) {
+                  // Merge rather than replace: a hole the reader could not
+                  // make out must not wipe a score already typed in by hand.
+                  const current = next[id] ?? new Array(holes).fill(null);
+                  next[id] = current.map((existing, i) => strokes[i] ?? existing ?? null);
+                }
+                return next;
               })
             }
           />

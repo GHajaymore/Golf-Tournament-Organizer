@@ -954,7 +954,14 @@ describe("which model each AI call uses", () => {
     it(`${file} calls ${expected}`, () => {
       const src = stripComments(read(file));
       const found = [...src.matchAll(/model:\s*"([^"]+)"/g)].map((m) => m[1]);
-      expect(found, `${file} should name exactly one model`).toEqual([expected]);
+      // Distinct models, not calls. A file may hold more than one call —
+      // card-photo.ts reads a single card and a whole group — and what
+      // matters is that every one of them is on the model decided above.
+      // Asserting the call COUNT would make adding a second reading look
+      // like a cost regression when it is the opposite: one call for a
+      // fourball in place of four.
+      expect(found.length, `${file} should call a model at all`).toBeGreaterThan(0);
+      expect([...new Set(found)], `${file} uses one model throughout`).toEqual([expected]);
     });
   }
 
