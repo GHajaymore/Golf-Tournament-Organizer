@@ -57,8 +57,16 @@ async function requireOrganizerOrg(): Promise<{ organizationId: string; eventId:
 }
 
 /** Eighteen numbers, as the schema stores them. */
-function holeArray(values: number[], fallback: number): string {
-  const out = Array.from({ length: 18 }, (_, i) => {
+/**
+ * @param holes How long the card is. NOT always eighteen.
+ *
+ * Hard-coded 18 here would take a real nine-hole course — which the
+ * directory import now accepts — and pad it with nine holes of par 4 that no
+ * one has ever played. The fabricated card would then look exactly like a
+ * real one to every screen downstream.
+ */
+function holeArray(values: number[], fallback: number, holes = 18): string {
+  const out = Array.from({ length: holes }, (_, i) => {
     const v = values[i];
     return Number.isFinite(v) && v > 0 ? Math.round(v) : fallback;
   });
@@ -66,7 +74,7 @@ function holeArray(values: number[], fallback: number): string {
 }
 
 /**
- * Stroke index must be a permutation of 1–18.
+ * Stroke index must be a permutation of 1..N, for whatever N the card is.
  *
  * Handicap allocation walks the indexes in order to decide which holes a
  * player receives shots on, so a duplicate or a gap doesn't degrade the
@@ -74,15 +82,15 @@ function holeArray(values: number[], fallback: number): string {
  * every net match on the course is quietly wrong. Worth rejecting rather
  * than papering over.
  */
-function strokeIndexProblem(values: number[]): string | null {
+function strokeIndexProblem(values: number[], holes = 18): string | null {
   const filled = values.filter((v) => Number.isFinite(v) && v > 0);
   if (filled.length === 0) return null; // untouched — we'll default it
 
-  if (filled.length < 18) return "Fill in all 18 stroke indexes, or leave them all blank.";
-  const sorted = [...values].map((v) => Math.round(v)).sort((a, b) => a - b);
-  const expected = Array.from({ length: 18 }, (_, i) => i + 1);
+  if (filled.length < holes) return `Fill in all ${holes} stroke indexes, or leave them all blank.`;
+  const sorted = [...values].slice(0, holes).map((v) => Math.round(v)).sort((a, b) => a - b);
+  const expected = Array.from({ length: holes }, (_, i) => i + 1);
   if (sorted.some((v, i) => v !== expected[i])) {
-    return "Stroke indexes must use each number 1–18 exactly once.";
+    return `Stroke indexes must use each number 1–${holes} exactly once.`;
   }
   return null;
 }
@@ -108,21 +116,29 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Enter a course name." };
 
-  const siProblem = strokeIndexProblem(input.strokeIndex);
+  /**
+   * How long this card is, taken from the card rather than assumed.
+   *
+   * Nine is a golf course. Assuming eighteen here turned a real nine-hole
+   * course into eighteen the moment anybody opened it in the editor and
+   * pressed save.
+   */
+  const holes = input.pars.length === 9 ? 9 : 18;
+  const siProblem = strokeIndexProblem(input.strokeIndex, holes);
   if (siProblem) return { ok: false, error: siProblem };
 
   const siGiven = input.strokeIndex.some((v) => Number.isFinite(v) && v > 0);
   const data = {
     name,
     city: (input.city ?? "").trim(),
-    pars: holeArray(input.pars, 4),
-    yards: holeArray(input.yards, 400),
+    pars: holeArray(input.pars, 4, holes),
+    yards: holeArray(input.yards, 400, holes),
     // Left blank entirely, default to 1–18 in hole order: a placeholder that
     // is at least a valid permutation, so net scoring stays coherent until
     // the organizer enters the real card.
     strokeIndex: siGiven
-      ? holeArray(input.strokeIndex, 18)
-      : JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      ? holeArray(input.strokeIndex, holes, holes)
+      : JSON.stringify(Array.from({ length: holes }, (_, i) => i + 1)),
   };
 
   /**
@@ -142,6 +158,7 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
     JSON.parse(data.pars) as number[],
     JSON.parse(data.yards) as number[],
     JSON.parse(data.strokeIndex) as number[],
+    holes,
   );
   if (refusal) return { ok: false, error: refusal };
 

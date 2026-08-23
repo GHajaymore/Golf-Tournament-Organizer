@@ -75,6 +75,37 @@ describe("what the one standard refuses", () => {
   });
 });
 
+describe("a nine-hole course stays nine holes", () => {
+  /**
+   * The directory import now accepts nine-hole courses — 119 of them were
+   * being thrown away. That makes a padding bug reachable that was harmless
+   * while every card was eighteen: the library editor built its arrays at a
+   * fixed length of 18, so opening a nine-hole course and pressing save
+   * turned it into eighteen holes, nine of them invented par 4s that look
+   * exactly like real ones to every screen downstream.
+   */
+  const si9 = [5, 1, 7, 3, 9, 2, 8, 4, 6];
+  const pars9 = [4, 3, 5, 4, 4, 3, 5, 4, 4];
+
+  it("judges a nine-hole card at nine holes", () => {
+    expect(cardRefusal(pars9, [], si9, 9)).toBeNull();
+  });
+
+  it("refuses a nine-hole card carrying an eighteen-hole stroke index", () => {
+    // Slicing an 18-hole index in half leaves gaps and duplicates against
+    // 1..9, which allocates shots to the wrong holes exactly as a bad
+    // eighteen would.
+    const sliced = [6, 10, 12, 16, 14, 2, 18, 4, 8];
+    expect(cardRefusal(pars9, [], sliced, 9)).toBeTruthy();
+  });
+
+  it("does not judge a nine-hole card against eighteen", () => {
+    // The old behaviour, stated so it cannot come back: nine real holes
+    // measured against an eighteen-hole rule is nine missing holes.
+    expect(cardRefusal(pars9, [], si9, 18)).toBeTruthy();
+  });
+});
+
 describe("every path that stores a card uses it", () => {
   /**
    * A sweep rather than a list, because the list is the thing that goes stale.

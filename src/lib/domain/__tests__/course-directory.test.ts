@@ -128,13 +128,38 @@ describe("a card that must be refused", () => {
     expect(none.reason).toContain("no hole-by-hole card");
   });
 
-  it("refuses a nine-hole listing rather than padding it to eighteen", () => {
-    // Guessing the back nine from the front is how a nine-hole club ends up
-    // scoring eighteen holes it never played.
+  it("takes a nine-hole course as nine holes, and pads nothing", () => {
+    /**
+     * This used to refuse nine holes outright, and threw away 119 real
+     * nine-hole courses out of the 724 US ones catalogued — a quarter of
+     * them — while the app has scored nine-hole rounds all along.
+     *
+     * The old reasoning was about PADDING: guessing a back nine from a front
+     * nine is how a club ends up scoring eighteen holes it never played.
+     * That is still true and still enforced — the assertion below is that the
+     * card comes back NINE long, not eighteen.
+     */
+    const si9 = [5, 1, 7, 3, 9, 2, 8, 4, 6];
+    const card = cardFrom(holes(PEBBLE_PARS.slice(0, 9), si9));
+    expect(card.usable).toBe(true);
+    if (!card.usable) return;
+    expect(card.pars).toHaveLength(9);
+    expect(card.strokeIndex).toEqual(si9);
+  });
+
+  it("holds a nine-hole card to a nine-hole stroke index", () => {
+    // An eighteen-hole index sliced in half is not a nine-hole index: it has
+    // gaps and duplicates against 1..9, and would allocate shots to the wrong
+    // holes exactly as a bad eighteen would.
     const card = cardFrom(holes(PEBBLE_PARS.slice(0, 9), PEBBLE_SI.slice(0, 9)));
     expect(card.usable).toBe(false);
+  });
+
+  it("still refuses a hole count that is neither nine nor eighteen", () => {
+    const card = cardFrom(holes(PEBBLE_PARS.slice(0, 10), PEBBLE_SI.slice(0, 10)));
+    expect(card.usable).toBe(false);
     if (card.usable) return;
-    expect(card.reason).toContain("9 holes");
+    expect(card.reason).toContain("neither 9 nor 18");
   });
 
   it("refuses rubbish without throwing", () => {

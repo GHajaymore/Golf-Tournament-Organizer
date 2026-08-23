@@ -131,13 +131,29 @@ function genderOf(raw: unknown): string {
  */
 export function cardFrom(holes: unknown): DirectoryCard {
   const rows = Array.isArray(holes) ? holes : [];
-  if (rows.length !== 18) {
+  /**
+   * Nine holes is a golf course, not a broken eighteen.
+   *
+   * This took eighteen or nothing, and threw away 119 nine-hole courses out
+   * of the 724 US ones catalogued — a quarter of them — while the app has
+   * scored nine-hole rounds all along. `applyNine` already passes a natively
+   * nine-hole card straight through, and the import writes the card at its
+   * own length rather than padding it.
+   *
+   * The old refusal was reasoned about PADDING: guessing a back nine from a
+   * front nine is how a club ends up scoring eighteen holes it never played.
+   * That argument is still right and still holds — nothing here invents a
+   * hole. It just does not follow from it that a real nine-hole card should
+   * be discarded.
+   */
+  const holeCount = rows.length === 9 ? 9 : 18;
+  if (rows.length !== holeCount) {
     return {
       usable: false,
       reason:
         rows.length === 0
           ? "The directory has no hole-by-hole card for this course."
-          : `The directory has ${rows.length} holes for this course, not 18.`,
+          : `The directory has ${rows.length} holes for this course, which is neither 9 nor 18.`,
     };
   }
 
@@ -159,7 +175,7 @@ export function cardFrom(holes: unknown): DirectoryCard {
     return values.length ? Math.max(...values) : 0;
   });
 
-  const problems = cardProblems({ pars, strokeIndex }, 18);
+  const problems = cardProblems({ pars, strokeIndex }, holeCount);
   if (problems.length > 0) return { usable: false, reason: problems[0] };
 
   /**
@@ -171,7 +187,7 @@ export function cardFrom(holes: unknown): DirectoryCard {
    * card enters this app goes past them — typed, pasted, imported, or read off
    * a photograph.
    */
-  const shape = implausibleCard(pars, 18);
+  const shape = implausibleCard(pars, holeCount);
   if (shape) return { usable: false, reason: shape };
 
   return { usable: true, pars, strokeIndex, yards };
