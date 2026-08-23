@@ -1,5 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
+import { parseAreaQuery } from "@/lib/domain/course-area";
 import { rankCourseHits } from "@/lib/domain/course-ranking";
 import { parseHoleArray } from "@/lib/courses";
 import {
@@ -132,18 +134,54 @@ export async function searchDirectory(
   localOnly = false,
 ): Promise<DirectoryHit[]> {
   const q = query.trim();
-  // Two characters matches half the country and returns nothing useful.
-  if (q.length < 3) return [];
+  const area = parseAreaQuery(q);
+  /**
+   * Two characters matches half the country and returns nothing useful —
+   * unless those two characters are a state. "OH" is a perfectly ordinary
+   * way to ask for Ohio, and the guard was refusing it before anything got
+   * the chance to read it as a place.
+   */
+  if (q.length < 3 && !area.state) return [];
 
-  // Name OR city. "Cincinnati" found nothing while every course in it was
-  // sitting in the catalogue, and typing where you play is at least as natural
-  // as typing what it is called — especially for a society deciding where to
-  // hold an outing.
+  /**
+   * Name, town, or state — because a club looking for a course is as likely
+   * to be thinking about WHERE as about what it is called.
+   *
+   * The area is read out of the query first, so "Cincinnati, OH" searches a
+   * town within a state instead of looking for a course literally called
+   * that, and "Ohio" reaches the state code the catalogue actually stores.
+   * Whatever is not a place stays as text and is matched against the name,
+   * so this can only ever add results.
+   */
+  /**
+   * The raw query is a name only when NO place was read out of it.
+   *
+   * Falling back to `q` whenever `area.text` was empty meant "Ohio" searched
+   * names for the word Ohio and found the five courses called it, rather
+   * than the four hundred courses IN it. A parsed place has already
+   * consumed the query; there is no name left to look for.
+   */
+  const foundPlace = !!area.city || !!area.state;
+  const text = area.text || (foundPlace ? "" : q);
+
+  const matches: Prisma.CourseCatalogWhereInput[] = [];
+  if (text) {
+    matches.push({ name: { contains: text, mode: "insensitive" } });
+    // A bare word is as likely to be a town as a course name.
+    if (!area.city && !area.state) {
+      matches.push({ city: { contains: text, mode: "insensitive" } });
+    }
+  }
+  if (area.city) matches.push({ city: { contains: area.city, mode: "insensitive" } });
+
   const local = await prisma.courseCatalog.findMany({
     where: {
-      OR: [
-        { name: { contains: q, mode: "insensitive" } },
-        { city: { contains: q, mode: "insensitive" } },
+      // The state NARROWS rather than widens: "Cincinnati, OH" means the
+      // Cincinnati in Ohio, not every Cincinnati and also all of Ohio. A
+      // state on its own has no other half, so it stands as the whole query.
+      AND: [
+        ...(area.state ? [{ state: area.state }] : []),
+        ...(matches.length ? [{ OR: matches }] : []),
       ],
     },
     // Courses with a card first: a club searching wants one it can score on,
@@ -159,10 +197,19 @@ export async function searchDirectory(
       id: true, name: true, city: true, state: true, country: true, par: true, website: true,
     },
   });
-  if (local.length > 0 || localOnly) return rankCourseHits(local, q).slice(0, 20);
+  /**
+   * Ranked on the part of the query that names a course or a town.
+   *
+   * Ranking on the raw string would score every row against "cincinnati oh",
+   * which matches no name and no city, so a whole page of correct results
+   * would come back in arbitrary order. The state has already done its work
+   * in the query above; it is a filter, not something to sort by.
+   */
+  const rankOn = area.text || area.city || q;
+  if (local.length > 0 || localOnly) return rankCourseHits(local, rankOn).slice(0, 20);
 
   const payload = await getJson(`/v1/courses/search?q=${encodeURIComponent(q.slice(0, 80))}`);
-  return rankCourseHits(hitsFrom(payload), q).slice(0, 20);
+  return rankCourseHits(hitsFrom(payload), rankOn).slice(0, 20);
 }
 
 /** One course in full — its card, if it has a usable one, and its rated tees. */
