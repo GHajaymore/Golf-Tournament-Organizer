@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { implausibleCard, parseCard } from "../scorecard-parse";
+import { implausibleCard, parseCard, cardRefusal } from "../scorecard-parse";
 import { cardFrom } from "../course-directory";
 
 /**
@@ -88,5 +88,47 @@ describe("every path is held to the same standard", () => {
       cardFrom(REAL.map((par, i) => ({ number: i + 1, par, handicap_index: SI[i], yardages: {} }))).usable,
       "imported",
     ).toBe(true);
+  });
+});
+
+
+describe("courses that are real but do not look regulation", () => {
+  /**
+   * These were all refused until the checks were extended to hand-entered
+   * cards and somebody tried to type one in. A guard that turns away a real
+   * golf course is worse than no guard: it tells a club their course does not
+   * exist, and there is nothing they can do about it.
+   */
+  const si9 = Array.from({ length: 9 }, (_, i) => i + 1);
+  const si18 = Array.from({ length: 18 }, (_, i) => i + 1);
+
+  it("accepts a nine-hole par-3 course", () => {
+    // Par 27. Executive and short courses are everywhere.
+    expect(implausibleCard(new Array(9).fill(3), 9)).toBeNull();
+    expect(cardRefusal(new Array(9).fill(3), [], si9, 9)).toBeNull();
+  });
+
+  it("accepts an eighteen-hole par-3 course", () => {
+    // Par 54, by construction rather than by a row slipping out of line.
+    expect(implausibleCard(new Array(18).fill(3), 18)).toBeNull();
+    expect(cardRefusal(new Array(18).fill(3), [], si18, 18)).toBeNull();
+  });
+
+  it("accepts an executive nine that happens to run short to long", () => {
+    // 3,3,3,3,4,4,4,5,5 is monotonic, and at nine holes that is coincidence
+    // rather than evidence — there are only nine values and three pars.
+    expect(implausibleCard([3, 3, 3, 3, 4, 4, 4, 5, 5], 9)).toBeNull();
+  });
+
+  it("still refuses a sorted EIGHTEEN, which is where the evidence is strong", () => {
+    // Green Crest. Five 5s, six 4s, seven 3s — no course is laid out this way.
+    const sorted = [5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3];
+    expect(implausibleCard(sorted, 18)).toContain("sorted order");
+  });
+
+  it("still refuses a uniform card that is not pars at all", () => {
+    // Only par 3 gets the exemption. Nine 6s is a row of something else.
+    expect(implausibleCard(new Array(9).fill(6), 9)).toContain("54");
+    expect(implausibleCard(new Array(18).fill(5), 18)).toContain("90");
   });
 });

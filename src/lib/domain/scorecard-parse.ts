@@ -416,14 +416,41 @@ export function assignCardRows(text: string, holes = 18): AssignedCardRows {
 export function implausibleCard(pars: number[], holes = 18): string | null {
   if (pars.length !== holes) return null;
 
+  const distinct = new Set(pars);
+
+  /**
+   * A course where every hole is a par 3 is a real and ordinary thing.
+   *
+   * Executive and short courses are everywhere, and their total is 27 or 54
+   * BY CONSTRUCTION rather than because a row has slipped out of line — which
+   * is the only thing the range below is evidence of. Applied to one, the
+   * range refused a genuine card and told the club their course does not
+   * exist. It did exactly that until this: a par-3 nine could not be stored
+   * at all.
+   *
+   * Only par 3, not any uniform card. Eighteen identical 6s is a row of
+   * something that is not pars.
+   */
+  const allParThree = distinct.size === 1 && pars[0] === 3;
+
   const total = pars.reduce((sum, p) => sum + p, 0);
   const low = holes === 9 ? 30 : 60;
   const high = holes === 9 ? 39 : 78;
-  if (total < low || total > high) {
+  if (!allParThree && (total < low || total > high)) {
     return `These pars add up to ${total}, which no ${holes}-hole course plays. Check the row lines up with the holes.`;
   }
 
-  if (new Set(pars).size > 1) {
+  /**
+   * Sorted pars, on an EIGHTEEN-hole card only.
+   *
+   * This is what caught Green Crest, whose eighteen came back five 5s, six 4s
+   * then seven 3s — a routing no course is laid out in, and unmistakable at
+   * that length. Nine holes is too small a sample for the same inference: an
+   * executive nine really can run 3,3,3,3,4,4,4,5,5, and refusing it calls a
+   * real card a mistake. The check keeps its teeth where the evidence is
+   * strong and stays out of the way where it is not.
+   */
+  if (holes === 18 && distinct.size > 1) {
     const up = pars.every((p, i) => i === 0 || p >= pars[i - 1]);
     const down = pars.every((p, i) => i === 0 || p <= pars[i - 1]);
     if (up || down) {
