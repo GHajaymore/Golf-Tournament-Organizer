@@ -39,6 +39,15 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
   /** What the last import did, in the club's terms. */
   const [note, setNote] = useState<{ kind: "ok" | "partial"; text: string } | null>(null);
   const [busyId, setBusyId] = useState("");
+  /**
+   * The row the arrow keys are on, or -1 for none.
+   *
+   * A list that appears as you type is a list you should be able to drive
+   * from the keyboard — reaching for the mouse to accept the answer already
+   * on screen is the slow half of this interaction, and on a phone-sized
+   * screen the list is below the fold until you scroll to it.
+   */
+  const [active, setActive] = useState(-1);
   const [pending, startTransition] = useTransition();
 
   /**
@@ -50,7 +59,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
    */
   const seq = useRef(0);
 
-  const search = (localOnly = false) => {
+  const search = () => {
     const q = query.trim();
     setError("");
     setNote(null);
@@ -60,15 +69,37 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
     }
     const mine = (seq.current += 1);
     startTransition(async () => {
-      const res = await searchCourseDirectory(q, localOnly);
-      // A search the user has already typed past.
+      // The catalogue first: free, instant, and it holds the course most of
+      // the time.
+      let res = await searchCourseDirectory(q, true);
       if (mine !== seq.current) return;
+
+      /**
+       * Nothing catalogued? Ask the directory itself before giving up.
+       *
+       * This used to be a second button, and a button is the wrong shape for
+       * it: a club that types their course and reads "nothing matching that"
+       * has already been told no, and pressing something afterwards feels
+       * like arguing with the app. The screen should look properly before it
+       * says no.
+       *
+       * Affordable because it only fires when the catalogue found NOTHING,
+       * and only once the typing has settled — one metered request per
+       * unanswered question, not one per keystroke.
+       */
+      if (res.ok && (res.hits ?? []).length === 0) {
+        res = await searchCourseDirectory(q, false);
+        if (mine !== seq.current) return;
+      }
+
       if (!res.ok) {
         setError(res.error ?? "Couldn't reach the course directory.");
         setHits(null);
         return;
       }
       setHits(res.hits ?? []);
+      // A new list means the old highlight pointed at a different course.
+      setActive(-1);
     });
   };
 
@@ -88,7 +119,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
       setError("");
       return;
     }
-    const t = setTimeout(() => search(true), 300);
+    const t = setTimeout(search, 300);
     return () => clearTimeout(t);
     // `search` is stable enough for this: it reads `query` from the same
     // render this effect belongs to.
@@ -139,19 +170,38 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
+            const list = hits ?? [];
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              if (list.length === 0) return;
+              e.preventDefault();
+              // Wraps, so holding one arrow never dead-ends.
+              const step = e.key === "ArrowDown" ? 1 : -1;
+              setActive((i) => (i + step + list.length) % list.length);
+              return;
+            }
+            if (e.key === "Escape") {
+              // Backs out of the list first, the query second — one Escape
+              // should not throw away what you typed.
+              e.preventDefault();
+              if (active >= 0) setActive(-1);
+              else setQuery("");
+              return;
+            }
             if (e.key === "Enter") {
               e.preventDefault();
-              search();
+              const chosen = list[active];
+              // Enter accepts the highlighted row. With nothing highlighted
+              // there is nothing left to do — the list is already the answer.
+              if (chosen && !chosen.inLibrary) importOne(chosen);
             }
           }}
           placeholder="Course or town — results appear as you type"
-          aria-label="Search for a course by name"
+          aria-label="Search for a course by name or town"
+          role="combobox"
+          aria-expanded={(hits ?? []).length > 0}
+          aria-controls="course-search-results"
+          aria-activedescendant={active >= 0 ? `course-hit-${active}` : undefined}
         />
-        {/* Typing reads the catalogue; this asks the directory itself, which
-            is the metered call. Worth a press rather than a keystroke. */}
-        <button type="button" className="btn btn-secondary" onClick={() => search()} disabled={pending}>
-          <i className="ph ph-magnifying-glass" /> {pending && !busyId ? "Searching…" : "Search the full directory"}
-        </button>
       </div>
 
       {error && (
@@ -177,18 +227,27 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
         // An ordinary answer, not a failure. Coverage is worldwide but uneven,
         // so the honest line is "not in the directory", not "not in the US" —
         // which is what this said, and which told every club outside America
+        // "Fewer letters" first, because it is the advice that actually works.
+        // Matching is substring-based, so a transposed letter — "heathewood"
+        // for "Heatherwoode" — matches nothing however much of it you type,
+        // and typing LESS is the recovery. Telling somebody to check their
+        // spelling would be true and useless; naming the trick is not.
         // to stop trying.
         <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
-          Nothing matching that. Try the town it is in, or paste your card below and it takes
-          about twenty seconds.
+          Nothing matching that. Try fewer letters — &ldquo;heathe&rdquo; finds Heatherwoode — or the
+          town it is in. Or paste your card below; it takes about twenty seconds.
         </p>
       )}
 
       {hits !== null && hits.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-          {hits.map((h) => (
+        <div id="course-search-results" role="listbox" style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+          {hits.map((h, i) => (
             <div
               key={h.id}
+              id={`course-hit-${i}`}
+              role="option"
+              aria-selected={i === active}
+              onMouseEnter={() => setActive(i)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -196,7 +255,13 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
                 gap: 10,
                 flexWrap: "wrap",
                 padding: "7px 10px",
-                border: "1px solid var(--color-divider)",
+                // The highlight has to be visible on both grounds, so it is
+                // the accent border plus a tint rather than a grey wash.
+                border:
+                  i === active
+                    ? "1px solid var(--color-accent)"
+                    : "1px solid var(--color-divider)",
+                background: i === active ? "var(--color-surface)" : undefined,
                 borderRadius: 8,
               }}
             >
