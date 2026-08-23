@@ -435,6 +435,16 @@ describe("picking a course, wherever you pick one", () => {
     // A round that must be played somewhere should not offer "none".
     expect(await picker()).not.toContain("None —");
   });
+
+  it("shows a chosen non-course answer rather than going blank", async () => {
+    // "No fixed course" is a real answer. A box that empties itself when you
+    // pick it reads as though the choice did not take.
+    const html = await picker({
+      value: "__open",
+      extras: [{ id: "__open", label: "No fixed course — players choose" }],
+    });
+    expect(html).toContain("No fixed course");
+  });
 });
 
 describe("leaderboards for every format", () => {

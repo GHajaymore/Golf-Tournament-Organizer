@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { saveEvent, applyManualCount } from "@/app/actions/tournament";
 import { SIDE_STYLE_OPTIONS } from "@/lib/side-style";
 import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
+import { CoursePicker } from "@/components/CoursePicker";
 import FieldInfo from "@/components/FieldInfo";
 
 interface EventForm {
@@ -358,15 +359,29 @@ export function EventSetupClient({
 
         <span className="card-kicker" style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>Venue</span>
         <div className="field">
-          <label>Golf course</label>
-          <select className="input" value={courseSelect} onChange={(e) => onSelectCourse(e.target.value)}>
-            <option value="">— Select a course —</option>
-            {courses.map((c) => (
-              <option key={c.name} value={c.name}>{c.name}</option>
-            ))}
-            <option value="__other">Other (enter manually)</option>
-            <option value="__open">No fixed course — players choose</option>
-          </select>
+          <CoursePicker
+            label="Golf course"
+            /**
+             * Keyed by NAME here, and only here.
+             *
+             * The Event stores its venue as a course name plus its own
+             * hole-by-hole card, which predates the Course library and is what
+             * `resolveCourse` matches on. Every other screen picks by id. That
+             * split is a data-model question, not a control question, and
+             * quietly changing what this writes would have re-pointed the venue
+             * of every existing tournament. So the CONTROL is now the same one
+             * used everywhere — it narrows, it shows the town — while what it
+             * saves is untouched.
+             */
+            options={courses.map((c) => ({ id: c.name, name: c.name, city: c.city }))}
+            value={courseSelect}
+            onChange={onSelectCourse}
+            noneLabel="— Select a course —"
+            extras={[
+              { id: "__other", label: "Other (enter manually)" },
+              { id: "__open", label: "No fixed course — players choose" },
+            ]}
+          />
           {courseSelect === "__open" && (
             <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
               For a league or society where each pairing arranges its own venue.

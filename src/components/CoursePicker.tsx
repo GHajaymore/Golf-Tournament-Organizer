@@ -42,6 +42,15 @@ export interface CoursePickerProps {
   label?: string;
   /** What the empty choice reads as. Omit to require a choice. */
   noneLabel?: string;
+  /**
+   * Choices that are not courses — "enter one manually", "no fixed course".
+   *
+   * Kept out of the filter on purpose. They are actions rather than venues,
+   * so narrowing a list of courses must not hide them: somebody typing a name
+   * that is not in the library is exactly the person who needs "enter it
+   * manually", and that is the moment it would disappear.
+   */
+  extras?: ReadonlyArray<{ id: string; label: string }>;
   disabled?: boolean;
   /** Shown under the control — a caller's note about what the choice affects. */
   hint?: string;
@@ -53,6 +62,7 @@ export function CoursePicker({
   onChange,
   label = "Course",
   noneLabel,
+  extras = [],
   disabled = false,
   hint,
 }: CoursePickerProps) {
@@ -63,6 +73,9 @@ export function CoursePicker({
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const chosen = options.find((o) => o.id === value) ?? null;
+  // An extra choice is a real answer too, and the box has to say so rather
+  // than going blank the moment somebody picks "no fixed course".
+  const chosenExtra = extras.find((x) => x.id === value && x.id !== "") ?? null;
 
   /**
    * The rows on offer, narrowed by whatever has been typed.
@@ -110,8 +123,8 @@ export function CoursePicker({
         // Shows what is chosen when idle, and what is being typed when not.
         // A picker that forgets its own answer the moment you touch it is the
         // commonest way one of these goes wrong.
-        value={open ? query : (chosen?.name ?? "")}
-        placeholder={chosen ? chosen.name : (noneLabel ?? "Type to find a course")}
+        value={open ? query : (chosen?.name ?? chosenExtra?.label ?? "")}
+        placeholder={chosenExtra?.label ?? chosen?.name ?? noneLabel ?? "Type to find a course"}
         onFocus={() => {
           setOpen(true);
           setQuery("");
@@ -188,6 +201,19 @@ export function CoursePicker({
               {noneLabel}
             </button>
           )}
+          {extras.map((x) => (
+            <button
+              key={x.id}
+              type="button"
+              role="option"
+              aria-selected={x.id === value}
+              className="btn btn-ghost"
+              style={{ width: "100%", justifyContent: "flex-start", fontSize: 13 }}
+              onClick={() => pick(x.id)}
+            >
+              {x.label}
+            </button>
+          ))}
           {shown.map((o, i) => (
             <button
               key={o.id}
