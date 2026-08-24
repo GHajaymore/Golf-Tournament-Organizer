@@ -44,13 +44,31 @@ const DEFAULT_BUDGET = 40;
 const CURSOR = path.join(process.cwd(), ".gca-walk.json");
 
 /**
- * Search has no offset parameter — only `search_query` and `fuzzy_match`.
+ * Discovery and fetching are separated deliberately.
  *
- * So the whole database cannot be paged through; it can only be probed by
- * term, ~25 rows at a time. This list is walked across days and the position
- * persisted, which is what makes a 50-a-day trickle add up to something.
+ * A search costs the same as a detail call, so re-searching to find work
+ * already found is pure waste. Discovery banks candidates here; fetching
+ * drains them. It also means a paid month could discover everything cheaply
+ * first and then spend the whole allowance on details.
  */
-const TERMS = [
+const QUEUE = path.join(process.cwd(), ".gca-queue.json");
+
+/**
+ * Search has no offset, no page and no limit — only `search_query` and
+ * `fuzzy_match`. It returns at most 25 rows for a term, and there is no way
+ * to page deeper. So the database cannot be ENUMERATED; it can only be
+ * sampled, one term at a time.
+ *
+ * Two-letter substrings are what make that sampling wide. Measured: "aa",
+ * "zu", "ek" and "ov" each returned 25 rows with ZERO overlap between them —
+ * 100 distinct courses from four searches. "qi" returned nothing, which is
+ * the expected shape: some pairs no course name contains.
+ *
+ * The curated words go first because they are the highest-yield, then the 676
+ * pairs. The 25-row cap means a common pair like "aa" certainly matches more
+ * courses than it shows, so this reaches breadth rather than completeness.
+ */
+const CURATED = [
   "Golf Club", "Golf Course", "Country Club", "Links", "Golf Links",
   "Royal", "National", "Municipal", "Park", "Valley", "Hills", "Ridge",
   "Creek", "Lake", "River", "Pines", "Oaks", "Meadows", "Springs", "Bay",
@@ -58,6 +76,10 @@ const TERMS = [
   "Abbey", "Priory", "Grange", "Hall", "Lodge", "Resort", "Bahia", "Real",
   "Golf Resort", "Golf & Country", "Old Course", "New Course", "West Course",
 ];
+
+const LETTERS = "abcdefghijklmnopqrstuvwxyz".split("");
+const PAIRS = LETTERS.flatMap((a) => LETTERS.map((b) => a + b));
+const TERMS = [...CURATED, ...PAIRS];
 
 interface Cursor {
   termIndex: number;
@@ -211,6 +233,17 @@ async function store(s: Summary, card: Card | { reason: string }): Promise<"card
   });
   return usable ? "card" : "no-card";
 }
+function readQueue(): Summary[] {
+  try {
+    return JSON.parse(fs.readFileSync(QUEUE, "utf8")) as Summary[];
+  } catch {
+    return [];
+  }
+}
+
+function writeQueue(rows: Summary[]): void {
+  fs.writeFileSync(QUEUE, JSON.stringify(rows, null, 2));
+}
 
 async function main() {
   if (!KEY) {
@@ -219,11 +252,9 @@ async function main() {
   }
   const argv = process.argv.slice(2);
   const dry = argv.includes("--dry");
+  const discoverOnly = argv.includes("--discover");
   const bIdx = argv.indexOf("--budget");
   const budget = bIdx >= 0 ? Number(argv[bIdx + 1]) : DEFAULT_BUDGET;
-
-  // --term lets one course be fetched by name, for when a club asks for
-  // theirs rather than waiting for the walk to reach it.
   const tIdx = argv.indexOf("--term");
   const oneTerm = tIdx >= 0 ? argv[tIdx + 1] : "";
 
@@ -231,87 +262,103 @@ async function main() {
   const known = new Set(
     (await prisma.courseCatalog.findMany({ select: { id: true } })).map((r) => r.id),
   );
+  const queue = readQueue().filter((c) => !known.has(storedId(c.id)));
 
-  console.log(`Budget ${budget} requests. Catalogue holds ${known.size} courses.`);
+  console.log(
+    `Budget ${budget} requests. Catalogue holds ${known.size} courses, ` +
+      `${queue.length} discovered and waiting.`,
+  );
 
-  const queue: Summary[] = [];
   let noTees = 0;
-  let alreadyHad = 0;
-  let termIndex = cursor.termIndex;
-
-  // Discovery. Each search costs a request, so it stops as soon as there is
-  // enough work for today rather than walking the whole term list.
+  let termIndex = oneTerm ? 0 : cursor.termIndex;
   const termList = oneTerm ? [oneTerm] : TERMS;
-  if (oneTerm) termIndex = 0;
-  while (queue.length < budget && termIndex < termList.length && spent < budget) {
-    const term = termList[termIndex];
-    const payload = (await get(
-      `/v1/search?search_query=${encodeURIComponent(term)}`,
-    )) as { courses?: Summary[] } | null;
-    termIndex++;
-    if (!payload) break;
 
-    for (const c of payload.courses ?? []) {
-      if (known.has(storedId(c.id))) {
-        alreadyHad++;
-        continue;
-      }
-      const teeCount = Object.values(c.tees ?? {}).reduce((a, b) => a + (b || 0), 0);
-      if (teeCount === 0) {
-        // Free refusal: a course with no tee boxes cannot have a card, and
-        // the search row already told us. Recording it costs no request and
-        // stops it being queued again every day from here on.
-        noTees++;
-        if (!dry) {
-          await store(c, {
-            reason: "The directory lists no tee boxes for this course, so it has no card.",
-          });
-          known.add(storedId(c.id));
+  /**
+   * Draining comes before discovering.
+   *
+   * Spending a search to find work that is already banked is the one waste
+   * this design exists to avoid. A targeted --term always searches, because
+   * the point of it is to reach one named course now.
+   */
+  const shouldDiscover = discoverOnly || Boolean(oneTerm) || queue.length === 0;
+
+  if (shouldDiscover) {
+    // An ordinary run tops the queue up a little; --discover spends the lot.
+    const discoveryCap = discoverOnly || oneTerm ? budget : Math.min(budget, 5);
+    const seen = new Set(queue.map((c) => c.id));
+    while (spent < discoveryCap && termIndex < termList.length) {
+      const term = termList[termIndex];
+      const payload = (await get(
+        `/v1/search?search_query=${encodeURIComponent(term)}`,
+      )) as { courses?: Summary[] } | null;
+      termIndex++;
+      if (!payload) break;
+
+      let fresh = 0;
+      for (const c of payload.courses ?? []) {
+        if (known.has(storedId(c.id)) || seen.has(c.id)) continue;
+        seen.add(c.id);
+        const teeCount = Object.values(c.tees ?? {}).reduce((a, b) => a + (b || 0), 0);
+        if (teeCount === 0) {
+          // Free refusal: the search row itself proves there is no card, so
+          // this is judged without ever spending a detail call on it.
+          noTees++;
+          if (!dry) {
+            await store(c, {
+              reason: "The directory lists no tee boxes for this course, so it has no card.",
+            });
+            known.add(storedId(c.id));
+          }
+          continue;
         }
-        continue;
+        queue.push(c);
+        fresh++;
       }
-      queue.push(c);
-      known.add(storedId(c.id));
+      console.log(`  "${term}" -> +${fresh} queued (${queue.length} waiting)`);
     }
-    console.log(`  "${term}" — queue ${queue.length}, skipped ${noTees} without tees`);
+    // A targeted run must not advance the walk it did not do.
+    if (!oneTerm && !dry) fs.writeFileSync(CURSOR, JSON.stringify({ termIndex }, null, 2));
   }
 
-  // A targeted run must not advance the walk it did not do.
-  if (!oneTerm) fs.writeFileSync(CURSOR, JSON.stringify({ termIndex }, null, 2));
+  if (!dry) writeQueue(queue);
 
-  if (dry) {
-    console.log(`\nDry run. ${queue.length} candidates queued, ${noTees} free skips, ${alreadyHad} already held.`);
-    console.log(`Next run resumes at term ${termIndex}/${TERMS.length}.`);
+  if (dry || discoverOnly) {
+    const label = discoverOnly ? "Discovery" : "Dry run";
+    console.log(
+      `\n${label}: ${queue.length} candidates waiting, ${noTees} free skips.` +
+        `\nRequests spent: ${spent}. Term cursor ${termIndex}/${TERMS.length}.`,
+    );
     await prisma.$disconnect();
     return;
   }
 
   let cards = 0;
   let refused = 0;
-  for (const s of queue) {
-    if (spent >= budget) {
-      console.log(`\nBudget reached at ${spent} requests.`);
-      break;
-    }
+  while (queue.length && spent < budget) {
+    const s = queue[0];
     const detail = (await get(`/v1/courses/${s.id}`)) as
       | { course?: { tees?: Record<string, Tee[]> }; tees?: Record<string, Tee[]> }
       | null;
+    // Dropped from the queue only once actually judged, so a run that stops on
+    // a spent allowance loses no discovery work.
     if (!detail) break;
+    queue.shift();
     const course = detail.course ?? detail;
     const tees = Object.values(course.tees ?? {}).flat() as Tee[];
     const card = cardFrom(tees);
-    const outcome = await store(s, card);
-    if (outcome === "card") {
+    if ((await store(s, card)) === "card") {
       cards++;
       console.log(`  card    ${nameOf(s)}`);
     } else {
       refused++;
     }
   }
+  writeQueue(queue);
 
   console.log(
     `\n${cards} cards stored, ${refused} refused, ${noTees} skipped without tee boxes.` +
-      `\nRequests spent: ${spent}. Term cursor now ${oneTerm ? cursor.termIndex : termIndex}/${TERMS.length}.`,
+      `\nRequests spent: ${spent}. ${queue.length} still queued. ` +
+      `Term cursor ${termIndex}/${TERMS.length}.`,
   );
   await prisma.$disconnect();
 }
