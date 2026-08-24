@@ -332,6 +332,22 @@ async function main() {
     return;
   }
 
+  /**
+   * Non-US courses go to the front of the queue.
+   *
+   * The other directory already covers America - 539 of its cards are US and
+   * none of its 329 non-US rows has one. On forty requests a day, spending
+   * them where the gap is beats spending them in the one place that has none.
+   * A stable sort, so within each group the discovery order is kept.
+   */
+  const isUS = (c: Summary) => {
+    const k = (c.location?.country ?? "").trim().toLowerCase();
+    return k === "united states" || k === "us" || k === "usa";
+  };
+  queue.sort((a, b) => Number(isUS(a)) - Number(isUS(b)));
+  const nonUS = queue.filter((c) => !isUS(c)).length;
+  console.log("  queue: " + nonUS + " non-US first, then " + (queue.length - nonUS) + " US");
+
   let cards = 0;
   let refused = 0;
   while (queue.length && spent < budget) {
