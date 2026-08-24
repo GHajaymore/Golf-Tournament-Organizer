@@ -10,8 +10,11 @@ import type { RosterCandidate } from "@/lib/services/roster";
 import { PHONE_REQUIRED_FREE } from "@/lib/plans";
 import { csvSizeRefusal } from "@/lib/csv";
 import { contactGaps } from "@/lib/domain/contact-gaps";
+import { setPlayerTee } from "@/app/actions/courses";
 
 interface Signup {
+  /** The set this entry plays from. Null means the round’s own. */
+  teeId?: string | null;
   id: string;
   name: string;
   handicap: number;
@@ -59,9 +62,22 @@ export function RegistrationClient({
   locked,
   isAdmin,
   roster,
+  tees = [],
+  teePolicy = "own",
+  defaultTeeName = "",
 }: {
   event: EventInfo;
   confirmed: Signup[];
+  /**
+   * The sets this course is rated for, and which the round uses.
+   *
+   * Empty, or a single-tee competition, and the column is not shown: a
+   * per-player choice under "one set for everyone" would be a control that
+   * contradicts the rule the committee set.
+   */
+  tees?: Array<{ id: string; name: string }>;
+  teePolicy?: string;
+  defaultTeeName?: string;
   waitlist: Signup[];
   /** Self-service entries awaiting the organizer's approval (approve mode). */
   pendingEntries: Signup[];
@@ -95,6 +111,22 @@ export function RegistrationClient({
       const result = await updateSignup(playerId, patch);
       setRowError(result.ok ? "" : result.error ?? "Couldn't save that change.");
     });
+  // Its own action rather than updateSignup: a tee is scoped to the club’s
+  // courses and checked against them, which updateSignup has no business
+  // knowing about.
+  const commitTee = (playerId: string, teeId: string | null) =>
+    startTransition(async () => {
+      const result = await setPlayerTee(playerId, teeId);
+      setRowError(result.ok ? "" : result.error ?? "Couldn’t save those tees.");
+    });
+  /**
+   * Shown only when there is a real per-player choice to make.
+   *
+   * Under "one" the whole field plays the round’s set, so a per-player
+   * dropdown would be a control contradicting the condition the committee
+   * set — and one somebody would use, believing it.
+   */
+  const showTees = tees.length > 0 && teePolicy !== "one";
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -310,6 +342,7 @@ export function RegistrationClient({
                 <th style={{ width: 32 }}>#</th>
                 <th>Player</th>
                 <th style={{ width: 96, textAlign: "right" }}>Hcp</th>
+                {showTees && <th style={{ width: 130 }}>Tees</th>}
                 <th>Email</th>
                 <th>Phone</th>
                 {showFlight && <th>Flight</th>}
@@ -322,6 +355,29 @@ export function RegistrationClient({
                   <td><input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} /></td>
                   <td className="text-muted">{i + 1}</td>
                   <td style={{ fontWeight: 500 }}>{p.name}</td>
+                  {showTees && (
+                    <td>
+                      {/* Blank means the round's own set, which is a real
+                          answer and the one most of the field will have. The
+                          label says what that resolves to rather than showing
+                          an empty box that reads as "nothing". */}
+                      <select
+                        className="input"
+                        aria-label={`Tees for ${p.name}`}
+                        value={p.teeId ?? ""}
+                        disabled={pending || locked}
+                        style={{ width: "100%", padding: "3px 4px", fontSize: 11.5 }}
+                        onChange={(e) => commitTee(p.id, e.target.value || null)}
+                      >
+                        <option value="">{defaultTeeName || "Round's tees"}</option>
+                        {tees.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  )}
                   <td style={{ textAlign: "right" }}>
                     <div style={{ display: "flex", gap: 3, justifyContent: "flex-end", alignItems: "center" }}>
                       <input

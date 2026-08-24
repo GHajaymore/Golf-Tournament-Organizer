@@ -6,6 +6,7 @@ import {
   regenerateRoundCode,
 } from "@/app/actions/settings";
 import { rotatePublicToken } from "@/app/actions/tournament";
+import { setEventDefaultTee } from "@/app/actions/courses";
 import {
   LEADERBOARD_VISIBILITY,
   LEADERBOARD_VISIBILITY_LABEL,
@@ -20,6 +21,9 @@ import {
   ATTEST_BY,
   ATTEST_BY_LABEL,
   ATTEST_BY_HELP,
+  TEE_POLICY,
+  TEE_POLICY_LABEL,
+  TEE_POLICY_HELP,
 } from "@/lib/tournament-settings";
 import {
   ATTENDANCE_MODES,
@@ -48,6 +52,26 @@ interface Props {
   rounds?: RoundCode[];
   /** Tournament mode only — the public leaderboard token. */
   shareToken?: string;
+  /**
+   * Tournament mode only — the sets this course is rated for.
+   *
+   * Empty for a course with no tees on file, in which case the whole Tees
+   * group is hidden: offering a choice between nothing is worse than saying
+   * nothing, and the unrated warning elsewhere already tells that club what
+   * to do about it.
+   */
+  tees?: TeeOption[];
+  /** The tournament's chosen set. Null falls back to the first by position. */
+  defaultTeeId?: string | null;
+}
+
+export interface TeeOption {
+  id: string;
+  name: string;
+  courseRating: number;
+  slopeRating: number;
+  /** False when nobody has entered a rating, so this set changes nothing. */
+  rated: boolean;
 }
 
 /** Radio group. Each option carries its own explanation, because these
@@ -145,20 +169,34 @@ function Choice<T extends string>({
   );
 }
 
-export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken }: Props) {
+export function PlaySettings({
+  mode,
+  settings,
+  canEdit,
+  rounds = [],
+  shareToken,
+  tees = [],
+  defaultTeeId = null,
+}: Props) {
   const [form, setForm] = useState<TournamentSettings>(settings);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState("");
   const [rotating, setRotating] = useState(false);
   const [origin, setOrigin] = useState("");
+  const [teeId, setTeeId] = useState<string | null>(defaultTeeId);
   const [pending, startTransition] = useTransition();
 
   // The share link needs the real host, which only the browser knows.
   useEffect(() => setOrigin(window.location.origin), []);
 
   const isTournament = mode === "tournament";
-  const dirty = (Object.keys(form) as (keyof TournamentSettings)[]).some((k) => form[k] !== settings[k]);
+  // The tee is saved by the SAME button as everything else. Two save models
+  // on one screen is how a club changes something, presses Save, and finds
+  // half of it kept.
+  const teeDirty = isTournament && teeId !== defaultTeeId;
+  const dirty =
+    (Object.keys(form) as (keyof TournamentSettings)[]).some((k) => form[k] !== settings[k]) || teeDirty;
 
   const set = <K extends keyof TournamentSettings>(key: K, value: TournamentSettings[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -174,6 +212,16 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
       if (!result.ok) {
         setError(result.error ?? "Couldn't save.");
         return;
+      }
+      // The tee is an id rather than a settings enum, so it takes its own
+      // action — but the same button, and it reports its own failure rather
+      // than letting a half-save look like a whole one.
+      if (teeDirty) {
+        const teeResult = await setEventDefaultTee(teeId);
+        if (!teeResult.ok) {
+          setError(teeResult.error ?? "Couldn't save the tees.");
+          return;
+        }
       }
       setSaved(true);
     });
@@ -312,6 +360,64 @@ export function PlaySettings({ mode, settings, canEdit, rounds = [], shareToken 
               Let scores be dictated out loud instead of typed
             </label>
           </div>
+        </>
+      )}
+
+      {/* Hidden when the course has no tees on file: a choice between nothing
+          is worse than saying nothing, and the unrated warning on the course
+          screen already tells that club what to do. */}
+      {isTournament && tees.length > 0 && (
+        <>
+          <Group
+            title="Tees"
+            blurb="Which set this tournament is played from, and who decides. The tees change the Course Handicap, so they change the strokes."
+          />
+
+          <div className="field">
+            <label htmlFor="default-tee">
+              Played from <span className="text-muted">· anyone not put on their own set plays these</span>
+            </label>
+            <select
+              id="default-tee"
+              className="input"
+              value={teeId ?? ""}
+              disabled={!canEdit || pending}
+              onChange={(e) => {
+                setTeeId(e.target.value || null);
+                setSaved(false);
+              }}
+            >
+              {/* A real answer, not a blank: a society that has never thought
+                  about tees is not misconfigured, and saying so is honest
+                  about what the app will then do. */}
+              <option value="">The first set on the course</option>
+              {tees.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.rated ? ` — ${t.courseRating.toFixed(1)} / ${t.slopeRating}` : " — not rated"}
+                </option>
+              ))}
+            </select>
+            {/* The rating IS the reason to choose one set over another, so an
+                unrated pick is worth saying out loud rather than leaving to be
+                discovered when the strokes come out the same off every tee. */}
+            {teeId && !tees.find((t) => t.id === teeId)?.rated && (
+              <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
+                These tees have no Course Rating or Slope, so every player is scored off their raw
+                handicap index. Add the ratings on the course to score properly.
+              </p>
+            )}
+          </div>
+
+          <Choice
+            label="Who decides"
+            value={form.teePolicy}
+            options={TEE_POLICY}
+            labels={TEE_POLICY_LABEL}
+            help={TEE_POLICY_HELP}
+            disabled={!canEdit || pending}
+            onChange={(v) => set("teePolicy", v)}
+          />
         </>
       )}
 

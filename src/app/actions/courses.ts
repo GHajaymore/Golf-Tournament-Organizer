@@ -485,6 +485,33 @@ export async function deleteTee(teeId: string): Promise<CourseResult> {
 }
 
 /**
+ * The tees this tournament is played from.
+ *
+ * Its own action rather than part of saveTournamentSettings, because that
+ * writes the settings ENUMS through `cleanSettings` — a tee is an id, and an
+ * id cannot be coerced by picking from a list of allowed strings.
+ *
+ * Null means "no choice made", which falls back to the club's first set. That
+ * is a real answer for a society that plays one course off one tee, so it is
+ * offered rather than forced.
+ */
+export async function setEventDefaultTee(teeId: string | null): Promise<CourseResult> {
+  const { eventId } = await requireOrganizerOrg();
+  if (teeId) {
+    // Scoped to THIS tournament's course. An unscoped read would let another
+    // club's tee become the set a field is scored off — the same widening
+    // that once let a player's teeId resolve to a foreign rating.
+    const tee = await prisma.tee.findFirst({
+      where: { id: teeId, course: { events: { some: { eventId } } } },
+    });
+    if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
+  }
+  await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: teeId } });
+  refresh();
+  return { ok: true };
+}
+
+/**
  * Put a player on a set of tees, which decides the strokes they receive.
  *
  * An organizer may set anybody's. A PLAYER may set their own, and only their

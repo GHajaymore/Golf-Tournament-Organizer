@@ -1,6 +1,7 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { PlaySettings } from "@/components/PlaySettings";
+import { teesForEvent } from "@/lib/services/handicaps";
 import { CourseLibrary } from "@/components/CourseLibrary";
 import { clubCourses } from "@/lib/services/courses";
 import { accessibleEvents } from "@/lib/services/access";
@@ -37,6 +38,7 @@ export default async function EventPage({
   // four invented layouts, so it offered courses nobody plays and scored
   // against cards that do not exist.
   const courses = await clubCourses(e.organizationId, e.id);
+  const eventTees = await teesForEvent(e.id);
   const org = await prisma.organization.findUnique({
     where: { id: e.organizationId },
     select: { defaultCourseId: true, logoUrl: true, themeKey: true, themeHex: true },
@@ -156,6 +158,16 @@ export default async function EventPage({
             label: `Round ${i + 1} · ${s.type}`,
             code: s.accessCode,
           }))}
+          // The sets this course is rated for, so the choice names real tees
+          // with their real ratings rather than asking for one blind.
+          tees={eventTees.map((t) => ({
+            id: t.id,
+            name: t.name,
+            courseRating: t.courseRating,
+            slopeRating: t.slopeRating,
+            rated: t.rated,
+          }))}
+          defaultTeeId={e.defaultTeeId}
         />
       </div>
     </>
