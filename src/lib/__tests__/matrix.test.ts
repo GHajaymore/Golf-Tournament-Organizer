@@ -987,9 +987,11 @@ describe("tee policy, on every field size", () => {
     ["blue", BLUE],
   ]);
 
-  it("names the two policies and nothing else", () => {
-    // A third value would need a decision everywhere the policy is read.
-    expect([...TEE_POLICY].sort()).toEqual(["one", "own"]);
+  it("names the three policies and nothing else", () => {
+    // A fourth value would need a decision everywhere the policy is read.
+    // `own` and `player` score identically and differ only in who may set the
+    // tee, which is why both appear here and only `one` changes the number.
+    expect([...TEE_POLICY].sort()).toEqual(["one", "own", "player"]);
   });
 
   for (const n of FIELD_SIZES) {

@@ -1,6 +1,6 @@
 import "server-only";
 import { COURSE_REF } from "./course-resolution";
-import { teePolicyFor } from "./handicaps";
+import { teeSetupFor } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
 import { rankStrokeIndex } from "../domain/stroke";
@@ -77,9 +77,19 @@ export async function skinsPotFor(
   const [players, cards, tees] = await Promise.all([
     prisma.player.findMany({
       where: { eventId, status: "confirmed" },
-      // handicapType and preferredTee are what turn an Index into a Course
-      // Handicap; selecting only `handicap` is why this used an Index as one.
-      select: { id: true, name: true, handicap: true, handicapType: true, preferredTee: true },
+      /**
+       * `teeId`, NOT `preferredTee`.
+       *
+       * They are different columns: `teeId` is the set this entry plays from,
+       * a relation; `preferredTee` is free text a golfer typed at
+       * registration ("white", "the blues"). This selected the text and
+       * passed it where an id was wanted, into a map keyed by id — so it
+       * never matched, every entrant silently fell back to the round's tees,
+       * and net skins paid out on the wrong Course Handicap for anyone
+       * assigned a different set. The same name-for-an-id fault that had a
+       * tournament scoring against another course's stroke index.
+       */
+      select: { id: true, name: true, handicap: true, handicapType: true, teeId: true },
       orderBy: { seed: "asc" },
     }),
     prisma.scorecard.findMany({ where: { eventId, stageId } }),
@@ -137,6 +147,7 @@ export async function skinsPotFor(
    * the team scoring and the regrouper already share — it converts the Index
    * AND the tee to the holes being played, once each.
    */
+  const teeSetup = await teeSetupFor(eventId, tees);
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
@@ -145,15 +156,15 @@ export async function skinsPotFor(
       id: p.id,
       handicap: p.handicap,
       handicapType: p.handicapType,
-      teeId: p.preferredTee || null,
+      teeId: p.teeId,
     })),
     teeRatings,
-    tees[0]?.id ?? null,
+    teeSetup.defaultTeeId,
     holeCount === 9 ? 9 : 18,
     // Net skins are priced off the same tees the round is scored from. A
     // single-tee competition that allocated skins strokes off a player's
     // stored preference would pay money on a handicap nobody played to.
-    await teePolicyFor(eventId),
+    teeSetup.policy,
   );
 
   const outcome = playSkins(

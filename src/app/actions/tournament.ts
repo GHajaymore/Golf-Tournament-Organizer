@@ -1,5 +1,6 @@
 "use server";
 import { COURSE_REF } from "@/lib/services/course-resolution";
+import { roundTeeId } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { enteredCardCount } from "@/lib/services/round-cards";
@@ -2920,7 +2921,13 @@ export async function importScores(
     const teeRatings = new Map(
       tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
     );
-    const ch = courseHandicapMap(players, teeRatings, tees[0]?.id ?? null, holes, event?.teePolicy ?? "own");
+    const ch = courseHandicapMap(
+      players,
+      teeRatings,
+      roundTeeId(tees, event?.defaultTeeId),
+      holes,
+      event?.teePolicy ?? "own",
+    );
     const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
     // Through the round's own handicaps, so a file of net scores converts back
     // to the same gross the board would have derived. Converting off the roster

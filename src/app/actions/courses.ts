@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { getSession } from "@/lib/auth";
 import { settingsOf } from "@/lib/services/tournament";
-import { canEnterScores } from "@/lib/tournament-settings";
+import { canEnterScores, canChooseOwnTee } from "@/lib/tournament-settings";
 import { playsInMatch } from "@/lib/services/match-access";
 import { parseHoleArray } from "@/lib/courses";
 import { parseCard, cardRefusal } from "@/lib/domain/scorecard-parse";
@@ -484,9 +484,39 @@ export async function deleteTee(teeId: string): Promise<CourseResult> {
   return { ok: true };
 }
 
-/** Put a player on a set of tees, which decides the strokes they receive. */
+/**
+ * Put a player on a set of tees, which decides the strokes they receive.
+ *
+ * An organizer may set anybody's. A PLAYER may set their own, and only their
+ * own, and only when the tournament says players choose — under "one" there
+ * is nothing to choose, and letting a golfer opt themselves onto another set
+ * would break the condition of competition the committee set.
+ *
+ * The two paths are separated rather than sharing one permissive check: a
+ * player reaching this is a public HTTP caller who can pass any playerId, so
+ * the ownership test has to be here rather than assumed from the screen.
+ */
 export async function setPlayerTee(playerId: string, teeId: string | null): Promise<CourseResult> {
-  const { eventId } = await requireOrganizerOrg();
+  const session = await getSession();
+  if (!session) return { ok: false, error: "Not signed in." };
+
+  let eventId: string;
+  if (session.role === "admin" || session.role === "assistant") {
+    eventId = session.eventId;
+  } else {
+    const event = await prisma.event.findUnique({ where: { id: session.eventId } });
+    if (!event) return { ok: false, error: "Tournament not found." };
+    if (!canChooseOwnTee(settingsOf(event).teePolicy)) {
+      return { ok: false, error: "The organizer sets which tees you play from for this tournament." };
+    }
+    const mine = await prisma.player.findFirst({
+      where: { id: playerId, eventId: session.eventId, email: session.email },
+      select: { id: true },
+    });
+    if (!mine) return { ok: false, error: "That isn't your entry." };
+    eventId = session.eventId;
+  }
+
   const player = await prisma.player.findFirst({ where: { id: playerId, eventId } });
   if (!player) return { ok: false, error: "Player not found." };
   if (teeId) {

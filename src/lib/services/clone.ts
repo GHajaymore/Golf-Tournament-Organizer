@@ -77,6 +77,16 @@ export const CLONED_EVENT_FIELDS = [
   "attestBy",
   // A weekly league copied for next season is still a weekly league.
   "attendanceMode",
+  /**
+   * Travels with the course, which IS copied.
+   *
+   * The opposite of teePolicy, and for a reason: that says who DECIDES, and a
+   * new committee decides again. This says WHICH SET, and it belongs to the
+   * course the copy inherits. Left behind, the copy falls back to whichever
+   * tee sorts first by position — silently, which is the exact wrongness this
+   * column was added to end.
+   */
+  "defaultTeeId",
   // A society that plays a different course every week does so next season
   // too. The venue itself is not copied — see the exclusion below — but the
   // decision not to have one is part of what the tournament is.

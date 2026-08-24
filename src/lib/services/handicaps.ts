@@ -105,6 +105,31 @@ export async function handicapsForRound(
 }
 
 /**
+ * The tees a round is played from.
+ *
+ * The tournament's own choice, falling back to the club's first tee by
+ * position. That fallback was previously the ONLY rule, written out as
+ * `tees[0]?.id` at six separate call sites — so a club whose first set is
+ * Blue scored every unassigned player off Blue even when the medal was off
+ * the Whites, and no screen said so.
+ *
+ * One reader, because the fallback has to be identical everywhere: a path
+ * that fell back differently would price the same player two ways in one
+ * tournament.
+ */
+export function roundTeeId(
+  tees: Array<{ id: string }>,
+  configured: string | null | undefined,
+): string | null {
+  // A configured tee that is no longer on the course must not silently pick
+  // itself back to first-by-position without saying so — but it also must not
+  // break the round, so the fallback stands and the setting screen is where
+  // the club is told.
+  if (configured && tees.some((t) => t.id === configured)) return configured;
+  return tees[0]?.id ?? null;
+}
+
+/**
  * Which tee each player is on, by name, for putting on a card.
  *
  * Every card — the printed one a group carries out, and the one on screen at
@@ -141,6 +166,27 @@ export async function teePolicyFor(eventId: string): Promise<string> {
     select: { teePolicy: true },
   });
   return event?.teePolicy ?? "own";
+}
+
+/**
+ * Both tee questions at once, for paths that hold no event object.
+ *
+ * WHICH tees the round is played from and WHO decides them are read together
+ * because they are answered together — a path that fetched one and defaulted
+ * the other would score half the rule.
+ */
+export async function teeSetupFor(
+  eventId: string,
+  tees: Array<{ id: string }>,
+): Promise<{ policy: string; defaultTeeId: string | null }> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { teePolicy: true, defaultTeeId: true },
+  });
+  return {
+    policy: event?.teePolicy ?? "own",
+    defaultTeeId: roundTeeId(tees, event?.defaultTeeId),
+  };
 }
 
 /** One player's course handicap, for the paths that only need a single number. */

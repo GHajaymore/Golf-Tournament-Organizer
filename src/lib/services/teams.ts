@@ -1,5 +1,5 @@
 import "server-only";
-import { teePolicyFor } from "./handicaps";
+import { teeSetupFor } from "./handicaps";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
 import { courseHandicapMap, holesPlayed } from "../domain/handicap";
@@ -58,7 +58,9 @@ export async function teamsForStage(
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
-  const defaultTeeId = tees[0]?.id ?? null;
+  // The tournament choice, not whichever set sorts first.
+  const teeSetup = await teeSetupFor(eventId, tees);
+  const defaultTeeId = teeSetup.defaultTeeId;
 
   const rows = await prisma.team.findMany({
     where: { eventId, OR: [{ stageId }, { stageId: null }] },
@@ -82,7 +84,7 @@ export async function teamsForStage(
     teeRatings,
     defaultTeeId,
     holes,
-    await teePolicyFor(eventId),
+    teeSetup.policy,
   );
   // What this round says its players play off, on top of the tee conversion.
   // The side handicap shown here is the one an organizer reads out on the tee,

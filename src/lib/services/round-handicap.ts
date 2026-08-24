@@ -1,5 +1,5 @@
 import "server-only";
-import { teePolicyFor } from "./handicaps";
+import { teeSetupFor } from "./handicaps";
 import { prisma } from "../db";
 import { courseHandicapMap } from "../domain/handicap";
 import {
@@ -81,12 +81,13 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
+  const teeSetup = await teeSetupFor(eventId, tees);
   const courseHcp = courseHandicapMap(
     players,
     teeRatings,
-    tees[0]?.id ?? null,
+    teeSetup.defaultTeeId,
     holes,
-    await teePolicyFor(eventId),
+    teeSetup.policy,
   );
 
   const frozenAt = new Date();
@@ -237,12 +238,13 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
+  const teeSetup = await teeSetupFor(eventId, tees);
   const courseHcp = courseHandicapMap(
     players,
     teeRatings,
-    tees[0]?.id ?? null,
+    teeSetup.defaultTeeId,
     holes,
-    await teePolicyFor(eventId),
+    teeSetup.policy,
   );
   const byPlayer = new Map(rows.map((r) => [r.playerId, r]));
 

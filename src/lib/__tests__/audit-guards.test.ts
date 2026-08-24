@@ -604,7 +604,11 @@ describe("net imports are converted where the real handicap lives", () => {
   it("resolves the Playing Handicap server-side, not from the client", () => {
     // The authoritative number depends on the round's allowance, the player's
     // tees and the holes played — none of which the browser knows.
-    expect(fn).toMatch(/courseHandicapMap\(players, teeRatings/);
+    // Allowed to wrap, and required to use the ROUND's tees rather than
+    // whichever set sorts first — an import converted off the wrong tee bakes
+    // the wrong gross into stored strokes, which is the one place an error
+    // stops being recomputable.
+    expect(fn).toMatch(/courseHandicapMap\(\s*players,\s*teeRatings,\s*roundTeeId\(tees, event\?\.defaultTeeId\),/);
     expect(fn).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance\)/);
   });
 

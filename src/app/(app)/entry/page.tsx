@@ -1,4 +1,5 @@
 import { requireScreen } from "@/lib/page-helpers";
+import { roundTeeId } from "@/lib/services/handicaps";
 import { clubCourses } from "@/lib/services/courses";
 import { cardBrand } from "@/lib/services/organization";
 import { loadEventState, effectiveScoreStatus, settingsOf } from "@/lib/services/tournament";
@@ -534,7 +535,7 @@ export default async function EntryPage() {
         const ch = courseHandicapMap(
           state.confirmed,
           teeRatings,
-          tees[0]?.id ?? null,
+          roundTeeId(tees, state.event.defaultTeeId),
           holeCount,
           state.event.teePolicy,
         );

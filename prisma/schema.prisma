@@ -814,7 +814,19 @@ model Event {
    * Mixed tees need no adjustment beyond the Course Handicap formula: the
    * (CR - par) term already gives the longer tee its strokes.
    */
-  teePolicy             String  @default("own") // own | one
+  teePolicy             String  @default("own") // one | own | player
+  /**
+   * The tees this tournament is played from.
+   *
+   * Null falls back to the club's first tee by position, which is what every
+   * scoring path did before this existed — so an existing tournament is
+   * unchanged until somebody chooses.
+   *
+   * Per TOURNAMENT rather than per club: the same course is played off
+   * different sets by different competitions, so a house default would be
+   * wrong about as often as it was right.
+   */
+  defaultTeeId          String?
   /**
    * When players approve, how many playing partners must confirm.
    * "Playing together" is the scoring group — the match, not the foursome.

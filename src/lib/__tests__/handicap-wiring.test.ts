@@ -116,9 +116,13 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     // pair off the reds.
     // Allows the call to wrap, and REQUIRES the tee policy: a side handicap
     // built without it silently ignores a single-tee competition.
+    // Both tee questions come from the round's own setup: WHICH set, and who
+    // decided it. A side handicap built from either default would ignore the
+    // tournament's choice.
     expect(teams).toMatch(
-      /courseHandicapMap\(\s*allMembers,\s*teeRatings,\s*defaultTeeId,\s*holes,\s*await teePolicyFor\(eventId\),/,
+      /courseHandicapMap\(\s*allMembers,\s*teeRatings,\s*defaultTeeId,\s*holes,\s*teeSetup\.policy,/,
     );
+    expect(teams).toMatch(/const teeSetup = await teeSetupFor\(eventId, tees\)/);
     expect(teams).toMatch(/courseHcp\.get\(m\.playerId\) \?\? m\.player\.handicap/);
   });
 

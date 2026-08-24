@@ -1,4 +1,5 @@
 import "server-only";
+import { roundTeeId } from "./handicaps";
 import { isPlayingRound } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
@@ -541,7 +542,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
-  const defaultTeeId = tees[0]?.id ?? null;
+  // The tournament choice, falling back to first-by-position.
+  const defaultTeeId = roundTeeId(tees, event?.defaultTeeId);
   // Both conversions, so every consumer takes the one its own round calls
   // for. One map keyed to the first round's hole count meant a tournament
   // mixing an 18-hole round with a 9-hole one converted every handicap on

@@ -1,4 +1,5 @@
 import { COURSE_REF } from "./course-resolution";
+import { roundTeeId } from "./handicaps";
 import "server-only";
 import { prisma } from "../db";
 import { formGroups, roundRobinSchedule } from "../domain";
@@ -191,7 +192,7 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
   const courseHcp = courseHandicapMap(
     confirmed,
     teeRatings,
-    tees[0]?.id ?? null,
+    roundTeeId(tees, event?.defaultTeeId),
     activeHoles,
     event?.teePolicy ?? "own",
   );
