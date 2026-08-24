@@ -169,6 +169,43 @@ describe("a card that must be refused", () => {
   });
 });
 
+describe("the source checked against itself", () => {
+  /**
+   * A card can pass every other rule and still be the wrong card. This asks
+   * whether the directory agrees with ITSELF — the par it states against the
+   * par its own holes add up to.
+   *
+   * Real: "Links at Gateway" came back with eighteen hole rows adding to 72
+   * while the directory stated par 36. A nine-hole course listed with its
+   * nine holes twice, and nothing else here would have seen it.
+   */
+  it("refuses a card that contradicts the stated par", () => {
+    const doubled = [...PEBBLE_PARS];
+    const card = cardFrom(holes(doubled, PEBBLE_SI), 36);
+    expect(card.usable).toBe(false);
+    if (card.usable) return;
+    expect(card.reason).toContain("36");
+    expect(card.reason).toContain("72");
+  });
+
+  it("takes a card that agrees with it", () => {
+    expect(cardFrom(holes(PEBBLE_PARS, PEBBLE_SI), 72).usable).toBe(true);
+  });
+
+  it("allows a single hole of disagreement, not a whole nine", () => {
+    // One side has a hole as a 4 and the other as a 5. That is noise, not a
+    // doubled card — and a guard that refuses a real course is worse than no
+    // guard.
+    expect(cardFrom(holes(PEBBLE_PARS, PEBBLE_SI), 71).usable).toBe(true);
+    expect(cardFrom(holes(PEBBLE_PARS, PEBBLE_SI), 73).usable).toBe(true);
+  });
+
+  it("says nothing when the directory states no par", () => {
+    // Most of the check's value is in disagreement; silence is not evidence.
+    expect(cardFrom(holes(PEBBLE_PARS, PEBBLE_SI), 0).usable).toBe(true);
+  });
+});
+
 describe("search results", () => {
   it("reads the real search shape", () => {
     const hits = hitsFrom({

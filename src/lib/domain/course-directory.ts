@@ -129,7 +129,11 @@ function genderOf(raw: unknown): string {
  * failed — the organizer's next move is the paste box or typing the card, and
  * neither is helped by "import failed".
  */
-export function cardFrom(holes: unknown): DirectoryCard {
+/**
+ * @param statedPar The par the DIRECTORY itself claims for this course, when
+ * it gives one. Checked against the card rather than trusted over it.
+ */
+export function cardFrom(holes: unknown, statedPar = 0): DirectoryCard {
   const rows = Array.isArray(holes) ? holes : [];
   /**
    * Nine holes is a golf course, not a broken eighteen.
@@ -190,6 +194,37 @@ export function cardFrom(holes: unknown): DirectoryCard {
   const shape = implausibleCard(pars, holeCount);
   if (shape) return { usable: false, reason: shape };
 
+  /**
+   * The source against itself.
+   *
+   * Every check above asks whether the card is internally sensible. This one
+   * asks whether the directory AGREES WITH ITSELF: the par it states for the
+   * course, against the par its own holes add up to. A card can pass every
+   * other rule — pars in range, a clean stroke index, a plausible total — and
+   * still be the wrong card, and nothing else here would see it.
+   *
+   * Found by sampling: 24 of 25 agreed exactly, and the twenty-fifth was
+   * "Links at Gateway", whose holes add to 72 while the directory says 36 —
+   * a nine-hole course listed with its nine holes twice. Scoring eighteen on
+   * it would be eighteen holes nobody played.
+   *
+   * A tolerance of one, not zero. The disagreement worth acting on is a whole
+   * nine or a doubled card, not a single hole one side has as a 4 and the
+   * other as a 5 — and a guard that refuses a real course is worse than no
+   * guard, which this file has now proved three times.
+   */
+  if (statedPar > 0) {
+    const total = pars.reduce((sum, v) => sum + v, 0);
+    if (Math.abs(total - statedPar) > 1) {
+      return {
+        usable: false,
+        reason:
+          `The directory says this course is par ${statedPar}, but the holes it lists add up ` +
+          `to ${total}. One of the two is wrong, so the card cannot be trusted.`,
+      };
+    }
+  }
+
   return { usable: true, pars, strokeIndex, yards };
 }
 
@@ -228,7 +263,7 @@ export function courseFrom(payload: unknown): DirectoryCourse | null {
     country: str(c.country_iso).toUpperCase(),
     website: str(c.website),
     address: str(c.address),
-    card: cardFrom(c.holes_data),
+    card: cardFrom(c.holes_data, num(c.par)),
     tees: teeRows
       .map((t) => ({
         name: str(t.tee_name) || str(t.tee_color),
