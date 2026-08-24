@@ -57,6 +57,20 @@ export interface Plan {
     whiteLabel: boolean;
 
     /**
+     * The season table: where the teams stand after N weeks of one league.
+     *
+     * Priced on the paid tier because it is what makes a LEAGUE a league
+     * rather than six unrelated evenings, and a league is a recurring
+     * customer by definition. A club running a Thursday night season is
+     * exactly who a subscription is for.
+     *
+     * Unlike the three below it costs nothing per use — it is arithmetic over
+     * rounds already computed, with no carrier or model bill behind it. So it
+     * is ON for the paid tier today rather than dark pending revenue.
+     */
+    seasonStandings: boolean;
+
+    /**
      * Everything below costs real money *per use* rather than per tenant.
      *
      * The rest of this product is priced on capacity — seats, tournaments,
@@ -99,7 +113,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // to upgrade, and the single most important thing to say before anyone
     // plays — one number, read by every surface that mentions it.
     retentionHours: 48,
-    features: { whiteLabel: false, sms: false, cardScan: false, aiAssist: false },
+    features: { whiteLabel: false, seasonStandings: false, sms: false, cardScan: false, aiAssist: false },
   },
   club: {
     key: "club",
@@ -118,7 +132,7 @@ export const PLANS: Record<PlanKey, Plan> = {
     // Flipping them here is the whole of turning them on, and the upgrade
     // copy already lists them (see METERED_FEATURES below), so the promise and
     // the switch move together.
-    features: { whiteLabel: true, sms: false, cardScan: false, aiAssist: false },
+    features: { whiteLabel: true, seasonStandings: true, sms: false, cardScan: false, aiAssist: false },
   },
 };
 

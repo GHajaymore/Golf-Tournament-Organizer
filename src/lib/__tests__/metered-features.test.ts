@@ -87,7 +87,7 @@ describe("the upgrade pitch", () => {
     // list is offering something that is already included.
     const everything = {
       ...PLANS.club,
-      features: { whiteLabel: true, sms: true, cardScan: true, aiAssist: true },
+      features: { whiteLabel: true, seasonStandings: true, sms: true, cardScan: true, aiAssist: true },
     };
     const listed = METERED_FEATURES.filter((f) => !everything.features[f.key]);
     expect(listed).toEqual([]);

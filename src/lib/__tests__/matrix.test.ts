@@ -35,6 +35,11 @@ import {
   teamProblems,
   type TeamView,
 } from "@/lib/services/teams";
+import {
+  seasonStandings,
+  seasonTotals,
+  type RoundStanding,
+} from "@/lib/domain/season";
 import { DEFAULT_SCORING } from "@/lib/domain/types";
 import type { HoleResult, Match, Player } from "@/lib/domain/types";
 
@@ -814,4 +819,146 @@ describe("forfeits, at every field size", () => {
       expect(new Set(ranked.map((r) => r.player.id)).size).toBe(n);
     });
   }
+});
+
+/**
+ * Season standings, swept.
+ *
+ * The combination that matters is not "many teams" — it is a side that
+ * MISSED a week. A league where nobody misses a week does not exist, and the
+ * absence is the case where the arithmetic goes wrong quietly: counted as a
+ * gross of zero it puts the absentee top of a net table, counted as zero
+ * points it ranks them below a side that played worse but turned up.
+ *
+ * Round counts start at ZERO, because a league's board is looked at before
+ * the first week is played, and at ONE, because the season table and the
+ * round table must agree when there has only been one round.
+ */
+describe("season standings, at every team count and round count", () => {
+  const ROUND_COUNTS = [0, 1, 2, 3, 6];
+  const BASES = ["net", "stableford"];
+
+  /**
+   * One round of standings. Team index 0 sits out the LAST round, so every
+   * multi-round case carries an absence.
+   */
+  const roundFor = (teams: Player[], roundIndex: number, lastRound: number): RoundStanding[] =>
+    teams.map((t, i) => {
+      const absent = i === 0 && roundIndex === lastRound && lastRound > 0;
+      return {
+        teamId: t.id,
+        name: `Side ${i + 1}`,
+        members: [t.name],
+        // Deliberately NOT distinct per team: ties are the point, and a
+        // league board pays money against a placing, so a tie must read as
+        // one rather than being broken by sort order.
+        gross: absent ? 0 : 72 + (i % 3),
+        net: absent ? 0 : 70 + (i % 3),
+        points: absent ? 0 : 30 - (i % 3),
+        played: absent ? 0 : 18,
+        toPar: absent ? 0 : i % 3,
+      };
+    });
+
+  for (const basis of BASES) {
+    for (const roundCount of ROUND_COUNTS) {
+      for (const n of FIELD_SIZES) {
+        it(`${basis}: ${n} side(s) over ${roundCount} round(s)`, () => {
+          const teams = field(n);
+          const rounds = Array.from({ length: roundCount }, (_, r) =>
+            roundFor(teams, r, roundCount - 1),
+          );
+          const table = seasonStandings(rounds, basis);
+
+          // Every side that appeared in any round appears exactly once. A
+          // side missing from the season table is a side whose season did
+          // not count.
+          const expected = roundCount === 0 ? 0 : n;
+          expect(table).toHaveLength(expected);
+          expect(new Set(table.map((r) => r.teamId)).size).toBe(expected);
+
+          for (const row of table) {
+            finite(row.points, "points");
+            finite(row.gross, "gross");
+            finite(row.net, "net");
+            finite(row.toPar, "toPar");
+            // Never credited more rounds than were played.
+            expect(row.roundsPlayed).toBeLessThanOrEqual(roundCount);
+            expect(row.roundsPlayed).toBeGreaterThanOrEqual(0);
+          }
+
+          if (expected === 0) return;
+
+          // THE ABSENCE IS VISIBLE, NOT SILENT. With more than one round the
+          // first side sat one out, so its round count must be short of the
+          // others — otherwise two totals over different numbers of weeks
+          // would be compared as though they were the same.
+          if (roundCount > 1) {
+            const sat = table.find((r) => r.teamId === teams[0].id);
+            expect(sat, "the side that missed a week vanished").toBeTruthy();
+            expect(sat?.roundsPlayed).toBe(roundCount - 1);
+          }
+
+          // Ranks: first is 1, never decreasing, never beyond the field, and
+          // when a rank DOES increase it jumps to this row's position — the
+          // competition rule that makes two twelfths be followed by a
+          // fourteenth rather than a thirteenth.
+          expect(table[0].rank).toBe(1);
+          table.forEach((row, i) => {
+            expect(row.rank).toBeGreaterThanOrEqual(1);
+            expect(row.rank).toBeLessThanOrEqual(table.length);
+            if (i === 0) return;
+            const prev = table[i - 1].rank;
+            expect(row.rank).toBeGreaterThanOrEqual(prev);
+            if (row.rank !== prev) expect(row.rank).toBe(i + 1);
+          });
+
+          // A side with no rounds at all is never top. Only reachable when
+          // every round was missed, which for one round and one side is
+          // exactly the board an organiser sees before anybody has played.
+          const unplayed = table.filter((r) => r.roundsPlayed === 0);
+          for (const u of unplayed) {
+            const anyPlayed = table.some((r) => r.roundsPlayed > 0);
+            if (anyPlayed) expect(u.rank).toBeGreaterThan(1);
+          }
+
+          // The stated total reconciles with the rows printed above it.
+          const totals = seasonTotals(table);
+          expect(totals.teams).toBe(table.length);
+          expect(totals.points).toBe(table.reduce((s, r) => s + r.points, 0));
+          expect(totals.roundsPlayed).toBeLessThanOrEqual(roundCount);
+        });
+      }
+    }
+  }
+
+  it("gives an empty table for a league nobody has entered", () => {
+    for (const basis of BASES) {
+      expect(seasonStandings([], basis)).toEqual([]);
+      expect(seasonTotals([])).toEqual({ teams: 0, roundsPlayed: 0, points: 0 });
+    }
+  });
+
+  it("keeps a side that was renamed mid-season as one side", () => {
+    // Renaming is not creating. Keyed on the name this would be two rows,
+    // each with half a season — the same fault that had a tournament
+    // scoring against another course's card.
+    const base = {
+      teamId: "t1",
+      members: ["A"],
+      gross: 72,
+      net: 70,
+      points: 30,
+      played: 18,
+      toPar: 0,
+    };
+    const table = seasonStandings(
+      [[{ ...base, name: "Old Name" }], [{ ...base, name: "New Name" }]],
+      "net",
+    );
+    expect(table).toHaveLength(1);
+    expect(table[0].roundsPlayed).toBe(2);
+    // Reads as it stands now, not as it was in week one.
+    expect(table[0].name).toBe("New Name");
+  });
 });
