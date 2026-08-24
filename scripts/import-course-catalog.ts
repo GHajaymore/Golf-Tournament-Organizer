@@ -169,7 +169,20 @@ async function getJson(path: string): Promise<unknown | null> {
       const res = await fetch(`${BASE}${path}`, {
         headers: {
           Accept: "application/json",
-          ...(API_KEY ? { "X-API-Key": API_KEY } : {}),
+          /**
+           * `Authorization: Bearer`, which is what the docs actually specify.
+           *
+           * This sent `X-API-Key`, guessed rather than read, and it made no
+           * difference either way: reads on this API are KEYLESS, and the
+           * 500/day cap applies per endpoint per IP whether a key is present,
+           * absent, or deliberately wrong — all three return identical
+           * X-RateLimit headers. A key buys the ability to CONTRIBUTE data,
+           * not to read more of it.
+           *
+           * Sent correctly anyway, so that if a key ever does raise a read
+           * limit this is already in the right shape to benefit.
+           */
+          ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
         },
         signal: AbortSignal.timeout(20000),
       });
