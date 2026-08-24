@@ -262,7 +262,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
             </div>
           </Section>
 
-          {(view.netSkins?.result || view.grossSkins?.result) && (
+          {view.skins.some((g) => g.view.result) && (
             <Section
               kicker="The money"
               title="Skins"
@@ -274,10 +274,10 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                 ) : undefined
               }
             >
-              {([
-                ["Net", view.netSkins],
-                ["Gross", view.grossSkins],
-              ] as const).map(([label, pot]) =>
+              {/* Every game the round ran, named once in skinsGameLabel so
+                  this and the money page cannot call the same game two
+                  different things. A league night lists four. */}
+              {view.skins.map(({ label, view: pot }) =>
                 pot?.result ? (
                   <div key={label} style={{ marginBottom: 6 }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>

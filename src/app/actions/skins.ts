@@ -60,12 +60,15 @@ export async function saveSkinsPot(
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }
 
-  // Keyed on the round AND the scoring, because a club can run a gross pot
-  // and a net one on the same night — two games, two lots of money.
-  const data = { buyInCents: buyIn, scope: input.scope };
+  // Keyed on the round, the scoring AND THE SCOPE. A league night runs four
+  // games — front and back, each gross and net — and without the scope in the
+  // key, saving the back-nine pot upserted the front-nine one: the same row,
+  // so the front game's entrants and their money silently became the back
+  // game's and the front game vanished.
+  const data = { buyInCents: buyIn };
   await prisma.skinsPot.upsert({
-    where: { stageId_net: { stageId, net: input.net } },
-    create: { eventId, stageId, net: input.net, ...data },
+    where: { stageId_net_scope: { stageId, net: input.net, scope: input.scope } },
+    create: { eventId, stageId, net: input.net, scope: input.scope, ...data },
     update: data,
   });
   refresh();
@@ -88,10 +91,19 @@ export async function setSkinsEntrants(
   stageId: string,
   /** Which pot: the gross game or the net one. A club may run both. */
   net: boolean,
+  /**
+   * And over which holes. Required, not defaulted: a pot cannot be identified
+   * without saying WHICH game, and defaulting to "full" here would attach a
+   * league's front-nine entrants to a whole-round pot that nobody played.
+   */
+  scope: string,
   playerIds: string[],
 ): Promise<SkinsResult> {
   const eventId = await requireStaff();
   await stageInEvent(eventId, stageId);
+  if (!isSkinsScope(scope)) {
+    return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
+  }
 
   // Only confirmed players of THIS tournament, deduplicated. Anything else in
   // the list is dropped rather than trusted — the ids arrive over HTTP, and a
@@ -106,8 +118,8 @@ export async function setSkinsEntrants(
   const ids = valid.map((p) => p.id);
 
   const pot = await prisma.skinsPot.upsert({
-    where: { stageId_net: { stageId, net } },
-    create: { eventId, stageId, net },
+    where: { stageId_net_scope: { stageId, net, scope } },
+    create: { eventId, stageId, net, scope },
     update: {},
   });
 

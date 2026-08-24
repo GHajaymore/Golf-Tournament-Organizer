@@ -1,6 +1,7 @@
 import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { skinsPotFor, skinsSeasonFor } from "@/lib/services/skins-pot";
+import { isSkinsScope, type SkinsScope } from "@/lib/domain/skins-pot";
 import { SkinsPotClient } from "@/components/SkinsPotClient";
 import { SkinsSeason } from "@/components/SkinsSeason";
 import { redirect } from "next/navigation";
@@ -29,15 +30,37 @@ export default async function PrizesPage({
   // because a league runs one a week.
   const weeks = playingStages(state.stages);
   const week = weeks.find((s) => s.id === params.round) ?? state.activeStage ?? weeks[0] ?? null;
-  // Gross and net are separate games with separate money, and a club commonly
-  // runs both on the same night — the low handicaps play the gross, everybody
-  // plays the net. Two pots, shown together.
-  const [grossSkins, netSkins] = week
-    ? await Promise.all([
-        skinsPotFor(session.eventId, week.id, false),
-        skinsPotFor(session.eventId, week.id, true),
-      ])
-    : [null, null];
+  /**
+   * Every game this round runs, not a fixed gross-and-net pair.
+   *
+   * Gross and net are separate games with separate money, and a league adds a
+   * second axis: front nine and back nine. Four games on one night is
+   * ordinary. This asked for exactly two whole-round pots, so the other two
+   * could be created from the scope dropdown and then never shown again.
+   *
+   * A round with no pot yet still offers ONE to set up — otherwise there is
+   * no way to start the first one from an empty screen.
+   */
+  const potRows = week
+    ? await prisma.skinsPot.findMany({
+        where: { stageId: week.id },
+        select: { net: true, scope: true },
+        orderBy: [{ scope: "asc" }, { net: "asc" }],
+      })
+    : [];
+  const wanted = potRows.length
+    ? potRows.map((p) => ({ net: p.net, scope: (isSkinsScope(p.scope) ? p.scope : "full") as SkinsScope }))
+    : [{ net: true, scope: "full" as SkinsScope }];
+  const skinsGames = week
+    ? (
+        await Promise.all(
+          wanted.map(async (w) => ({
+            key: `${w.net ? "net" : "gross"}-${w.scope}`,
+            view: await skinsPotFor(session.eventId, week.id, w.net, w.scope),
+          })),
+        )
+      ).filter((g): g is { key: string; view: NonNullable<typeof g.view> } => g.view !== null)
+    : [];
   const skinsSeason = await skinsSeasonFor(session.eventId);
 
   const prizes = await prisma.prize.findMany({
@@ -125,20 +148,15 @@ export default async function PrizesPage({
           .sort((a, b) => a.name.localeCompare(b.name))
           .map((p) => ({ id: p.id, name: p.name }))}
       />
-      {week && netSkins && (
-        <SkinsPotClient
-          rounds={weeks.map((s, i) => ({ stageId: s.id, label: `Round ${i + 1}` }))}
-          activeStageId={week.id}
-          view={netSkins}
-        />
-      )}
-      {week && grossSkins && (
-        <SkinsPotClient
-          rounds={weeks.map((s, i) => ({ stageId: s.id, label: `Round ${i + 1}` }))}
-          activeStageId={week.id}
-          view={grossSkins}
-        />
-      )}
+      {week &&
+        skinsGames.map((g) => (
+          <SkinsPotClient
+            key={g.key}
+            rounds={weeks.map((s, i) => ({ stageId: s.id, label: `Round ${i + 1}` }))}
+            activeStageId={week.id}
+            view={g.view}
+          />
+        ))}
       {/* Side bets sit with the skins pot for the same stated reason: they are
           a payout, and this is where a club comes to settle up. Per round,
           because closest-to-the-pin is a hole on a day rather than a

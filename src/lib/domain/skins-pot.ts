@@ -157,6 +157,23 @@ export const SCOPE_LABEL: Record<SkinsScope, string> = {
 };
 
 /**
+ * What a club calls one of its games, in one place.
+ *
+ * A league night runs four — front and back, each gross and net — and every
+ * screen that lists them has to name them the same way, or the board and the
+ * money page disagree about which game a player won. One reader, so they
+ * cannot drift.
+ *
+ * On a nine-hole round the scope is meaningless (see `scopeRange`), so the
+ * name does not claim a nine that was never sliced.
+ */
+export function skinsGameLabel(net: boolean, scope: SkinsScope, roundHoles = 18): string {
+  const money = net ? "Net" : "Gross";
+  if (roundHoles === 9 || scope === "full") return `Skins (${money})`;
+  return `${SCOPE_LABEL[scope]} Skins (${money})`;
+}
+
+/**
  * Which holes a pot is played over, as an index range into the round's card.
  *
  * A league playing eighteen may run its skins on the front only, so the scope

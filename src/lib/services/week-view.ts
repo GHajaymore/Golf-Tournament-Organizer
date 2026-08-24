@@ -4,6 +4,7 @@ import { resolveCourse } from "../courses";
 import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "../domain";
 import { aggregateStroke, emptyAgg, netOf } from "../domain/stroke-agg";
 import { skinsPotFor, type SkinsPotView } from "./skins-pot";
+import { isSkinsScope, skinsGameLabel, type SkinsScope } from "../domain/skins-pot";
 import {
   loadEventState,
   playingStages,
@@ -41,6 +42,15 @@ export interface WeekResult {
   position: number;
 }
 
+/** One skins game on one round: which game it is, and how it finished. */
+export interface SkinsGame {
+  net: boolean;
+  scope: SkinsScope;
+  /** Named once, in `skinsGameLabel`, so every screen calls it the same. */
+  label: string;
+  view: SkinsPotView;
+}
+
 export interface WeekView {
   weeks: Array<{ stageId: string; label: string; date: string; format: string; holes: number; played: boolean }>;
   stageId: string;
@@ -54,8 +64,14 @@ export interface WeekView {
   stableford: boolean;
   /** Standings after this week, with movement since the week before. */
   standings: WeekRow[];
-  grossSkins: SkinsPotView | null;
-  netSkins: SkinsPotView | null;
+  /**
+   * The skins games this round actually ran, in the order they are read.
+   *
+   * A list rather than a gross/net pair, because a league night runs four —
+   * front and back, each gross and net. The old pair asked for two whole-round
+   * pots; the other two held real money and appeared on no screen.
+   */
+  skins: SkinsGame[];
   /** True when no score has been entered for this week yet. */
   empty: boolean;
   /**
@@ -156,10 +172,32 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
         stableford,
       });
 
-  const [grossSkins, netSkins] = await Promise.all([
-    skinsPotFor(eventId, stage.id, false),
-    skinsPotFor(eventId, stage.id, true),
-  ]);
+  /**
+   * Every skins game this round actually ran, not a fixed gross-and-net pair.
+   *
+   * A league night runs four — front and back, each gross and net — and this
+   * used to ask for exactly two, over the whole round. The other two existed,
+   * held money, and appeared on no screen.
+   *
+   * Enumerated from the rows rather than assumed, so a medal with one pot
+   * shows one and a league with four shows four, with no setting deciding it.
+   */
+  const potRows = await prisma.skinsPot.findMany({
+    where: { stageId: stage.id },
+    select: { net: true, scope: true },
+    orderBy: [{ scope: "asc" }, { net: "asc" }],
+  });
+  const skins = (
+    await Promise.all(
+      potRows.map(async (p) => {
+        const scope = isSkinsScope(p.scope) ? p.scope : "full";
+        const view = await skinsPotFor(eventId, stage.id, p.net, scope);
+        return view
+          ? { net: p.net, scope, label: skinsGameLabel(p.net, scope, stage.holes), view }
+          : null;
+      }),
+    )
+  ).filter((g): g is NonNullable<typeof g> => g !== null);
 
   return {
     weeks: weeks.map((s, i) => ({
@@ -180,8 +218,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     results,
     stableford,
     standings,
-    grossSkins,
-    netSkins,
+    skins,
     // A manual week is not "empty" — it has a result, just not one this app
     // knows. The screen says which, and they read differently.
     empty: !manual && results.length === 0,

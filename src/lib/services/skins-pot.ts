@@ -54,9 +54,20 @@ export async function skinsPotFor(
    *  A club commonly runs both on the same night, so they are separate pots
    *  with separate entrants and separate money. */
   net: boolean,
+  /**
+   * And over which holes: the front nine, the back nine, or all of them.
+   *
+   * Required rather than defaulted, because a default would read the wrong
+   * game's money without complaining. A league night has four pots on one
+   * round and only the pair (net, scope) tells them apart.
+   */
+  scope: SkinsScope,
 ): Promise<SkinsPotView | null> {
   const [pot, stage, event] = await Promise.all([
-    prisma.skinsPot.findUnique({ where: { stageId_net: { stageId, net } }, include: { entrants: true } }),
+    prisma.skinsPot.findUnique({
+      where: { stageId_net_scope: { stageId, net, scope } },
+      include: { entrants: true },
+    }),
     prisma.stage.findUnique({ where: { id: stageId }, select: { id: true, eventId: true, holes: true } }),
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
   ]);
@@ -77,8 +88,14 @@ export async function skinsPotFor(
     }),
   ]);
 
-  const scope: SkinsScope = pot && isSkinsScope(pot.scope) ? pot.scope : "full";
-  const { from, to } = scopeRange(scope, stage.holes);
+  // The scope now comes from the CALLER, because it is part of which pot was
+  // asked for rather than something read back off whichever row turned up.
+  // Deriving it from the row was safe only while one row could exist per
+  // (stage, net); with four games on a round it would answer about the wrong
+  // one. The stored value is still checked, so a bad row cannot widen a nine
+  // into an eighteen.
+  const stored = pot && isSkinsScope(pot.scope) ? pot.scope : scope;
+  const { from, to } = scopeRange(stored, stage.holes);
   const course = resolveCourse(event);
   /**
    * Ranked 1..N for the holes actually being played.
@@ -197,11 +214,18 @@ export interface SkinsSeasonRow {
 export async function skinsSeasonFor(eventId: string): Promise<SkinsSeasonRow[]> {
   const pots = await prisma.skinsPot.findMany({
     where: { eventId },
-    select: { stageId: true, net: true },
+    // The scope too: a league night runs four pots on one round, and reading
+    // (stageId, net) alone asked for the same one twice and missed the rest —
+    // which for a season total is money that never appears.
+    select: { stageId: true, net: true, scope: true },
   });
   if (pots.length === 0) return [];
 
-  const weeks = await Promise.all(pots.map((p) => skinsPotFor(eventId, p.stageId, p.net)));
+  const weeks = await Promise.all(
+    pots.map((p) =>
+      skinsPotFor(eventId, p.stageId, p.net, isSkinsScope(p.scope) ? p.scope : "full"),
+    ),
+  );
   const results = weeks.filter((w): w is SkinsPotView => !!w && !!w.result).map((w) => w.result!);
   const nameById = weeks.find((w) => w)?.nameById ?? {};
 

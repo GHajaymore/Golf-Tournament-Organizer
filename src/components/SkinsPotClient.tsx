@@ -208,7 +208,9 @@ export function SkinsPotClient({
                 className="btn btn-primary"
                 disabled={pending}
                 onClick={() => {
-                  run(() => setSkinsEntrants(activeStageId, view.net, chosen));
+                  // view.scope, not a default: these entrants belong to THIS
+                  // game, and a league night has four on the same round.
+                  run(() => setSkinsEntrants(activeStageId, view.net, view.scope, chosen));
                   setPicking(false);
                 }}
               >

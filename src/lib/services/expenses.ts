@@ -24,6 +24,7 @@ import {
   type DerivedKind,
 } from "../domain/derived-games";
 import { skinsPotFor } from "./skins-pot";
+import { isSkinsScope } from "@/lib/domain/skins-pot";
 import { loadEventState, matchSettled, type HoleResultArr } from "./tournament";
 import { resolveCourse } from "../courses";
 import { holeStrokesReceived, allocationHoles } from "../domain";
@@ -190,10 +191,18 @@ async function gameNets(eventId: string, onlyStageId?: string): Promise<Net[]> {
   // ── Skins, through the pot's own service ────────────────────────────────
   const pots = await prisma.skinsPot.findMany({
     where: { eventId, ...stageWhere },
-    select: { stageId: true, net: true },
+    // The SCOPE too, since a league night runs four pots on one round and
+    // (stageId, net) no longer names one of them. Reading without it asked
+    // for the same pot four times and missed three lots of money.
+    select: { stageId: true, net: true, scope: true },
   });
   for (const pot of pots) {
-    const view = await skinsPotFor(eventId, pot.stageId, pot.net);
+    const view = await skinsPotFor(
+      eventId,
+      pot.stageId,
+      pot.net,
+      isSkinsScope(pot.scope) ? pot.scope : "full",
+    );
     // A pot with nobody in it has no result and no money — `result` is null
     // until somebody is entered, which is not the same as everyone at zero.
     for (const share of view?.result?.shares ?? []) add(share.playerId, share.netCents);

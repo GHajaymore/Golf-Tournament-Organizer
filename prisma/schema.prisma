@@ -1592,7 +1592,16 @@ model SkinsPot {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
 
-  @@unique([stageId, net])
+  /**
+   * The SCOPE is part of the key, and leaving it out was a money bug.
+   *
+   * A league night runs four games: front and back, each gross and net. Keyed
+   * on (stageId, net) alone, saving the back-nine gross pot UPSERTED the
+   * front-nine gross one — same row, so the front pot's entrants and their
+   * stakes silently became the back pot's, and the front game vanished with
+   * the money still recorded against it.
+   */
+  @@unique([stageId, net, scope])
   @@index([eventId])
 }
 
