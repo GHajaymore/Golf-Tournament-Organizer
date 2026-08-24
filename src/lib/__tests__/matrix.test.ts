@@ -357,130 +357,153 @@ describe("the input model, on every format", () => {
  * "AAAAABBBB", which is A five up with four to play and therefore a match that
  * ended before B won anything.
  */
-describe("match cards, at every field size", () => {
-  const CARD = {
-    pars: new Array(18).fill(4) as number[],
-    holeDifficulty: Array.from({ length: 18 }, (_, i) => i + 1),
-  };
-  const AGG_OPTS = {
-    courseFor: () => CARD,
-    handicapFor: () => 0,
-    holeStrokesReceived,
-    stablefordPointsForHole,
-    allocationHoles,
-  };
+describe("match cards, at every field size and both hole counts", () => {
+  /**
+   * NINE AND EIGHTEEN, because a nine-hole round inside an eighteen-hole
+   * tournament is the first combination CLAUDE.md names and this sweep did
+   * not have it: every fixture here was `new Array(18)`, so nothing asserted
+   * that holesOwed follows the ROUND rather than a constant.
+   */
+  const HOLE_COUNTS = [9, 18] as const;
 
-  /** Halved over the full eighteen: a finished match with a complete card. */
-  const HALVED: HoleResult[] = new Array(18).fill("H");
-  /** A up five after fourteen with four to play — the match ends 5&4. */
-  const FIVE_AND_FOUR: HoleResult[] = [
-    ...new Array(5).fill("A"),
-    ...new Array(9).fill("H"),
-    ...new Array(4).fill(null),
-  ];
+  for (const holeCount of HOLE_COUNTS) {
+    const CARD = {
+      pars: new Array(holeCount).fill(4) as number[],
+      holeDifficulty: Array.from({ length: holeCount }, (_, i) => i + 1),
+    };
+    const AGG_OPTS = {
+      courseFor: () => CARD,
+      handicapFor: () => 0,
+      holeStrokesReceived,
+      stablefordPointsForHole,
+      allocationHoles,
+    };
 
-  const cardFor = (holes: HoleResult[]) =>
-    JSON.stringify(holes.map((h) => (h === null ? null : 4)));
+    /** Halved over the full round: a finished match with a complete card. */
+    const HALVED: HoleResult[] = new Array(holeCount).fill("H");
 
-  for (const n of FIELD_SIZES) {
-    it(`joins and ranks a ${n}-player round robin honestly`, () => {
-      const players = field(n);
-      const matches: MatchForCards[] = [];
-      for (let i = 0; i < players.length; i += 1) {
-        for (let j = i + 1; j < players.length; j += 1) {
-          // The FIRST match of the round ends early; everything else goes the
-          // distance. Every match in the round is decided either way.
-          const holes = matches.length === 0 ? FIVE_AND_FOUR : HALVED;
-          matches.push({
-            id: `m${i}-${j}`,
-            stageId: "s1",
-            playerAId: players[i].id,
-            playerBId: players[j].id,
-            holes: JSON.stringify(holes),
-            forfeitedBy: "",
-          });
+    /**
+     * A match that ended before the last hole, legal at THIS length.
+     *
+     * Rule 3.2a(3): a match ends when a side leads by more holes than remain.
+     * Over eighteen that is A five up after fourteen — 5&4. Over nine it is A
+     * four up after six — 4&3. Both are cards that can exist. A lead that
+     * never exceeds what is left would be a match still in progress, and a
+     * fixture asserting otherwise would be asserting an impossible round.
+     */
+    const EARLY: HoleResult[] =
+      holeCount === 18
+        ? [...new Array(5).fill("A"), ...new Array(9).fill("H"), ...new Array(4).fill(null)]
+        : [...new Array(4).fill("A"), ...new Array(2).fill("H"), ...new Array(3).fill(null)];
+
+    const cardFor = (holes: HoleResult[]) =>
+      JSON.stringify(holes.map((h) => (h === null ? null : 4)));
+
+    for (const n of FIELD_SIZES) {
+      it(`joins and ranks a ${n}-player ${holeCount}-hole round robin honestly`, () => {
+        const players = field(n);
+        const matches: MatchForCards[] = [];
+        for (let i = 0; i < players.length; i += 1) {
+          for (let j = i + 1; j < players.length; j += 1) {
+            // The FIRST match of the round ends early; everything else goes
+            // the distance. Every match in the round is decided either way.
+            const holes = matches.length === 0 ? EARLY : HALVED;
+            matches.push({
+              id: `m${i}-${j}`,
+              stageId: "s1",
+              playerAId: players[i].id,
+              playerBId: players[j].id,
+              holes: JSON.stringify(holes),
+              forfeitedBy: "",
+            });
+          }
         }
-      }
 
-      const rows = matches.flatMap((m) => {
-        const holes = JSON.parse(m.holes) as HoleResult[];
-        return [
-          { matchId: m.id, slot: "A", strokes: cardFor(holes) },
-          { matchId: m.id, slot: "B", strokes: cardFor(holes) },
-        ];
+        const rows = matches.flatMap((m) => {
+          const holes = JSON.parse(m.holes) as HoleResult[];
+          return [
+            { matchId: m.id, slot: "A", strokes: cardFor(holes) },
+            { matchId: m.id, slot: "B", strokes: cardFor(holes) },
+          ];
+        });
+
+        const joined = matchStrokeCards(rows, matches);
+        // Two cards per match, and never a player who is not in the field.
+        expect(joined).toHaveLength(matches.length * 2);
+        const ids = new Set(players.map((p) => p.id));
+        for (const c of joined) {
+          expect(ids.has(c.playerId), `unknown player ${c.playerId}`).toBe(true);
+          expect(c.stageId).toBe("s1");
+        }
+
+        // Every match in this round is DECIDED — that is what settles the
+        // bracket, the standings and the money, and it stays true of the one
+        // that ended early. The card question is asked separately below, and
+        // the two must not be merged.
+        for (const m of matches) {
+          const holes = JSON.parse(m.holes) as HoleResult[];
+          expect(resolveMatch(holes).winner, `${m.id} has no winner`).not.toBeNull();
+          expect(matchCardFinished(m)).toBe(true);
+        }
+
+        const cards: StrokeCard[] = joined.map((c) => ({
+          playerId: c.playerId,
+          stageId: c.stageId,
+          strokes: JSON.parse(c.strokes) as (number | null)[],
+          finished: c.finished,
+        }));
+        const agg = aggregateStroke(cards, AGG_OPTS);
+
+        // Who was in the match that stopped short.
+        const shortened = new Set(
+          matches.length ? [matches[0].playerAId, matches[0].playerBId] : [],
+        );
+
+        for (const p of players) {
+          const a = agg.get(p.id);
+          if (!a) {
+            // A one-player round has no matches and therefore no cards.
+            // Nobody is ranked, and nothing throws.
+            expect(n).toBe(1);
+            continue;
+          }
+          finite(a.gross, "gross");
+          finite(a.thru, "thru");
+          finite(a.parThru, "parThru");
+          finite(a.holesOwed, "holesOwed");
+          // Never more holes played than the round asked for.
+          expect(a.thru).toBeLessThanOrEqual(a.holesOwed);
+          // One card per match played, and the holes owed follow THIS round's
+          // length. A nine-hole round owing eighteen is the bug this asserts
+          // against: it would mark a complete card as stopped short, drop the
+          // player out of the standings, and take them out of the money.
+          const played = matches.filter(
+            (m) => m.playerAId === p.id || m.playerBId === p.id,
+          ).length;
+          expect(a.holesOwed).toBe(played * holeCount);
+
+          if (shortened.has(p.id)) {
+            // Holes conceded and never played. Shown on the board with the
+            // holes actually played, and NOT ranked: fourteen against
+            // somebody else's eighteen is not a comparison, and nothing may
+            // invent a score for a hole nobody played.
+            expect(a.stoppedShort, `${p.id} played ${a.thru} of ${a.holesOwed}`).toBe(true);
+            expect(isRanked(a)).toBe(false);
+            expect(a.thru).toBeLessThan(a.holesOwed);
+          } else {
+            expect(a.stoppedShort).toBe(false);
+            expect(isRanked(a)).toBe(true);
+            expect(a.thru).toBe(a.holesOwed);
+          }
+        }
       });
+    }
 
-      const joined = matchStrokeCards(rows, matches);
-      // Two cards per match, and never a player who is not in the field.
-      expect(joined).toHaveLength(matches.length * 2);
-      const ids = new Set(players.map((p) => p.id));
-      for (const c of joined) {
-        expect(ids.has(c.playerId), `unknown player ${c.playerId}`).toBe(true);
-        expect(c.stageId).toBe("s1");
-      }
-
-      // Every match in this round is DECIDED — that is what settles the
-      // bracket, the standings and the money, and it stays true of the one
-      // that ended on the 14th. The card question is asked separately below,
-      // and the two must not be merged.
-      for (const m of matches) {
-        const holes = JSON.parse(m.holes) as HoleResult[];
-        expect(resolveMatch(holes).winner, `${m.id} has no winner`).not.toBeNull();
-        expect(matchCardFinished(m)).toBe(true);
-      }
-
-      const cards: StrokeCard[] = joined.map((c) => ({
-        playerId: c.playerId,
-        stageId: c.stageId,
-        strokes: JSON.parse(c.strokes) as (number | null)[],
-        finished: c.finished,
-      }));
-      const agg = aggregateStroke(cards, AGG_OPTS);
-
-      // Who was in the match that stopped short.
-      const shortened = new Set(
-        matches.length ? [matches[0].playerAId, matches[0].playerBId] : [],
-      );
-
-      for (const p of players) {
-        const a = agg.get(p.id);
-        if (!a) {
-          // A one-player round has no matches and therefore no cards. Nobody
-          // is ranked, and nothing throws.
-          expect(n).toBe(1);
-          continue;
-        }
-        finite(a.gross, "gross");
-        finite(a.thru, "thru");
-        finite(a.parThru, "parThru");
-        finite(a.holesOwed, "holesOwed");
-        // Never more holes played than the round asked for.
-        expect(a.thru).toBeLessThanOrEqual(a.holesOwed);
-        // One card per match played, eighteen holes owed for each.
-        const played = matches.filter((m) => m.playerAId === p.id || m.playerBId === p.id).length;
-        expect(a.holesOwed).toBe(played * 18);
-
-        if (shortened.has(p.id)) {
-          // Four holes conceded and never played. Shown on the board with the
-          // holes actually played, and NOT ranked: fourteen against somebody
-          // else's eighteen is not a comparison, and nothing may invent a
-          // score for a hole nobody played.
-          expect(a.stoppedShort, `${p.id} played ${a.thru} of ${a.holesOwed}`).toBe(true);
-          expect(isRanked(a)).toBe(false);
-          expect(a.thru).toBeLessThan(a.holesOwed);
-        } else {
-          expect(a.stoppedShort).toBe(false);
-          expect(isRanked(a)).toBe(true);
-          expect(a.thru).toBe(a.holesOwed);
-        }
-      }
+    it(`joins nothing from an empty ${holeCount}-hole round without throwing`, () => {
+      expect(matchStrokeCards([], [])).toEqual([]);
+      expect(aggregateStroke([], AGG_OPTS).size).toBe(0);
     });
   }
-
-  it("joins nothing from an empty round without throwing", () => {
-    expect(matchStrokeCards([], [])).toEqual([]);
-    expect(aggregateStroke([], AGG_OPTS).size).toBe(0);
-  });
 });
 
 describe("round handicaps, at every field size and every allowance", () => {
