@@ -709,3 +709,109 @@ describe("team draws, at every field size and every team format", () => {
     }
   });
 });
+
+/**
+ * Forfeits, swept.
+ *
+ * Every match fixture in this file carried `forfeitedBy: ""`, so a forfeited
+ * match was never swept at any field size — and a forfeit is not a cosmetic
+ * state. It decides who advances in a bracket and who takes the money.
+ *
+ * The card here is deliberately one the CONCEDER WAS WINNING: A is three up
+ * when A walks in. That is the case worth guarding, because the natural
+ * implementation credits the holes already entered and thereby flatters the
+ * player who quit — on hole differential, which is what a flight is ranked
+ * on. Two players level on points would then be separated in favour of the
+ * one who did not finish.
+ *
+ * A forfeit needs two players, so this starts at a field of two rather than
+ * one — the one-player case is swept by the block above, which has no
+ * matches at all.
+ */
+describe("forfeits, at every field size", () => {
+  /** A is three up and then concedes: holes entered, match unfinished. */
+  const CONCEDED_WHILE_AHEAD = [
+    ...new Array(3).fill("A"),
+    ...new Array(15).fill(null),
+  ] as Match["holes"];
+
+  const HALVED = new Array(18).fill("H") as Match["holes"];
+
+  const roundRobinWithForfeit = (players: Player[]): Match[] => {
+    const out: Match[] = [];
+    for (let i = 0; i < players.length; i += 1) {
+      for (let j = i + 1; j < players.length; j += 1) {
+        const first = out.length === 0;
+        out.push({
+          id: `m${i}-${j}`,
+          stageId: "s1",
+          groupId: "g1",
+          round: 1,
+          playerAId: players[i].id,
+          playerBId: players[j].id,
+          holes: first ? CONCEDED_WHILE_AHEAD : HALVED,
+          // The first match only: player A walks in while three up.
+          ...(first ? { forfeitedBy: players[i].id } : {}),
+        });
+      }
+    }
+    return out;
+  };
+
+  for (const n of FIELD_SIZES.filter((n) => n >= 2)) {
+    it(`settles a ${n}-player round in which somebody concedes while ahead`, () => {
+      const players = field(n);
+      const matches = roundRobinWithForfeit(players);
+      const forfeited = matches[0];
+      const quitter = players[0].id;
+      const opponent = players[1].id;
+
+      // A conceded match is FINISHED, however incomplete its card. A bracket
+      // that waits for it to be completed waits forever.
+      // matchCardFinished reads the STORED shape, where holes is JSON text.
+      // The standings model holds them as an array. Two shapes of one thing,
+      // so the conversion is done here rather than pretended away.
+      expect(
+        matchCardFinished({
+          holes: JSON.stringify(forfeited.holes),
+          forfeitedBy: forfeited.forfeitedBy,
+        }),
+      ).toBe(true);
+
+      const stats = aggregateStats(players, matches, DEFAULT_SCORING);
+      expect(stats.size).toBe(n);
+
+      const q = stats.get(quitter);
+      const o = stats.get(opponent);
+      expect(q, "the conceder is missing from the standings").toBeTruthy();
+      expect(o, "the opponent is missing from the standings").toBeTruthy();
+      if (!q || !o) return;
+
+      // The match is decided AGAINST the player who walked in, never for him.
+      expect(q.losses).toBeGreaterThanOrEqual(1);
+      expect(o.wins).toBeGreaterThanOrEqual(1);
+      // Both are recorded as having played it: a forfeit is a result, not an
+      // absence, and a round where one side played and the other did not
+      // would put the two out of step for the rest of the standings.
+      expect(q.played).toBe(o.played);
+
+      // THE CONCEDED HOLES ARE DISCARDED. Every other match in this round is
+      // halved and wins nobody a hole, so the conceder's hole count can only
+      // be non-zero if the three he was up were credited to him.
+      expect(q.holesWon, "the conceder was credited holes he walked away from").toBe(0);
+
+      for (const s of stats.values()) {
+        finite(s.points, "points");
+        finite(s.totalPoints, "totalPoints");
+        finite(s.holesWon, "holesWon");
+        expect(s.played).toBeGreaterThanOrEqual(0);
+      }
+
+      // The board still ranks everybody, contiguously, with the forfeit in it.
+      const ranked = rankPlayers(players, stats, DEFAULT_SCORING, matches);
+      expect(ranked).toHaveLength(n);
+      expect(ranked.map((r) => r.rank)).toEqual(Array.from({ length: n }, (_, i) => i + 1));
+      expect(new Set(ranked.map((r) => r.player.id)).size).toBe(n);
+    });
+  }
+});
