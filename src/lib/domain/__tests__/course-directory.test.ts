@@ -50,7 +50,6 @@ describe("a card the directory can be trusted for", () => {
     if (!card.usable) return;
     expect(card.pars).toEqual(PEBBLE_PARS);
   });
-});
 
 describe("a card that must be refused", () => {
   it("refuses Green Crest, whose pars come back sorted rather than routed", () => {
@@ -169,41 +168,40 @@ describe("a card that must be refused", () => {
   });
 });
 
-describe("the source checked against itself", () => {
+describe("what the directory says its par is", () => {
   /**
-   * A card can pass every other rule and still be the wrong card. This asks
-   * whether the directory agrees with ITSELF — the par it states against the
-   * par its own holes add up to.
+   * Deliberately NOT used to judge a card, and this is the record of why.
    *
-   * Real: "Links at Gateway" came back with eighteen hole rows adding to 72
-   * while the directory stated par 36. A nine-hole course listed with its
-   * nine holes twice, and nothing else here would have seen it.
+   * It looked like a strong signal: 25 catalogued courses sampled, 24 with
+   * the stated par matching the par their own holes add up to. The single
+   * disagreement was "Links at Gateway" — stated par 36, holes adding to 72.
+   *
+   * That looked like a nine-hole course listed twice, and a check was written
+   * to refuse it. It is neither: its two nines are DIFFERENT, under a clean
+   * 1-18 stroke index. It is a real par-72 course whose `par` field describes
+   * one nine. The check would have thrown away a good card on the word of the
+   * weaker field, so it was removed.
    */
-  it("refuses a card that contradicts the stated par", () => {
-    const doubled = [...PEBBLE_PARS];
-    const card = cardFrom(holes(doubled, PEBBLE_SI), 36);
-    expect(card.usable).toBe(false);
-    if (card.usable) return;
-    expect(card.reason).toContain("36");
-    expect(card.reason).toContain("72");
+  it("is ignored: a card is judged on its own holes", () => {
+    // Par 72 of holes, whatever any metadata field claims elsewhere.
+    const card = cardFrom(holes(PEBBLE_PARS, PEBBLE_SI));
+    expect(card.usable).toBe(true);
+    if (!card.usable) return;
+    expect(card.pars.reduce((a, b) => a + b, 0)).toBe(72);
   });
 
-  it("takes a card that agrees with it", () => {
-    expect(cardFrom(holes(PEBBLE_PARS, PEBBLE_SI), 72).usable).toBe(true);
+  it("keeps two different nines under one stroke index", () => {
+    // The Links at Gateway shape, which a stated-par check refused: two nines
+    // of par 36 that are not each other, indexed 1-18 across the eighteen.
+    const front = [5, 4, 4, 4, 3, 5, 4, 3, 4];
+    const back = [4, 3, 4, 4, 3, 5, 4, 4, 5];
+    expect(front.reduce((a, b) => a + b, 0)).toBe(36);
+    expect(back.reduce((a, b) => a + b, 0)).toBe(36);
+    expect(front.join()).not.toBe(back.join());
+    const card = cardFrom(holes([...front, ...back], PEBBLE_SI));
+    expect(card.usable).toBe(true);
   });
-
-  it("allows a single hole of disagreement, not a whole nine", () => {
-    // One side has a hole as a 4 and the other as a 5. That is noise, not a
-    // doubled card — and a guard that refuses a real course is worse than no
-    // guard.
-    expect(cardFrom(holes(PEBBLE_PARS, PEBBLE_SI), 71).usable).toBe(true);
-    expect(cardFrom(holes(PEBBLE_PARS, PEBBLE_SI), 73).usable).toBe(true);
-  });
-
-  it("says nothing when the directory states no par", () => {
-    // Most of the check's value is in disagreement; silence is not evidence.
-    expect(cardFrom(holes(PEBBLE_PARS, PEBBLE_SI), 0).usable).toBe(true);
-  });
+});
 });
 
 describe("search results", () => {

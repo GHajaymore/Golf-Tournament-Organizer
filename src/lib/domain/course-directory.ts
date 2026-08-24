@@ -129,11 +129,7 @@ function genderOf(raw: unknown): string {
  * failed — the organizer's next move is the paste box or typing the card, and
  * neither is helped by "import failed".
  */
-/**
- * @param statedPar The par the DIRECTORY itself claims for this course, when
- * it gives one. Checked against the card rather than trusted over it.
- */
-export function cardFrom(holes: unknown, statedPar = 0): DirectoryCard {
+export function cardFrom(holes: unknown): DirectoryCard {
   const rows = Array.isArray(holes) ? holes : [];
   /**
    * Nine holes is a golf course, not a broken eighteen.
@@ -195,35 +191,20 @@ export function cardFrom(holes: unknown, statedPar = 0): DirectoryCard {
   if (shape) return { usable: false, reason: shape };
 
   /**
-   * The source against itself.
+   * The directory's own stated par is NOT checked against the card.
    *
-   * Every check above asks whether the card is internally sensible. This one
-   * asks whether the directory AGREES WITH ITSELF: the par it states for the
-   * course, against the par its own holes add up to. A card can pass every
-   * other rule — pars in range, a clean stroke index, a plausible total — and
-   * still be the wrong card, and nothing else here would see it.
+   * It was, briefly. Sampling 25 courses found 24 agreeing exactly, which
+   * looked like a reliable signal — and the single disagreement turned out to
+   * be the signal being wrong, not the card. "Links at Gateway" states par 36
+   * while its holes add to 72, and its holes are two DIFFERENT nines under a
+   * clean 1-18 stroke index: a real eighteen-hole course whose `par` field
+   * describes one nine. Refusing it would have thrown away a good card on the
+   * word of the weaker field.
    *
-   * Found by sampling: 24 of 25 agreed exactly, and the twenty-fifth was
-   * "Links at Gateway", whose holes add to 72 while the directory says 36 —
-   * a nine-hole course listed with its nine holes twice. Scoring eighteen on
-   * it would be eighteen holes nobody played.
-   *
-   * A tolerance of one, not zero. The disagreement worth acting on is a whole
-   * nine or a doubled card, not a single hole one side has as a 4 and the
-   * other as a 5 — and a guard that refuses a real course is worse than no
-   * guard, which this file has now proved three times.
+   * So the rule is left out rather than softened. A check whose only observed
+   * catch was a false positive has no evidence behind it, and this file has
+   * now refused a real golf course three times for want of that.
    */
-  if (statedPar > 0) {
-    const total = pars.reduce((sum, v) => sum + v, 0);
-    if (Math.abs(total - statedPar) > 1) {
-      return {
-        usable: false,
-        reason:
-          `The directory says this course is par ${statedPar}, but the holes it lists add up ` +
-          `to ${total}. One of the two is wrong, so the card cannot be trusted.`,
-      };
-    }
-  }
 
   return { usable: true, pars, strokeIndex, yards };
 }
@@ -263,7 +244,7 @@ export function courseFrom(payload: unknown): DirectoryCourse | null {
     country: str(c.country_iso).toUpperCase(),
     website: str(c.website),
     address: str(c.address),
-    card: cardFrom(c.holes_data, num(c.par)),
+    card: cardFrom(c.holes_data),
     tees: teeRows
       .map((t) => ({
         name: str(t.tee_name) || str(t.tee_color),
