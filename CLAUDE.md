@@ -64,6 +64,35 @@ impossible. Extend these rather than working around them.
   erased at runtime**; a `"use server"` export is a public HTTP endpoint and will be called with
   whatever the caller likes.
 
+## Course cards: measure a guard before you ship it
+
+A wrong card is invisible — a bad stroke index allocates shots to the wrong holes for the
+life of the course — so the instinct is to add another check. **A guard that refuses a real
+golf course is worse than no guard**, and on 2026-08-23 four separate plausible-looking
+guards would each have thrown one away:
+
+- a par range that assumed a regulation course, which made **par-3 courses** unstorable
+  (9 holes = 27, 18 = 54);
+- sorted-par detection on a **nine**, where 3,3,3,3,4,4,4,5,5 is a real executive routing,
+  not a scrambled card — nine values across three pars is too small a sample;
+- treating a **flat card** as a placeholder, when every one in the catalogue was a genuine
+  par-3 course with a real per-hole stroke index;
+- refusing a card that disagreed with the source's own stated par, whose single observed
+  catch was a **real par-72 course** whose `par` field described one nine.
+
+The yardage version of this actually landed: a re-validation pass cleared 33 good cards
+because their yardage was missing or odd. Yardage is optional and nothing scores off it —
+it must never be why a card is thrown away.
+
+So before adding or tightening a card rule:
+
+1. **Run it against the real catalogue first.** `--revalidate` re-judges every stored card
+   with today's rules and costs no API quota. A rule that clears a large slice is wrong
+   about golf, not right about the data.
+2. **Look at what it would refuse, by name**, before believing the count.
+3. **Use `cardRefusal`** — do not reimplement the range in a script. An ad-hoc checker that
+   omitted the par-3 exemption reported three good courses as failures.
+
 ## Migrations
 
 `schema.prisma` splits the datasource: `url` is the pooled connection, `directUrl` the direct
