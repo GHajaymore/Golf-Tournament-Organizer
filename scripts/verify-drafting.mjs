@@ -79,13 +79,41 @@ async function main() {
 
     // The panel is there and says what it is.
     check("panel renders", html, "Draft it from the results");
-    check("explains the limit up front", html, "Drafts only — you edit it and post it yourself");
 
-    // Every kind an organizer can ask for is offered.
-    check("results option", html, "Results announcement");
-    check("recap option", html, "Newsletter recap");
-    check("reminder option", html, "Reminder about the next round");
-    check("thanks option", html, "Thank-you at the end");
+    /**
+     * The panel has TWO legitimate shapes, and the plan decides which.
+     *
+     * `aiAssist` is dark on both tiers today — a draft costs money to
+     * generate — so every club sees the LOCKED shape. This script asserted
+     * only the unlocked one, so five checks failed against an app that was
+     * behaving correctly, and the CI step running it had never once gone
+     * green. Everything queued behind that step, the whole e2e suite
+     * included, therefore never ran at all.
+     *
+     * A verify script pinned to a shape nobody can reach is worse than no
+     * script: it reports a fault that is not there, and it hides the faults
+     * that are. So check whichever shape rendered — and fail if NEITHER did,
+     * which is the regression this file was written to catch.
+     */
+    const locked = stripComments(html).includes("AjAi writes a first draft");
+    console.log(`  --    plan renders the ${locked ? "LOCKED" : "UNLOCKED"} shape`);
+
+    if (locked) {
+      // A locked feature has to say what to do instead, or it reads as broken.
+      check("names the feature", html, "AjAi drafting");
+      check("says it is a paid feature", html, "On the paid plan");
+      check("says what to do instead", html, "Write it yourself below and send as usual.");
+      // And it must not dangle the choices it cannot honour.
+      check("offers no options it cannot deliver", html, "Newsletter recap", false);
+    } else {
+      check("explains the limit up front", html, "Drafts only — you edit it and post it yourself");
+
+      // Every kind an organizer can ask for is offered.
+      check("results option", html, "Results announcement");
+      check("recap option", html, "Newsletter recap");
+      check("reminder option", html, "Reminder about the next round");
+      check("thanks option", html, "Thank-you at the end");
+    }
 
     // "Put in the message box" is deliberately NOT asserted here: it only
     // exists once a draft has come back, which needs a configured key. What
