@@ -24,7 +24,9 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Raised from 20 when the end-to-end run was added: it installs a browser
+    # and builds a second bundle of its own, which is about eight more minutes.
+    timeout-minutes: 35
 
     services:
       # Prisma needs a reachable database to generate against and for the
@@ -46,6 +48,12 @@ jobs:
     env:
       # Local to the runner and destroyed with it — never a real credential.
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+      # schema.prisma reads `url = env("PRISMA_DATABASE_URL")` and only
+      # `directUrl` from DATABASE_URL. The migrate steps use the direct one so
+      # they were fine, but anything that actually QUERIES — the smoke server,
+      # and now the end-to-end run — needs this one or every page 500s with
+      # "Environment variable not found".
+      PRISMA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
       # A shadow database has to be empty — Prisma replays every migration into
       # it from scratch. Pointing it at the migrated one silently reports no
       # drift, whatever the schema says.
@@ -146,3 +154,33 @@ jobs:
           fi
           kill "$SERVER_PID" 2>/dev/null || true
           exit $STATUS
+
+
+      - name: Install Playwright browsers
+        # All three projects are Chromium (Pixel 5 twice and Desktop Chrome),
+        # so there is no reason to download Firefox and WebKit as well.
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end
+        # The one net that was NOT here, and it rotted for eleven days as a
+        # result: twelve tests were red and nothing said so, because the suite
+        # only ran when somebody remembered. It exists for the class of bug
+        # the unit tests structurally cannot see — a scorecard wider than its
+        # column, a target under the touch minimum, a card that opens blank
+        # over a round already played — all of which shipped green once.
+        #
+        # It builds its own bundle into .next-e2e, so it cannot disturb the
+        # .next the smoke step above just used.
+        env:
+          AUTH_SECRET: ci-e2e-secret
+        run: npx playwright test
+
+      - name: Keep the trace of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
