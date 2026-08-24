@@ -58,3 +58,4 @@ tsconfig.tsbuildinfo
 
 # The world-walk cursor: the importer's own bookkeeping, not app data.
 .course-walk.json
+.gca-walk.json
