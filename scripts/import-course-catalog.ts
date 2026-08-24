@@ -26,6 +26,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { courseFrom, hitsFrom } from "../src/lib/domain/course-directory";
+import { cardRefusal } from "../src/lib/domain/scorecard-parse";
 
 const prisma = new PrismaClient();
 
@@ -214,6 +215,68 @@ async function getJson(path: string): Promise<unknown | null> {
 
 /** Every course id the directory lists for one state. */
 /**
+ * Re-judge every stored card by the rules as they stand today.
+ *
+ * The catalogue is older than several of the checks that now guard it, and a
+ * card admitted under a weaker rule is never looked at again — so it sits
+ * there being wrong, indistinguishable from one that passed. An audit found
+ * eighteen-hole cards stored at par 81 through 85. No golf course plays that;
+ * they predate the par-total check.
+ *
+ * Costs nothing: this reads what is already stored and asks `cardRefusal` the
+ * same question every write path asks. A card that fails is BLANKED and the
+ * reason recorded — the course stays in the catalogue with its name and town,
+ * exactly as a course the directory never had a card for does, because the
+ * course is still real and still worth finding.
+ *
+ * The opposite direction from --recheck, which re-fetches things an old rule
+ * wrongly REFUSED. This one clears things an old rule wrongly ACCEPTED.
+ */
+async function revalidateStored(): Promise<void> {
+  const rows = await prisma.courseCatalog.findMany({
+    where: { NOT: { pars: "" } },
+    select: { id: true, name: true, pars: true, yards: true, strokeIndex: true },
+  });
+
+  let cleared = 0;
+  for (const r of rows) {
+    const pars = parse(r.pars);
+    /**
+     * Yardage is not judged here at all.
+     *
+     * It is optional, nothing scores off it, and it must never be the reason
+     * a card is thrown away — but `validateCard` range-checks it whenever the
+     * array is non-empty, and a directory that reports a hole as 20 yards
+     * would take the pars and the stroke index down with it. Twice: first for
+     * all-zero yardage, then again for implausible values. The scoring data is
+     * what this is protecting.
+     */
+    const yards: number[] = [];
+    const strokeIndex = parse(r.strokeIndex);
+    if (!pars.length) continue;
+    const refusal = cardRefusal(pars, yards, strokeIndex, pars.length === 9 ? 9 : 18);
+    if (!refusal) continue;
+    await prisma.courseCatalog.update({
+      where: { id: r.id },
+      data: { pars: "", yards: "", strokeIndex: "", par: 0, cardProblem: refusal },
+    });
+    cleared += 1;
+    console.log(`  cleared ${r.name}: ${refusal.slice(0, 72)}`);
+  }
+  console.log(`Re-judged ${rows.length} stored cards; ${cleared} no longer pass and were cleared.`);
+}
+
+/** A stored JSON hole array, or empty when it will not parse. */
+function parse(json: string): number[] {
+  try {
+    const a = JSON.parse(json) as unknown;
+    return Array.isArray(a) ? a.filter((v): v is number => typeof v === "number") : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Courses refused under a rule that no longer refuses them.
  *
  * The catalogue stores WHY a card was turned away, which means a rule change
@@ -237,7 +300,10 @@ async function refusedUnderOldRules(): Promise<Array<{ id: string; country: stri
       // "The directory has 9 holes for this course, not 18." Nine holes is
       // now a golf course rather than a broken eighteen.
       const m = /has (\d+) holes for this course, not 18/.exec(r.cardProblem);
-      return !!m && m[1] === "9";
+      if (m && m[1] === "9") return true;
+      // A card cleared only because it had no yardage — that was a bug in
+      // --revalidate, and the course still needs its card back.
+      return /yardage looks wrong/.test(r.cardProblem);
     })
     .map((r) => ({ id: r.id, country: r.country }));
 }
@@ -477,6 +543,7 @@ async function main() {
   const world = args.includes("--world");
   const refresh = args.includes("--refresh");
   const recheck = args.includes("--recheck");
+  const revalidate = args.includes("--revalidate");
   const one = args.indexOf("--state");
   const states = all ? STATES : one >= 0 && args[one + 1] ? [args[one + 1].toUpperCase()] : [];
 
@@ -492,7 +559,7 @@ async function main() {
   const b = args.indexOf("--budget");
   const budget = b >= 0 && Number(args[b + 1]) > 0 ? Math.floor(Number(args[b + 1])) : Infinity;
 
-  if (states.length === 0 && !world && !recheck) {
+  if (states.length === 0 && !world && !recheck && !revalidate) {
     console.log(
       [
         "Usage:",
@@ -502,12 +569,18 @@ async function main() {
         "  --budget 400          stop after N courses (the daily allowance is 500)",
         "  --refresh             re-fetch courses already catalogued",
         "  --recheck             re-fetch only what an old rule wrongly refused",
+        "  --revalidate          re-judge stored cards by today's rules (no network)",
       ].join(EOL),
     );
     return;
   }
 
   const tally: Tally = { withCard: 0, withoutCard: 0, skipped: 0 };
+
+  if (revalidate) {
+    await revalidateStored();
+    return;
+  }
 
   if (recheck) {
     const stale = await refusedUnderOldRules();
