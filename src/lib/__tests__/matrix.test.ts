@@ -29,7 +29,12 @@ import {
   roundHandicapKey,
 } from "@/lib/domain/round-handicap";
 import { playingHandicapFrom } from "@/lib/domain/handicap";
-import { effectiveAllowance } from "@/lib/services/teams";
+import {
+  effectiveAllowance,
+  snakeDraw,
+  teamProblems,
+  type TeamView,
+} from "@/lib/services/teams";
 import { DEFAULT_SCORING } from "@/lib/domain/types";
 import type { HoleResult, Match, Player } from "@/lib/domain/types";
 
@@ -616,5 +621,91 @@ describe("round handicaps, at every field size and every allowance", () => {
     // misses.
     expect(roundHandicapKey("s1", "p1")).toBe(roundHandicapKey("s1", "p1"));
     expect(roundHandicapKey("s1", "p1")).not.toBe(roundHandicapKey("p1", "s1"));
+  });
+});
+
+/**
+ * Team draws, swept.
+ *
+ * The sweep checked `needsTeams(format)` returned a BOOLEAN and stopped
+ * there — no side was ever actually drawn. So the combination that matters
+ * was untested: a team format with an ODD field, where somebody cannot be
+ * paired. Three players into four-ball, five into a scramble of four.
+ *
+ * The invariant that matters most is not that the draw is balanced. It is
+ * that nobody falls out of it. A player who entered, paid, and is on no side
+ * is not scored, does not appear in the standings, and takes no part in the
+ * money — and nothing on any screen says so.
+ */
+describe("team draws, at every field size and every team format", () => {
+  const TEAM_FORMATS = FORMAT_NAMES.filter((f) => needsTeams(f));
+
+  /** teamProblems only reads `members.length`; the rest is shape it needs. */
+  const asTeams = (sides: Player[][]): TeamView[] =>
+    sides.map((members, i) => ({
+      id: `t${i + 1}`,
+      name: `Side ${i + 1}`,
+      seed: i + 1,
+      stageId: null,
+      // Not read by teamProblems; present because the shape requires it.
+      playingHandicap: 0,
+      members: members.map((p, position) => ({
+        playerId: p.id,
+        name: p.name,
+        handicap: p.handicap,
+        position,
+      })),
+    }));
+
+  for (const format of TEAM_FORMATS) {
+    const { min, max } = sideSizeRange(format);
+
+    for (const n of FIELD_SIZES) {
+      it(`${format}: a ${n}-player field draws into sides nobody falls out of`, () => {
+        const players = field(n);
+        const sides = snakeDraw(players, min);
+
+        // NOBODY LOST, NOBODY DUPLICATED. Losing a player loses their score
+        // and their share; duplicating one pays them twice.
+        const placed = sides.flat().map((p) => p.id);
+        expect(placed).toHaveLength(n);
+        expect(new Set(placed).size).toBe(n);
+        for (const p of players) {
+          expect(placed, `${p.id} was drawn onto no side`).toContain(p.id);
+        }
+
+        // No side of nobody, and none above what the format allows. A side of
+        // one is legal HERE — an odd field has to put the odd player
+        // somewhere — but it must be reported, which is asserted below.
+        for (const s of sides) {
+          expect(s.length).toBeGreaterThan(0);
+          expect(s.length).toBeLessThanOrEqual(Math.max(min, max));
+        }
+
+        // A one-player field cannot make a side of two, and must not pretend
+        // it did. It draws one incomplete side rather than none.
+        if (n === 1) expect(sides).toHaveLength(1);
+
+        // THE SHORTFALL IS REPORTED, NOT SWALLOWED. Every side below the
+        // format's minimum produces exactly one problem — so an organiser
+        // with an odd field is told before the round is played rather than
+        // discovering it in the standings afterwards.
+        const short = sides.filter((s) => s.length < min).length;
+        const problems = teamProblems(asTeams(sides), format);
+        expect(problems).toHaveLength(short);
+        for (const p of problems) {
+          expect(p.problem).toBeTruthy();
+          expect(p.teamName).toBeTruthy();
+        }
+      });
+    }
+  }
+
+  it("draws nothing from an empty field without throwing", () => {
+    for (const format of TEAM_FORMATS) {
+      const { min } = sideSizeRange(format);
+      expect(snakeDraw([], min)).toEqual([]);
+      expect(teamProblems([], format)).toEqual([]);
+    }
   });
 });
