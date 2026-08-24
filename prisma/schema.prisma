@@ -804,6 +804,18 @@ model Event {
    */
   attendanceMode        String  @default("everyone") // everyone | opt-out | opt-in
   /**
+   * own | one — which tees this competition is played from.
+   *
+   * "own" honours a player's stored tee and falls back to the round's, which
+   * is how the app behaved before this existed. "one" holds the whole field
+   * to the round's set, which is what a club medal played off the whites
+   * actually is, and what Rule 6.1b makes a penalty to depart from.
+   *
+   * Mixed tees need no adjustment beyond the Course Handicap formula: the
+   * (CR - par) term already gives the longer tee its strokes.
+   */
+  teePolicy             String  @default("own") // own | one
+  /**
    * When players approve, how many playing partners must confirm.
    * "Playing together" is the scoring group — the match, not the foursome.
    */

@@ -94,6 +94,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   createdAt: "set on insert",
   updatedAt: "set on insert",
   name: "supplied by the organizer",
+  teePolicy:
+    "a condition of THIS competition, decided for the tees and the field it had — a copy is a new competition and its committee sets it again rather than inheriting a restriction nobody in the room chose",
   dates: "always wrong on a copy — last year's dates are not this year's",
   regDeadline: "same reason as dates",
   registrationOverride:

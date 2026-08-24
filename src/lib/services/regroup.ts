@@ -188,7 +188,13 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
-  const courseHcp = courseHandicapMap(confirmed, teeRatings, tees[0]?.id ?? null, activeHoles);
+  const courseHcp = courseHandicapMap(
+    confirmed,
+    teeRatings,
+    tees[0]?.id ?? null,
+    activeHoles,
+    event?.teePolicy ?? "own",
+  );
 
   const domainPlayers: DomainPlayer[] = confirmed.map((p) => ({
     id: p.id,

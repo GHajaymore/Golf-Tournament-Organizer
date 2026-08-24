@@ -204,15 +204,46 @@ export function indexForHoles(handicap: number, handicapType: string | undefined
  * Null everywhere means unrated, and every index passes through unchanged —
  * which is exactly how the app behaved before ratings existed.
  */
+/**
+ * Which tee a player is actually scored off, in ONE place.
+ *
+ * Two modules resolved this independently with the same expression, which is
+ * the drift that makes two screens disagree about a net score. Now a single
+ * reader, so a tee policy cannot be honoured on one screen and ignored on the
+ * next.
+ *
+ * `one` means the round's set for the whole field, whatever a player's record
+ * says. That is a condition of competition — an ordinary club medal off the
+ * whites — and Rule 6.1b makes departing from it a penalty, so the app must
+ * not quietly prefer a stored preference over the committee's decision.
+ *
+ * `own` is the previous behaviour and the default: the player's tee wins,
+ * falling back to the round's.
+ */
+export function teeIdFor(
+  policy: string,
+  playerTeeId: string | null | undefined,
+  defaultTeeId: string | null,
+): string {
+  if (policy === "one") return defaultTeeId ?? "";
+  return playerTeeId ?? defaultTeeId ?? "";
+}
+
 export function courseHandicapMap(
   players: IndexHolder[],
   teesById: Map<string, TeeRating>,
   defaultTeeId: string | null,
   holes: number,
+  /**
+   * Required, not defaulted. A default would silently score a single-tee
+   * competition off whatever tees players happen to have on their records,
+   * and the compiler is the only thing that reliably finds every caller.
+   */
+  teePolicy: string,
 ): Map<string, number> {
   const out = new Map<string, number>();
   for (const p of players) {
-    const raw = teesById.get(p.teeId ?? defaultTeeId ?? "") ?? null;
+    const raw = teesById.get(teeIdFor(teePolicy, p.teeId, defaultTeeId)) ?? null;
     // Index and rating are each converted to the holes being played, once.
     // See indexForHoles for the four cases and the doubling bug the old
     // one-case conversion caused.

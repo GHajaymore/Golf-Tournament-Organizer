@@ -546,8 +546,11 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // for. One map keyed to the first round's hole count meant a tournament
   // mixing an 18-hole round with a 9-hole one converted every handicap on
   // the first round's setting, whichever card it was scoring.
-  const courseHcp18 = courseHandicapMap(confirmed, teeRatings, defaultTeeId, 18);
-  const courseHcp9 = courseHandicapMap(confirmed, teeRatings, defaultTeeId, 9);
+  // One policy for both hole counts: the tees a player is held to cannot
+  // depend on whether the round happens to be nine or eighteen.
+  const teePolicy = event?.teePolicy ?? "own";
+  const courseHcp18 = courseHandicapMap(confirmed, teeRatings, defaultTeeId, 18, teePolicy);
+  const courseHcp9 = courseHandicapMap(confirmed, teeRatings, defaultTeeId, 9, teePolicy);
   const courseHcp = activeHoles === 9 ? courseHcp9 : courseHcp18;
   /**
    * A player's handicap for FLIGHTING and standings, which is deliberately the

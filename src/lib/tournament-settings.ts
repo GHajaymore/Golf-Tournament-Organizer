@@ -37,6 +37,34 @@ export const LEADERBOARD_VISIBILITY_HELP: Record<LeaderboardVisibility, string> 
   public: "A read-only link anyone can open, no sign-in. Shows player names and scores.",
 };
 
+/* ── Tees ─────────────────────────────────────────────────────────────── */
+
+/**
+ * Which tees the competition is played from.
+ *
+ * This is a CONDITION OF COMPETITION, not a display preference. Rule 6.1b
+ * makes playing from outside the teeing area a penalty, so "everyone off the
+ * whites" is a rule the club has set, and an app that quietly honours a
+ * player's stored preference instead is scoring a round nobody played.
+ *
+ * Handicapping needs no help either way: the Course Handicap formula is
+ * index x (slope / 113) + (CR - par), and that last term already gives the
+ * longer, higher-rated tee its extra strokes. Mixed tees are FAIR by
+ * arithmetic — the question here is only whether they are ALLOWED.
+ */
+export const TEE_POLICY = ["own", "one"] as const;
+export type TeePolicy = (typeof TEE_POLICY)[number];
+
+export const TEE_POLICY_LABEL: Record<TeePolicy, string> = {
+  own: "Players use their own tees",
+  one: "One set of tees for everyone",
+};
+
+export const TEE_POLICY_HELP: Record<TeePolicy, string> = {
+  own: "Each player is scored off the tee on their record, falling back to the round's. Handicaps already account for the difference, so a mixed field is still fair.",
+  one: "The whole field plays the round's tees, whatever a player's record says. This is the ordinary club medal, and what a condition of competition means by Rule 6.1b.",
+};
+
 /* ── Score entry ──────────────────────────────────────────────────────── */
 
 /**
@@ -159,6 +187,9 @@ export interface TournamentSettings {
   attestBy: AttestBy;
   /** Weekly-league sign-up: everyone | opt-out | opt-in. See domain/attendance. */
   attendanceMode: AttendanceMode;
+
+  /** own | one - which tees the competition is played from. */
+  teePolicy: TeePolicy;
 }
 
 /**
@@ -180,6 +211,9 @@ export const DEFAULT_SETTINGS: TournamentSettings = {
   // "everyone" is the feature switched off — exactly how every tournament
   // behaved before leagues could ask the weekly question.
   attendanceMode: "everyone",
+  // "own" is the behaviour the app already had: a player tee wins, falling
+  // back to the round. Adding the setting changes nothing until asked.
+  teePolicy: "own",
 };
 
 /** Coerce stored strings into valid settings, falling back per field. A bad
@@ -201,6 +235,7 @@ export function cleanSettings(raw: Partial<Record<keyof TournamentSettings, unkn
     scoreApproval: pick(raw.scoreApproval, SCORE_APPROVAL, DEFAULT_SETTINGS.scoreApproval),
     attestBy: pick(raw.attestBy, ATTEST_BY, DEFAULT_SETTINGS.attestBy),
     attendanceMode: pick(raw.attendanceMode, ATTENDANCE_MODES, DEFAULT_SETTINGS.attendanceMode),
+    teePolicy: pick(raw.teePolicy, TEE_POLICY, DEFAULT_SETTINGS.teePolicy),
   };
 }
 

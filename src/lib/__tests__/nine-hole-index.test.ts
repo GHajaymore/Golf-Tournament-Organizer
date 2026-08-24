@@ -17,22 +17,22 @@ const NEUTRAL = new Map([["t", { courseRating: 72, slopeRating: 113, par: 72 }]]
 
 describe("the index is converted to the holes being played", () => {
   it("halves an 18-hole index for a nine-hole round", () => {
-    const m = courseHandicapMap([{ id: "p", handicap: 20 }], NEUTRAL, "t", 9);
+    const m = courseHandicapMap([{ id: "p", handicap: 20 }], NEUTRAL, "t", 9, "own");
     expect(m.get("p")).toBe(10);
   });
 
   it("keeps a stored 9-hole index as-is for a nine-hole round", () => {
-    const m = courseHandicapMap([{ id: "p", handicap: 7, handicapType: "9" }], NEUTRAL, "t", 9);
+    const m = courseHandicapMap([{ id: "p", handicap: 7, handicapType: "9" }], NEUTRAL, "t", 9, "own");
     expect(m.get("p")).toBe(7);
   });
 
   it("doubles a stored 9-hole index for an eighteen-hole round", () => {
-    const m = courseHandicapMap([{ id: "p", handicap: 7, handicapType: "9" }], NEUTRAL, "t", 18);
+    const m = courseHandicapMap([{ id: "p", handicap: 7, handicapType: "9" }], NEUTRAL, "t", 18, "own");
     expect(m.get("p")).toBe(14);
   });
 
   it("leaves the ordinary case — 18-hole index, 18-hole round — alone", () => {
-    const m = courseHandicapMap([{ id: "p", handicap: 14 }], NEUTRAL, "t", 18);
+    const m = courseHandicapMap([{ id: "p", handicap: 14 }], NEUTRAL, "t", 18, "own");
     expect(m.get("p")).toBe(14);
   });
 
@@ -47,7 +47,7 @@ describe("the index is converted to the holes being played", () => {
     // unhalved index this lands near 24 — the doubled figure the bug produced,
     // with the slope compounding it.
     const hard = new Map([["t", { courseRating: 70, slopeRating: 140, par: 72 }]]);
-    const m = courseHandicapMap([{ id: "p", handicap: 20 }], hard, "t", 9);
+    const m = courseHandicapMap([{ id: "p", handicap: 20 }], hard, "t", 9, "own");
     expect(m.get("p")).toBeGreaterThanOrEqual(11);
     expect(m.get("p")).toBeLessThanOrEqual(12);
   });
@@ -55,7 +55,7 @@ describe("the index is converted to the holes being played", () => {
   it("treats an unrated nine-hole round the same way", () => {
     // No tees at all: the index is still halved, because the halving is about
     // the player's side, not the course's.
-    const m = courseHandicapMap([{ id: "p", handicap: 18 }], new Map(), null, 9);
+    const m = courseHandicapMap([{ id: "p", handicap: 18 }], new Map(), null, 9, "own");
     expect(m.get("p")).toBe(9);
   });
 });

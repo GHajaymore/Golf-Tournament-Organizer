@@ -1,4 +1,5 @@
 import "server-only";
+import { teePolicyFor } from "./handicaps";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
 import { courseHandicapMap, holesPlayed } from "../domain/handicap";
@@ -76,7 +77,13 @@ export async function teamsForStage(
   const use = scoped.length > 0 ? scoped : rows.filter((t) => t.stageId === null);
 
   const allMembers = use.flatMap((t) => t.members.map((m) => m.player));
-  const courseHcp = courseHandicapMap(allMembers, teeRatings, defaultTeeId, holes);
+  const courseHcp = courseHandicapMap(
+    allMembers,
+    teeRatings,
+    defaultTeeId,
+    holes,
+    await teePolicyFor(eventId),
+  );
   // What this round says its players play off, on top of the tee conversion.
   // The side handicap shown here is the one an organizer reads out on the tee,
   // so it has to answer the same way the round is scored.

@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
-import { courseHandicap, nineHoleTee, isRated, explainHandicap, indexForHoles, type TeeRating } from "../domain/handicap";
+import { courseHandicap, nineHoleTee, isRated, explainHandicap, indexForHoles, type TeeRating, teeIdFor } from "../domain/handicap";
 import { parseHoleArray } from "../courses";
 
 /**
@@ -70,8 +70,22 @@ export async function handicapsForRound(
   ]);
   const teeById = new Map(tees.map((t) => [t.id, t]));
 
+  /**
+   * The competition's tee policy, read here rather than threaded in.
+   *
+   * This function already knows the event, so asking callers to pass the
+   * policy would be a check every one of them has to remember — and one that
+   * forgets it scores a single-tee competition off whatever tees players
+   * happen to have on their records, with nothing on screen wrong.
+   */
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { teePolicy: true },
+  });
+  const policy = event?.teePolicy ?? "own";
+
   return players.map((p) => {
-    const tee = teeById.get(p.teeId ?? defaultTeeId ?? "") ?? null;
+    const tee = teeById.get(teeIdFor(policy, p.teeId, defaultTeeId)) ?? null;
     const rating = teeRatingFor(tee, holes);
     // Index and rating are each converted to the holes being played, once.
     // The old conversion only handled stored 9-hole indexes; an ordinary
@@ -90,6 +104,45 @@ export async function handicapsForRound(
   });
 }
 
+/**
+ * Which tee each player is on, by name, for putting on a card.
+ *
+ * Every card — the printed one a group carries out, and the one on screen at
+ * score entry — should say what each player is playing from, because that is
+ * the thing a marker checks before anyone hits. Built on `handicapsForRound`
+ * so the name on the card is the tee the round was actually SCORED from,
+ * policy and all. A second resolution here would eventually print one tee and
+ * score another, which is worse than printing nothing.
+ *
+ * Empty string for a player on no rated tee — the card then simply says
+ * nothing rather than inventing a set.
+ */
+export async function teeNamesForRound(
+  eventId: string,
+  holes: number,
+  defaultTeeId: string | null,
+): Promise<Map<string, string>> {
+  const rows = await handicapsForRound(eventId, holes, defaultTeeId);
+  return new Map(rows.map((r) => [r.playerId, r.teeName]));
+}
+
+/**
+ * The competition's tee policy, for the paths that convert handicaps
+ * themselves rather than going through `handicapsForRound`.
+ *
+ * One reader, so those paths cannot each decide the question differently.
+ * Falls back to "own", which is the behaviour every tournament had before the
+ * setting existed — a missing event must not silently make a field play off
+ * one tee it never agreed to.
+ */
+export async function teePolicyFor(eventId: string): Promise<string> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { teePolicy: true },
+  });
+  return event?.teePolicy ?? "own";
+}
+
 /** One player's course handicap, for the paths that only need a single number. */
 export async function courseHandicapForPlayer(
   playerId: string,
@@ -98,10 +151,18 @@ export async function courseHandicapForPlayer(
 ): Promise<number> {
   const player = await prisma.player.findUnique({
     where: { id: playerId },
-    select: { handicap: true, handicapType: true, teeId: true },
+    // The event's policy comes with the player, so this path applies the same
+    // rule as the round-wide one. Resolving the tee two different ways is how
+    // one screen ends up disagreeing with another about a net score.
+    select: {
+      handicap: true,
+      handicapType: true,
+      teeId: true,
+      event: { select: { teePolicy: true } },
+    },
   });
   if (!player) return 0;
-  const teeId = player.teeId ?? defaultTeeId;
+  const teeId = teeIdFor(player.event?.teePolicy ?? "own", player.teeId, defaultTeeId) || null;
   const tee = teeId ? await prisma.tee.findUnique({ where: { id: teeId } }) : null;
   const index = indexForHoles(player.handicap, player.handicapType, holes);
   return courseHandicap(index, teeRatingFor(tee, holes));

@@ -42,6 +42,8 @@ describe("defaults", () => {
       // "everyone" = the league question switched off, which is what every
       // pre-league tournament was implicitly doing.
       attendanceMode: "everyone",
+      // Added with the tee policy: "own" is what the app did before it existed.
+      teePolicy: "own",
       // The deliberate exception: prior behaviour auto-confirmed unreviewed
       // scores after 24h. Defaulting to staff approval is a considered change,
       // not an oversight — this assertion is here so it can't drift back

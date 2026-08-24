@@ -1,4 +1,5 @@
 import { requireScreen } from "@/lib/page-helpers";
+import { teeNamesForRound, teesForEvent } from "@/lib/services/handicaps";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -75,6 +76,24 @@ export default async function FoursomesPage({
   const course = resolveCourse(state.event);
   const brand = await brandForEvent(session.eventId);
   const nameOf = new Map(state.confirmed.map((p) => [p.id, p]));
+  /**
+   * The tee each player is on, for the card they carry out.
+   *
+   * Resolved through the round's own handicap reader, so the set printed
+   * beside a name is the set the round is scored from — including when the
+   * competition holds the whole field to one. A card that named a different
+   * tee to the one the strokes came from would be worse than a card that
+   * named none.
+   */
+  // The round's own set is the first tee by position, which is the same
+  // default every scoring path uses — so the card cannot name one set while
+  // the strokes came from another.
+  const eventTees = await teesForEvent(session.eventId);
+  const teeNames = await teeNamesForRound(
+    session.eventId,
+    stage?.holes === 9 ? 9 : 18,
+    eventTees[0]?.id ?? null,
+  );
   const printGroups = (savedSheet?.groups ?? []).map((g) => ({
     name: g.name,
     startHole: g.startHole,
@@ -83,7 +102,7 @@ export default async function FoursomesPage({
     players: g.playerIds
       .map((id) => nameOf.get(id))
       .filter((pl): pl is NonNullable<typeof pl> => !!pl)
-      .map((pl) => ({ name: pl.name, handicap: pl.handicap })),
+      .map((pl) => ({ name: pl.name, handicap: pl.handicap, tee: teeNames.get(pl.id) ?? "" })),
   }));
 
   // A league tee sheet is drawn from the week's attendees, not the season's

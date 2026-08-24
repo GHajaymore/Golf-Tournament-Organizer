@@ -6,7 +6,15 @@ export interface PrintGroup {
   startHole: number;
   half?: "A" | "B";
   time: string;
-  players: Array<{ name: string; handicap: number }>;
+  /**
+   * Each player with the tee they are playing from.
+   *
+   * `tee` is the name resolved by the round the card belongs to, so a
+   * single-tee competition prints the same set beside every name and a mixed
+   * field prints each player their own. Empty when the course has no rated
+   * tees, in which case the card says nothing rather than inventing a set.
+   */
+  players: Array<{ name: string; handicap: number; tee?: string }>;
 }
 
 /**
@@ -155,6 +163,9 @@ export function TeeSheetPrint({
                   <tr key={p.name} style={{ height: 30 }}>
                     <td>
                       {p.name} <span style={{ fontSize: 9 }}>({p.handicap})</span>
+                      {p.tee ? (
+                        <span style={{ fontSize: 8.5, marginLeft: 4, opacity: 0.75 }}>{p.tee}</span>
+                      ) : null}
                     </td>
                     {nums.map((i) => (
                       <td key={i} />

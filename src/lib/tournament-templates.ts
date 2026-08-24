@@ -68,6 +68,9 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       scoreApproval: "staff",
       attestBy: "marker",
       attendanceMode: "everyone",
+      // A championship is played off one set. That is what makes the result
+      // mean something: everybody faced the same course.
+      teePolicy: "one",
     },
     rounds: [{ type: "Round Robin", format: "Stroke Play", scoringBasis: "gross", holes: 18 }],
   },
@@ -89,6 +92,8 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       attestBy: "opponent",
       // A weekly league's whole premise: regulars are in unless they say.
       attendanceMode: "opt-out",
+      // A society plays off whatever suits; handicaps make it fair.
+      teePolicy: "own",
     },
     rounds: [ROUND_ROBIN_GROSS],
   },
@@ -105,6 +110,8 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       scoreApproval: "staff",
       attestBy: "marker",
       attendanceMode: "everyone",
+      // Guests are often off different tees to their hosts.
+      teePolicy: "own",
     },
     rounds: [{ type: "Round Robin", format: "Match Play", scoringBasis: "net", holes: 18 }],
   },
@@ -122,6 +129,8 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       scoreApproval: "staff",
       attestBy: "marker",
       attendanceMode: "everyone",
+      // Same as the pairs version: guests play their own tees.
+      teePolicy: "own",
     },
     /*
      * Five nine-hole matches, which is the shape of the event rather than a
@@ -158,6 +167,8 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       scoreApproval: "staff",
       attestBy: "marker",
       attendanceMode: "everyone",
+      // A charity day is mixed by design - that is the point of it.
+      teePolicy: "own",
     },
     // Individual Stableford, not a scramble. Two things to note:
     //

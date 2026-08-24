@@ -480,6 +480,9 @@ export default async function EntryPage() {
               entryTeeRatings,
               entryTees[0]?.id ?? null,
               holeCount,
+              // The dots on the card must come from the same tee the scoring
+              // engine used, so the policy is applied here too.
+              state.event.teePolicy,
             );
             const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
             const out: Record<string, number[]> = {};
@@ -526,7 +529,15 @@ export default async function EntryPage() {
       const opponentByRound: Record<number, string> = {};
       rrStages.forEach((stage, i) => {
         const holeCount = stage.holes === 9 ? 9 : 18;
-        const ch = courseHandicapMap(state.confirmed, teeRatings, tees[0]?.id ?? null, holeCount);
+        // The competition tee policy, so a single-tee event allocates off the
+        // round tees rather than off whatever a player has on their record.
+        const ch = courseHandicapMap(
+          state.confirmed,
+          teeRatings,
+          tees[0]?.id ?? null,
+          holeCount,
+          state.event.teePolicy,
+        );
         const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
         handicapByRound[i + 1] = playingHandicapFrom(ch.get(myId) ?? 0, allowance);
         const m = state.matches.find(

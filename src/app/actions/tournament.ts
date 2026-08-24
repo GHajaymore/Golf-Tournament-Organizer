@@ -1735,6 +1735,9 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     netRatings,
     netTees[0]?.id ?? null,
     holeCount,
+    // A single-tee competition allocates off the round tees, not off
+    // whatever either player has stored.
+    event?.teePolicy ?? "own",
   );
   // What this ROUND says they play off, which is not always what the roster
   // says. This path converts its own handicaps rather than going through the
@@ -1941,6 +1944,7 @@ async function recomputeTeamMatch(
       teamRatings,
       teeRows[0]?.id ?? null,
       holeCount,
+      event?.teePolicy ?? "own",
     );
     const playsOff = (p: { id: string; handicap: number }) =>
       roundHandicapOf(teamRound.get(p.id), teamHcp.get(p.id) ?? p.handicap);
@@ -2916,7 +2920,7 @@ export async function importScores(
     const teeRatings = new Map(
       tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
     );
-    const ch = courseHandicapMap(players, teeRatings, tees[0]?.id ?? null, holes);
+    const ch = courseHandicapMap(players, teeRatings, tees[0]?.id ?? null, holes, event?.teePolicy ?? "own");
     const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
     // Through the round's own handicaps, so a file of net scores converts back
     // to the same gross the board would have derived. Converting off the roster

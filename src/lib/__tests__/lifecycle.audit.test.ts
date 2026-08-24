@@ -455,7 +455,7 @@ describe("Course Handicap changes real strokes end to end", () => {
       { id: "off-hard", handicap: 14.0, teeId: hardTeeId },
       { id: "off-easy", handicap: 14.0, teeId: easyTeeId },
     ];
-    const map = courseHandicapMap(field, ratings, null, 18);
+    const map = courseHandicapMap(field, ratings, null, 18, "own");
 
     const hard = map.get("off-hard")!;
     const easy = map.get("off-easy")!;
@@ -469,7 +469,7 @@ describe("Course Handicap changes real strokes end to end", () => {
     const ratings = new Map(
       tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
     );
-    const map = courseHandicapMap([{ id: "p", handicap: 14.0, teeId: hardTeeId }], ratings, null, 18);
+    const map = courseHandicapMap([{ id: "p", handicap: 14.0, teeId: hardTeeId }], ratings, null, 18, "own");
     const ch = map.get("p")!;
     const total = SI.reduce((sum, si) => sum + holeStrokesReceived(ch, si), 0);
     expect(total).toBe(ch);
@@ -488,6 +488,9 @@ describe("Course Handicap changes real strokes end to end", () => {
       new Map([[plain.id, { courseRating: 0, slopeRating: 0, par: 72 }]]),
       null,
       18,
+      // This asserts the unrated fallback, not the tee policy, so it uses the
+      // default that honours the player's own tee.
+      "own",
     );
     expect(map.get("p")).toBe(14);
   });

@@ -28,7 +28,8 @@ import {
   resolveRoundHandicap,
   roundHandicapKey,
 } from "@/lib/domain/round-handicap";
-import { playingHandicapFrom } from "@/lib/domain/handicap";
+import { playingHandicapFrom, courseHandicapMap, teeIdFor } from "@/lib/domain/handicap";
+import { TEE_POLICY } from "@/lib/tournament-settings";
 import {
   effectiveAllowance,
   snakeDraw,
@@ -960,5 +961,84 @@ describe("season standings, at every team count and round count", () => {
     expect(table[0].roundsPlayed).toBe(2);
     // Reads as it stands now, not as it was in week one.
     expect(table[0].name).toBe("New Name");
+  });
+});
+
+/**
+ * The tee policy, swept.
+ *
+ * "one" is a CONDITION OF COMPETITION — everyone off the whites — and Rule
+ * 6.1b makes departing from it a penalty. So the question this asks is not
+ * whether the arithmetic is right but whether a player's stored preference
+ * can override the committee. It could, everywhere, until the policy existed.
+ *
+ * The failure it guards is silent in the worst way: the field plays one set
+ * of tees and the app scores some of them off another, so the strokes are
+ * wrong for exactly the players who had a preference saved.
+ */
+describe("tee policy, on every field size", () => {
+  const WHITE = { courseRating: 70, slopeRating: 113, par: 72 };
+  // Deliberately a longer, higher-rated set: under WHS the (CR - par) term
+  // gives it more strokes, so choosing the wrong one is VISIBLE in the number
+  // rather than being a difference only a rating nerd would notice.
+  const BLUE = { courseRating: 74, slopeRating: 113, par: 72 };
+  const RATINGS = new Map([
+    ["white", WHITE],
+    ["blue", BLUE],
+  ]);
+
+  it("names the two policies and nothing else", () => {
+    // A third value would need a decision everywhere the policy is read.
+    expect([...TEE_POLICY].sort()).toEqual(["one", "own"]);
+  });
+
+  for (const n of FIELD_SIZES) {
+    it(`holds a ${n}-player field to one set when the competition says so`, () => {
+      // Half the field has a preference for the longer tee on their record.
+      const players = field(n).map((p, i) => ({
+        id: p.id,
+        handicap: 18,
+        teeId: i % 2 === 0 ? "blue" : null,
+      }));
+
+      const one = courseHandicapMap(players, RATINGS, "white", 18, "one");
+      const own = courseHandicapMap(players, RATINGS, "white", 18, "own");
+
+      // UNDER "one", EVERYBODY GETS THE ROUND'S TEE. Not most of them: the
+      // whole point is that a saved preference cannot quietly opt somebody
+      // out of the condition the committee set.
+      const off = (t: typeof WHITE) => Math.round(18 * (t.slopeRating / 113) + (t.courseRating - t.par));
+      for (const p of players) {
+        expect(one.get(p.id), `${p.id} was not held to the round's tee`).toBe(off(WHITE));
+      }
+
+      // And under "own" the preference is honoured, which is the behaviour
+      // every tournament had before the setting existed. Asserted so that
+      // "one" passing cannot be an accident of both branches being equal.
+      for (const [i, p] of players.entries()) {
+        expect(own.get(p.id)).toBe(off(i % 2 === 0 ? BLUE : WHITE));
+      }
+      if (n >= 2) expect(off(BLUE)).not.toBe(off(WHITE));
+    });
+  }
+
+  it("falls back to the round's tee when a player has none, under either policy", () => {
+    const players = [{ id: "p1", handicap: 10, teeId: null }];
+    for (const policy of TEE_POLICY) {
+      const m = courseHandicapMap(players, RATINGS, "white", 18, policy);
+      expect(m.get("p1")).toBe(Math.round(10 + (WHITE.courseRating - WHITE.par)));
+    }
+  });
+
+  it("resolves the id itself the same way, so one reader answers for all", () => {
+    // teeIdFor is what both the scoring path and the printed card go through.
+    expect(teeIdFor("one", "blue", "white")).toBe("white");
+    expect(teeIdFor("own", "blue", "white")).toBe("blue");
+    expect(teeIdFor("own", null, "white")).toBe("white");
+    // No round tee and no player tee is "unrated", not a crash.
+    expect(teeIdFor("one", "blue", null)).toBe("");
+    // An unrecognised policy behaves as "own" — a bad stored value must not
+    // silently impose a restriction nobody chose.
+    expect(teeIdFor("nonsense", "blue", "white")).toBe("blue");
   });
 });

@@ -1,0 +1,11 @@
+-- Whether the competition is played from ONE set of tees or from each
+-- player's own.
+--
+-- Rule 6.1b makes playing from outside the teeing area a penalty, so a club
+-- running a single-tee competition needs the app to hold everyone to it
+-- rather than quietly honouring a player's stored preference.
+--
+-- Defaults to 'own', which is exactly how the app behaved before this column
+-- existed: a player's teeId wins, falling back to the round's default. So no
+-- tournament already running changes behaviour.
+ALTER TABLE "Event" ADD COLUMN IF NOT EXISTS "teePolicy" TEXT NOT NULL DEFAULT 'own';

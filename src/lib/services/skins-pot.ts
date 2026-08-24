@@ -1,5 +1,6 @@
-import { COURSE_REF } from "./course-resolution";
 import "server-only";
+import { COURSE_REF } from "./course-resolution";
+import { teePolicyFor } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
 import { rankStrokeIndex } from "../domain/stroke";
@@ -149,6 +150,10 @@ export async function skinsPotFor(
     teeRatings,
     tees[0]?.id ?? null,
     holeCount === 9 ? 9 : 18,
+    // Net skins are priced off the same tees the round is scored from. A
+    // single-tee competition that allocated skins strokes off a player's
+    // stored preference would pay money on a handicap nobody played to.
+    await teePolicyFor(eventId),
   );
 
   const outcome = playSkins(

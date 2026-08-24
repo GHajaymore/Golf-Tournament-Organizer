@@ -114,7 +114,11 @@ describe("every engine receives a Course Handicap, not an Index", () => {
   it("builds team side handicaps from Course Handicaps", () => {
     // A foursomes pair off the blues is owed different strokes to the same
     // pair off the reds.
-    expect(teams).toMatch(/courseHandicapMap\(allMembers, teeRatings, defaultTeeId, holes\)/);
+    // Allows the call to wrap, and REQUIRES the tee policy: a side handicap
+    // built without it silently ignores a single-tee competition.
+    expect(teams).toMatch(
+      /courseHandicapMap\(\s*allMembers,\s*teeRatings,\s*defaultTeeId,\s*holes,\s*await teePolicyFor\(eventId\),/,
+    );
     expect(teams).toMatch(/courseHcp\.get\(m\.playerId\) \?\? m\.player\.handicap/);
   });
 
@@ -190,8 +194,11 @@ describe("handicap conversion follows each round's own hole count", () => {
     // map keyed to whichever round came first, so the other round's cards
     // were converted on the wrong hole count.
     const src = read("src/lib/services/tournament.ts");
-    expect(src).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId, 18\)/);
-    expect(src).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId, 9\)/);
+    // The tee policy is required in both, and must be the SAME one: which
+    // tees a player is held to cannot depend on whether the round is nine
+    // holes or eighteen.
+    expect(src).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId, 18, teePolicy\)/);
+    expect(src).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId, 9, teePolicy\)/);
     expect(src).toMatch(/stage\?\.holes === 9 \? ctx\.courseHcp9 : ctx\.courseHcp18/);
   });
 
