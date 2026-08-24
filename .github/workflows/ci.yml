@@ -104,6 +104,14 @@ jobs:
       - name: Test
         run: npx vitest run
 
+      - name: Test against real rows
+        # The default config EXCLUDES *.audit.test.ts, so authorization,
+        # handicap resolution and money were proved only by whoever remembered
+        # to run them locally. CI already has a migrated Postgres beside it,
+        # which is the only thing they need - they were left out because the
+        # config split is invisible from here, not because they cannot run.
+        run: npx vitest run --config vitest.audit.config.ts
+
       - name: Build
         run: npm run build
 
