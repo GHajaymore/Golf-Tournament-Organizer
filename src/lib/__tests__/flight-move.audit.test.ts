@@ -31,8 +31,18 @@ const empty = JSON.stringify(new Array(18).fill(null));
 
 beforeAll(async () => {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
-  const org = await prisma.organization.findFirst();
-  if (!org) throw new Error("no organization to attach to");
+  /**
+   * Its own club, not whichever one happens to already exist.
+   *
+   * This borrowed a REAL organization via `organization.findFirst()`. On an
+   * empty database there is none, so the file died in setup — which is how
+   * CI found it. The quieter half is worse: on a machine that HAS data it
+   * silently hung these fixtures off whatever club sorted first, which can
+   * be a live one. Every other audit file makes its own; these two did not.
+   */
+  const org = await prisma.organization.create({
+    data: { name: `${TAG} club`, kind: "club" },
+  });
 
   const event = await prisma.event.create({
     data: {
@@ -105,6 +115,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
+  // The club goes last: the events hanging off it are deleted above.
+  await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
   await prisma.$disconnect();
 });
 
