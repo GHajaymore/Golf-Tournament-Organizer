@@ -342,7 +342,7 @@ export function RegistrationClient({
                 <th style={{ width: 32 }}>#</th>
                 <th>Player</th>
                 <th style={{ width: 96, textAlign: "right" }}>Hcp</th>
-                {showTees && <th style={{ width: 130 }}>Tees</th>}
+                {showTees && <th style={{ minWidth: 108 }}>Tees</th>}
                 <th>Email</th>
                 <th>Phone</th>
                 {showFlight && <th>Flight</th>}
@@ -366,7 +366,12 @@ export function RegistrationClient({
                         aria-label={`Tees for ${p.name}`}
                         value={p.teeId ?? ""}
                         disabled={pending || locked}
-                        style={{ width: "100%", padding: "3px 4px", fontSize: 11.5 }}
+                        // A FIXED width, not 100%. This table scrolls
+                        // sideways, and a percentage let the column collapse
+                        // to about thirty pixels: the control rendered as
+                        // “Bl…” and “Re”, which is a tee nobody can read and a
+                        // choice nobody can make.
+                        style={{ width: 100, padding: "3px 4px", fontSize: 11.5 }}
                         onChange={(e) => commitTee(p.id, e.target.value || null)}
                       >
                         <option value="">{defaultTeeName || "Round's tees"}</option>
