@@ -165,8 +165,23 @@ test("availability is on the player's own screen, grouped and dated", async ({ p
   await page.goto("/me");
   await page.waitForLoadState("networkidle");
 
-  const card = page.locator(".card").filter({ hasText: "Your availability" });
-  await expect(card).toBeVisible();
+  /**
+   * The list view, chosen explicitly.
+   *
+   * `RoundAvailability` defaults to a CALENDAR whenever the rounds carry real
+   * dates, and the grouped headings this test is about — Next round, Future
+   * rounds, Earlier rounds — belong to the list. The calendar arrived after
+   * these assertions were written, so they had been failing ever since,
+   * describing a layout the screen no longer opens on.
+   *
+   * Driving the toggle rather than weakening the assertions: the grouping is
+   * still a real promise of the list view, and it is still worth holding to.
+   */
+  const availability = page.locator(".card").filter({ hasText: "Your availability" });
+  await expect(availability).toBeVisible();
+  await availability.getByText("List", { exact: false }).click();
+
+  const card = availability;
 
   // Grouped: the imminent round is lifted out of the list.
   await expect(card.getByText("Next round")).toBeVisible();
@@ -186,7 +201,11 @@ test("the next round comes before the future ones on screen", async ({ page }) =
   await page.goto("/me");
   await page.waitForLoadState("networkidle");
 
+  // Same reason as the test above: the grouped headings live in the list view,
+  // and the screen opens on the calendar.
   const card = page.locator(".card").filter({ hasText: "Your availability" });
+  await expect(card).toBeVisible();
+  await card.getByText("List", { exact: false }).click();
   const next = await card.getByText("Next round").boundingBox();
   const future = await card.getByText(/Future rounds/).boundingBox();
   expect(next, "no Next round heading").not.toBeNull();

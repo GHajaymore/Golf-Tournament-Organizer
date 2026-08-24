@@ -155,6 +155,20 @@ export async function seed() {
         scoringBasis: "net",
         handicapAllowance: 95,
         teeSheet,
+        /**
+         * PUBLISHED, because this round has been played.
+         *
+         * `me.ts` reads a tee sheet only when it is published — the 2026-08-12
+         * audit found a draft draw reaching a player's phone the moment an
+         * organizer saved it, which defeats the point of being able to shuffle
+         * a draw and sleep on it. That guard is right, and this fixture was
+         * never updated to satisfy it, so four player tests have been asserting
+         * a tee time the app correctly refused to show.
+         *
+         * A round played a week ago with cards against it certainly had its
+         * draw published.
+         */
+        teeSheetPublished: true,
         playedOn: dayOffset(-7),
         optDeadline: dayOffset(-8),
       },
