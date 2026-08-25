@@ -2,6 +2,9 @@ import Link from "next/link";
 import { requireSession } from "@/lib/page-helpers";
 import { brandForEvent, themeForEvent } from "@/lib/services/organization";
 import { themeCss, playerColorScheme } from "@/lib/themes";
+import { CurrencyProvider } from "@/components/CurrencyProvider";
+import { currencyForEvent } from "@/lib/services/organization";
+import { DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import { OrgBrand } from "@/components/OrgBrand";
 import { PlayTabs } from "@/components/PlayTabs";
 import { usesExpenses } from "@/lib/services/expenses";
@@ -56,8 +59,18 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
     ? await membershipFor(session.eventId, session.email, session.role)
     : null;
   const unread = ctx ? await unreadTotal(ctx) : 0;
+  /**
+   * The club's currency, for the player half too.
+   *
+   * The organizer layout has provided this since the money work; this one
+   * never did, so every amount a PLAYER saw fell back to the default while
+   * the same club's organizer screens were correct. One club showing two
+   * currencies to its two halves is worse than either being wrong alone.
+   */
+  const currency = session.eventId ? await currencyForEvent(session.eventId) : DEFAULT_CURRENCY;
 
   return (
+    <CurrencyProvider currency={currency}>
     <div
       id="player-theme"
       style={{
@@ -161,5 +174,6 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
 
       <PlayTabs showMoney={showMoney} />
     </div>
+    </CurrencyProvider>
   );
 }

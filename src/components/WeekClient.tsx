@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { WeekView } from "@/lib/services/week-view";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * One week of a league on one screen.
@@ -15,7 +16,13 @@ import type { WeekView } from "@/lib/services/week-view";
  * this shows what changed, which is the thing members actually argue about.
  */
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+/**
+ * The club's way of writing an amount, not this file's.
+ *
+ * Was a local `money()` hard-coding a dollar sign and dividing by a hundred.
+ * There were several of these and a club outside the United States saw dollars
+ * on every one, at a hundredth of the value in a currency with no minor unit.
+ */
 
 /** Ordinal without a lookup table: 1st, 2nd, 3rd, 4th … 11th, 21st. */
 function ordinal(n: number): string {
@@ -84,6 +91,7 @@ function Section({
 }
 
 export function WeekClient({ view, canManageMoney }: { view: WeekView; canManageMoney: boolean }) {
+  const { money } = useMoney();
   const router = useRouter();
 
   const th: React.CSSProperties = {

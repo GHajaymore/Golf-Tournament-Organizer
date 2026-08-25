@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { saveSkinsPot, setSkinsEntrants, removeSkinsPot } from "@/app/actions/skins";
 import FieldInfo from "@/components/FieldInfo";
 import { SCOPE_LABEL, type SkinsScope } from "@/lib/domain/skins-pot";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * The skins pot on one week of a league.
@@ -56,7 +57,8 @@ export interface SkinsView {
 }
 
 /** Cents to a plain amount. No currency symbol: clubs are not all in one country. */
-const money = (cents: number) => (cents / 100).toFixed(2);
+/** Digits only — the column labels the currency — but the right digits: see
+ *  useMoney().plain, which asks how many minor units this currency has. */
 
 export function SkinsPotClient({
   rounds,
@@ -81,10 +83,11 @@ export function SkinsPotClient({
   /** What to call it, when it is a group's rather than the field's. */
   groupLabel?: string;
 }) {
+  const { plain: money } = useMoney();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [buyIn, setBuyIn] = useState((view.buyInCents / 100).toString());
+  const [buyIn, setBuyIn] = useState(money(view.buyInCents));
   const [scope, setScope] = useState<SkinsScope>(view.scope);
   const [picking, setPicking] = useState(false);
   // Prefilled from who has returned a card, so it is a tick-through rather

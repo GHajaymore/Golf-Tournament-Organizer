@@ -1,4 +1,5 @@
 import FieldInfo from "@/components/FieldInfo";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * Who is up on the year.
@@ -18,9 +19,10 @@ export interface SkinsSeasonRowView {
   weeksPlayed: number;
 }
 
-const money = (cents: number) => (cents / 100).toFixed(2);
+/** Digits only, with the right number of them for this club's currency. */
 
 export function SkinsSeason({ rows }: { rows: SkinsSeasonRowView[] }) {
+  const { plain: money } = useMoney();
   if (rows.length === 0) return null;
 
   return (

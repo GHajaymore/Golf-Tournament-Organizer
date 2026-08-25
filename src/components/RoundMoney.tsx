@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { RoundMoneyView } from "@/lib/services/expenses";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * What the pots paid, round by round, with the outing underneath.
@@ -15,10 +16,13 @@ import type { RoundMoneyView } from "@/lib/services/expenses";
  * A player looking at forty pounds on the 14th who finishes with nothing has
  * been told something the app had no business claiming.
  */
-export function RoundMoney({ view, currency = "$" }: { view: RoundMoneyView; currency?: string }) {
+export function RoundMoney({ view }: { view: RoundMoneyView }) {
   const [open, setOpen] = useState<string | null>(null);
-  const money = (cents: number) =>
-    `${cents < 0 ? "−" : cents > 0 ? "+" : ""}${currency}${Math.abs(cents / 100).toFixed(2)}`;
+  // The club's currency from the provider, not a symbol threaded in as a
+  // prop. The prop carried only the SYMBOL, so it could not say how many minor
+  // units the currency has — and `/ 100` assumed a hundred, which yen has not.
+  const { money: fmt } = useMoney();
+  const money = (cents: number) => `${cents > 0 ? "+" : ""}${fmt(cents)}`;
   const tone = (cents: number) =>
     cents > 0 ? "var(--color-accent-2-300)" : cents < 0 ? "var(--color-danger)" : "var(--color-text)";
 

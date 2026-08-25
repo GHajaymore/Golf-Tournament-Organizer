@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { addFundLine, removeFundLine } from "@/app/actions/money-setup";
 import { floatSummary, type FundLine } from "@/lib/domain/money-mode";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * The tournament's kitty.
@@ -24,7 +25,13 @@ export interface FundRow {
   createdBy: string;
 }
 
-const money = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(cents / 100).toFixed(2)}`;
+/**
+ * The club's way of writing an amount, not this file's.
+ *
+ * Was a local `money()` hard-coding a dollar sign and dividing by a hundred.
+ * There were several of these and a club outside the United States saw dollars
+ * on every one, at a hundredth of the value in a currency with no minor unit.
+ */
 
 /** The categories a club actually writes on the back of an envelope. */
 const IN_CATEGORIES = ["entry-fee", "sponsor", "raffle", "other"];
@@ -39,6 +46,7 @@ export function FloatClient({
   rounds: Array<{ id: string; label: string }>;
   canEdit: boolean;
 }) {
+  const { money } = useMoney();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [direction, setDirection] = useState<"in" | "out">("in");

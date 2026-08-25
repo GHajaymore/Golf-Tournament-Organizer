@@ -28,7 +28,7 @@ export default async function MoneyPage() {
     where: { id: session.eventId },
     select: {
       moneyMode: true,
-      organization: { select: { moneyMode: true, kind: true, currencySymbol: true } },
+      organization: { select: { moneyMode: true, kind: true } },
     },
   });
   if (!event) redirect("/me");
@@ -50,7 +50,9 @@ export default async function MoneyPage() {
    */
   if (!(await usesExpenses(session.eventId))) redirect("/me");
 
-  const currency = event.organization?.currencySymbol || "$";
+  // The currency is no longer read here: it comes from the provider in the
+  // player layout, the same one the organizer half has always used. Reading a
+  // SYMBOL per page was how the two halves of one club drifted apart.
 
   const rounds = await roundMoneyFor(session.eventId, session.email);
 
@@ -112,7 +114,7 @@ export default async function MoneyPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <RoundMoney view={rounds} currency={currency} />
+      <RoundMoney view={rounds} />
       {ledger && <MoneyClient view={ledger} />}
       {bettable && field.length > 1 && (
         <SideBetStart stageId={bettable.id} field={field} taken={taken} />

@@ -7,6 +7,7 @@ import { requestSideGameEntry } from "@/app/actions/side-games";
 import type { MoneyView } from "@/lib/services/expenses";
 import { unitemisedGames } from "@/lib/domain/money-breakdown";
 import { PersonChip } from "@/components/PersonChip";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * The outing's money, on a phone.
@@ -25,10 +26,13 @@ import { PersonChip } from "@/components/PersonChip";
  * cash.
  */
 
-const money = (cents: number) => {
-  const sign = cents < 0 ? "-" : "";
-  return `${sign}$${(Math.abs(cents) / 100).toFixed(2)}`;
-};
+/**
+ * The club's way of writing an amount, not this file's.
+ *
+ * Was a local `money()` hard-coding a dollar sign and dividing by a hundred.
+ * There were several of these and a club outside the United States saw dollars
+ * on every one, at a hundredth of the value in a currency with no minor unit.
+ */
 
 type Scope = "group" | "everyone" | "pick";
 type SplitMode = "evenly" | "shares" | "exact" | "percent";
@@ -44,6 +48,7 @@ const centsFrom = (text: string): number => {
 const NO_IDS: string[] = [];
 
 export function MoneyClient({ view }: { view: MoneyView }) {
+  const { money, plain } = useMoney();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
@@ -207,7 +212,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
     setError("");
     setEditing(e.id);
     setDescription(e.description);
-    setAmount((e.amountCents / 100).toFixed(2));
+    setAmount(plain(e.amountCents));
     setCategory(e.category || "other");
     setPaidBy(e.paidBy);
     setStageId("");
@@ -220,7 +225,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
     if (exact) {
       setSplitMode("exact");
       setTyped(
-        Object.fromEntries(e.shares.map((s) => [s.playerId, ((s.exactCents ?? 0) / 100).toFixed(2)])),
+        Object.fromEntries(e.shares.map((s) => [s.playerId, plain(s.exactCents ?? 0)])),
       );
       setWeights({});
     } else {
@@ -233,7 +238,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
 
     setManyPayers(e.payers.length > 0);
     setPaidAmounts(
-      Object.fromEntries(e.payers.map((p) => [p.playerId, (p.amountCents / 100).toFixed(2)])),
+      Object.fromEntries(e.payers.map((p) => [p.playerId, plain(p.amountCents)])),
     );
     setAdding(true);
   };

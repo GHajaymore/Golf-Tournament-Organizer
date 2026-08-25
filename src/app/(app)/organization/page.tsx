@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { OrganizationClient } from "@/components/OrganizationClient";
 import { ThemePicker } from "@/components/ThemePicker";
+import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { organizationAccessReport } from "@/lib/services/access";
 import { PlaySettings } from "@/components/PlaySettings";
@@ -75,6 +76,17 @@ export default async function OrganizationPage() {
           readOnly={!canEdit}
         />
       </div>
+      {/* Beside the theme, because it is the same kind of decision: one
+          setting belonging to the club that every screen showing an amount
+          reads. Owners and admins only, like the branding above it. */}
+      {canEdit && (
+        <div style={{ marginTop: 16 }}>
+          <section className="card elev-sm">
+            <span className="card-title" style={{ fontSize: 15 }}>Money</span>
+            <CurrencyPicker currency={org.currency} />
+          </section>
+        </div>
+      )}
       <div style={{ marginTop: 16 }}>
         <PlaySettings
           mode="organization"

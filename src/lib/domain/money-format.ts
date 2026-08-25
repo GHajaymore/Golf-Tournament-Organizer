@@ -40,6 +40,53 @@ export const CURRENCIES = [
   { code: "JPY", label: "Japanese yen" },
 ] as const;
 
+/**
+ * The currency codes this runtime can actually write — 162 of them.
+ *
+ * Asked of `Intl.supportedValuesOf`, which IS the list, rather than inferred
+ * from whether formatting produces a symbol. The inference was written first
+ * and it was wrong: Intl writes the rand as "ZAR 1.00", because the rand has
+ * no distinct symbol in this locale — so a symbol test rejected ZAR, a
+ * currency the picker itself offers. Every currency written with its own code
+ * (CHF, SEK, and a long tail) failed the same way.
+ *
+ * That is the shape of guard this codebase has been bitten by before: one
+ * that refuses real data because the rule was a proxy for the question rather
+ * than the question. Ask the list.
+ */
+const KNOWN_CODES: Set<string> = (() => {
+  try {
+    return new Set(Intl.supportedValuesOf("currency"));
+  } catch {
+    // A runtime without it: fall back to the offered list rather than to
+    // nothing, so a club can still be set to one of the eight.
+    return new Set(CURRENCIES.map((c) => c.code));
+  }
+})();
+
+/**
+ * Whether this is a currency code the app can actually format.
+ *
+ * Asked of Intl rather than of `CURRENCIES` above, and the difference matters
+ * in both directions. The list is what the PICKER offers — eight, because a
+ * hundred-row dropdown is a worse answer to "which currency is this club in".
+ * What may be STORED is anything Intl can write, so a club that already has a
+ * code from outside the list keeps it, and shortening the list later cannot
+ * quietly invalidate somebody's setting.
+ *
+ * A `"use server"` export is a public HTTP endpoint, so this is what stands
+ * between the column and whatever a caller posts.
+ */
+export function isCurrencyCode(v: string): boolean {
+  const code = (v ?? "").trim().toUpperCase();
+  // Intl accepts any three-letter string as a currency, so the shape alone
+  // proves nothing: "ABC" formats happily as "ABC 1.00" and a typo would land
+  // in the database looking deliberate.
+  if (!/^[A-Z]{3}$/.test(code)) return false;
+  return KNOWN_CODES.has(code);
+}
+
+
 /** How many minor units this currency divides into: 2 for most, 0 for yen. */
 export function minorUnitDigits(currency: string): number {
   try {
