@@ -987,11 +987,11 @@ describe("tee policy, on every field size", () => {
     ["blue", BLUE],
   ]);
 
-  it("names the three policies and nothing else", () => {
-    // A fourth value would need a decision everywhere the policy is read.
+  it("names the four policies and nothing else", () => {
+    // A fifth value would need a decision everywhere the policy is read.
     // `own` and `player` score identically and differ only in who may set the
     // tee, which is why both appear here and only `one` changes the number.
-    expect([...TEE_POLICY].sort()).toEqual(["one", "own", "player"]);
+    expect([...TEE_POLICY].sort()).toEqual(["flight", "one", "own", "player"]);
   });
 
   for (const n of FIELD_SIZES) {
@@ -1034,13 +1034,36 @@ describe("tee policy, on every field size", () => {
 
   it("resolves the id itself the same way, so one reader answers for all", () => {
     // teeIdFor is what both the scoring path and the printed card go through.
-    expect(teeIdFor("one", "blue", "white")).toBe("white");
-    expect(teeIdFor("own", "blue", "white")).toBe("blue");
-    expect(teeIdFor("own", null, "white")).toBe("white");
+    // Arguments are (policy, player, flight, round).
+    expect(teeIdFor("one", "blue", null, "white")).toBe("white");
+    expect(teeIdFor("own", "blue", null, "white")).toBe("blue");
+    expect(teeIdFor("own", null, null, "white")).toBe("white");
     // No round tee and no player tee is "unrated", not a crash.
-    expect(teeIdFor("one", "blue", null)).toBe("");
+    expect(teeIdFor("one", "blue", null, null)).toBe("");
     // An unrecognised policy behaves as "own" — a bad stored value must not
     // silently impose a restriction nobody chose.
-    expect(teeIdFor("nonsense", "blue", "white")).toBe("blue");
+    expect(teeIdFor("nonsense", "blue", null, "white")).toBe("blue");
+  });
+
+  it("lets a FLIGHT claim its own tees, which is how a club championship works", () => {
+    // Championship off the blues, seniors off the whites, ladies off the reds:
+    // three decisions rather than one per player, which is the only version a
+    // club would actually use on a field of 120.
+    expect(teeIdFor("flight", null, "white", "blue")).toBe("white");
+    // A flight claiming nothing falls through to the round's set.
+    expect(teeIdFor("flight", null, null, "blue")).toBe("blue");
+
+    // SPECIFICITY WINS ABOVE THE POLICY, AND THE POLICY IS THE FLOOR.
+    // "By division" means the flight may differ and an individual may not —
+    // otherwise one player quietly opting onto another set would break the
+    // division the committee drew.
+    expect(teeIdFor("flight", "red", "white", "blue")).toBe("white");
+    // "One set for everyone" overrides both, which is what it says.
+    expect(teeIdFor("one", "red", "white", "blue")).toBe("blue");
+    // Where individuals may differ, a player beats their flight, and a flight
+    // beats the round.
+    expect(teeIdFor("own", "red", "white", "blue")).toBe("red");
+    expect(teeIdFor("own", null, "white", "blue")).toBe("white");
+    expect(teeIdFor("player", null, "white", "blue")).toBe("white");
   });
 });

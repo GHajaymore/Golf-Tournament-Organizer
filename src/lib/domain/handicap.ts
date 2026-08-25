@@ -147,6 +147,8 @@ export interface IndexHolder {
   handicapType?: string;
   /** Which tees this player is on, if they've been assigned a specific set. */
   teeId?: string | null;
+  /** The tees this player’s flight plays from, if it claims any. */
+  flightTeeId?: string | null;
 }
 
 /**
@@ -223,10 +225,22 @@ export function indexForHoles(handicap: number, handicapType: string | undefined
 export function teeIdFor(
   policy: string,
   playerTeeId: string | null | undefined,
+  /**
+   * The tees this player's FLIGHT plays from, if it claims any.
+   *
+   * A club championship is one tournament off three sets — championship,
+   * seniors, ladies — and expressing that per player is 120 decisions nobody
+   * will make correctly. Per flight it is three.
+   */
+  flightTeeId: string | null | undefined,
   defaultTeeId: string | null,
 ): string {
+  // The policy is the FLOOR of what may override, and specificity wins above
+  // it. One set for everyone means neither a flight nor a player may differ;
+  // by division means the flight may and a player may not.
   if (policy === "one") return defaultTeeId ?? "";
-  return playerTeeId ?? defaultTeeId ?? "";
+  if (policy === "flight") return flightTeeId ?? defaultTeeId ?? "";
+  return playerTeeId ?? flightTeeId ?? defaultTeeId ?? "";
 }
 
 export function courseHandicapMap(
@@ -243,7 +257,7 @@ export function courseHandicapMap(
 ): Map<string, number> {
   const out = new Map<string, number>();
   for (const p of players) {
-    const raw = teesById.get(teeIdFor(teePolicy, p.teeId, defaultTeeId)) ?? null;
+    const raw = teesById.get(teeIdFor(teePolicy, p.teeId, p.flightTeeId, defaultTeeId)) ?? null;
     // Index and rating are each converted to the holes being played, once.
     // See indexForHoles for the four cases and the doubling bug the old
     // one-case conversion caused.

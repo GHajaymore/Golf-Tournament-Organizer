@@ -512,6 +512,33 @@ export async function setEventDefaultTee(teeId: string | null): Promise<CourseRe
 }
 
 /**
+ * Put a FLIGHT on a set of tees.
+ *
+ * The whole reason the flight level exists: a club championship is three
+ * divisions off three sets, and expressing that per player is 120 decisions
+ * nobody will make correctly. Here it is three.
+ *
+ * Null means the flight claims nothing and its players fall through to the
+ * round's tees — which is how every flight behaved before this existed.
+ */
+export async function setFlightTee(groupId: string, teeId: string | null): Promise<CourseResult> {
+  const { eventId } = await requireOrganizerOrg();
+  const flight = await prisma.group.findFirst({ where: { id: groupId, eventId }, select: { id: true } });
+  if (!flight) return { ok: false, error: "Flight not found." };
+  if (teeId) {
+    // Scoped to this tournament's course, so another club's set can never
+    // become the one a division is scored off.
+    const tee = await prisma.tee.findFirst({
+      where: { id: teeId, course: { events: { some: { eventId } } } },
+    });
+    if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
+  }
+  await prisma.group.update({ where: { id: groupId }, data: { teeId } });
+  refresh();
+  return { ok: true };
+}
+
+/**
  * Put a player on a set of tees, which decides the strokes they receive.
  *
  * An organizer may set anybody's. A PLAYER may set their own, and only their

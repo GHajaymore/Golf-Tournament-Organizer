@@ -53,29 +53,35 @@ export const LEADERBOARD_VISIBILITY_HELP: Record<LeaderboardVisibility, string> 
  * arithmetic — the question here is only whether they are ALLOWED.
  */
 /**
- * Three answers, because the real question is WHO DECIDES.
+ * Four answers, because the real question is AT WHAT LEVEL tees are decided.
  *
- * `one` and the other two differ in scoring — one set for the field against
- * each player their own. `own` and `player` score identically and differ in
- * PERMISSION: whether the organizer assigns the tee or the golfer picks it.
- * That is the same shape as scoreEntryBy, which asks who may write a score
- * rather than what a score is.
+ * The policy is the FLOOR of what may override, and specificity wins above
+ * it — a player beats their flight, a flight beats the round. So `one` lets
+ * neither differ, `flight` lets a division differ but not an individual, and
+ * the last two let individuals differ too.
+ *
+ * `own` and `player` score identically and differ in PERMISSION: whether the
+ * organizer assigns the tee or the golfer picks it. That is the same shape as
+ * scoreEntryBy, which asks who may write a score rather than what a score is.
  *
  * "own" is kept as a stored value rather than renamed, so no tournament
  * already running needs its column rewritten to mean what it already meant.
  */
-export const TEE_POLICY = ["one", "own", "player"] as const;
+export const TEE_POLICY = ["one", "flight", "own", "player"] as const;
 export type TeePolicy = (typeof TEE_POLICY)[number];
 
 export const TEE_POLICY_LABEL: Record<TeePolicy, string> = {
   one: "One set of tees for everyone",
+  flight: "Each flight plays its own tees",
   own: "The organizer assigns each player's tees",
   player: "Players choose their own tees",
 };
 
 export const TEE_POLICY_HELP: Record<TeePolicy, string> = {
   one: "The whole field plays the round's tees, whatever a player's record says. This is the ordinary club medal, and what a condition of competition means by Rule 6.1b.",
-  own: "You put each player on a set; anyone you haven't assigned plays the round's. Handicaps account for the difference, so a mixed field is still fair.",
+  flight:
+    "Set the tees once per flight and everyone in it follows. This is how a club championship runs three divisions off three sets — championship, seniors, ladies — without assigning anybody individually. A flight you leave alone plays the round's tees.",
+  own: "You put each player on a set; anyone you haven't assigned plays their flight's, or the round's. Handicaps account for the difference, so a mixed field is still fair.",
   player: "Each golfer picks their own set, and may change it until they have returned a card. Same scoring as assigning them yourself — it just saves you doing it for a field that already knows.",
 };
 

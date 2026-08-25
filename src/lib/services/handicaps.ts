@@ -59,7 +59,10 @@ export async function handicapsForRound(
   const [players, tees] = await Promise.all([
     prisma.player.findMany({
       where: { eventId, status: "confirmed" },
-      select: { id: true, name: true, handicap: true, handicapType: true, teeId: true },
+      // groupId comes too, because a flight can claim a set of tees and the
+      // player inherits it — that is how a club championship expresses three
+      // divisions off three tees without 120 separate decisions.
+      select: { id: true, name: true, handicap: true, handicapType: true, teeId: true, groupId: true },
       orderBy: { seed: "asc" },
     }),
     prisma.tee.findMany({
@@ -85,8 +88,17 @@ export async function handicapsForRound(
   });
   const policy = event?.teePolicy ?? "own";
 
+  // Which tees each flight claims. Read once for the round, not per player.
+  const flights = await prisma.group.findMany({
+    where: { eventId },
+    select: { id: true, teeId: true },
+  });
+  const flightTee = new Map(flights.map((g) => [g.id, g.teeId]));
+
   return players.map((p) => {
-    const tee = teeById.get(teeIdFor(policy, p.teeId, defaultTeeId)) ?? null;
+    const tee =
+      teeById.get(teeIdFor(policy, p.teeId, flightTee.get(p.groupId ?? "") ?? null, defaultTeeId)) ??
+      null;
     const rating = teeRatingFor(tee, holes);
     // Index and rating are each converted to the holes being played, once.
     // The old conversion only handled stored 9-hole indexes; an ordinary
@@ -229,10 +241,20 @@ export async function courseHandicapForPlayer(
       handicapType: true,
       teeId: true,
       event: { select: { teePolicy: true } },
+      // The flight's claim comes with the player, so this single-number path
+      // answers the same as the round-wide one. Resolving the tee two ways is
+      // how one screen ends up disagreeing with another about a net score.
+      group: { select: { teeId: true } },
     },
   });
   if (!player) return 0;
-  const teeId = teeIdFor(player.event?.teePolicy ?? "own", player.teeId, defaultTeeId) || null;
+  const teeId =
+    teeIdFor(
+      player.event?.teePolicy ?? "own",
+      player.teeId,
+      player.group?.teeId ?? null,
+      defaultTeeId,
+    ) || null;
   const tee = teeId ? await prisma.tee.findUnique({ where: { id: teeId } }) : null;
   const index = indexForHoles(player.handicap, player.handicapType, holes);
   return courseHandicap(index, teeRatingFor(tee, holes));

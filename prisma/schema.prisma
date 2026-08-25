@@ -970,6 +970,17 @@ model Group {
   name          String
   position      Int
   /**
+   * The tees this flight plays from.
+   *
+   * A club championship is one tournament with three divisions off three
+   * sets — championship off the blues, seniors off the whites, ladies off the
+   * reds. Setting it here is three decisions rather than one per player.
+   *
+   * Null means the flight makes no claim, and its players fall through to the
+   * round's tees. That is how every flight behaved before this existed.
+   */
+  teeId         String?
+  /**
    * The flight's captain, appointed by the organizer. Sees their own
    * flight's attendance list; never anyone else's. Null = no captain.
    */
