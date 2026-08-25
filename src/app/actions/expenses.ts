@@ -213,13 +213,34 @@ async function cleanInput(
   // no answer a person entering it could predict.
   const byAmount = requested.some((s) => s.amountCents !== undefined && s.amountCents !== null);
 
-  const shares = requested
-    .filter((s) => inField.has(s.playerId))
-    .map((s) => ({
-      playerId: s.playerId,
-      weight: Number.isFinite(s.weight) ? Math.max(0, Math.min(99, Math.round(s.weight))) : 0,
-      amountCents: byAmount ? Math.round(Number(s.amountCents ?? 0)) : null,
-    }));
+  /**
+   * One row per player, whatever arrived.
+   *
+   * A repeated playerId passed every check here and then hit
+   * `@@unique([expenseId, playerId])` on the way in, throwing out of the
+   * action — a 500 to the browser rather than a message, on a screen about
+   * money. The domain already collapses duplicates when it splits, so the two
+   * agreed about the arithmetic and disagreed about whether the write was
+   * even possible.
+   *
+   * Collapsed by SUMMING, which is what `shareOf` does with them: two rows of
+   * weight 1 for one person is a double share, and dropping the second would
+   * quietly halve what they owe.
+   */
+  const merged = new Map<string, { playerId: string; weight: number; amountCents: number | null }>();
+  for (const s of requested) {
+    if (!inField.has(s.playerId)) continue;
+    const weight = Number.isFinite(s.weight) ? Math.max(0, Math.min(99, Math.round(s.weight))) : 0;
+    const exact = byAmount ? Math.round(Number(s.amountCents ?? 0)) : null;
+    const seen = merged.get(s.playerId);
+    if (!seen) {
+      merged.set(s.playerId, { playerId: s.playerId, weight, amountCents: exact });
+      continue;
+    }
+    seen.weight = Math.min(99, seen.weight + weight);
+    if (exact !== null) seen.amountCents = (seen.amountCents ?? 0) + exact;
+  }
+  const shares = [...merged.values()];
 
   if (shares.length === 0) return { ok: false, error: "Nobody to split this with." };
 
@@ -248,10 +269,19 @@ async function cleanInput(
    * the amount. Letting $190 of payments stand against a $200 dinner would
    * invent $10 and shift every other player's number.
    */
-  const payers = (input.payers ?? [])
-    .filter((p) => inField.has(p.playerId))
-    .map((p) => ({ playerId: p.playerId, amountCents: Math.round(Number(p.amountCents)) }))
-    .filter((p) => Number.isFinite(p.amountCents) && p.amountCents !== 0);
+  // Collapsed the same way as the shares, and for the same reason: a repeated
+  // payer id met `@@unique([expenseId, playerId])` and threw. Two lines from
+  // one person is one person paying twice, so the amounts add.
+  const paid = new Map<string, number>();
+  for (const p of input.payers ?? []) {
+    if (!inField.has(p.playerId)) continue;
+    const cents = Math.round(Number(p.amountCents));
+    if (!Number.isFinite(cents)) continue;
+    paid.set(p.playerId, (paid.get(p.playerId) ?? 0) + cents);
+  }
+  const payers = [...paid.entries()]
+    .map(([playerId, amountCents]) => ({ playerId, amountCents }))
+    .filter((p) => p.amountCents !== 0);
 
   if (input.payers?.length && payers.length === 0) {
     return { ok: false, error: "Whoever paid has to be in this tournament." };
@@ -302,7 +332,21 @@ export async function addExpense(input: ExpenseInput): Promise<ExpenseResult> {
     data: {
       eventId,
       ...clean.data,
-      createdBy: session.name || session.email,
+      /**
+       * The EMAIL, not the display name.
+       *
+       * This is an identity — `canChangeExpense` decides who may edit a line
+       * by comparing against it — and a display name is not one. A player who
+       * self-registers picks their own name, so setting it to somebody else's
+       * granted edit rights over that person's expenses. An email is unique
+       * per account and nobody chooses another's.
+       *
+       * The screen shows a name rather than this: the service maps it back
+       * through the field. Rows written before this hold a name and still
+       * match on the name branch, which is the weaker check they were always
+       * relying on.
+       */
+      createdBy: session.email || session.name,
       shares: { create: clean.shares },
       payments: { create: clean.payers },
     },

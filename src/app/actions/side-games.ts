@@ -64,6 +64,27 @@ export async function saveSideGame(
   const groupKey = (groupKeyInput ?? "").trim();
   const { eventId, name } = await requireStaff();
 
+  /**
+   * REFUSED until something settles it.
+   *
+   * The column exists and this action would happily write it, but no reader
+   * honours it: `gameNets` and the side-bet list both enumerate every
+   * SideGame on the event and settle it across the whole field. A fourball's
+   * private birdie pot created here would charge forty people a stake they
+   * never agreed to — which is worse than the feature being absent.
+   *
+   * Skins went the other way for a reason: its readers were taught the group
+   * first. This one is refused rather than half-built, so the app cannot take
+   * money it has no way to settle. Lift this the day `gameNets` reads
+   * `groupKey` for side games as it now does for pots.
+   */
+  if (groupKey) {
+    return {
+      ok: false,
+      error: "A group's own side game isn't settled yet — run it as a skins game instead.",
+    };
+  }
+
   if (!KINDS.includes(kind)) return { ok: false, error: "Unknown side game." };
 
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId }, select: { id: true } });

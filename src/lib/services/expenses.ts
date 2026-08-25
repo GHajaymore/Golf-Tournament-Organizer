@@ -291,7 +291,13 @@ async function gameNets(
   // from loadEventState's own resolver, so a net pot and the leaderboard
   // cannot disagree about how many strokes somebody receives.
   const sideGames = await prisma.sideGame.findMany({
-    where: { eventId, ...stageWhere },
+    // The FIELD's games. Stated rather than assumed: these settle across
+    // everyone entered, so a group-scoped row here would charge the whole
+    // field for a fourball's private bet. `saveSideGame` refuses to create one
+    // until this reader knows how to settle it — the filter and the refusal
+    // are one rule written in two places on purpose, so that removing either
+    // leaves the other still saying no.
+    where: { eventId, groupKey: "", ...stageWhere },
     include: { entrants: true },
   });
   if (sideGames.length > 0) {
@@ -457,13 +463,27 @@ export async function moneyFor(
       include: { entrants: true },
     }),
     prisma.sideGame.findMany({
-      where: { eventId },
+      // The field's games, for the same reason as the settle-up above.
+      where: { eventId, groupKey: "" },
       orderBy: [{ createdAt: "asc" }],
       include: { entrants: true },
     }),
   ]);
 
   const nameOf = new Map(players.map((p) => [p.id, p.name]));
+  /**
+   * Email to display name, for the "entered by" line.
+   *
+   * `Expense.createdBy` holds an EMAIL now — a display name is something a
+   * self-registering player chooses, and it was being used to decide who may
+   * edit a line. The screen still wants a name, so it is resolved here rather
+   * than stored twice. A row from before the change holds a name already and
+   * falls through unchanged.
+   */
+  const byEmail = new Map(
+    players.filter((p) => p.email).map((p) => [p.email.toLowerCase(), p.name]),
+  );
+  const enteredBy = (who: string) => byEmail.get((who ?? "").toLowerCase()) ?? who;
   const me = players.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
 
   const domain: DomainExpense[] = rows.map((r) => ({
@@ -545,7 +565,7 @@ export async function moneyFor(
           amountCents: p.amountCents,
         }))
         .sort((a, b) => b.amountCents - a.amountCents),
-      createdBy: r.createdBy,
+      createdBy: enteredBy(r.createdBy),
       // The same rule the action enforces, asked once here so the screen
       // cannot offer an Edit the server will refuse.
       canEdit: canChangeExpense(r.createdBy, { name: viewer.name, email, isStaff: viewer.isStaff }),
