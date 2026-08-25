@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import type { NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { OrgBrand, type Brand } from "./OrgBrand";
+import { LOGO_SIZE } from "./Logo";
 
 type Role = "admin" | "assistant" | "player";
 
@@ -69,7 +70,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand }
               }}
             >
               <span style={{ display: "flex", alignItems: "center", gap: 9, fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
-                <OrgBrand brand={brand} size={20} />
+                <OrgBrand brand={brand} size={LOGO_SIZE.sm} />
               </span>
               <button type="button" className="btn btn-icon" onClick={() => setOpen(false)} aria-label="Close menu">
                 <i className="ph ph-x" />

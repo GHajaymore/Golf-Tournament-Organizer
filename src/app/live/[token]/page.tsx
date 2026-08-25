@@ -12,6 +12,7 @@ import { isLeaderboardPublic } from "@/lib/tournament-settings";
 import { brandForEvent, themeForEvent } from "@/lib/services/organization";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { OrgBrand } from "@/components/OrgBrand";
+import { LOGO_SIZE } from "@/components/Logo";
 import { themeCss, playerColorScheme } from "@/lib/themes";
 
 /**
@@ -180,7 +181,13 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
       <style dangerouslySetInnerHTML={{ __html: themeStyleSheet }} />
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-          <OrgBrand brand={brand} />
+          {/* lg, the scale’s hero size. This board is the club’s shopfront
+              — the link that goes on the clubhouse screen and to families —
+              and the club’s own mark led it at the same size it uses beside a
+              nav label. The same argument as the landing lockup: on the one
+              page whose job is to say whose competition this is, the mark
+              should not read as chrome. */}
+          <OrgBrand brand={brand} size={LOGO_SIZE.lg} />
         </div>
 
         <header style={{ marginBottom: 22 }}>

@@ -72,9 +72,17 @@ describe("the mark is drawn at a chosen size", () => {
   const files = allTsx("src");
 
   it("never hard-codes a logo size", () => {
-    // Sizes come from LOGO_SIZE. A bare number here is a fifth size nobody
-    // decided on.
-    const offenders = files.filter((f) => /<Logo\s+size=\{\d/.test(read(f)));
+    /**
+     * Sizes come from LOGO_SIZE. A bare number is a fifth size nobody decided
+     * on — and OrgBrand counts, which this used to miss.
+     *
+     * It checked `<Logo size={` only, so `<OrgBrand size={20} />` sailed
+     * through in two places: the console sidebar and the phone tab bar. Both
+     * were 20 — between sm and md, chosen by eye, matching nothing. OrgBrand
+     * is the wrapper a CLUB's own mark is drawn by, so it is exactly where an
+     * off-scale size is least likely to be noticed and most likely to matter.
+     */
+    const offenders = files.filter((f) => /<(Logo|OrgBrand)\s[^>]*size=\{\d/.test(read(f)));
     expect(offenders, `hard-coded logo size in: ${offenders.join(", ")}`).toEqual([]);
   });
 

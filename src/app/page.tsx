@@ -851,10 +851,14 @@ export default async function LoginPage() {
           <div className="reveal">
             <div className="sec-kick" style={paperInk}>The money</div>
             <h2 className="sec-h" style={paperInk}>One settle-up, golf included.</h2>
+            {/* No named products here, and none anywhere on this page. The
+                argument stands on what the app does; naming somebody else
+                dates the copy and picks a fight the reader did not come for. */}
             <p className="sec-sub" style={paperInk}>
-              Splitwise can divide a dinner bill. It cannot know that Dave also lost the skins and
-              won the long drive. TourneyHQ adds the outing and the side games together and produces
-              the fewest handovers that square everybody — and it never touches the money.
+              A bill-splitting app can divide a dinner. It cannot know who also lost the skins, won
+              the long drive, and owes for two guests. TourneyHQ adds the entry fees, the side games
+              and the pot together and produces the fewest handovers that square everybody — and it
+              never touches a penny of it.
             </p>
           </div>
           <div className="calc reveal" style={{ maxWidth: 440 }}>
@@ -871,6 +875,70 @@ export default async function LoginPage() {
           </p>
         </div>
       </section>
+
+      {/* ── Nothing else open ────────────────────────────────────────────
+          The real competitor was never another golf product. It is the
+          spreadsheet, the group chat and the money app an organizer already
+          runs beside whatever they use — so the claim worth making is that
+          none of them is still open.
+
+          No product is named here or anywhere on this page. Naming one dates
+          the copy, and picks a fight the reader did not come for. */}
+      <section>
+        <div className="wrap">
+          <div className="reveal">
+            <div className="sec-kick">All of it, in one place</div>
+            <h2 className="sec-h">No spreadsheet. No side app for the money.</h2>
+            <p className="sec-sub">
+              Running a competition usually means a workbook for the field, a chat thread for who is
+              in, a notes app for the skins and something else again to work out who owes whom. Every
+              one of them is a place the numbers can disagree. Here they cannot, because there is
+              only one set of them.
+            </p>
+          </div>
+
+          <div className="features reveal">
+            <div className="feat">
+              <h3>The field and the draw</h3>
+              <p>
+                Entries, the roster, flights and the tee sheet — drawn from who actually said they
+                were playing, not from a column somebody kept up to date by hand.
+              </p>
+            </div>
+            <div className="feat">
+              <h3>The scoring</h3>
+              <p>
+                Every format on its own engine, handicaps to the book, and one leaderboard they all
+                settle onto. No formula to copy down a column and no column to get wrong.
+              </p>
+            </div>
+            <div className="feat">
+              <h3>The talking</h3>
+              <p>
+                Frost delays, tee changes and the week&rsquo;s question, sent to the club, a flight,
+                a match or one player — so the thread nobody can search is not where the fixture
+                lives.
+              </p>
+            </div>
+            <div className="feat">
+              <h3>The money</h3>
+              <p>
+                Entry fees, skins, the pot and the side games added up together, settled to the
+                penny, and reduced to the fewest handovers that square everybody.
+              </p>
+            </div>
+          </div>
+
+          {/* Said plainly and immediately after the money claim, because a
+              club will ask it and would rather read it here than find out. */}
+          <p className="sec-sub reveal" style={{ marginTop: 18 }}>
+            TourneyHQ works out the money and keeps the record. It never holds it, moves it or takes
+            a cut — what changes hands happens between the people it always did, and the app is the
+            thing everybody agrees with rather than another account to reconcile.
+          </p>
+        </div>
+      </section>
+
 
       <section>
         <div className="wrap reveal">

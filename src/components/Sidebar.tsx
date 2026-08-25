@@ -55,8 +55,10 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand }: Pro
           letterSpacing: "-0.01em",
         }}
       >
+        {/* sm: the scale's "beside a nav label or in a dense bar". A bare 20
+            was a fifth size nobody chose and no guard was catching. */}
         {brand?.name ? (
-          <OrgBrand brand={brand} size={20} />
+          <OrgBrand brand={brand} size={LOGO_SIZE.sm} />
         ) : (
           <>
             <div
