@@ -13,8 +13,10 @@ import {
   LEADERBOARD_VISIBILITY_HELP,
   SCORE_ENTRY_BY,
   SCORE_ENTRY_BY_LABEL,
+  SCORE_ENTRY_BY_HELP,
   SCORE_ENTRY_WINDOW,
   SCORE_ENTRY_WINDOW_LABEL,
+  SCORE_ENTRY_WINDOW_HELP,
   SCORE_APPROVAL,
   SCORE_APPROVAL_LABEL,
   SCORE_APPROVAL_HELP,
@@ -33,6 +35,7 @@ import {
 import {
   PLAYER_ACCESS,
   PLAYER_ACCESS_LABEL,
+  PLAYER_ACCESS_HELP,
   usesAccessCodes,
   type TournamentSettings,
 } from "@/lib/tournament-settings";
@@ -324,6 +327,7 @@ export function PlaySettings({
         value={form.scoreEntryBy}
         options={SCORE_ENTRY_BY}
         labels={SCORE_ENTRY_BY_LABEL}
+            help={SCORE_ENTRY_BY_HELP}
         disabled={!canEdit || pending}
         onChange={(v) => set("scoreEntryBy", v)}
       />
@@ -335,6 +339,7 @@ export function PlaySettings({
             value={form.scoreEntryWindow}
             options={SCORE_ENTRY_WINDOW}
             labels={SCORE_ENTRY_WINDOW_LABEL}
+            help={SCORE_ENTRY_WINDOW_HELP}
             disabled={!canEdit || pending}
             onChange={(v) => set("scoreEntryWindow", v)}
           />
@@ -344,6 +349,7 @@ export function PlaySettings({
             value={form.playerAccess}
             options={PLAYER_ACCESS}
             labels={PLAYER_ACCESS_LABEL}
+            help={PLAYER_ACCESS_HELP}
             disabled={!canEdit || pending}
             onChange={(v) => set("playerAccess", v)}
           />

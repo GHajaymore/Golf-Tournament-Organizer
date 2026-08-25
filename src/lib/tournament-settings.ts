@@ -114,6 +114,13 @@ export const SCORE_ENTRY_BY_LABEL: Record<ScoreEntryBy, string> = {
   players: "Players may enter their own scores",
 };
 
+export const SCORE_ENTRY_BY_HELP: Record<ScoreEntryBy, string> = {
+  staff:
+    "Only you and your assistants can put a score in. Use it when the committee holds the cards — a club championship, or anything where nothing goes on the board until somebody has checked it.",
+  players:
+    "Players enter their own as they go, and you can still correct anything. Fastest for a society day, and it is what keeps the leaderboard live while they are out there.",
+};
+
 /**
  * When a player may submit.
  *
@@ -129,6 +136,13 @@ export type ScoreEntryWindow = (typeof SCORE_ENTRY_WINDOW)[number];
 export const SCORE_ENTRY_WINDOW_LABEL: Record<ScoreEntryWindow, string> = {
   during: "During the round, hole by hole",
   after: "After the round, as a completed card",
+};
+
+export const SCORE_ENTRY_WINDOW_HELP: Record<ScoreEntryWindow, string> = {
+  during:
+    "Every hole is saved as it is played, so the board moves while the round is on. This is what the clubhouse actually wants to watch — and a card left half-finished still shows how far they have got.",
+  after:
+    "Nothing reaches the board until a player submits the whole card. Choose it when a part-finished score would be read as a standing, or when the course has no signal and they will fill it in at the end anyway.",
 };
 
 /* ── Score approval ───────────────────────────────────────────────────── */
@@ -204,6 +218,15 @@ export const PLAYER_ACCESS_LABEL: Record<PlayerAccess, string> = {
   email: "Email and password",
   code: "Access code on their scorecard",
   both: "Either email or access code",
+};
+
+export const PLAYER_ACCESS_HELP: Record<PlayerAccess, string> = {
+  email:
+    "Each player signs in with the address on their entry. Simplest when you already hold one for everybody.",
+  code:
+    "A short code printed on their scorecard, and no address needed. This exists because a society roster is often names and nothing else, and chasing sixty people for an email before anyone can score is not a workable ask.",
+  both:
+    "Either gets them in. Use it when part of the field has an address on file and part does not — which is most fields, most of the time.",
 };
 
 /* ── The settings bundle ──────────────────────────────────────────────── */
