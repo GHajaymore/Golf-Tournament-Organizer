@@ -4,6 +4,8 @@ import { skinsPotFor } from "@/lib/services/skins-pot";
 import { SkinsPotClient } from "@/components/SkinsPotClient";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/db";
+import { SideBetStart } from "@/components/SideBetStart";
 
 /**
  * Each fourball's own money, kept apart from the field's.
@@ -57,14 +59,48 @@ export default async function GroupGamesPage({
       )
     : [];
 
+  /**
+   * Bets that are neither the club's nor one fourball's.
+   *
+   * Six friends across three groups who agreed something on the first tee.
+   * They are stored as pots under a name the players chose, so they are found
+   * by looking for group keys this round's tee sheet does not account for —
+   * including any left orphaned by a redraw, which must keep working rather
+   * than disappear with the money in them.
+   */
+  const groupNames = new Set(groups.map((g) => g.name));
+  const adHocRows = week
+    ? await prisma.skinsPot.findMany({
+        where: { stageId: week.id, groupKey: { not: "" } },
+        select: { groupKey: true },
+        distinct: ["groupKey"],
+        orderBy: { groupKey: "asc" },
+      })
+    : [];
+  const adHoc = week
+    ? await Promise.all(
+        adHocRows
+          .filter((r) => !groupNames.has(r.groupKey))
+          .map(async (r) => ({
+            name: r.groupKey,
+            view: await skinsPotFor(session.eventId, week.id, true, "full", r.groupKey),
+          })),
+      )
+    : [];
+
+  const fieldForBets = [...state.confirmed]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((p) => ({ id: p.id, name: p.name }));
+
   return (
     <>
       <div className="page-head">
         <h1 className="page-title">Group games</h1>
         <p className="page-sub">
-          A fourball&rsquo;s own skins, separate from the club&rsquo;s pot. Anyone playing in a
-          group can set up that group&rsquo;s game — it never touches the field&rsquo;s money, and
-          the settle-up folds both into one number per player.
+          Games that are not the club&rsquo;s: a fourball&rsquo;s own skins, or a bet between
+          whoever wants in wherever they are playing. Anyone in a group can set up that
+          group&rsquo;s game and anyone can start a side bet — neither touches the field&rsquo;s
+          money, and the settle-up folds all of it into one number per player.
         </p>
       </div>
 
@@ -95,8 +131,9 @@ export default async function GroupGamesPage({
       {week && groups.length === 0 && (
         <div className="card elev-sm" style={{ marginTop: 16 }}>
           <p className="text-muted" style={{ margin: 0, fontSize: 13.5 }}>
-            This round has no tee sheet yet, so the app doesn&rsquo;t know who is playing with
-            whom. Publish the tee sheet and every group appears here with its own pot.
+            No tee sheet on this round yet, so the app doesn&rsquo;t know who is playing with whom
+            — publish one and every group gets its own pot here. A side bet doesn&rsquo;t wait for
+            it: name it, pick who&rsquo;s in, and it settles the same way.
           </p>
         </div>
       )}
@@ -112,6 +149,28 @@ export default async function GroupGamesPage({
             groupLabel={group.name}
           />
         ) : null,
+      )}
+
+      {/* The bets that cross fourballs, after the fourballs' own. */}
+      {adHoc.map(({ name, view }) =>
+        view ? (
+          <SkinsPotClient
+            key={name}
+            rounds={rounds}
+            activeStageId={week!.id}
+            view={view}
+            groupKey={name}
+            groupLabel={name}
+          />
+        ) : null,
+      )}
+
+      {week && (
+        <SideBetStart
+          stageId={week.id}
+          field={fieldForBets}
+          taken={[...groupNames, ...adHoc.map((a) => a.name)]}
+        />
       )}
     </>
   );

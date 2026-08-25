@@ -400,3 +400,54 @@ describe("requirePotAccess is a real check, not a reassuring name", () => {
     expect(fn).not.toMatch(/\bplayerId\s*[,)]/);
   });
 });
+
+/**
+ * The third branch of requirePotAccess: a bet that is nobody's group.
+ *
+ * Six friends across three fourballs agree a game on the first tee. That is
+ * neither the club's pot nor any one group's, so it is stored under a name
+ * they chose — and the access rule cannot be "is this a tee-sheet group",
+ * because it deliberately is not one.
+ *
+ * The rule is instead about the pot's own membership, and it is pinned here
+ * because it is the one place a player can write money into a pot the tee
+ * sheet does not vouch for.
+ */
+describe("an ad-hoc side bet is still somebody's, not everybody's", () => {
+  const src = readFileSync(join(ACTIONS_DIR, "skins.ts"), "utf8");
+  const start = src.indexOf("async function requirePotAccess");
+  const after = src.indexOf("\nexport ", start);
+  const fn = start === -1 ? "" : src.slice(start, after === -1 ? undefined : after);
+
+  it("still resolves the caller from the session before anything else", () => {
+    // The ad-hoc branch sits AFTER the caller has been resolved to a real
+    // player in this event. Reordering it above that would let a signed-in
+    // stranger write a pot in a tournament they are not in.
+    const meAt = fn.indexOf("prisma.player.findFirst");
+    const adHocAt = fn.indexOf("skinsPot.findFirst");
+    expect(meAt).toBeGreaterThan(-1);
+    expect(adHocAt).toBeGreaterThan(meAt);
+  });
+
+  it("checks the pot's own entrants, not the caller's word", () => {
+    // Membership of an ad-hoc bet is the entrant rows, read from the database.
+    expect(fn).toMatch(/skinsPot\.findFirst/);
+    expect(fn).toMatch(/entrants\.some\(\(e\) => e\.playerId === me\.id\)/);
+  });
+
+  it("leaves an EMPTY pot open, and a populated one closed", () => {
+    // The gap between creating a pot and naming its entrants is the one
+    // moment nobody is in it. Closing that would make a bet impossible to
+    // start; leaving it open once people ARE in it would let anyone re-price
+    // or empty somebody else's game.
+    expect(fn).toMatch(/!existing \|\| existing\.entrants\.length === 0/);
+    expect(fn).toMatch(/throw new Error\("Only somebody in this bet can change it"\)/);
+  });
+
+  it("bounds the name rather than truncating it", () => {
+    // The name is part of a unique key. Silently shortening two different
+    // names to the same forty characters would merge two groups' money.
+    expect(fn).toMatch(/key\.length > AD_HOC_NAME_MAX/);
+    expect(src).not.toMatch(/groupKey.*\.slice\(0, ?AD_HOC_NAME_MAX\)/);
+  });
+});

@@ -25,6 +25,15 @@ export interface SkinsResult {
   error?: string;
 }
 
+/**
+ * How long an ad-hoc bet's name may be.
+ *
+ * It is a label a player types and it becomes part of a unique key, so it is
+ * bounded here rather than truncated: silently shortening two different names
+ * to the same forty characters would merge two groups' money.
+ */
+const AD_HOC_NAME_MAX = 40;
+
 /** Refuse a round belonging to somebody else's tournament. */
 async function stageInEvent(eventId: string, stageId: string): Promise<void> {
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { eventId: true } });
@@ -78,8 +87,40 @@ async function requirePotAccess(stageId: string, groupKey: string): Promise<stri
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { teeSheet: true } });
   const sheet = parseTeeSheet(stage?.teeSheet ?? "");
   const group = sheet?.groups.find((g) => g.name === key);
-  if (!group || !group.playerIds.includes(me.id)) {
-    throw new Error("Only a player in that group can run its game");
+
+  // A TEE-SHEET GROUP: the fourball playing together, and only them.
+  if (group) {
+    if (!group.playerIds.includes(me.id)) {
+      throw new Error("Only a player in that group can run its game");
+    }
+    return eventId;
+  }
+
+  /**
+   * AN AD-HOC BET: a name that is not a group on the sheet.
+   *
+   * Six friends spread across three fourballs want a skins game between the
+   * six of them. That is neither the club's pot nor any one group's, and
+   * before this it could only be done by the organizer setting up a field pot
+   * and ticking six of forty names — so in practice it was done on paper.
+   *
+   * Any player in the field may START one, because it is their own money.
+   * Once it HAS people in it, only those people (or staff) may change it: a
+   * bet you are in is a bet somebody else must not be able to re-price or
+   * empty. The gap between creating a pot and naming its entrants is the one
+   * moment nobody is in it yet, which is why an empty pot stays open.
+   */
+  if (key.length > AD_HOC_NAME_MAX) {
+    throw new Error(`Keep the name under ${AD_HOC_NAME_MAX} characters`);
+  }
+
+  const existing = await prisma.skinsPot.findFirst({
+    where: { stageId, groupKey: key },
+    select: { entrants: { select: { playerId: true } } },
+  });
+  if (!existing || existing.entrants.length === 0) return eventId;
+  if (!existing.entrants.some((e) => e.playerId === me.id)) {
+    throw new Error("Only somebody in this bet can change it");
   }
   return eventId;
 }
