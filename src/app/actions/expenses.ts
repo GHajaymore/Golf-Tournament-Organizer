@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { isIsoDate } from "@/lib/deadline";
-import { isValidAmount, MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
+import { isValidAmount, MAX_EXPENSE_CENTS, canChangeExpense } from "@/lib/domain/expenses";
 
 /**
  * Shared-expense actions.
@@ -291,8 +291,10 @@ export async function updateExpense(expenseId: string, input: ExpenseInput): Pro
   });
   if (!existing) return { ok: false, error: "That expense isn't in this tournament." };
 
-  const mine = existing.createdBy === (session.name || session.email);
-  if (!isStaff && !mine) {
+  // The shared rule, so the screen's Edit button and this check cannot
+  // disagree — an offered button the server then refuses reads as a broken
+  // app rather than as a rule.
+  if (!canChangeExpense(existing.createdBy, { name: session.name, email: session.email, isStaff })) {
     return { ok: false, error: "Only whoever entered this, or an organizer, can change it." };
   }
 
@@ -338,8 +340,7 @@ export async function removeExpense(expenseId: string): Promise<ExpenseResult> {
   });
   if (!existing) return { ok: false, error: "That expense isn't in this tournament." };
 
-  const mine = existing.createdBy === (session.name || session.email);
-  if (!isStaff && !mine) {
+  if (!canChangeExpense(existing.createdBy, { name: session.name, email: session.email, isStaff })) {
     return { ok: false, error: "Only whoever entered this, or an organizer, can remove it." };
   }
 

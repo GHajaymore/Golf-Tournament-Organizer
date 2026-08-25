@@ -1,7 +1,7 @@
 "use client";
-import { EXPENSE_CATEGORIES } from "@/lib/domain/expense-categories";
+import { EXPENSE_CATEGORIES, expenseCategoryLabel } from "@/lib/domain/expense-categories";
 import { useMemo, useState, useTransition } from "react";
-import { addExpense, removeExpense, recordSettlement } from "@/app/actions/expenses";
+import { addExpense, updateExpense, removeExpense, recordSettlement } from "@/app/actions/expenses";
 import { requestContestEntry } from "@/app/actions/contests";
 import { requestSideGameEntry } from "@/app/actions/side-games";
 import type { MoneyView } from "@/lib/services/expenses";
@@ -47,6 +47,10 @@ export function MoneyClient({ view }: { view: MoneyView }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
+  /** The expense being changed, or null when this is a new one. */
+  const [editing, setEditing] = useState<string | null>(null);
+  /** Which line is one tap from being deleted. Money does not vanish on one tap. */
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [showAllTransfers, setShowAllTransfers] = useState(false);
 
   const [description, setDescription] = useState("");
@@ -163,10 +167,81 @@ export function MoneyClient({ view }: { view: MoneyView }) {
     percentOff === 0 &&
     paidOff === 0;
 
+  /**
+   * Put the form back to empty.
+   *
+   * Every field, not just the two that were being cleared. Leaving the split
+   * mode, the picked players and the typed amounts behind meant the NEXT
+   * expense silently inherited the last one's arrangement — the bar split two
+   * ways becoming the default for the green fees.
+   */
+  const reset = () => {
+    setEditing(null);
+    setDescription("");
+    setAmount("");
+    setCategory("other");
+    setPaidBy(view.playerId);
+    setStageId("");
+    setScope("everyone");
+    setPicked(new Set(view.field.map((p) => p.id)));
+    setWeights({});
+    setSplitMode("evenly");
+    setTyped({});
+    setManyPayers(false);
+    setPaidAmounts({});
+    setAdding(false);
+  };
+
+  /**
+   * Reopen an existing line in the form that created it.
+   *
+   * One form for both, rather than a second one for editing: two forms over
+   * the same six-part arrangement — payers, participants, weights, exact
+   * amounts, category, round — is two places for the rules to drift, and the
+   * one that drifts is always the one used less.
+   *
+   * The saved shape decides the mode, so a line entered as exact amounts
+   * reopens as exact amounts rather than being silently re-split evenly.
+   */
+  const startEdit = (e: MoneyView["expenses"][number]) => {
+    setError("");
+    setEditing(e.id);
+    setDescription(e.description);
+    setAmount((e.amountCents / 100).toFixed(2));
+    setCategory(e.category || "other");
+    setPaidBy(e.paidBy);
+    setStageId("");
+
+    const ids = e.shares.map((s) => s.playerId);
+    setScope("pick");
+    setPicked(new Set(ids));
+
+    const exact = e.shares.some((s) => s.exactCents !== null);
+    if (exact) {
+      setSplitMode("exact");
+      setTyped(
+        Object.fromEntries(e.shares.map((s) => [s.playerId, ((s.exactCents ?? 0) / 100).toFixed(2)])),
+      );
+      setWeights({});
+    } else {
+      // Weights of all 1 are an even split; anything else was deliberate.
+      const uneven = e.shares.some((s) => s.weight !== 1);
+      setSplitMode(uneven ? "shares" : "evenly");
+      setWeights(Object.fromEntries(e.shares.map((s) => [s.playerId, s.weight])));
+      setTyped({});
+    }
+
+    setManyPayers(e.payers.length > 0);
+    setPaidAmounts(
+      Object.fromEntries(e.payers.map((p) => [p.playerId, (p.amountCents / 100).toFixed(2)])),
+    );
+    setAdding(true);
+  };
+
   const submit = () => {
     setError("");
     startTransition(async () => {
-      const res = await addExpense({
+      const input = {
         description,
         amountCents: cents,
         paidBy,
@@ -178,14 +253,13 @@ export function MoneyClient({ view }: { view: MoneyView }) {
         // error. Sending [] for the ordinary one-payer case would refuse
         // every expense on the screen.
         ...(payers.length > 0 ? { payers } : {}),
-      });
+      };
+      const res = editing ? await updateExpense(editing, input) : await addExpense(input);
       if (!res.ok) {
         setError(res.error ?? "Couldn't save that.");
         return;
       }
-      setDescription("");
-      setAmount("");
-      setAdding(false);
+      reset();
     });
   };
 
@@ -243,7 +317,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
           type="button"
           className="btn btn-primary"
           style={{ width: "100%", minHeight: 52, marginTop: 12 }}
-          onClick={() => setAdding(true)}
+          onClick={() => { reset(); setAdding(true); }}
           disabled={!view.playerId}
         >
           <i className="ph ph-plus" /> Add an expense
@@ -540,7 +614,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
           )}
 
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" className="btn btn-secondary" style={{ flex: 1, minHeight: 46 }} onClick={() => setAdding(false)}>
+            <button type="button" className="btn btn-secondary" style={{ flex: 1, minHeight: 46 }} onClick={reset}>
               Cancel
             </button>
             <button
@@ -550,7 +624,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               disabled={pending || !valid || shareIds.length === 0}
               onClick={submit}
             >
-              Save expense
+              {editing ? "Save changes" : "Save expense"}
             </button>
           </div>
           {error && (
@@ -925,9 +999,20 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>{e.description}</span>
                 <span className="text-muted" style={{ fontSize: 11.5 }}>
-                  {e.unknownPayer ? "Paid by someone no longer in the field" : `Paid by ${e.paidByName}`}
+                  {/* Everyone who paid, not just the first of them. This said
+                      "Paid by {one name}" from the moment a bill could have
+                      several payers: the arithmetic credited both and the
+                      sentence named one, which is the kind of wrong nobody
+                      reports and everybody stops trusting. */}
+                  {e.payers.length > 1
+                    ? `Paid by ${e.payers.map((p) => `${p.name} ${money(p.amountCents)}`).join(", ")}`
+                    : e.unknownPayer
+                      ? "Paid by someone no longer in the field"
+                      : `Paid by ${e.paidByName}`}
                   {" · "}
                   {e.shares.length} {e.shares.length === 1 ? "share" : "shares"}
+                  {e.category && e.category !== "other" && ` · ${expenseCategoryLabel(e.category)}`}
+                  {e.spentOn && ` · ${e.spentOn}`}
                 </span>
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(e.amountCents)}</span>
@@ -939,20 +1024,74 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                   <span style={{ fontVariantNumeric: "tabular-nums" }}>{money(s.cents)}</span>
                 </div>
               ))}
-              <button
-                type="button"
-                className="btn btn-secondary touch-target"
-                style={{ fontSize: 12, marginTop: 8 }}
-                disabled={pending}
-                onClick={() =>
-                  startTransition(async () => {
-                    const res = await removeExpense(e.id);
-                    if (!res.ok) setError(res.error ?? "Couldn't remove that.");
-                  })
-                }
-              >
-                <i className="ph ph-trash" /> Remove
-              </button>
+              {/* Offered only to whoever entered it, or staff. The server
+                  enforces the same rule from the same function, so a button
+                  shown here is a button that works — and a line somebody else
+                  entered simply has no controls rather than controls that
+                  refuse. */}
+              {!e.canEdit && (
+                <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0" }}>
+                  Entered by {e.createdBy || "someone else"} — ask them or an organizer to change it.
+                </p>
+              )}
+              {e.canEdit && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary touch-target"
+                  style={{ fontSize: 12 }}
+                  disabled={pending}
+                  onClick={() => startEdit(e)}
+                >
+                  <i className="ph ph-pencil-simple" /> Edit
+                </button>
+
+                {/* Two taps, not one.
+                    A wrong participant used to mean deleting the line and
+                    typing it again, so Remove was the only way to fix
+                    anything and sat one tap from a finger. Now that Edit
+                    exists, Remove only ever means "this never happened" — and
+                    a money record that disappears without a confirmation is
+                    one nobody can reconstruct. */}
+                {confirmDelete === e.id ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-danger touch-target"
+                      style={{ fontSize: 12 }}
+                      disabled={pending}
+                      onClick={() =>
+                        startTransition(async () => {
+                          const res = await removeExpense(e.id);
+                          if (!res.ok) setError(res.error ?? "Couldn't remove that.");
+                          setConfirmDelete(null);
+                        })
+                      }
+                    >
+                      <i className="ph ph-trash" /> Yes, remove it
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary touch-target"
+                      style={{ fontSize: 12 }}
+                      onClick={() => setConfirmDelete(null)}
+                    >
+                      Keep it
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-secondary touch-target"
+                    style={{ fontSize: 12 }}
+                    disabled={pending}
+                    onClick={() => setConfirmDelete(e.id)}
+                  >
+                    <i className="ph ph-trash" /> Remove
+                  </button>
+                )}
+              </div>
+              )}
             </div>
           </details>
         ))}

@@ -291,6 +291,34 @@ export function positionFor(
   return { playerId, expensesCents, gamesCents, netCents: expensesCents + gamesCents };
 }
 
+/**
+ * May this person change or remove this line?
+ *
+ * Staff, or whoever entered it. Anyone in the outing may ADD what they paid
+ * for, but somebody else silently editing the amount you are owed is the one
+ * failure this feature cannot have.
+ *
+ * One function because there are two readers and they must agree. The action
+ * enforces it — it is a public endpoint and that is where it counts — and the
+ * screen asks the same question to decide whether to offer the button. Asked
+ * differently in the two places, the screen offers an Edit that the server
+ * then refuses, which reads as a broken app rather than as a rule.
+ *
+ * `createdBy` is a display name, matched against the viewer's name OR their
+ * email, because that is exactly what was written into it at creation.
+ */
+export function canChangeExpense(
+  createdBy: string,
+  viewer: { name?: string; email?: string; isStaff?: boolean },
+): boolean {
+  if (viewer.isStaff) return true;
+  const who = (createdBy ?? "").trim();
+  if (!who) return false;
+  const name = (viewer.name ?? "").trim();
+  const email = (viewer.email ?? "").trim();
+  return (!!name && who === name) || (!!email && who.toLowerCase() === email.toLowerCase());
+}
+
 /** Even weights for the common case: everyone in, split down the middle. */
 export function evenShares(playerIds: string[]): ExpenseShare[] {
   return [...new Set(playerIds.filter(Boolean))].map((playerId) => ({ playerId, weight: 1 }));

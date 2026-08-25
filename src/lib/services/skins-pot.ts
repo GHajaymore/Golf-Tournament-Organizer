@@ -15,6 +15,7 @@ import {
   type SkinsScope,
 } from "../domain/skins-pot";
 import { resolveCourse } from "../courses";
+import { parseTeeSheet } from "../domain/tee-sheet";
 
 /**
  * A week's skins pot, resolved into money.
@@ -76,7 +77,10 @@ export async function skinsPotFor(
       where: { stageId_net_scope_groupKey: { stageId, net, scope, groupKey } },
       include: { entrants: true },
     }),
-    prisma.stage.findUnique({ where: { id: stageId }, select: { id: true, eventId: true, holes: true } }),
+    prisma.stage.findUnique({
+      where: { id: stageId },
+      select: { id: true, eventId: true, holes: true, teeSheet: true },
+    }),
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
   ]);
   if (!stage || stage.eventId !== eventId || !event) return null;
@@ -133,6 +137,27 @@ export async function skinsPotFor(
   };
   const strokesBy = new Map(cards.map((c) => [c.playerId, parse(c.strokes)]));
   const returned = (id: string) => (strokesBy.get(id) ?? []).some((s) => s != null);
+
+  /**
+   * WHO THIS POT CAN EVEN CONTAIN.
+   *
+   * The field for the club's pot; just the fourball for a group's. A group
+   * pot offering all forty names is forty names to scroll past to find your
+   * own three playing partners, and the wrong tick is somebody in a game they
+   * never agreed to.
+   *
+   * Taken from the published tee sheet, which is the only record of who is
+   * playing with whom. A groupKey that matches no current group falls back to
+   * the whole field rather than to nobody — a redrawn sheet must not make an
+   * existing pot unmanageable.
+   */
+  const groupIds = (() => {
+    if (!groupKey) return null;
+    const sheet = parseTeeSheet(stage.teeSheet ?? "");
+    const g = sheet?.groups.find((x) => x.name === groupKey);
+    return g && g.playerIds.length > 0 ? new Set(g.playerIds) : null;
+  })();
+  const offered = groupIds ? players.filter((p) => groupIds.has(p.id)) : players;
 
   const entrantIds = (pot?.entrants ?? []).map((e) => e.playerId);
   const nameById = Object.fromEntries(players.map((p) => [p.id, p.name]));
@@ -203,7 +228,7 @@ export async function skinsPotFor(
     net,
     scope,
     entrantIds,
-    field: players.map((p) => ({ id: p.id, name: p.name, playing: returned(p.id) })),
+    field: offered.map((p) => ({ id: p.id, name: p.name, playing: returned(p.id) })),
     result,
     transfers: result ? settle(result.shares.map((s) => ({ playerId: s.playerId, netCents: s.netCents }))) : [],
     nameById,

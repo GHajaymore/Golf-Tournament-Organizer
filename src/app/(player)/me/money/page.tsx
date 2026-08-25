@@ -64,7 +64,7 @@ export default async function MoneyPage() {
    * other, which is worse than not offering it. A club running one society
    * day a year is exactly who needs this.
    */
-  const ledger = mode === "split" ? await moneyFor(session.eventId, session.email) : null;
+  const ledger = mode === "split" ? await moneyFor(session.eventId, session.email, { name: session.name }) : null;
   if (!rounds.playerId && !ledger?.used) redirect("/me");
 
   return (
