@@ -44,10 +44,14 @@ export function MoneyClient({ view }: { view: MoneyView }) {
 
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<string>("other");
+  // Defaults to you, which is the common case and what it always did.
+  const [paidBy, setPaidBy] = useState<string>(view.playerId);
   const [amount, setAmount] = useState("");
   const [stageId, setStageId] = useState("");
   const [scope, setScope] = useState<Scope>("everyone");
   const [picked, setPicked] = useState<Set<string>>(() => new Set(view.field.map((p) => p.id)));
+  /** Shares per player, where anything unset is one. */
+  const [weights, setWeights] = useState<Record<string, number>>({});
 
   const round = view.rounds.find((r) => r.stageId === stageId) ?? null;
   // `NO_IDS`, not a fresh `[]`. The fallback used to allocate a new array on
@@ -73,10 +77,10 @@ export function MoneyClient({ view }: { view: MoneyView }) {
       const res = await addExpense({
         description,
         amountCents: cents,
-        paidBy: view.playerId,
+        paidBy,
         stageId,
         category,
-        shares: shareIds.map((playerId) => ({ playerId, weight: 1 })),
+        shares: shareIds.map((playerId) => ({ playerId, weight: weights[playerId] ?? 1 })),
       });
       if (!res.ok) {
         setError(res.error ?? "Couldn't save that.");
@@ -160,6 +164,30 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               nothing and the ledger could not answer "what did the lodging
               come to" — the first question a group asks when deciding whether
               to go again. */}
+          {/* WHO PAID, which this could not say.
+              It was hard-coded to whoever was signed in, so the ledger could
+              only hold what YOU paid. One person doing the admin — which is
+              how a society trip actually runs — could not enter the dinner
+              somebody else put on their card, and a player who does not use
+              the app could not be owed anything at all. The action already
+              accepted any payer in the field and checked it; only the screen
+              insisted. */}
+          <div className="field">
+            <label htmlFor="exp-payer">Who paid</label>
+            <select
+              id="exp-payer"
+              className="input"
+              value={paidBy}
+              onChange={(e) => setPaidBy(e.target.value)}
+              style={{ minHeight: 46 }}
+            >
+              {view.field.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.id === view.playerId ? `${p.name} (you)` : p.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="field">
             <label htmlFor="exp-category">Category</label>
             <select
@@ -257,6 +285,51 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                 );
               })}
             </div>
+          )}
+
+          {/* UNEQUAL SHARES, which the model always held and the screen never
+              offered — every line went in with a weight of 1, so a single room
+              against three twins, or two people on one cart, had to be faked
+              as a separate expense.
+              Only shown once somebody has picked, because on "everyone" the
+              answer is almost always evenly and a column of 1s is noise. */}
+          {scope === "pick" && shareIds.length > 1 && (
+            <details style={{ marginTop: 2 }}>
+              <summary style={{ fontSize: 12.5, cursor: "pointer" }} className="text-muted">
+                Not evenly? Set shares
+              </summary>
+              <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
+                {shareIds.map((id) => {
+                  const p = view.field.find((f) => f.id === id);
+                  if (!p) return null;
+                  return (
+                    <label
+                      key={id}
+                      style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}
+                    >
+                      <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        max={99}
+                        aria-label={`Shares for ${p.name}`}
+                        value={weights[id] ?? 1}
+                        onChange={(e) =>
+                          setWeights((prev) => ({ ...prev, [id]: Math.max(0, Number(e.target.value) || 0) }))
+                        }
+                        style={{ width: 68, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                      />
+                    </label>
+                  );
+                })}
+                <span className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+                  Shares, not amounts — two means twice as much as one. A zero leaves somebody on the
+                  line without charging them, which is how a guest gets included in the round and not
+                  in the bill.
+                </span>
+              </div>
+            </details>
           )}
 
           {/* Never render a split that does not add up. */}
