@@ -6,6 +6,7 @@ import { saveSideGame, setSideGameEntrants } from "@/app/actions/side-games";
 import { DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
 import { PersonChip } from "@/components/PersonChip";
 import { useMoney } from "@/components/CurrencyProvider";
+import { nameHold, type NameHold } from "@/lib/domain/bet-name";
 
 /**
  * A bet between whoever wants in, across whatever fourballs they are in.
@@ -75,7 +76,7 @@ export function SideBetStart({
 }: {
   stageId: string;
   field: Array<{ id: string; name: string }>;
-  taken: Array<{ name: string; kind: string }>;
+  taken: NameHold[];
   groups?: Array<{ name: string; playerIds: string[] }>;
 }) {
   const { parse } = useMoney();
@@ -89,9 +90,10 @@ export function SideBetStart({
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const trimmed = name.trim();
-  const clash = taken.some(
-    (t) => t.name.toLowerCase() === trimmed.toLowerCase() && (t.kind === "*" || t.kind === game),
-  );
+  // Taken, and WHY — the two reasons need two different sentences, and the
+  // rule lives in domain/bet-name so this and the server cannot disagree.
+  const held = nameHold(trimmed, game, taken);
+  const clash = !!held;
   // Two people minimum: a game against yourself has no one to win it from, and
   // every hole would carry to the end and pay you back your stake.
   const valid = trimmed.length > 0 && !clash && picked.size > 1;
@@ -250,10 +252,19 @@ export function SideBetStart({
         </div>
       </div>
 
-      {clash && (
+      {held && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          There is already a {chosen.label.toLowerCase()} game called that on this round. Give this
-          one its own name.
+          {held.kind === "*" ? (
+            <>
+              {held.name} is a group out on the course, and that game is theirs to run. Give yours
+              its own name.
+            </>
+          ) : (
+            <>
+              There is already a {chosen.label.toLowerCase()} game called that on this round. Give
+              this one its own name.
+            </>
+          )}
         </p>
       )}
 

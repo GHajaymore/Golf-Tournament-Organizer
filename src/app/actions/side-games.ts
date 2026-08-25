@@ -50,21 +50,34 @@ async function actorName(): Promise<string> {
  * lookup is a check that will eventually be missed — the difference between
  * this and a plain `gameById` is that forgetting is no longer possible.
  *
- * Null means "not yours", and every caller reports it as not found. Telling a
- * stranger that a game exists but is somebody else's is itself a disclosure.
+ * A refusal comes back as a RESULT, not a throw. "That fourball is not yours"
+ * is an ordinary thing to tell a player, and the screens already know how to
+ * show `{ ok: false, error }`; thrown, it reached the browser as a crash.
+ *
+ * A game that does not exist and a game that is somebody else's give the same
+ * message on purpose. Telling a stranger that a game exists but is not theirs
+ * is itself a disclosure.
  */
-async function requireGameAccess(
-  sideGameId: string,
-): Promise<{ game: { id: string; kind: string; stageId: string; groupKey: string }; eventId: string } | null> {
+type GameAccess =
+  | { ok: true; game: { id: string; kind: string; stageId: string; groupKey: string }; eventId: string }
+  | { ok: false; error: string };
+
+const NOT_YOURS = "That side game isn't in this tournament.";
+
+async function requireGameAccess(sideGameId: string): Promise<GameAccess> {
   const game = await prisma.sideGame.findUnique({
     where: { id: sideGameId },
     select: { id: true, kind: true, eventId: true, stageId: true, groupKey: true },
   });
-  if (!game) return null;
+  if (!game) return { ok: false, error: NOT_YOURS };
 
-  const eventId = await requirePotAccess(game.stageId, game.groupKey);
-  if (game.eventId !== eventId) return null;
-  return { game, eventId };
+  // The refusal is carried out rather than thrown, so a player told "that
+  // fourball is not yours" gets a sentence instead of a crashed screen.
+  const access = await requirePotAccess(game.stageId, game.groupKey);
+  if (!access.ok) return { ok: false, error: access.error };
+  if (game.eventId !== access.eventId) return { ok: false, error: NOT_YOURS };
+
+  return { ok: true, game, eventId: access.eventId };
 }
 
 async function logMoney(eventId: string, action: string, detail: string) {
@@ -101,7 +114,9 @@ export async function saveSideGame(
   // round's tee sheet, so an opt-out birdie pot belonging to a fourball enters
   // those four rather than the whole field. This was refused outright until
   // that was true, which is why the refusal is gone rather than relaxed.
-  const eventId = await requirePotAccess(stageId, groupKey);
+  const access = await requirePotAccess(stageId, groupKey);
+  if (!access.ok) return { ok: false, error: access.error };
+  const eventId = access.eventId;
   const name = await actorName();
 
   if (!KINDS.includes(kind)) return { ok: false, error: "Unknown side game." };
@@ -145,7 +160,7 @@ export async function setSideGameEntrants(
   playerIds: string[],
 ): Promise<SideGameResult> {
   const found = await requireGameAccess(sideGameId);
-  if (!found) return { ok: false, error: "That side game isn't in this tournament." };
+  if (!found.ok) return { ok: false, error: found.error };
   const { game, eventId } = found;
 
   const rows = await prisma.player.findMany({
@@ -281,7 +296,7 @@ export async function confirmSideGameEntry(
   paid: boolean,
 ): Promise<SideGameResult> {
   const found = await requireGameAccess(sideGameId);
-  if (!found) return { ok: false, error: "That side game isn't in this tournament." };
+  if (!found.ok) return { ok: false, error: found.error };
   const { game, eventId } = found;
 
   const entry = await prisma.sideGameEntry.findUnique({
@@ -297,7 +312,7 @@ export async function confirmSideGameEntry(
 
 export async function removeSideGame(sideGameId: string): Promise<SideGameResult> {
   const found = await requireGameAccess(sideGameId);
-  if (!found) return { ok: false, error: "That side game isn't in this tournament." };
+  if (!found.ok) return { ok: false, error: found.error };
   const { game, eventId } = found;
 
   await prisma.sideGame.delete({ where: { id: game.id } });

@@ -40,35 +40,55 @@ import { parseTeeSheet } from "../domain/tee-sheet";
  */
 export const AD_HOC_NAME_MAX = 40;
 
-/** Refuse a round belonging to somebody else's tournament. */
-async function stageInEvent(eventId: string, stageId: string): Promise<void> {
+/**
+ * The answer, not an exception.
+ *
+ * A refusal here is not an exceptional condition — "that fourball is not
+ * yours" is an ordinary thing to tell a player, and it arrives at a screen
+ * that already knows how to show `{ ok: false, error }`. Thrown, it escaped
+ * the server action and reached the browser as a runtime error overlay: the
+ * player had picked the game, named it, ticked the people and pressed the
+ * button, and the app crashed at them.
+ *
+ * A discriminated union rather than a boolean, so the compiler will not let
+ * a caller read `eventId` without first handling the refusal. That is what
+ * keeps this as safe as a throw: forgetting to check is a type error, not a
+ * silent pass.
+ */
+export type PotAccess = { ok: true; eventId: string } | { ok: false; error: string };
+
+const no = (error: string): PotAccess => ({ ok: false, error });
+const yes = (eventId: string): PotAccess => ({ ok: true, eventId });
+
+/** Whether this round belongs to the caller's tournament. */
+async function stageInEvent(eventId: string, stageId: string): Promise<boolean> {
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { eventId: true } });
-  if (!stage || stage.eventId !== eventId) throw new Error("Round not found");
+  return !!stage && stage.eventId === eventId;
 }
 
-export async function requirePotAccess(stageId: string, groupKey: string): Promise<string> {
+export async function requirePotAccess(stageId: string, groupKey: string): Promise<PotAccess> {
   const session = await getSession();
-  if (!session?.eventId) throw new Error("Not signed in");
+  if (!session?.eventId) return no("Not signed in");
   const eventId = session.eventId;
-  await stageInEvent(eventId, stageId);
+  if (!(await stageInEvent(eventId, stageId))) return no("Round not found");
 
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
-  if (isStaff) return eventId;
+  if (isStaff) return yes(eventId);
 
   const key = (groupKey ?? "").trim();
-  if (!key) throw new Error("Only an organizer or assistant can run the field's pot");
+  if (!key) return no("Only an organizer or assistant can run the field's pot");
 
   const email = (session.email ?? "").trim().toLowerCase();
-  if (!email) throw new Error("Only an organizer or assistant can do that");
+  if (!email) return no("Only an organizer or assistant can do that");
 
   const me = await prisma.player.findFirst({
     where: { eventId, email: { equals: email, mode: "insensitive" }, status: "confirmed" },
     select: { id: true },
   });
-  if (!me) throw new Error("Only a player in that group can run its game");
+  if (!me) return no("Only a player in that group can run its game");
 
   if (key.length > AD_HOC_NAME_MAX) {
-    throw new Error(`Keep the name under ${AD_HOC_NAME_MAX} characters`);
+    return no(`Keep the name under ${AD_HOC_NAME_MAX} characters`);
   }
 
   /**
@@ -105,7 +125,7 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
   const entrants = new Set(
     [...pots, ...games].flatMap((p) => p.entrants.map((e) => e.playerId)),
   );
-  if (entrants.has(me.id)) return eventId;
+  if (entrants.has(me.id)) return yes(eventId);
 
   /**
    * A TEE-SHEET GROUP: the fourball currently playing together, and NOBODY
@@ -127,8 +147,8 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
   const sheet = parseTeeSheet(stage?.teeSheet ?? "");
   const group = sheet?.groups.find((g) => g.name === key);
   if (group) {
-    if (group.playerIds.includes(me.id)) return eventId;
-    throw new Error("Only somebody in that group can run its game");
+    if (group.playerIds.includes(me.id)) return yes(eventId);
+    return no("Only somebody in that group can run its game");
   }
 
   /**
@@ -145,7 +165,7 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
    * audience to the whole field rather than to a group: there is no set of
    * players it can silently enter.
    */
-  if (entrants.size === 0) return eventId;
+  if (entrants.size === 0) return yes(eventId);
 
-  throw new Error("Only somebody in this game can change it");
+  return no("Only somebody in this game can change it");
 }

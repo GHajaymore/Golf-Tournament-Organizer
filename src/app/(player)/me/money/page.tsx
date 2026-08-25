@@ -121,6 +121,24 @@ export default async function MoneyPage() {
             select: { groupKey: true, kind: true },
           })
         ).map((r) => ({ name: r.groupKey, kind: r.kind })),
+        /**
+         * AND EVERY TEE-SHEET GROUP NAME, reserved across all games.
+         *
+         * The organizer's screen did this and the player's did not, so a
+         * player could name their bet after a fourball they are not in. The
+         * server refuses it — `requirePotAccess` answers a tee-sheet name by
+         * membership alone — but only after they have picked the game, named
+         * it, ticked the people and pressed the button. A refusal you could
+         * have shown while they were typing is a refusal in the wrong place.
+         *
+         * Reserved with `"*"` rather than per kind: an ad-hoc bet borrowing a
+         * group's name would resolve its audience to that group, whatever
+         * game it is.
+         */
+        ...(parseTeeSheet(bettable.teeSheet ?? "")?.groups ?? []).map((g) => ({
+          name: g.name,
+          kind: "*",
+        })),
       ]
     : [];
 

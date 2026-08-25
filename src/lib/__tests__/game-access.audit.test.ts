@@ -127,13 +127,17 @@ const asPlayer = (who: string) => {
   session = { eventId, email: email[who], viewRole: "player", name: who };
 };
 
-/** Did it allow? Returns the eventId on yes, or the refusal message on no. */
+/**
+ * Did it allow? Returns the eventId on yes, or the refusal message on no.
+ *
+ * The rule ANSWERS rather than throwing — a refusal is an ordinary thing to
+ * tell a player, and thrown it reached the browser as a crashed screen instead
+ * of a sentence. Flattened to one string here so each case below reads as the
+ * question it is asking.
+ */
 async function ask(key: string, stage = stageId): Promise<string> {
-  try {
-    return await requirePotAccess(stage, key);
-  } catch (e) {
-    return (e as Error).message;
-  }
+  const answer = await requirePotAccess(stage, key);
+  return answer.ok ? answer.eventId : answer.error;
 }
 
 describe("the field's game belongs to the organizer", () => {

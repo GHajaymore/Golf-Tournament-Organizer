@@ -41,7 +41,9 @@ export async function saveSkinsPot(
 ): Promise<SkinsResult> {
   const groupKey = (input.groupKey ?? "").trim();
   // Staff for the field's pot; a player in that fourball for the group's own.
-  const eventId = await requirePotAccess(stageId, groupKey);
+  const access = await requirePotAccess(stageId, groupKey);
+  if (!access.ok) return { ok: false, error: access.error };
+  const eventId = access.eventId;
 
   const buyIn = Math.round(input.buyInCents);
   if (!Number.isFinite(buyIn) || buyIn < 0) {
@@ -98,7 +100,9 @@ export async function setSkinsEntrants(
   groupKey: string = "",
 ): Promise<SkinsResult> {
   const key = (groupKey ?? "").trim();
-  const eventId = await requirePotAccess(stageId, key);
+  const access = await requirePotAccess(stageId, key);
+  if (!access.ok) return { ok: false, error: access.error };
+  const eventId = access.eventId;
   if (!isSkinsScope(scope)) {
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }
@@ -184,7 +188,9 @@ export async function removeSkinsPot(
   groupKey: string = "",
 ): Promise<SkinsResult> {
   const key = (groupKey ?? "").trim();
-  const eventId = await requirePotAccess(stageId, key);
+  const access = await requirePotAccess(stageId, key);
+  if (!access.ok) return { ok: false, error: access.error };
+  const eventId = access.eventId;
   if (!isSkinsScope(scope)) {
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }

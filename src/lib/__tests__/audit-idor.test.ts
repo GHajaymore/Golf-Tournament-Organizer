@@ -390,7 +390,11 @@ describe("requirePotAccess is a real check, not a reassuring name", () => {
   it("keeps the FIELD's pot organizer-only", () => {
     // An empty groupKey is the tournament's own money. Players get their own
     // group's game, not the club's.
-    expect(fn).toMatch(/if\s*\(!key\)\s*throw/);
+    // A refusal, thrown or returned. The rule ANSWERS rather than throwing —
+    // a thrown refusal escaped the server action and reached the browser as a
+    // runtime error overlay instead of a sentence — so what is pinned here is
+    // that the field's pot is refused at all, not how the refusal travels.
+    expect(fn).toMatch(/if\s*\(!key\)\s*(throw|return no\()/);
   });
 
   it("reads group membership from the tee sheet, never from the caller", () => {
@@ -418,7 +422,7 @@ describe("requirePotAccess is a real check, not a reassuring name", () => {
     expect(at, "the tee-sheet branch must be a closed if (group) { ... }").toBeGreaterThan(-1);
     // Between entering that branch and leaving it, there is a throw.
     const branch = fn.slice(at, fn.indexOf("entrants.size === 0"));
-    expect(branch).toMatch(/throw new Error/);
+    expect(branch).toMatch(/throw new Error|return no\(/);
   });
 
   it("resolves the caller from the session, not from a parameter", () => {
@@ -477,7 +481,11 @@ describe("an ad-hoc side bet is still somebody's, not everybody's", () => {
     // start; leaving it open once people ARE in it would let anyone re-price
     // or empty somebody else's game.
     expect(fn).toMatch(/entrants\.size === 0/);
-    expect(fn).toMatch(/throw new Error\("Only somebody in this game can change it"\)/);
+    // Refused, thrown or returned — the rule answers rather than throwing so
+    // the player gets a sentence rather than a crashed screen.
+    expect(fn).toMatch(
+      /(throw new Error|return no)\("Only somebody in this game can change it"\)/,
+    );
   });
 
   it("bounds the name rather than truncating it", () => {
