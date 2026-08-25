@@ -49,14 +49,19 @@ const KINDS = ["low-gross", "low-net", "birdies", "eagles", "nassau"];
 /**
  * Start (or re-price) one derived bet on a round.
  *
- * Upserts on (stageId, kind) because a round has at most one birdie pot — two
- * would be two prices for the same bet, and the cards cannot tell them apart.
+ * Upserts on (stageId, kind, groupKey) — one birdie pot per group per round.
+ * Two at the same key would be two prices for one bet and the cards could not
+ * tell them apart; two at DIFFERENT keys are two fourballs each running their
+ * own, which is the ordinary case and used to overwrite.
  */
 export async function saveSideGame(
   stageId: string,
   kind: string,
   buyInCents: number,
+  /** The field's game, or one fourball's. Empty is the field's. */
+  groupKeyInput: string = "",
 ): Promise<SideGameResult> {
+  const groupKey = (groupKeyInput ?? "").trim();
   const { eventId, name } = await requireStaff();
 
   if (!KINDS.includes(kind)) return { ok: false, error: "Unknown side game." };
@@ -70,7 +75,7 @@ export async function saveSideGame(
   }
 
   const game = await prisma.sideGame.upsert({
-    where: { stageId_kind: { stageId, kind } },
+    where: { stageId_kind_groupKey: { stageId, kind, groupKey } },
     update: { buyInCents: cents },
     create: { eventId, stageId, kind, buyInCents: cents, createdBy: name },
   });

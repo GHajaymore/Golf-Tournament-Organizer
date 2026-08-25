@@ -140,7 +140,13 @@ const SCOPE_KEY = /\b(eventId|organizationId|userId|session\.email)\b/;
  *   - the row is fetched by this id and its own eventId/organizationId is
  *     compared afterwards — `stageInEvent`'s pattern, written out inline;
  *   - the id is handed to a helper whose job is to assert exactly this
- *     (`assertOwnMatch`, `assertEventStage`, `stageInEvent`, `effectiveAccess`).
+ *     (`assertOwnMatch`, `assertEventStage`, `stageInEvent`, `effectiveAccess`,
+ *     or a `require*Access`).
+ *
+ * That last shape is a NAME being trusted to do a job, which is only worth
+ * anything while the named thing actually does it. `requirePotAccess` is
+ * covered by its own test below, so widening this pattern did not quietly
+ * turn it into a way to opt out by choosing a filename.
  */
 function isParamScoped(body: string, param: string, alreadyScoped: string[]): boolean {
   const clauses = whereClauses(body);
@@ -161,7 +167,7 @@ function isParamScoped(body: string, param: string, alreadyScoped: string[]): bo
     new RegExp(`where:\\s*\\{\\s*id:\\s*${param}\\b`).test(body) &&
     /\.(eventId|organizationId)\s*(!==|===)/.test(body);
   const handedToAssertion = new RegExp(
-    `\\b(assert\\w+|\\w+InEvent|effectiveAccess)\\s*\\([^)]*\\b${param}\\b`,
+    `\\b(assert\\w+|\\w+InEvent|effectiveAccess|require\\w*Access)\\s*\\([^)]*\\b${param}\\b`,
   ).test(body);
   // Or it is tested for membership of a set built from a scoped query — how
   // the bulk paths narrow ids they receive by the hundred rather than issuing
@@ -337,5 +343,60 @@ describe("the club theme cannot inject CSS", () => {
     expect(body).toMatch(/isAppearance\(appearance\)/);
     // And it is still an organizer-only write.
     expect(body).toMatch(/org\.canEdit/);
+  });
+});
+
+/**
+ * The helper the IDOR sweep now trusts by name.
+ *
+ * `isParamScoped` accepts an id as scoped when it is handed to a
+ * `require*Access` helper. That is a name vouching for a behaviour, and a name
+ * is worth nothing on its own — so the behaviour is pinned here.
+ *
+ * `requirePotAccess` widened who may write a skins pot: a fourball's own game
+ * can be set up by any player in that fourball, without the organizer. That is
+ * a deliberate loosening, and it is only safe while all four of these hold. If
+ * any one goes, a player can reach another group's money.
+ */
+describe("requirePotAccess is a real check, not a reassuring name", () => {
+  const src = readFileSync(join(ACTIONS_DIR, "skins.ts"), "utf8");
+  const start = src.indexOf("async function requirePotAccess");
+  // Bounded by the next top-level declaration rather than by a brace pattern:
+  // matching "\n}\n" depends on the file's line endings, and on CRLF it found
+  // nothing and silently sliced the body down to one character — a test that
+  // passes vacuously is worse than one that fails.
+  const after = src.indexOf("\nexport ", start);
+  const fn = start === -1 ? "" : src.slice(start, after === -1 ? undefined : after);
+
+  it("exists at all", () => {
+    expect(start, "requirePotAccess has been renamed or removed").toBeGreaterThan(-1);
+    expect(fn.length).toBeGreaterThan(200);
+  });
+
+  it("proves the round belongs to the caller's tournament", () => {
+    // Without this the group check below is asked about a stage in somebody
+    // else's event, and would happily pass for a group name that matches.
+    expect(fn).toMatch(/stageInEvent\(\s*eventId\s*,\s*stageId\s*\)/);
+  });
+
+  it("keeps the FIELD's pot organizer-only", () => {
+    // An empty groupKey is the tournament's own money. Players get their own
+    // group's game, not the club's.
+    expect(fn).toMatch(/if\s*\(!key\)\s*throw/);
+  });
+
+  it("reads group membership from the tee sheet, never from the caller", () => {
+    // The group name arrives over HTTP. What must NOT arrive over HTTP is who
+    // is in it — otherwise a caller names any group and claims to be in it.
+    expect(fn).toMatch(/parseTeeSheet\(/);
+    expect(fn).toMatch(/group\.playerIds\.includes\(me\.id\)/);
+  });
+
+  it("resolves the caller from the session, not from a parameter", () => {
+    // `me` comes from the signed-in email against this event's players. A
+    // playerId parameter here would let anyone act as anyone.
+    expect(fn).toMatch(/session\.email/);
+    expect(fn).toMatch(/prisma\.player\.findFirst\(/);
+    expect(fn).not.toMatch(/\bplayerId\s*[,)]/);
   });
 });

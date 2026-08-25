@@ -331,7 +331,11 @@ export function SkinsPotClient({
           className="btn btn-ghost"
           style={{ alignSelf: "flex-start", fontSize: 12 }}
           disabled={pending}
-          onClick={() => run(() => removeSkinsPot(activeStageId, view.net))}
+          onClick={() =>
+            // view.scope, not the picker's `scope`: this removes the pot being
+            // SHOWN, and the picker may have been moved without saving.
+            run(() => removeSkinsPot(activeStageId, view.net, view.scope))
+          }
         >
           Remove this pot
         </button>

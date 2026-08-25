@@ -63,10 +63,17 @@ export async function skinsPotFor(
    * round and only the pair (net, scope) tells them apart.
    */
   scope: SkinsScope,
+  /**
+   * And whose: the field's pot, or one fourball's own game. Empty is the
+   * field's, which is every pot that existed before groups could run their
+   * own — so an existing caller that does not pass this reads exactly the pot
+   * it always read.
+   */
+  groupKey: string = "",
 ): Promise<SkinsPotView | null> {
   const [pot, stage, event] = await Promise.all([
     prisma.skinsPot.findUnique({
-      where: { stageId_net_scope: { stageId, net, scope } },
+      where: { stageId_net_scope_groupKey: { stageId, net, scope, groupKey } },
       include: { entrants: true },
     }),
     prisma.stage.findUnique({ where: { id: stageId }, select: { id: true, eventId: true, holes: true } }),

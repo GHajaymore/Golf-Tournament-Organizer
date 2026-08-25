@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { isSkinsScope } from "@/lib/domain/skins-pot";
+import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 
 /**
  * The skins pot on a league round.
@@ -40,6 +41,55 @@ function refresh() {
 }
 
 /**
+ * Who may run WHICH pot.
+ *
+ * Two different answers, because these are two different pots:
+ *
+ *  - The FIELD's pot (`groupKey` empty) is the tournament's money and stays
+ *    organizer-or-assistant, exactly as it always was.
+ *  - A GROUP's pot belongs to the fourball playing it. A casual $20 skins
+ *    between four players should not need the organizer, so any player in
+ *    that group may set it up — AND ONLY THAT GROUP. This is the check that
+ *    matters: without it, "players may create group pots" would let any
+ *    player in the field create or overwrite any other group's game, which is
+ *    strictly worse than staff-only.
+ *
+ * Membership is read from the stage's published tee sheet, not from anything
+ * the caller sent. A `"use server"` export is a public HTTP endpoint and will
+ * be called with whatever the caller likes, including somebody else's group
+ * name.
+ */
+async function requirePotAccess(stageId: string, groupKey: string): Promise<string> {
+  const session = await getSession();
+  if (!session?.eventId) throw new Error("Not signed in");
+  const eventId = session.eventId;
+  await stageInEvent(eventId, stageId);
+
+  const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+  if (isStaff) return eventId;
+
+  const key = (groupKey ?? "").trim();
+  if (!key) throw new Error("Only an organizer or assistant can run the field's pot");
+
+  const email = (session.email ?? "").trim().toLowerCase();
+  if (!email) throw new Error("Only an organizer or assistant can do that");
+
+  const me = await prisma.player.findFirst({
+    where: { eventId, email: { equals: email, mode: "insensitive" }, status: "confirmed" },
+    select: { id: true },
+  });
+  if (!me) throw new Error("Only a player in that group can run its game");
+
+  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { teeSheet: true } });
+  const sheet = parseTeeSheet(stage?.teeSheet ?? "");
+  const group = sheet?.groups.find((g) => g.name === key);
+  if (!group || !group.playerIds.includes(me.id)) {
+    throw new Error("Only a player in that group can run its game");
+  }
+  return eventId;
+}
+
+/**
  * Set up (or change) the pot on a round.
  *
  * Creates it on first save, so an organizer never has to "start a pot" as a
@@ -47,10 +97,11 @@ function refresh() {
  */
 export async function saveSkinsPot(
   stageId: string,
-  input: { buyInCents: number; net: boolean; scope: string },
+  input: { buyInCents: number; net: boolean; scope: string; groupKey?: string },
 ): Promise<SkinsResult> {
-  const eventId = await requireStaff();
-  await stageInEvent(eventId, stageId);
+  const groupKey = (input.groupKey ?? "").trim();
+  // Staff for the field's pot; a player in that fourball for the group's own.
+  const eventId = await requirePotAccess(stageId, groupKey);
 
   const buyIn = Math.round(input.buyInCents);
   if (!Number.isFinite(buyIn) || buyIn < 0) {
@@ -60,15 +111,20 @@ export async function saveSkinsPot(
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }
 
-  // Keyed on the round, the scoring AND THE SCOPE. A league night runs four
-  // games — front and back, each gross and net — and without the scope in the
-  // key, saving the back-nine pot upserted the front-nine one: the same row,
-  // so the front game's entrants and their money silently became the back
-  // game's and the front game vanished.
+  // Keyed on the round, the scoring, THE SCOPE and THE GROUP. A league night
+  // runs four games — front and back, each gross and net — and without the
+  // scope in the key, saving the back-nine pot upserted the front-nine one:
+  // the same row, so the front game's entrants and their money silently became
+  // the back game's and the front game vanished.
+  //
+  // `groupKey` is here for exactly the same reason one level up: two fourballs
+  // each running their own net front-nine skins are two pots, and without it
+  // the second one saved would overwrite the first — the same silent loss of
+  // somebody's money, one scope wider.
   const data = { buyInCents: buyIn };
   await prisma.skinsPot.upsert({
-    where: { stageId_net_scope: { stageId, net: input.net, scope: input.scope } },
-    create: { eventId, stageId, net: input.net, scope: input.scope, ...data },
+    where: { stageId_net_scope_groupKey: { stageId, net: input.net, scope: input.scope, groupKey } },
+    create: { eventId, stageId, net: input.net, scope: input.scope, groupKey, ...data },
     update: data,
   });
   refresh();
@@ -98,9 +154,11 @@ export async function setSkinsEntrants(
    */
   scope: string,
   playerIds: string[],
+  /** Which pot again: the field's, or one fourball's. Empty is the field's. */
+  groupKey: string = "",
 ): Promise<SkinsResult> {
-  const eventId = await requireStaff();
-  await stageInEvent(eventId, stageId);
+  const key = (groupKey ?? "").trim();
+  const eventId = await requirePotAccess(stageId, key);
   if (!isSkinsScope(scope)) {
     return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
   }
@@ -118,8 +176,8 @@ export async function setSkinsEntrants(
   const ids = valid.map((p) => p.id);
 
   const pot = await prisma.skinsPot.upsert({
-    where: { stageId_net_scope: { stageId, net, scope } },
-    create: { eventId, stageId, net, scope },
+    where: { stageId_net_scope_groupKey: { stageId, net, scope, groupKey: key } },
+    create: { eventId, stageId, net, scope, groupKey: key },
     update: {},
   });
 
@@ -140,11 +198,30 @@ export async function setSkinsEntrants(
  * Not the same as emptying it: a round with no pot never had a game, while a
  * pot with nobody in it is a game nobody joined. Entries go with it.
  */
-export async function removeSkinsPot(stageId: string, net: boolean): Promise<SkinsResult> {
-  const eventId = await requireStaff();
-  await stageInEvent(eventId, stageId);
-  // Only the pot named — a club running both keeps the other one.
-  await prisma.skinsPot.deleteMany({ where: { stageId, eventId, net } });
+export async function removeSkinsPot(
+  stageId: string,
+  net: boolean,
+  /**
+   * WHICH pot. Required for the same reason `setSkinsEntrants` requires it.
+   *
+   * This deleted on `{ stageId, eventId, net }` alone, so removing the net
+   * front-nine pot also deleted the net back-nine and net full-round pots and
+   * every entry in them. The scope went into the unique key when the front and
+   * back pots were found to be overwriting each other; the DELETE was missed,
+   * and a delete is the one operation where missing it cannot be noticed
+   * afterwards.
+   */
+  scope: string,
+  /** The field's pot, or one fourball's. Empty is the field's. */
+  groupKey: string = "",
+): Promise<SkinsResult> {
+  const key = (groupKey ?? "").trim();
+  const eventId = await requirePotAccess(stageId, key);
+  if (!isSkinsScope(scope)) {
+    return { ok: false, error: "Choose the front nine, the back nine, or all eighteen." };
+  }
+  // Exactly the pot named, and nothing beside it.
+  await prisma.skinsPot.deleteMany({ where: { stageId, eventId, net, scope, groupKey: key } });
   refresh();
   return { ok: true };
 }
