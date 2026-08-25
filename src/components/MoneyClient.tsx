@@ -37,18 +37,17 @@ import { useMoney } from "@/components/CurrencyProvider";
 type Scope = "group" | "everyone" | "pick";
 type SplitMode = "evenly" | "shares" | "exact" | "percent";
 
-/** Cents from whatever somebody typed, tolerant of "$", spaces and commas. */
-const centsFrom = (text: string): number => {
-  const n = Number((text ?? "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? Math.round(n * 100) : 0;
-};
+/* What somebody typed is parsed by the CLUB'S currency — `useMoney().parse`,
+   taken as `centsFrom` below so the call sites read the same. This was a local
+   helper multiplying by a hundred, which is a hundredfold overcharge in a
+   currency that has no minor unit. */
 
 /** One shared empty list, so "no group" keeps the same identity between
  *  renders and a `useMemo` depending on it can actually memoize. */
 const NO_IDS: string[] = [];
 
 export function MoneyClient({ view }: { view: MoneyView }) {
-  const { money, plain } = useMoney();
+  const { money, plain, parse: centsFrom } = useMoney();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);

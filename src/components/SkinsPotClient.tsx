@@ -83,7 +83,7 @@ export function SkinsPotClient({
   /** What to call it, when it is a group's rather than the field's. */
   groupLabel?: string;
 }) {
-  const { plain: money } = useMoney();
+  const { plain: money, parse: parseBuyIn } = useMoney();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -107,7 +107,7 @@ export function SkinsPotClient({
   const saveSetup = () =>
     run(() =>
       saveSkinsPot(activeStageId, {
-        buyInCents: Math.round(parseFloat(buyIn || "0") * 100),
+        buyInCents: parseBuyIn(buyIn),
         net: view.net,
         scope,
         groupKey,
