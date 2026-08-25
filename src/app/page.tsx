@@ -851,14 +851,17 @@ export default async function LoginPage() {
           <div className="reveal">
             <div className="sec-kick" style={paperInk}>The money</div>
             <h2 className="sec-h" style={paperInk}>One settle-up, golf included.</h2>
-            {/* No named products here, and none anywhere on this page. The
-                argument stands on what the app does; naming somebody else
-                dates the copy and picks a fight the reader did not come for. */}
+            {/* No named products here, and none anywhere on this page.
+                It also does not pretend splitting is hard. It is not, and
+                the apps that do it do it well — the claim is about where the
+                NUMBERS come from, which is the half they cannot help with. */}
             <p className="sec-sub" style={paperInk}>
-              A bill-splitting app can divide a dinner. It cannot know who also lost the skins, won
-              the long drive, and owes for two guests. TourneyHQ adds the entry fees, the side games
-              and the pot together and produces the fewest handovers that square everybody — and it
-              never touches a penny of it.
+              Splitting a bill is the easy half, and this does that too: the hotel, the buggies,
+              the round of drinks, shared however you like. The half that costs an evening is
+              knowing the amounts — somebody has to work out that a player won three skins at
+              $22.50, lost the front nine, and owes for a guest, then type it in. Here nobody types
+              it. The golf money IS the card, and the trip and the competition net off into one
+              balance and one handover.
             </p>
           </div>
           <div className="calc reveal" style={{ maxWidth: 440 }}>
