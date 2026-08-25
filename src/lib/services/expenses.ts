@@ -24,7 +24,7 @@ import {
   type DerivedKind,
 } from "../domain/derived-games";
 import { skinsPotFor } from "./skins-pot";
-import { isSkinsScope } from "@/lib/domain/skins-pot";
+import { isSkinsScope, skinsGameLabel } from "@/lib/domain/skins-pot";
 import { loadEventState, matchSettled, type HoleResultArr } from "./tournament";
 import { resolveCourse } from "../courses";
 import { holeStrokesReceived, allocationHoles } from "../domain";
@@ -149,6 +149,14 @@ export interface MoneyView {
     youIn: boolean;
     youConfirmed: boolean;
   }>;
+  /**
+   * The signed-in player’s side-game money, itemised.
+   *
+   * What the “rest of your side bets” lump used to be. A player can now see
+   * WHICH game and WHICH holes produced it — the thing a general expense
+   * splitter can never show, because it never scored the round.
+   */
+  gameLines: Array<{ label: string; detail: string; cents: number }>;
   /** True when this tournament has any money recorded at all. */
   used: boolean;
 }
@@ -170,7 +178,18 @@ export interface MoneyView {
  * nothing — better for the screen to be honest about what it knows than to
  * invent a number for a bet the app never recorded.
  */
-async function gameNets(eventId: string, onlyStageId?: string): Promise<Net[]> {
+/** One game, and what it did for one player. */
+export interface GameLine {
+  playerId: string;
+  label: string;
+  detail: string;
+  cents: number;
+}
+
+async function gameNets(
+  eventId: string,
+  onlyStageId?: string,
+): Promise<{ nets: Net[]; lines: GameLine[] }> {
   // The field an opt-out pot draws its members from. Confirmed entries only:
   // "everyone in the field" means everyone PLAYING.
   const fieldRows = await prisma.player.findMany({
@@ -183,6 +202,16 @@ async function gameNets(eventId: string, onlyStageId?: string): Promise<Net[]> {
   // view and the outing ledger read the same arithmetic.
   const stageWhere = onlyStageId ? { stageId: onlyStageId } : {};
   const totals = new Map<string, number>();
+  /**
+   * The itemised half.
+   *
+   * A player saw their skins money as one lump captioned “the rest of your
+   * side bets” — money in their own total that the screen could not account
+   * for, which is the fastest way to make a correct number look wrong. The
+   * pot service already knows which holes somebody won; it was thrown away
+   * one line later.
+   */
+  const lines: GameLine[] = [];
   const add = (playerId: string, cents: number) => {
     if (!playerId || cents === 0) return;
     totals.set(playerId, (totals.get(playerId) ?? 0) + cents);
@@ -205,7 +234,21 @@ async function gameNets(eventId: string, onlyStageId?: string): Promise<Net[]> {
     );
     // A pot with nobody in it has no result and no money — `result` is null
     // until somebody is entered, which is not the same as everyone at zero.
-    for (const share of view?.result?.shares ?? []) add(share.playerId, share.netCents);
+    for (const share of view?.result?.shares ?? []) {
+      add(share.playerId, share.netCents);
+      if (!view) continue;
+      // Which holes this player actually took, so the figure can be checked
+      // against what they remember of the round rather than believed.
+      const won = view.holes.filter((h) => h.playerId === share.playerId).map((h) => h.hole);
+      lines.push({
+        playerId: share.playerId,
+        label: skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full"),
+        detail: won.length
+          ? `won ${won.length === 1 ? "the" : ""} ${won.length === 1 ? "" : won.length + " holes: "}${won.join(", ")}`.replace(/s+/g, " ").trim()
+          : "no skins won",
+        cents: share.netCents,
+      });
+    }
   }
 
   // ── Derived pots: low gross, low net, birdies, eagles, Nassau ───────────
@@ -333,7 +376,10 @@ async function gameNets(eventId: string, onlyStageId?: string): Promise<Net[]> {
     add(n.playerId, n.netCents);
   }
 
-  return [...totals.entries()].map(([playerId, netCents]) => ({ playerId, netCents }));
+  return {
+    nets: [...totals.entries()].map(([playerId, netCents]) => ({ playerId, netCents })),
+    lines,
+  };
 }
 
 export async function moneyFor(eventId: string, email: string): Promise<MoneyView> {
@@ -386,7 +432,7 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
   }));
 
   const expenseNets = balances(domain, players.map((p) => p.id));
-  const games = await gameNets(eventId);
+  const gamesResult = await gameNets(eventId);
 
   /**
    * What has already changed hands.
@@ -404,6 +450,7 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
   }
   for (const [playerId, netCents] of settledTotals) settledNets.push({ playerId, netCents });
 
+  const { nets: games, lines: gameLines } = gamesResult;
   const standingNets = combinedBalances(combinedBalances(expenseNets, games), settledNets);
   const position = me
     ? positionFor(me.id, expenseNets, games)
@@ -545,6 +592,11 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
           youConfirmed: !!mine?.confirmed,
         };
       }),
+    // Only the signed-in player’s. Somebody else’s itemised winnings are
+    // not this screen’s to hand out.
+    gameLines: me
+      ? gameLines.filter((l) => l.playerId === me.id).map(({ label, detail, cents }) => ({ label, detail, cents }))
+      : [],
     used:
       rows.length > 0 ||
       settlements.length > 0 ||
@@ -711,7 +763,7 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
 
     // Nothing is computed for a round in progress. Not hidden after the fact —
     // not worked out at all, so there is no half-answer to leak.
-    const nets = final ? await gameNets(eventId, stage.id) : [];
+    const nets = final ? (await gameNets(eventId, stage.id)).nets : [];
     for (const n of nets) outingTotals.set(n.playerId, (outingTotals.get(n.playerId) ?? 0) + n.netCents);
 
     rounds.push({

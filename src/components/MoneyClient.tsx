@@ -574,6 +574,44 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               <span className="text-muted" style={{ fontSize: 11.5 }}>
                 Your share of the skins and the score pots — worked out from the cards.
               </span>
+              {/* ITEMISED, where it used to be a lump.
+                  This was money in a player's own total that the screen could
+                  not account for — captioned honestly, and still the fastest
+                  way to make a correct number look wrong. The pot service
+                  always knew which holes somebody won; it was thrown away one
+                  line later.
+
+                  It is also the half a general expense splitter can never
+                  show, because it never scored the round. */}
+              {view.gameLines.length > 0 && (
+                <span style={{ display: "block", marginTop: 6 }}>
+                  {view.gameLines.map((l) => (
+                    <span
+                      key={`${l.label}-${l.detail}`}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        fontSize: 12,
+                        padding: "2px 0",
+                      }}
+                    >
+                      <span className="text-muted" style={{ minWidth: 0 }}>
+                        {l.label} — {l.detail}
+                      </span>
+                      <span
+                        style={{
+                          fontVariantNumeric: "tabular-nums",
+                          whiteSpace: "nowrap",
+                          color: l.cents > 0 ? "var(--color-accent-2-300)" : undefined,
+                        }}
+                      >
+                        {money(l.cents)}
+                      </span>
+                    </span>
+                  ))}
+                </span>
+              )}
             </span>
             <span
               style={{
