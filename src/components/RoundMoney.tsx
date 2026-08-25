@@ -32,6 +32,39 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
     <section className="card elev-sm" style={{ gap: 10 }}>
       <span className="card-title" style={{ fontSize: 15 }}>The pots</span>
 
+      {/*
+        What is riding on the round in front of you.
+
+        A player can be in the club's pot, their fourball's skins, a birdie pot
+        and a two-man bet at once, and every one of those was its own row with
+        no total anywhere. This is the number somebody wants walking to the
+        first tee, and it is a STAKE rather than a position — knowable the
+        moment the bets are agreed, and unchanged by what the cards do — which
+        is the only reason it is safe to show while a round is still live.
+      */}
+      {view.playerId && view.stake.games > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            gap: 10,
+            padding: "8px 12px",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--color-border)",
+            minWidth: 0,
+          }}
+        >
+          <span className="text-muted" style={{ fontSize: 12.5, minWidth: 0, lineHeight: 1.5 }}>
+            You&rsquo;re in {view.stake.games} {view.stake.games === 1 ? "game" : "games"} still to
+            play
+          </span>
+          <span style={{ fontFamily: "var(--font-heading)", fontSize: 16, whiteSpace: "nowrap" }}>
+            {fmt(view.stake.cents)} in
+          </span>
+        </div>
+      )}
+
       {!view.playerId ? (
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
           You aren&rsquo;t in this tournament&rsquo;s field, so there is nothing here for you.

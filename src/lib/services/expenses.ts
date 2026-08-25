@@ -15,6 +15,7 @@ import { isPlayingRound } from "../stage-types";
 import { resolveMoneyMode, sharedCostsApply, moneyScreenApplies } from "../domain/money-mode";
 import { roundMoneyIsFinal } from "../domain/money-layout";
 import { potMembership, isPotEntryMode } from "../domain/pot-entry";
+import { potAudience } from "../domain/pot-audience";
 import { contestLedger, contestNets, isContestKind, isDecided, potOf } from "../domain/contests";
 import {
   derivedNets,
@@ -291,13 +292,13 @@ async function gameNets(
   // from loadEventState's own resolver, so a net pot and the leaderboard
   // cannot disagree about how many strokes somebody receives.
   const sideGames = await prisma.sideGame.findMany({
-    // The FIELD's games. Stated rather than assumed: these settle across
-    // everyone entered, so a group-scoped row here would charge the whole
-    // field for a fourball's private bet. `saveSideGame` refuses to create one
-    // until this reader knows how to settle it — the filter and the refusal
-    // are one rule written in two places on purpose, so that removing either
-    // leaves the other still saying no.
-    where: { eventId, groupKey: "", ...stageWhere },
+    // Every game, the club's and each fourball's, WITH its group — the same
+    // shape the skins pots read in. This filtered to the field's games and
+    // `saveSideGame` refused to create any other, because settling a group's
+    // game meant charging the whole field for a fourball's private bet. What
+    // was missing was never the arithmetic: it was knowing WHO the pot's
+    // audience is, which is resolved per game below.
+    where: { eventId, ...stageWhere },
     include: { entrants: true },
   });
   if (sideGames.length > 0) {
@@ -314,9 +315,27 @@ async function gameNets(
         const pars = course.pars.slice(0, holes);
 
         if (game.kind === "nassau") {
-          // Every match in the round, at the same stake — how a club calls one.
+          /**
+           * Every match in the round, at the same stake — how a club calls one.
+           *
+           * A GROUP's Nassau is the matches inside that fourball, which needs
+           * no audience calculation: a Nassau is settled between the two
+           * players in a match, so restricting to matches whose BOTH players
+           * are in the group is the whole of it. A match spanning two groups
+           * belongs to neither's private bet.
+           */
+          const nassauGroup = game.groupKey
+            ? parseTeeSheet(stage.teeSheet ?? "")?.groups.find((g) => g.name === game.groupKey)
+            : null;
+          const inNassau = nassauGroup ? new Set(nassauGroup.playerIds) : null;
           const bets = state.matches
-            .filter((m) => m.stageId === game.stageId && m.playerAId && m.playerBId)
+            .filter(
+              (m) =>
+                m.stageId === game.stageId &&
+                m.playerAId &&
+                m.playerBId &&
+                (!inNassau || (inNassau.has(m.playerAId) && inNassau.has(m.playerBId))),
+            )
             .map((m) => {
               let parsed: HoleResultArr = [];
               try {
@@ -342,9 +361,15 @@ async function gameNets(
         // intention and the stake is the cash the organizer took — and opt-out
         // means the field, which carries no rows for the people who never had
         // to say anything.
+        // Who this pot is OFFERED to: the field for the club's game, the
+        // fourball for a group's. One reader, in domain/pot-audience.ts, and
+        // tested there — the rule matters most in opt-out mode, where the
+        // audience IS the membership.
+        const audience = potAudience(game.groupKey, stage.teeSheet ?? "", fieldIds);
+
         const entrantIds = potMembership(
           isPotEntryMode(game.entryMode) ? game.entryMode : "opt-in",
-          fieldIds,
+          audience,
           game.entrants,
         ).entrants;
         const potCards = cards
@@ -463,8 +488,10 @@ export async function moneyFor(
       include: { entrants: true },
     }),
     prisma.sideGame.findMany({
-      // The field's games, for the same reason as the settle-up above.
-      where: { eventId, groupKey: "" },
+      // Every game, the club's and each group's. The label below says which,
+      // because a player in both otherwise sees two rows called "Birdie pot"
+      // and cannot tell which money is which.
+      where: { eventId },
       orderBy: [{ createdAt: "asc" }],
       include: { entrants: true },
     }),
@@ -675,7 +702,8 @@ export async function moneyFor(
         return {
           id: g.id,
           kind: g.kind,
-          label: DERIVED_LABEL[kind],
+          // The group leads when there is one, the way the skins lines read.
+          label: g.groupKey ? `${g.groupKey} — ${DERIVED_LABEL[kind]}` : DERIVED_LABEL[kind],
           help: DERIVED_HELP[kind],
           buyInCents: g.buyInCents,
           // The cash collected, never the number of names.
@@ -791,6 +819,114 @@ export interface RoundMoneyView {
   outingStanding: Array<{ playerId: string; name: string; netCents: number }>;
   /** True when at least one round has finished and has money in it. */
   anyFinal: boolean;
+  /**
+   * What the signed-in player has riding on rounds that are still in play.
+   *
+   * A player can be in five games at once — the club's pot, their fourball's
+   * skins, a birdie pot, a two-man bet and a closest-to-the-pin — and until
+   * this the screen showed five separate rows and no total. The one number
+   * somebody wants before they tee off is what it costs if it all goes wrong,
+   * and adding up five stakes in your head on the first tee is exactly the
+   * sort of arithmetic this app exists to stop doing.
+   *
+   * Stakes, NOT a running position. See `roundMoneyIsFinal`: a half-played
+   * skins pot has a standing that looks like an answer and is not one. This
+   * number is knowable the moment the bets are agreed and does not change as
+   * holes come in, which is what makes it safe to show while a round is live.
+   */
+  stake: {
+    /** How many games they are in, across every round still in play. */
+    games: number;
+    /** What those stakes come to, in cents. */
+    cents: number;
+  };
+}
+
+/**
+ * What one player has riding on one round.
+ *
+ * Deliberately reads MEMBERSHIP and nothing else — no scorecard, no match, no
+ * winner. It cannot leak a half-played result because it never computes one,
+ * which is what lets it run on a round that `roundMoneyIsFinal` says is not
+ * ready to report.
+ *
+ * Who is in comes from `potMembership` and `potAudience`, the same two readers
+ * the settlement uses. A second opinion about who is in a pot is how a screen
+ * ends up printing "1 in" above a pot that settles for four.
+ *
+ * `entrants` are stakes already collected and `pending` are people who are in
+ * and still owe it. Both count here: what a player is exposed to is what they
+ * will owe, not what the organizer has already taken off them.
+ */
+async function stakeFor(
+  stageId: string,
+  playerId: string,
+  fieldIds: string[],
+  teeSheetJson: string,
+): Promise<{ games: number; cents: number }> {
+  const [pots, games, contests] = await Promise.all([
+    /**
+     * The player's own ENTRY rows, not the round's pots.
+     *
+     * A skins pot has no entry mode — its membership IS its entrant rows — so
+     * "which pots is this player staked in" is a question about entries, and
+     * asking it that way round means never holding a pot without knowing whose
+     * it is. Listing the round's pots and testing each one's entrants would be
+     * the shape that lost every group's money in the 2026-08-25 audit, even
+     * though it happens to be harmless here.
+     */
+    prisma.skinsEntry.findMany({
+      where: { playerId, pot: { stageId, buyInCents: { gt: 0 } } },
+      select: { pot: { select: { buyInCents: true } } },
+    }),
+    prisma.sideGame.findMany({
+      where: { stageId, buyInCents: { gt: 0 } },
+      select: {
+        buyInCents: true,
+        kind: true,
+        entryMode: true,
+        groupKey: true,
+        entrants: { select: { playerId: true, confirmed: true, excluded: true } },
+      },
+    }),
+    prisma.contest.findMany({
+      where: { stageId, buyInCents: { gt: 0 } },
+      select: {
+        buyInCents: true,
+        entryMode: true,
+        entrants: { select: { playerId: true, confirmed: true, excluded: true } },
+      },
+    }),
+  ]);
+
+  let count = 0;
+  let cents = 0;
+  const add = (inIt: boolean, buyInCents: number) => {
+    if (!inIt) return;
+    count += 1;
+    cents += buyInCents;
+  };
+
+  // Every row here is already this player's stake in a pot on this round.
+  for (const p of pots) add(true, p.pot.buyInCents);
+
+  for (const g of games) {
+    // A Nassau is three bets inside a match rather than a pot with a door, so
+    // it has no entrant list to read and its cost depends on who somebody is
+    // drawn against. Counting it here would mean inventing a number.
+    if (g.kind === "nassau") continue;
+    const audience = potAudience(g.groupKey, teeSheetJson, fieldIds);
+    const who = potMembership(isPotEntryMode(g.entryMode) ? g.entryMode : "opt-in", audience, g.entrants);
+    add(who.entrants.includes(playerId) || who.pending.includes(playerId), g.buyInCents);
+  }
+
+  // Contests have no group key — a closest-to-the-pin is the field's.
+  for (const c of contests) {
+    const who = potMembership(isPotEntryMode(c.entryMode) ? c.entryMode : "opt-in", fieldIds, c.entrants);
+    add(who.entrants.includes(playerId) || who.pending.includes(playerId), c.buyInCents);
+  }
+
+  return { games: count, cents };
 }
 
 /**
@@ -824,6 +960,9 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
 
   const rounds: RoundMoneyRow[] = [];
   const outingTotals = new Map<string, number>();
+  const fieldIds = (state?.confirmed ?? []).map((p) => p.id);
+  let stakeGames = 0;
+  let stakeCents = 0;
 
   for (const [i, stage] of stages.entries()) {
     const holeCount = stage.holes === 9 ? 9 : 18;
@@ -857,6 +996,16 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
     // Nothing is computed for a round in progress. Not hidden after the fact —
     // not worked out at all, so there is no half-answer to leak.
     const nets = final ? (await gameNets(eventId, stage.id)).nets : [];
+
+    // The other side of that rule: a round with no result yet is exactly the
+    // round a player wants their exposure for. Stakes only — see `stakeFor`,
+    // which reads membership and never touches a card.
+    if (!final && me) {
+      const s = await stakeFor(stage.id, me.id, fieldIds, stage.teeSheet ?? "");
+      stakeGames += s.games;
+      stakeCents += s.cents;
+    }
+
     for (const n of nets) outingTotals.set(n.playerId, (outingTotals.get(n.playerId) ?? 0) + n.netCents);
 
     rounds.push({
@@ -882,5 +1031,6 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       .map(([playerId, netCents]) => ({ playerId, name: nameOf.get(playerId) ?? "Unknown", netCents }))
       .sort((a, b) => b.netCents - a.netCents),
     anyFinal: rounds.some((r) => r.final && r.standing.length > 0),
+    stake: { games: stakeGames, cents: stakeCents },
   };
 }

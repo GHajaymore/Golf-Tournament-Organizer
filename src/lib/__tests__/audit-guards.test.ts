@@ -104,6 +104,21 @@ describe("every server action is guarded", () => {
      * Neutering any of those fails that suite.
      */
     "requirePotAccess",
+    /**
+     * side-games.ts: `requirePotAccess` reached through the game's own row.
+     *
+     * A side game is identified by its id alone, so the stage and group key
+     * that `requirePotAccess` needs have to be read from the row before it can
+     * be asked. This wrapper does that, calls it, and then compares the row's
+     * eventId to the one it returned — refusing a game in another tournament.
+     *
+     * Listed per the note above only because it was verified, and the
+     * verification is a test rather than a reading: "no action trusts a row id
+     * it was handed" in audit-idor.test.ts requires every id parameter to be
+     * narrowed to the caller's scope, and this is the only thing narrowing
+     * `sideGameId`. Neutering it fails that suite.
+     */
+    "requireGameAccess",
   ];
 
   const files = readdirSync(ACTIONS_DIR).filter((f) => f.endsWith(".ts"));
