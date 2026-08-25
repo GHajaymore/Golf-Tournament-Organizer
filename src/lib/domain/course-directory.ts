@@ -209,6 +209,53 @@ export function cardFrom(holes: unknown): DirectoryCard {
   return { usable: true, pars, strokeIndex, yards };
 }
 
+/**
+ * The catalogue's one country vocabulary: ISO 3166-1 alpha-2.
+ *
+ * Two providers, two habits. OpenGolfAPI sends `country_iso` and is already
+ * stored as "GB"; GolfCourseAPI sends the country's NAME, so the same country
+ * arrived twice — 187 rows of "GB" beside 10 of "United Kingdom", "KR" beside
+ * "Republic of Korea". That splits one country in two everywhere it is grouped,
+ * and it defeated the picker's `country !== "US"` check, which suppresses the
+ * country on a home course: the rows saying "United States" showed it anyway.
+ *
+ * ONLY NAMES ACTUALLY OBSERVED are mapped, and anything unrecognised is
+ * returned UNCHANGED rather than guessed at. A wrong two-letter code is a
+ * course filed under the wrong country and is invisible once written; an
+ * unmapped long name is merely untidy, and shows up the moment someone looks.
+ * So the failure mode here is deliberately the loud one.
+ */
+const ISO_BY_NAME: Record<string, string> = {
+  "united states": "US",
+  "united states of america": "US",
+  usa: "US",
+  "united kingdom": "GB",
+  canada: "CA",
+  australia: "AU",
+  ireland: "IE",
+  "republic of korea": "KR",
+  "costa rica": "CR",
+  "dominican republic": "DO",
+  "papua new guinea": "PG",
+  "brunei darussalam": "BN",
+  "sri lanka": "LK",
+  "taiwan (province of china)": "TW",
+  serbia: "RS",
+};
+
+/**
+ * A country as the catalogue stores it, from whatever a provider called it.
+ *
+ * Blank stays blank — "Unknown" is a real value GolfCourseAPI returns, and a
+ * course with no known country is more honest than one filed under a guess.
+ */
+export function countryCode(raw: string): string {
+  const v = (raw ?? "").trim();
+  if (!v || v.toLowerCase() === "unknown") return "";
+  if (v.length === 2) return v.toUpperCase();
+  return ISO_BY_NAME[v.toLowerCase()] ?? v;
+}
+
 /** Search results, from whatever the directory returned. */
 export function hitsFrom(payload: unknown): DirectoryHit[] {
   const raw = (payload as { courses?: unknown })?.courses;

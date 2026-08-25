@@ -21,6 +21,7 @@ import { PrismaClient } from "@prisma/client";
 import fs from "node:fs";
 import path from "node:path";
 import { cardRefusal } from "../src/lib/domain/scorecard-parse";
+import { countryCode } from "../src/lib/domain/course-directory";
 
 const prisma = new PrismaClient();
 
@@ -204,14 +205,15 @@ function nameOf(s: Summary): string {
 async function store(s: Summary, card: Card | { reason: string }): Promise<"card" | "no-card"> {
   const loc = s.location ?? {};
   const usable = "pars" in card;
-  const country = (loc.country ?? "").trim();
+  // This directory names the country where OpenGolfAPI sends a code, so it
+  // goes through the catalogue's one vocabulary on the way in. "Unknown" is a
+  // real value here and comes back blank: no country beats an invented one.
+  const country = countryCode(loc.country ?? "");
   const base = {
     name: nameOf(s),
     city: (loc.city ?? "").trim(),
     state: (loc.state ?? "").trim(),
-    // "Unknown" is a real value this directory returns. Storing it as a
-    // country would make it look like a place; blank is the honest form.
-    ...(country && country.toLowerCase() !== "unknown" ? { country } : {}),
+    ...(country ? { country } : {}),
     website: "",
     address: (loc.address ?? "").trim(),
     par: usable ? card.pars.reduce((a, b) => a + b, 0) : 0,
@@ -340,10 +342,7 @@ async function main() {
    * them where the gap is beats spending them in the one place that has none.
    * A stable sort, so within each group the discovery order is kept.
    */
-  const isUS = (c: Summary) => {
-    const k = (c.location?.country ?? "").trim().toLowerCase();
-    return k === "united states" || k === "us" || k === "usa";
-  };
+  const isUS = (c: Summary) => countryCode(c.location?.country ?? "") === "US";
   queue.sort((a, b) => Number(isUS(a)) - Number(isUS(b)));
   const nonUS = queue.filter((c) => !isUS(c)).length;
   console.log("  queue: " + nonUS + " non-US first, then " + (queue.length - nonUS) + " US");
