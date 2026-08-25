@@ -390,14 +390,39 @@ describe("requirePotAccess is a real check, not a reassuring name", () => {
   it("keeps the FIELD's pot organizer-only", () => {
     // An empty groupKey is the tournament's own money. Players get their own
     // group's game, not the club's.
-    expect(fn).toMatch(/if\s*\(!key\)\s*throw/);
+    // A refusal, thrown or returned. The rule ANSWERS rather than throwing —
+    // a thrown refusal escaped the server action and reached the browser as a
+    // runtime error overlay instead of a sentence — so what is pinned here is
+    // that the field's pot is refused at all, not how the refusal travels.
+    expect(fn).toMatch(/if\s*\(!key\)\s*(throw|return no\()/);
   });
 
   it("reads group membership from the tee sheet, never from the caller", () => {
     // The group name arrives over HTTP. What must NOT arrive over HTTP is who
     // is in it — otherwise a caller names any group and claims to be in it.
     expect(fn).toMatch(/parseTeeSheet\(/);
-    expect(fn).toMatch(/group\?\.playerIds\.includes\(me\.id\)/);
+    expect(fn).toMatch(/group\??\.playerIds\.includes\(me\.id\)/);
+  });
+
+  it("refuses a named group outright rather than falling through", () => {
+    /**
+     * THE HOLE THIS PINS, found on 2026-08-25 by game-access.audit.test.ts.
+     *
+     * The tee-sheet check used to be `if (member) return` and then fall on to
+     * the branch that lets anyone start a name NOBODY is in. A group's game
+     * that did not exist yet had no entrants, so that branch caught it — and a
+     * player in Group 2 could create Group 1's opt-out birdie pot, which
+     * enters Group 1 and charges them the stake.
+     *
+     * So the group branch must END in a throw. A shape check, because the
+     * behaviour is asserted against real rows next door and this is the thing
+     * that stops the shape quietly coming back.
+     */
+    const at = fn.indexOf("if (group)");
+    expect(at, "the tee-sheet branch must be a closed if (group) { ... }").toBeGreaterThan(-1);
+    // Between entering that branch and leaving it, there is a throw.
+    const branch = fn.slice(at, fn.indexOf("entrants.size === 0"));
+    expect(branch).toMatch(/throw new Error|return no\(/);
   });
 
   it("resolves the caller from the session, not from a parameter", () => {
@@ -456,7 +481,11 @@ describe("an ad-hoc side bet is still somebody's, not everybody's", () => {
     // start; leaving it open once people ARE in it would let anyone re-price
     // or empty somebody else's game.
     expect(fn).toMatch(/entrants\.size === 0/);
-    expect(fn).toMatch(/throw new Error\("Only somebody in this game can change it"\)/);
+    // Refused, thrown or returned — the rule answers rather than throwing so
+    // the player gets a sentence rather than a crashed screen.
+    expect(fn).toMatch(
+      /(throw new Error|return no)\("Only somebody in this game can change it"\)/,
+    );
   });
 
   it("bounds the name rather than truncating it", () => {

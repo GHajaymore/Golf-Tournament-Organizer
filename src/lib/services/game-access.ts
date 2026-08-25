@@ -40,35 +40,55 @@ import { parseTeeSheet } from "../domain/tee-sheet";
  */
 export const AD_HOC_NAME_MAX = 40;
 
-/** Refuse a round belonging to somebody else's tournament. */
-async function stageInEvent(eventId: string, stageId: string): Promise<void> {
+/**
+ * The answer, not an exception.
+ *
+ * A refusal here is not an exceptional condition — "that fourball is not
+ * yours" is an ordinary thing to tell a player, and it arrives at a screen
+ * that already knows how to show `{ ok: false, error }`. Thrown, it escaped
+ * the server action and reached the browser as a runtime error overlay: the
+ * player had picked the game, named it, ticked the people and pressed the
+ * button, and the app crashed at them.
+ *
+ * A discriminated union rather than a boolean, so the compiler will not let
+ * a caller read `eventId` without first handling the refusal. That is what
+ * keeps this as safe as a throw: forgetting to check is a type error, not a
+ * silent pass.
+ */
+export type PotAccess = { ok: true; eventId: string } | { ok: false; error: string };
+
+const no = (error: string): PotAccess => ({ ok: false, error });
+const yes = (eventId: string): PotAccess => ({ ok: true, eventId });
+
+/** Whether this round belongs to the caller's tournament. */
+async function stageInEvent(eventId: string, stageId: string): Promise<boolean> {
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { eventId: true } });
-  if (!stage || stage.eventId !== eventId) throw new Error("Round not found");
+  return !!stage && stage.eventId === eventId;
 }
 
-export async function requirePotAccess(stageId: string, groupKey: string): Promise<string> {
+export async function requirePotAccess(stageId: string, groupKey: string): Promise<PotAccess> {
   const session = await getSession();
-  if (!session?.eventId) throw new Error("Not signed in");
+  if (!session?.eventId) return no("Not signed in");
   const eventId = session.eventId;
-  await stageInEvent(eventId, stageId);
+  if (!(await stageInEvent(eventId, stageId))) return no("Round not found");
 
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
-  if (isStaff) return eventId;
+  if (isStaff) return yes(eventId);
 
   const key = (groupKey ?? "").trim();
-  if (!key) throw new Error("Only an organizer or assistant can run the field's pot");
+  if (!key) return no("Only an organizer or assistant can run the field's pot");
 
   const email = (session.email ?? "").trim().toLowerCase();
-  if (!email) throw new Error("Only an organizer or assistant can do that");
+  if (!email) return no("Only an organizer or assistant can do that");
 
   const me = await prisma.player.findFirst({
     where: { eventId, email: { equals: email, mode: "insensitive" }, status: "confirmed" },
     select: { id: true },
   });
-  if (!me) throw new Error("Only a player in that group can run its game");
+  if (!me) return no("Only a player in that group can run its game");
 
   if (key.length > AD_HOC_NAME_MAX) {
-    throw new Error(`Keep the name under ${AD_HOC_NAME_MAX} characters`);
+    return no(`Keep the name under ${AD_HOC_NAME_MAX} characters`);
   }
 
   /**
@@ -93,37 +113,68 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
    * Having a stake in a game is the one claim a redraw cannot revoke.
    */
   const [pots, games] = await Promise.all([
+    /**
+     * CONFIRMED stakes only, in both tables.
+     *
+     * A player in another fourball can ask to join a bet, which writes an
+     * unconfirmed row. If that counted here, asking to join would BE the way
+     * in: put your name down on somebody else's game and you may then re-price
+     * it, empty it, or rename it. A request is an intention, and an intention
+     * must not be a permission.
+     */
     prisma.skinsPot.findMany({
       where: { stageId, groupKey: key },
-      select: { entrants: { select: { playerId: true } } },
+      select: { entrants: { where: { confirmed: true }, select: { playerId: true } } },
     }),
     prisma.sideGame.findMany({
       where: { stageId, groupKey: key },
-      select: { entrants: { select: { playerId: true } } },
+      select: { entrants: { where: { confirmed: true }, select: { playerId: true } } },
     }),
   ]);
   const entrants = new Set(
     [...pots, ...games].flatMap((p) => p.entrants.map((e) => e.playerId)),
   );
-  if (entrants.has(me.id)) return eventId;
+  if (entrants.has(me.id)) return yes(eventId);
 
-  // A TEE-SHEET GROUP: the fourball currently playing together may run the
-  // game that carries their name.
+  /**
+   * A TEE-SHEET GROUP: the fourball currently playing together, and NOBODY
+   * else — this branch never falls through to the ad-hoc one below.
+   *
+   * That fall-through was a real hole. A group's game that did not exist yet
+   * had no entrants, so the "nobody is in it" branch let any player in the
+   * field create it — and `potAudience` then resolved its audience to the
+   * group named on the sheet. In opt-out mode that enters those players and
+   * charges them the stake. A player in Group 2 could put Group 1 in a £50
+   * birdie pot they had never heard of, which is the exact harm this rule
+   * exists to prevent, reached through the door left open for a different
+   * case.
+   *
+   * So a name the tee sheet vouches for is answered ONLY by membership of it.
+   * Being unclaimed is not a way in when the name already means somebody.
+   */
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { teeSheet: true } });
   const sheet = parseTeeSheet(stage?.teeSheet ?? "");
   const group = sheet?.groups.find((g) => g.name === key);
-  if (group?.playerIds.includes(me.id)) return eventId;
+  if (group) {
+    if (group.playerIds.includes(me.id)) return yes(eventId);
+    return no("Only somebody in that group can run its game");
+  }
 
   /**
-   * A NAME NOBODY IS IN YET: anyone in the field may start it.
+   * A NAME NOBODY IS IN YET, and that names no group: anyone in the field may
+   * start it.
    *
    * Six friends spread across three fourballs want a game between the six of
    * them — neither the club's pot nor any one group's. Before this it took an
    * organizer setting up a field pot and ticking six of forty names, so in
    * practice it was done on paper. The gap between creating a game and naming
    * its entrants is the one moment nobody is in it.
+   *
+   * Safe here in a way it was not above, because an ad-hoc name resolves its
+   * audience to the whole field rather than to a group: there is no set of
+   * players it can silently enter.
    */
-  if (entrants.size === 0) return eventId;
+  if (entrants.size === 0) return yes(eventId);
 
-  throw new Error("Only somebody in this game can change it");
+  return no("Only somebody in this game can change it");
 }

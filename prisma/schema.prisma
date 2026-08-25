@@ -1675,6 +1675,23 @@ model SkinsEntry {
   potId    String
   playerId String
 
+  /**
+   * Somebody has the cash. Same rule and same reason as SideGameEntry and
+   * ContestEntry: a name put down in the app is an INTENTION, not a stake,
+   * and only a stake reaches the ledger.
+   *
+   * Skins was the one pot without this, so it was also the one pot nobody
+   * could ask to join — an entry row was instantly real money, and there was
+   * no way to say "I want in" that did not also say "I have paid". Adding it
+   * is what lets a player in another fourball put their name down.
+   *
+   * Defaults TRUE, which is what makes the migration safe on a populated
+   * database: every row that exists today was written by somebody ticking a
+   * player in, which IS the confirmation. Defaulting false would have turned
+   * every stake in every live pot into an unpaid request overnight.
+   */
+  confirmed Boolean @default(true)
+
   pot    SkinsPot @relation(fields: [potId], references: [id], onDelete: Cascade)
   player Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
 

@@ -31,8 +31,21 @@ export interface SkinsPotView {
   buyInCents: number;
   net: boolean;
   scope: SkinsScope;
-  /** Players staff have entered into the pot. */
+  /**
+   * Players whose STAKE is in the pot — confirmed entries only.
+   *
+   * A name put down in the app is an intention, not money. Since a player in
+   * another fourball can now ask to join, an entry row is no longer proof of
+   * cash, and paying the pot out across people who have not put anything in
+   * leaves whoever holds it personally short the difference.
+   */
   entrantIds: string[];
+  /**
+   * Asked to join and not yet paid. Listed so somebody in the bet can see the
+   * request and take the money — an ask nobody is shown is an ask that was
+   * never made.
+   */
+  pendingIds: string[];
   /** Everyone who could be entered, for the picker. */
   field: Array<{ id: string; name: string; playing: boolean }>;
   /** Null until at least one player is entered — there is no pot before that. */
@@ -172,7 +185,10 @@ export async function skinsPotFor(
   })();
   const offered = groupIds ? players.filter((p) => groupIds.has(p.id)) : players;
 
-  const entrantIds = (pot?.entrants ?? []).map((e) => e.playerId);
+  // Confirmed only. `pendingIds` is the asked-but-not-paid half, and the two
+  // must not be added together anywhere: one is money and one is an intention.
+  const entrantIds = (pot?.entrants ?? []).filter((e) => e.confirmed).map((e) => e.playerId);
+  const pendingIds = (pot?.entrants ?? []).filter((e) => !e.confirmed).map((e) => e.playerId);
   const nameById = Object.fromEntries(players.map((p) => [p.id, p.name]));
 
   // Only entrants play for the money. Someone can play the round and stay out
@@ -241,6 +257,7 @@ export async function skinsPotFor(
     net,
     scope,
     entrantIds,
+    pendingIds,
     field: offered.map((p) => ({ id: p.id, name: p.name, playing: returned(p.id) })),
     result,
     transfers: result ? settle(result.shares.map((s) => ({ playerId: s.playerId, netCents: s.netCents }))) : [],

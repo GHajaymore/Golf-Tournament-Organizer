@@ -169,6 +169,16 @@ export interface MoneyView {
     entrants: number;
     youIn: boolean;
     youConfirmed: boolean;
+    /**
+     * Present when this row is a SKINS pot rather than a derived game.
+     *
+     * A skins pot is not identified by an id the way a side game is — it is
+     * named by (round, gross-or-net, which holes, whose). So a join request
+     * has to carry all four, and the client dispatches on this being here.
+     * Threading a fake id instead would mean inventing an identity the store
+     * does not have.
+     */
+    skins?: { stageId: string; net: boolean; scope: string; groupKey: string };
   }>;
   /**
    * The signed-in player’s side-game money, itemised.
@@ -465,7 +475,7 @@ export async function moneyFor(
   });
   const moneyFieldIds = confirmedField.map((p) => p.id);
 
-  const [rows, settlements, players, stages, contestRows, sideGameRows] = await Promise.all([
+  const [rows, settlements, players, stages, contestRows, sideGameRows, skinsRows] = await Promise.all([
     prisma.expense.findMany({
       where: { eventId },
       orderBy: [{ spentOn: "desc" }, { createdAt: "desc" }],
@@ -494,6 +504,32 @@ export async function moneyFor(
       where: { eventId },
       orderBy: [{ createdAt: "asc" }],
       include: { entrants: true },
+    }),
+    /**
+     * The skins pots, so a player can ask into one from their own screen.
+     *
+     * They were absent, which made "can I join your skins?" unanswerable in
+     * the app: the pots existed, the player could not see them, and the only
+     * way in was to find somebody already in it and ask them to tick you.
+     * Skins is the commonest casual bet there is, so that was the commonest
+     * thing the app could not do.
+     *
+     * `groupKey` is selected — via `include` — because it decides both the
+     * label and which pot a join request names. Reading these without it is
+     * the fault the 2026-08-25 audit found four times over.
+     */
+    prisma.skinsPot.findMany({
+      where: { eventId },
+      orderBy: [{ createdAt: "asc" }],
+      select: {
+        id: true,
+        stageId: true,
+        net: true,
+        scope: true,
+        groupKey: true,
+        buyInCents: true,
+        entrants: { select: { playerId: true, confirmed: true } },
+      },
     }),
   ]);
 
@@ -712,7 +748,47 @@ export async function moneyFor(
           youIn: !!mine,
           youConfirmed: !!mine?.confirmed,
         };
-      }),
+      })
+      /**
+       * And the skins pots, in the same list and on the same terms.
+       *
+       * One list rather than two, because to a player they are the same
+       * question — what is running, am I in it, what does it cost. Splitting
+       * them by which table they live in would be the app explaining its own
+       * schema to somebody standing on a tee.
+       *
+       * A pot with no buy-in is not offered: there is nothing to join.
+       */
+      .concat(
+        skinsRows
+          .filter((p) => p.buyInCents > 0)
+          .map((p) => {
+            const confirmed = p.entrants.filter((e) => e.confirmed);
+            const mine = me ? p.entrants.find((e) => e.playerId === me.id) : undefined;
+            const holes =
+              p.scope === "front" ? " front 9" : p.scope === "back" ? " back 9" : "";
+            const what = `Skins — ${p.net ? "net" : "gross"}${holes}`;
+            return {
+              id: p.id,
+              kind: "skins",
+              // The group leads when there is one, the way the derived rows do.
+              label: p.groupKey ? `${p.groupKey} — ${what}` : what,
+              help: "Low score wins the hole. Ties carry to the next one.",
+              buyInCents: p.buyInCents,
+              // The cash collected, never the number of names.
+              potCents: p.buyInCents * confirmed.length,
+              entrants: confirmed.length,
+              youIn: !!mine,
+              youConfirmed: !!mine?.confirmed,
+              skins: {
+                stageId: p.stageId,
+                net: p.net,
+                scope: p.scope,
+                groupKey: p.groupKey,
+              },
+            };
+          }),
+      ),
     // Only the signed-in player’s. Somebody else’s itemised winnings are
     // not this screen’s to hand out.
     gameLines: me
@@ -907,7 +983,15 @@ async function stakeFor(
     cents += buyInCents;
   };
 
-  // Every row here is already this player's stake in a pot on this round.
+  /**
+   * Every row here is already this player's own, on a pot on this round.
+   *
+   * Confirmed AND pending, deliberately, exactly as the side games below.
+   * `confirmed` is whether somebody has the cash; exposure is what the player
+   * will owe. Counting only paid-up rows would show £0 to somebody who has
+   * asked into four bets and not paid yet — precisely the person the figure is
+   * for.
+   */
   for (const p of pots) add(true, p.pot.buyInCents);
 
   for (const g of games) {
