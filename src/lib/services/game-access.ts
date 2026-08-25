@@ -113,13 +113,22 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
    * Having a stake in a game is the one claim a redraw cannot revoke.
    */
   const [pots, games] = await Promise.all([
+    /**
+     * CONFIRMED stakes only, in both tables.
+     *
+     * A player in another fourball can ask to join a bet, which writes an
+     * unconfirmed row. If that counted here, asking to join would BE the way
+     * in: put your name down on somebody else's game and you may then re-price
+     * it, empty it, or rename it. A request is an intention, and an intention
+     * must not be a permission.
+     */
     prisma.skinsPot.findMany({
       where: { stageId, groupKey: key },
-      select: { entrants: { select: { playerId: true } } },
+      select: { entrants: { where: { confirmed: true }, select: { playerId: true } } },
     }),
     prisma.sideGame.findMany({
       where: { stageId, groupKey: key },
-      select: { entrants: { select: { playerId: true } } },
+      select: { entrants: { where: { confirmed: true }, select: { playerId: true } } },
     }),
   ]);
   const entrants = new Set(

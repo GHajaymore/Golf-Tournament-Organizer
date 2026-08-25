@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { addExpense, updateExpense, removeExpense, recordSettlement } from "@/app/actions/expenses";
 import { requestContestEntry } from "@/app/actions/contests";
 import { requestSideGameEntry } from "@/app/actions/side-games";
+import { requestSkinsEntry } from "@/app/actions/skins";
 import type { MoneyView } from "@/lib/services/expenses";
 import { unitemisedGames } from "@/lib/domain/money-breakdown";
 import { PersonChip } from "@/components/PersonChip";
@@ -793,7 +794,23 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                   disabled={pending || g.youConfirmed}
                   onClick={() =>
                     startTransition(async () => {
-                      const res = await requestSideGameEntry(g.id, !g.youIn);
+                      /**
+                       * Two stores, one button.
+                       *
+                       * A skins pot is named by (round, gross-or-net, which
+                       * holes, whose) rather than by an id, so it takes a
+                       * different call — but to the player it is the same
+                       * question, so it is the same control.
+                       */
+                      const res = g.skins
+                        ? await requestSkinsEntry(
+                            g.skins.stageId,
+                            g.skins.net,
+                            g.skins.scope,
+                            g.skins.groupKey,
+                            !g.youIn,
+                          )
+                        : await requestSideGameEntry(g.id, !g.youIn);
                       if (!res.ok) setError(res.error ?? "Couldn't do that.");
                     })
                   }
