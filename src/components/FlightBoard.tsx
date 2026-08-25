@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { movePlayerToGroup, renameGroup, setFlightsConfirmed } from "@/app/actions/tournament";
 import { setFlightCaptain } from "@/app/actions/attendance";
+import { setFlightTee } from "@/app/actions/courses";
 
 export interface FlightPlayer {
   id: string;
@@ -17,6 +18,8 @@ export interface FlightCard {
   /** Appointed leadership — see setFlightCaptain. Null = none yet. */
   captainId?: string | null;
   viceCaptainId?: string | null;
+  /** The tees this division plays from. Null = the round's own. */
+  teeId?: string | null;
 }
 
 /**
@@ -39,6 +42,9 @@ export function FlightBoard({
   locked,
   canEdit,
   confirmed,
+  tees = [],
+  byFlightTees = false,
+  defaultTeeName = "",
 }: {
   cards: FlightCard[];
   locked: boolean;
@@ -48,6 +54,16 @@ export function FlightBoard({
   leadership?: boolean;
   /** Whether the organizer has signed the draw off. */
   confirmed: boolean;
+  /**
+   * The sets this course is rated for, and what a flight claiming none plays.
+   *
+   * Only meaningful when the tournament decides tees BY FLIGHT; under any
+   * other policy nothing reads a flight's claim, and offering the control
+   * would set a value that changes no score.
+   */
+  tees?: Array<{ id: string; name: string }>;
+  byFlightTees?: boolean;
+  defaultTeeName?: string;
 }) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
@@ -286,6 +302,38 @@ export function FlightBoard({
                   </label>
                 ))}
               </div>
+            )}
+
+            {/* The tees this division plays from.
+                Shown only when the tournament decides tees by flight —
+                elsewhere nothing reads a flight's claim, and a control that
+                changes no score is worse than no control. Offered on an EMPTY
+                flight too, because a club sets its divisions up before it
+                fills them. */}
+            {byFlightTees && tees.length > 0 && (
+              <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
+                <span className="text-muted">Tees</span>
+                <select
+                  className="input"
+                  aria-label={`Tees for ${g.label}`}
+                  style={{ width: "auto", fontSize: 11.5, padding: "2px 6px" }}
+                  value={g.teeId ?? ""}
+                  disabled={locked || !canEdit || pending}
+                  onChange={(e) => {
+                    setError("");
+                    const teeId = e.target.value || null;
+                    startTransition(async () => {
+                      const res = await setFlightTee(g.id, teeId);
+                      if (!res.ok) setError(res.error ?? "Couldn't set those tees.");
+                    });
+                  }}
+                >
+                  <option value="">{defaultTeeName || "The round's tees"}</option>
+                  {tees.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </label>
             )}
 
             {g.players.length === 0 && (

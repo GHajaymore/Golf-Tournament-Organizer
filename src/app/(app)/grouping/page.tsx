@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { GroupingControls } from "@/components/GroupingControls";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { FlightBoard } from "@/components/FlightBoard";
-import { unratedFlightWarning } from "@/lib/services/handicaps";
+import { unratedFlightWarning, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import type { FormationRule } from "@/lib/domain";
 
 export default async function GroupingPage() {
@@ -19,6 +19,10 @@ export default async function GroupingPage() {
   // make it quietly uneven. The scoring warning on Rounds & format is about a
   // different consequence of the same gap and fires on a different trigger.
   const drawWarning = await unratedFlightWarning(session.eventId, state.event.formationRule);
+  // The sets a division may be put on, and what a flight claiming none
+  // plays — resolved through the same reader the scoring uses.
+  const eventTees = await teesForEvent(session.eventId);
+  const roundTee = roundTeeId(eventTees, state.event.defaultTeeId);
 
   const cards = state.groups.map((g, i) => {
     const players = state.confirmed.filter((p) => p.groupId === g.id).sort((a, b) => a.handicap - b.handicap);
@@ -29,7 +33,15 @@ export default async function GroupingPage() {
         // The club's own name when it has set one; the positional label only as
     // a fallback for flights nobody has renamed.
     const label = g.name?.trim() || `Flight ${i + 1}`;
-    return { id: g.id, label, avg, players, captainId: g.captainId, viceCaptainId: g.viceCaptainId };
+    return {
+      id: g.id,
+      label,
+      avg,
+      players,
+      captainId: g.captainId,
+      viceCaptainId: g.viceCaptainId,
+      teeId: g.teeId,
+    };
   });
 
   const mode = (["auto", "count", "perFlight"].includes(state.event.flightMode)
@@ -90,6 +102,16 @@ export default async function GroupingPage() {
           // including under `captains` mode, where knowing who to chase for a
           // list is the entire point.
           leadership={tracksPerRound(settingsOf(state.event).attendanceMode as AttendanceMode)}
+          // Only when the tournament decides tees BY FLIGHT. Under any other
+          // policy nothing reads a flight’s claim, so the control would set a
+          // value that changes no score.
+          byFlightTees={settingsOf(state.event).teePolicy === "flight"}
+          tees={eventTees.map((t) => ({ id: t.id, name: t.name }))}
+          defaultTeeName={
+            eventTees.find((t) => t.id === roundTee)?.name
+              ? `${eventTees.find((t) => t.id === roundTee)?.name} (round’s)`
+              : "The round’s tees"
+          }
         />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
