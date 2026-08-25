@@ -69,8 +69,27 @@ describe("role boundaries", () => {
     // the screen shows the scopes their membership derives, so a player gets
     // their own flight, round, four and match and never the organizers'
     // thread — see domain/messaging.ts and messaging.audit.test.ts.
+    //
+    // "group-games" is the one screen here where a player can WRITE money, and
+    // it is deliberate: a fourball's own skins is their $20, not the club's,
+    // and needing the organizer to start it is why that game gets settled in a
+    // group chat instead. The screen is navigation only — which pot a player
+    // may actually write is decided by `requirePotAccess`, which allows the
+    // group they are playing in, takes membership from the published tee sheet
+    // rather than from the caller, and refuses the field's pot to anyone but
+    // staff. Prizes & payouts, where the club's money lives, stays staff-only.
     expect(allowed.sort()).toEqual(
-      ["bracket", "dashboard", "entry", "leaderboard", "me", "messages", "rules", "week"].sort(),
+      [
+        "bracket",
+        "dashboard",
+        "entry",
+        "group-games",
+        "leaderboard",
+        "me",
+        "messages",
+        "rules",
+        "week",
+      ].sort(),
     );
   });
 

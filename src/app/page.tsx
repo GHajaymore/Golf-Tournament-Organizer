@@ -794,6 +794,15 @@ export default async function LoginPage() {
               The pot divides in whole cents, so it cannot pay out a penny more than went in, and
               nothing is settled on a hole nobody has finished.
             </p>
+            {/* The group-level games. Said here rather than in its own section
+                because it is the same fact one scope down: a night is several
+                games, and not all of them are the club's. */}
+            <p className="sec-sub" style={{ marginTop: 10 }}>
+              And not every game is the club&rsquo;s. <b>Any fourball can run its own</b> — their
+              stake, their players, their pot — alongside the field&rsquo;s, without the organizer
+              setting it up and without the two ever touching. Whatever a player is in, it lands in
+              the same one number at the end.
+            </p>
           </div>
         </div>
       </section>

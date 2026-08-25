@@ -9,8 +9,13 @@ import { parseTeeSheet } from "@/lib/domain/tee-sheet";
  * The skins pot on a league round.
  *
  * Every export in a "use server" file is a public HTTP endpoint, so each
- * action calls requireStaff first and then proves the round belongs to the
- * caller's tournament. Hiding a screen stops nobody from posting here.
+ * action calls `requirePotAccess` first, which proves the round belongs to the
+ * caller's tournament AND that they may write this particular pot. Hiding a
+ * screen stops nobody from posting here.
+ *
+ * There is no plain staff check left: the field's pot and a fourball's own are
+ * two different permissions, and one function answering both is what keeps a
+ * caller from being asked the wrong question.
  *
  * These actions record money. They never move it.
  */
@@ -18,16 +23,6 @@ import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 export interface SkinsResult {
   ok: boolean;
   error?: string;
-}
-
-/** Organizer or assistant, on the active tournament. */
-async function requireStaff(): Promise<string> {
-  const session = await getSession();
-  if (!session?.eventId) throw new Error("Not signed in");
-  if (session.viewRole !== "admin" && session.viewRole !== "assistant") {
-    throw new Error("Only an organizer or assistant can do that");
-  }
-  return session.eventId;
 }
 
 /** Refuse a round belonging to somebody else's tournament. */

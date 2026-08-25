@@ -62,10 +62,24 @@ export function SkinsPotClient({
   rounds,
   activeStageId,
   view,
+  groupKey = "",
+  groupLabel = "",
 }: {
   rounds: SkinsRound[];
   activeStageId: string;
   view: SkinsView;
+  /**
+   * Whose pot this card is. Empty is the FIELD's, which is what every existing
+   * caller renders and what this component has always shown.
+   *
+   * Passed straight through to all three writes rather than defaulted at the
+   * action: a card that DISPLAYS one group's pot and SAVES to another's is
+   * precisely the overwrite the group key exists to prevent, and it would look
+   * correct on screen the whole time.
+   */
+  groupKey?: string;
+  /** What to call it, when it is a group's rather than the field's. */
+  groupLabel?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -93,6 +107,7 @@ export function SkinsPotClient({
         buyInCents: Math.round(parseFloat(buyIn || "0") * 100),
         net: view.net,
         scope,
+        groupKey,
       }),
     );
 
@@ -103,7 +118,9 @@ export function SkinsPotClient({
     <div className="card elev-sm" style={{ gap: 14, marginTop: 16 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span className="card-title" style={{ fontSize: 15 }}>
-          Skins &mdash; {view.net ? "net" : "gross"}
+          {/* The group's name leads when there is one, because on a page of
+              several pots "Skins — net" four times over names nothing. */}
+          {groupLabel ? `${groupLabel} — ` : ""}Skins &mdash; {view.net ? "net" : "gross"}
         </span>
         <FieldInfo label="the skins pot">
           <p>
@@ -210,7 +227,7 @@ export function SkinsPotClient({
                 onClick={() => {
                   // view.scope, not a default: these entrants belong to THIS
                   // game, and a league night has four on the same round.
-                  run(() => setSkinsEntrants(activeStageId, view.net, view.scope, chosen));
+                  run(() => setSkinsEntrants(activeStageId, view.net, view.scope, chosen, groupKey));
                   setPicking(false);
                 }}
               >
@@ -334,7 +351,7 @@ export function SkinsPotClient({
           onClick={() =>
             // view.scope, not the picker's `scope`: this removes the pot being
             // SHOWN, and the picker may have been moved without saving.
-            run(() => removeSkinsPot(activeStageId, view.net, view.scope))
+            run(() => removeSkinsPot(activeStageId, view.net, view.scope, groupKey))
           }
         >
           Remove this pot

@@ -69,6 +69,11 @@ export const NAV: NavSection[] = [
     label: "Results",
     items: [
       { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-trophy" },
+      // Its own entry, not a section of Prizes, because it is different money
+      // with different owners: the field's pot is the club's, a group's pot is
+      // four players' own. Two lists of identical-looking cards on one screen
+      // is how somebody pays into the wrong one.
+      { key: "group-games", label: "Group games", href: "/group-games", icon: "ph ph-users-three" },
       { key: "reports", label: "Reports & export", href: "/reports", icon: "ph ph-export" },
     ],
   },
