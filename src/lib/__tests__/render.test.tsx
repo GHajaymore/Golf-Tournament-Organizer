@@ -87,6 +87,8 @@ import { describeRoleChange } from "@/lib/access-roles";
 import type { MemberImportResult } from "@/app/actions/roster";
 import { playSkins } from "@/lib/domain/skins";
 import { playNassau } from "@/lib/domain/nassau";
+import { SideBetStart } from "@/components/SideBetStart";
+import { RoundMoney } from "@/components/RoundMoney";
 import type { HoleResult } from "@/lib/domain/types";
 
 /**
@@ -4197,5 +4199,120 @@ describe("the draw's refusal", () => {
     const html = await controls([player("a"), player("b")]);
     expect(html).not.toMatch(/empty field/i);
     expect(html).not.toContain('href="/registration"');
+  });
+});
+
+/**
+ * The two money screens a PLAYER touches, rendered.
+ *
+ * Both were changed to answer the same question from opposite ends — what am I
+ * in, and what does it cost me — and neither had ever been rendered by
+ * anything. A `/prizes` 500 shipped to production on 2026-08-25 from exactly
+ * this gap: a component that typechecked, passed 1300 tests and threw on every
+ * request.
+ */
+describe("starting a side bet", () => {
+  const FIELD = [
+    { id: "ann", name: "Ann" },
+    { id: "bob", name: "Bob" },
+    { id: "cat", name: "Cat" },
+    { id: "dan", name: "Dan" },
+    { id: "eve", name: "Eve" },
+  ];
+  const GROUPS = [
+    { name: "Group 1", playerIds: ["ann", "bob", "cat", "dan"] },
+    { name: "Group 2", playerIds: ["eve"] },
+  ];
+
+  it("renders closed, as one button and nothing else", () => {
+    const html = render(<SideBetStart stageId="s1" field={FIELD} taken={[]} groups={GROUPS} />);
+    expect(html).toMatch(/side bet/i);
+  });
+
+  it("renders with no tee sheet at all", () => {
+    // A casual round with no draw published is still a round people bet on,
+    // and `groups` is optional precisely so it does not have to be invented.
+    const html = render(<SideBetStart stageId="s1" field={FIELD} taken={[]} />);
+    expect(html).toMatch(/side bet/i);
+  });
+
+  it("renders with an empty field, which is the first day of every event", () => {
+    const html = render(<SideBetStart stageId="s1" field={[]} taken={[]} groups={[]} />);
+    expect(html).toMatch(/side bet/i);
+  });
+
+  it("survives a tee sheet naming players who are no longer in the field", () => {
+    // A withdrawal after the draw was published. The picker must not blow up
+    // mapping an id that resolves to nothing.
+    const stale = [{ name: "Group 1", playerIds: ["ann", "ghost"] }];
+    const html = render(<SideBetStart stageId="s1" field={FIELD} taken={[]} groups={stale} />);
+    expect(html).toMatch(/side bet/i);
+  });
+});
+
+describe("what a player has riding on the round", () => {
+  const base = {
+    playerId: "ann",
+    rounds: [],
+    yourTotalCents: 0,
+    outingStanding: [],
+    anyFinal: false,
+  };
+
+  it("shows the stake line when there are games still to play", () => {
+    const html = render(<RoundMoney view={{ ...base, stake: { games: 3, cents: 4500 } }} />);
+    expect(html).toMatch(/3 games/);
+  });
+
+  it("says game, singular, for one", () => {
+    // "1 games" is the kind of thing that makes a screen look unfinished.
+    const html = render(<RoundMoney view={{ ...base, stake: { games: 1, cents: 500 } }} />);
+    expect(html).toMatch(/1 game\b/);
+    expect(html).not.toMatch(/1 games/);
+  });
+
+  it("hides the line entirely at zero", () => {
+    // "0 games, $0.00" is a row that tells nobody anything and takes the space
+    // of one that would.
+    const html = render(<RoundMoney view={{ ...base, stake: { games: 0, cents: 0 } }} />);
+    expect(html).not.toMatch(/games? still to play/);
+  });
+
+  it("shows nothing to somebody who is not in the field", () => {
+    const html = render(
+      <RoundMoney view={{ ...base, playerId: "", stake: { games: 4, cents: 9999 } }} />,
+    );
+    // No player, no exposure — the stake belongs to somebody, and there is
+    // nobody here to owe it.
+    expect(html).not.toMatch(/games still to play/);
+    expect(html).toMatch(/aren/i);
+  });
+
+  it("shows a stake and a settled total together without contradicting itself", () => {
+    // One round finished and another still out: a result for the first and an
+    // exposure for the second. Both rules hold at once.
+    const html = render(
+      <RoundMoney
+        view={{
+          ...base,
+          anyFinal: true,
+          yourTotalCents: 1500,
+          rounds: [
+            {
+              stageId: "s1",
+              label: "Round 1",
+              final: true,
+              holesReturned: 18,
+              holeCount: 18,
+              yourCents: 1500,
+              standing: [{ playerId: "ann", name: "Ann", netCents: 1500 }],
+            },
+          ],
+          stake: { games: 2, cents: 2500 },
+        }}
+      />,
+    );
+    expect(html).toMatch(/2 games/);
+    expect(html).toMatch(/tournament/i);
   });
 });

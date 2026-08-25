@@ -1,9 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { isSkinsScope } from "@/lib/domain/skins-pot";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { requirePotAccess } from "@/lib/services/game-access";
 
 /**
  * The skins pot on a league round.
@@ -25,110 +25,8 @@ export interface SkinsResult {
   error?: string;
 }
 
-/**
- * How long an ad-hoc bet's name may be.
- *
- * It is a label a player types and it becomes part of a unique key, so it is
- * bounded here rather than truncated: silently shortening two different names
- * to the same forty characters would merge two groups' money.
- */
-const AD_HOC_NAME_MAX = 40;
-
-/** Refuse a round belonging to somebody else's tournament. */
-async function stageInEvent(eventId: string, stageId: string): Promise<void> {
-  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { eventId: true } });
-  if (!stage || stage.eventId !== eventId) throw new Error("Round not found");
-}
-
 function refresh() {
   revalidatePath("/", "layout");
-}
-
-/**
- * Who may run WHICH pot.
- *
- * Two different answers, because these are two different pots:
- *
- *  - The FIELD's pot (`groupKey` empty) is the tournament's money and stays
- *    organizer-or-assistant, exactly as it always was.
- *  - A GROUP's pot belongs to the fourball playing it. A casual $20 skins
- *    between four players should not need the organizer, so any player in
- *    that group may set it up — AND ONLY THAT GROUP. This is the check that
- *    matters: without it, "players may create group pots" would let any
- *    player in the field create or overwrite any other group's game, which is
- *    strictly worse than staff-only.
- *
- * Membership is read from the stage's published tee sheet, not from anything
- * the caller sent. A `"use server"` export is a public HTTP endpoint and will
- * be called with whatever the caller likes, including somebody else's group
- * name.
- */
-async function requirePotAccess(stageId: string, groupKey: string): Promise<string> {
-  const session = await getSession();
-  if (!session?.eventId) throw new Error("Not signed in");
-  const eventId = session.eventId;
-  await stageInEvent(eventId, stageId);
-
-  const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
-  if (isStaff) return eventId;
-
-  const key = (groupKey ?? "").trim();
-  if (!key) throw new Error("Only an organizer or assistant can run the field's pot");
-
-  const email = (session.email ?? "").trim().toLowerCase();
-  if (!email) throw new Error("Only an organizer or assistant can do that");
-
-  const me = await prisma.player.findFirst({
-    where: { eventId, email: { equals: email, mode: "insensitive" }, status: "confirmed" },
-    select: { id: true },
-  });
-  if (!me) throw new Error("Only a player in that group can run its game");
-
-  if (key.length > AD_HOC_NAME_MAX) {
-    throw new Error(`Keep the name under ${AD_HOC_NAME_MAX} characters`);
-  }
-
-  /**
-   * WHO IS ALREADY IN IT, across every pot under this name on this round.
-   *
-   * Across ALL of them, not the first one found. A name can carry four pots —
-   * front and back, gross and net — and deciding access from whichever row
-   * turned up first answered about a different game than the one being
-   * written.
-   *
-   * And checked FIRST, before the tee sheet, which is what stops a redraw
-   * taking a game away from the people who paid into it. The key is a group
-   * NAME, so republishing the sheet with different fourballs makes "Group 1"
-   * mean four other players — under a membership-only rule the original four
-   * would be locked out of their own money while four strangers inherited it.
-   * Having a stake in a pot is the one claim a redraw cannot revoke.
-   */
-  const pots = await prisma.skinsPot.findMany({
-    where: { stageId, groupKey: key },
-    select: { entrants: { select: { playerId: true } } },
-  });
-  const entrants = new Set(pots.flatMap((p) => p.entrants.map((e) => e.playerId)));
-  if (entrants.has(me.id)) return eventId;
-
-  // A TEE-SHEET GROUP: the fourball currently playing together may run the
-  // game that carries their name.
-  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { teeSheet: true } });
-  const sheet = parseTeeSheet(stage?.teeSheet ?? "");
-  const group = sheet?.groups.find((g) => g.name === key);
-  if (group?.playerIds.includes(me.id)) return eventId;
-
-  /**
-   * A NAME NOBODY IS IN YET: anyone in the field may start it.
-   *
-   * Six friends spread across three fourballs want a game between the six of
-   * them — neither the club's pot nor any one group's. Before this it took an
-   * organizer setting up a field pot and ticking six of forty names, so in
-   * practice it was done on paper. The gap between creating a pot and naming
-   * its entrants is the one moment nobody is in it.
-   */
-  if (entrants.size === 0) return eventId;
-
-  throw new Error("Only somebody in this game can change it");
 }
 
 /**

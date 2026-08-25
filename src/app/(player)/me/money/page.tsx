@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { SideBetStart } from "@/components/SideBetStart";
+import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 
 /**
  * The player's money.
@@ -98,14 +99,29 @@ export default async function MoneyPage() {
   const round = state?.activeStage ?? playing[playing.length - 1] ?? null;
   const bettable = round && playing.some((s) => s.id === round.id) ? round : null;
 
+  /**
+   * Names already spoken for on this round, and by WHICH game.
+   *
+   * Per kind, because that is how a game is keyed: the same four players can
+   * run skins AND a birdie pot under one name, and those two rows settle
+   * together. Refusing the second was the check being too strict.
+   */
   const taken = bettable
-    ? (
-        await prisma.skinsPot.findMany({
-          where: { stageId: bettable.id, groupKey: { not: "" } },
-          select: { groupKey: true },
-          distinct: ["groupKey"],
-        })
-      ).map((r) => r.groupKey)
+    ? [
+        ...(
+          await prisma.skinsPot.findMany({
+            where: { stageId: bettable.id, groupKey: { not: "" } },
+            select: { groupKey: true },
+            distinct: ["groupKey"],
+          })
+        ).map((r) => ({ name: r.groupKey, kind: "skins" })),
+        ...(
+          await prisma.sideGame.findMany({
+            where: { stageId: bettable.id, groupKey: { not: "" } },
+            select: { groupKey: true, kind: true },
+          })
+        ).map((r) => ({ name: r.groupKey, kind: r.kind })),
+      ]
     : [];
 
   const field = (state?.confirmed ?? [])
@@ -117,7 +133,14 @@ export default async function MoneyPage() {
       <RoundMoney view={rounds} />
       {ledger && <MoneyClient view={ledger} />}
       {bettable && field.length > 1 && (
-        <SideBetStart stageId={bettable.id} field={field} taken={taken} />
+        <SideBetStart
+          stageId={bettable.id}
+          field={field}
+          taken={taken}
+          // The draw, so a player picks the people they are walking with rather
+          // than scanning forty names for the three they know.
+          groups={parseTeeSheet(bettable.teeSheet ?? "")?.groups ?? []}
+        />
       )}
     </div>
   );

@@ -88,6 +88,23 @@ export default async function GroupGamesPage({
       )
     : [];
 
+  /**
+   * The names already spoken for on this round, and by WHICH game.
+   *
+   * A game is keyed on (round, kind, name), so the same crew running skins and
+   * a birdie pot under one name is two rows that settle together rather than a
+   * collision. Only a tee-sheet group name is reserved outright — an ad-hoc bet
+   * borrowing it would silently narrow its own audience to that fourball.
+   */
+  const sideGameKeys = week
+    ? (
+        await prisma.sideGame.findMany({
+          where: { stageId: week.id, groupKey: { not: "" } },
+          select: { groupKey: true, kind: true },
+        })
+      ).map((r) => ({ name: r.groupKey, kind: r.kind }))
+    : [];
+
   const fieldForBets = [...state.confirmed]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((p) => ({ id: p.id, name: p.name }));
@@ -169,7 +186,12 @@ export default async function GroupGamesPage({
         <SideBetStart
           stageId={week.id}
           field={fieldForBets}
-          taken={[...groupNames, ...adHoc.map((a) => a.name)]}
+          groups={sheet?.groups ?? []}
+          taken={[
+            ...[...groupNames].map((name) => ({ name, kind: "*" })),
+            ...adHoc.map((a) => ({ name: a.name, kind: "skins" })),
+            ...sideGameKeys,
+          ]}
         />
       )}
     </>
