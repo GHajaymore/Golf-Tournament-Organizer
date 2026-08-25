@@ -1,5 +1,7 @@
 # TourneyHQ — Golf Tournament Organizer
 
+[![CI](https://github.com/GHajaymore/Golf-Tournament-Organizer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/GHajaymore/Golf-Tournament-Organizer/actions/workflows/ci.yml?query=branch%3Amain)
+
 *From tee to trophy.*
 
 Production build of the golf tournament management console described in
