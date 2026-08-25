@@ -102,8 +102,16 @@ const LANDING_CSS = `
 .thq .nav { position:sticky; top:0; z-index:20; background:color-mix(in srgb, var(--ground) 84%, transparent); backdrop-filter:blur(14px); border-bottom:1px solid var(--line); transition:box-shadow .25s ease, background .25s ease; }
 .thq .nav.scrolled { background:color-mix(in srgb, var(--ground) 94%, transparent); box-shadow:0 10px 34px -24px rgba(0,0,0,0.6); }
 .thq .nav-in { display:flex; align-items:center; justify-content:space-between; height:64px; }
-.thq .brand { display:flex; align-items:center; gap:11px; font-family:var(--sans); font-size:19px; font-weight:700; letter-spacing:-0.025em; }
+.thq .brand { display:flex; align-items:center; gap:11px; font-family:var(--sans); font-size:22px; font-weight:700; letter-spacing:-0.025em; }
 .thq .nav-actions { display:flex; align-items:center; gap:10px; }
+/* On a phone the nav is a utility bar, not the hero placement, and at the
+   hero size the lockup finished 4px from the buttons — fine until a longer
+   word or a wider button. Back to LOGO_SIZE.md (22), which the scale
+   documents as the page-header size. */
+@media (max-width: 560px) {
+  .thq .brand { font-size:19px; gap:9px; }
+  .thq .brand > svg:first-of-type { width:22px; height:22px; }
+}
 .thq .btn { font-family:var(--sans); font-size:13.5px; font-weight:560; cursor:pointer; border-radius:8px; padding:9px 16px; border:1px solid transparent; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:transform .16s ease, background .16s ease, border-color .16s ease, color .16s ease; letter-spacing:-0.005em; }
 .thq .btn-ghost { color:var(--ink-soft); border-color:var(--line-2); }
 .thq .btn-ghost:hover { color:var(--ink); border-color:var(--ink-faint); }
@@ -455,7 +463,7 @@ export default async function LoginPage() {
   if (session) redirect(session.eventId ? landingScreenFor(session.viewRole) : "/choose");
 
   /** Whole dollars where the price is whole, so "$29" never reads "$29.00". */
-  const money = (n: number) => (Number.isInteger(n) ? `${n}` : `${n.toFixed(2)}`);
+  const money = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
 
   const paperInk = { color: "var(--paper-ink)" } as const;
   const paperSoft = { color: "var(--paper-soft)" } as const;
@@ -469,13 +477,19 @@ export default async function LoginPage() {
       <nav className="nav">
         <div className="wrap nav-in">
           <div className="brand">
-            <FlagMark size={LOGO_SIZE.md} />
+            {/* `lg`, which the scale documents as the hero size — and this
+                nav IS the hero placement. At `md` the mark stood 22px in an
+                89px bar beside a 51px headline: a quarter of the bar, reading
+                as subordinate to the sentence on the one page whose job is to
+                say who we are. Still a value from LOGO_SIZE, so the one-size
+                rule brand-consistency.test.ts enforces still holds. */}
+            <FlagMark size={LOGO_SIZE.lg} />
             {/* The same lockup the app uses, re-skinned by variables — the
                 pattern FlagMark above already follows. It used to be written
                 out here by hand in the sans face with an italic "HQ", so the
                 wordmark above the sign-in button was not the wordmark inside
                 the product. */}
-            <BrandMark size={19} style={BRAND_TOKENS} />
+            <BrandMark size={22} style={BRAND_TOKENS} />
           </div>
           <div className="nav-actions">
             <a className="btn btn-ghost" href="#signin" role="button">Sign in</a>
