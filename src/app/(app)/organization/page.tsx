@@ -6,6 +6,7 @@ import { ThemePicker } from "@/components/ThemePicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { organizationAccessReport } from "@/lib/services/access";
 import { PlaySettings } from "@/components/PlaySettings";
+import { PlanPanel } from "@/components/PlanPanel";
 import { MoneySetup } from "@/components/MoneySetup";
 import { cleanSettings } from "@/lib/tournament-settings";
 import { isAppearance, DEFAULT_APPEARANCE } from "@/lib/themes";
@@ -104,6 +105,14 @@ export default async function OrganizationPage() {
           clubName={org.shortName || org.name}
           canEdit={canEdit}
         />
+      </div>
+
+      {/* What the club is on, and what it is losing by being on it.
+          Club settings is where an organizer already comes to decide how the
+          club runs, so it is where the question of what the club is paying
+          for belongs. */}
+      <div style={{ marginTop: 16 }}>
+        <PlanPanel planKey={org.subscription?.plan ?? "free"} />
       </div>
 
       <div style={{ marginTop: 16 }}>

@@ -275,6 +275,11 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
   if (!plan.features.whiteLabel) {
     out.push("Your club's branding on every screen, with ours removed.");
   }
+  if (!plan.features.seasonStandings) {
+    out.push(
+      "The season table — where your teams stand after six weeks, not just after last night. It is what makes a league a league rather than six unrelated evenings.",
+    );
+  }
   if (plan.key === "free") {
     out.push(
       "Decide for yourself whether each tournament asks entrants for a mobile number — free events always require one, and every extra required field costs you entries.",
