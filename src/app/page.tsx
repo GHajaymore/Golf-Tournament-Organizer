@@ -87,27 +87,52 @@ const EXAMPLE = (() => {
  */
 const TRIP = (() => {
   const you = "you";
-  const field = [you, "b", "c", "d"];
-  const all = field.map((playerId) => ({ playerId, weight: 1 }));
+  /**
+   * EIGHT, not four — a GROUP rather than a fourball.
+   *
+   * The example ran on four players and every line read "all four", which
+   * quietly said the wrong thing: it made the trip look like a foursome's
+   * business. It is not. A golf trip is a group, and the fourball is a fact
+   * about who tees off together — it decides the CART and the BETS, and
+   * nothing else. Eight players make that visible in a way four never can,
+   * because with four every subset looks like the same four people.
+   */
+  const group = [you, "b", "c", "d", "e", "f", "g", "h"];
+  /** Who you actually play with — one line's worth of the trip, not the trip. */
+  const fourball = new Set([you, "b", "c", "d"]);
+  const all = group.map((playerId) => ({ playerId, weight: 1 }));
 
   const lines = [
-    { description: "Travel and fuel", who: "all four", amountCents: 18_000, shares: all },
+    { description: "Travel and fuel", who: "the whole group", amountCents: 48_000, shares: all },
     {
       description: "Lodging",
-      // The whole argument in one line: two nights each for three of them,
-      // one for the fourth.
-      who: "three for two nights, one for one",
-      amountCents: 64_000,
-      shares: field.map((playerId) => ({ playerId, weight: playerId === you ? 1 : 2 })),
+      // The whole argument in one line: most of them stay two nights, two of
+      // them drive up for the second only.
+      who: "six for two nights, two for one",
+      amountCents: 169_000,
+      shares: group.map((playerId) => ({
+        playerId,
+        weight: playerId === you || playerId === "h" ? 1 : 2,
+      })),
     },
-    { description: "Cart fees", who: "all four", amountCents: 12_000, shares: all },
-    { description: "Dinner", who: "all four", amountCents: 16_460, shares: all },
+    {
+      description: "Cart fees",
+      // The one line a fourball really does own: you rode in it, they did not.
+      who: "your fourball",
+      amountCents: 12_000,
+      shares: group.map((playerId) => ({ playerId, weight: fourball.has(playerId) ? 1 : 0 })),
+    },
+    { description: "Dinner", who: "the whole group", amountCents: 52_480, shares: all },
     {
       description: "The bar",
-      // Not everyone drinks, and one of them is driving home.
-      who: "two of them",
-      amountCents: 5_000,
-      shares: field.map((playerId) => ({ playerId, weight: playerId === you || playerId === "b" ? 1 : 0 })),
+      // Not everyone drinks, and somebody is driving. Nothing to do with who
+      // played with whom.
+      who: "three of them",
+      amountCents: 9_000,
+      shares: group.map((playerId) => ({
+        playerId,
+        weight: playerId === you || playerId === "c" || playerId === "f" ? 1 : 0,
+      })),
     },
   ];
 
@@ -1043,13 +1068,14 @@ export default async function LoginPage() {
                 the apps that do it do it well — the claim is about where the
                 NUMBERS come from, which is the half they cannot help with. */}
             <p className="sec-sub" style={paperInk}>
-              Splitting a bill is the easy half, and this does that too — but properly. Every line
-              carries its own people and its own weights: the two who went to the bar, the one who
-              came up for the second night only, the guest somebody signed in. Nothing is forced
-              into equal quarters. The half that costs an evening is knowing the amounts —
-              somebody has to work out that a player won three skins at $22.50, lost the front
-              nine, and owes for a guest, then type it in. Here nobody types it. The golf money IS
-              the card, and the trip and the competition net off into one balance and one handover.
+              Splitting a bill is the easy half, and this does that too — but properly. A trip is a
+              GROUP, not a fourball: everybody shares the rooms and the dinner, only the three who
+              went to the bar share that, and only the four who rode in it share the cart. Every
+              line carries its own people and its own weights, and nothing is forced into equal
+              shares. The half that costs an evening is knowing the amounts — somebody has to work
+              out that a player won three skins at $22.50, lost the front nine, and owes for a
+              guest, then type it in. Here nobody types it. The golf money IS the card, and the
+              trip and the competition net off into one balance and one handover.
             </p>
           </div>
 
@@ -1062,7 +1088,7 @@ export default async function LoginPage() {
               answer rather than mine. See TRIP at the top of this file. */}
           <div className="ledger reveal">
             <div className="led">
-              <div className="led-h" style={paperInk}>The trip <span style={paperSoft}>· four players, no two shares alike</span></div>
+              <div className="led-h" style={paperInk}>The trip <span style={paperSoft}>· eight of you, no two shares alike</span></div>
               <dl>
                 {TRIP.rows.map((r) => (
                   <div key={r.description}>
@@ -1078,7 +1104,10 @@ export default async function LoginPage() {
             </div>
 
             <div className="led">
-              <div className="led-h" style={paperInk}>The golf <span style={paperSoft}>· worked out from the cards</span></div>
+              {/* Named as the fourball's, because that is what a skins game
+                  between four players IS — and it is the one place on this
+                  page where the fourball is the right unit. */}
+              <div className="led-h" style={paperInk}>The golf <span style={paperSoft}>· your fourball, off the cards</span></div>
               <dl>
                 <div><dt style={paperInk}>Skins, front nine net</dt><dd className="won" >+$67.50</dd></div>
                 <div><dt style={paperInk}>Closest to the pin</dt><dd className="won">+$25.00</dd></div>
