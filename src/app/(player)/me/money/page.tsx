@@ -5,6 +5,8 @@ import { MoneyClient } from "@/components/MoneyClient";
 import { RoundMoney } from "@/components/RoundMoney";
 import { prisma } from "@/lib/db";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
+import { loadEventState, playingStages } from "@/lib/services/tournament";
+import { SideBetStart } from "@/components/SideBetStart";
 
 /**
  * The player's money.
@@ -67,10 +69,54 @@ export default async function MoneyPage() {
   const ledger = mode === "split" ? await moneyFor(session.eventId, session.email, { name: session.name }) : null;
   if (!rounds.playerId && !ledger?.used) redirect("/me");
 
+  /**
+   * Starting a bet, from where a player already is.
+   *
+   * It lived only on the organizer's Group games screen, which is the one
+   * place somebody standing on the first tee is not. A side bet is agreed in
+   * the thirty seconds before a round and it has to be startable in that
+   * thirty seconds, on a phone, from the screen a player already has open.
+   *
+   * Deliberately OUTSIDE the `mode === "split"` branch above. That mode
+   * governs whether the club shares COSTS; a bet between four players is
+   * their own money either way, and gating it on the club's expense setting
+   * would hide it from exactly the clubs whose members bet most.
+   */
+  const state = await loadEventState(session.eventId);
+  const playing = playingStages(state?.stages ?? []);
+
+  /**
+   * The round being played, and only that one.
+   *
+   * A side bet is agreed on the first tee about the round in front of you, so
+   * the round is not a question worth asking — offering a picker would put a
+   * choice in the way of the one answer that is nearly always right. A bet on
+   * a different round is set up from that round's own screen.
+   */
+  const round = state?.activeStage ?? playing[playing.length - 1] ?? null;
+  const bettable = round && playing.some((s) => s.id === round.id) ? round : null;
+
+  const taken = bettable
+    ? (
+        await prisma.skinsPot.findMany({
+          where: { stageId: bettable.id, groupKey: { not: "" } },
+          select: { groupKey: true },
+          distinct: ["groupKey"],
+        })
+      ).map((r) => r.groupKey)
+    : [];
+
+  const field = (state?.confirmed ?? [])
+    .map((p) => ({ id: p.id, name: p.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <RoundMoney view={rounds} currency={currency} />
       {ledger && <MoneyClient view={ledger} />}
+      {bettable && field.length > 1 && (
+        <SideBetStart stageId={bettable.id} field={field} taken={taken} />
+      )}
     </div>
   );
 }
