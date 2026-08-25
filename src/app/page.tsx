@@ -9,18 +9,23 @@ import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 
 /**
- * The app's wordmark tokens, expressed in this page's palette.
+ * The app's wordmark tokens, mapped to the BRAND's own colours.
  *
  * BrandMark reads --color-accent* and --color-bg, which the landing page does
  * not define — it has its own ground. Mapping them here is what lets one
  * component serve both, exactly as --logo-flag does for the mark itself, and
  * is why there is no second copy of the lockup to drift.
+ *
+ * These map to --brand-*, NOT to the page accent. They were pointed at
+ * --brass, which meant retuning the page's palette silently recoloured the
+ * logo — a brand changing because a background did. The mark is fixed; the
+ * page around it is the variable.
  */
 const BRAND_TOKENS = {
-  "--color-accent": "var(--brass)",
-  "--color-accent-200": "var(--brass)",
-  "--color-accent-300": "var(--brass)",
-  "--color-accent-600": "var(--flag-soft)",
+  "--color-accent": "var(--brand-amber)",
+  "--color-accent-200": "var(--brand-amber)",
+  "--color-accent-300": "var(--brand-amber)",
+  "--color-accent-600": "var(--brand-green-soft)",
   "--color-bg": "var(--ground)",
 } as React.CSSProperties;
 
@@ -64,14 +69,52 @@ const EXAMPLE = (() => {
 const LANDING_CSS = `
 .thq, .thq * { box-sizing: border-box; }
 .thq {
-  /* Direction 02, "The Board": standing in front of the clubhouse leaderboard.
-     Night ground, fairway green for anything live or under par, and exactly one
-     amber — spent on the last word of the headline and nowhere else. */
-  --ground:#0C100E; --ground-2:#121815; --panel:#141A1785;
-  --paper:#F1EDE1; --paper-2:#E9E4D4; --paper-ink:#1B2A22; --paper-soft:#5A6B5E;
-  --ink:#E8ECE9; --ink-soft:#94A29C; --ink-faint:#6F807A;
-  --line:rgba(232,236,233,0.10); --line-2:rgba(232,236,233,0.20);
-  --flag:#4FA97C; --flag-soft:#63BE90; --under:#4FA97C; --brass:#E8A33D;
+  /* "Patina": verdigris on lacquer — the two things a clubhouse is made of.
+     Aged wood for the ground, and for the accent the green that copper turns
+     when nobody polishes it.
+
+     It is deliberately the one combination that is vintage AND electric at
+     once: the GROUND is aged, the ACCENT is not. That split is the whole
+     design. A warm near-black with a single hot accent is the shape every dark
+     product page has, and the previous try at fixing that went the other way —
+     gold leaf, which is handsome and entirely period, but leaves the page with
+     nothing sharp in it at all.
+
+     Cool accent on a warm ground is also the strongest pairing available here,
+     which is not a stylistic point: this page gets opened on a phone at a golf
+     course, and hue contrast survives sunlight in a way lightness alone does
+     not.
+
+     One rule holds it together. TEAL is identity — the marks, the headline's
+     last word, the rules, the buttons. GREEN is meaning — live, under par,
+     money coming your way. Never the reverse: the moment teal says "winning",
+     the page has two words for one idea and neither is legible. The two are
+     174 degrees apart precisely so nobody can confuse them.
+
+     Verdigris is also a preset a club can pick in settings, so a club that
+     wants the site's own look can have it. */
+  --ground:#171210; --ground-2:#221A16; --panel:#221A1685;
+  --paper:#EDE4CE; --paper-2:#E4DABF; --paper-ink:#1C1712; --paper-soft:#5C5343;
+  --paper-accent:#0E6E72;
+  --ink:#EDE6DC; --ink-soft:#ABA091; --ink-faint:#837868;
+  --line:rgba(237,230,220,0.12); --line-2:rgba(237,230,220,0.24);
+  --flag:#6FB894; --flag-soft:#8ACCAB; --under:#6FB894;
+  /* Accent text and accent FILL are different steps, the way the app's own
+     ramp separates 400 from 500. Held to one value the button and the body
+     text end up the same colour and the button stops reading as a control. */
+  --brass:#76E1E5; --brass-ui:#45D6DC; --brass-hi:#A6EEF1; --on-accent:#08201F;
+  /* THE MARK DOES NOT MOVE WITH THE PAGE.
+     These are the wordmark's own orange and green, and they are the values the
+     logo has always been drawn in. They are separate tokens precisely because
+     the accent is now a variable: when the page palette was retuned, the mark
+     read --brass and quietly recoloured with it, which is a brand changing
+     because a background did. A logo is a constant. Retune the page all you
+     like; these two lines stay put. */
+  --brand-amber:#E8A33D; --brand-green:#4FA97C; --brand-green-soft:#63BE90;
+  /* The dim edge where the patina has gone dark. DECORATION ONLY — around
+     3:1 on the lacquer, so it may rule a line or edge a frame and must never
+     carry a word. Text uses --brass, which clears 9:1. */
+  --incised:#2F6F72;
   --sans:var(--font-geist-sans),-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
   --mono:var(--font-geist-mono),ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
   /* Display only. Golf sets its own type in engraved and printed serifs —
@@ -85,14 +128,30 @@ const LANDING_CSS = `
 }
 @media (prefers-color-scheme: light) {
   .thq {
-    /* The board seen in daylight rather than a different design. Green and
-       amber both darken so they still carry on paper-white; a board is only
-       readable if under-par reads instantly, and #4FA97C on white does not. */
-    --ground:#F6F5F1; --ground-2:#EDEBE4; --panel:#FFFFFF;
-    --ink:#14181A; --ink-soft:#55605B; --ink-faint:#7C8781;
-    --line:rgba(18,24,21,0.11); --line-2:rgba(18,24,21,0.20);
-    --flag:#1F7A50; --flag-soft:#186541; --under:#1F7A50; --brass:#A8701A;
-    --paper:#10251B; --paper-2:#0C1F16; --paper-ink:#EDEBE0; --paper-soft:#9FB1A5;
+    /* The same page in daylight rather than a different design: card stock
+       instead of lacquer. The patina cannot survive the swap unchanged —
+       #76E1E5 is a highlight on a dark ground and pale nothing on a light one
+       — so it deepens to the teal of oxidised copper in shadow, dark enough
+       to carry a word. Green darkens with it, because a board is only readable
+       if under-par reads instantly and #6FB894 on cream does not.
+
+       Fill and text collapse to ONE value here. On the dark ground they are
+       two steps apart because both must clear the ground; on cream the darker
+       of the pair is already doing the work, and a second, deeper teal for the
+       button just read as a different colour. */
+    --ground:#F4EFE2; --ground-2:#EAE3D2; --panel:#FFFDF7;
+    --ink:#1E1710; --ink-soft:#5C5342; --ink-faint:#7E7460;
+    --line:rgba(30,23,16,0.12); --line-2:rgba(30,23,16,0.22);
+    --flag:#1F7A50; --flag-soft:#186541; --under:#1F7A50;
+    --brass:#0E6E72; --brass-ui:#0E6E72; --brass-hi:#0A5457;
+    --on-accent:#F2FEFF; --incised:#7FC5C8;
+    /* The mark's own daylight pair — the exact values it used on the light
+       ground before any of this, so the logo is unchanged on both grounds. */
+    --brand-amber:#A8701A; --brand-green:#1F7A50; --brand-green-soft:#186541;
+    --paper:#241A16; --paper-2:#1A120F; --paper-ink:#EFE7D8; --paper-soft:#B3A791;
+    /* Light ground flips the band to lacquer, so the band's accent flips back
+       to bright patina — the mirror of the dark-ground rule above. */
+    --paper-accent:#76E1E5;
   }
 }
 .thq :focus-visible { outline:2px solid var(--flag); outline-offset:3px; border-radius:4px; }
@@ -104,6 +163,12 @@ const LANDING_CSS = `
 .thq .nav-in { display:flex; align-items:center; justify-content:space-between; height:64px; }
 .thq .brand { display:flex; align-items:center; gap:11px; font-family:var(--sans); font-size:22px; font-weight:700; letter-spacing:-0.025em; }
 .thq .nav-actions { display:flex; align-items:center; gap:10px; }
+/* The two nav buttons are a PAIR, so they are one size.
+   Sized by their labels alone they came out 77px and 97px — a 20px step that
+   reads as a mistake rather than as hierarchy, because the difference is the
+   length of the words and not the importance of the actions. The weight and
+   the fill already say which one is primary. */
+.thq .nav-actions .btn { min-width:98px; justify-content:center; }
 /* On a phone the nav is a utility bar, not the hero placement, and at the
    hero size the lockup finished 4px from the buttons — fine until a longer
    word or a wider button. Back to LOGO_SIZE.md (22), which the scale
@@ -111,13 +176,30 @@ const LANDING_CSS = `
 @media (max-width: 560px) {
   .thq .brand { font-size:19px; gap:9px; }
   .thq .brand > svg:first-of-type { width:22px; height:22px; }
+  /* Equal, but narrower. At 375px the lockup finished 12.6px from the buttons
+     — the same crowding the note above records at 4px, just less of it. The
+     pair stays matched and gives the width back to the gap; the 44px touch
+     height is set by padding and is untouched. */
+  .thq .nav-actions { gap:8px; }
+  /* 13px and 10px of padding is what lets the LONGER label fit inside the
+     shared width. Set any wider and "Start free" sets its own size, the pair
+     stops matching, and the extra width comes straight out of the gap to the
+     lockup — which is the crowding this block exists to prevent. */
+  .thq .nav-actions .btn { min-width:86px; font-size:13px; padding-left:10px; padding-right:10px; }
 }
 .thq .btn { font-family:var(--sans); font-size:13.5px; font-weight:560; cursor:pointer; border-radius:8px; padding:9px 16px; border:1px solid transparent; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:transform .16s ease, background .16s ease, border-color .16s ease, color .16s ease; letter-spacing:-0.005em; }
 .thq .btn-ghost { color:var(--ink-soft); border-color:var(--line-2); }
 .thq .btn-ghost:hover { color:var(--ink); border-color:var(--ink-faint); }
-.thq .btn-solid { background:var(--brass); color:#17130C; font-weight:640; }
-@media (prefers-color-scheme: light) { .thq .btn-solid { color:#FFF7EE; } }
-.thq .btn-solid:hover { transform:translateY(-1px); background:var(--flag-soft); }
+/* The FILL step, not the text step — and the label colour comes from the
+   palette rather than being written here twice. The light-mode override this
+   replaces was hard-coding a label colour against an accent that has since
+   changed hue entirely; --on-accent is defined next to each ground's accent,
+   so the pair can never drift apart again. */
+.thq .btn-solid { background:var(--brass-ui); color:var(--on-accent); font-weight:640; }
+/* Brighter leaf, not green. Green is reserved for meaning on this page — live,
+   under par, money coming your way — and a primary button that turns green on
+   hover spends that word on "you moused over something". */
+.thq .btn-solid:hover { transform:translateY(-1px); background:var(--brass-hi); }
 .thq .btn-lg { padding:13px 22px; font-size:15px; }
 .thq .btn-solid.btn-lg::after { content:"\\2192"; font-size:14px; transition:transform .2s cubic-bezier(.2,.7,.2,1); }
 .thq .btn-solid.btn-lg:hover::after { transform:translateX(3px); }
@@ -176,7 +258,10 @@ const LANDING_CSS = `
 .thq .lb tr.lead td.pos { color:var(--flag); }
 
 .thq .band { background:var(--paper); color:var(--paper-ink); }
-.thq .band .sec-kick { color:var(--brass); }
+/* The band inverts the ground, so it must invert the gold too. Leaf is a
+   HIGHLIGHT — it reads at 11:1 on lacquer and all but vanishes on card stock.
+   On paper the same accent has to be struck bronze instead. */
+.thq .band .sec-kick { color:var(--paper-accent); }
 .thq .band .sec-h { color:var(--paper-ink); }
 .thq .band .sec-sub { color:var(--paper-soft); }
 .thq .cardgrid { display:grid; grid-template-columns:1.05fr 0.95fr; gap:40px; align-items:center; margin-top:32px; }
@@ -214,7 +299,7 @@ const LANDING_CSS = `
 .thq .faq { margin-top:44px; border-top:1px solid var(--line); }
 .thq .faq details { border-bottom:1px solid var(--line); }
 .thq .faq summary { list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:24px; padding:24px 4px; font-family:var(--sans); font-size:clamp(1rem, 1.6vw, 1.18rem); font-weight:600; letter-spacing:-0.012em; color:var(--ink); transition:color .16s ease; }
-.thq .faq summary:hover { color:var(--flag-soft); }
+.thq .faq summary:hover { color:var(--brass); }
 .thq .faq summary::-webkit-details-marker { display:none; }
 .thq .faq .chev { flex:none; width:19px; height:19px; color:var(--brass); transition:transform .22s cubic-bezier(.2,.7,.2,1); }
 .thq .faq details[open] summary .chev { transform:rotate(180deg); }
@@ -277,18 +362,18 @@ const LANDING_CSS = `
 
    These are Geist's metrics. If the display face ever changes, re-measure. */
 .thq .ajai { font-weight:700; }
-.thq .ajai-cap { color:var(--brass); }
-.thq .ajai-stem { position:relative; color:var(--flag); }
+.thq .ajai-cap { color:var(--brand-amber); }
+.thq .ajai-stem { position:relative; color:var(--brand-green); }
 .thq .ajai-stem::after {
   content:""; position:absolute; top:0.28em;
   width:0.1575em; height:0.1225em; border-radius:0.028em;
-  background:var(--brass);
+  background:var(--brand-amber);
 }
 .thq .ajai-stem.is-i::after { left:0.06em; }
 .thq .ajai-stem.is-j::after { left:0.11em; }
 /* The qualifier, tied to the stems and one weight quieter so it reads as the
    suffix to the mark rather than a fifth letter competing with it. */
-.thq .ajai-labs { color:var(--flag); font-weight:600; }
+.thq .ajai-labs { color:var(--brand-green); font-weight:600; }
 .thq .sr-only {
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
@@ -449,8 +534,8 @@ function FlagMark({ size = LOGO_SIZE.md }: { size?: number }) {
           // mapped it to --flag, which is this page's GREEN. The mark rendered
           // green-on-green and the ball took the ink colour, because it was
           // not a variable at all.
-          "--logo-flag": "var(--brass)",
-          "--logo-ball": "var(--flag)",
+          "--logo-flag": "var(--brand-amber)",
+          "--logo-ball": "var(--brand-green)",
           "--logo-stick": "currentColor",
           "--logo-rim": "var(--line-2)",
           "--logo-cup": "transparent",
