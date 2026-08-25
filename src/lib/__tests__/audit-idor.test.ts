@@ -397,7 +397,28 @@ describe("requirePotAccess is a real check, not a reassuring name", () => {
     // The group name arrives over HTTP. What must NOT arrive over HTTP is who
     // is in it — otherwise a caller names any group and claims to be in it.
     expect(fn).toMatch(/parseTeeSheet\(/);
-    expect(fn).toMatch(/group\?\.playerIds\.includes\(me\.id\)/);
+    expect(fn).toMatch(/group\??\.playerIds\.includes\(me\.id\)/);
+  });
+
+  it("refuses a named group outright rather than falling through", () => {
+    /**
+     * THE HOLE THIS PINS, found on 2026-08-25 by game-access.audit.test.ts.
+     *
+     * The tee-sheet check used to be `if (member) return` and then fall on to
+     * the branch that lets anyone start a name NOBODY is in. A group's game
+     * that did not exist yet had no entrants, so that branch caught it — and a
+     * player in Group 2 could create Group 1's opt-out birdie pot, which
+     * enters Group 1 and charges them the stake.
+     *
+     * So the group branch must END in a throw. A shape check, because the
+     * behaviour is asserted against real rows next door and this is the thing
+     * that stops the shape quietly coming back.
+     */
+    const at = fn.indexOf("if (group)");
+    expect(at, "the tee-sheet branch must be a closed if (group) { ... }").toBeGreaterThan(-1);
+    // Between entering that branch and leaving it, there is a throw.
+    const branch = fn.slice(at, fn.indexOf("entrants.size === 0"));
+    expect(branch).toMatch(/throw new Error/);
   });
 
   it("resolves the caller from the session, not from a parameter", () => {

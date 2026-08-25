@@ -107,21 +107,43 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
   );
   if (entrants.has(me.id)) return eventId;
 
-  // A TEE-SHEET GROUP: the fourball currently playing together may run the
-  // game that carries their name.
+  /**
+   * A TEE-SHEET GROUP: the fourball currently playing together, and NOBODY
+   * else — this branch never falls through to the ad-hoc one below.
+   *
+   * That fall-through was a real hole. A group's game that did not exist yet
+   * had no entrants, so the "nobody is in it" branch let any player in the
+   * field create it — and `potAudience` then resolved its audience to the
+   * group named on the sheet. In opt-out mode that enters those players and
+   * charges them the stake. A player in Group 2 could put Group 1 in a £50
+   * birdie pot they had never heard of, which is the exact harm this rule
+   * exists to prevent, reached through the door left open for a different
+   * case.
+   *
+   * So a name the tee sheet vouches for is answered ONLY by membership of it.
+   * Being unclaimed is not a way in when the name already means somebody.
+   */
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { teeSheet: true } });
   const sheet = parseTeeSheet(stage?.teeSheet ?? "");
   const group = sheet?.groups.find((g) => g.name === key);
-  if (group?.playerIds.includes(me.id)) return eventId;
+  if (group) {
+    if (group.playerIds.includes(me.id)) return eventId;
+    throw new Error("Only somebody in that group can run its game");
+  }
 
   /**
-   * A NAME NOBODY IS IN YET: anyone in the field may start it.
+   * A NAME NOBODY IS IN YET, and that names no group: anyone in the field may
+   * start it.
    *
    * Six friends spread across three fourballs want a game between the six of
    * them — neither the club's pot nor any one group's. Before this it took an
    * organizer setting up a field pot and ticking six of forty names, so in
    * practice it was done on paper. The gap between creating a game and naming
    * its entrants is the one moment nobody is in it.
+   *
+   * Safe here in a way it was not above, because an ad-hoc name resolves its
+   * audience to the whole field rather than to a group: there is no set of
+   * players it can silently enter.
    */
   if (entrants.size === 0) return eventId;
 
