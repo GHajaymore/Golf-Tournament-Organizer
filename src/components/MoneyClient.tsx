@@ -31,6 +31,13 @@ const money = (cents: number) => {
 };
 
 type Scope = "group" | "everyone" | "pick";
+type SplitMode = "evenly" | "shares" | "exact" | "percent";
+
+/** Cents from whatever somebody typed, tolerant of "$", spaces and commas. */
+const centsFrom = (text: string): number => {
+  const n = Number((text ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+};
 
 /** One shared empty list, so "no group" keeps the same identity between
  *  renders and a `useMemo` depending on it can actually memoize. */
@@ -52,6 +59,25 @@ export function MoneyClient({ view }: { view: MoneyView }) {
   const [picked, setPicked] = useState<Set<string>>(() => new Set(view.field.map((p) => p.id)));
   /** Shares per player, where anything unset is one. */
   const [weights, setWeights] = useState<Record<string, number>>({});
+  /**
+   * HOW the bill divides, which is a separate question from WHO is on it.
+   *
+   * Four ways, because a golf weekend generates all four and forcing one of
+   * them into another is where the faked expenses came from:
+   *  - evenly   the common case
+   *  - shares   the room somebody had for one night (2:2:2:1)
+   *  - exact    two rooms at rates that do not reduce to a ratio
+   *  - percent  the corporate day where somebody covers 60%
+   *
+   * Percent is weights out of a hundred and is sent as weights; exact is the
+   * only one the model needed a new column for.
+   */
+  const [splitMode, setSplitMode] = useState<SplitMode>("evenly");
+  /** Typed amounts per player, as entered, for the exact and percent modes. */
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  /** Whether more than one person put money down for this one bill. */
+  const [manyPayers, setManyPayers] = useState(false);
+  const [paidAmounts, setPaidAmounts] = useState<Record<string, string>>({});
 
   const round = view.rounds.find((r) => r.stageId === stageId) ?? null;
   // `NO_IDS`, not a fresh `[]`. The fallback used to allocate a new array on
@@ -67,9 +93,75 @@ export function MoneyClient({ view }: { view: MoneyView }) {
     return view.field.map((p) => p.id);
   }, [scope, groupIds, picked, view.field]);
 
-  const cents = Math.round(Number(amount.replace(/[^0-9.-]/g, "")) * 100);
-  const valid = description.trim().length > 0 && Number.isFinite(cents) && cents !== 0;
-  const each = valid && shareIds.length ? Math.floor(Math.abs(cents) / shareIds.length) : 0;
+  /**
+   * Who may appear as a PAYER, which is not the same list as who shares.
+   *
+   * Somebody can pay for a bill they are not on — one player fronting a
+   * guest's green fee — so the payer list is the whole field, with the people
+   * on this line first because that is who it usually is.
+   */
+  const shareIdsAndField = useMemo(() => {
+    const onLine = new Set(shareIds);
+    return [...shareIds, ...view.field.map((p) => p.id).filter((id) => !onLine.has(id))];
+  }, [shareIds, view.field]);
+
+  const cents = centsFrom(amount);
+  const each = shareIds.length ? Math.floor(Math.abs(cents) / shareIds.length) : 0;
+
+  /**
+   * What each mode sends.
+   *
+   * `exact` sends amounts; `percent` converts to weights, because a percentage
+   * IS a weight out of a hundred and the ledger should not carry two ways of
+   * saying the same thing. Everything else sends weights.
+   */
+  const shares = useMemo(
+    () =>
+      shareIds.map((playerId) => {
+        if (splitMode === "exact") {
+          return { playerId, weight: 1, amountCents: centsFrom(typed[playerId] ?? "") };
+        }
+        if (splitMode === "percent") {
+          return { playerId, weight: Math.max(0, Math.round(Number(typed[playerId] ?? "") || 0)) };
+        }
+        if (splitMode === "shares") return { playerId, weight: weights[playerId] ?? 1 };
+        return { playerId, weight: 1 };
+      }),
+    [shareIds, splitMode, typed, weights],
+  );
+
+  const payers = useMemo(
+    () =>
+      manyPayers
+        ? shareIdsAndField
+            .map((playerId) => ({ playerId, amountCents: centsFrom(paidAmounts[playerId] ?? "") }))
+            .filter((p) => p.amountCents !== 0)
+        : [],
+    [manyPayers, paidAmounts, shareIdsAndField],
+  );
+
+  /**
+   * The two sums a person can get wrong, checked here so the answer arrives
+   * while they are still typing rather than after a round trip. The server
+   * checks them again — it is a public endpoint and this is money — but a
+   * split that does not add up should never be submittable in the first place.
+   */
+  const splitTotal = splitMode === "exact" ? shares.reduce((s, r) => s + (r.amountCents ?? 0), 0) : cents;
+  const percentTotal = splitMode === "percent" ? shares.reduce((s, r) => s + r.weight, 0) : 100;
+  const paidTotal = payers.reduce((s, p) => s + p.amountCents, 0);
+
+  const splitOff = splitMode === "exact" && cents !== 0 ? cents - splitTotal : 0;
+  const percentOff = splitMode === "percent" ? 100 - percentTotal : 0;
+  const paidOff = manyPayers && cents !== 0 ? cents - paidTotal : 0;
+
+  const valid =
+    description.trim().length > 0 &&
+    Number.isFinite(cents) &&
+    cents !== 0 &&
+    shareIds.length > 0 &&
+    splitOff === 0 &&
+    percentOff === 0 &&
+    paidOff === 0;
 
   const submit = () => {
     setError("");
@@ -80,7 +172,12 @@ export function MoneyClient({ view }: { view: MoneyView }) {
         paidBy,
         stageId,
         category,
-        shares: shareIds.map((playerId) => ({ playerId, weight: weights[playerId] ?? 1 })),
+        shares,
+        // Omitted, not empty: the action reads an absent list as "the named
+        // payer covered it" and an empty one as "nobody paid", which is an
+        // error. Sending [] for the ordinary one-payer case would refuse
+        // every expense on the screen.
+        ...(payers.length > 0 ? { payers } : {}),
       });
       if (!res.ok) {
         setError(res.error ?? "Couldn't save that.");
@@ -296,27 +393,44 @@ export function MoneyClient({ view }: { view: MoneyView }) {
             </div>
           )}
 
-          {/* UNEQUAL SHARES, which the model always held and the screen never
-              offered — every line went in with a weight of 1, so a single room
-              against three twins, or two people on one cart, had to be faked
-              as a separate expense.
-              Only shown once somebody has picked, because on "everyone" the
-              answer is almost always evenly and a column of 1s is noise. */}
-          {scope === "pick" && shareIds.length > 1 && (
-            <details style={{ marginTop: 2 }}>
-              <summary style={{ fontSize: 12.5, cursor: "pointer" }} className="text-muted">
-                Not evenly? Set shares
-              </summary>
-              <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
-                {shareIds.map((id) => {
-                  const p = view.field.find((f) => f.id === id);
-                  if (!p) return null;
-                  return (
-                    <label
-                      key={id}
-                      style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}
-                    >
-                      <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
+          {/* HOW IT DIVIDES — a separate question from who is on it.
+              The model always held unequal shares and the screen only ever
+              sent 1s, so a single room against three twins, or two rooms at
+              different rates, had to be faked as separate expenses. All four
+              ways are now offered, because a weekend generates all four. */}
+          {shareIds.length > 1 && (
+            <div className="field">
+              <label>Split</label>
+              <div className="seg">
+                {([
+                  ["evenly", "Evenly"],
+                  ["shares", "By shares"],
+                  ["exact", "Exact amounts"],
+                  ["percent", "By percent"],
+                ] as Array<[SplitMode, string]>).map(([key, label]) => (
+                  <label className="seg-opt" key={key}>
+                    <input
+                      type="radio"
+                      name="splitMode"
+                      checked={splitMode === key}
+                      onChange={() => setSplitMode(key)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {shareIds.length > 1 && splitMode !== "evenly" && (
+            <div style={{ display: "grid", gap: 6 }}>
+              {shareIds.map((id) => {
+                const p = view.field.find((f) => f.id === id);
+                if (!p) return null;
+                return (
+                  <label key={id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
+                    {splitMode === "shares" ? (
                       <input
                         className="input"
                         type="number"
@@ -329,16 +443,92 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                         }
                         style={{ width: 68, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
                       />
-                    </label>
-                  );
-                })}
+                    ) : (
+                      <input
+                        className="input"
+                        inputMode="decimal"
+                        aria-label={
+                          splitMode === "exact" ? `Amount for ${p.name}` : `Percent for ${p.name}`
+                        }
+                        placeholder={splitMode === "exact" ? "0.00" : "0"}
+                        value={typed[id] ?? ""}
+                        onChange={(e) => setTyped((prev) => ({ ...prev, [id]: e.target.value }))}
+                        style={{ width: 92, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                      />
+                    )}
+                  </label>
+                );
+              })}
+
+              {/* What is still missing, said as a number rather than as
+                  "invalid". Somebody typing four amounts wants to know how
+                  much is left, not that they are wrong. */}
+              {splitMode === "exact" && splitOff !== 0 && cents !== 0 && (
+                <span style={{ fontSize: 12, color: "var(--color-danger)" }}>
+                  {splitOff > 0 ? `${money(splitOff)} still to allocate` : `${money(-splitOff)} over the total`}
+                </span>
+              )}
+              {splitMode === "percent" && percentOff !== 0 && (
+                <span style={{ fontSize: 12, color: "var(--color-danger)" }}>
+                  {percentOff > 0 ? `${percentOff}% still to allocate` : `${-percentOff}% over 100`}
+                </span>
+              )}
+              {splitMode === "shares" && (
                 <span className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
                   Shares, not amounts — two means twice as much as one. A zero leaves somebody on the
                   line without charging them, which is how a guest gets included in the round and not
                   in the bill.
                 </span>
-              </div>
-            </details>
+              )}
+            </div>
+          )}
+
+          {/* MORE THAN ONE CARD. A bill is not always one person's, and
+              splitting it into two expenses to record that would say the group
+              ate two dinners. */}
+          <div className="field">
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={manyPayers}
+                onChange={(e) => setManyPayers(e.target.checked)}
+              />
+              More than one person paid
+            </label>
+          </div>
+
+          {manyPayers && (
+            <div style={{ display: "grid", gap: 6 }}>
+              {shareIdsAndField.map((id) => {
+                const p = view.field.find((f) => f.id === id);
+                if (!p) return null;
+                return (
+                  <label key={id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
+                    <input
+                      className="input"
+                      inputMode="decimal"
+                      aria-label={`Amount paid by ${p.name}`}
+                      placeholder="0.00"
+                      value={paidAmounts[id] ?? ""}
+                      onChange={(e) => setPaidAmounts((prev) => ({ ...prev, [id]: e.target.value }))}
+                      style={{ width: 92, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                    />
+                  </label>
+                );
+              })}
+              {paidOff !== 0 && cents !== 0 && (
+                <span style={{ fontSize: 12, color: "var(--color-danger)" }}>
+                  {paidOff > 0
+                    ? `${money(paidOff)} of this bill is unaccounted for`
+                    : `${money(-paidOff)} more than the bill`}
+                </span>
+              )}
+              <span className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+                Leave somebody blank if they put nothing in. Anyone can pay for a bill they are not
+                sharing — fronting a guest&rsquo;s green fee is exactly that.
+              </span>
+            </div>
           )}
 
           {/* Never render a split that does not add up. */}

@@ -395,7 +395,7 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
     prisma.expense.findMany({
       where: { eventId },
       orderBy: [{ spentOn: "desc" }, { createdAt: "desc" }],
-      include: { shares: true },
+      include: { shares: true, payments: true },
     }),
     prisma.settlement.findMany({ where: { eventId }, orderBy: { settledAt: "desc" } }),
     prisma.player.findMany({
@@ -428,7 +428,8 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
     description: r.description,
     amountCents: r.amountCents,
     paidBy: r.paidBy,
-    shares: r.shares.map((s) => ({ playerId: s.playerId, weight: s.weight })),
+    shares: r.shares.map((s) => ({ playerId: s.playerId, weight: s.weight, amountCents: s.amountCents ?? undefined })),
+    payments: r.payments.map((p) => ({ playerId: p.playerId, amountCents: p.amountCents })),
   }));
 
   const expenseNets = balances(domain, players.map((p) => p.id));
@@ -468,7 +469,8 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
       description: r.description,
       amountCents: r.amountCents,
       paidBy: r.paidBy,
-      shares: r.shares.map((s) => ({ playerId: s.playerId, weight: s.weight })),
+      shares: r.shares.map((s) => ({ playerId: s.playerId, weight: s.weight, amountCents: s.amountCents ?? undefined })),
+    payments: r.payments.map((p) => ({ playerId: p.playerId, amountCents: p.amountCents })),
     });
     return {
       id: r.id,

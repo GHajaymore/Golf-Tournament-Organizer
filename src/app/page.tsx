@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
 import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
+import { shareOf } from "@/lib/domain/expenses";
+import { money } from "@/lib/domain/money-format";
 import { PLANS } from "@/lib/plans";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
@@ -61,6 +63,65 @@ const EXAMPLE = (() => {
   const tee = { courseRating: 71.5, slopeRating: 140, par: 72 };
   const course = courseHandicap(index, tee);
   return { index, tee, course, playing: playingHandicapFrom(course, 90) };
+})();
+
+/**
+ * The worked trip, run through the SAME splitter the app settles with.
+ *
+ * It used to be five hand-typed figures under the heading "four players,
+ * shared evenly", and evenly is the one thing a golf trip never is. Somebody
+ * drives up for the second night only, two of them go to the bar, one is
+ * driving and skips the wine. A page that shows four equal quarters is
+ * describing a dinner, not a weekend, and it undersells the thing the app
+ * actually does: every line carries its OWN set of people and its own weights.
+ *
+ * So each line below names who is on it, and the numbers come from `shareOf`
+ * rather than from arithmetic done in a comment. The lodging is the case that
+ * proves the point — three players for two nights and one for a single night
+ * is a 2:2:2:1 split of $640, which is $91.43 and $182.86-ish and does not
+ * divide into anything a person would type by hand. The remainder lands by
+ * the largest-remainder rule, so the five parts still sum to the cent.
+ *
+ * A worked example that does not add up is worse than none, because the reader
+ * checking it is exactly the reader who would have bought.
+ */
+const TRIP = (() => {
+  const you = "you";
+  const field = [you, "b", "c", "d"];
+  const all = field.map((playerId) => ({ playerId, weight: 1 }));
+
+  const lines = [
+    { description: "Travel and fuel", who: "all four", amountCents: 18_000, shares: all },
+    {
+      description: "Lodging",
+      // The whole argument in one line: two nights each for three of them,
+      // one for the fourth.
+      who: "three for two nights, one for one",
+      amountCents: 64_000,
+      shares: field.map((playerId) => ({ playerId, weight: playerId === you ? 1 : 2 })),
+    },
+    { description: "Cart fees", who: "all four", amountCents: 12_000, shares: all },
+    { description: "Dinner", who: "all four", amountCents: 16_460, shares: all },
+    {
+      description: "The bar",
+      // Not everyone drinks, and one of them is driving home.
+      who: "two of them",
+      amountCents: 5_000,
+      shares: field.map((playerId) => ({ playerId, weight: playerId === you || playerId === "b" ? 1 : 0 })),
+    },
+  ];
+
+  const rows = lines.map((line) => ({
+    description: line.description,
+    who: line.who,
+    total: line.amountCents,
+    yours: shareOf({ id: line.description, paidBy: "b", ...line }).get(you) ?? 0,
+  }));
+
+  const yourShare = rows.reduce((sum, r) => sum + r.yours, 0);
+  // What the golf came to, from the section beside this one.
+  const golfNet = 7_750;
+  return { rows, yourShare, golfNet, handover: yourShare - golfNet };
 })();
 
 /* The design's stylesheet, scoped under `.thq`. Animation baselines live behind
@@ -492,6 +553,10 @@ const LANDING_CSS = `
 .thq .led dl { margin:0; font-variant-numeric:tabular-nums; }
 .thq .led dl > div { display:flex; justify-content:space-between; gap:14px; padding:5px 0; font-size:13.5px; }
 .thq .led dt { margin:0; min-width:0; }
+/* Who is actually on this line. It sits under the description rather than
+   beside it because it is the part that differs per line, and a reader
+   scanning for "wait, am I paying for the bar?" is scanning this column. */
+.thq .led-who { display:block; font-size:11.5px; line-height:1.45; margin-top:1px; }
 .thq .led dd { margin:0; text-align:right; white-space:nowrap; }
 .thq .led dd.won { color:var(--flag); font-weight:640; }
 .thq .led .led-sum { margin-top:5px; padding-top:9px; border-top:1px solid color-mix(in srgb, var(--paper-ink) 20%, transparent); font-weight:680; }
@@ -564,8 +629,16 @@ export default async function LoginPage() {
   // on the one journey it is named after.
   if (session) redirect(session.eventId ? landingScreenFor(session.viewRole) : "/choose");
 
-  /** Whole dollars where the price is whole, so "$29" never reads "$29.00". */
-  const money = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
+  /**
+   * Whole dollars where the price is whole, so "$29" never reads "$29.00".
+   *
+   * Named `planPrice`, not `money`, and the rename is the point: it takes
+   * WHOLE DOLLARS while the shared `money()` next to it takes CENTS. As
+   * `money` it shadowed the import inside this component, and the trip ledger
+   * — which is in cents — rendered $45.00 as "$4500". Two formatters with one
+   * name and different units is a bug waiting on whoever writes the next line.
+   */
+  const planPrice = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
 
   const paperInk = { color: "var(--paper-ink)" } as const;
   const paperSoft = { color: "var(--paper-soft)" } as const;
@@ -958,31 +1031,37 @@ export default async function LoginPage() {
                 the apps that do it do it well — the claim is about where the
                 NUMBERS come from, which is the half they cannot help with. */}
             <p className="sec-sub" style={paperInk}>
-              Splitting a bill is the easy half, and this does that too: the hotel, the buggies,
-              the round of drinks, shared however you like. The half that costs an evening is
-              knowing the amounts — somebody has to work out that a player won three skins at
-              $22.50, lost the front nine, and owes for a guest, then type it in. Here nobody types
-              it. The golf money IS the card, and the trip and the competition net off into one
-              balance and one handover.
+              Splitting a bill is the easy half, and this does that too — but properly. Every line
+              carries its own people and its own weights: the two who went to the bar, the one who
+              came up for the second night only, the guest somebody signed in. Nothing is forced
+              into equal quarters. The half that costs an evening is knowing the amounts —
+              somebody has to work out that a player won three skins at $22.50, lost the front
+              nine, and owes for a guest, then type it in. Here nobody types it. The golf money IS
+              the card, and the trip and the competition net off into one balance and one handover.
             </p>
           </div>
 
           {/* The weekend, settled.
               The claim above is that the trip and the competition net into one
-              number. That is only believable if the number is shown, so it is
-              — and the arithmetic is real: 1,154.60 over four is 288.65, the
-              golf nets +77.50, and 288.65 − 77.50 is 211.15. A worked example
-              that does not add up is worse than none, because the reader
-              checking it is exactly the reader who would have bought. */}
+              number. That is only believable if the number is shown, so it is.
+              Every figure in the left-hand column now comes from `shareOf` —
+              the splitter the app settles with — so the example cannot drift
+              from the product, and the awkward lodging split is the engine's
+              answer rather than mine. See TRIP at the top of this file. */}
           <div className="ledger reveal">
             <div className="led">
-              <div className="led-h" style={paperInk}>The trip <span style={paperSoft}>· four players, shared evenly</span></div>
+              <div className="led-h" style={paperInk}>The trip <span style={paperSoft}>· four players, no two shares alike</span></div>
               <dl>
-                <div><dt style={paperInk}>Travel and fuel</dt><dd style={paperInk}>$180.00</dd></div>
-                <div><dt style={paperInk}>Lodging, two nights</dt><dd style={paperInk}>$640.00</dd></div>
-                <div><dt style={paperInk}>Cart fees</dt><dd style={paperInk}>$120.00</dd></div>
-                <div><dt style={paperInk}>Food and drinks</dt><dd style={paperInk}>$214.60</dd></div>
-                <div className="led-sum"><dt style={paperInk}>Each owes</dt><dd style={paperInk}>$288.65</dd></div>
+                {TRIP.rows.map((r) => (
+                  <div key={r.description}>
+                    <dt style={paperInk}>
+                      {r.description}
+                      <span className="led-who" style={paperSoft}>{r.who}</span>
+                    </dt>
+                    <dd style={paperInk}>{money(r.yours)}</dd>
+                  </div>
+                ))}
+                <div className="led-sum"><dt style={paperInk}>Your share</dt><dd style={paperInk}>{money(TRIP.yourShare)}</dd></div>
               </dl>
             </div>
 
@@ -999,10 +1078,11 @@ export default async function LoginPage() {
 
           <div className="led-out reveal" style={paperInk}>
             <span className="led-out-k" style={paperSoft}>Settles to</span>
-            <span className="led-out-v">one handover of $211.15</span>
+            <span className="led-out-v">one handover of {money(TRIP.handover)}</span>
             <span className="led-out-n" style={paperSoft}>
-              Not four transfers between four people. Nobody typed a golf number, and nothing here
-              moves a penny — it is the figure everybody agrees on before they get to the bar.
+              Not four transfers between four people, and not a quarter of everything. Nobody typed
+              a golf number, and nothing here moves a penny — it is the figure everybody agrees on
+              before they get to the bar.
             </span>
           </div>
 
@@ -1112,7 +1192,7 @@ export default async function LoginPage() {
         <div className="wrap">
           <div className="reveal">
             <div className="sec-kick">What it costs</div>
-            <h2 className="sec-h">Free for one event. {money(PLANS.club.priceMonthly)} a month for a season.</h2>
+            <h2 className="sec-h">Free for one event. {planPrice(PLANS.club.priceMonthly)} a month for a season.</h2>
             <p className="sec-sub">
               No card to start, and nothing is charged through the app — TourneyHQ works out the
               money and keeps the record; what changes hands is arranged between you and us, and
@@ -1139,7 +1219,7 @@ export default async function LoginPage() {
 
             <div className="plan paid">
               <div className="amt">
-                {money(PLANS.club.priceMonthly)}
+                {planPrice(PLANS.club.priceMonthly)}
                 <span className="per"> / month</span>
               </div>
               <div className="per">{PLANS.club.blurb}</div>

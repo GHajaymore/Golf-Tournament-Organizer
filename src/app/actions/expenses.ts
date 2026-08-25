@@ -38,8 +38,23 @@ export interface ExpenseInput {
   description: string;
   amountCents: number;
   paidBy: string;
-  /** Player ids sharing the cost, with their weights. Empty means everyone. */
-  shares?: Array<{ playerId: string; weight: number }>;
+  /**
+   * Who actually put money down, when it was more than one person.
+   *
+   * Omitted means `paidBy` paid the whole bill. When given, the amounts must
+   * total `amountCents` exactly — a credit that does not total the bill puts
+   * money into existence and unbalances everybody else's number.
+   */
+  payers?: Array<{ playerId: string; amountCents: number }>;
+  /**
+   * Player ids sharing the cost. Omitted means everyone, split evenly.
+   *
+   * `weight` is the usual case: 1 each is even, 2 is a double share, 0 is on
+   * the trip but not on this bill. `amountCents` overrides it for a bill whose
+   * amounts do not reduce to a ratio — and if any share sets one, they all
+   * must, because the line is then split by exact amounts.
+   */
+  shares?: Array<{ playerId: string; weight: number; amountCents?: number }>;
   stageId?: string;
   category?: string;
   spentOn?: string;
@@ -92,7 +107,8 @@ async function cleanInput(
         category: string;
         spentOn: string;
       };
-      shares: Array<{ playerId: string; weight: number }>;
+      shares: Array<{ playerId: string; weight: number; amountCents: number | null }>;
+      payers: Array<{ playerId: string; amountCents: number }>;
     }
 > {
   const description = (input.description ?? "").trim().slice(0, DESCRIPTION_MAX);
@@ -133,20 +149,84 @@ async function cleanInput(
   });
   const inField = new Set(field.map((p) => p.id));
 
-  const requested = input.shares?.length
-    ? input.shares
-    : // No shares given is the common case and means everyone in the field,
-      // split evenly — the default the screen offers.
-      field.map((p) => ({ playerId: p.id, weight: 1 }));
+  // OMITTED and EMPTY are not the same request.
+  //
+  // `undefined` means "no opinion" — the common case, and the default the
+  // screen offers: everyone in the field, split evenly. An empty ARRAY is an
+  // opinion, and the opinion is "nobody", which must fail rather than quietly
+  // becoming its opposite.
+  //
+  // Written as `input.shares?.length ? ... : everyone` these collapsed, so a
+  // caller that sent `shares: []` — a client bug, a stale picker, anyone
+  // posting to this endpoint by hand — had the bill split across the WHOLE
+  // FIELD instead of being refused. That is the worst available outcome: it
+  // charges people who were not on the bill, and it looks deliberate in the
+  // ledger afterwards.
+  const requested: Array<{ playerId: string; weight: number; amountCents?: number }> =
+    input.shares === undefined
+      ? field.map((p) => ({ playerId: p.id, weight: 1 }))
+      : input.shares;
+
+  // Any share naming an amount switches the line to exact amounts. Mixing is
+  // refused rather than resolved, because "half by weight, half by amount" has
+  // no answer a person entering it could predict.
+  const byAmount = requested.some((s) => s.amountCents !== undefined && s.amountCents !== null);
 
   const shares = requested
     .filter((s) => inField.has(s.playerId))
     .map((s) => ({
       playerId: s.playerId,
       weight: Number.isFinite(s.weight) ? Math.max(0, Math.min(99, Math.round(s.weight))) : 0,
+      amountCents: byAmount ? Math.round(Number(s.amountCents ?? 0)) : null,
     }));
 
   if (shares.length === 0) return { ok: false, error: "Nobody to split this with." };
+
+  if (byAmount) {
+    if (shares.some((s) => !Number.isFinite(s.amountCents as number))) {
+      return { ok: false, error: "Give everyone on this bill an amount, or split it by shares instead." };
+    }
+    const split = shares.reduce((sum, s) => sum + (s.amountCents ?? 0), 0);
+    if (split !== amountCents) {
+      const diff = amountCents - split;
+      return {
+        ok: false,
+        error: `The amounts come to ${money(split)}, not ${money(amountCents)} — ${
+          diff > 0 ? `${money(diff)} short` : `${money(-diff)} over`
+        }.`,
+      };
+    }
+  }
+
+  /**
+   * Who actually paid.
+   *
+   * Omitted is the common case and means the named payer covered it. When a
+   * list IS given it has to total the bill exactly: `balances` credits payers
+   * and debits sharers and is zero-sum only because those credits add up to
+   * the amount. Letting $190 of payments stand against a $200 dinner would
+   * invent $10 and shift every other player's number.
+   */
+  const payers = (input.payers ?? [])
+    .filter((p) => inField.has(p.playerId))
+    .map((p) => ({ playerId: p.playerId, amountCents: Math.round(Number(p.amountCents)) }))
+    .filter((p) => Number.isFinite(p.amountCents) && p.amountCents !== 0);
+
+  if (input.payers?.length && payers.length === 0) {
+    return { ok: false, error: "Whoever paid has to be in this tournament." };
+  }
+  if (payers.length > 0) {
+    const laidOut = payers.reduce((sum, p) => sum + p.amountCents, 0);
+    if (laidOut !== amountCents) {
+      const diff = amountCents - laidOut;
+      return {
+        ok: false,
+        error: `What everyone paid comes to ${money(laidOut)}, not ${money(amountCents)} — ${
+          diff > 0 ? `${money(diff)} unaccounted for` : `${money(-diff)} too much`
+        }.`,
+      };
+    }
+  }
 
   return {
     ok: true,
@@ -167,6 +247,7 @@ async function cleanInput(
       spentOn,
     },
     shares,
+    payers,
   };
 }
 
@@ -181,6 +262,7 @@ export async function addExpense(input: ExpenseInput): Promise<ExpenseResult> {
       ...clean.data,
       createdBy: session.name || session.email,
       shares: { create: clean.shares },
+      payments: { create: clean.payers },
     },
   });
 
@@ -222,9 +304,19 @@ export async function updateExpense(expenseId: string, input: ExpenseInput): Pro
   // sent this time" are not the same thing.
   await prisma.$transaction([
     prisma.expenseShare.deleteMany({ where: { expenseId } }),
+    // Payments go the same way as shares, and for the same reason: a diff
+    // would have to decide what an absent id means, and "no longer paid
+    // anything" and "not sent this time" are different facts. Leaving them
+    // behind would also collide with the (expenseId, playerId) unique key on
+    // the way back in.
+    prisma.expensePayment.deleteMany({ where: { expenseId } }),
     prisma.expense.update({
       where: { id: expenseId },
-      data: { ...clean.data, shares: { create: clean.shares } },
+      data: {
+        ...clean.data,
+        shares: { create: clean.shares },
+        payments: { create: clean.payers },
+      },
     }),
   ]);
 
