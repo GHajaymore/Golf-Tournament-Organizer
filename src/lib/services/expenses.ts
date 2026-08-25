@@ -243,7 +243,14 @@ async function gameNets(
     // The SCOPE too, since a league night runs four pots on one round and
     // (stageId, net) no longer names one of them. Reading without it asked
     // for the same pot four times and missed three lots of money.
-    select: { stageId: true, net: true, scope: true },
+    //
+    // AND THE GROUP, for exactly the same reason one scope wider. Without it
+    // this enumerated every pot on the round and then re-read the FIELD's one
+    // each time: a club running its own skins beside two fourballs had its
+    // pot counted three times in the settle-up, and neither fourball's money
+    // appeared at all. Four independent passes of the 2026-08-25 audit found
+    // this, which is what a rule with many readers looks like from outside.
+    select: { stageId: true, net: true, scope: true, groupKey: true },
   });
   for (const pot of pots) {
     const view = await skinsPotFor(
@@ -251,6 +258,7 @@ async function gameNets(
       pot.stageId,
       pot.net,
       isSkinsScope(pot.scope) ? pot.scope : "full",
+      pot.groupKey,
     );
     // A pot with nobody in it has no result and no money — `result` is null
     // until somebody is entered, which is not the same as everyone at zero.
@@ -262,7 +270,13 @@ async function gameNets(
       const won = view.holes.filter((h) => h.playerId === share.playerId).map((h) => h.hole);
       lines.push({
         playerId: share.playerId,
-        label: skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full"),
+        // The group leads when there is one. Without it a player in both the
+        // club's pot and their fourball's sees two identical lines called
+        // "Skins (Net)" and cannot tell which money is which — the same
+        // failure as the unexplained lump this itemisation replaced.
+        label: pot.groupKey
+          ? `${pot.groupKey} — ${skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full")}`
+          : skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full"),
         detail: won.length
           ? `won ${won.length === 1 ? "the" : ""} ${won.length === 1 ? "" : won.length + " holes: "}${won.join(", ")}`.replace(/s+/g, " ").trim()
           : "no skins won",

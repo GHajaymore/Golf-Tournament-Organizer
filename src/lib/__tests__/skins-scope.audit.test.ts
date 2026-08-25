@@ -94,8 +94,8 @@ describe("four skins games on one round", () => {
 
   it("reads back the game that was asked for, not whichever row turned up", async () => {
     // The reader takes (net, scope) because that pair is what names a game.
-    const frontGross = await skinsPotFor(eventId, stageId, false, "front");
-    const backNet = await skinsPotFor(eventId, stageId, true, "back");
+    const frontGross = await skinsPotFor(eventId, stageId, false, "front", "");
+    const backNet = await skinsPotFor(eventId, stageId, true, "back", "");
 
     expect(frontGross?.scope).toBe("front");
     expect(backNet?.scope).toBe("back");
@@ -164,7 +164,7 @@ describe("two fourballs, each with their own game on the same round", () => {
   it("keeps the field's own pot separate from either group's", async () => {
     // The whole-field pot is groupKey "", and it already existed on this round
     // from the suite above at 500. A group creating theirs must not touch it.
-    const field = await skinsPotFor(eventId, stageId, true, "front");
+    const field = await skinsPotFor(eventId, stageId, true, "front", "");
     const group1 = await skinsPotFor(eventId, stageId, true, "front", "Group 1");
 
     expect(field?.buyInCents, "the field's pot moved when a group made theirs").not.toBe(1_000);
@@ -172,11 +172,45 @@ describe("two fourballs, each with their own game on the same round", () => {
   });
 
   it("reads a group's pot only when asked for that group", async () => {
-    // The default is the field's pot, so every caller that predates groups
-    // reads exactly what it always read.
-    const byDefault = await skinsPotFor(eventId, stageId, true, "front");
-    const explicit = await skinsPotFor(eventId, stageId, true, "front", "");
-    expect(byDefault?.buyInCents).toBe(explicit?.buyInCents);
-    expect(byDefault?.buyInCents).not.toBe(2_000);
+    // Every read names whose pot it wants. This test used to assert the
+    // OPPOSITE — that a caller omitting the group "reads exactly what it
+    // always read" — which is precisely the bug the 2026-08-25 audit found in
+    // all four readers: they omitted it, every group pot resolved to the
+    // field's, and the club's money was counted once per group pot while the
+    // groups' vanished. The argument is now required, so the mistake this
+    // test blessed cannot be written.
+    const field = await skinsPotFor(eventId, stageId, true, "front", "");
+    const group1 = await skinsPotFor(eventId, stageId, true, "front", "Group 1");
+    const group3 = await skinsPotFor(eventId, stageId, true, "front", "Group 3");
+
+    expect(field?.buyInCents).toBe(600);
+    expect(group1?.buyInCents).toBe(1_000);
+    expect(group3?.buyInCents).toBe(2_000);
+  });
+
+  /**
+   * The enumerate-then-re-read shape, which is how all four readers went wrong.
+   *
+   * Every one of them listed the pots on a round and then fetched each row
+   * again. That is fine; what was not fine is that the second read dropped the
+   * group. Asserted here against real rows because the failure needs several
+   * pots sharing one (stageId, net, scope) to appear at all, and the ledger's
+   * zero-sum check cannot see it — a doubled figure still sums to zero.
+   */
+  it("re-reads each enumerated pot as ITSELF, not as the field's", async () => {
+    const rows = await prisma.skinsPot.findMany({
+      where: { stageId, net: true, scope: "front" },
+      select: { net: true, scope: true, groupKey: true },
+      orderBy: { groupKey: "asc" },
+    });
+    expect(rows.length, "needs the field pot and two group pots").toBe(3);
+
+    const back = await Promise.all(
+      rows.map((r) => skinsPotFor(eventId, stageId, r.net, "front", r.groupKey)),
+    );
+    // Three rows, three DIFFERENT pots. Dropping groupKey gave the same pot
+    // three times, which is the whole defect in one assertion.
+    const stakes = back.map((v) => v?.buyInCents).sort((a, b) => (a ?? 0) - (b ?? 0));
+    expect(stakes).toEqual([600, 1_000, 2_000]);
   });
 });

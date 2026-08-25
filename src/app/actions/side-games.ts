@@ -77,7 +77,11 @@ export async function saveSideGame(
   const game = await prisma.sideGame.upsert({
     where: { stageId_kind_groupKey: { stageId, kind, groupKey } },
     update: { buyInCents: cents },
-    create: { eventId, stageId, kind, buyInCents: cents, createdBy: name },
+    // groupKey in the CREATE too. Omitted, a fourball's game was written as
+    // the field's — or collided with the field's existing row on the unique
+    // key and threw. The where clause knew about the group and the create
+    // did not, which is the shape that always writes to the wrong row.
+    create: { eventId, stageId, kind, groupKey, buyInCents: cents, createdBy: name },
   });
 
   await logMoney(

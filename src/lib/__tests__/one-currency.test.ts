@@ -168,3 +168,62 @@ describe("what somebody types is read in the club's currency", () => {
     expect(offenders, `parse typed money with useMoney().parse:\n${offenders.join("\n")}`).toEqual([]);
   });
 });
+
+/**
+ * The enumerate-then-re-read shape, swept from the filesystem.
+ *
+ * Four readers listed the skins pots on a round and then fetched each row
+ * again WITHOUT its groupKey, so every group pot resolved to the field's: the
+ * club's money counted once per group pot, and every fourball's lost. The
+ * 2026-08-25 audit found it four times over from four independent angles,
+ * which is what a rule with many readers looks like from outside.
+ *
+ * `skinsPotFor` now requires the argument, so the compiler catches a fresh
+ * caller. This catches the other half — a query that reads pots without
+ * deciding whose they are.
+ */
+describe("nothing reads a skins pot without saying whose it is", () => {
+  const ROOTS = [join(process.cwd(), "src", "lib", "services"), join(process.cwd(), "src", "app")];
+
+  const walk = (dir: string): string[] => {
+    const out: string[] = [];
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) out.push(...walk(full));
+      else if (/\.tsx?$/.test(e.name)) out.push(full);
+    }
+    return out;
+  };
+
+  it("constrains groupKey on every skinsPot query that feeds money", () => {
+    const offenders: string[] = [];
+    for (const root of ROOTS) {
+      for (const file of walk(root)) {
+        if (file.includes("__tests__")) continue;
+        // COMMENTS STRIPPED FIRST. These queries carry long explanations
+        // between the call and its `select`, and a fixed window over the raw
+        // source cut the `groupKey` off and reported two correct readers as
+        // faults. A guard that flags correct code is the one somebody deletes.
+        const src = readFileSync(file, "utf8")
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .replace(/\/\/.*$/gm, "");
+        if (!/prisma\.skinsPot\.(findMany|findFirst)/.test(src)) continue;
+        // The query must mention groupKey — either filtering to the club's
+        // ("") or selecting it so the caller can pass it on.
+        const calls = src.split(/prisma\.skinsPot\.(?:findMany|findFirst)/).slice(1);
+        for (const call of calls) {
+          const head = call.slice(0, 300);
+          // `select: { id: true }` existence probes do not read money.
+          if (/select:\s*\{\s*id:\s*true\s*\}/.test(head)) continue;
+          if (!/groupKey/.test(head)) {
+            offenders.push(file.replace(process.cwd(), ""));
+          }
+        }
+      }
+    }
+    expect(
+      offenders,
+      `these read skins pots without deciding whose:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+});

@@ -183,7 +183,11 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    * shows one and a league with four shows four, with no setting deciding it.
    */
   const potRows = await prisma.skinsPot.findMany({
-    where: { stageId: stage.id },
+    // The club's own pots. A fourball's private game is theirs and lives on
+    // Group games; without this filter the week sheet rendered the FIELD's
+    // pot once per group pot on the round — the same card twice — and showed
+    // no group pot at all.
+    where: { stageId: stage.id, groupKey: "" },
     select: { net: true, scope: true },
     orderBy: [{ scope: "asc" }, { net: "asc" }],
   });
@@ -191,7 +195,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     await Promise.all(
       potRows.map(async (p) => {
         const scope = isSkinsScope(p.scope) ? p.scope : "full";
-        const view = await skinsPotFor(eventId, stage.id, p.net, scope);
+        const view = await skinsPotFor(eventId, stage.id, p.net, scope, "");
         return view
           ? { net: p.net, scope, label: skinsGameLabel(p.net, scope, stage.holes), view }
           : null;
