@@ -65,12 +65,25 @@ export async function skinsPotFor(
    */
   scope: SkinsScope,
   /**
-   * And whose: the field's pot, or one fourball's own game. Empty is the
-   * field's, which is every pot that existed before groups could run their
-   * own — so an existing caller that does not pass this reads exactly the pot
-   * it always read.
+   * And whose: "" for the field's pot, or a group / side-bet name.
+   *
+   * REQUIRED, and the default it replaces is the whole reason this argument
+   * has to be. `scope` above is required for exactly this stated reason —
+   * "a default would read the wrong game's money without complaining" — and
+   * `groupKey` was added with a default anyway.
+   *
+   * Every one of the four callers then forgot it. Each enumerated the pots on
+   * a round, including group ones, and re-read each row without a groupKey,
+   * so all of them resolved to the FIELD's pot: the club's money counted once
+   * per group pot, and every fourball's and side bet's money silently gone.
+   * The settle-up, the season table, the week sheet and Prizes were all wrong
+   * in the same way, and the ledger's own zero-sum check could not see it
+   * because a doubled figure still sums to zero.
+   *
+   * A guard you must remember to pass is a guard that will be forgotten. This
+   * one is now the compiler's to remember.
    */
-  groupKey: string = "",
+  groupKey: string,
 ): Promise<SkinsPotView | null> {
   const [pot, stage, event] = await Promise.all([
     prisma.skinsPot.findUnique({
@@ -261,7 +274,17 @@ export interface SkinsSeasonRow {
  */
 export async function skinsSeasonFor(eventId: string): Promise<SkinsSeasonRow[]> {
   const pots = await prisma.skinsPot.findMany({
-    where: { eventId },
+    // THE CLUB'S POTS ONLY.
+    //
+    // A season table is the club's standing, so a private bet between four
+    // friends does not belong in it — and the fourball that plays for £20 a
+    // week would otherwise top the club's season table on money nobody else
+    // was invited to play for.
+    //
+    // The filter is also what stops the arithmetic being wrong: this
+    // enumerated EVERY pot on the round and then re-read the field's one for
+    // each, so a round with two group pots counted the club's three times.
+    where: { eventId, groupKey: "" },
     // The scope too: a league night runs four pots on one round, and reading
     // (stageId, net) alone asked for the same one twice and missed the rest —
     // which for a season total is money that never appears.
@@ -271,7 +294,7 @@ export async function skinsSeasonFor(eventId: string): Promise<SkinsSeasonRow[]>
 
   const weeks = await Promise.all(
     pots.map((p) =>
-      skinsPotFor(eventId, p.stageId, p.net, isSkinsScope(p.scope) ? p.scope : "full"),
+      skinsPotFor(eventId, p.stageId, p.net, isSkinsScope(p.scope) ? p.scope : "full", ""),
     ),
   );
   const results = weeks.filter((w): w is SkinsPotView => !!w && !!w.result).map((w) => w.result!);

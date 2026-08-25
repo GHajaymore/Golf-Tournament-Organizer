@@ -84,45 +84,51 @@ async function requirePotAccess(stageId: string, groupKey: string): Promise<stri
   });
   if (!me) throw new Error("Only a player in that group can run its game");
 
-  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { teeSheet: true } });
-  const sheet = parseTeeSheet(stage?.teeSheet ?? "");
-  const group = sheet?.groups.find((g) => g.name === key);
-
-  // A TEE-SHEET GROUP: the fourball playing together, and only them.
-  if (group) {
-    if (!group.playerIds.includes(me.id)) {
-      throw new Error("Only a player in that group can run its game");
-    }
-    return eventId;
-  }
-
-  /**
-   * AN AD-HOC BET: a name that is not a group on the sheet.
-   *
-   * Six friends spread across three fourballs want a skins game between the
-   * six of them. That is neither the club's pot nor any one group's, and
-   * before this it could only be done by the organizer setting up a field pot
-   * and ticking six of forty names — so in practice it was done on paper.
-   *
-   * Any player in the field may START one, because it is their own money.
-   * Once it HAS people in it, only those people (or staff) may change it: a
-   * bet you are in is a bet somebody else must not be able to re-price or
-   * empty. The gap between creating a pot and naming its entrants is the one
-   * moment nobody is in it yet, which is why an empty pot stays open.
-   */
   if (key.length > AD_HOC_NAME_MAX) {
     throw new Error(`Keep the name under ${AD_HOC_NAME_MAX} characters`);
   }
 
-  const existing = await prisma.skinsPot.findFirst({
+  /**
+   * WHO IS ALREADY IN IT, across every pot under this name on this round.
+   *
+   * Across ALL of them, not the first one found. A name can carry four pots —
+   * front and back, gross and net — and deciding access from whichever row
+   * turned up first answered about a different game than the one being
+   * written.
+   *
+   * And checked FIRST, before the tee sheet, which is what stops a redraw
+   * taking a game away from the people who paid into it. The key is a group
+   * NAME, so republishing the sheet with different fourballs makes "Group 1"
+   * mean four other players — under a membership-only rule the original four
+   * would be locked out of their own money while four strangers inherited it.
+   * Having a stake in a pot is the one claim a redraw cannot revoke.
+   */
+  const pots = await prisma.skinsPot.findMany({
     where: { stageId, groupKey: key },
     select: { entrants: { select: { playerId: true } } },
   });
-  if (!existing || existing.entrants.length === 0) return eventId;
-  if (!existing.entrants.some((e) => e.playerId === me.id)) {
-    throw new Error("Only somebody in this bet can change it");
-  }
-  return eventId;
+  const entrants = new Set(pots.flatMap((p) => p.entrants.map((e) => e.playerId)));
+  if (entrants.has(me.id)) return eventId;
+
+  // A TEE-SHEET GROUP: the fourball currently playing together may run the
+  // game that carries their name.
+  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { teeSheet: true } });
+  const sheet = parseTeeSheet(stage?.teeSheet ?? "");
+  const group = sheet?.groups.find((g) => g.name === key);
+  if (group?.playerIds.includes(me.id)) return eventId;
+
+  /**
+   * A NAME NOBODY IS IN YET: anyone in the field may start it.
+   *
+   * Six friends spread across three fourballs want a game between the six of
+   * them — neither the club's pot nor any one group's. Before this it took an
+   * organizer setting up a field pot and ticking six of forty names, so in
+   * practice it was done on paper. The gap between creating a pot and naming
+   * its entrants is the one moment nobody is in it.
+   */
+  if (entrants.size === 0) return eventId;
+
+  throw new Error("Only somebody in this game can change it");
 }
 
 /**
@@ -209,7 +215,35 @@ export async function setSkinsEntrants(
     where: { id: { in: [...new Set(playerIds)] }, eventId, status: "confirmed" },
     select: { id: true },
   });
-  const ids = valid.map((p) => p.id);
+  let ids = valid.map((p) => p.id);
+
+  /**
+   * And for a FOURBALL's pot, only that fourball.
+   *
+   * Being in the tournament is not consent to be staked in somebody else's
+   * game. Without this, a player in Group 1 could enter every name in the
+   * field into Group 1's pot: the others owe a buy-in they never agreed to,
+   * and it lands in their settle-up looking exactly like a debt they did.
+   *
+   * Only when the key names a group on the sheet. An ad-hoc bet is
+   * deliberately not a group — six friends across three fourballs is the case
+   * it exists for — and is bounded instead by who may write it at all.
+   */
+  if (key) {
+    const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { teeSheet: true } });
+    const group = parseTeeSheet(stage?.teeSheet ?? "")?.groups.find((g) => g.name === key);
+    if (group) {
+      const inGroup = new Set(group.playerIds);
+      const dropped = ids.filter((id) => !inGroup.has(id));
+      ids = ids.filter((id) => inGroup.has(id));
+      if (dropped.length > 0) {
+        return {
+          ok: false,
+          error: `${dropped.length} of those players aren't in ${key}. A group's pot is for the group playing it.`,
+        };
+      }
+    }
+  }
 
   const pot = await prisma.skinsPot.upsert({
     where: { stageId_net_scope_groupKey: { stageId, net, scope, groupKey: key } },

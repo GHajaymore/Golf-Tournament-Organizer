@@ -416,3 +416,151 @@ describe("the ledger under everything at once", () => {
     expect(coach.unknownPayer, "and the screen must be able to say who is missing").toBe(true);
   });
 });
+
+/**
+ * The rules the 2026-08-25 audit found enforced in code and pinned by nothing.
+ *
+ * Each was a real defect that day. The reason none were caught is that the
+ * suite tested the HAPPY path of each action — a settlement between the right
+ * people, an expense with sensible shares. The failures live one step off it.
+ */
+describe("a settle-up is between the two people in it", () => {
+  it("refuses a third party recording a payment between two others", async () => {
+    // THE BUG: this checked only that both parties were in the tournament, so
+    // any signed-in player could record a payment between two OTHER people —
+    // one that never happened, moving both their balances, with a third
+    // person's name on the record.
+    await signIn("rob");
+    const res = await recordSettlement(player.ann, player.dave, 5_000);
+    expect(res.ok, "Rob is neither party and recorded their settlement").toBe(false);
+    expect(res.error).toMatch(/two people involved/i);
+  });
+
+  it("lets either party record their own", async () => {
+    await signIn("ann");
+    expect((await recordSettlement(player.ann, player.dave, 1_000)).ok).toBe(true);
+    await signIn("dave");
+    expect((await recordSettlement(player.dave, player.ann, 1_000)).ok).toBe(true);
+  });
+
+  it("lets an organizer record one for anybody", async () => {
+    // A treasurer who collected the cash IS the person who knows, and often is
+    // not one of the two.
+    await signIn("organizer");
+    expect((await recordSettlement(player.ann, player.rob, 700)).ok).toBe(true);
+  });
+
+  it("lets either party undo one somebody else recorded", async () => {
+    // The sharper half of the same bug: a settlement recorded between two
+    // people could not be undone by either of them. A wrong entry nobody named
+    // in it can remove is worse than one anybody can make.
+    await signIn("organizer");
+    await recordSettlement(player.ann, player.rob, 300);
+    const view = await moneyFor(eventId, at("ann"));
+    const mine = view.settlements.find((s) => s.cents === 300)!;
+    expect(mine, "setup: the settlement should exist").toBeTruthy();
+
+    await signIn("sam");
+    expect((await removeSettlement(mine.id)).ok, "Sam is not in it").toBe(false);
+    await signIn("ann");
+    expect((await removeSettlement(mine.id)).ok, "Ann is a party to it").toBe(true);
+  });
+});
+
+describe("a bill that does not add up is refused, not stored", () => {
+  it("refuses payers whose amounts miss the total", async () => {
+    await signIn("dave");
+    const res = await addExpense({
+      description: "Dinner short",
+      amountCents: 20_000,
+      paidBy: player.dave,
+      payers: [
+        { playerId: player.dave, amountCents: 12_000 },
+        { playerId: player.ann, amountCents: 5_000 },
+      ],
+    });
+    expect(res.ok, "19,000 paid against a 20,000 bill").toBe(false);
+    expect(res.error).toMatch(/unaccounted for/i);
+  });
+
+  it("refuses exact shares that miss the total", async () => {
+    await signIn("dave");
+    const res = await addExpense({
+      description: "Rooms short",
+      amountCents: 40_000,
+      paidBy: player.dave,
+      shares: [
+        { playerId: player.dave, weight: 1, amountCents: 18_137 },
+        { playerId: player.ann, weight: 1, amountCents: 21_000 },
+      ],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/short|over/i);
+  });
+
+  it("takes exact shares that do total it, to the cent", async () => {
+    await signIn("dave");
+    const res = await addExpense({
+      description: "Rooms exact",
+      amountCents: 40_000,
+      paidBy: player.dave,
+      shares: [
+        { playerId: player.dave, weight: 1, amountCents: 18_137 },
+        { playerId: player.ann, weight: 1, amountCents: 21_863 },
+      ],
+    });
+    expect(res.ok).toBe(true);
+
+    const view = await moneyFor(eventId, at("dave"));
+    const row = view.expenses.find((e) => e.description === "Rooms exact")!;
+    expect(row.shares.find((s) => s.playerId === player.dave)?.cents).toBe(18_137);
+    expect(row.shares.find((s) => s.playerId === player.ann)?.cents).toBe(21_863);
+    expect(view.standing.reduce((a, s) => a + s.netCents, 0)).toBe(0);
+  });
+});
+
+describe("a repeated id is a double share, not a crash", () => {
+  it("collapses a duplicate share instead of throwing on the unique key", async () => {
+    // THE BUG: a repeated playerId passed every check and then violated
+    // @@unique([expenseId, playerId]) on the way in, throwing out of the
+    // action — a 500 to the browser rather than a message, on a money screen.
+    await signIn("dave");
+    const res = await addExpense({
+      description: "Buggies",
+      amountCents: 9_000,
+      paidBy: player.dave,
+      shares: [
+        { playerId: player.dave, weight: 1 },
+        { playerId: player.dave, weight: 1 },
+        { playerId: player.ann, weight: 1 },
+      ],
+    });
+    expect(res.ok, "a duplicate id must not throw").toBe(true);
+
+    const view = await moneyFor(eventId, at("dave"));
+    const row = view.expenses.find((e) => e.description === "Buggies")!;
+    // Two rows of weight 1 for one person is a DOUBLE share — summed rather
+    // than dropped, which is what shareOf does with them. Dave takes two
+    // thirds; dropping the duplicate would have halved what he owes.
+    expect(row.shares).toHaveLength(2);
+    expect(row.shares.find((s) => s.playerId === player.dave)?.cents).toBe(6_000);
+    expect(row.shares.find((s) => s.playerId === player.ann)?.cents).toBe(3_000);
+    expect(view.standing.reduce((a, s) => a + s.netCents, 0)).toBe(0);
+  });
+
+  it("collapses a duplicate payer the same way", async () => {
+    await signIn("dave");
+    const res = await addExpense({
+      description: "Bar tab",
+      amountCents: 6_000,
+      paidBy: player.dave,
+      payers: [
+        { playerId: player.dave, amountCents: 2_000 },
+        { playerId: player.dave, amountCents: 4_000 },
+      ],
+    });
+    expect(res.ok, "two lines from one payer is one payer paying twice").toBe(true);
+    const view = await moneyFor(eventId, at("dave"));
+    expect(view.standing.reduce((a, s) => a + s.netCents, 0)).toBe(0);
+  });
+});

@@ -389,7 +389,7 @@ describe("requirePotAccess is a real check, not a reassuring name", () => {
     // The group name arrives over HTTP. What must NOT arrive over HTTP is who
     // is in it — otherwise a caller names any group and claims to be in it.
     expect(fn).toMatch(/parseTeeSheet\(/);
-    expect(fn).toMatch(/group\.playerIds\.includes\(me\.id\)/);
+    expect(fn).toMatch(/group\?\.playerIds\.includes\(me\.id\)/);
   });
 
   it("resolves the caller from the session, not from a parameter", () => {
@@ -397,7 +397,10 @@ describe("requirePotAccess is a real check, not a reassuring name", () => {
     // playerId parameter here would let anyone act as anyone.
     expect(fn).toMatch(/session\.email/);
     expect(fn).toMatch(/prisma\.player\.findFirst\(/);
-    expect(fn).not.toMatch(/\bplayerId\s*[,)]/);
+    // No playerId PARAMETER. `e.playerId` reading the pot's own entrant rows
+    // is the opposite of the danger — a fact from the database rather than a
+    // claim from the caller — so the check is for a parameter position.
+    expect(fn).not.toMatch(/\(\s*playerId\s*[,:)]/);
   });
 });
 
@@ -424,15 +427,19 @@ describe("an ad-hoc side bet is still somebody's, not everybody's", () => {
     // player in this event. Reordering it above that would let a signed-in
     // stranger write a pot in a tournament they are not in.
     const meAt = fn.indexOf("prisma.player.findFirst");
-    const adHocAt = fn.indexOf("skinsPot.findFirst");
+    const adHocAt = fn.indexOf("skinsPot.findMany");
     expect(meAt).toBeGreaterThan(-1);
     expect(adHocAt).toBeGreaterThan(meAt);
   });
 
   it("checks the pot's own entrants, not the caller's word", () => {
     // Membership of an ad-hoc bet is the entrant rows, read from the database.
-    expect(fn).toMatch(/skinsPot\.findFirst/);
-    expect(fn).toMatch(/entrants\.some\(\(e\) => e\.playerId === me\.id\)/);
+    // Across EVERY pot under this name on the round, not the first row found.
+    // A name can carry four pots — front and back, gross and net — and
+    // deciding access from whichever turned up first answered about a
+    // different game than the one being written.
+    expect(fn).toMatch(/skinsPot\.findMany/);
+    expect(fn).toMatch(/entrants\.has\(me\.id\)/);
   });
 
   it("leaves an EMPTY pot open, and a populated one closed", () => {
@@ -440,8 +447,8 @@ describe("an ad-hoc side bet is still somebody's, not everybody's", () => {
     // moment nobody is in it. Closing that would make a bet impossible to
     // start; leaving it open once people ARE in it would let anyone re-price
     // or empty somebody else's game.
-    expect(fn).toMatch(/!existing \|\| existing\.entrants\.length === 0/);
-    expect(fn).toMatch(/throw new Error\("Only somebody in this bet can change it"\)/);
+    expect(fn).toMatch(/entrants\.size === 0/);
+    expect(fn).toMatch(/throw new Error\("Only somebody in this game can change it"\)/);
   });
 
   it("bounds the name rather than truncating it", () => {

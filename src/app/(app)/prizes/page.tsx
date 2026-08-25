@@ -43,7 +43,10 @@ export default async function PrizesPage({
    */
   const potRows = week
     ? await prisma.skinsPot.findMany({
-        where: { stageId: week.id },
+        // The club's pots. A fourball's own game belongs on Group games —
+        // without this the field's pot rendered once per group pot on the
+        // round, with a duplicate React key, and no group pot appeared.
+        where: { stageId: week.id, groupKey: "" },
         select: { net: true, scope: true },
         orderBy: [{ scope: "asc" }, { net: "asc" }],
       })
@@ -56,7 +59,7 @@ export default async function PrizesPage({
         await Promise.all(
           wanted.map(async (w) => ({
             key: `${w.net ? "net" : "gross"}-${w.scope}`,
-            view: await skinsPotFor(session.eventId, week.id, w.net, w.scope),
+            view: await skinsPotFor(session.eventId, week.id, w.net, w.scope, ""),
           })),
         )
       ).filter((g): g is { key: string; view: NonNullable<typeof g.view> } => g.view !== null)

@@ -346,8 +346,14 @@ model Tee {
 
   position Int @default(0)
 
-  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  players Player[]
+  course           Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  players          Player[]
+  /// Tournaments played from this set by default, and flights assigned to it.
+  /// Both sides are declared because migrations 53 and 54 create the real
+  /// foreign keys; without them here, `prisma migrate diff` reports drift and
+  /// CI refuses to go further — which is what it is for.
+  defaultForEvents Event[]  @relation("EventDefaultTee")
+  flights          Group[]  @relation("GroupTee")
 
   @@index([courseId])
 }
@@ -827,6 +833,10 @@ model Event {
    * wrong about as often as it was right.
    */
   defaultTeeId          String?
+  /// Declared because migration 53 creates `Event_defaultTeeId_fkey` for real.
+  /// The column was added here without the relation, so schema.prisma and the
+  /// migrations disagreed and every CI run stopped at the drift check.
+  defaultTee            Tee?    @relation("EventDefaultTee", fields: [defaultTeeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   /**
    * When players approve, how many playing partners must confirm.
    * "Playing together" is the scoring group — the match, not the foursome.
@@ -978,6 +988,9 @@ model Group {
    * round's tees. That is how every flight behaved before this existed.
    */
   teeId         String?
+  /// Declared because migration 54 creates `Group_teeId_fkey` for real. Same
+  /// omission as Event.defaultTee above, from the same piece of work.
+  tee           Tee?    @relation("GroupTee", fields: [teeId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   /**
    * The flight's captain, appointed by the organizer. Sees their own
    * flight's attendance list; never anyone else's. Null = no captain.

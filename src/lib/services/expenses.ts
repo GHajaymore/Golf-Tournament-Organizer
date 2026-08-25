@@ -243,7 +243,14 @@ async function gameNets(
     // The SCOPE too, since a league night runs four pots on one round and
     // (stageId, net) no longer names one of them. Reading without it asked
     // for the same pot four times and missed three lots of money.
-    select: { stageId: true, net: true, scope: true },
+    //
+    // AND THE GROUP, for exactly the same reason one scope wider. Without it
+    // this enumerated every pot on the round and then re-read the FIELD's one
+    // each time: a club running its own skins beside two fourballs had its
+    // pot counted three times in the settle-up, and neither fourball's money
+    // appeared at all. Four independent passes of the 2026-08-25 audit found
+    // this, which is what a rule with many readers looks like from outside.
+    select: { stageId: true, net: true, scope: true, groupKey: true },
   });
   for (const pot of pots) {
     const view = await skinsPotFor(
@@ -251,6 +258,7 @@ async function gameNets(
       pot.stageId,
       pot.net,
       isSkinsScope(pot.scope) ? pot.scope : "full",
+      pot.groupKey,
     );
     // A pot with nobody in it has no result and no money — `result` is null
     // until somebody is entered, which is not the same as everyone at zero.
@@ -262,7 +270,13 @@ async function gameNets(
       const won = view.holes.filter((h) => h.playerId === share.playerId).map((h) => h.hole);
       lines.push({
         playerId: share.playerId,
-        label: skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full"),
+        // The group leads when there is one. Without it a player in both the
+        // club's pot and their fourball's sees two identical lines called
+        // "Skins (Net)" and cannot tell which money is which — the same
+        // failure as the unexplained lump this itemisation replaced.
+        label: pot.groupKey
+          ? `${pot.groupKey} — ${skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full")}`
+          : skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full"),
         detail: won.length
           ? `won ${won.length === 1 ? "the" : ""} ${won.length === 1 ? "" : won.length + " holes: "}${won.join(", ")}`.replace(/s+/g, " ").trim()
           : "no skins won",
@@ -277,7 +291,13 @@ async function gameNets(
   // from loadEventState's own resolver, so a net pot and the leaderboard
   // cannot disagree about how many strokes somebody receives.
   const sideGames = await prisma.sideGame.findMany({
-    where: { eventId, ...stageWhere },
+    // The FIELD's games. Stated rather than assumed: these settle across
+    // everyone entered, so a group-scoped row here would charge the whole
+    // field for a fourball's private bet. `saveSideGame` refuses to create one
+    // until this reader knows how to settle it — the filter and the refusal
+    // are one rule written in two places on purpose, so that removing either
+    // leaves the other still saying no.
+    where: { eventId, groupKey: "", ...stageWhere },
     include: { entrants: true },
   });
   if (sideGames.length > 0) {
@@ -443,13 +463,27 @@ export async function moneyFor(
       include: { entrants: true },
     }),
     prisma.sideGame.findMany({
-      where: { eventId },
+      // The field's games, for the same reason as the settle-up above.
+      where: { eventId, groupKey: "" },
       orderBy: [{ createdAt: "asc" }],
       include: { entrants: true },
     }),
   ]);
 
   const nameOf = new Map(players.map((p) => [p.id, p.name]));
+  /**
+   * Email to display name, for the "entered by" line.
+   *
+   * `Expense.createdBy` holds an EMAIL now — a display name is something a
+   * self-registering player chooses, and it was being used to decide who may
+   * edit a line. The screen still wants a name, so it is resolved here rather
+   * than stored twice. A row from before the change holds a name already and
+   * falls through unchanged.
+   */
+  const byEmail = new Map(
+    players.filter((p) => p.email).map((p) => [p.email.toLowerCase(), p.name]),
+  );
+  const enteredBy = (who: string) => byEmail.get((who ?? "").toLowerCase()) ?? who;
   const me = players.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
 
   const domain: DomainExpense[] = rows.map((r) => ({
@@ -531,7 +565,7 @@ export async function moneyFor(
           amountCents: p.amountCents,
         }))
         .sort((a, b) => b.amountCents - a.amountCents),
-      createdBy: r.createdBy,
+      createdBy: enteredBy(r.createdBy),
       // The same rule the action enforces, asked once here so the screen
       // cannot offer an Edit the server will refuse.
       canEdit: canChangeExpense(r.createdBy, { name: viewer.name, email, isStaff: viewer.isStaff }),

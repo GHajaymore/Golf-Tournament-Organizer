@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { isIsoDate } from "@/lib/deadline";
 import { isValidAmount, MAX_EXPENSE_CENTS, canChangeExpense } from "@/lib/domain/expenses";
+import { money as fmtMoney } from "@/lib/domain/money-format";
+import { currencyForEvent } from "@/lib/services/organization";
 
 /**
  * Shared-expense actions.
@@ -74,6 +76,23 @@ async function requireEventSession() {
   return { session, isStaff, eventId: session.eventId };
 }
 
+/**
+ * Which player the signed-in person IS, in this tournament.
+ *
+ * Resolved from the session's email against this event's field — never from a
+ * playerId the caller sent, which would be the caller choosing who they are.
+ * Returns null for somebody signed in but not entered, which is a real state:
+ * an organizer who is not playing.
+ */
+async function callerPlayer(eventId: string, email: string) {
+  const clean = (email ?? "").trim().toLowerCase();
+  if (!clean) return null;
+  return prisma.player.findFirst({
+    where: { eventId, email: { equals: clean, mode: "insensitive" } },
+    select: { id: true },
+  });
+}
+
 async function logMoney(eventId: string, action: string, detail: string) {
   const session = await getSession();
   await prisma.auditLog.create({
@@ -81,9 +100,19 @@ async function logMoney(eventId: string, action: string, detail: string) {
   });
 }
 
-/** Cents as a whole number, formatted the way an audit row should read it. */
-const money = (cents: number) =>
-  `${cents < 0 ? "-" : ""}${Math.abs(cents / 100).toFixed(2)}`;
+/**
+ * An amount, in the CLUB'S currency.
+ *
+ * This divided by a hundred and named no currency, which is wrong twice over
+ * for a club outside the dollar. The error telling somebody their split is
+ * short quoted a figure in the wrong money — and worse, every audit row, which
+ * is the record a committee settles an argument from, recorded a bare number
+ * that means one amount in London and a hundred times that in Tokyo.
+ *
+ * Takes the currency rather than reaching for it, so a caller cannot format an
+ * amount without having established which money it is in.
+ */
+const money = (cents: number, currency: string) => fmtMoney(cents, currency);
 
 /**
  * Clean one submission.
@@ -109,8 +138,20 @@ async function cleanInput(
       };
       shares: Array<{ playerId: string; weight: number; amountCents: number | null }>;
       payers: Array<{ playerId: string; amountCents: number }>;
+      /**
+       * The club's currency, resolved once here and handed back.
+       *
+       * Returned rather than re-resolved by the caller so the audit row cannot
+       * be written in a different money than the one the amount was just
+       * validated against.
+       */
+      currency: string;
     }
 > {
+  // Established before any amount reaches a message, so no error can quote a
+  // figure without saying which money it is in.
+  const currency = await currencyForEvent(eventId);
+
   const description = (input.description ?? "").trim().slice(0, DESCRIPTION_MAX);
   if (!description) return { ok: false, error: "What was it for?" };
 
@@ -118,7 +159,7 @@ async function cleanInput(
   if (!isValidAmount(amountCents)) {
     return {
       ok: false,
-      error: `Enter an amount up to ${money(MAX_EXPENSE_CENTS)} — a refund can be negative.`,
+      error: `Enter an amount up to ${money(MAX_EXPENSE_CENTS, currency)} — a refund can be negative.`,
     };
   }
   if (amountCents === 0) return { ok: false, error: "An amount of zero isn't an expense." };
@@ -172,13 +213,34 @@ async function cleanInput(
   // no answer a person entering it could predict.
   const byAmount = requested.some((s) => s.amountCents !== undefined && s.amountCents !== null);
 
-  const shares = requested
-    .filter((s) => inField.has(s.playerId))
-    .map((s) => ({
-      playerId: s.playerId,
-      weight: Number.isFinite(s.weight) ? Math.max(0, Math.min(99, Math.round(s.weight))) : 0,
-      amountCents: byAmount ? Math.round(Number(s.amountCents ?? 0)) : null,
-    }));
+  /**
+   * One row per player, whatever arrived.
+   *
+   * A repeated playerId passed every check here and then hit
+   * `@@unique([expenseId, playerId])` on the way in, throwing out of the
+   * action — a 500 to the browser rather than a message, on a screen about
+   * money. The domain already collapses duplicates when it splits, so the two
+   * agreed about the arithmetic and disagreed about whether the write was
+   * even possible.
+   *
+   * Collapsed by SUMMING, which is what `shareOf` does with them: two rows of
+   * weight 1 for one person is a double share, and dropping the second would
+   * quietly halve what they owe.
+   */
+  const merged = new Map<string, { playerId: string; weight: number; amountCents: number | null }>();
+  for (const s of requested) {
+    if (!inField.has(s.playerId)) continue;
+    const weight = Number.isFinite(s.weight) ? Math.max(0, Math.min(99, Math.round(s.weight))) : 0;
+    const exact = byAmount ? Math.round(Number(s.amountCents ?? 0)) : null;
+    const seen = merged.get(s.playerId);
+    if (!seen) {
+      merged.set(s.playerId, { playerId: s.playerId, weight, amountCents: exact });
+      continue;
+    }
+    seen.weight = Math.min(99, seen.weight + weight);
+    if (exact !== null) seen.amountCents = (seen.amountCents ?? 0) + exact;
+  }
+  const shares = [...merged.values()];
 
   if (shares.length === 0) return { ok: false, error: "Nobody to split this with." };
 
@@ -191,8 +253,8 @@ async function cleanInput(
       const diff = amountCents - split;
       return {
         ok: false,
-        error: `The amounts come to ${money(split)}, not ${money(amountCents)} — ${
-          diff > 0 ? `${money(diff)} short` : `${money(-diff)} over`
+        error: `The amounts come to ${money(split, currency)}, not ${money(amountCents, currency)} — ${
+          diff > 0 ? `${money(diff, currency)} short` : `${money(-diff, currency)} over`
         }.`,
       };
     }
@@ -207,10 +269,19 @@ async function cleanInput(
    * the amount. Letting $190 of payments stand against a $200 dinner would
    * invent $10 and shift every other player's number.
    */
-  const payers = (input.payers ?? [])
-    .filter((p) => inField.has(p.playerId))
-    .map((p) => ({ playerId: p.playerId, amountCents: Math.round(Number(p.amountCents)) }))
-    .filter((p) => Number.isFinite(p.amountCents) && p.amountCents !== 0);
+  // Collapsed the same way as the shares, and for the same reason: a repeated
+  // payer id met `@@unique([expenseId, playerId])` and threw. Two lines from
+  // one person is one person paying twice, so the amounts add.
+  const paid = new Map<string, number>();
+  for (const p of input.payers ?? []) {
+    if (!inField.has(p.playerId)) continue;
+    const cents = Math.round(Number(p.amountCents));
+    if (!Number.isFinite(cents)) continue;
+    paid.set(p.playerId, (paid.get(p.playerId) ?? 0) + cents);
+  }
+  const payers = [...paid.entries()]
+    .map(([playerId, amountCents]) => ({ playerId, amountCents }))
+    .filter((p) => p.amountCents !== 0);
 
   if (input.payers?.length && payers.length === 0) {
     return { ok: false, error: "Whoever paid has to be in this tournament." };
@@ -221,8 +292,8 @@ async function cleanInput(
       const diff = amountCents - laidOut;
       return {
         ok: false,
-        error: `What everyone paid comes to ${money(laidOut)}, not ${money(amountCents)} — ${
-          diff > 0 ? `${money(diff)} unaccounted for` : `${money(-diff)} too much`
+        error: `What everyone paid comes to ${money(laidOut, currency)}, not ${money(amountCents, currency)} — ${
+          diff > 0 ? `${money(diff, currency)} unaccounted for` : `${money(-diff, currency)} too much`
         }.`,
       };
     }
@@ -248,6 +319,7 @@ async function cleanInput(
     },
     shares,
     payers,
+    currency,
   };
 }
 
@@ -260,7 +332,21 @@ export async function addExpense(input: ExpenseInput): Promise<ExpenseResult> {
     data: {
       eventId,
       ...clean.data,
-      createdBy: session.name || session.email,
+      /**
+       * The EMAIL, not the display name.
+       *
+       * This is an identity — `canChangeExpense` decides who may edit a line
+       * by comparing against it — and a display name is not one. A player who
+       * self-registers picks their own name, so setting it to somebody else's
+       * granted edit rights over that person's expenses. An email is unique
+       * per account and nobody chooses another's.
+       *
+       * The screen shows a name rather than this: the service maps it back
+       * through the field. Rows written before this hold a name and still
+       * match on the name branch, which is the weaker check they were always
+       * relying on.
+       */
+      createdBy: session.email || session.name,
       shares: { create: clean.shares },
       payments: { create: clean.payers },
     },
@@ -269,7 +355,7 @@ export async function addExpense(input: ExpenseInput): Promise<ExpenseResult> {
   await logMoney(
     eventId,
     "expense.add",
-    `${clean.data.description} ${money(clean.data.amountCents)} paid by ${clean.data.paidBy}, split ${clean.shares.length} ways`,
+    `${clean.data.description} ${money(clean.data.amountCents, clean.currency)} paid by ${clean.data.paidBy}, split ${clean.shares.length} ways`,
   );
   revalidatePath("/", "layout");
   return { ok: true, id: expense.id };
@@ -325,7 +411,7 @@ export async function updateExpense(expenseId: string, input: ExpenseInput): Pro
   await logMoney(
     eventId,
     "expense.update",
-    `${existing.description} ${money(existing.amountCents)} → ${clean.data.description} ${money(clean.data.amountCents)}`,
+    `${existing.description} ${money(existing.amountCents, clean.currency)} → ${clean.data.description} ${money(clean.data.amountCents, clean.currency)}`,
   );
   revalidatePath("/", "layout");
   return { ok: true, id: expenseId };
@@ -345,11 +431,12 @@ export async function removeExpense(expenseId: string): Promise<ExpenseResult> {
   }
 
   // Shares cascade with the expense.
+  const currency = await currencyForEvent(eventId);
   await prisma.expense.delete({ where: { id: expenseId } });
   await logMoney(
     eventId,
     "expense.remove",
-    `Removed ${existing.description} ${money(existing.amountCents)}`,
+    `Removed ${existing.description} ${money(existing.amountCents, currency)}`,
   );
   revalidatePath("/", "layout");
   return { ok: true };
@@ -371,7 +458,7 @@ export async function recordSettlement(
   toPlayerId: string,
   cents: number,
 ): Promise<ExpenseResult> {
-  const { session, eventId } = await requireEventSession();
+  const { session, isStaff, eventId } = await requireEventSession();
 
   const amount = Math.round(Number(cents));
   if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_EXPENSE_CENTS) {
@@ -385,7 +472,30 @@ export async function recordSettlement(
   });
   if (both.length !== 2) return { ok: false, error: "Both players have to be in this tournament." };
 
+  /**
+   * AND THE CALLER HAS TO BE ONE OF THEM.
+   *
+   * This checked only that both parties were in the tournament, so any
+   * signed-in player could record "Ann handed Bob £200" between two other
+   * people — a payment that never happened, moving both their balances, with
+   * somebody else's name on it. Being in the field is not standing to say
+   * what changed hands between two other members of it.
+   *
+   * Staff keep the exception, because a treasurer who collected the cash IS
+   * the person who knows, and often is not one of the two.
+   */
+  if (!isStaff) {
+    const me = await callerPlayer(eventId, session.email);
+    if (!me || (me.id !== fromPlayerId && me.id !== toPlayerId)) {
+      return {
+        ok: false,
+        error: "Only the two people involved, or an organizer, can record a settle-up.",
+      };
+    }
+  }
+
   const nameOf = (id: string) => both.find((p) => p.id === id)?.name ?? id;
+  const currency = await currencyForEvent(eventId);
 
   await prisma.settlement.create({
     data: {
@@ -400,7 +510,7 @@ export async function recordSettlement(
   await logMoney(
     eventId,
     "expense.settle",
-    `${nameOf(fromPlayerId)} → ${nameOf(toPlayerId)} ${money(amount)}`,
+    `${nameOf(fromPlayerId)} → ${nameOf(toPlayerId)} ${money(amount, currency)}`,
   );
   revalidatePath("/", "layout");
   return { ok: true };
@@ -416,16 +526,34 @@ export async function removeSettlement(settlementId: string): Promise<ExpenseRes
   });
   if (!existing) return { ok: false, error: "That settlement isn't in this tournament." };
 
+  /**
+   * Staff, whoever recorded it, or EITHER PARTY TO IT.
+   *
+   * The two people are the ones who know whether the money changed hands, and
+   * leaving them out was the sharper half of the bug above: a settlement
+   * recorded between two other people could not be undone by either of them.
+   * A wrong entry nobody named in it can remove is worse than one anybody can
+   * make.
+   */
   const mine = existing.recordedBy === (session.name || session.email);
+  let party = false;
   if (!isStaff && !mine) {
-    return { ok: false, error: "Only whoever recorded this, or an organizer, can undo it." };
+    const me = await callerPlayer(eventId, session.email);
+    party = !!me && (me.id === existing.fromPlayerId || me.id === existing.toPlayerId);
+  }
+  if (!isStaff && !mine && !party) {
+    return {
+      ok: false,
+      error: "Only the two people involved, whoever recorded it, or an organizer, can undo it.",
+    };
   }
 
+  const currency = await currencyForEvent(eventId);
   await prisma.settlement.delete({ where: { id: settlementId } });
   await logMoney(
     eventId,
     "expense.settle.undo",
-    `Removed settlement ${money(existing.cents)} (${existing.fromPlayerId} → ${existing.toPlayerId})`,
+    `Removed settlement ${money(existing.cents, currency)} (${existing.fromPlayerId} → ${existing.toPlayerId})`,
   );
   revalidatePath("/", "layout");
   return { ok: true };
