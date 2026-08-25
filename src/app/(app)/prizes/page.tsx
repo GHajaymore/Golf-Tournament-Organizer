@@ -117,7 +117,7 @@ export default async function PrizesPage({
    * playing: everything a treasurer needs — the standing, the transfers, the
    * lines — is event-wide, and the "you" parts simply have nobody to match.
    */
-  const ledger = moneyMode === "split" && isStaff ? await moneyFor(session.eventId, session.email) : null;
+  const ledger = moneyMode === "split" && isStaff ? await moneyFor(session.eventId, session.email, { name: session.name, isStaff }) : null;
   const fundLines =
     moneyMode === "float"
       ? await prisma.tournamentFund.findMany({
@@ -239,7 +239,7 @@ export default async function PrizesPage({
           only on the player screen, which works for an organizer who is also
           playing and fails completely for the one who is not — a society
           treasurer being the likeliest person to need it. */}
-      {ledger && <OrganizerLedger view={ledger} currency={org?.currencySymbol || "$"} />}
+      {ledger && <OrganizerLedger view={ledger} />}
 
       {/* How money is handled at all, last: it is a setting, and a setting
           belongs under the thing it configures rather than above it. */}

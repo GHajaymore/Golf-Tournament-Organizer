@@ -87,6 +87,23 @@ describe("every server action is guarded", () => {
     "requireMembership",
     "getPlaySession",
     "effectiveAccess",
+    /**
+     * skins.ts: the one guard here that is deliberately NOT staff-only.
+     *
+     * A fourball running its own $20 skins should not need the organizer, so
+     * `requirePotAccess` splits the answer: an empty groupKey is the FIELD's
+     * pot and stays organizer-or-assistant exactly as before, while a named
+     * group is writable by the players in that group — and only them.
+     *
+     * Listed per the note above only because it was verified, and the
+     * verification is itself a test rather than a reading: see "requirePotAccess
+     * is a real check, not a reassuring name" in audit-idor.test.ts, which pins
+     * that it proves the stage belongs to the caller's event, refuses the
+     * field's pot to non-staff, takes membership from the published tee sheet
+     * rather than from the caller, and resolves the caller from the session.
+     * Neutering any of those fails that suite.
+     */
+    "requirePotAccess",
   ];
 
   const files = readdirSync(ACTIONS_DIR).filter((f) => f.endsWith(".ts"));

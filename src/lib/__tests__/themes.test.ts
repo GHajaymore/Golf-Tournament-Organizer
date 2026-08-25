@@ -60,6 +60,52 @@ describe("the preset list", () => {
     expect(sunset[500].toLowerCase()).toMatch(/^#f/); // still a warm orange
     expect(contrastRatio(sunset[500], "#f2872e")).toBeLessThan(1.15); // near-identical
   });
+
+  /**
+   * THE ORANGE IS NOT OPTIONAL.
+   *
+   * The test above proves the orange still LOOKS the same. It does not prove
+   * it is still OFFERED — delete the entry and it fails on a lookup rather
+   * than on the thing that matters, and reorder the list and it says nothing
+   * at all. Both were live risks the week three presets were added and the
+   * landing page changed hue completely.
+   *
+   * The orange is the colour the product shipped with and the one every club
+   * that has never opened settings is looking at right now. It stays on the
+   * list, it stays the default, and it stays FIRST — a default that a club has
+   * to scroll to find is a default in name only.
+   */
+  it("keeps the orange offered, default, and first in the list", () => {
+    expect(DEFAULT_THEME).toBe("sunset");
+
+    const sunset = THEME_PRESETS.find((p) => p.key === "sunset");
+    expect(sunset, "the original orange has been removed from the picker").toBeDefined();
+    expect(THEME_PRESETS[0].key, "the default is no longer the first choice offered").toBe("sunset");
+
+    // And it is still the ORIGINAL orange, not merely something warm that
+    // inherited the name.
+    expect(sunset!.hue).toBe(27);
+    expect(sunset!.saturation).toBeCloseTo(0.88, 2);
+  });
+
+  /**
+   * Adding a preset must not quietly crowd an existing one. Three went in at
+   * once; the whole argument for where they went was that the wheel had gaps,
+   * and a fourth warm gold beside Sunset and Bunker would undo it.
+   */
+  it("keeps every preset visibly apart from every other", () => {
+    const MIN_APART = 12;
+    for (let i = 0; i < THEME_PRESETS.length; i++) {
+      for (let j = i + 1; j < THEME_PRESETS.length; j++) {
+        const a = THEME_PRESETS[i];
+        const b = THEME_PRESETS[j];
+        expect(
+          hueDistance(a.hue, b.hue),
+          `${a.name} (${a.hue}) and ${b.name} (${b.hue}) are too close to tell apart in a picker`,
+        ).toBeGreaterThanOrEqual(MIN_APART);
+      }
+    }
+  });
 });
 
 describe("hslToHex", () => {

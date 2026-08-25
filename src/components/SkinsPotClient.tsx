@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { saveSkinsPot, setSkinsEntrants, removeSkinsPot } from "@/app/actions/skins";
 import FieldInfo from "@/components/FieldInfo";
 import { SCOPE_LABEL, type SkinsScope } from "@/lib/domain/skins-pot";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * The skins pot on one week of a league.
@@ -56,21 +57,37 @@ export interface SkinsView {
 }
 
 /** Cents to a plain amount. No currency symbol: clubs are not all in one country. */
-const money = (cents: number) => (cents / 100).toFixed(2);
+/** Digits only — the column labels the currency — but the right digits: see
+ *  useMoney().plain, which asks how many minor units this currency has. */
 
 export function SkinsPotClient({
   rounds,
   activeStageId,
   view,
+  groupKey = "",
+  groupLabel = "",
 }: {
   rounds: SkinsRound[];
   activeStageId: string;
   view: SkinsView;
+  /**
+   * Whose pot this card is. Empty is the FIELD's, which is what every existing
+   * caller renders and what this component has always shown.
+   *
+   * Passed straight through to all three writes rather than defaulted at the
+   * action: a card that DISPLAYS one group's pot and SAVES to another's is
+   * precisely the overwrite the group key exists to prevent, and it would look
+   * correct on screen the whole time.
+   */
+  groupKey?: string;
+  /** What to call it, when it is a group's rather than the field's. */
+  groupLabel?: string;
 }) {
+  const { plain: money } = useMoney();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [buyIn, setBuyIn] = useState((view.buyInCents / 100).toString());
+  const [buyIn, setBuyIn] = useState(money(view.buyInCents));
   const [scope, setScope] = useState<SkinsScope>(view.scope);
   const [picking, setPicking] = useState(false);
   // Prefilled from who has returned a card, so it is a tick-through rather
@@ -93,6 +110,7 @@ export function SkinsPotClient({
         buyInCents: Math.round(parseFloat(buyIn || "0") * 100),
         net: view.net,
         scope,
+        groupKey,
       }),
     );
 
@@ -103,7 +121,9 @@ export function SkinsPotClient({
     <div className="card elev-sm" style={{ gap: 14, marginTop: 16 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span className="card-title" style={{ fontSize: 15 }}>
-          Skins &mdash; {view.net ? "net" : "gross"}
+          {/* The group's name leads when there is one, because on a page of
+              several pots "Skins — net" four times over names nothing. */}
+          {groupLabel ? `${groupLabel} — ` : ""}Skins &mdash; {view.net ? "net" : "gross"}
         </span>
         <FieldInfo label="the skins pot">
           <p>
@@ -210,7 +230,7 @@ export function SkinsPotClient({
                 onClick={() => {
                   // view.scope, not a default: these entrants belong to THIS
                   // game, and a league night has four on the same round.
-                  run(() => setSkinsEntrants(activeStageId, view.net, view.scope, chosen));
+                  run(() => setSkinsEntrants(activeStageId, view.net, view.scope, chosen, groupKey));
                   setPicking(false);
                 }}
               >
@@ -331,7 +351,11 @@ export function SkinsPotClient({
           className="btn btn-ghost"
           style={{ alignSelf: "flex-start", fontSize: 12 }}
           disabled={pending}
-          onClick={() => run(() => removeSkinsPot(activeStageId, view.net))}
+          onClick={() =>
+            // view.scope, not the picker's `scope`: this removes the pot being
+            // SHOWN, and the picker may have been moved without saving.
+            run(() => removeSkinsPot(activeStageId, view.net, view.scope, groupKey))
+          }
         >
           Remove this pot
         </button>

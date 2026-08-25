@@ -1,12 +1,13 @@
 "use client";
-import { EXPENSE_CATEGORIES } from "@/lib/domain/expense-categories";
+import { EXPENSE_CATEGORIES, expenseCategoryLabel } from "@/lib/domain/expense-categories";
 import { useMemo, useState, useTransition } from "react";
-import { addExpense, removeExpense, recordSettlement } from "@/app/actions/expenses";
+import { addExpense, updateExpense, removeExpense, recordSettlement } from "@/app/actions/expenses";
 import { requestContestEntry } from "@/app/actions/contests";
 import { requestSideGameEntry } from "@/app/actions/side-games";
 import type { MoneyView } from "@/lib/services/expenses";
 import { unitemisedGames } from "@/lib/domain/money-breakdown";
 import { PersonChip } from "@/components/PersonChip";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * The outing's money, on a phone.
@@ -25,21 +26,36 @@ import { PersonChip } from "@/components/PersonChip";
  * cash.
  */
 
-const money = (cents: number) => {
-  const sign = cents < 0 ? "-" : "";
-  return `${sign}$${(Math.abs(cents) / 100).toFixed(2)}`;
-};
+/**
+ * The club's way of writing an amount, not this file's.
+ *
+ * Was a local `money()` hard-coding a dollar sign and dividing by a hundred.
+ * There were several of these and a club outside the United States saw dollars
+ * on every one, at a hundredth of the value in a currency with no minor unit.
+ */
 
 type Scope = "group" | "everyone" | "pick";
+type SplitMode = "evenly" | "shares" | "exact" | "percent";
+
+/** Cents from whatever somebody typed, tolerant of "$", spaces and commas. */
+const centsFrom = (text: string): number => {
+  const n = Number((text ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+};
 
 /** One shared empty list, so "no group" keeps the same identity between
  *  renders and a `useMemo` depending on it can actually memoize. */
 const NO_IDS: string[] = [];
 
 export function MoneyClient({ view }: { view: MoneyView }) {
+  const { money, plain } = useMoney();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
+  /** The expense being changed, or null when this is a new one. */
+  const [editing, setEditing] = useState<string | null>(null);
+  /** Which line is one tap from being deleted. Money does not vanish on one tap. */
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [showAllTransfers, setShowAllTransfers] = useState(false);
 
   const [description, setDescription] = useState("");
@@ -52,6 +68,25 @@ export function MoneyClient({ view }: { view: MoneyView }) {
   const [picked, setPicked] = useState<Set<string>>(() => new Set(view.field.map((p) => p.id)));
   /** Shares per player, where anything unset is one. */
   const [weights, setWeights] = useState<Record<string, number>>({});
+  /**
+   * HOW the bill divides, which is a separate question from WHO is on it.
+   *
+   * Four ways, because a golf weekend generates all four and forcing one of
+   * them into another is where the faked expenses came from:
+   *  - evenly   the common case
+   *  - shares   the room somebody had for one night (2:2:2:1)
+   *  - exact    two rooms at rates that do not reduce to a ratio
+   *  - percent  the corporate day where somebody covers 60%
+   *
+   * Percent is weights out of a hundred and is sent as weights; exact is the
+   * only one the model needed a new column for.
+   */
+  const [splitMode, setSplitMode] = useState<SplitMode>("evenly");
+  /** Typed amounts per player, as entered, for the exact and percent modes. */
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  /** Whether more than one person put money down for this one bill. */
+  const [manyPayers, setManyPayers] = useState(false);
+  const [paidAmounts, setPaidAmounts] = useState<Record<string, string>>({});
 
   const round = view.rounds.find((r) => r.stageId === stageId) ?? null;
   // `NO_IDS`, not a fresh `[]`. The fallback used to allocate a new array on
@@ -67,28 +102,169 @@ export function MoneyClient({ view }: { view: MoneyView }) {
     return view.field.map((p) => p.id);
   }, [scope, groupIds, picked, view.field]);
 
-  const cents = Math.round(Number(amount.replace(/[^0-9.-]/g, "")) * 100);
-  const valid = description.trim().length > 0 && Number.isFinite(cents) && cents !== 0;
-  const each = valid && shareIds.length ? Math.floor(Math.abs(cents) / shareIds.length) : 0;
+  /**
+   * Who may appear as a PAYER, which is not the same list as who shares.
+   *
+   * Somebody can pay for a bill they are not on — one player fronting a
+   * guest's green fee — so the payer list is the whole field, with the people
+   * on this line first because that is who it usually is.
+   */
+  const shareIdsAndField = useMemo(() => {
+    const onLine = new Set(shareIds);
+    return [...shareIds, ...view.field.map((p) => p.id).filter((id) => !onLine.has(id))];
+  }, [shareIds, view.field]);
+
+  const cents = centsFrom(amount);
+  const each = shareIds.length ? Math.floor(Math.abs(cents) / shareIds.length) : 0;
+
+  /**
+   * What each mode sends.
+   *
+   * `exact` sends amounts; `percent` converts to weights, because a percentage
+   * IS a weight out of a hundred and the ledger should not carry two ways of
+   * saying the same thing. Everything else sends weights.
+   */
+  const shares = useMemo(
+    () =>
+      shareIds.map((playerId) => {
+        if (splitMode === "exact") {
+          return { playerId, weight: 1, amountCents: centsFrom(typed[playerId] ?? "") };
+        }
+        if (splitMode === "percent") {
+          return { playerId, weight: Math.max(0, Math.round(Number(typed[playerId] ?? "") || 0)) };
+        }
+        if (splitMode === "shares") return { playerId, weight: weights[playerId] ?? 1 };
+        return { playerId, weight: 1 };
+      }),
+    [shareIds, splitMode, typed, weights],
+  );
+
+  const payers = useMemo(
+    () =>
+      manyPayers
+        ? shareIdsAndField
+            .map((playerId) => ({ playerId, amountCents: centsFrom(paidAmounts[playerId] ?? "") }))
+            .filter((p) => p.amountCents !== 0)
+        : [],
+    [manyPayers, paidAmounts, shareIdsAndField],
+  );
+
+  /**
+   * The two sums a person can get wrong, checked here so the answer arrives
+   * while they are still typing rather than after a round trip. The server
+   * checks them again — it is a public endpoint and this is money — but a
+   * split that does not add up should never be submittable in the first place.
+   */
+  const splitTotal = splitMode === "exact" ? shares.reduce((s, r) => s + (r.amountCents ?? 0), 0) : cents;
+  const percentTotal = splitMode === "percent" ? shares.reduce((s, r) => s + r.weight, 0) : 100;
+  const paidTotal = payers.reduce((s, p) => s + p.amountCents, 0);
+
+  const splitOff = splitMode === "exact" && cents !== 0 ? cents - splitTotal : 0;
+  const percentOff = splitMode === "percent" ? 100 - percentTotal : 0;
+  const paidOff = manyPayers && cents !== 0 ? cents - paidTotal : 0;
+
+  const valid =
+    description.trim().length > 0 &&
+    Number.isFinite(cents) &&
+    cents !== 0 &&
+    shareIds.length > 0 &&
+    splitOff === 0 &&
+    percentOff === 0 &&
+    paidOff === 0;
+
+  /**
+   * Put the form back to empty.
+   *
+   * Every field, not just the two that were being cleared. Leaving the split
+   * mode, the picked players and the typed amounts behind meant the NEXT
+   * expense silently inherited the last one's arrangement — the bar split two
+   * ways becoming the default for the green fees.
+   */
+  const reset = () => {
+    setEditing(null);
+    setDescription("");
+    setAmount("");
+    setCategory("other");
+    setPaidBy(view.playerId);
+    setStageId("");
+    setScope("everyone");
+    setPicked(new Set(view.field.map((p) => p.id)));
+    setWeights({});
+    setSplitMode("evenly");
+    setTyped({});
+    setManyPayers(false);
+    setPaidAmounts({});
+    setAdding(false);
+  };
+
+  /**
+   * Reopen an existing line in the form that created it.
+   *
+   * One form for both, rather than a second one for editing: two forms over
+   * the same six-part arrangement — payers, participants, weights, exact
+   * amounts, category, round — is two places for the rules to drift, and the
+   * one that drifts is always the one used less.
+   *
+   * The saved shape decides the mode, so a line entered as exact amounts
+   * reopens as exact amounts rather than being silently re-split evenly.
+   */
+  const startEdit = (e: MoneyView["expenses"][number]) => {
+    setError("");
+    setEditing(e.id);
+    setDescription(e.description);
+    setAmount(plain(e.amountCents));
+    setCategory(e.category || "other");
+    setPaidBy(e.paidBy);
+    setStageId("");
+
+    const ids = e.shares.map((s) => s.playerId);
+    setScope("pick");
+    setPicked(new Set(ids));
+
+    const exact = e.shares.some((s) => s.exactCents !== null);
+    if (exact) {
+      setSplitMode("exact");
+      setTyped(
+        Object.fromEntries(e.shares.map((s) => [s.playerId, plain(s.exactCents ?? 0)])),
+      );
+      setWeights({});
+    } else {
+      // Weights of all 1 are an even split; anything else was deliberate.
+      const uneven = e.shares.some((s) => s.weight !== 1);
+      setSplitMode(uneven ? "shares" : "evenly");
+      setWeights(Object.fromEntries(e.shares.map((s) => [s.playerId, s.weight])));
+      setTyped({});
+    }
+
+    setManyPayers(e.payers.length > 0);
+    setPaidAmounts(
+      Object.fromEntries(e.payers.map((p) => [p.playerId, plain(p.amountCents)])),
+    );
+    setAdding(true);
+  };
 
   const submit = () => {
     setError("");
     startTransition(async () => {
-      const res = await addExpense({
+      const input = {
         description,
         amountCents: cents,
         paidBy,
         stageId,
         category,
-        shares: shareIds.map((playerId) => ({ playerId, weight: weights[playerId] ?? 1 })),
-      });
+        shares,
+        // Omitted, not empty: the action reads an absent list as "the named
+        // payer covered it" and an empty one as "nobody paid", which is an
+        // error. Sending [] for the ordinary one-payer case would refuse
+        // every expense on the screen.
+        ...(payers.length > 0 ? { payers } : {}),
+      };
+      const res = editing ? await updateExpense(editing, input) : await addExpense(input);
       if (!res.ok) {
         setError(res.error ?? "Couldn't save that.");
         return;
       }
-      setDescription("");
-      setAmount("");
-      setAdding(false);
+      reset();
     });
   };
 
@@ -146,7 +322,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
           type="button"
           className="btn btn-primary"
           style={{ width: "100%", minHeight: 52, marginTop: 12 }}
-          onClick={() => setAdding(true)}
+          onClick={() => { reset(); setAdding(true); }}
           disabled={!view.playerId}
         >
           <i className="ph ph-plus" /> Add an expense
@@ -296,27 +472,44 @@ export function MoneyClient({ view }: { view: MoneyView }) {
             </div>
           )}
 
-          {/* UNEQUAL SHARES, which the model always held and the screen never
-              offered — every line went in with a weight of 1, so a single room
-              against three twins, or two people on one cart, had to be faked
-              as a separate expense.
-              Only shown once somebody has picked, because on "everyone" the
-              answer is almost always evenly and a column of 1s is noise. */}
-          {scope === "pick" && shareIds.length > 1 && (
-            <details style={{ marginTop: 2 }}>
-              <summary style={{ fontSize: 12.5, cursor: "pointer" }} className="text-muted">
-                Not evenly? Set shares
-              </summary>
-              <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
-                {shareIds.map((id) => {
-                  const p = view.field.find((f) => f.id === id);
-                  if (!p) return null;
-                  return (
-                    <label
-                      key={id}
-                      style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}
-                    >
-                      <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
+          {/* HOW IT DIVIDES — a separate question from who is on it.
+              The model always held unequal shares and the screen only ever
+              sent 1s, so a single room against three twins, or two rooms at
+              different rates, had to be faked as separate expenses. All four
+              ways are now offered, because a weekend generates all four. */}
+          {shareIds.length > 1 && (
+            <div className="field">
+              <label>Split</label>
+              <div className="seg">
+                {([
+                  ["evenly", "Evenly"],
+                  ["shares", "By shares"],
+                  ["exact", "Exact amounts"],
+                  ["percent", "By percent"],
+                ] as Array<[SplitMode, string]>).map(([key, label]) => (
+                  <label className="seg-opt" key={key}>
+                    <input
+                      type="radio"
+                      name="splitMode"
+                      checked={splitMode === key}
+                      onChange={() => setSplitMode(key)}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {shareIds.length > 1 && splitMode !== "evenly" && (
+            <div style={{ display: "grid", gap: 6 }}>
+              {shareIds.map((id) => {
+                const p = view.field.find((f) => f.id === id);
+                if (!p) return null;
+                return (
+                  <label key={id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
+                    {splitMode === "shares" ? (
                       <input
                         className="input"
                         type="number"
@@ -329,16 +522,92 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                         }
                         style={{ width: 68, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
                       />
-                    </label>
-                  );
-                })}
+                    ) : (
+                      <input
+                        className="input"
+                        inputMode="decimal"
+                        aria-label={
+                          splitMode === "exact" ? `Amount for ${p.name}` : `Percent for ${p.name}`
+                        }
+                        placeholder={splitMode === "exact" ? "0.00" : "0"}
+                        value={typed[id] ?? ""}
+                        onChange={(e) => setTyped((prev) => ({ ...prev, [id]: e.target.value }))}
+                        style={{ width: 92, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                      />
+                    )}
+                  </label>
+                );
+              })}
+
+              {/* What is still missing, said as a number rather than as
+                  "invalid". Somebody typing four amounts wants to know how
+                  much is left, not that they are wrong. */}
+              {splitMode === "exact" && splitOff !== 0 && cents !== 0 && (
+                <span style={{ fontSize: 12, color: "var(--color-danger)" }}>
+                  {splitOff > 0 ? `${money(splitOff)} still to allocate` : `${money(-splitOff)} over the total`}
+                </span>
+              )}
+              {splitMode === "percent" && percentOff !== 0 && (
+                <span style={{ fontSize: 12, color: "var(--color-danger)" }}>
+                  {percentOff > 0 ? `${percentOff}% still to allocate` : `${-percentOff}% over 100`}
+                </span>
+              )}
+              {splitMode === "shares" && (
                 <span className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
                   Shares, not amounts — two means twice as much as one. A zero leaves somebody on the
                   line without charging them, which is how a guest gets included in the round and not
                   in the bill.
                 </span>
-              </div>
-            </details>
+              )}
+            </div>
+          )}
+
+          {/* MORE THAN ONE CARD. A bill is not always one person's, and
+              splitting it into two expenses to record that would say the group
+              ate two dinners. */}
+          <div className="field">
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={manyPayers}
+                onChange={(e) => setManyPayers(e.target.checked)}
+              />
+              More than one person paid
+            </label>
+          </div>
+
+          {manyPayers && (
+            <div style={{ display: "grid", gap: 6 }}>
+              {shareIdsAndField.map((id) => {
+                const p = view.field.find((f) => f.id === id);
+                if (!p) return null;
+                return (
+                  <label key={id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
+                    <input
+                      className="input"
+                      inputMode="decimal"
+                      aria-label={`Amount paid by ${p.name}`}
+                      placeholder="0.00"
+                      value={paidAmounts[id] ?? ""}
+                      onChange={(e) => setPaidAmounts((prev) => ({ ...prev, [id]: e.target.value }))}
+                      style={{ width: 92, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                    />
+                  </label>
+                );
+              })}
+              {paidOff !== 0 && cents !== 0 && (
+                <span style={{ fontSize: 12, color: "var(--color-danger)" }}>
+                  {paidOff > 0
+                    ? `${money(paidOff)} of this bill is unaccounted for`
+                    : `${money(-paidOff)} more than the bill`}
+                </span>
+              )}
+              <span className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+                Leave somebody blank if they put nothing in. Anyone can pay for a bill they are not
+                sharing — fronting a guest&rsquo;s green fee is exactly that.
+              </span>
+            </div>
           )}
 
           {/* Never render a split that does not add up. */}
@@ -350,7 +619,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
           )}
 
           <div style={{ display: "flex", gap: 8 }}>
-            <button type="button" className="btn btn-secondary" style={{ flex: 1, minHeight: 46 }} onClick={() => setAdding(false)}>
+            <button type="button" className="btn btn-secondary" style={{ flex: 1, minHeight: 46 }} onClick={reset}>
               Cancel
             </button>
             <button
@@ -360,7 +629,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               disabled={pending || !valid || shareIds.length === 0}
               onClick={submit}
             >
-              Save expense
+              {editing ? "Save changes" : "Save expense"}
             </button>
           </div>
           {error && (
@@ -735,9 +1004,20 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>{e.description}</span>
                 <span className="text-muted" style={{ fontSize: 11.5 }}>
-                  {e.unknownPayer ? "Paid by someone no longer in the field" : `Paid by ${e.paidByName}`}
+                  {/* Everyone who paid, not just the first of them. This said
+                      "Paid by {one name}" from the moment a bill could have
+                      several payers: the arithmetic credited both and the
+                      sentence named one, which is the kind of wrong nobody
+                      reports and everybody stops trusting. */}
+                  {e.payers.length > 1
+                    ? `Paid by ${e.payers.map((p) => `${p.name} ${money(p.amountCents)}`).join(", ")}`
+                    : e.unknownPayer
+                      ? "Paid by someone no longer in the field"
+                      : `Paid by ${e.paidByName}`}
                   {" · "}
                   {e.shares.length} {e.shares.length === 1 ? "share" : "shares"}
+                  {e.category && e.category !== "other" && ` · ${expenseCategoryLabel(e.category)}`}
+                  {e.spentOn && ` · ${e.spentOn}`}
                 </span>
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(e.amountCents)}</span>
@@ -749,20 +1029,74 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                   <span style={{ fontVariantNumeric: "tabular-nums" }}>{money(s.cents)}</span>
                 </div>
               ))}
-              <button
-                type="button"
-                className="btn btn-secondary touch-target"
-                style={{ fontSize: 12, marginTop: 8 }}
-                disabled={pending}
-                onClick={() =>
-                  startTransition(async () => {
-                    const res = await removeExpense(e.id);
-                    if (!res.ok) setError(res.error ?? "Couldn't remove that.");
-                  })
-                }
-              >
-                <i className="ph ph-trash" /> Remove
-              </button>
+              {/* Offered only to whoever entered it, or staff. The server
+                  enforces the same rule from the same function, so a button
+                  shown here is a button that works — and a line somebody else
+                  entered simply has no controls rather than controls that
+                  refuse. */}
+              {!e.canEdit && (
+                <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0" }}>
+                  Entered by {e.createdBy || "someone else"} — ask them or an organizer to change it.
+                </p>
+              )}
+              {e.canEdit && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary touch-target"
+                  style={{ fontSize: 12 }}
+                  disabled={pending}
+                  onClick={() => startEdit(e)}
+                >
+                  <i className="ph ph-pencil-simple" /> Edit
+                </button>
+
+                {/* Two taps, not one.
+                    A wrong participant used to mean deleting the line and
+                    typing it again, so Remove was the only way to fix
+                    anything and sat one tap from a finger. Now that Edit
+                    exists, Remove only ever means "this never happened" — and
+                    a money record that disappears without a confirmation is
+                    one nobody can reconstruct. */}
+                {confirmDelete === e.id ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-danger touch-target"
+                      style={{ fontSize: 12 }}
+                      disabled={pending}
+                      onClick={() =>
+                        startTransition(async () => {
+                          const res = await removeExpense(e.id);
+                          if (!res.ok) setError(res.error ?? "Couldn't remove that.");
+                          setConfirmDelete(null);
+                        })
+                      }
+                    >
+                      <i className="ph ph-trash" /> Yes, remove it
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary touch-target"
+                      style={{ fontSize: 12 }}
+                      onClick={() => setConfirmDelete(null)}
+                    >
+                      Keep it
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-secondary touch-target"
+                    style={{ fontSize: 12 }}
+                    disabled={pending}
+                    onClick={() => setConfirmDelete(e.id)}
+                  >
+                    <i className="ph ph-trash" /> Remove
+                  </button>
+                )}
+              </div>
+              )}
             </div>
           </details>
         ))}

@@ -74,8 +74,8 @@ describe("four skins games on one round", () => {
     // included the scope, the THIRD of these overwrote the first.
     for (const g of games) {
       await prisma.skinsPot.upsert({
-        where: { stageId_net_scope: { stageId, net: g.net, scope: g.scope } },
-        create: { eventId, stageId, net: g.net, scope: g.scope, buyInCents: g.buyInCents },
+        where: { stageId_net_scope_groupKey: { stageId, net: g.net, scope: g.scope, groupKey: "" } },
+        create: { eventId, stageId, net: g.net, scope: g.scope, groupKey: "", buyInCents: g.buyInCents },
         update: { buyInCents: g.buyInCents },
       });
     }
@@ -112,5 +112,71 @@ describe("four skins games on one round", () => {
     expect(skinsGameLabel(true, "full", 18)).toBe("Skins (Net)");
     // A nine-hole round has no nine to slice, so the name must not claim one.
     expect(skinsGameLabel(false, "front", 9)).toBe("Skins (Gross)");
+  });
+});
+
+/**
+ * And the same fact one scope wider: TWO FOURBALLS, one round, one game type.
+ *
+ * The scope going into the key fixed four games on a round. It did not fix two
+ * GROUPS each running their own — `(stageId, net, scope)` still named a single
+ * row, so Group 3 setting up their net front-nine skins upserted Group 1's.
+ * Identical failure, identical silence: a pot, entrants, correct arithmetic,
+ * wrong game.
+ *
+ * Asserted against the database because the constraint IS the behaviour. A
+ * mock would happily hold two objects.
+ */
+describe("two fourballs, each with their own game on the same round", () => {
+  it("keeps both pots, with their own stakes", async () => {
+    const groups = [
+      { groupKey: "Group 1", buyInCents: 1_000 },
+      { groupKey: "Group 3", buyInCents: 2_000 },
+    ];
+
+    for (const g of groups) {
+      await prisma.skinsPot.upsert({
+        where: {
+          stageId_net_scope_groupKey: { stageId, net: true, scope: "front", groupKey: g.groupKey },
+        },
+        create: {
+          eventId,
+          stageId,
+          net: true,
+          scope: "front",
+          groupKey: g.groupKey,
+          buyInCents: g.buyInCents,
+        },
+        update: { buyInCents: g.buyInCents },
+      });
+    }
+
+    const rows = await prisma.skinsPot.findMany({
+      where: { stageId, net: true, scope: "front", groupKey: { in: ["Group 1", "Group 3"] } },
+      orderBy: { groupKey: "asc" },
+    });
+
+    expect(rows, "one group's pot overwrote the other's").toHaveLength(2);
+    expect(rows[0].buyInCents).toBe(1_000);
+    expect(rows[1].buyInCents).toBe(2_000);
+  });
+
+  it("keeps the field's own pot separate from either group's", async () => {
+    // The whole-field pot is groupKey "", and it already existed on this round
+    // from the suite above at 500. A group creating theirs must not touch it.
+    const field = await skinsPotFor(eventId, stageId, true, "front");
+    const group1 = await skinsPotFor(eventId, stageId, true, "front", "Group 1");
+
+    expect(field?.buyInCents, "the field's pot moved when a group made theirs").not.toBe(1_000);
+    expect(group1?.buyInCents).toBe(1_000);
+  });
+
+  it("reads a group's pot only when asked for that group", async () => {
+    // The default is the field's pot, so every caller that predates groups
+    // reads exactly what it always read.
+    const byDefault = await skinsPotFor(eventId, stageId, true, "front");
+    const explicit = await skinsPotFor(eventId, stageId, true, "front", "");
+    expect(byDefault?.buyInCents).toBe(explicit?.buyInCents);
+    expect(byDefault?.buyInCents).not.toBe(2_000);
   });
 });

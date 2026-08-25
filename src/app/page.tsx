@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
 import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
+import { shareOf } from "@/lib/domain/expenses";
+import { money } from "@/lib/domain/money-format";
 import { PLANS } from "@/lib/plans";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
@@ -9,18 +11,23 @@ import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 
 /**
- * The app's wordmark tokens, expressed in this page's palette.
+ * The app's wordmark tokens, mapped to the BRAND's own colours.
  *
  * BrandMark reads --color-accent* and --color-bg, which the landing page does
  * not define — it has its own ground. Mapping them here is what lets one
  * component serve both, exactly as --logo-flag does for the mark itself, and
  * is why there is no second copy of the lockup to drift.
+ *
+ * These map to --brand-*, NOT to the page accent. They were pointed at
+ * --brass, which meant retuning the page's palette silently recoloured the
+ * logo — a brand changing because a background did. The mark is fixed; the
+ * page around it is the variable.
  */
 const BRAND_TOKENS = {
-  "--color-accent": "var(--brass)",
-  "--color-accent-200": "var(--brass)",
-  "--color-accent-300": "var(--brass)",
-  "--color-accent-600": "var(--flag-soft)",
+  "--color-accent": "var(--brand-amber)",
+  "--color-accent-200": "var(--brand-amber)",
+  "--color-accent-300": "var(--brand-amber)",
+  "--color-accent-600": "var(--brand-green-soft)",
   "--color-bg": "var(--ground)",
 } as React.CSSProperties;
 
@@ -58,20 +65,142 @@ const EXAMPLE = (() => {
   return { index, tee, course, playing: playingHandicapFrom(course, 90) };
 })();
 
+/**
+ * The worked trip, run through the SAME splitter the app settles with.
+ *
+ * It used to be five hand-typed figures under the heading "four players,
+ * shared evenly", and evenly is the one thing a golf trip never is. Somebody
+ * drives up for the second night only, two of them go to the bar, one is
+ * driving and skips the wine. A page that shows four equal quarters is
+ * describing a dinner, not a weekend, and it undersells the thing the app
+ * actually does: every line carries its OWN set of people and its own weights.
+ *
+ * So each line below names who is on it, and the numbers come from `shareOf`
+ * rather than from arithmetic done in a comment. The lodging is the case that
+ * proves the point — three players for two nights and one for a single night
+ * is a 2:2:2:1 split of $640, which is $91.43 and $182.86-ish and does not
+ * divide into anything a person would type by hand. The remainder lands by
+ * the largest-remainder rule, so the five parts still sum to the cent.
+ *
+ * A worked example that does not add up is worse than none, because the reader
+ * checking it is exactly the reader who would have bought.
+ */
+const TRIP = (() => {
+  const you = "you";
+  /**
+   * EIGHT, not four — a GROUP rather than a fourball.
+   *
+   * The example ran on four players and every line read "all four", which
+   * quietly said the wrong thing: it made the trip look like a foursome's
+   * business. It is not. A golf trip is a group, and the fourball is a fact
+   * about who tees off together — it decides the CART and the BETS, and
+   * nothing else. Eight players make that visible in a way four never can,
+   * because with four every subset looks like the same four people.
+   */
+  const group = [you, "b", "c", "d", "e", "f", "g", "h"];
+  /** Who you actually play with — one line's worth of the trip, not the trip. */
+  const fourball = new Set([you, "b", "c", "d"]);
+  const all = group.map((playerId) => ({ playerId, weight: 1 }));
+
+  const lines = [
+    { description: "Travel and fuel", who: "the whole group", amountCents: 48_000, shares: all },
+    {
+      description: "Lodging",
+      // The whole argument in one line: most of them stay two nights, two of
+      // them drive up for the second only.
+      who: "six for two nights, two for one",
+      amountCents: 169_000,
+      shares: group.map((playerId) => ({
+        playerId,
+        weight: playerId === you || playerId === "h" ? 1 : 2,
+      })),
+    },
+    {
+      description: "Cart fees",
+      // The one line a fourball really does own: you rode in it, they did not.
+      who: "your fourball",
+      amountCents: 12_000,
+      shares: group.map((playerId) => ({ playerId, weight: fourball.has(playerId) ? 1 : 0 })),
+    },
+    { description: "Dinner", who: "the whole group", amountCents: 52_480, shares: all },
+    {
+      description: "The bar",
+      // Not everyone drinks, and somebody is driving. Nothing to do with who
+      // played with whom.
+      who: "three of them",
+      amountCents: 9_000,
+      shares: group.map((playerId) => ({
+        playerId,
+        weight: playerId === you || playerId === "c" || playerId === "f" ? 1 : 0,
+      })),
+    },
+  ];
+
+  const rows = lines.map((line) => ({
+    description: line.description,
+    who: line.who,
+    total: line.amountCents,
+    yours: shareOf({ id: line.description, paidBy: "b", ...line }).get(you) ?? 0,
+  }));
+
+  const yourShare = rows.reduce((sum, r) => sum + r.yours, 0);
+  // What the golf came to, from the section beside this one.
+  const golfNet = 7_750;
+  return { rows, yourShare, golfNet, handover: yourShare - golfNet };
+})();
+
 /* The design's stylesheet, scoped under `.thq`. Animation baselines live behind
    `.thq-js` (added by LandingEffects on mount) so content is fully visible with
    JavaScript disabled rather than stuck at opacity 0. */
 const LANDING_CSS = `
 .thq, .thq * { box-sizing: border-box; }
 .thq {
-  /* Direction 02, "The Board": standing in front of the clubhouse leaderboard.
-     Night ground, fairway green for anything live or under par, and exactly one
-     amber — spent on the last word of the headline and nowhere else. */
-  --ground:#0C100E; --ground-2:#121815; --panel:#141A1785;
-  --paper:#F1EDE1; --paper-2:#E9E4D4; --paper-ink:#1B2A22; --paper-soft:#5A6B5E;
-  --ink:#E8ECE9; --ink-soft:#94A29C; --ink-faint:#6F807A;
-  --line:rgba(232,236,233,0.10); --line-2:rgba(232,236,233,0.20);
-  --flag:#4FA97C; --flag-soft:#63BE90; --under:#4FA97C; --brass:#E8A33D;
+  /* "Patina": verdigris on lacquer — the two things a clubhouse is made of.
+     Aged wood for the ground, and for the accent the green that copper turns
+     when nobody polishes it.
+
+     It is deliberately the one combination that is vintage AND electric at
+     once: the GROUND is aged, the ACCENT is not. That split is the whole
+     design. A warm near-black with a single hot accent is the shape every dark
+     product page has, and the previous try at fixing that went the other way —
+     gold leaf, which is handsome and entirely period, but leaves the page with
+     nothing sharp in it at all.
+
+     Cool accent on a warm ground is also the strongest pairing available here,
+     which is not a stylistic point: this page gets opened on a phone at a golf
+     course, and hue contrast survives sunlight in a way lightness alone does
+     not.
+
+     One rule holds it together. TEAL is identity — the marks, the headline's
+     last word, the rules, the buttons. GREEN is meaning — live, under par,
+     money coming your way. Never the reverse: the moment teal says "winning",
+     the page has two words for one idea and neither is legible. The two are
+     174 degrees apart precisely so nobody can confuse them.
+
+     Verdigris is also a preset a club can pick in settings, so a club that
+     wants the site's own look can have it. */
+  --ground:#171210; --ground-2:#221A16; --panel:#221A1685;
+  --paper:#EDE4CE; --paper-2:#E4DABF; --paper-ink:#1C1712; --paper-soft:#5C5343;
+  --paper-accent:#0E6E72;
+  --ink:#EDE6DC; --ink-soft:#ABA091; --ink-faint:#837868;
+  --line:rgba(237,230,220,0.12); --line-2:rgba(237,230,220,0.24);
+  --flag:#6FB894; --flag-soft:#8ACCAB; --under:#6FB894;
+  /* Accent text and accent FILL are different steps, the way the app's own
+     ramp separates 400 from 500. Held to one value the button and the body
+     text end up the same colour and the button stops reading as a control. */
+  --brass:#76E1E5; --brass-ui:#45D6DC; --brass-hi:#A6EEF1; --on-accent:#08201F;
+  /* THE MARK DOES NOT MOVE WITH THE PAGE.
+     These are the wordmark's own orange and green, and they are the values the
+     logo has always been drawn in. They are separate tokens precisely because
+     the accent is now a variable: when the page palette was retuned, the mark
+     read --brass and quietly recoloured with it, which is a brand changing
+     because a background did. A logo is a constant. Retune the page all you
+     like; these two lines stay put. */
+  --brand-amber:#E8A33D; --brand-green:#4FA97C; --brand-green-soft:#63BE90;
+  /* The dim edge where the patina has gone dark. DECORATION ONLY — around
+     3:1 on the lacquer, so it may rule a line or edge a frame and must never
+     carry a word. Text uses --brass, which clears 9:1. */
+  --incised:#2F6F72;
   --sans:var(--font-geist-sans),-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
   --mono:var(--font-geist-mono),ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
   /* Display only. Golf sets its own type in engraved and printed serifs —
@@ -85,14 +214,30 @@ const LANDING_CSS = `
 }
 @media (prefers-color-scheme: light) {
   .thq {
-    /* The board seen in daylight rather than a different design. Green and
-       amber both darken so they still carry on paper-white; a board is only
-       readable if under-par reads instantly, and #4FA97C on white does not. */
-    --ground:#F6F5F1; --ground-2:#EDEBE4; --panel:#FFFFFF;
-    --ink:#14181A; --ink-soft:#55605B; --ink-faint:#7C8781;
-    --line:rgba(18,24,21,0.11); --line-2:rgba(18,24,21,0.20);
-    --flag:#1F7A50; --flag-soft:#186541; --under:#1F7A50; --brass:#A8701A;
-    --paper:#10251B; --paper-2:#0C1F16; --paper-ink:#EDEBE0; --paper-soft:#9FB1A5;
+    /* The same page in daylight rather than a different design: card stock
+       instead of lacquer. The patina cannot survive the swap unchanged —
+       #76E1E5 is a highlight on a dark ground and pale nothing on a light one
+       — so it deepens to the teal of oxidised copper in shadow, dark enough
+       to carry a word. Green darkens with it, because a board is only readable
+       if under-par reads instantly and #6FB894 on cream does not.
+
+       Fill and text collapse to ONE value here. On the dark ground they are
+       two steps apart because both must clear the ground; on cream the darker
+       of the pair is already doing the work, and a second, deeper teal for the
+       button just read as a different colour. */
+    --ground:#F4EFE2; --ground-2:#EAE3D2; --panel:#FFFDF7;
+    --ink:#1E1710; --ink-soft:#5C5342; --ink-faint:#7E7460;
+    --line:rgba(30,23,16,0.12); --line-2:rgba(30,23,16,0.22);
+    --flag:#1F7A50; --flag-soft:#186541; --under:#1F7A50;
+    --brass:#0E6E72; --brass-ui:#0E6E72; --brass-hi:#0A5457;
+    --on-accent:#F2FEFF; --incised:#7FC5C8;
+    /* The mark's own daylight pair — the exact values it used on the light
+       ground before any of this, so the logo is unchanged on both grounds. */
+    --brand-amber:#A8701A; --brand-green:#1F7A50; --brand-green-soft:#186541;
+    --paper:#241A16; --paper-2:#1A120F; --paper-ink:#EFE7D8; --paper-soft:#B3A791;
+    /* Light ground flips the band to lacquer, so the band's accent flips back
+       to bright patina — the mirror of the dark-ground rule above. */
+    --paper-accent:#76E1E5;
   }
 }
 .thq :focus-visible { outline:2px solid var(--flag); outline-offset:3px; border-radius:4px; }
@@ -104,6 +249,12 @@ const LANDING_CSS = `
 .thq .nav-in { display:flex; align-items:center; justify-content:space-between; height:64px; }
 .thq .brand { display:flex; align-items:center; gap:11px; font-family:var(--sans); font-size:22px; font-weight:700; letter-spacing:-0.025em; }
 .thq .nav-actions { display:flex; align-items:center; gap:10px; }
+/* The two nav buttons are a PAIR, so they are one size.
+   Sized by their labels alone they came out 77px and 97px — a 20px step that
+   reads as a mistake rather than as hierarchy, because the difference is the
+   length of the words and not the importance of the actions. The weight and
+   the fill already say which one is primary. */
+.thq .nav-actions .btn { min-width:98px; justify-content:center; }
 /* On a phone the nav is a utility bar, not the hero placement, and at the
    hero size the lockup finished 4px from the buttons — fine until a longer
    word or a wider button. Back to LOGO_SIZE.md (22), which the scale
@@ -111,13 +262,30 @@ const LANDING_CSS = `
 @media (max-width: 560px) {
   .thq .brand { font-size:19px; gap:9px; }
   .thq .brand > svg:first-of-type { width:22px; height:22px; }
+  /* Equal, but narrower. At 375px the lockup finished 12.6px from the buttons
+     — the same crowding the note above records at 4px, just less of it. The
+     pair stays matched and gives the width back to the gap; the 44px touch
+     height is set by padding and is untouched. */
+  .thq .nav-actions { gap:8px; }
+  /* 13px and 10px of padding is what lets the LONGER label fit inside the
+     shared width. Set any wider and "Start free" sets its own size, the pair
+     stops matching, and the extra width comes straight out of the gap to the
+     lockup — which is the crowding this block exists to prevent. */
+  .thq .nav-actions .btn { min-width:86px; font-size:13px; padding-left:10px; padding-right:10px; }
 }
 .thq .btn { font-family:var(--sans); font-size:13.5px; font-weight:560; cursor:pointer; border-radius:8px; padding:9px 16px; border:1px solid transparent; text-decoration:none; display:inline-flex; align-items:center; gap:8px; transition:transform .16s ease, background .16s ease, border-color .16s ease, color .16s ease; letter-spacing:-0.005em; }
 .thq .btn-ghost { color:var(--ink-soft); border-color:var(--line-2); }
 .thq .btn-ghost:hover { color:var(--ink); border-color:var(--ink-faint); }
-.thq .btn-solid { background:var(--brass); color:#17130C; font-weight:640; }
-@media (prefers-color-scheme: light) { .thq .btn-solid { color:#FFF7EE; } }
-.thq .btn-solid:hover { transform:translateY(-1px); background:var(--flag-soft); }
+/* The FILL step, not the text step — and the label colour comes from the
+   palette rather than being written here twice. The light-mode override this
+   replaces was hard-coding a label colour against an accent that has since
+   changed hue entirely; --on-accent is defined next to each ground's accent,
+   so the pair can never drift apart again. */
+.thq .btn-solid { background:var(--brass-ui); color:var(--on-accent); font-weight:640; }
+/* Brighter leaf, not green. Green is reserved for meaning on this page — live,
+   under par, money coming your way — and a primary button that turns green on
+   hover spends that word on "you moused over something". */
+.thq .btn-solid:hover { transform:translateY(-1px); background:var(--brass-hi); }
 .thq .btn-lg { padding:13px 22px; font-size:15px; }
 .thq .btn-solid.btn-lg::after { content:"\\2192"; font-size:14px; transition:transform .2s cubic-bezier(.2,.7,.2,1); }
 .thq .btn-solid.btn-lg:hover::after { transform:translateX(3px); }
@@ -176,7 +344,10 @@ const LANDING_CSS = `
 .thq .lb tr.lead td.pos { color:var(--flag); }
 
 .thq .band { background:var(--paper); color:var(--paper-ink); }
-.thq .band .sec-kick { color:var(--brass); }
+/* The band inverts the ground, so it must invert the gold too. Leaf is a
+   HIGHLIGHT — it reads at 11:1 on lacquer and all but vanishes on card stock.
+   On paper the same accent has to be struck bronze instead. */
+.thq .band .sec-kick { color:var(--paper-accent); }
 .thq .band .sec-h { color:var(--paper-ink); }
 .thq .band .sec-sub { color:var(--paper-soft); }
 .thq .cardgrid { display:grid; grid-template-columns:1.05fr 0.95fr; gap:40px; align-items:center; margin-top:32px; }
@@ -214,7 +385,7 @@ const LANDING_CSS = `
 .thq .faq { margin-top:44px; border-top:1px solid var(--line); }
 .thq .faq details { border-bottom:1px solid var(--line); }
 .thq .faq summary { list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:24px; padding:24px 4px; font-family:var(--sans); font-size:clamp(1rem, 1.6vw, 1.18rem); font-weight:600; letter-spacing:-0.012em; color:var(--ink); transition:color .16s ease; }
-.thq .faq summary:hover { color:var(--flag-soft); }
+.thq .faq summary:hover { color:var(--brass); }
 .thq .faq summary::-webkit-details-marker { display:none; }
 .thq .faq .chev { flex:none; width:19px; height:19px; color:var(--brass); transition:transform .22s cubic-bezier(.2,.7,.2,1); }
 .thq .faq details[open] summary .chev { transform:rotate(180deg); }
@@ -277,18 +448,18 @@ const LANDING_CSS = `
 
    These are Geist's metrics. If the display face ever changes, re-measure. */
 .thq .ajai { font-weight:700; }
-.thq .ajai-cap { color:var(--brass); }
-.thq .ajai-stem { position:relative; color:var(--flag); }
+.thq .ajai-cap { color:var(--brand-amber); }
+.thq .ajai-stem { position:relative; color:var(--brand-green); }
 .thq .ajai-stem::after {
   content:""; position:absolute; top:0.28em;
   width:0.1575em; height:0.1225em; border-radius:0.028em;
-  background:var(--brass);
+  background:var(--brand-amber);
 }
 .thq .ajai-stem.is-i::after { left:0.06em; }
 .thq .ajai-stem.is-j::after { left:0.11em; }
 /* The qualifier, tied to the stems and one weight quieter so it reads as the
    suffix to the mark rather than a fifth letter competing with it. */
-.thq .ajai-labs { color:var(--flag); font-weight:600; }
+.thq .ajai-labs { color:var(--brand-green); font-weight:600; }
 .thq .sr-only {
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
@@ -407,6 +578,10 @@ const LANDING_CSS = `
 .thq .led dl { margin:0; font-variant-numeric:tabular-nums; }
 .thq .led dl > div { display:flex; justify-content:space-between; gap:14px; padding:5px 0; font-size:13.5px; }
 .thq .led dt { margin:0; min-width:0; }
+/* Who is actually on this line. It sits under the description rather than
+   beside it because it is the part that differs per line, and a reader
+   scanning for "wait, am I paying for the bar?" is scanning this column. */
+.thq .led-who { display:block; font-size:11.5px; line-height:1.45; margin-top:1px; }
 .thq .led dd { margin:0; text-align:right; white-space:nowrap; }
 .thq .led dd.won { color:var(--flag); font-weight:640; }
 .thq .led .led-sum { margin-top:5px; padding-top:9px; border-top:1px solid color-mix(in srgb, var(--paper-ink) 20%, transparent); font-weight:680; }
@@ -449,8 +624,8 @@ function FlagMark({ size = LOGO_SIZE.md }: { size?: number }) {
           // mapped it to --flag, which is this page's GREEN. The mark rendered
           // green-on-green and the ball took the ink colour, because it was
           // not a variable at all.
-          "--logo-flag": "var(--brass)",
-          "--logo-ball": "var(--flag)",
+          "--logo-flag": "var(--brand-amber)",
+          "--logo-ball": "var(--brand-green)",
           "--logo-stick": "currentColor",
           "--logo-rim": "var(--line-2)",
           "--logo-cup": "transparent",
@@ -479,8 +654,16 @@ export default async function LoginPage() {
   // on the one journey it is named after.
   if (session) redirect(session.eventId ? landingScreenFor(session.viewRole) : "/choose");
 
-  /** Whole dollars where the price is whole, so "$29" never reads "$29.00". */
-  const money = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
+  /**
+   * Whole dollars where the price is whole, so "$29" never reads "$29.00".
+   *
+   * Named `planPrice`, not `money`, and the rename is the point: it takes
+   * WHOLE DOLLARS while the shared `money()` next to it takes CENTS. As
+   * `money` it shadowed the import inside this component, and the trip ledger
+   * — which is in cents — rendered $45.00 as "$4500". Two formatters with one
+   * name and different units is a bug waiting on whoever writes the next line.
+   */
+  const planPrice = (n: number) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
 
   const paperInk = { color: "var(--paper-ink)" } as const;
   const paperSoft = { color: "var(--paper-soft)" } as const;
@@ -546,7 +729,10 @@ export default async function LoginPage() {
             <div className="proof rise">
               <span><i></i>Every recognised format</span>
               <span><i></i>WHS course handicaps</span>
-              <span><i></i>No spreadsheets</span>
+              {/* The money promise belongs in the hero, not four screens down.
+                  It is half of what this product is, and "No spreadsheets"
+                  said what a visitor avoids rather than what they get. */}
+              <span><i></i>The money settles itself</span>
             </div>
           </div>
 
@@ -635,6 +821,15 @@ export default async function LoginPage() {
               A tied hole pays nobody and rolls into the next — which is why the 9th was worth three.
               The pot divides in whole cents, so it cannot pay out a penny more than went in, and
               nothing is settled on a hole nobody has finished.
+            </p>
+            {/* The group-level games. Said here rather than in its own section
+                because it is the same fact one scope down: a night is several
+                games, and not all of them are the club's. */}
+            <p className="sec-sub" style={{ marginTop: 10 }}>
+              And not every game is the club&rsquo;s. <b>Any fourball can run its own</b> — their
+              stake, their players, their pot — alongside the field&rsquo;s, without the organizer
+              setting it up and without the two ever touching. Whatever a player is in, it lands in
+              the same one number at the end.
             </p>
           </div>
         </div>
@@ -873,36 +1068,46 @@ export default async function LoginPage() {
                 the apps that do it do it well — the claim is about where the
                 NUMBERS come from, which is the half they cannot help with. */}
             <p className="sec-sub" style={paperInk}>
-              Splitting a bill is the easy half, and this does that too: the hotel, the buggies,
-              the round of drinks, shared however you like. The half that costs an evening is
-              knowing the amounts — somebody has to work out that a player won three skins at
-              $22.50, lost the front nine, and owes for a guest, then type it in. Here nobody types
-              it. The golf money IS the card, and the trip and the competition net off into one
-              balance and one handover.
+              Splitting a bill is the easy half, and this does that too — but properly. A trip is a
+              GROUP, not a fourball: everybody shares the rooms and the dinner, only the three who
+              went to the bar share that, and only the four who rode in it share the cart. Every
+              line carries its own people and its own weights, and nothing is forced into equal
+              shares. The half that costs an evening is knowing the amounts — somebody has to work
+              out that a player won three skins at $22.50, lost the front nine, and owes for a
+              guest, then type it in. Here nobody types it. The golf money IS the card, and the
+              trip and the competition net off into one balance and one handover.
             </p>
           </div>
 
           {/* The weekend, settled.
               The claim above is that the trip and the competition net into one
-              number. That is only believable if the number is shown, so it is
-              — and the arithmetic is real: 1,154.60 over four is 288.65, the
-              golf nets +77.50, and 288.65 − 77.50 is 211.15. A worked example
-              that does not add up is worse than none, because the reader
-              checking it is exactly the reader who would have bought. */}
+              number. That is only believable if the number is shown, so it is.
+              Every figure in the left-hand column now comes from `shareOf` —
+              the splitter the app settles with — so the example cannot drift
+              from the product, and the awkward lodging split is the engine's
+              answer rather than mine. See TRIP at the top of this file. */}
           <div className="ledger reveal">
             <div className="led">
-              <div className="led-h" style={paperInk}>The trip <span style={paperSoft}>· four players, shared evenly</span></div>
+              <div className="led-h" style={paperInk}>The trip <span style={paperSoft}>· eight of you, no two shares alike</span></div>
               <dl>
-                <div><dt style={paperInk}>Travel and fuel</dt><dd style={paperInk}>$180.00</dd></div>
-                <div><dt style={paperInk}>Lodging, two nights</dt><dd style={paperInk}>$640.00</dd></div>
-                <div><dt style={paperInk}>Cart fees</dt><dd style={paperInk}>$120.00</dd></div>
-                <div><dt style={paperInk}>Food and drinks</dt><dd style={paperInk}>$214.60</dd></div>
-                <div className="led-sum"><dt style={paperInk}>Each owes</dt><dd style={paperInk}>$288.65</dd></div>
+                {TRIP.rows.map((r) => (
+                  <div key={r.description}>
+                    <dt style={paperInk}>
+                      {r.description}
+                      <span className="led-who" style={paperSoft}>{r.who}</span>
+                    </dt>
+                    <dd style={paperInk}>{money(r.yours)}</dd>
+                  </div>
+                ))}
+                <div className="led-sum"><dt style={paperInk}>Your share</dt><dd style={paperInk}>{money(TRIP.yourShare)}</dd></div>
               </dl>
             </div>
 
             <div className="led">
-              <div className="led-h" style={paperInk}>The golf <span style={paperSoft}>· worked out from the cards</span></div>
+              {/* Named as the fourball's, because that is what a skins game
+                  between four players IS — and it is the one place on this
+                  page where the fourball is the right unit. */}
+              <div className="led-h" style={paperInk}>The golf <span style={paperSoft}>· your fourball, off the cards</span></div>
               <dl>
                 <div><dt style={paperInk}>Skins, front nine net</dt><dd className="won" >+$67.50</dd></div>
                 <div><dt style={paperInk}>Closest to the pin</dt><dd className="won">+$25.00</dd></div>
@@ -914,10 +1119,11 @@ export default async function LoginPage() {
 
           <div className="led-out reveal" style={paperInk}>
             <span className="led-out-k" style={paperSoft}>Settles to</span>
-            <span className="led-out-v">one handover of $211.15</span>
+            <span className="led-out-v">one handover of {money(TRIP.handover)}</span>
             <span className="led-out-n" style={paperSoft}>
-              Not four transfers between four people. Nobody typed a golf number, and nothing here
-              moves a penny — it is the figure everybody agrees on before they get to the bar.
+              Not four transfers between four people, and not a quarter of everything. Nobody typed
+              a golf number, and nothing here moves a penny — it is the figure everybody agrees on
+              before they get to the bar.
             </span>
           </div>
 
@@ -948,12 +1154,22 @@ export default async function LoginPage() {
         <div className="wrap">
           <div className="reveal">
             <div className="sec-kick">All of it, in one place</div>
-            <h2 className="sec-h">No spreadsheet. No side app for the money.</h2>
+            {/* The claim stated plainly, because it is the one this product
+                is actually built on: the golf AND the books, from the same
+                cards. Everything under this heading is evidence for it. */}
+            <h2 className="sec-h">Play the golf. The accounting takes care of itself.</h2>
             <p className="sec-sub">
+              Nobody turns up for the arithmetic. You should not be totting up skins in the car park
+              or working out who owes whom before the bar closes — so here you don&rsquo;t. Every
+              stake, every pot, every shared cost and every payout is worked out from the cards as
+              you play, and lands as <b>one number per person</b>. Nothing to reconcile afterwards,
+              and no spreadsheet, chat thread or side app to keep in step.
+            </p>
+            <p className="sec-sub" style={{ marginTop: 12 }}>
               Running a competition usually means a workbook for the field, a chat thread for who is
               in, a notes app for the skins and something else again to work out who owes whom. Every
               one of them is a place the numbers can disagree. Here they cannot, because there is
-              only one set of them.
+              only one set of them — and it is the set the round produced.
             </p>
           </div>
 
@@ -1027,7 +1243,7 @@ export default async function LoginPage() {
         <div className="wrap">
           <div className="reveal">
             <div className="sec-kick">What it costs</div>
-            <h2 className="sec-h">Free for one event. {money(PLANS.club.priceMonthly)} a month for a season.</h2>
+            <h2 className="sec-h">Free for one event. {planPrice(PLANS.club.priceMonthly)} a month for a season.</h2>
             <p className="sec-sub">
               No card to start, and nothing is charged through the app — TourneyHQ works out the
               money and keeps the record; what changes hands is arranged between you and us, and
@@ -1054,7 +1270,7 @@ export default async function LoginPage() {
 
             <div className="plan paid">
               <div className="amt">
-                {money(PLANS.club.priceMonthly)}
+                {planPrice(PLANS.club.priceMonthly)}
                 <span className="per"> / month</span>
               </div>
               <div className="per">{PLANS.club.blurb}</div>

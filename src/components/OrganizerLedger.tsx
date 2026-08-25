@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { recordSettlement } from "@/app/actions/expenses";
 import type { MoneyView } from "@/lib/services/expenses";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * The ledger, for whoever is running it.
@@ -17,13 +18,14 @@ import type { MoneyView } from "@/lib/services/expenses";
  * everybody, and what is left to collect" — the whole standing, every
  * handover, and the lines behind them.
  */
-export function OrganizerLedger({ view, currency = "$" }: { view: MoneyView; currency?: string }) {
+export function OrganizerLedger({ view }: { view: MoneyView }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [showLines, setShowLines] = useState(false);
 
-  const money = (cents: number) =>
-    `${cents < 0 ? "−" : ""}${currency}${Math.abs(cents / 100).toFixed(2)}`;
+  // The club's currency, from the provider. The old prop carried a SYMBOL,
+  // which cannot say how many minor units a currency has.
+  const { money } = useMoney();
   const tone = (cents: number) =>
     cents > 0 ? "var(--color-accent-2-300)" : cents < 0 ? "var(--color-danger)" : "var(--color-text)";
 

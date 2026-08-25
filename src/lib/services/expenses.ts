@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import {
   balances,
+  canChangeExpense,
   combinedBalances,
   positionFor,
   shareOf,
@@ -50,9 +51,28 @@ export interface ExpenseRow {
   paidBy: string;
   /** The payer's name, or "" when they are no longer in the field. */
   paidByName: string;
+  /**
+   * Everyone who actually paid, when more than one person did. Empty means
+   * `paidBy` covered the whole bill, which is the ordinary case.
+   */
+  payers: Array<{ playerId: string; name: string; amountCents: number }>;
   createdBy: string;
+  /**
+   * Whether the person looking at this may change or remove it.
+   *
+   * Answered here, from the same rule the action enforces, so the screen never
+   * offers an Edit that the server refuses.
+   */
+  canEdit: boolean;
   /** Who shares it, with what each of them owes for this line. */
-  shares: Array<{ playerId: string; name: string; weight: number; cents: number }>;
+  shares: Array<{
+    playerId: string;
+    name: string;
+    weight: number;
+    /** The exact amount typed for this person, or null when split by weight. */
+    exactCents: number | null;
+    cents: number;
+  }>;
   /** True when this line's payer is a player id nobody in the field matches. */
   unknownPayer: boolean;
 }
@@ -382,7 +402,16 @@ async function gameNets(
   };
 }
 
-export async function moneyFor(eventId: string, email: string): Promise<MoneyView> {
+export async function moneyFor(
+  eventId: string,
+  email: string,
+  /**
+   * Who is looking, so each row can say whether THEY may change it. Omitted
+   * behaves as a plain player, which is the safe direction: a button that is
+   * missing is a smaller failure than one that is refused.
+   */
+  viewer: { name?: string; isStaff?: boolean } = {},
+): Promise<MoneyView> {
   // The field an opt-out pot draws on. Confirmed only — "everyone in the
   // field" means everyone PLAYING, and a withdrawn player is not.
   const confirmedField = await prisma.player.findMany({
@@ -395,7 +424,7 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
     prisma.expense.findMany({
       where: { eventId },
       orderBy: [{ spentOn: "desc" }, { createdAt: "desc" }],
-      include: { shares: true },
+      include: { shares: true, payments: true },
     }),
     prisma.settlement.findMany({ where: { eventId }, orderBy: { settledAt: "desc" } }),
     prisma.player.findMany({
@@ -428,7 +457,8 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
     description: r.description,
     amountCents: r.amountCents,
     paidBy: r.paidBy,
-    shares: r.shares.map((s) => ({ playerId: s.playerId, weight: s.weight })),
+    shares: r.shares.map((s) => ({ playerId: s.playerId, weight: s.weight, amountCents: s.amountCents ?? undefined })),
+    payments: r.payments.map((p) => ({ playerId: p.playerId, amountCents: p.amountCents })),
   }));
 
   const expenseNets = balances(domain, players.map((p) => p.id));
@@ -468,7 +498,12 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
       description: r.description,
       amountCents: r.amountCents,
       paidBy: r.paidBy,
-      shares: r.shares.map((s) => ({ playerId: s.playerId, weight: s.weight })),
+      shares: r.shares.map((s) => ({
+        playerId: s.playerId,
+        weight: s.weight,
+        amountCents: s.amountCents ?? undefined,
+      })),
+      payments: r.payments.map((p) => ({ playerId: p.playerId, amountCents: p.amountCents })),
     });
     return {
       id: r.id,
@@ -478,12 +513,36 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
       spentOn: r.spentOn,
       paidBy: r.paidBy,
       paidByName: nameOf.get(r.paidBy) ?? "",
+      /**
+       * Everyone who actually put money down.
+       *
+       * The screen said "Paid by {paidByName}" — ONE name — from the moment a
+       * bill could have several payers, so a dinner split across two cards
+       * credited both in the arithmetic and named one of them on screen. The
+       * number was right and the sentence was wrong, which is the version of
+       * this that nobody reports and everybody distrusts.
+       *
+       * Empty when nobody itemised, which still means `paidBy` covered it.
+       */
+      payers: r.payments
+        .map((p) => ({
+          playerId: p.playerId,
+          name: nameOf.get(p.playerId) ?? "Not in the field",
+          amountCents: p.amountCents,
+        }))
+        .sort((a, b) => b.amountCents - a.amountCents),
       createdBy: r.createdBy,
+      // The same rule the action enforces, asked once here so the screen
+      // cannot offer an Edit the server will refuse.
+      canEdit: canChangeExpense(r.createdBy, { name: viewer.name, email, isStaff: viewer.isStaff }),
       unknownPayer: !nameOf.has(r.paidBy),
       shares: r.shares.map((s) => ({
         playerId: s.playerId,
         name: nameOf.get(s.playerId) ?? "Not in the field",
         weight: s.weight,
+        // The exact amount somebody typed, when this line was split that way.
+        // Carried so an edit can reopen the form in the mode it was saved in.
+        exactCents: s.amountCents ?? null,
         cents: cents.get(s.playerId) ?? 0,
       })),
     };

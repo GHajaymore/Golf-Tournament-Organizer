@@ -202,7 +202,6 @@ model Organization {
   currencySymbol String @default("$")
   /**
    * The club’s currency as an ISO code, e.g. USD, GBP, JPY.
-   *
    * The code rather than the symbol above, because "$" cannot say WHICH
    * dollar and carries nothing about minor units — amounts are stored in
    * minor units, and yen has none. See domain/money-format.
@@ -595,7 +594,7 @@ model RateLimitHit {
 }
 
 model Event {
-  id                String @id @default(cuid())
+  id                String  @id @default(cuid())
   /**
    * Owning tenant. Required so no tournament can exist outside a billing
    * boundary — existing events were backfilled to their organizer's
@@ -604,22 +603,19 @@ model Event {
   organizationId    String
   name              String
   dates             String
-  format            String @default("match") // match | stroke
+  format            String  @default("match") // match | stroke
   course            String
   /**
    * The club course this tournament is played at, when it is one of theirs.
-   *
    * `course` above is a NAME, and was the only venue this model had — it
    * predates the Course library, and `resolveCourse` still matches on it.
    * Every other venue in the app (a round's, a match's) is an id, so the
    * tournament's own was the last thing picked by typing a string.
-   *
    * Both are written together and from the same choice, so they cannot
    * disagree: the id is what was picked, the name is that course's name kept
    * beside it for the readers that still resolve by name. Null for a
    * tournament at a course the club has not catalogued, which stays a
    * perfectly ordinary thing to have.
-   *
    * SetNull rather than Cascade: deleting a course must never delete a
    * tournament, exactly as it does not delete a round.
    */
@@ -630,9 +626,9 @@ model Event {
   // Set when `course` doesn't match a built-in preset — the organizer's own
   // hole-by-hole data (JSON number[18] each), entered via the course setup
   // prompt on Score entry. Empty until saved.
-  customPars        String @default("")
-  customYards       String @default("")
-  customStrokeIndex String @default("")
+  customPars        String  @default("")
+  customYards       String  @default("")
+  customStrokeIndex String  @default("")
   regDeadline       String
   /**
    * fixed | open — whether one venue covers the whole tournament.
@@ -640,10 +636,10 @@ model Event {
    * its own course. The event-level course stays empty on purpose and the
    * venue is named per match, by whoever enters the card.
    */
-  courseMode        String @default("fixed")
-  capacity          Int    @default(32)
-  playerCountMode   String @default("registration") // registration | manual
-  manualPlayerCount Int    @default(32)
+  courseMode        String  @default("fixed")
+  capacity          Int     @default(32)
+  playerCountMode   String  @default("registration") // registration | manual
+  manualPlayerCount Int     @default(32)
 
   // Flight formation + qualification config
   formationRule    String  @default("balanced") // balanced | handicap | seeding | random | manual
@@ -813,23 +809,19 @@ model Event {
   attendanceMode        String  @default("everyone") // everyone | opt-out | opt-in
   /**
    * own | one — which tees this competition is played from.
-   *
    * "own" honours a player's stored tee and falls back to the round's, which
    * is how the app behaved before this existed. "one" holds the whole field
    * to the round's set, which is what a club medal played off the whites
    * actually is, and what Rule 6.1b makes a penalty to depart from.
-   *
    * Mixed tees need no adjustment beyond the Course Handicap formula: the
    * (CR - par) term already gives the longer tee its strokes.
    */
   teePolicy             String  @default("own") // one | own | player
   /**
    * The tees this tournament is played from.
-   *
    * Null falls back to the club's first tee by position, which is what every
    * scoring path did before this existed — so an existing tournament is
    * unchanged until somebody chooses.
-   *
    * Per TOURNAMENT rather than per club: the same course is played off
    * different sets by different competitions, so a house default would be
    * wrong about as often as it was right.
@@ -979,11 +971,9 @@ model Group {
   position      Int
   /**
    * The tees this flight plays from.
-   *
    * A club championship is one tournament with three divisions off three
    * sets — championship off the blues, seniors off the whites, ladies off the
    * reds. Setting it here is three decisions rather than one per player.
-   *
    * Null means the flight makes no claim, and its players fall through to the
    * round's tees. That is how every flight behaved before this existed.
    */
@@ -1637,14 +1627,30 @@ model SkinsPot {
 
   /**
    * The SCOPE is part of the key, and leaving it out was a money bug.
-   *
    * A league night runs four games: front and back, each gross and net. Keyed
    * on (stageId, net) alone, saving the back-nine gross pot UPSERTED the
    * front-nine gross one — same row, so the front pot's entrants and their
    * stakes silently became the back pot's, and the front game vanished with
    * the money still recorded against it.
    */
-  @@unique([stageId, net, scope])
+  /// Which fourball this pot belongs to, or "" for the whole field.
+  ///
+  /// The tee sheet is JSON on the Stage and its groups have no stable id, so
+  /// this is the group's NAME ("Group 3") rather than a foreign key. That is
+  /// deliberate: the pot's actual membership is its `entrants` rows, and this
+  /// is only how a pot is addressed and labelled. If a redraw renames the
+  /// groups the pot keeps its entrants and its money and simply stops matching
+  /// a current group — money is never deleted by a draw being redone.
+  groupKey String @default("")
+
+  /// One pot per round, per net/gross, per nine, PER GROUP.
+  ///
+  /// `groupKey` is in the key because without it there is exactly one skins
+  /// pot per round and a second fourball's game overwrites the first — the
+  /// same silent overwrite that lost the back-nine pot when the key was
+  /// [stageId, net] and front and back collided. Empty groupKey is the
+  /// whole-field pot, so every pot that existed before this keeps its meaning.
+  @@unique([stageId, net, scope, groupKey])
   @@index([eventId])
 }
 
@@ -1706,8 +1712,9 @@ model Expense {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  shares ExpenseShare[]
-  event  Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  shares   ExpenseShare[]
+  payments ExpensePayment[]
+  event    Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
   @@index([stageId])
@@ -1720,10 +1727,41 @@ model Expense {
  * having no row at all, and worth keeping.
  */
 model ExpenseShare {
-  id        String @id @default(cuid())
-  expenseId String
-  playerId  String
-  weight    Int    @default(1)
+  id          String @id @default(cuid())
+  expenseId   String
+  playerId    String
+  weight      Int    @default(1)
+  /// An exact amount in cents for this person, overriding weight. Null on
+  /// almost every row: weights already cover equal splits, double shares and
+  /// percentages. This is for a bill whose real amounts do not reduce to a
+  /// small ratio — two rooms at different rates, or a restaurant bill split
+  /// by what each person actually ordered. If ANY share on an expense sets
+  /// it, the whole expense is split by exact amounts and weights are ignored.
+  amountCents Int?
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, playerId])
+  @@index([expenseId])
+}
+
+/// One person actually putting money down for one expense.
+///
+/// A bill is not always one card. Two of them split the dinner at the till,
+/// one puts the rooms on his card and another the buggies. Recorded as a
+/// single payer, whoever enters it has to either name the wrong person or
+/// break one bill into several — and the second is worse, because the ledger
+/// then says the group ate two dinners.
+///
+/// NO ROWS means the expense's own paidBy covered the lot, which is what every
+/// expense written before this model existed means. When rows do exist their
+/// amounts must total the expense: balances() is only zero-sum because the
+/// credits total the bill.
+model ExpensePayment {
+  id          String @id @default(cuid())
+  expenseId   String
+  playerId    String
+  amountCents Int
 
   expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
 
@@ -1895,7 +1933,13 @@ model SideGame {
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  @@unique([stageId, kind])
+  /// Which fourball this game belongs to, or "" for the whole field. Same
+  /// reasoning as SkinsPot.groupKey — see there.
+  groupKey String @default("")
+
+  /// One game of each kind per round, PER GROUP. Without groupKey a second
+  /// fourball's Nassau overwrites the first.
+  @@unique([stageId, kind, groupKey])
   @@index([eventId])
 }
 
@@ -2183,7 +2227,6 @@ model CourseCatalog {
   state   String @default("")
   /**
    * ISO 3166-1 alpha-2, from the directory. Empty where it does not say.
-   *
    * The directory is global — it was walked state by state only because the
    * only listing endpoint is per US state, which made it look US-only. A
    * course outside the US has no `state` at all, so without this a Dutch
