@@ -704,7 +704,10 @@ export default async function LoginPage() {
             <div className="proof rise">
               <span><i></i>Every recognised format</span>
               <span><i></i>WHS course handicaps</span>
-              <span><i></i>No spreadsheets</span>
+              {/* The money promise belongs in the hero, not four screens down.
+                  It is half of what this product is, and "No spreadsheets"
+                  said what a visitor avoids rather than what they get. */}
+              <span><i></i>The money settles itself</span>
             </div>
           </div>
 
@@ -1122,12 +1125,22 @@ export default async function LoginPage() {
         <div className="wrap">
           <div className="reveal">
             <div className="sec-kick">All of it, in one place</div>
-            <h2 className="sec-h">No spreadsheet. No side app for the money.</h2>
+            {/* The claim stated plainly, because it is the one this product
+                is actually built on: the golf AND the books, from the same
+                cards. Everything under this heading is evidence for it. */}
+            <h2 className="sec-h">Play the golf. The accounting takes care of itself.</h2>
             <p className="sec-sub">
+              Nobody turns up for the arithmetic. You should not be totting up skins in the car park
+              or working out who owes whom before the bar closes — so here you don&rsquo;t. Every
+              stake, every pot, every shared cost and every payout is worked out from the cards as
+              you play, and lands as <b>one number per person</b>. Nothing to reconcile afterwards,
+              and no spreadsheet, chat thread or side app to keep in step.
+            </p>
+            <p className="sec-sub" style={{ marginTop: 12 }}>
               Running a competition usually means a workbook for the field, a chat thread for who is
               in, a notes app for the skins and something else again to work out who owes whom. Every
               one of them is a place the numbers can disagree. Here they cannot, because there is
-              only one set of them.
+              only one set of them — and it is the set the round produced.
             </p>
           </div>
 
