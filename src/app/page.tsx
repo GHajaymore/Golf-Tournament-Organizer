@@ -397,6 +397,23 @@ const LANDING_CSS = `
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 34%, transparent);
 }
 
+/* ── The weekend, settled ───────────────────────────────────
+   Two columns that add to one number. Tabular numerals and a right-aligned
+   value column, because a ledger nobody can scan down is not a ledger. */
+.thq .ledger { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px; margin-top:22px; }
+.thq .led { padding:16px 18px; border-radius:var(--radius-lg,14px); background:color-mix(in srgb, var(--paper-ink) 5%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--paper-ink) 13%, transparent); min-width:0; }
+.thq .led-h { font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; margin-bottom:9px; }
+.thq .led-h span { font-weight:500; letter-spacing:0; text-transform:none; }
+.thq .led dl { margin:0; font-variant-numeric:tabular-nums; }
+.thq .led dl > div { display:flex; justify-content:space-between; gap:14px; padding:5px 0; font-size:13.5px; }
+.thq .led dt { margin:0; min-width:0; }
+.thq .led dd { margin:0; text-align:right; white-space:nowrap; }
+.thq .led dd.won { color:var(--flag); font-weight:640; }
+.thq .led .led-sum { margin-top:5px; padding-top:9px; border-top:1px solid color-mix(in srgb, var(--paper-ink) 20%, transparent); font-weight:680; }
+.thq .led-out { margin-top:16px; display:flex; flex-direction:column; gap:3px; }
+.thq .led-out-k { font-size:11.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+.thq .led-out-v { font-family:var(--display); font-size:27px; line-height:1.15; letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
+.thq .led-out-n { font-size:12.5px; line-height:1.6; max-width:62ch; }
 @media (max-width: 560px) {
   /* Nine across is unreadable on a phone; two rows of nine is how a card is
      printed anyway — an Out nine and an In nine. */
@@ -864,6 +881,46 @@ export default async function LoginPage() {
               balance and one handover.
             </p>
           </div>
+
+          {/* The weekend, settled.
+              The claim above is that the trip and the competition net into one
+              number. That is only believable if the number is shown, so it is
+              — and the arithmetic is real: 1,154.60 over four is 288.65, the
+              golf nets +77.50, and 288.65 − 77.50 is 211.15. A worked example
+              that does not add up is worse than none, because the reader
+              checking it is exactly the reader who would have bought. */}
+          <div className="ledger reveal">
+            <div className="led">
+              <div className="led-h" style={paperInk}>The trip <span style={paperSoft}>· four players, shared evenly</span></div>
+              <dl>
+                <div><dt style={paperInk}>Travel and fuel</dt><dd style={paperInk}>$180.00</dd></div>
+                <div><dt style={paperInk}>Lodging, two nights</dt><dd style={paperInk}>$640.00</dd></div>
+                <div><dt style={paperInk}>Cart fees</dt><dd style={paperInk}>$120.00</dd></div>
+                <div><dt style={paperInk}>Food and drinks</dt><dd style={paperInk}>$214.60</dd></div>
+                <div className="led-sum"><dt style={paperInk}>Each owes</dt><dd style={paperInk}>$288.65</dd></div>
+              </dl>
+            </div>
+
+            <div className="led">
+              <div className="led-h" style={paperInk}>The golf <span style={paperSoft}>· worked out from the cards</span></div>
+              <dl>
+                <div><dt style={paperInk}>Skins, front nine net</dt><dd className="won" >+$67.50</dd></div>
+                <div><dt style={paperInk}>Closest to the pin</dt><dd className="won">+$25.00</dd></div>
+                <div><dt style={paperInk}>Long drive, into the pot</dt><dd style={paperInk}>−$15.00</dd></div>
+                <div className="led-sum"><dt style={paperInk}>Golf nets</dt><dd className="won">+$77.50</dd></div>
+              </dl>
+            </div>
+          </div>
+
+          <div className="led-out reveal" style={paperInk}>
+            <span className="led-out-k" style={paperSoft}>Settles to</span>
+            <span className="led-out-v">one handover of $211.15</span>
+            <span className="led-out-n" style={paperSoft}>
+              Not four transfers between four people. Nobody typed a golf number, and nothing here
+              moves a penny — it is the figure everybody agrees on before they get to the bar.
+            </span>
+          </div>
+
           <div className="calc reveal" style={{ maxWidth: 440 }}>
             <div className="cr"><span className="k">Dinner, split four ways</span><span className="v">−65.00</span></div>
             <div className="cr"><span className="k">Carts, your fourball</span><span className="v">−45.00</span></div>

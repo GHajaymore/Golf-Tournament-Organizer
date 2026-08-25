@@ -5,7 +5,9 @@ import { EventContextBar } from "@/components/EventContextBar";
 import { navForRole } from "@/lib/nav";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
-import { brandForEvent, themeForEvent } from "@/lib/services/organization";
+import { brandForEvent, themeForEvent, currencyForEvent } from "@/lib/services/organization";
+import { DEFAULT_CURRENCY } from "@/lib/domain/money-format";
+import { CurrencyProvider } from "@/components/CurrencyProvider";
 import { themeCss, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { settingsOf } from "@/lib/services/tournament";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
@@ -67,8 +69,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // inlining would pin such a club to whichever mode happened to render.
   // themeCss emits only values it generated itself — see SAFE_CSS_VALUE.
   const themeStyleSheet = themeCss(theme, "#club-theme");
+  // Beside the theme, for the same reason: one club decision, a dozen readers.
+  const currency = session.eventId ? await currencyForEvent(session.eventId) : DEFAULT_CURRENCY;
 
   return (
+    <CurrencyProvider currency={currency}>
     <div
       id="club-theme"
       // Drives `color-scheme` in globals.css. Native form chrome — the date
@@ -85,6 +90,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       }}
     >
       <style dangerouslySetInnerHTML={{ __html: themeStyleSheet }} />
+      {/* The club’s currency, beside its theme — one club decision read by
+          every screen that writes an amount. */}
       <Sidebar
         sections={sections}
         name={session.name}
@@ -118,5 +125,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         brand={brand}
       />
     </div>
+    </CurrencyProvider>
   );
 }

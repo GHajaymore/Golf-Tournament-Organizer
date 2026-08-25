@@ -1,4 +1,5 @@
 import "server-only";
+import { DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import { brandLines, brandMonogram, isBrandDisplay } from "@/lib/brand";
 import { prisma } from "../db";
 import { DEFAULT_PLAN, planFor } from "../plans";
@@ -296,6 +297,22 @@ export async function organizationsFor(email: string) {
  * never touched appearance gets its colour on the default ground, rather than
  * one unset field dropping the whole theme back to stock.
  */
+/**
+ * The club's currency, for every screen that writes an amount.
+ *
+ * Alongside the theme and the brand because it is the same kind of fact: one
+ * decision belonging to the club, read by a dozen screens. Falls back to the
+ * default rather than throwing — a money screen must not go down because an
+ * event was deleted between the render and the read.
+ */
+export async function currencyForEvent(eventId: string): Promise<string> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { organization: { select: { currency: true } } },
+  });
+  return event?.organization?.currency || DEFAULT_CURRENCY;
+}
+
 export async function themeForEvent(eventId: string): Promise<ClubTheme> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },

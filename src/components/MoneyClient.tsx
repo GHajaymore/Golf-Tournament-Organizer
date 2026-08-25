@@ -1,4 +1,5 @@
 "use client";
+import { EXPENSE_CATEGORIES } from "@/lib/domain/expense-categories";
 import { useMemo, useState, useTransition } from "react";
 import { addExpense, removeExpense, recordSettlement } from "@/app/actions/expenses";
 import { requestContestEntry } from "@/app/actions/contests";
@@ -42,6 +43,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
   const [showAllTransfers, setShowAllTransfers] = useState(false);
 
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState<string>("other");
   const [amount, setAmount] = useState("");
   const [stageId, setStageId] = useState("");
   const [scope, setScope] = useState<Scope>("everyone");
@@ -73,6 +75,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
         amountCents: cents,
         paidBy: view.playerId,
         stageId,
+        category,
         shares: shareIds.map((playerId) => ({ playerId, weight: 1 })),
       });
       if (!res.ok) {
@@ -143,10 +146,35 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               id="exp-what"
               className="input"
               value={description}
-              placeholder="Dinner, carts, green fees…"
+              /* Names the whole weekend, not just the round. The old
+                 placeholder suggested only on-course costs, so the ledger
+                 read as a green-fee splitter — while the lodging, the fuel
+                 and the meals, which are the LARGER half of a golf trip, went
+                 into somebody else's app and a second settle-up. */
+              placeholder="Lodging, travel, fuel, carts, food, green fees…"
               onChange={(e) => setDescription(e.target.value)}
               style={{ minHeight: 46 }}
             />
+          </div>
+          {/* The column existed with no picker, so every line was filed under
+              nothing and the ledger could not answer "what did the lodging
+              come to" — the first question a group asks when deciding whether
+              to go again. */}
+          <div className="field">
+            <label htmlFor="exp-category">Category</label>
+            <select
+              id="exp-category"
+              className="input"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              style={{ minHeight: 46 }}
+            >
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="field">
             <label htmlFor="exp-amount">Amount</label>

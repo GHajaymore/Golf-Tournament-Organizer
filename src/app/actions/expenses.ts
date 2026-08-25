@@ -1,4 +1,5 @@
 "use server";
+import { isExpenseCategory } from "@/lib/domain/expense-categories";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
@@ -45,7 +46,10 @@ export interface ExpenseInput {
 }
 
 const DESCRIPTION_MAX = 80;
-const CATEGORY_MAX = 24;
+// CATEGORY_MAX went with the free-text category. The value is now checked
+// against the offered list instead of being truncated, which is a stronger
+// guarantee than a length: a 24-character category nobody offers still could
+// not be grouped.
 
 /** Who is signed in, and whether they run this tournament. */
 async function requireEventSession() {
@@ -151,7 +155,15 @@ async function cleanInput(
       amountCents,
       paidBy: payer.id,
       stageId,
-      category: (input.category ?? "").trim().slice(0, CATEGORY_MAX),
+      /**
+       * One of ours, or "other".
+       *
+       * A `"use server"` export is a public endpoint and will be called with
+       * whatever the caller likes — free text here would let anybody write a
+       * category the picker never offers and the totals cannot group, which
+       * is a ledger that silently stops adding up by category.
+       */
+      category: isExpenseCategory((input.category ?? "").trim()) ? input.category!.trim() : "other",
       spentOn,
     },
     shares,

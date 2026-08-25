@@ -200,6 +200,14 @@ model Organization {
    * currency and this is the shortest honest way to let them.
    */
   currencySymbol String @default("$")
+  /**
+   * The club’s currency as an ISO code, e.g. USD, GBP, JPY.
+   *
+   * The code rather than the symbol above, because "$" cannot say WHICH
+   * dollar and carries nothing about minor units — amounts are stored in
+   * minor units, and yen has none. See domain/money-format.
+   */
+  currency       String @default("USD")
 
   members      OrganizationMember[]
   roster       Member[]
