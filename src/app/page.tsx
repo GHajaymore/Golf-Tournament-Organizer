@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { landingScreenFor } from "@/lib/roles";
 import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
+import { PLANS } from "@/lib/plans";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
@@ -301,6 +302,100 @@ const LANDING_CSS = `
   .thq .lede { max-width:none; }
   .thq section { padding:54px 0; }
 }
+
+/* ── The night ────────────────────────────────────────────────────────────
+   The signature. A golf club's Thursday is not a feature list, it is a card
+   and a settle-up — so the page shows one rather than describing it.
+
+   Tabular numerals throughout: a column of scores that does not line up is
+   the one thing a golfer notices before they read a word. */
+.thq .night { margin-top: 26px; }
+.thq .holes {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.thq .hole {
+  padding: 9px 2px 8px;
+  text-align: center;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  min-width: 0;
+}
+/* A hole somebody won outright. The carry stops here and the money moves. */
+.thq .hole.won {
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 42%, transparent);
+}
+/* Tied: nobody takes it and the value rolls into the next one. This is the
+   whole character of skins, so it is drawn rather than captioned. */
+.thq .hole.carry { background: color-mix(in srgb, var(--color-text) 9%, transparent); }
+.thq .hole .h { display: block; font-size: 9.5px; letter-spacing: .08em; opacity: .55; }
+.thq .hole .v { display: block; font-size: 14px; font-weight: 600; margin-top: 2px; }
+.thq .hole .who { display: block; font-size: 9px; opacity: .7; margin-top: 1px; }
+.thq .settle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: baseline;
+  margin-top: 12px;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.thq .settle b { font-size: 15px; }
+.thq .settle .sep { opacity: .35; }
+
+/* ── Price ────────────────────────────────────────────────────────────────
+   The page has never priced anything. Two columns, the free one first,
+   because most readers are on it and the thing they most need to know is
+   what it does not keep. */
+.thq .plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+  margin-top: 22px;
+}
+.thq .plan {
+  padding: 20px 20px 22px;
+  border-radius: var(--radius-lg, 14px);
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 11%, transparent);
+  min-width: 0;
+}
+.thq .plan.paid {
+  background: color-mix(in srgb, var(--color-accent) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 34%, transparent);
+}
+.thq .plan .amt {
+  font-family: var(--font-display, var(--font-heading));
+  font-size: 34px;
+  line-height: 1.05;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+.thq .plan .per { font-size: 13px; opacity: .6; }
+.thq .plan ul { margin: 14px 0 0; padding-left: 17px; font-size: 13.5px; line-height: 1.75; }
+.thq .plan li::marker { color: color-mix(in srgb, var(--color-accent) 70%, transparent); }
+/* The retention line is the one fact a club must have before it plays, not
+   after. It is styled to be read first and it is not softened. */
+.thq .keepwarn {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  background: color-mix(in srgb, var(--color-danger) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 34%, transparent);
+}
+
+@media (max-width: 560px) {
+  /* Nine across is unreadable on a phone; two rows of nine is how a card is
+     printed anyway — an Out nine and an In nine. */
+  .thq .holes { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .thq .plan .amt { font-size: 30px; }
+}
+
 `;
 
 /**
@@ -358,6 +453,9 @@ export default async function LoginPage() {
   // by requireScreen as somewhere to BOUNCE to, so changing it had no effect
   // on the one journey it is named after.
   if (session) redirect(session.eventId ? landingScreenFor(session.viewRole) : "/choose");
+
+  /** Whole dollars where the price is whole, so "$29" never reads "$29.00". */
+  const money = (n: number) => (Number.isInteger(n) ? `${n}` : `${n.toFixed(2)}`);
 
   const paperInk = { color: "var(--paper-ink)" } as const;
   const paperSoft = { color: "var(--paper-soft)" } as const;
@@ -447,6 +545,133 @@ export default async function LoginPage() {
           </div>
         </div>
       </header>
+
+      {/* ── A league night ────────────────────────────────────────────────
+          The page used to open its argument with a grid of twelve features.
+          A grid is what every product does; a league night is what this one
+          is actually for, and it is what the last month of work serves.
+
+          The strip is a real skins game: ties carry, and the carry is why
+          the last hole is worth something. Drawn rather than described,
+          because the drama IS the arithmetic.
+
+          No names at all: a skins game is holes and money, and this
+          repository is public. */}
+      <section>
+        <div className="wrap">
+          <div className="reveal">
+            <div className="sec-kick">A weekly league</div>
+            <h2 className="sec-h">Nine holes, four games, everyone paid before the bar closes.</h2>
+            <p className="sec-sub">
+              A league night is not one competition. It is the match, the front nine, the back nine,
+              gross and net — and a season table underneath all of it. TourneyHQ scores every one of
+              them off the same cards.
+            </p>
+          </div>
+
+          <div className="night reveal">
+            <div className="holes" aria-hidden="true">
+              {[
+                { h: 1, v: "1", note: "won", won: true },
+                { h: 2, v: "1", note: "won", won: true },
+                { h: 3, v: "—", note: "tied", carry: true },
+                { h: 4, v: "—", note: "tied", carry: true },
+                { h: 5, v: "—", note: "tied", carry: true },
+                { h: 6, v: "4", note: "won, 3 carried", won: true },
+                { h: 7, v: "—", note: "tied", carry: true },
+                { h: 8, v: "—", note: "tied", carry: true },
+                { h: 9, v: "3", note: "won, 2 carried", won: true },
+              ].map((s) => (
+                <div key={s.h} className={`hole${s.won ? " won" : ""}${s.carry ? " carry" : ""}`}>
+                  <span className="h">{s.h}</span>
+                  <span className="v">{s.v}</span>
+                  <span className="who">{s.note}</span>
+                </div>
+              ))}
+            </div>
+            <div className="settle">
+              <span>Front nine skins, net</span>
+              <span className="sep">·</span>
+              <span>18 in at $5</span>
+              <span className="sep">·</span>
+              <span>4 skins won</span>
+              <span className="sep">·</span>
+              <span>
+                <b>$22.50</b> a skin
+              </span>
+            </div>
+            <p className="sec-sub" style={{ marginTop: 10 }}>
+              A tied hole pays nobody and rolls into the next — which is why the 9th was worth three.
+              The pot divides in whole cents, so it cannot pay out a penny more than went in, and
+              nothing is settled on a hole nobody has finished.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── The championship shape ────────────────────────────────────────
+          Divisions off different tees is the case that breaks most software,
+          and the reason is always the same: it is expressed per player, so
+          nobody does it. */}
+      <section className="band">
+        <div className="wrap">
+          <div className="reveal">
+            <div className="sec-kick">Club championship</div>
+            <h2 className="sec-h" style={paperInk}>Three divisions, three sets of tees, one leaderboard.</h2>
+            <p className="sec-sub" style={paperSoft}>
+              The championship off the blues, the seniors off the whites, the ladies off the reds.
+              Set it once per division — not once per player — and the course handicap does the rest:
+              the rating difference between two sets is exactly what makes them comparable.
+            </p>
+          </div>
+          <div className="cardgrid reveal">
+            <div className="scard" style={stepBorder}>
+              <div className="scard-in">
+                <h4 style={paperInk}>Or one set for everyone</h4>
+                <p style={paperSoft}>
+                  A medal off the whites is a condition of competition, not a preference. Choose it
+                  and a player&rsquo;s own stored tee cannot quietly override the committee.
+                </p>
+              </div>
+            </div>
+            <div className="scard" style={stepBorder}>
+              <div className="scard-in">
+                <h4 style={paperInk}>Or let them choose</h4>
+                <p style={paperSoft}>
+                  A society that already knows what it plays off can pick for itself, and change it
+                  until a card is returned. Same scoring either way.
+                </p>
+              </div>
+            </div>
+            <div className="scard" style={stepBorder}>
+              <div className="scard-in">
+                <h4 style={paperInk}>Printed on the card</h4>
+                <p style={paperSoft}>
+                  Each player&rsquo;s tees are named beside them on the scorecard the group carries
+                  out — the set the round was actually scored from, not a second guess at it.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── The season ───────────────────────────────────────────────────
+          The table a league exists for, and the one thing that makes several
+          weeks a season rather than several evenings. */}
+      <section>
+        <div className="wrap">
+          <div className="reveal">
+            <div className="sec-kick">Across the weeks</div>
+            <h2 className="sec-h">Where the teams stand after six weeks.</h2>
+            <p className="sec-sub">
+              Not just after last night. Sides that missed a week are shown as having played fewer,
+              never as having scored nothing — and two teams level share a place rather than being
+              separated by the order they happen to sit in.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <section>
         <div className="wrap">
@@ -644,6 +869,66 @@ export default async function LoginPage() {
             <span className="chip"><b>Member</b>-member</span>
             <span className="chip"><b>Corporate</b> &amp; society days</span>
             <span className="chip"><b>Charity</b> scrambles</span>
+          </div>
+        </div>
+      </section>
+
+
+      {/* ── Price ─────────────────────────────────────────────────────────
+          The page said "Start free" twice and priced nothing, which left the
+          most important fact about the free tier — that it keeps results for
+          two days — to be discovered after the results were gone.
+
+          Read from PLANS rather than typed here, so the page cannot promise
+          a limit the code does not enforce. */}
+      <section>
+        <div className="wrap">
+          <div className="reveal">
+            <div className="sec-kick">What it costs</div>
+            <h2 className="sec-h">Free for one event. {money(PLANS.club.priceMonthly)} a month for a season.</h2>
+            <p className="sec-sub">
+              No card to start, and nothing is charged through the app — TourneyHQ works out the
+              money and keeps the record; what changes hands is arranged between you and us, and
+              between your players and each other.
+            </p>
+          </div>
+
+          <div className="plans reveal">
+            <div className="plan">
+              <div className="amt">Free</div>
+              <div className="per">{PLANS.free.blurb}</div>
+              <ul>
+                <li>One tournament at a time</li>
+                <li>One organizer</li>
+                <li>As many players as turn up</li>
+                <li>Every format, every scoring engine</li>
+              </ul>
+              <div className="keepwarn">
+                <b>Results are kept {PLANS.free.retentionHours} hours.</b> After that the scores,
+                the players and the standings are deleted for good. Export what you want to keep —
+                or run it on the paid plan and keep it.
+              </div>
+            </div>
+
+            <div className="plan paid">
+              <div className="amt">
+                {money(PLANS.club.priceMonthly)}
+                <span className="per"> / month</span>
+              </div>
+              <div className="per">{PLANS.club.blurb}</div>
+              <ul>
+                <li>As many tournaments as your season runs</li>
+                <li>Up to {PLANS.club.limits.staffSeats} organizers and assistants</li>
+                <li>Results kept for good</li>
+                <li>The season table across the weeks</li>
+                <li>Your club&rsquo;s branding, ours removed</li>
+              </ul>
+              <p className="sec-sub" style={{ margin: "14px 0 0", fontSize: 12.5 }}>
+                Text alerts, reading a photographed card, and drafted commentary are built and not
+                switched on for anybody yet — they cost per message and per call, and we will not
+                bill for them until they are worth it.
+              </p>
+            </div>
           </div>
         </div>
       </section>
