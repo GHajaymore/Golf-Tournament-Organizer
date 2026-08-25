@@ -94,6 +94,15 @@ export function MoneyClient({ view }: { view: MoneyView }) {
 
   const owed = view.netCents > 0;
 
+  /**
+   * How many people are not square.
+   *
+   * The floor on handovers WITHOUT simplification: everybody who owes
+   * something makes at least one payment. Comparing it to the simplified
+   * count is what turns “trust us” into a number somebody can check.
+   */
+  const owing = view.standing.filter((s) => s.netCents < 0).length;
+
   // The part of the pot money no line on this screen accounts for.
   //
   // Only CONTESTS carry a per-player figure (`yourCents`). The score pots are
@@ -585,15 +594,54 @@ export function MoneyClient({ view }: { view: MoneyView }) {
         <section className="card elev-sm" style={{ marginTop: 12 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Settle up</span>
           <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 10px", lineHeight: 1.5 }}>
-            The fewest handovers that make everyone square. TourneyHQ works the money out; it never moves it.
+            {/* SHOW THE SAVING, do not just claim it.
+                Every splitting app simplifies debts and every one of them
+                asks you to take it on faith, which is why people re-add it by
+                hand to check. The count everybody WOULD have made is knowable
+                — it is how many people are not square — so it is stated
+                beside the count they now have. A reduction you can see is a
+                reduction nobody re-does on paper. */}
+            {view.transfers.length > 0 && owing > view.transfers.length ? (
+              <>
+                <b>
+                  {view.transfers.length} handover{view.transfers.length === 1 ? "" : "s"}
+                </b>{" "}
+                instead of {owing} — everybody squares without {owing - view.transfers.length} of the
+                payments they would otherwise have made.{" "}
+              </>
+            ) : (
+              <>The fewest handovers that make everyone square. </>
+            )}
+            TourneyHQ works the money out; it never moves it.
           </p>
           {shownTransfers.map((t) => (
             <div
               key={`${t.fromPlayerId}-${t.toPlayerId}-${t.cents}`}
               style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 8, borderTop: "1px solid var(--color-divider)" }}
             >
-              <span style={{ flex: 1, fontSize: 13.5 }}>
+              <span style={{ flex: 1, fontSize: 13.5, minWidth: 0 }}>
                 {t.fromName} <i className="ph ph-arrow-right" aria-label="pays" /> {t.toName}
+                {/* WHAT IT IS FOR.
+                    A handover says an amount and nothing else, which is the
+                    moment somebody asks "for what?" and nobody can answer
+                    without scrolling.
+
+                    It explains the POSITION, not the transfer, and says so.
+                    A netted handover cannot be attributed to particular
+                    lines — that is what netting means — and labelling this
+                    one "the lodging" would be a tidy lie. Shown only on your
+                    own rows, because these are the only parts this screen
+                    knows: somebody else's breakdown is not ours to state. */}
+                {(t.fromPlayerId === view.playerId || t.toPlayerId === view.playerId) && (
+                  <span
+                    className="text-muted"
+                    style={{ display: "block", fontSize: 11.5, lineHeight: 1.5, marginTop: 2 }}
+                  >
+                    Your position: {money(view.expensesCents)} of shared costs
+                    {view.gamesCents !== 0 && <> · {money(view.gamesCents)} from the games</>}
+                    {view.settledCents !== 0 && <> · {money(view.settledCents)} already settled</>}
+                  </span>
+                )}
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(t.cents)}</span>
               <button
