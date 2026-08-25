@@ -1,4 +1,5 @@
 "use server";
+import { teeMatcherFor } from "@/lib/services/handicaps";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { upsertMember } from "@/lib/services/roster";
@@ -138,9 +139,14 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
     handicapSource: person.handicapSource,
   });
 
+  // What they typed, turned into the set they play from. Unmatched or
+  // ambiguous stays null, which means the round’s tees and is correctable on
+  // the field screen — a guess would not be.
+  const teeFor = await teeMatcherFor(event.id);
   await prisma.player.create({
     data: {
       eventId: event.id,
+      teeId: teeFor(person.preferredTee),
       memberId,
       name: person.name,
       handicap: person.handicap,

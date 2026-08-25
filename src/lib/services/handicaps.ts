@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import { courseHandicap, nineHoleTee, isRated, explainHandicap, indexForHoles, type TeeRating, teeIdFor } from "../domain/handicap";
 import { parseHoleArray } from "../courses";
+import { matchTee } from "../domain/tee-match";
 
 /**
  * Turning a roster of Handicap Indexes into the strokes each player receives
@@ -166,6 +167,29 @@ export async function teePolicyFor(eventId: string): Promise<string> {
     select: { teePolicy: true },
   });
   return event?.teePolicy ?? "own";
+}
+
+/**
+ * Resolve what a golfer TYPED into the set they play from.
+ *
+ * Returns a function rather than a value because intake happens in a loop —
+ * a CSV of sixty names would otherwise read the tee table sixty times.
+ *
+ * Every unresolved answer becomes null, which means "the round's tees" and
+ * is visible and correctable on the field screen. That is deliberate: the
+ * alternative to admitting we do not know is guessing, and a guessed tee is
+ * a wrong Course Handicap that looks exactly like a right one.
+ */
+export async function teeMatcherFor(eventId: string): Promise<(text: string | null | undefined) => string | null> {
+  const tees = await prisma.tee.findMany({
+    // This tournament's course only. An unscoped read would let "white" match
+    // another club's set — the same widening that once let a stored teeId
+    // resolve to a foreign rating.
+    where: { course: { events: { some: { eventId } } } },
+    select: { id: true, name: true },
+    orderBy: [{ position: "asc" }],
+  });
+  return (text) => matchTee(text, tees);
 }
 
 /**

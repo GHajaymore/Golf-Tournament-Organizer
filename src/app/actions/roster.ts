@@ -1,4 +1,5 @@
 "use server";
+import { teeMatcherFor } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
@@ -426,6 +427,10 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   const needPhone: string[] = [];
   const needsPhone = phoneRequiredFor(await planForEvent(eventId), event.requirePhone);
 
+  // Read once, outside the loop: adding forty members should not read the
+  // tee table forty times.
+  const teeFor = await teeMatcherFor(eventId);
+
   for (const m of members) {
     if (takenIds.has(m.id) || (m.email && takenEmails.has(m.email))) {
       skipped += 1;
@@ -470,6 +475,10 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
         eventId,
         memberId: m.id,
         name: m.name,
+        // The set on the member's record, turned into this tournament's tee.
+        // Unmatched or ambiguous stays null — the round's tees, visible and
+        // correctable on the field screen rather than guessed at here.
+        teeId: teeFor(m.preferredTee),
         // Snapshot, not a reference: correcting this member's index next month
         // must not change the result of the tournament they're entering now.
         handicap: m.handicap,
