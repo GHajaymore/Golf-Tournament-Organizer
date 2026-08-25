@@ -1,4 +1,5 @@
 "use client";
+import FieldInfo from "./FieldInfo";
 import { useMemo, useState } from "react";
 import { formGroups, type FormationRule, type Player } from "@/lib/domain";
 import { listNames } from "@/lib/format";
@@ -304,16 +305,35 @@ export function FoursomeMaker({
             </div>
           </div>
           <div className="field" style={{ width: 260 }}>
-            <label>Start</label>
+            <label>
+              Start{" "}
+              <FieldInfo label="how the field goes off">
+                <p>
+                  <b>One tee</b> sends every group off the 1st, {interval} minutes apart. The last
+                  group starts long after the first, so it suits a small field and it is what a club
+                  medal normally does.
+                </p>
+                <p>
+                  <b>Split</b> uses two tees at once — the {holes === 9 ? "1st and the 5th" : "1st and the 10th"} —
+                  so the field takes half as long to get away. Everyone still plays the same holes in
+                  the same order; they just begin at different points of it.
+                </p>
+                <p>
+                  <b>Shotgun</b> puts a group on every hole and starts them together, so the whole
+                  field finishes within minutes of each other. It needs roughly as many groups as
+                  the course has holes, and there is no interval to set because nobody is waiting.
+                </p>
+                <p>
+                  Only one tee makes &ldquo;leaders out last&rdquo; mean anything: with a shotgun
+                  everybody is already out.
+                </p>
+              </FieldInfo>
+            </label>
             <div className="seg" style={{ width: "100%" }}>
               <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
                 <input type="radio" name="fsstart" checked={startType === "tee"} onChange={() => setStartType("tee")} /> One tee
               </label>
-              <label
-                className="seg-opt"
-                style={{ flex: 1, justifyContent: "center" }}
-                title={holes === 9 ? "1st and 5th" : "1st and 10th"}
-              >
+              <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
                 <input type="radio" name="fsstart" checked={startType === "split"} onChange={() => setStartType("split")} /> Split
               </label>
               <label className="seg-opt" style={{ flex: 1, justifyContent: "center" }}>
