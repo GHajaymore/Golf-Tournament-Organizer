@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { money, isCurrencyCode, CURRENCIES, currencySymbol } from "@/lib/domain/money-format";
+import { money, isCurrencyCode, CURRENCIES, currencySymbol, minorUnitsFrom } from "@/lib/domain/money-format";
 
 /**
  * ONE way to write an amount, for a club anywhere.
@@ -112,5 +112,59 @@ describe("the formatter answers for a club anywhere", () => {
   it("is case-insensitive about the code", () => {
     expect(isCurrencyCode("gbp")).toBe(true);
     expect(money(100, "gbp")).toBe("£1.00");
+  });
+});
+
+describe("what somebody types is read in the club's currency", () => {
+  it("reads a yen buy-in as yen, not as a hundred times one", () => {
+    // The bug this replaces: every input did `parseFloat(text) * 100`, so a
+    // club in Tokyo entering a ¥500 buy-in ran a pot for ¥50,000. Reading a
+    // prize at a hundredth of its value is alarming and obvious; charging a
+    // hundred times the stake looks deliberate.
+    expect(minorUnitsFrom("500", "JPY")).toBe(500);
+    expect(minorUnitsFrom("500", "USD")).toBe(50_000);
+  });
+
+  it("is the exact inverse of the formatter, in every currency offered", () => {
+    // The property that makes the bug unwritable: whatever is parsed, the
+    // formatter writes back to the same thing. Asked of both, so the two
+    // cannot drift apart the way they did.
+    for (const c of CURRENCIES) {
+      for (const amount of [0, 1, 500, 12_345, 999_999]) {
+        const written = money(amount, c.code);
+        expect(minorUnitsFrom(written, c.code), `${c.code} round-trip of ${amount}`).toBe(amount);
+      }
+    }
+  });
+
+  it("takes a symbol, separators and spaces off what was pasted", () => {
+    expect(minorUnitsFrom("$1,234.56", "USD")).toBe(123_456);
+    expect(minorUnitsFrom("  £20 ", "GBP")).toBe(2_000);
+    expect(minorUnitsFrom("¥1,000", "JPY")).toBe(1_000);
+  });
+
+  it("reads a refund as negative rather than dropping the sign", () => {
+    expect(minorUnitsFrom("-40.50", "USD")).toBe(-4_050);
+  });
+
+  it("gives zero for nothing, rather than NaN", () => {
+    // A NaN in a ledger is every number in it gone.
+    for (const junk of ["", "   ", "abc", "$", "."]) {
+      expect(Number.isFinite(minorUnitsFrom(junk, "USD")), `${JSON.stringify(junk)}`).toBe(true);
+    }
+    expect(minorUnitsFrom("", "USD")).toBe(0);
+  });
+
+  it("has no component multiplying typed input by a hundred", () => {
+    // The filesystem half, like the two sweeps above: the next input written
+    // is covered, not just the five that were fixed.
+    const offenders: string[] = [];
+    for (const f of readdirSync(COMPONENTS).filter((x) => x.endsWith(".tsx") && !ALLOWED.has(x))) {
+      const src = readFileSync(join(COMPONENTS, f), "utf8");
+      src.split("\n").forEach((line, i) => {
+        if (/(parseFloat|Number)\([^)]*\)\s*\*\s*100\b/.test(line)) offenders.push(`${f}:${i + 1}`);
+      });
+    }
+    expect(offenders, `parse typed money with useMoney().parse:\n${offenders.join("\n")}`).toEqual([]);
   });
 });

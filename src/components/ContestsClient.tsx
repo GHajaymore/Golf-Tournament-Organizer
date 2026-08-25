@@ -101,7 +101,7 @@ export function ContestsClient({
   sideGames: SideGameView[];
   field: Array<{ id: string; name: string; playing: boolean }>;
 }) {
-  const { money, plain } = useMoney();
+  const { money, plain, parse } = useMoney();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
@@ -159,7 +159,7 @@ export function ContestsClient({
   );
 
   const create = () => {
-    const cents = Math.round(Number(stake.replace(/[^0-9.]/g, "")) * 100);
+    const cents = parse(stake);
     if (!Number.isFinite(cents) || cents < 0) {
       setError("Enter a stake per player, or zero for a free contest.");
       return;
@@ -269,7 +269,7 @@ export function ContestsClient({
                     disabled={pending}
                     style={{ width: 82, minHeight: 40, textAlign: "right" }}
                     onBlur={(e) => {
-                      const cents = Math.round(Number(e.target.value.replace(/[^0-9.]/g, "")) * 100);
+                      const cents = parse(e.target.value);
                       if (!Number.isFinite(cents)) return;
                       if (game && cents === game.buyInCents) return;
                       run(() => saveSideGame(stageId, row.kind, cents));

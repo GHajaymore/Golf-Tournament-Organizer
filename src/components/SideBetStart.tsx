@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveSkinsPot, setSkinsEntrants } from "@/app/actions/skins";
 import { PersonChip } from "@/components/PersonChip";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * A bet between whoever wants in, across whatever fourballs they are in.
@@ -30,6 +31,7 @@ export function SideBetStart({
   field: Array<{ id: string; name: string }>;
   taken: string[];
 }) {
+  const { parse } = useMoney();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -47,7 +49,7 @@ export function SideBetStart({
   const create = () => {
     setError("");
     startTransition(async () => {
-      const cents = Math.round(parseFloat(buyIn || "0") * 100);
+      const cents = parse(buyIn);
       const made = await saveSkinsPot(stageId, {
         buyInCents: Number.isFinite(cents) && cents >= 0 ? cents : 0,
         net: true,

@@ -1,3 +1,9 @@
+"use client";
+// A CLIENT component, and it has to be: `useMoney` is a hook, and a hook in a
+// server component throws on every request. This file had no directive and was
+// rendering on the server, so adding the hook to it 500'd the whole of
+// /prizes — a screen that typechecks, builds, and dies when somebody opens it.
+// It renders props and nothing else, so there is nothing server-only to lose.
 import FieldInfo from "@/components/FieldInfo";
 import { useMoney } from "@/components/CurrencyProvider";
 

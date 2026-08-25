@@ -120,6 +120,27 @@ export function money(minorUnits: number, currency: string = DEFAULT_CURRENCY): 
 }
 
 /**
+ * What somebody typed, as minor units — the exact inverse of `money`.
+ *
+ * The formatter was made currency-aware and the PARSER was not, which left the
+ * bug in the more dangerous half. Every input did `parseFloat(text) * 100`, so
+ * a club in Tokyo entering a ¥500 buy-in stored 50,000 minor units and ran a
+ * pot for ¥50,000. Reading a prize at a hundredth of its value is alarming and
+ * obvious; charging a hundred times the stake is alarming and looks deliberate.
+ *
+ * Asks `minorUnitDigits` the same question `money` asks, so the two cannot
+ * disagree: whatever this parses, that formats back to the same string.
+ */
+export function minorUnitsFrom(text: string, currency: string = DEFAULT_CURRENCY): number {
+  // Digits, one decimal point and a leading minus — a refund is negative, and
+  // thousands separators and a currency symbol are things people paste.
+  const cleaned = String(text ?? "").replace(/[^0-9.-]/g, "");
+  const n = Number(cleaned);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 10 ** minorUnitDigits(currency));
+}
+
+/**
  * Just the symbol, for a label or an input prefix.
  *
  * Derived from the code rather than stored beside it, so the two cannot
