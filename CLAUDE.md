@@ -8,10 +8,12 @@ Deployed on Vercel. Also packaged for iOS/Android via Capacitor and desktop via 
 These are not preferences. Breaking one has consequences that cannot be undone from here.
 
 1. **Never modify, seed into, or test against an event holding real people.**
-   Read it if you must; never write to it. This named the "2026 CDG Matchplay Championship"
-   specifically, and that event is no longer in the development database — the rule is kept
-   because the reason survives the example: production holds events full of member names and
-   addresses, and a seed or a test pointed at one is not undoable from here.
+   Read it if you must; never write to it. The "2026 CDG Matchplay Championship" is the
+   example this rule was written for and it is **still live in production** — it is simply
+   not in the development database any more, which is `localhost/tourneyhq_dev` and holds
+   demo data. Do not read that absence as the rule expiring: production is full of events
+   carrying member names and addresses, and a seed or a test pointed at one cannot be undone
+   from here.
 2. **The GitHub repository is public.** No player PII — names, emails, phone numbers, scores
    tied to real people — may ever be committed. That includes fixtures, test data, screenshots
    and pasted logs.
@@ -20,10 +22,11 @@ These are not preferences. Breaking one has consequences that cannot be undone f
    is exactly how rule 2 gets broken.
 5. **Never `git stash`** — this working tree is shared.
 6. **Never `prisma migrate reset`** or any command that drops the development database.
-   The reason used to be the CDG data; that has gone, and the rule stays for the better one:
-   a reset replays every migration from zero, so it is how a migration that only works on a
-   *populated* database gets found in production instead of here. If Prisma demands a reset,
-   fix the drift by hand instead (see Migrations).
+   The stated reason used to be the CDG data, which is not in the dev database any more — so
+   here is the reason that does not depend on what happens to be in it: a reset replays every
+   migration from zero against an EMPTY database, which is exactly how a migration that only
+   works on a populated one gets discovered in production rather than here. If Prisma demands
+   a reset, fix the drift by hand instead (see Migrations).
 7. **TourneyHQ calculates and records money. It never moves money.** Skins, payouts and prize
    splits are arithmetic and a record. No payment rails, no transfers.
 
