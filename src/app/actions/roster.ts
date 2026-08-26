@@ -1,6 +1,7 @@
 "use server";
 import { teeMatcherFor } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { syncPlayerAccount } from "@/lib/services/player-access";
@@ -46,8 +47,21 @@ async function requireRosterOrg(): Promise<{ organizationId: string; eventId: st
   return { organizationId: event.organizationId, eventId: session.eventId };
 }
 
-function refresh() {
+/**
+ * Everything on this screen changed — and so did the public board.
+ *
+ * `revalidatePath` clears the router cache; it does NOT touch the per-event
+ * board entry, which is an `unstable_cache` keyed and tagged separately.
+ * Without this, a change here waits out the board's sixty-second backstop
+ * before a spectator sees it.
+ *
+ * The event comes from the SESSION, because every action in this file
+ * already operates on the caller's own tournament.
+ */
+async function refresh() {
   revalidatePath("/", "layout");
+  const session = await getSession();
+  if (session?.eventId) boardChanged(session.eventId);
 }
 
 export interface MemberInput {
@@ -116,7 +130,7 @@ export async function addMember(input: MemberInput): Promise<RosterResult> {
   }
 
   await prisma.member.create({ data: { ...data, organizationId } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -249,7 +263,7 @@ export async function importCsvMembers(csv: string): Promise<MemberImportResult>
     imported += 1;
   }
 
-  refresh();
+  await refresh();
   return { imported, updated, skippedDuplicates, skippedInvalid, unknownColumns };
 }
 
@@ -270,7 +284,7 @@ export async function updateMember(memberId: string, input: MemberInput): Promis
   }
 
   await prisma.member.update({ where: { id: memberId }, data });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -290,7 +304,7 @@ export async function setMemberStatus(memberId: string, status: string): Promise
     where: { id: memberId },
     data: { status: status === "inactive" ? "inactive" : "active" },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -316,7 +330,7 @@ export async function deleteMember(memberId: string): Promise<RosterResult> {
   }
 
   await prisma.member.delete({ where: { id: memberId } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -521,7 +535,7 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
     added += 1;
   }
 
-  refresh();
+  await refresh();
   return { ok: true, added, waitlisted, skipped, needContact, needEmail, needPhone };
 }
 

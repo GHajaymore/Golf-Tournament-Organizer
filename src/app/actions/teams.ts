@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { sideSizeRange, needsTeams, findFormat } from "@/lib/formats";
@@ -49,8 +50,21 @@ async function stageInEvent(eventId: string, stageId: string | null): Promise<st
   return stageId;
 }
 
-function refresh() {
+/**
+ * Everything on this screen changed — and so did the public board.
+ *
+ * `revalidatePath` clears the router cache; it does NOT touch the per-event
+ * board entry, which is an `unstable_cache` keyed and tagged separately.
+ * Without this, a change here waits out the board's sixty-second backstop
+ * before a spectator sees it.
+ *
+ * The event comes from the SESSION, because every action in this file
+ * already operates on the caller's own tournament.
+ */
+async function refresh() {
   revalidatePath("/", "layout");
+  const session = await getSession();
+  if (session?.eventId) boardChanged(session.eventId);
 }
 
 export async function createTeam(name: string, stageId: string | null): Promise<TeamResult> {
@@ -64,7 +78,7 @@ export async function createTeam(name: string, stageId: string | null): Promise<
   await prisma.team.create({
     data: { eventId, stageId: scoped, name: clean, seed: (maxSeed._max.seed ?? 0) + 1 },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -75,7 +89,7 @@ export async function renameTeam(teamId: string, name: string): Promise<TeamResu
   const clean = name.trim();
   if (!clean) return { ok: false, error: "Give the team a name." };
   await prisma.team.update({ where: { id: teamId }, data: { name: clean } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -91,7 +105,7 @@ export async function deleteTeam(teamId: string): Promise<TeamResult> {
     return { ok: false, error: "This team has scores recorded. Clear them before removing the team." };
   }
   await prisma.team.delete({ where: { id: teamId } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -121,7 +135,7 @@ export async function addTeamMember(teamId: string, playerId: string): Promise<T
   await prisma.teamMember.create({
     data: { teamId, playerId, position: (maxPos._max.position ?? -1) + 1 },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -131,7 +145,7 @@ export async function removeTeamMember(teamId: string, playerId: string): Promis
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { eventId: true } });
   if (!team || team.eventId !== eventId) return { ok: false, error: "Team not found." };
   await prisma.teamMember.deleteMany({ where: { teamId, playerId } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -214,7 +228,7 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
     });
   }
 
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -278,7 +292,7 @@ export async function autoDrawTeams(
     });
   }
 
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -302,7 +316,7 @@ export async function setStageAllowance(stageId: string, percent: number): Promi
     where: { id: stageId },
     data: { handicapAllowance: Math.round(percent) },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -337,7 +351,7 @@ export async function setStageCountBest(stageId: string, count: number): Promise
     where: { id: stageId },
     data: { countBest: Math.round(count) },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -366,7 +380,7 @@ export async function setStageAllowanceWeights(
 
   if (weights.length === 0) {
     await prisma.stage.update({ where: { id: stageId }, data: { allowanceWeights: [] } });
-    refresh();
+    await refresh();
     return { ok: true };
   }
 
@@ -390,6 +404,6 @@ export async function setStageAllowanceWeights(
     where: { id: stageId },
     data: { allowanceWeights: weights.map((w) => Math.round(w)) },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
