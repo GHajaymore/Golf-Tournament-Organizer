@@ -4,6 +4,7 @@ import {
   hitsFrom,
   courseFrom,
   cardDifferences,
+  countryCode,
   DIRECTORY_ATTRIBUTION,
 } from "../course-directory";
 
@@ -343,6 +344,64 @@ describe("where a course is in the world", () => {
     });
     expect(detail).not.toBeNull();
     expect(detail!.country).toBe("");
+  });
+});
+
+describe("one country vocabulary across two providers", () => {
+  /**
+   * The catalogue held the same country twice: 187 rows of "GB" from
+   * OpenGolfAPI beside 10 of "United Kingdom" from GolfCourseAPI, "KR" beside
+   * "Republic of Korea", "CA" beside "Canada". Nothing failed — a country is
+   * only ever displayed — but one country grouped as two, and the picker's
+   * `country !== "US"` suppression missed every row spelling it out, so a
+   * course in Ohio read "New Albany, United States" next to a plain
+   * "New Albany".
+   */
+  it("turns the name a provider sends into the code the catalogue stores", () => {
+    expect(countryCode("United Kingdom")).toBe("GB");
+    expect(countryCode("Republic of Korea")).toBe("KR");
+    expect(countryCode("United States")).toBe("US");
+    expect(countryCode("Dominican Republic")).toBe("DO");
+  });
+
+  it("leaves a code that is already a code alone", () => {
+    expect(countryCode("GB")).toBe("GB");
+    expect(countryCode("nl")).toBe("NL");
+  });
+
+  it("is blank for absent and for 'Unknown', which this directory really sends", () => {
+    // Coorg Golf Links and Japeri Golf Links both arrived this way. A course
+    // with no known country is honest; one filed under a guess is not.
+    expect(countryCode("Unknown")).toBe("");
+    expect(countryCode("unknown")).toBe("");
+    expect(countryCode("")).toBe("");
+    expect(countryCode("   ")).toBe("");
+  });
+
+  /**
+   * The point of the whole thing. A name nobody has mapped stays as it came:
+   * a wrong two-letter code files a course under the wrong country and is
+   * invisible once written, whereas an unmapped long name is merely untidy and
+   * shows up the moment anyone looks at the column. Do not "improve" this into
+   * a fuzzy match or a first-two-letters fallback — "Switzerland" would become
+   * "SW", which is not a country, and "Slovakia" and "Slovenia" would collide.
+   */
+  it("returns an unrecognised name unchanged rather than guessing a code", () => {
+    expect(countryCode("Kingdom of Far Far Away")).toBe("Kingdom of Far Far Away");
+    expect(countryCode("Switzerland")).not.toBe("SW");
+  });
+
+  it("maps every long-form name the catalogue actually collected", () => {
+    // The thirteen observed on 2026-08-25, so a re-run of the backfill is a
+    // no-op rather than a second vocabulary. Every one must resolve to a code.
+    const collected = [
+      "Canada", "United Kingdom", "Republic of Korea", "Australia", "United States",
+      "Ireland", "Costa Rica", "Papua New Guinea", "Dominican Republic", "Serbia",
+      "Brunei Darussalam", "Sri Lanka", "Taiwan (Province of China)",
+    ];
+    for (const name of collected) {
+      expect(countryCode(name), name).toMatch(/^[A-Z]{2}$/);
+    }
   });
 });
 
