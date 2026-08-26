@@ -29,11 +29,26 @@ test("an organizer lands in the console, not the player app", async ({ page }) =
   // console, and getting this backwards would put an organizer in a shell
   // with no way to run their own tournament.
   await expect(page).not.toHaveURL(/\/me$/);
-  // The console sidebar, which is a different navigation from the player
-  // shell's tab bar — asserting the player's nav here would have passed on
-  // entirely the wrong screen, which is what the first draft of this did.
-  await expect(page.getByRole("link", { name: /Dashboard/i })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Members/i })).toBeVisible();
+
+  /**
+   * Console-only DESTINATIONS, located by href.
+   *
+   * Two earlier versions of this assertion were wrong in the same way: they
+   * described a layout rather than a capability. The first looked for the
+   * player shell's tab bar; the second for the desktop sidebar, which a phone
+   * does not have — it renders quick actions instead, and CI caught that on
+   * the two device profiles while desktop passed.
+   *
+   * Where the links sit is a design decision and will change again. That an
+   * organizer can reach registration and prizes, and a player never can, is
+   * the thing worth pinning, and an href holds whichever way they are laid
+   * out.
+   */
+  // Scoped to `main`: the sidebar copy of these links exists in the DOM on a
+  // phone but is CSS-hidden, so an unscoped locator matches the invisible one
+  // and fails on exactly the viewports a tournament is actually run from.
+  await expect(page.locator('main a[href="/registration"]').first()).toBeVisible();
+  await expect(page.locator('main a[href="/prizes"]').first()).toBeVisible();
 });
 
 test("the leaderboard shows the whole field, not just who has scored", async ({ page }) => {
