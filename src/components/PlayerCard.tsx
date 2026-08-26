@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { ScorecardTable, type CardBrand } from "@/components/ScorecardTable";
 import { saveScorecard, certifyScorecard } from "@/app/actions/tournament";
+import { usePendingCard } from "@/components/usePendingCard";
 import { RuleCite } from "@/components/RuleCite";
 import { toParText } from "@/lib/domain";
 
@@ -83,9 +84,6 @@ export function PlayerCard({
   const [state, setState] = useState(status);
   /** Hole by hole for the round; the full card for checking it after. */
   const [view, setView] = useState<"hole" | "card">("hole");
-  /** Sticky on failure, deliberately: the number is on screen and NOT stored,
-   *  and clearing that warning on a timer would hide it. */
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [error, setError] = useState("");
 
   const filled = strokes.filter((s) => s != null).length;
@@ -127,31 +125,36 @@ export function PlayerCard({
    */
   const latest = useRef(strokes);
   latest.current = strokes;
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirty = useRef(false);
+
+  /**
+   * The card is kept on the phone BEFORE the network is tried.
+   *
+   * This used to be a bare debounce whose only copy of the strokes was React
+   * state, so a scorer behind the 12th with no signal who locked their phone
+   * lost the holes they had entered — and the screen went on showing them
+   * until it reloaded. See domain/pending-card.ts.
+   */
+  const card = usePendingCard<(number | null)[]>({
+    stageId,
+    playerId,
+    enabled: !locked,
+    send: async (value) => {
+      await saveScorecard(stageId, playerId, value);
+      setError("");
+      // A save takes the card back to "entered" if it had been certified;
+      // saying so is better than leaving a stale badge on screen.
+      setState((s) => (s === "certified" ? "entered" : s));
+    },
+  });
 
   useEffect(() => {
     if (!dirty.current || locked) return;
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      setSaveState("saving");
-      startTransition(async () => {
-        try {
-          await saveScorecard(stageId, playerId, latest.current);
-          setSaveState("saved");
-          setError("");
-          // A save takes the card back to "entered" if it had been certified;
-          // saying so is better than leaving a stale badge on screen.
-          setState((s) => (s === "certified" ? "entered" : s));
-        } catch {
-          setSaveState("failed");
-        }
-      });
-    }, 600);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, [strokes, stageId, playerId, locked]);
+    card.push(latest.current);
+    // `card.push` is stable and the ref carries the latest strokes, so this
+    // deliberately watches the VALUE rather than the callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strokes, locked]);
 
   const setHole = (hole: number, value: number | null) => {
     dirty.current = true;
@@ -171,7 +174,6 @@ export function PlayerCard({
         await saveScorecard(stageId, playerId, latest.current);
         await certifyScorecard(stageId, playerId);
         setState("certified");
-        setSaveState("saved");
         setNote("Certified. It's with the committee now.");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't certify that card.");
@@ -303,22 +305,29 @@ export function PlayerCard({
               minHeight: 22,
               marginTop: 12,
               fontSize: 12.5,
-              fontWeight: saveState === "failed" ? 600 : 400,
+              fontWeight: card.status.tone === "warn" ? 600 : 400,
               color:
-                saveState === "failed"
+                card.status.tone === "warn"
                   ? "var(--color-danger)"
-                  : saveState === "saved"
+                  : card.status.tone === "idle"
                     ? "var(--color-accent-2-300)"
                     : "var(--color-neutral-400)",
             }}
           >
-            {saveState === "saving" && (<><i className="ph ph-circle-notch" /> Saving…</>)}
-            {saveState === "saved" && (<><i className="ph ph-check" /> Saved — {filled} of {holes} holes in</>)}
-            {saveState === "failed" && (
-              <><i className="ph ph-warning-circle" /> Not saved. Your scores are still on this screen — check your signal and tap a hole again.</>
-            )}
-            {saveState === "idle" && filled > 0 && (
-              <>{filled} of {holes} holes in</>
+            {/*
+              What the scorer is told, from domain/pending-card.
+
+              The old wording here — "Not saved… check your signal and tap a
+              hole again" — is now false in the case that matters most. The
+              holes ARE saved, on the phone, and they will send themselves. A
+              scorer told otherwise stands on a tee hunting for a bar of signal
+              instead of playing their shot.
+            */}
+            {card.status.tone === "working" && (<><i className="ph ph-circle-notch" /> {card.status.label}</>)}
+            {card.status.tone === "queued" && (<><i className="ph ph-cloud-arrow-up" /> {card.status.label}</>)}
+            {card.status.tone === "warn" && (<><i className="ph ph-warning-circle" /> {card.status.label}</>)}
+            {card.status.tone === "idle" && filled > 0 && (
+              <><i className="ph ph-check" /> Saved — {filled} of {holes} holes in</>
             )}
           </div>
 
