@@ -39,7 +39,7 @@ vi.mock("next/headers", () => ({
     delete: (name: string) => void jar.delete(name),
   }),
 }));
-vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 // Imported after the mocks are declared for readability only — vi.mock is
 // hoisted above every import in this file regardless of where it is written.

@@ -2,7 +2,7 @@ import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 
-vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 import { loadEventState, matchProgress, standingRows } from "@/lib/services/tournament";
 import { roundMoneyFor } from "@/lib/services/expenses";

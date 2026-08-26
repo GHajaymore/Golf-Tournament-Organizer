@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { normalizeAccessCode, looksLikeAccessCode } from "@/lib/code-format";
 import { createPlaySession, destroyPlaySession, getPlaySession } from "@/lib/play-auth";
@@ -229,6 +230,9 @@ export async function savePlayMatchHoles(
     },
   });
 
+  // The standings just moved, so the crowd watching the public board should
+  // see it now rather than when its sixty-second backstop expires.
+  boardChanged(session.eventId);
   revalidatePath("/", "layout");
   return { ok: true };
 }

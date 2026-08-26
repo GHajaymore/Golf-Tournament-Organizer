@@ -928,7 +928,12 @@ describe("every screen that shows results makes the same branch", () => {
   const SCREENS = [
     join("app", "(app)", "leaderboard", "page.tsx"),
     join("app", "(app)", "reports", "page.tsx"),
-    join("app", "live", "[token]", "page.tsx"),
+    // The public board CACHES its read, so the branch travels with the
+    // computation into the service rather than staying on the page — both
+    // `standingRows` and `boardKind` moved together, which is the property
+    // this guard is actually about. The page is pinned separately below to
+    // stop it deciding for itself again.
+    join("lib", "services", "live-board.ts"),
   ];
 
   for (const screen of SCREENS) {
@@ -944,6 +949,18 @@ describe("every screen that shows results makes the same branch", () => {
       }
     });
   }
+
+  it("the public board delegates rather than deciding for itself", () => {
+    // D8 was three screens each choosing their own reading. The live page now
+    // has no reading of its own at all: it checks the share token and asks
+    // `liveBoard` for everything else. Re-adding `standingRows` here would
+    // recreate a fourth opinion, which is the shape that caused the audit.
+    const page = stripComments(
+      readFileSync(join(process.cwd(), "src", "app", "live", "[token]", "page.tsx"), "utf8"),
+    );
+    expect(page, "the live page must not rank the field itself").not.toMatch(/standingRows\(/);
+    expect(page, "it should be asking the cached reader instead").toMatch(/liveBoard\(/);
+  });
 
   it("no other screen ranks the field without asking", () => {
     const APP = join(process.cwd(), "src", "app");
