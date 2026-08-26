@@ -196,6 +196,19 @@ export const CLONE_IGNORED_RELATIONS = [
   // friends rather than out of a pot.
   "expenses",
   "settlements",
+  /**
+   * What was sent to a handicapping association, for rounds this copy has not
+   * played.
+   *
+   * The most consequential entry on this list. A HandicapPost is the record
+   * that one golfer's round HAS been written to their official index, and it
+   * is what stops a second attempt — so copying it forward would tell the new
+   * tournament its rounds were already posted, and those rounds would then
+   * never reach the association at all. A whole competition would quietly go
+   * unrecorded, and nobody would find out until a member queried their index
+   * in October.
+   */
+  "handicapPosts",
   // The kitty's own lines, for the same reason: last year's entry fees were
   // collected from last year's entrants and last year's trophy is bought.
   // The MODE carries forward (see the allowlist above) so the new tournament

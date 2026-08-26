@@ -2,6 +2,8 @@ import { requireScreen } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { OrganizationClient } from "@/components/OrganizationClient";
+import { HandicapSetup } from "@/components/HandicapSetup";
+import { integrationSetup } from "@/lib/services/integrations";
 import { ThemePicker } from "@/components/ThemePicker";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
@@ -39,6 +41,7 @@ export default async function OrganizationPage() {
 
   // Mirrors the server action's rule: organization owners/admins, plus an
   // event organizer whose membership predates the organization layer.
+  const handicaps = await integrationSetup(org.id);
   const canEdit =
     membership?.role === "owner" ||
     membership?.role === "admin" ||
@@ -109,6 +112,13 @@ export default async function OrganizationPage() {
           over on Prizes & payouts. So the step could not be ticked by
           following its own link, and `orgSetupState` reads exactly the column
           that disclosure writes. */}
+      {/* Where handicaps come from, beside the club's other house rules.
+          It belongs here rather than on the roster: it is a decision about
+          the club, not about any one member. */}
+      <div style={{ marginTop: 16 }}>
+        <HandicapSetup view={{ ...handicaps, canEdit }} />
+      </div>
+
       <div style={{ marginTop: 16 }}>
         <MoneySetup
           mode="organization"

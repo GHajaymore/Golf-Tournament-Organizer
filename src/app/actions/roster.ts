@@ -7,6 +7,7 @@ import { syncPlayerAccount } from "@/lib/services/player-access";
 import { upsertMember } from "@/lib/services/roster";
 import { unlinkedPlayers } from "@/lib/domain/roster-link";
 import { memberHandicapRecord, type MemberRecord } from "@/lib/services/handicap-record";
+import { handicapPolicyOf, refuseHandByHand } from "@/lib/domain/handicap-policy";
 import { championFor } from "@/lib/services/honours";
 import { CHAMPION_REFUSAL } from "@/lib/domain/honours";
 import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords } from "@/lib/csv";
@@ -86,6 +87,25 @@ function cleanMemberData(input: MemberInput) {
 
 export async function addMember(input: MemberInput): Promise<RosterResult> {
   const { organizationId } = await requireRosterOrg();
+  /**
+   * A club that plays off GHIN does not type indexes.
+   *
+   * Enforced here rather than by disabling the input: the action is a public
+   * HTTP endpoint and a greyed-out box stops nobody. Changing the GHIN NUMBER
+   * stays allowed under this policy — that is how a member gets connected.
+   */
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { handicapPolicy: true },
+  });
+  // NaN as the current figure, because a member being created has none: under
+  // a GHIN policy any typed index at all is refused, rather than only one that
+  // differs from something already on file.
+  const refusal = refuseHandByHand(handicapPolicyOf(org?.handicapPolicy), input, {
+    handicap: Number.NaN,
+  });
+  if (refusal) return { ok: false, error: refusal };
+
   const data = cleanMemberData(input);
   if (!data.name) return { ok: false, error: "Enter a name." };
   if (data.email && !EMAIL_RE.test(data.email)) return { ok: false, error: "Enter a valid email address." };
