@@ -2,6 +2,7 @@
 import { COURSE_REF } from "@/lib/services/course-resolution";
 import { roundTeeId } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
@@ -199,8 +200,26 @@ async function assertUnlocked(eventId: string): Promise<void> {
   }
 }
 
-function refresh() {
+/**
+ * Everything on this screen changed — and so did the public board.
+ *
+ * `revalidatePath` clears the router cache; it does NOT touch the per-event
+ * board entry, which is an `unstable_cache` keyed and tagged separately. So a
+ * score entered here would sit behind the board cache until its sixty-second
+ * backstop expired — a spectator watching a group come up the 18th, seeing
+ * nothing happen.
+ *
+ * The event comes from the SESSION rather than a parameter, because every
+ * action in this file already operates on the caller's own tournament — that
+ * is what `requireStaffEvent` and friends establish before any write. Taking
+ * it from the session is what let this be one change rather than seventy-eight
+ * call sites each remembering to pass an id, and a change nobody has to
+ * remember is the only kind that survives.
+ */
+async function refresh() {
   revalidatePath("/", "layout");
+  const session = await getSession();
+  if (session?.eventId) boardChanged(session.eventId);
 }
 
 /* ── Registration ─────────────────────────────────────────────────────── */
@@ -267,7 +286,7 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
     },
   });
   await syncPlayerAccount(eventId, clean, cleanEmail);
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -335,7 +354,7 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
     if (oldEmail) await revokePlayerAccount(eventId, oldEmail);
     if (newEmail) await syncPlayerAccount(eventId, (data.name as string) ?? player.name, newEmail);
   }
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -388,7 +407,7 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
     });
     if (next) await prisma.player.update({ where: { id: next.id }, data: { status: "confirmed" } });
   }
-  refresh();
+  await refresh();
   return played ? "withdrawn" : "deleted";
 }
 
@@ -561,14 +580,14 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     imported += 1;
   }
 
-  refresh();
+  await refresh();
   return { imported, skippedDuplicates, skippedInvalid };
 }
 
 export async function setInviteMessage(message: string) {
   const eventId = await requireStaffEvent();
   await prisma.event.update({ where: { id: eventId }, data: { inviteMessage: message } });
-  refresh();
+  await refresh();
 }
 
 /* ── Event setup ──────────────────────────────────────────────────────── */
@@ -662,7 +681,7 @@ export async function saveEvent(data: {
       sideStyle: cleanSideStyle(data.sideStyle),
     },
   });
-  refresh();
+  await refresh();
 }
 
 export async function applyManualCount(target: number, force = false): Promise<RegenResult> {
@@ -722,7 +741,7 @@ export async function applyManualCount(target: number, force = false): Promise<R
     await logAudit(eventId, null, "resize-field", `Resized field to ${t}, discarding ${scored} scored matches`);
   }
   await regenerateGroupsAndSchedule(eventId);
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -845,7 +864,7 @@ export async function regenGroups(
     await logAudit(eventId, null, "regenerate-flights", `Rebuilt flights, discarding ${scored} scored matches`);
   }
   await regenerateGroupsAndSchedule(eventId);
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -860,7 +879,7 @@ export async function generateNextRound(stageId: string) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   await generateCutRound(eventId, stageId);
-  refresh();
+  await refresh();
 }
 
 /* ── Scoring rules ────────────────────────────────────────────────────── */
@@ -886,7 +905,7 @@ export async function saveScoring(data: {
       maxPerMatch: data.maxPerMatch,
     },
   });
-  refresh();
+  await refresh();
 }
 
 export async function setQualifyPerGroup(n: number) {
@@ -896,7 +915,7 @@ export async function setQualifyPerGroup(n: number) {
     where: { id: eventId },
     data: { qualifyPerGroup: Math.min(3, Math.max(1, Math.round(n))) },
   });
-  refresh();
+  await refresh();
 }
 
 /* ── Stages ───────────────────────────────────────────────────────────── */
@@ -905,7 +924,7 @@ export async function setStageDeadline(stageId: string, deadline: string) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { deadline } });
-  refresh();
+  await refresh();
 }
 
 /**
@@ -926,7 +945,7 @@ export async function setStagePlayedOn(stageId: string, date: string) {
     where: { id: stageId, eventId },
     data: { playedOn: cleanIsoDate(date) },
   });
-  refresh();
+  await refresh();
 }
 
 export async function setStageCarry(stageId: string, enabled: boolean, pct: number) {
@@ -943,7 +962,7 @@ export async function setStageCarry(stageId: string, enabled: boolean, pct: numb
       carryForwardAsked: true,
     },
   });
-  refresh();
+  await refresh();
 }
 
 export async function setStageCut(stageId: string, enabled: boolean, mode: string, count: number, percent: number) {
@@ -958,7 +977,7 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
       cutPercent: Math.min(100, Math.max(1, Math.round(percent))),
     },
   });
-  refresh();
+  await refresh();
 }
 
 export async function setStageScoringBasis(stageId: string, basis: string) {
@@ -969,7 +988,7 @@ export async function setStageScoringBasis(stageId: string, basis: string) {
     where: { id: stageId, eventId },
     data: { scoringBasis: value },
   });
-  refresh();
+  await refresh();
 }
 
 /**
@@ -1015,7 +1034,7 @@ export async function setStageScoreInput(stageId: string, input: string) {
       ? wanted
       : "";
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { scoreInput: value } });
-  refresh();
+  await refresh();
 }
 
 export async function setStageFormat(stageId: string, format: string, force = false) {
@@ -1035,7 +1054,7 @@ export async function setStageFormat(stageId: string, format: string, force = fa
   }
   const value = FORMAT_NAMES.includes(format) ? format : "Match Play";
   await prisma.stage.updateMany({ where: { id: stageId, eventId }, data: { format: value } });
-  refresh();
+  await refresh();
   return { ok: true as const };
 }
 
@@ -1046,7 +1065,7 @@ export async function setStageHoles(stageId: string, holes: number) {
     where: { id: stageId, eventId },
     data: { holes: holes === 9 ? 9 : 18 },
   });
-  refresh();
+  await refresh();
 }
 
 /* ── Per-round handicaps ──────────────────────────────────────────────────
@@ -1113,7 +1132,7 @@ export async function setRoundHandicapOverride(
     update: { override: clean },
     create: { eventId, stageId, playerId, override: clean },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -1179,7 +1198,7 @@ export async function applyRoundHandicapToRest(
       create: { eventId, stageId: s.id, playerId, override: from.override },
     });
   }
-  refresh();
+  await refresh();
   return { ok: true, written: open.length, skipped: frozen.size };
 }
 
@@ -1197,7 +1216,7 @@ export async function saveTiebreakers(order: string[]) {
     where: { id: eventId },
     data: { tiebreakers: JSON.stringify(valid.length ? valid : TIEBREAKER_KEYS) },
   });
-  refresh();
+  await refresh();
 }
 
 export async function setQualifyMode(mode: string, overall: number) {
@@ -1210,7 +1229,7 @@ export async function setQualifyMode(mode: string, overall: number) {
       qualifyOverall: Math.max(1, Math.round(overall)),
     },
   });
-  refresh();
+  await refresh();
 }
 
 /* Stage types live in src/lib/stage-types.ts, shared with the picker. Two
@@ -1319,7 +1338,7 @@ export async function addStage(
     if (i === 0) firstId = created.id;
   }
 
-  refresh();
+  await refresh();
   return firstId;
 }
 
@@ -1327,7 +1346,7 @@ export async function removeStage(stageId: string) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   await prisma.stage.deleteMany({ where: { id: stageId, eventId } });
-  refresh();
+  await refresh();
 }
 
 /* ── Match score entry ────────────────────────────────────────────────── */
@@ -1365,7 +1384,7 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
       confirmedById: null,
     },
   });
-  refresh();
+  await refresh();
 }
 
 /** Existing hole count for a match, from its stored holes array (18 or 9 depending on the round). */
@@ -1406,7 +1425,7 @@ export async function applyMatchResult(
     where: { id: matchId },
     data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: session.name },
   });
-  refresh();
+  await refresh();
 }
 
 /**
@@ -1498,7 +1517,7 @@ export async function forfeitMatch(matchId: string, forfeitedBy: string) {
     forfeitedBy ? "match.forfeit" : "match.forfeit.undo",
     forfeitedBy ? `Forfeited by ${forfeitedBy}` : `Forfeit removed (was ${match.forfeitedBy || "none"})`,
   );
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -1543,7 +1562,7 @@ export async function clearMatch(matchId: string): Promise<{ ok: boolean; error?
   // path that ends a result — forfeit, reopen, confirm, dispute — has left a
   // row since it was written.
   await logAudit(eventId, matchId, "match.clear", "Score cleared");
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -1587,7 +1606,7 @@ export async function saveCustomCourse(
       customStrokeIndex: JSON.stringify(strokeIndex),
     },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -1652,7 +1671,7 @@ export async function saveScorecard(stageId: string, playerId: string, strokes: 
   // After the write, never before: a card that failed validation above did not
   // start a round. An empty save does not either — see isReturnedCard.
   if (isReturnedCard(clean)) await freezeRoundHandicaps(eventId, stageId);
-  refresh();
+  await refresh();
 }
 
 /**
@@ -1767,7 +1786,7 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     where: { id: matchId },
     data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: session.name },
   });
-  refresh();
+  await refresh();
 }
 
 /**
@@ -1886,7 +1905,7 @@ export async function saveTeamScorecard(
     await recomputeTeamMatch(eventId, match, stage.format, stage.holes === 9 ? 9 : 18);
   }
 
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2047,7 +2066,7 @@ export async function confirmMatch(matchId: string) {
     data: { scoreStatus: "confirmed", confirmedById: session.accountId || null, confirmedBy: session.name },
   });
   await logAudit(eventId, matchId, "confirm", isStaff ? "Approved by organizer" : "Confirmed by player");
-  refresh();
+  await refresh();
 }
 
 /**
@@ -2099,7 +2118,7 @@ export async function confirmMatches(
     // answers is "who signed these off and when", and 48 identical rows a
     // second apart buries that rather than recording it.
     await logAudit(eventId, null, "confirm-batch", `Approved ${result.count} results by organizer`);
-    refresh();
+    await refresh();
   }
   return { ok: true, confirmed: result.count };
 }
@@ -2114,7 +2133,7 @@ export async function disputeMatch(matchId: string) {
     data: { scoreStatus: "disputed" },
   });
   await logAudit(eventId, matchId, "dispute", "Result disputed");
-  refresh();
+  await refresh();
 }
 
 /**
@@ -2132,7 +2151,7 @@ export async function reopenMatch(matchId: string) {
     data: { scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "" },
   });
   await logAudit(eventId, matchId, "reopen", "Organizer reopened the scorecard");
-  refresh();
+  await refresh();
 }
 
 /* ── Bracket ──────────────────────────────────────────────────────────── */
@@ -2148,7 +2167,7 @@ export async function setBracketWinner(key: string, winnerId: string) {
   } else {
     await prisma.bracketWinner.create({ data: { eventId, key, winnerId } });
   }
-  refresh();
+  await refresh();
 }
 
 export async function setBracketResult(key: string, result: string) {
@@ -2157,7 +2176,7 @@ export async function setBracketResult(key: string, result: string) {
     where: { eventId, key },
     data: { result: result.slice(0, 12) },
   });
-  refresh();
+  await refresh();
 }
 
 /* ── Access control ───────────────────────────────────────────────────── */
@@ -2193,7 +2212,7 @@ export async function addAccount(name: string, email: string, role: string): Pro
     update: { name: clean, role: next },
     create: { eventId, name: clean, email: cleanEmail, role: next },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2216,7 +2235,7 @@ export async function setAccountRole(accountId: string, role: string): Promise<{
     return { ok: false, error: "This is the only Organizer on this event — promote someone else first." };
   }
   await prisma.account.update({ where: { id: accountId }, data: { role: next } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2228,7 +2247,7 @@ export async function removeAccount(accountId: string): Promise<{ ok: boolean; e
     return { ok: false, error: "This is the only Organizer on this event — promote someone else before removing them." };
   }
   await prisma.account.deleteMany({ where: { id: accountId, eventId } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2245,7 +2264,7 @@ export async function switchEvent(eventId: string) {
   const access = await effectiveAccess(session.email, eventId);
   if (!access) throw new Error("You don't have access to that tournament");
   await setActiveEvent(eventId);
-  refresh();
+  await refresh();
 }
 
 /**
@@ -2375,7 +2394,7 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
   });
 
   await setActiveEvent(created.id);
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2471,7 +2490,7 @@ export async function createEvent(
     data: { eventId: event.id, name: session.name, email: session.email, role: "admin" },
   });
   await setActiveEvent(event.id);
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2523,7 +2542,7 @@ export async function setEventStatus(status: string) {
     where: { id: eventId },
     data: { status: s, completedAt: s === "completed" ? new Date() : null },
   });
-  refresh();
+  await refresh();
 }
 
 export async function launchTournament() {
@@ -2538,13 +2557,13 @@ export async function launchTournament() {
     where: { id: eventId },
     data: { status: "live", launchedAt: new Date(), configUnlocked: false },
   });
-  refresh();
+  await refresh();
 }
 
 export async function setConfigUnlocked(unlocked: boolean) {
   const eventId = await requireAdminEvent();
   await prisma.event.update({ where: { id: eventId }, data: { configUnlocked: unlocked } });
-  refresh();
+  await refresh();
 }
 
 /* ── Prizes & payouts ─────────────────────────────────────────────────── */
@@ -2563,7 +2582,7 @@ export async function addPrize(category: string, amount: number, detail = "") {
       position: (agg._max.position ?? 0) + 1,
     },
   });
-  refresh();
+  await refresh();
 }
 
 export async function updatePrize(prizeId: string, data: { category?: string; detail?: string; amount?: number }) {
@@ -2573,7 +2592,7 @@ export async function updatePrize(prizeId: string, data: { category?: string; de
   if (data.detail !== undefined) patch.detail = data.detail.trim();
   if (data.amount !== undefined) patch.amount = Number.isFinite(data.amount) && data.amount > 0 ? data.amount : 0;
   await prisma.prize.updateMany({ where: { id: prizeId, eventId }, data: patch });
-  refresh();
+  await refresh();
 }
 
 export async function setPrizeWinner(prizeId: string, winnerId: string) {
@@ -2582,13 +2601,13 @@ export async function setPrizeWinner(prizeId: string, winnerId: string) {
     where: { id: prizeId, eventId },
     data: { winnerId: winnerId || null },
   });
-  refresh();
+  await refresh();
 }
 
 export async function removePrize(prizeId: string) {
   const eventId = await requireStaffEvent();
   await prisma.prize.deleteMany({ where: { id: prizeId, eventId } });
-  refresh();
+  await refresh();
 }
 
 /* ── Announcements (player communications) ────────────────────────────── */
@@ -2600,19 +2619,19 @@ export async function addAnnouncement(title: string, body: string, pinned = fals
   await prisma.announcement.create({
     data: { eventId, title: clean, body: body.trim(), pinned },
   });
-  refresh();
+  await refresh();
 }
 
 export async function toggleAnnouncementPin(announcementId: string, pinned: boolean) {
   const eventId = await requireStaffEvent();
   await prisma.announcement.updateMany({ where: { id: announcementId, eventId }, data: { pinned } });
-  refresh();
+  await refresh();
 }
 
 export async function removeAnnouncement(announcementId: string) {
   const eventId = await requireStaffEvent();
   await prisma.announcement.deleteMany({ where: { id: announcementId, eventId } });
-  refresh();
+  await refresh();
 }
 
 /**
@@ -2627,7 +2646,7 @@ export async function setBracketMode(mode: string): Promise<{ ok: boolean; error
   await assertUnlocked(eventId);
   if (!isBracketMode(mode)) return { ok: false, error: "Unknown bracket arrangement." };
   await prisma.event.update({ where: { id: eventId }, data: { bracketMode: mode } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2651,7 +2670,7 @@ export async function renameGroup(groupId: string, name: string): Promise<{ ok: 
   if (!group) return { ok: false, error: "Flight not found in this tournament." };
 
   await prisma.group.update({ where: { id: groupId }, data: { name: clean } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2674,7 +2693,7 @@ export async function setFlightsConfirmed(confirmed: boolean): Promise<{ ok: boo
     return { ok: false, error: "Only a manual draw is confirmed by hand — the other rules regenerate." };
   }
   await prisma.event.update({ where: { id: eventId }, data: { flightsConfirmed: confirmed } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2697,7 +2716,7 @@ export async function setMatchTiebreakers(keys: string[]): Promise<{ ok: boolean
     where: { id: eventId },
     data: { matchTiebreakers: JSON.stringify(clean) },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2729,7 +2748,7 @@ export async function setRegistrationOverride(
     where: { id: eventId },
     data: { registrationOverride: override },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2763,7 +2782,7 @@ export async function setRegistrationOpen(open: boolean): Promise<{ ok: boolean;
   const data: { registrationOpen: boolean; registrationToken?: string } = { registrationOpen: open };
   if (open && !event.registrationToken) data.registrationToken = generateShareToken();
   await prisma.event.update({ where: { id: eventId }, data });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2777,7 +2796,7 @@ export async function setRegistrationApproval(mode: string): Promise<{ ok: boole
     where: { id: eventId },
     data: { registrationApproval: mode === "approve" ? "approve" : "auto" },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2800,7 +2819,7 @@ export async function approveSignup(playerId: string): Promise<{ ok: boolean; er
   const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   const status = placementOnApproval(event?.capacity ?? 0, confirmedCount);
   await prisma.player.update({ where: { id: playerId }, data: { status } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -2812,7 +2831,7 @@ export async function setStageCutScope(stageId: string, scope: string): Promise<
     where: { id: stageId, eventId },
     data: { cutScope: isCutScope(scope) ? scope : "overall" },
   });
-  refresh();
+  await refresh();
 }
 
 /**
@@ -2832,7 +2851,7 @@ export async function setStageDeadlineOverride(
     where: { id: stageId, eventId },
     data: { deadlineOverride: override },
   });
-  refresh();
+  await refresh();
 }
 
 export interface ScoreImportOutcome {
@@ -3055,7 +3074,7 @@ export async function importScores(
   // it.
   if (returned) await freezeRoundHandicaps(eventId, stageId);
 
-  refresh();
+  await refresh();
   return { ok: written > 0, written, problems: problems.length ? problems : undefined };
 }
 
@@ -3152,7 +3171,7 @@ export async function clearRoundScores(
     });
   }
 
-  refresh();
+  await refresh();
   return { ok: true, cleared };
 }
 
@@ -3195,7 +3214,7 @@ export async function certifyScorecard(stageId: string, playerId: string) {
     where: { id: card.id },
     data: { status: "certified", certifiedBy: session.email, certifiedAt: new Date() },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -3230,7 +3249,7 @@ export async function disputeScorecard(stageId: string, playerId: string) {
   // disputes since it existed and stroke play logged nothing at all — the
   // format where one person enters three other people's rounds.
   await logAudit(eventId, null, "card.dispute", `Card disputed — round ${stageId}, player ${playerId}`);
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -3255,7 +3274,7 @@ export async function approveScorecard(stageId: string, playerId: string) {
     where: { id: card.id },
     data: { status: "approved", approvedBy: session.email, approvedAt: new Date() },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -3322,7 +3341,7 @@ export async function approveRound(stageId: string) {
     });
   }
 
-  refresh();
+  await refresh();
   return {
     ok: true,
     approved: review.ready.length,
@@ -3349,7 +3368,7 @@ export async function reopenScorecard(stageId: string, playerId: string) {
   if (!card) throw new Error("There's no card to reopen.");
 
   await prisma.scorecard.update({ where: { id: card.id }, data: { status: "entered" } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -3365,7 +3384,7 @@ export async function setRequirePhone(required: boolean): Promise<{ ok: boolean;
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   await prisma.event.update({ where: { id: eventId }, data: { requirePhone: !!required } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -3423,7 +3442,7 @@ export async function rotatePublicToken(
     );
   }
 
-  refresh();
+  await refresh();
   return { ok: true, token };
 }
 
@@ -3453,7 +3472,7 @@ export async function setSingleMatchRule(
   });
   if (r.count === 0) return { ok: false, error: "That round isn't in this tournament." };
 
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -3498,7 +3517,7 @@ export async function createSingleMatch(stageId: string): Promise<{ ok: boolean;
     data: { eventId, stageId, groupId: "", round: 1, playerAId, playerBId, holes: "[]" },
   });
   await logAudit(eventId, null, "single-match", `Created the match for this round: ${view.aName} v ${view.bName}`);
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -3513,7 +3532,7 @@ export async function setThirdPlace(stageId: string, on: boolean): Promise<{ ok:
   });
   if (r.count === 0) return { ok: false, error: "That round isn't in this tournament." };
 
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -3572,6 +3591,6 @@ export async function createThirdPlaceMatch(stageId: string): Promise<{ ok: bool
     data: { eventId, stageId, groupId: "", round: 0, playerAId: a.playerId, playerBId: b.playerId, holes: "[]" },
   });
   await logAudit(eventId, null, "third-place", `Created the play-off for third: ${a.name} v ${b.name}`);
-  refresh();
+  await refresh();
   return { ok: true };
 }

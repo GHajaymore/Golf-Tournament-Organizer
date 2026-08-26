@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { cleanSettings, usesAccessCodes, type TournamentSettings } from "@/lib/tournament-settings";
@@ -18,8 +19,21 @@ export interface SettingsResult {
   error?: string;
 }
 
-function refresh() {
+/**
+ * Everything on this screen changed — and so did the public board.
+ *
+ * `revalidatePath` clears the router cache; it does NOT touch the per-event
+ * board entry, which is an `unstable_cache` keyed and tagged separately.
+ * Without this, a change here waits out the board's sixty-second backstop
+ * before a spectator sees it.
+ *
+ * The event comes from the SESSION, because every action in this file
+ * already operates on the caller's own tournament.
+ */
+async function refresh() {
   revalidatePath("/", "layout");
+  const session = await getSession();
+  if (session?.eventId) boardChanged(session.eventId);
 }
 
 /** Organizer of the tournament currently open. Assistants don't reshape the
@@ -80,7 +94,7 @@ export async function saveTournamentSettings(input: Partial<TournamentSettings>)
   if (nowUsingCodes && !wasUsingCodes) await issueRoundCodes(eventId);
   if (!nowUsingCodes && wasUsingCodes) await revokeRoundCodes(eventId);
 
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -99,7 +113,7 @@ export async function regenerateRoundCode(stageId: string): Promise<SettingsResu
     const code = generateAccessCode();
     if ((await prisma.stage.count({ where: { accessCode: code } })) > 0) continue;
     await prisma.stage.update({ where: { id: stageId }, data: { accessCode: code } });
-    refresh();
+    await refresh();
     return { ok: true };
   }
   return { ok: false, error: "Couldn't generate a new code. Try again." };
@@ -152,6 +166,6 @@ export async function saveOrganizationDefaults(input: Partial<TournamentSettings
     },
   });
 
-  refresh();
+  await refresh();
   return { ok: true };
 }
