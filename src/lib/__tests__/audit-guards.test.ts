@@ -119,6 +119,19 @@ describe("every server action is guarded", () => {
      * `sideGameId`. Neutering it fails that suite.
      */
     "requireGameAccess",
+    /**
+     * handicap-policy.ts: `getSession`, then `organizationAccess`, then a
+     * `canEdit` check — the same three steps `saveOrganizationDefaults` in
+     * settings.ts performs inline, lifted into a helper because both actions
+     * in that file need them and a rule written twice is a rule that drifts.
+     *
+     * Listed per the note above only because it was verified by reading it:
+     * it refuses an unsigned caller, refuses a session with no organization,
+     * and refuses anybody who is not an owner or admin — so a guest organizer
+     * running one society day cannot change how the whole club is handicapped,
+     * or turn on posting scores to a national association.
+     */
+    "requireClub",
   ];
 
   const files = readdirSync(ACTIONS_DIR).filter((f) => f.endsWith(".ts"));

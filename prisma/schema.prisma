@@ -156,6 +156,43 @@ model Organization {
   defaultVoiceEntry            Boolean @default(true)
   defaultPlayerAccess          String  @default("email")
   defaultScoreApproval         String  @default("staff")
+
+  /**
+   * Where this club's handicaps come from — "club" or "ghin".
+   *
+   * A club position rather than a per-member preference: some clubs run
+   * entirely on association figures and an organizer typing an index is a
+   * mistake there, not a feature. See domain/handicap-policy.ts, which also
+   * decides what a GHIN club plays off when the association cannot be reached
+   * — the last figure actually received, labelled with its age, and never
+   * zero.
+   *
+   * Defaults to "club", because a club that has said nothing has not opted
+   * into anything.
+   */
+  /// Association credentials, per capability. See model Integration.
+  integrations Integration[]
+
+  handicapPolicy String @default("club")
+
+  /**
+   * Which association, when the policy is not "club". See integrations/.
+   * Separate from the policy so a club in England can answer to England Golf
+   * without the word GHIN appearing anywhere in their settings.
+   */
+  handicapAuthorityId String @default("ghin")
+
+  /**
+   * Whether finished rounds are posted back to the association.
+   *
+   * A SEPARATE permission from reading indexes, because a club is routinely
+   * entitled to look a golfer up and not to write to their record. Off unless
+   * a club has explicitly turned it on — posting a score changes a real
+   * person's handicap at every club they play, and there is no undo this app
+   * controls. See domain/score-posting.ts.
+   */
+  scoreReportingEnabled Boolean @default(false)
+  scoreReporterId       String  @default("ghin")
   /**
    * House default for the per-match points cap. Zero is no cap.
    * A club that always runs its member-guest capped shouldn't have to set it
@@ -902,6 +939,9 @@ model Event {
 
   @@index([organizationId])
   @@index([courseId])
+
+  /// Attempts to post this tournament’s rounds to an association.
+  handicapPosts HandicapPost[]
 }
 
 model Account {
@@ -2358,4 +2398,102 @@ model HonoursEntry {
 
   @@unique([eventId, playerId])
   @@index([organizationId])
+}
+
+/**
+ * A club's credentials for one association, one capability.
+ *
+ * Kept out of Organization on purpose. A club may hold a read permission and
+ * not a write one, or have GHIN for handicaps while a second association
+ * handles something else later, and a column per capability on Organization
+ * would need a schema change every time that grows.
+ *
+ * `secret` IS A SECRET. It must never reach a client component, never appear
+ * in an audit log, and never be selected by a query whose result is rendered.
+ * `integration-secrecy.test.ts` enforces that by reading the source, because
+ * this is exactly the kind of rule that holds until somebody adds a screen.
+ *
+ * NOT YET ENCRYPTED AT REST, and nothing real should be put in it until it is.
+ * Encryption needs a key that is rotated and stored somewhere other than the
+ * database it protects, which is a decision about deployment rather than a
+ * line of code here. Recorded rather than quietly deferred.
+ */
+model Integration {
+  id             String @id @default(cuid())
+  organizationId String
+
+  /// Which provider — "ghin" today. See lib/integrations/registry.ts.
+  providerId String
+
+  /// "handicap" (read indexes) or "scores" (post rounds back).
+  capability String
+
+  /// Opaque to this app. A key, a token, an association club number.
+  secret String @default("")
+
+  /// Non-secret settings: an association club id, a region code.
+  settings String @default("{}")
+
+  /// The last time this app got a straight answer using these credentials.
+  verifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// One credential per club per provider per capability.
+  @@unique([organizationId, providerId, capability])
+  @@index([organizationId])
+}
+
+/**
+ * One attempt to write one round to one golfer's official record.
+ *
+ * An outbox, not a log. It exists so that posting a score is IDEMPOTENT: the
+ * unique key below is what makes a second attempt impossible at the database
+ * rather than at a check somebody has to remember to write. A duplicate post
+ * is not a duplicate row — it is a real person's handicap index moving twice
+ * on a round they played once, at every club they play, with no undo this app
+ * controls.
+ *
+ * Refusals are recorded rather than swallowed. A club has to be able to see
+ * what did not go and why — a player with no association number, a card with
+ * holes missing — because the alternative is a committee discovering in
+ * October that half a season never reached the association.
+ */
+model HandicapPost {
+  id       String @id @default(cuid())
+  eventId  String
+  stageId  String
+  playerId String
+
+  /// `${eventId}:${stageId}:${playerId}` — see domain/score-posting.ts.
+  postKey String
+
+  /// pending | sent | refused | failed
+  status String @default("pending")
+
+  /// Which association this went to.
+  providerId String @default("ghin")
+
+  /// The association's own id for the posted score, when it accepted one.
+  reference String @default("")
+
+  /// Why it did not go, from domain/score-posting.ts. Showable to a club.
+  refusal String @default("")
+  detail  String @default("")
+
+  attempts  Int       @default(0)
+  postedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  /// THE CONSTRAINT THAT MATTERS. One golfer, one round, one post — enforced
+  /// here so two requests racing each other cannot both succeed.
+  @@unique([postKey])
+  @@index([eventId])
+  @@index([status])
 }
