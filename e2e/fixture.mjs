@@ -238,6 +238,20 @@ export async function seed() {
       organizer: { session: sign(organizer.id), event: sign(event.id) },
       player: { session: sign(player.id), event: sign(event.id) },
       partialHolesFilled: partial.filter((s) => s != null).length,
+      /**
+       * Enough to PUT THE PART-FINISHED CARD BACK.
+       *
+       * The offline spec enters a hole and, once the signal returns, that
+       * write reaches the database — so it mutates the very fixture that
+       * player.spec asserts the shape of. Exported here so that spec can
+       * restore it rather than every other test being written around the
+       * damage.
+       */
+      partialCard: {
+        stageId: stage.id,
+        playerId: players[0].id,
+        strokes: partial,
+      },
     };
   } finally {
     await prisma.$disconnect();
