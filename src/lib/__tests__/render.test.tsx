@@ -89,6 +89,7 @@ import { playSkins } from "@/lib/domain/skins";
 import { playNassau } from "@/lib/domain/nassau";
 import { SideBetStart } from "@/components/SideBetStart";
 import { RoundMoney } from "@/components/RoundMoney";
+import { LiveRefresh } from "@/components/LiveRefresh";
 import type { HoleResult } from "@/lib/domain/types";
 
 /**
@@ -4314,5 +4315,35 @@ describe("what a player has riding on the round", () => {
     );
     expect(html).toMatch(/2 games/);
     expect(html).toMatch(/tournament/i);
+  });
+});
+
+/**
+ * The public board's own freshness line.
+ *
+ * Server-rendered first, before any clock has been read, which is the state
+ * this has to be right in: relative time is the classic hydration mismatch,
+ * and this sits on the one page in the product that strangers open from a
+ * link. It renders the durable sentence until the browser has a clock, then
+ * switches to the age.
+ */
+describe("the live board says how old it is", () => {
+  it("renders without a clock, saying the thing that will not change", () => {
+    const html = render(<LiveRefresh renderedAt={new Date().toISOString()} />);
+    // No relative time on the server render — that is what would mismatch.
+    expect(html).toMatch(/updates on its own/i);
+    expect(html).not.toMatch(/just now|min ago/);
+  });
+
+  it("renders for a timestamp hours old without crashing", () => {
+    const html = render(<LiveRefresh renderedAt="2020-01-01T00:00:00.000Z" />);
+    expect(html).toMatch(/updates on its own/i);
+  });
+
+  it("survives a timestamp that is not one", () => {
+    // `renderedAt` crosses the server/client boundary as a string, and a
+    // board that throws is worse than a board with no age on it.
+    expect(() => render(<LiveRefresh renderedAt="" />)).not.toThrow();
+    expect(() => render(<LiveRefresh renderedAt="not a date" />)).not.toThrow();
   });
 });

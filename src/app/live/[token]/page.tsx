@@ -14,6 +14,7 @@ import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { OrgBrand } from "@/components/OrgBrand";
 import { LOGO_SIZE } from "@/components/Logo";
 import { themeCss, playerColorScheme } from "@/lib/themes";
+import { LiveRefresh } from "@/components/LiveRefresh";
 
 /**
  * The public read-only leaderboard.
@@ -254,9 +255,16 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
           />
         )}
 
-        <p style={{ fontSize: 12, marginTop: 24, textAlign: "center", color: "var(--color-neutral-400)" }}>
-          Read-only · pull down to refresh
-        </p>
+        {/*
+          Stamped here, on the server, at the moment this render happened.
+
+          That is the whole trick: the page polls itself, and the only honest
+          measure of "how current is this" is when a response last actually
+          came back. A clock started in the browser keeps ticking while the
+          phone is in a dead spot behind the 12th, so it would call the board
+          fresh precisely when it is not.
+        */}
+        <LiveRefresh renderedAt={new Date().toISOString()} />
       </div>
     </div>
   );
