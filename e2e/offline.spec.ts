@@ -1,7 +1,37 @@
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { PrismaClient } from "@prisma/client";
+
+const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8"));
 
 test.use({ storageState: join(process.cwd(), ".e2e", "player.json") });
+
+/**
+ * Put the card back afterwards.
+ *
+ * These tests enter a hole, and the whole point of the feature is that the
+ * hole eventually reaches the server — so this spec MUTATES the shared
+ * fixture, once per test per viewport. `player.spec` asserts that card's exact
+ * shape ("nine of eighteen holes in"), and nine runs of this file quietly took
+ * it to eighteen and turned three of its tests red.
+ *
+ * Restoring here rather than making the other spec tolerate a moving fixture:
+ * a test suite where every assertion has to be written around the damage some
+ * other file does is one nobody can reason about.
+ */
+test.afterAll(async () => {
+  const prisma = new PrismaClient();
+  try {
+    const { stageId, playerId, strokes } = data.partialCard;
+    await prisma.scorecard.updateMany({
+      where: { stageId, playerId },
+      data: { strokes: JSON.stringify(strokes), status: "entered" },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+});
 
 /**
  * A hole entered with no signal must not be lost.
