@@ -1,19 +1,13 @@
-import { COURSE_REF } from "@/lib/services/course-resolution";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { loadEventState, matchSettled, standingRows, settingsOf } from "@/lib/services/tournament";
-import { boardKind } from "@/lib/formats";
-import { teamStandings } from "@/lib/services/teams";
+import { settingsOf } from "@/lib/services/tournament";
+import { liveBoard } from "@/lib/services/live-board";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
-import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
-import { resolveCourse } from "@/lib/courses";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { isLeaderboardPublic } from "@/lib/tournament-settings";
-import { brandForEvent, themeForEvent } from "@/lib/services/organization";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { OrgBrand } from "@/components/OrgBrand";
 import { LOGO_SIZE } from "@/components/Logo";
-import { themeCss, playerColorScheme } from "@/lib/themes";
 import { LiveRefresh } from "@/components/LiveRefresh";
 
 /**
@@ -74,104 +68,37 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 export default async function PublicLeaderboardPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const event = await prisma.event.findUnique({ where: { shareToken: token }, include: COURSE_REF });
-  // Same response whether the token is wrong or the organizer has unpublished:
-  // a 404 either way, so the link can be switched off without confirming that
-  // the tournament exists.
+  /**
+   * The credential check, on every request, uncached.
+   *
+   * The share token IS the credential and `leaderboardVisibility` IS the
+   * permission, so neither may be answered from a cache. A club that
+   * unpublishes its leaderboard is not asking to be unpublished within a
+   * minute — it is asking now. One query is the right price for that, and it
+   * is the one query the board cache must never absorb.
+   *
+   * Same response whether the token is wrong or the organizer has unpublished:
+   * a 404 either way, so the link can be switched off without confirming that
+   * the tournament exists.
+   */
+  const event = await prisma.event.findUnique({ where: { shareToken: token } });
   if (!event || !isLeaderboardPublic(settingsOf(event))) notFound();
 
-  const state = await loadEventState(event.id);
-  if (!state) notFound();
-
-  // A team round keeps its scores on TeamScorecard, so standingRows — which
-  // only knows about players — would render an empty table on a page the club
-  // has deliberately made public.
-  //
-  // The other branches matter here for a stronger reason than on the console:
-  // this page is the one a spectator reads, and it has no organizer standing
-  // next to it to say "that isn't the real result". `boardKind` is shared with
-  // the leaderboard and Reports so the three cannot drift apart again — this
-  // page used to branch on teams alone (D8).
-  const activeStage = state.activeStage ?? state.stages[0] ?? null;
-  const kind = boardKind(activeStage?.format);
-  const teamRound = kind === "team" && !!activeStage;
-  const holeCount = activeStage?.holes === 9 ? 9 : 18;
-  const liveCourse = resolveCourse(event);
-  const teamRows = teamRound
-    ? await teamStandings(
-        event.id,
-        activeStage!.id,
-        activeStage!.format,
-        liveCourse.pars.slice(0, holeCount),
-        liveCourse.strokeIndex.slice(0, holeCount),
-        activeStage!.scoringBasis,
-        activeStage!.handicapAllowance,
-        activeStage!.allowanceWeights,
-        activeStage!.countBest,
-      )
-    : [];
-
-  // The reading each of these formats needs. Computed here rather than in the
-  // markup so the branch below stays a single decision.
-  const skinsNet = activeStage ? activeStage.scoringBasis !== "gross" : true;
-  const skins =
-    kind === "skins" && activeStage
-      ? await skinsBoard(event.id, activeStage.id, holeCount, skinsNet, liveCourse.strokeIndex.slice(0, holeCount))
-      : null;
-  const nassau = kind === "nassau" && activeStage ? await nassauBoard(event.id, activeStage.id) : null;
-  const modStableford =
-    kind === "modified-stableford" && activeStage
-      ? await modifiedStablefordBoard(
-          event.id,
-          activeStage.id,
-          liveCourse.pars.slice(0, holeCount),
-          liveCourse.strokeIndex.slice(0, holeCount),
-        )
-      : null;
-
-  const rows = standingRows(state);
-  const brand = await brandForEvent(event.id);
-  const venue = [event.course, event.city].filter(Boolean).join(", ");
-
-  // The club's own theme, the same one the console renders. This page applied
-  // no theme at all until recently — it read `var(--color-bg)` off the
-  // stylesheet default, so a club that had chosen light still got a dark board
-  // on the one screen in the product that is looked at in direct sun.
-  //
-  // `auto` resolves dark unless the device asks for light, which is the same
-  // rule everywhere: one club, one ground, whichever screen you are on.
-  const theme = await themeForEvent(event.id);
-  const themeStyleSheet = themeCss(theme, "#player-theme");
-
   /**
-   * How far the field has actually got, which is the first thing anyone asks.
+   * And everything else from one computation the crowd shares.
    *
-   * Two readings, because the question is not the same one in both kinds of
-   * round. A round of returned cards is in when the cards are in. A round of
-   * MATCHES is over when its matches are settled — and a match won 5&4 returns
-   * fourteen holes and is finished, so counting holes there would leave the
-   * board reading "Live" for a round that ended hours ago. Once match play
-   * carries gross cards the hole count stops being silent about match rounds
-   * and starts being wrong about them, which is why this now asks.
-   *
-   * `matchSettled` is the reading the rest of the app already uses for exactly
-   * this, so the badge and the round's own progress cannot disagree.
+   * Measured at 20.7 database queries per request before this: every spectator
+   * commissioning their own copy of an answer identical to their neighbour's,
+   * thirty seconds apart, for five hours. See services/live-board.ts.
    */
-  const started = rows.filter((r) => r.thru > 0);
-  const roundMatches = activeStage
-    ? state.matches.filter((m) => m.stageId === activeStage.id)
-    : [];
-  const allIn =
-    roundMatches.length > 0
-      ? roundMatches.every((m) => matchSettled(m))
-      : started.length > 0 && started.every((r) => r.thru >= holeCount);
-  const roundLabel = activeStage?.description?.trim() || activeStage?.type || "";
+  const board = await liveBoard(event.id);
+  if (!board) notFound();
 
   return (
     <div
       id="player-theme"
       style={{
-        colorScheme: playerColorScheme(theme),
+        colorScheme: board.colorScheme,
         minHeight: "100vh",
         background: "var(--color-bg)",
         color: "var(--color-text)",
@@ -179,16 +106,16 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
         padding: "20px 16px 48px",
       }}
     >
-      <style dangerouslySetInnerHTML={{ __html: themeStyleSheet }} />
+      <style dangerouslySetInnerHTML={{ __html: board.themeStyleSheet }} />
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-          {/* lg, the scale’s hero size. This board is the club’s shopfront
+          {/* lg, the scale's hero size. This board is the club's shopfront
               — the link that goes on the clubhouse screen and to families —
-              and the club’s own mark led it at the same size it uses beside a
+              and the club's own mark led it at the same size it uses beside a
               nav label. The same argument as the landing lockup: on the one
               page whose job is to say whose competition this is, the mark
               should not read as chrome. */}
-          <OrgBrand brand={brand} size={LOGO_SIZE.lg} />
+          <OrgBrand brand={board.brand} size={LOGO_SIZE.lg} />
         </div>
 
         <header style={{ marginBottom: 22 }}>
@@ -210,10 +137,10 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
                 width: 7,
                 height: 7,
                 borderRadius: "50%",
-                background: allIn ? "var(--color-neutral-400)" : "var(--color-accent)",
+                background: board.allIn ? "var(--color-neutral-400)" : "var(--color-accent)",
               }}
             />
-            {allIn ? "Final" : "Live"}
+            {board.allIn ? "Final" : "Live"}
           </div>
           <h1
             style={{
@@ -225,44 +152,46 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
               textWrap: "balance",
             }}
           >
-            {event.name}
+            {board.name}
           </h1>
           <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.5, color: "var(--color-neutral-400)" }}>
-            {[roundLabel, event.dates, venue].filter(Boolean).join(" · ")}
+            {[board.roundLabel, board.dates, board.venue].filter(Boolean).join(" · ")}
           </p>
         </header>
 
-        {kind === "manual" ? (
+        {board.manualFormat ? (
           <PublicManualNotice />
-        ) : teamRound ? (
+        ) : board.teamRound ? (
           <TeamLeaderboard
-            format={activeStage!.format}
-            stableford={activeStage!.scoringBasis === "stableford"}
-            rows={teamRows}
+            format={board.teamFormat}
+            stableford={board.isStableford}
+            rows={board.teamRows}
           />
-        ) : kind === "skins" && skins ? (
-          <SkinsLeaderboard board={skins} net={skinsNet} />
-        ) : kind === "nassau" && nassau ? (
-          <NassauLeaderboard rows={nassau} />
-        ) : kind === "modified-stableford" && modStableford ? (
-          <ModifiedStablefordLeaderboard rows={modStableford} />
+        ) : board.kind === "skins" && board.skins ? (
+          <SkinsLeaderboard board={board.skins} net={board.skinsNet} />
+        ) : board.kind === "nassau" && board.nassau ? (
+          <NassauLeaderboard rows={board.nassau} />
+        ) : board.kind === "modified-stableford" && board.modStableford ? (
+          <ModifiedStablefordLeaderboard rows={board.modStableford} />
         ) : (
           <PlayerLeaderboard
-            isStroke={state.isStroke}
-            isStableford={state.activeStage?.scoringBasis === "stableford"}
-            rows={rows}
-            holes={holeCount}
+            isStroke={board.isStroke}
+            isStableford={board.isStableford}
+            rows={board.rows}
+            holes={board.holeCount}
           />
         )}
 
         {/*
-          Stamped here, on the server, at the moment this render happened.
+          Stamped HERE, outside the cache, on every request.
 
-          That is the whole trick: the page polls itself, and the only honest
-          measure of "how current is this" is when a response last actually
-          came back. A clock started in the browser keeps ticking while the
-          phone is in a dead spot behind the 12th, so it would call the board
-          fresh precisely when it is not.
+          This is the one value that must not be cached with the board. The
+          label built on it tells a spectator how long since scores actually
+          reached them, and a timestamp travelling inside the cached payload
+          would report the CACHE's age instead of the RESPONSE's — so a board
+          served from a minute-old entry would announce itself as "updated just
+          now". That is precisely the lie the label exists to prevent, and it
+          would have no visible symptom.
         */}
         <LiveRefresh renderedAt={new Date().toISOString()} />
       </div>

@@ -15,7 +15,7 @@ vi.mock("next/headers", () => ({
     delete: (name: string) => void jar.delete(name),
   }),
 }));
-vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { saveMatchScorecard } from "@/app/actions/tournament";
