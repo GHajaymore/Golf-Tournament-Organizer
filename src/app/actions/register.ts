@@ -1,5 +1,6 @@
 "use server";
 import { teeMatcherFor } from "@/lib/services/handicaps";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { upsertMember } from "@/lib/services/roster";
@@ -159,6 +160,16 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
       handicapType: person.handicapType,
     },
   });
+
+  /**
+   * A new entrant changes the field, so the public board must be recomputed.
+   *
+   * Taken from the EVENT rather than a session, because this is the one
+   * board-affecting write with no session at all — self-registration is a
+   * stranger on a shared link, which is precisely why it needs saying here
+   * rather than inheriting a helper that reads a caller who is not there.
+   */
+  boardChanged(event.id);
 
   // Email is identity in this app (accessibleEvents is keyed on it), so
   // registering also grants sign-in — the same as the organizer-side add. Never

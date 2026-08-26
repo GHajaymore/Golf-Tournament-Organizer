@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -8,6 +9,23 @@ import { PLAYABLE_FORMAT_NAMES } from "@/lib/formats";
 import { STAGE_TYPES } from "@/lib/stage-types";
 import { extractReadingJson } from "@/lib/domain/card-reading";
 import { parseSetupProposal, setupPrompt, type SetupProposal } from "@/lib/domain/setup-proposal";
+
+/**
+ * Everything on this screen changed — and so did the public board.
+ *
+ * `revalidatePath` clears the router cache; it does NOT touch the per-event
+ * board entry, which is an `unstable_cache` keyed and tagged separately.
+ * Without this, a change here waits out the board's sixty-second backstop
+ * before a spectator sees it.
+ *
+ * The event comes from the SESSION, because every action in this file
+ * already operates on the caller's own tournament.
+ */
+async function refresh() {
+  revalidatePath("/", "layout");
+  const session = await getSession();
+  if (session?.eventId) boardChanged(session.eventId);
+}
 
 /**
  * Turn a description of a tournament into a proposed configuration.
@@ -173,6 +191,6 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
     })),
   });
 
-  revalidatePath("/", "layout");
+  await refresh();
   return { ok: true, proposal: checked };
 }

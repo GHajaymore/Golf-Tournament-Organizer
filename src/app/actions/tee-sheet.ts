@@ -2,7 +2,25 @@
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { parseTeeSheet, validateTeeSheet, type TeeSheet } from "@/lib/domain/tee-sheet";
+
+/**
+ * Everything on this screen changed — and so did the public board.
+ *
+ * `revalidatePath` clears the router cache; it does NOT touch the per-event
+ * board entry, which is an `unstable_cache` keyed and tagged separately.
+ * Without this, a change here waits out the board's sixty-second backstop
+ * before a spectator sees it.
+ *
+ * The event comes from the SESSION, because every action in this file
+ * already operates on the caller's own tournament.
+ */
+async function refresh() {
+  revalidatePath("/", "layout");
+  const session = await getSession();
+  if (session?.eventId) boardChanged(session.eventId);
+}
 
 /**
  * Saving and publishing the tee sheet.
@@ -70,7 +88,7 @@ export async function saveTeeSheet(
     where: { id: stageId },
     data: { teeSheet: json, teeSheetPublished: publish },
   });
-  revalidatePath("/", "layout");
+  await refresh();
   return { ok: true };
 }
 
@@ -89,6 +107,6 @@ export async function setTeeSheetPublished(stageId: string, published: boolean):
     where: { id: stageId, eventId: session.eventId },
     data: { teeSheetPublished: published },
   });
-  revalidatePath("/", "layout");
+  await refresh();
   return { ok: true };
 }

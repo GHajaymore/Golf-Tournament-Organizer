@@ -2,9 +2,27 @@
 import { getSession, type Session } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { settingsOf } from "@/lib/services/tournament";
 import { playerMayChange, playersAnswer, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { isIsoDate } from "@/lib/deadline";
+
+/**
+ * Everything on this screen changed — and so did the public board.
+ *
+ * `revalidatePath` clears the router cache; it does NOT touch the per-event
+ * board entry, which is an `unstable_cache` keyed and tagged separately.
+ * Without this, a change here waits out the board's sixty-second backstop
+ * before a spectator sees it.
+ *
+ * The event comes from the SESSION, because every action in this file
+ * already operates on the caller's own tournament.
+ */
+async function refresh() {
+  revalidatePath("/", "layout");
+  const session = await getSession();
+  if (session?.eventId) boardChanged(session.eventId);
+}
 
 /**
  * League attendance actions.
@@ -114,7 +132,7 @@ export async function setAttendance(
     create: { eventId: session.eventId, stageId, playerId, status, decidedBy: session.name },
   });
 
-  revalidatePath("/", "layout");
+  await refresh();
   return { ok: true };
 }
 
@@ -136,7 +154,7 @@ export async function setStageOptDeadline(stageId: string, date: string): Promis
     data: { optDeadline: clean },
   });
   if (updated.count === 0) return { ok: false, error: "That round isn't in this tournament." };
-  revalidatePath("/", "layout");
+  await refresh();
   return { ok: true };
 }
 
@@ -172,6 +190,6 @@ export async function setFlightCaptain(
     where: { id: groupId },
     data: role === "vice" ? { viceCaptainId: playerId } : { captainId: playerId },
   });
-  revalidatePath("/", "layout");
+  await refresh();
   return { ok: true };
 }

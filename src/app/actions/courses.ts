@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { getSession } from "@/lib/auth";
@@ -45,8 +46,21 @@ export interface CourseResult {
 const NINES = ["full", "front", "back"] as const;
 const cleanNine = (n: string) => (NINES.includes(n as (typeof NINES)[number]) ? n : "full");
 
-function refresh() {
+/**
+ * Everything on this screen changed — and so did the public board.
+ *
+ * `revalidatePath` clears the router cache; it does NOT touch the per-event
+ * board entry, which is an `unstable_cache` keyed and tagged separately.
+ * Without this, a change here waits out the board's sixty-second backstop
+ * before a spectator sees it.
+ *
+ * The event comes from the SESSION, because every action in this file
+ * already operates on the caller's own tournament.
+ */
+async function refresh() {
   revalidatePath("/", "layout");
+  const session = await getSession();
+  if (session?.eventId) boardChanged(session.eventId);
 }
 
 /** Organizer of the open tournament, plus the club that owns it. */
@@ -172,12 +186,12 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
     const existing = await prisma.course.findFirst({ where: { id: input.id, organizationId } });
     if (!existing) return { ok: false, error: "Course not found." };
     await prisma.course.update({ where: { id: input.id }, data });
-    refresh();
+    await refresh();
     return { ok: true, courseId: input.id };
   }
 
   const created = await prisma.course.create({ data: { ...data, organizationId } });
-  refresh();
+  await refresh();
   return { ok: true, courseId: created.id };
 }
 
@@ -193,7 +207,7 @@ export async function deleteClubCourse(courseId: string): Promise<CourseResult> 
   const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
   if (!course) return { ok: false, error: "Course not found." };
   await prisma.course.delete({ where: { id: courseId } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -218,7 +232,7 @@ export async function setHomeCourse(courseId: string | null): Promise<CourseResu
     where: { id: organizationId },
     data: { defaultCourseId: courseId },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -260,7 +274,7 @@ export async function setEventCourses(courseIds: string[]): Promise<CourseResult
     }
   });
 
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -330,7 +344,7 @@ export async function setStageCourse(
     where: { id: stageId },
     data: { courseId, nine: cleanNine(nine) },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -400,7 +414,7 @@ export async function setMatchCourse(
     where: { id: matchId },
     data: { courseId, nine: cleanNine(nine) },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -467,7 +481,7 @@ export async function saveTee(courseId: string, input: TeeInput, teeId?: string)
       data: { ...data, courseId, position: (max._max.position ?? -1) + 1 },
     });
   }
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -480,7 +494,7 @@ export async function deleteTee(teeId: string): Promise<CourseResult> {
   // Players keep their entry; the foreign key nulls their teeId rather than
   // deleting anyone who played off these tees.
   await prisma.tee.delete({ where: { id: teeId } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -507,7 +521,7 @@ export async function setEventDefaultTee(teeId: string | null): Promise<CourseRe
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
   await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: teeId } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -534,7 +548,7 @@ export async function setFlightTee(groupId: string, teeId: string | null): Promi
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
   await prisma.group.update({ where: { id: groupId }, data: { teeId } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -580,7 +594,7 @@ export async function setPlayerTee(playerId: string, teeId: string | null): Prom
     if (!tee) return { ok: false, error: "Those tees aren't on this tournament's course." };
   }
   await prisma.player.update({ where: { id: playerId }, data: { teeId } });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -603,7 +617,7 @@ export async function verifyCourseCard(courseId: string): Promise<CourseResult> 
     where: { id: courseId },
     data: { verifiedAt: new Date(), verifiedBy: session?.name ?? "" },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -616,7 +630,7 @@ export async function unverifyCourseCard(courseId: string): Promise<CourseResult
     where: { id: courseId },
     data: { verifiedAt: null, verifiedBy: "" },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
 
@@ -689,7 +703,7 @@ export async function importClubCourseCard(input: {
     },
   });
 
-  refresh();
+  await refresh();
   return { ok: true, courseId: created.id };
 }
 
@@ -817,7 +831,7 @@ export async function importCourseFromDirectory(directoryId: string): Promise<Di
     },
   });
 
-  refresh();
+  await refresh();
   return {
     ok: true,
     courseId: created.id,
@@ -915,7 +929,7 @@ export async function applySourceCard(courseId: string): Promise<CourseResult> {
       verifiedBy: session?.name ?? "",
     },
   });
-  refresh();
+  await refresh();
   return { ok: true, courseId };
 }
 
@@ -1076,6 +1090,6 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
     where: { id: matchId },
     data: { courseId, nine: cleanNine(input.nine ?? "full") },
   });
-  refresh();
+  await refresh();
   return { ok: true };
 }
