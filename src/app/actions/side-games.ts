@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { isDerivedKind, DERIVED_LABEL } from "@/lib/domain/derived-games";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
+import { requirePotAccess } from "@/lib/services/game-access";
+import { potAudience } from "@/lib/domain/pot-audience";
 
 /**
  * The side bets the cards settle: low gross, low net, birdies, eagles, Nassau.
@@ -11,12 +13,16 @@ import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
  * Note what is missing on purpose — there is no "set the winner" action. These
  * are DERIVED, so a winner comes from the scores and nothing else; an action
  * that let one be typed would let a stored result contradict the cards it was
- * supposed to come from. All an organizer decides is that the bet exists, what
- * it costs, and who is in.
+ * supposed to come from. All anyone decides is that the bet exists, what it
+ * costs, and who is in.
  *
- * Staff only, like the skins pot: this is money between players and who is in
- * the pot is a committee fact. Every write is audited. Records money, never
- * moves it.
+ * WHO decides is `requirePotAccess`, the same reader the skins pot uses. The
+ * organizer runs the tournament's money; a fourball runs its own. Two players
+ * agreeing a bet on the first tee should not have to find the organizer, and
+ * until this shared the skins rule they did — a group could run its own skins
+ * and not its own birdie pot, which was the same money under two rules.
+ *
+ * Every write is audited. Records money, never moves it.
  */
 
 export interface SideGameResult {
@@ -25,13 +31,53 @@ export interface SideGameResult {
   id?: string;
 }
 
-async function requireStaff(): Promise<{ eventId: string; name: string }> {
+/** The signed-in caller's display name, for the audit trail. */
+async function actorName(): Promise<string> {
   const session = await getSession();
-  if (!session?.eventId) throw new Error("Not signed in");
-  if (session.viewRole !== "admin" && session.viewRole !== "assistant") {
-    throw new Error("Only an organizer or assistant can do that");
-  }
-  return { eventId: session.eventId, name: session.name || session.email };
+  return session?.name || session?.email || "";
+}
+
+/**
+ * One game, and the proof that this caller may write it.
+ *
+ * The row is fetched by id ALONE, because the question `requirePotAccess`
+ * answers needs the game's own stage and group key — facts from the database,
+ * not a claim from the caller, who over HTTP will send whatever they like.
+ * Scoping the query to a claimed event first would ask the wrong question.
+ *
+ * The ownership check is INSIDE this function rather than left to each caller.
+ * Three actions need it, and a check you must remember to write after every
+ * lookup is a check that will eventually be missed — the difference between
+ * this and a plain `gameById` is that forgetting is no longer possible.
+ *
+ * A refusal comes back as a RESULT, not a throw. "That fourball is not yours"
+ * is an ordinary thing to tell a player, and the screens already know how to
+ * show `{ ok: false, error }`; thrown, it reached the browser as a crash.
+ *
+ * A game that does not exist and a game that is somebody else's give the same
+ * message on purpose. Telling a stranger that a game exists but is not theirs
+ * is itself a disclosure.
+ */
+type GameAccess =
+  | { ok: true; game: { id: string; kind: string; stageId: string; groupKey: string }; eventId: string }
+  | { ok: false; error: string };
+
+const NOT_YOURS = "That side game isn't in this tournament.";
+
+async function requireGameAccess(sideGameId: string): Promise<GameAccess> {
+  const game = await prisma.sideGame.findUnique({
+    where: { id: sideGameId },
+    select: { id: true, kind: true, eventId: true, stageId: true, groupKey: true },
+  });
+  if (!game) return { ok: false, error: NOT_YOURS };
+
+  // The refusal is carried out rather than thrown, so a player told "that
+  // fourball is not yours" gets a sentence instead of a crashed screen.
+  const access = await requirePotAccess(game.stageId, game.groupKey);
+  if (!access.ok) return { ok: false, error: access.error };
+  if (game.eventId !== access.eventId) return { ok: false, error: NOT_YOURS };
+
+  return { ok: true, game, eventId: access.eventId };
 }
 
 async function logMoney(eventId: string, action: string, detail: string) {
@@ -49,15 +95,29 @@ const KINDS = ["low-gross", "low-net", "birdies", "eagles", "nassau"];
 /**
  * Start (or re-price) one derived bet on a round.
  *
- * Upserts on (stageId, kind) because a round has at most one birdie pot — two
- * would be two prices for the same bet, and the cards cannot tell them apart.
+ * Upserts on (stageId, kind, groupKey) — one birdie pot per group per round.
+ * Two at the same key would be two prices for one bet and the cards could not
+ * tell them apart; two at DIFFERENT keys are two fourballs each running their
+ * own, which is the ordinary case and used to overwrite.
  */
 export async function saveSideGame(
   stageId: string,
   kind: string,
   buyInCents: number,
+  /** The field's game, or one fourball's. Empty is the field's. */
+  groupKeyInput: string = "",
 ): Promise<SideGameResult> {
-  const { eventId, name } = await requireStaff();
+  const groupKey = (groupKeyInput ?? "").trim();
+
+  // Staff for the field's game; the group itself for a group's. A group's own
+  // game is settled now — `gameNets` resolves each game's AUDIENCE from the
+  // round's tee sheet, so an opt-out birdie pot belonging to a fourball enters
+  // those four rather than the whole field. This was refused outright until
+  // that was true, which is why the refusal is gone rather than relaxed.
+  const access = await requirePotAccess(stageId, groupKey);
+  if (!access.ok) return { ok: false, error: access.error };
+  const eventId = access.eventId;
+  const name = await actorName();
 
   if (!KINDS.includes(kind)) return { ok: false, error: "Unknown side game." };
 
@@ -70,9 +130,13 @@ export async function saveSideGame(
   }
 
   const game = await prisma.sideGame.upsert({
-    where: { stageId_kind: { stageId, kind } },
+    where: { stageId_kind_groupKey: { stageId, kind, groupKey } },
     update: { buyInCents: cents },
-    create: { eventId, stageId, kind, buyInCents: cents, createdBy: name },
+    // groupKey in the CREATE too. Omitted, a fourball's game was written as
+    // the field's — or collided with the field's existing row on the unique
+    // key and threw. The where clause knew about the group and the create
+    // did not, which is the shape that always writes to the wrong row.
+    create: { eventId, stageId, kind, groupKey, buyInCents: cents, createdBy: name },
   });
 
   await logMoney(
@@ -95,18 +159,43 @@ export async function setSideGameEntrants(
   sideGameId: string,
   playerIds: string[],
 ): Promise<SideGameResult> {
-  const { eventId } = await requireStaff();
-
-  const game = await prisma.sideGame.findFirst({
-    where: { id: sideGameId, eventId },
-    select: { id: true, kind: true },
-  });
-  if (!game) return { ok: false, error: "That side game isn't in this tournament." };
+  const found = await requireGameAccess(sideGameId);
+  if (!found.ok) return { ok: false, error: found.error };
+  const { game, eventId } = found;
 
   const rows = await prisma.player.findMany({
     where: { eventId, id: { in: [...new Set(playerIds.filter(Boolean))] } },
     select: { id: true },
   });
+
+  /**
+   * AND ONLY PEOPLE THE GAME IS ACTUALLY OFFERED TO.
+   *
+   * Being in the field is not enough for a group's game. `potAudience` is the
+   * same reader the settle-up uses to decide who a group's pot may charge, so
+   * the two cannot disagree about who is in it — and without this, one player
+   * in a fourball could stake three strangers in a bet they never heard of,
+   * which is money appearing in somebody else's settle-up.
+   *
+   * For the field's game and for an ad-hoc name it returns the whole field, so
+   * this narrows nothing there. It is refused rather than silently dropped: a
+   * picker that quietly loses two of the six names you ticked is worse than
+   * one that says so.
+   */
+  const stage = await prisma.stage.findUnique({
+    where: { id: game.stageId },
+    select: { teeSheet: true },
+  });
+  const field = await prisma.player.findMany({
+    where: { eventId, status: "confirmed" },
+    select: { id: true },
+  });
+  const allowed = new Set(
+    potAudience(game.groupKey, stage?.teeSheet ?? "", field.map((p) => p.id)),
+  );
+  if (rows.some((r) => !allowed.has(r.id))) {
+    return { ok: false, error: "Somebody you picked isn't in this game's group." };
+  }
 
   /**
    * Replaces the CONFIRMED entrants, and leaves people who are still waiting
@@ -194,19 +283,21 @@ export async function requestSideGameEntry(
   return { ok: true };
 }
 
-/** The organizer says the cash is in. This is what puts a stake in the pot. */
+/**
+ * Somebody says the cash is in. This is what puts a stake in the pot.
+ *
+ * The organizer for the field's game; anyone in the group for a group's,
+ * because a fourball settling a £5 birdie pot between themselves has no
+ * organizer standing over it and should not need one.
+ */
 export async function confirmSideGameEntry(
   sideGameId: string,
   playerId: string,
   paid: boolean,
 ): Promise<SideGameResult> {
-  const { eventId } = await requireStaff();
-
-  const game = await prisma.sideGame.findFirst({
-    where: { id: sideGameId, eventId },
-    select: { id: true, kind: true },
-  });
-  if (!game) return { ok: false, error: "That side game isn't in this tournament." };
+  const found = await requireGameAccess(sideGameId);
+  if (!found.ok) return { ok: false, error: found.error };
+  const { game, eventId } = found;
 
   const entry = await prisma.sideGameEntry.findUnique({
     where: { sideGameId_playerId: { sideGameId, playerId } },
@@ -220,12 +311,9 @@ export async function confirmSideGameEntry(
 }
 
 export async function removeSideGame(sideGameId: string): Promise<SideGameResult> {
-  const { eventId } = await requireStaff();
-  const game = await prisma.sideGame.findFirst({
-    where: { id: sideGameId, eventId },
-    select: { id: true, kind: true },
-  });
-  if (!game) return { ok: false, error: "That side game isn't in this tournament." };
+  const found = await requireGameAccess(sideGameId);
+  if (!found.ok) return { ok: false, error: found.error };
+  const { game, eventId } = found;
 
   await prisma.sideGame.delete({ where: { id: game.id } });
   await logMoney(eventId, "sidegame.remove", `Removed ${game.kind}`);

@@ -1,6 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
 import { addPrize, updatePrize, setPrizeWinner, removePrize } from "@/app/actions/tournament";
+import { useMoney } from "@/components/CurrencyProvider";
+import { money as formatMoney, minorUnitDigits } from "@/lib/domain/money-format";
 
 export interface PrizeRow {
   id: string;
@@ -10,8 +12,24 @@ export interface PrizeRow {
   winnerId: string | null;
 }
 
-const money = (n: number) =>
-  n > 0 ? n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }) : "—";
+/**
+ * A prize, in the CLUB'S currency.
+ *
+ * `currency: "USD"` was written here literally, so a club in Britain read its
+ * whole prize list in dollars — on the screen it uses to tell members what
+ * they won.
+ *
+ * NOTE the unit. `Prize.amount` is a Float in WHOLE units, unlike every other
+ * money column in this app, which stores minor units. That is why this scales
+ * by the currency's own minor-unit count before formatting rather than calling
+ * `money()` directly: handing whole pounds to a formatter expecting pence
+ * would divide the purse by a hundred.
+ */
+function usePrizeMoney() {
+  const { currency } = useMoney();
+  return (n: number) =>
+    n > 0 ? formatMoney(Math.round(n * 10 ** minorUnitDigits(currency)), currency) : "—";
+}
 
 export function PrizesClient({
   prizes,
@@ -20,6 +38,8 @@ export function PrizesClient({
   prizes: PrizeRow[];
   players: Array<{ id: string; name: string }>;
 }) {
+  const money = usePrizeMoney();
+  const { symbol } = useMoney();
   const [category, setCategory] = useState("");
   const [detail, setDetail] = useState("");
   const [amount, setAmount] = useState("");
@@ -78,7 +98,7 @@ export function PrizesClient({
             />
           </div>
           <div className="field" style={{ width: 130 }}>
-            <label>Amount ($)</label>
+            <label>Amount ({symbol})</label>
             <input
               className="input"
               type="number"

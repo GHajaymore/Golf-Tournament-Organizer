@@ -1,5 +1,7 @@
 import { loadEventState } from "@/lib/services/tournament";
 import { skinsSeasonFor } from "@/lib/services/skins-pot";
+import { currencyForEvent } from "@/lib/services/organization";
+import { money as formatMoney } from "@/lib/domain/money-format";
 
 /**
  * The facts a drafted message is allowed to be built from.
@@ -27,7 +29,9 @@ export interface DraftFacts {
 }
 
 /** Two decimal places without a floating-point tail. */
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+/* Amounts here go into a message a club SENDS to its members, so writing
+   them in the wrong currency is wrong in front of the people it is about.
+   Resolved per call from the club, below, rather than baked in. */
 
 function toPar(n: number): string {
   if (n === 0) return "level";
@@ -42,6 +46,8 @@ function toPar(n: number): string {
  * leaders, the movers and the money are what a club writes about.
  */
 export async function draftFactsFor(eventId: string): Promise<DraftFacts> {
+  const currency = await currencyForEvent(eventId);
+  const money = (cents: number) => formatMoney(cents, currency);
   const state = await loadEventState(eventId);
   if (!state) return { text: "", names: [], eventName: "", empty: true };
 

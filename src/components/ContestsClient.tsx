@@ -13,6 +13,7 @@ import { CONTEST_KINDS, CONTEST_LABEL, type ContestKind } from "@/lib/domain/con
 import { DERIVED_KINDS, DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
 import { PersonChip } from "@/components/PersonChip";
 import FieldInfo from "@/components/FieldInfo";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * The derived pots, in the order a club would read them. Nassau is last and
@@ -65,7 +66,13 @@ export interface ContestView {
   excluded: Array<{ playerId: string; name: string }>;
 }
 
-const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+/**
+ * The club's way of writing an amount, not this file's.
+ *
+ * Was a local `money()` hard-coding a dollar sign and dividing by a hundred.
+ * There were several of these and a club outside the United States saw dollars
+ * on every one, at a hundredth of the value in a currency with no minor unit.
+ */
 
 
 export interface SideGameView {
@@ -94,6 +101,7 @@ export function ContestsClient({
   sideGames: SideGameView[];
   field: Array<{ id: string; name: string; playing: boolean }>;
 }) {
+  const { money, plain, parse } = useMoney();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
@@ -151,7 +159,7 @@ export function ContestsClient({
   );
 
   const create = () => {
-    const cents = Math.round(Number(stake.replace(/[^0-9.]/g, "")) * 100);
+    const cents = parse(stake);
     if (!Number.isFinite(cents) || cents < 0) {
       setError("Enter a stake per player, or zero for a free contest.");
       return;
@@ -256,12 +264,12 @@ export function ContestsClient({
                   <input
                     className="input"
                     inputMode="decimal"
-                    defaultValue={game ? (game.buyInCents / 100).toFixed(2) : ""}
+                    defaultValue={game ? plain(game.buyInCents) : ""}
                     placeholder="0.00"
                     disabled={pending}
                     style={{ width: 82, minHeight: 40, textAlign: "right" }}
                     onBlur={(e) => {
-                      const cents = Math.round(Number(e.target.value.replace(/[^0-9.]/g, "")) * 100);
+                      const cents = parse(e.target.value);
                       if (!Number.isFinite(cents)) return;
                       if (game && cents === game.buyInCents) return;
                       run(() => saveSideGame(stageId, row.kind, cents));

@@ -87,6 +87,20 @@ export const CLONED_EVENT_FIELDS = [
    * column was added to end.
    */
   "defaultTeeId",
+  /**
+   * `defaultTee` is the RELATION beside the id above, not a second decision.
+   *
+   * It appears in this list only because the policy test enumerates every
+   * field Prisma knows about, and it now knows about this one: the column had
+   * a real foreign key in migration 53 and no relation in schema.prisma, so
+   * every CI run stopped at the drift check. Declaring the relation fixed the
+   * drift and surfaced the field here.
+   *
+   * Listing it alongside `defaultTeeId` keeps the two together — a copy that
+   * inherited the id but not the relation, or the reverse, would be a
+   * tournament pointing at tees it does not admit to.
+   */
+  "defaultTee",
   // A society that plays a different course every week does so next season
   // too. The venue itself is not copied — see the exclusion below — but the
   // decision not to have one is part of what the tournament is.

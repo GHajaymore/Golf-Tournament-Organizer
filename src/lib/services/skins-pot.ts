@@ -15,6 +15,7 @@ import {
   type SkinsScope,
 } from "../domain/skins-pot";
 import { resolveCourse } from "../courses";
+import { parseTeeSheet } from "../domain/tee-sheet";
 
 /**
  * A week's skins pot, resolved into money.
@@ -30,8 +31,21 @@ export interface SkinsPotView {
   buyInCents: number;
   net: boolean;
   scope: SkinsScope;
-  /** Players staff have entered into the pot. */
+  /**
+   * Players whose STAKE is in the pot — confirmed entries only.
+   *
+   * A name put down in the app is an intention, not money. Since a player in
+   * another fourball can now ask to join, an entry row is no longer proof of
+   * cash, and paying the pot out across people who have not put anything in
+   * leaves whoever holds it personally short the difference.
+   */
   entrantIds: string[];
+  /**
+   * Asked to join and not yet paid. Listed so somebody in the bet can see the
+   * request and take the money — an ask nobody is shown is an ask that was
+   * never made.
+   */
+  pendingIds: string[];
   /** Everyone who could be entered, for the picker. */
   field: Array<{ id: string; name: string; playing: boolean }>;
   /** Null until at least one player is entered — there is no pot before that. */
@@ -63,13 +77,36 @@ export async function skinsPotFor(
    * round and only the pair (net, scope) tells them apart.
    */
   scope: SkinsScope,
+  /**
+   * And whose: "" for the field's pot, or a group / side-bet name.
+   *
+   * REQUIRED, and the default it replaces is the whole reason this argument
+   * has to be. `scope` above is required for exactly this stated reason —
+   * "a default would read the wrong game's money without complaining" — and
+   * `groupKey` was added with a default anyway.
+   *
+   * Every one of the four callers then forgot it. Each enumerated the pots on
+   * a round, including group ones, and re-read each row without a groupKey,
+   * so all of them resolved to the FIELD's pot: the club's money counted once
+   * per group pot, and every fourball's and side bet's money silently gone.
+   * The settle-up, the season table, the week sheet and Prizes were all wrong
+   * in the same way, and the ledger's own zero-sum check could not see it
+   * because a doubled figure still sums to zero.
+   *
+   * A guard you must remember to pass is a guard that will be forgotten. This
+   * one is now the compiler's to remember.
+   */
+  groupKey: string,
 ): Promise<SkinsPotView | null> {
   const [pot, stage, event] = await Promise.all([
     prisma.skinsPot.findUnique({
-      where: { stageId_net_scope: { stageId, net, scope } },
+      where: { stageId_net_scope_groupKey: { stageId, net, scope, groupKey } },
       include: { entrants: true },
     }),
-    prisma.stage.findUnique({ where: { id: stageId }, select: { id: true, eventId: true, holes: true } }),
+    prisma.stage.findUnique({
+      where: { id: stageId },
+      select: { id: true, eventId: true, holes: true, teeSheet: true },
+    }),
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
   ]);
   if (!stage || stage.eventId !== eventId || !event) return null;
@@ -127,7 +164,31 @@ export async function skinsPotFor(
   const strokesBy = new Map(cards.map((c) => [c.playerId, parse(c.strokes)]));
   const returned = (id: string) => (strokesBy.get(id) ?? []).some((s) => s != null);
 
-  const entrantIds = (pot?.entrants ?? []).map((e) => e.playerId);
+  /**
+   * WHO THIS POT CAN EVEN CONTAIN.
+   *
+   * The field for the club's pot; just the fourball for a group's. A group
+   * pot offering all forty names is forty names to scroll past to find your
+   * own three playing partners, and the wrong tick is somebody in a game they
+   * never agreed to.
+   *
+   * Taken from the published tee sheet, which is the only record of who is
+   * playing with whom. A groupKey that matches no current group falls back to
+   * the whole field rather than to nobody — a redrawn sheet must not make an
+   * existing pot unmanageable.
+   */
+  const groupIds = (() => {
+    if (!groupKey) return null;
+    const sheet = parseTeeSheet(stage.teeSheet ?? "");
+    const g = sheet?.groups.find((x) => x.name === groupKey);
+    return g && g.playerIds.length > 0 ? new Set(g.playerIds) : null;
+  })();
+  const offered = groupIds ? players.filter((p) => groupIds.has(p.id)) : players;
+
+  // Confirmed only. `pendingIds` is the asked-but-not-paid half, and the two
+  // must not be added together anywhere: one is money and one is an intention.
+  const entrantIds = (pot?.entrants ?? []).filter((e) => e.confirmed).map((e) => e.playerId);
+  const pendingIds = (pot?.entrants ?? []).filter((e) => !e.confirmed).map((e) => e.playerId);
   const nameById = Object.fromEntries(players.map((p) => [p.id, p.name]));
 
   // Only entrants play for the money. Someone can play the round and stay out
@@ -196,7 +257,8 @@ export async function skinsPotFor(
     net,
     scope,
     entrantIds,
-    field: players.map((p) => ({ id: p.id, name: p.name, playing: returned(p.id) })),
+    pendingIds,
+    field: offered.map((p) => ({ id: p.id, name: p.name, playing: returned(p.id) })),
     result,
     transfers: result ? settle(result.shares.map((s) => ({ playerId: s.playerId, netCents: s.netCents }))) : [],
     nameById,
@@ -229,7 +291,17 @@ export interface SkinsSeasonRow {
  */
 export async function skinsSeasonFor(eventId: string): Promise<SkinsSeasonRow[]> {
   const pots = await prisma.skinsPot.findMany({
-    where: { eventId },
+    // THE CLUB'S POTS ONLY.
+    //
+    // A season table is the club's standing, so a private bet between four
+    // friends does not belong in it — and the fourball that plays for £20 a
+    // week would otherwise top the club's season table on money nobody else
+    // was invited to play for.
+    //
+    // The filter is also what stops the arithmetic being wrong: this
+    // enumerated EVERY pot on the round and then re-read the field's one for
+    // each, so a round with two group pots counted the club's three times.
+    where: { eventId, groupKey: "" },
     // The scope too: a league night runs four pots on one round, and reading
     // (stageId, net) alone asked for the same one twice and missed the rest —
     // which for a season total is money that never appears.
@@ -239,7 +311,7 @@ export async function skinsSeasonFor(eventId: string): Promise<SkinsSeasonRow[]>
 
   const weeks = await Promise.all(
     pots.map((p) =>
-      skinsPotFor(eventId, p.stageId, p.net, isSkinsScope(p.scope) ? p.scope : "full"),
+      skinsPotFor(eventId, p.stageId, p.net, isSkinsScope(p.scope) ? p.scope : "full", ""),
     ),
   );
   const results = weeks.filter((w): w is SkinsPotView => !!w && !!w.result).map((w) => w.result!);

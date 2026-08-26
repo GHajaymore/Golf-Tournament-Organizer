@@ -87,6 +87,38 @@ describe("every server action is guarded", () => {
     "requireMembership",
     "getPlaySession",
     "effectiveAccess",
+    /**
+     * skins.ts: the one guard here that is deliberately NOT staff-only.
+     *
+     * A fourball running its own $20 skins should not need the organizer, so
+     * `requirePotAccess` splits the answer: an empty groupKey is the FIELD's
+     * pot and stays organizer-or-assistant exactly as before, while a named
+     * group is writable by the players in that group — and only them.
+     *
+     * Listed per the note above only because it was verified, and the
+     * verification is itself a test rather than a reading: see "requirePotAccess
+     * is a real check, not a reassuring name" in audit-idor.test.ts, which pins
+     * that it proves the stage belongs to the caller's event, refuses the
+     * field's pot to non-staff, takes membership from the published tee sheet
+     * rather than from the caller, and resolves the caller from the session.
+     * Neutering any of those fails that suite.
+     */
+    "requirePotAccess",
+    /**
+     * side-games.ts: `requirePotAccess` reached through the game's own row.
+     *
+     * A side game is identified by its id alone, so the stage and group key
+     * that `requirePotAccess` needs have to be read from the row before it can
+     * be asked. This wrapper does that, calls it, and then compares the row's
+     * eventId to the one it returned — refusing a game in another tournament.
+     *
+     * Listed per the note above only because it was verified, and the
+     * verification is a test rather than a reading: "no action trusts a row id
+     * it was handed" in audit-idor.test.ts requires every id parameter to be
+     * narrowed to the caller's scope, and this is the only thing narrowing
+     * `sideGameId`. Neutering it fails that suite.
+     */
+    "requireGameAccess",
   ];
 
   const files = readdirSync(ACTIONS_DIR).filter((f) => f.endsWith(".ts"));

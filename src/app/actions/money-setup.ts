@@ -1,6 +1,8 @@
 "use server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { currencyForEvent } from "@/lib/services/organization";
+import { minorUnitsFrom, money } from "@/lib/domain/money-format";
 import { revalidatePath } from "next/cache";
 import { isMoneyMode } from "@/lib/domain/money-mode";
 import { isPotEntryMode } from "@/lib/domain/pot-entry";
@@ -206,10 +208,18 @@ export async function addFundLine(input: FundInput): Promise<MoneyResult> {
   if (!description) return { ok: false, error: "What was it for?" };
 
   // The same reading and the same ceiling as an expense, so the two money
-  // features cannot disagree about what a valid amount is.
-  const amountCents = Math.round(Number((input.amount ?? "").toString().replace(/[^0-9.-]/g, "")) * 100);
+  // features cannot disagree about what a valid amount is — AND the same
+  // reader, in the club's own currency.
+  //
+  // This multiplied by a hundred, which is only right where a hundred minor
+  // units make one. A Tokyo club entering a ¥5,000 entry fee stored ¥500,000
+  // and the kitty was out by a hundredfold from the first line. `money()` was
+  // taught about currency and this was not; a parser and a formatter that
+  // disagree is the same one-rule-two-readers fault, in the half that writes.
+  const currency = await currencyForEvent(who.eventId);
+  const amountCents = minorUnitsFrom((input.amount ?? "").toString(), currency);
   if (!isValidAmount(amountCents)) {
-    return { ok: false, error: `Enter an amount between 0 and ${MAX_EXPENSE_CENTS / 100}.` };
+    return { ok: false, error: `Enter an amount up to ${money(MAX_EXPENSE_CENTS, currency)}.` };
   }
   if (amountCents <= 0) return { ok: false, error: "An amount of zero isn’t a line." };
 

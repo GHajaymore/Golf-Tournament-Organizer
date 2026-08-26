@@ -65,11 +65,36 @@ export const NAV: NavSection[] = [
       { key: "messages", label: "Messages", href: "/messages", icon: "ph ph-chat-circle-dots" },
     ],
   },
+  /**
+   * MONEY, on its own.
+   *
+   * It sat under Results, beside the export — which is where a tournament's
+   * money went when it was one screen of prize payouts. It is not that any
+   * more: there is the club's pot, each fourball's own game, side bets, the
+   * shared costs of a trip, the float and the settle-up. That is an
+   * accounting section, and a treasurer coming to do the books should not
+   * have to look for it under the same heading as a CSV.
+   *
+   * Deliberately AFTER Results rather than before: the golf comes first, and
+   * the money is what follows a round rather than what a club opens the app
+   * for. The order is the claim — the golf is the product, the accounting is
+   * the part that stops being a chore.
+   */
   {
     label: "Results",
     items: [
-      { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-trophy" },
       { key: "reports", label: "Reports & export", href: "/reports", icon: "ph ph-export" },
+    ],
+  },
+  {
+    label: "Money",
+    items: [
+      { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-trophy" },
+      // Its own entry, not a section of Prizes, because it is different money
+      // with different owners: the field's pot is the club's, a group's pot is
+      // four players' own. Two lists of identical-looking cards on one screen
+      // is how somebody pays into the wrong one.
+      { key: "group-games", label: "Group games", href: "/group-games", icon: "ph ph-users-three" },
     ],
   },
 ];

@@ -28,6 +28,14 @@ import { join } from "node:path";
  */
 
 const ACTIONS_DIR = join(process.cwd(), "src", "app", "actions");
+/**
+ * The shared access reader lives in services/, not in an action file.
+ *
+ * It moved there so the skins pot and the side games ask ONE function who
+ * may write a group's money. A "use server" file cannot export a helper
+ * without publishing it as an HTTP endpoint, so sharing it meant moving it.
+ */
+const SERVICES_DIR = join(process.cwd(), "src", "lib", "services");
 const stripComments = (s: string) =>
   s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
@@ -140,7 +148,13 @@ const SCOPE_KEY = /\b(eventId|organizationId|userId|session\.email)\b/;
  *   - the row is fetched by this id and its own eventId/organizationId is
  *     compared afterwards — `stageInEvent`'s pattern, written out inline;
  *   - the id is handed to a helper whose job is to assert exactly this
- *     (`assertOwnMatch`, `assertEventStage`, `stageInEvent`, `effectiveAccess`).
+ *     (`assertOwnMatch`, `assertEventStage`, `stageInEvent`, `effectiveAccess`,
+ *     or a `require*Access`).
+ *
+ * That last shape is a NAME being trusted to do a job, which is only worth
+ * anything while the named thing actually does it. `requirePotAccess` is
+ * covered by its own test below, so widening this pattern did not quietly
+ * turn it into a way to opt out by choosing a filename.
  */
 function isParamScoped(body: string, param: string, alreadyScoped: string[]): boolean {
   const clauses = whereClauses(body);
@@ -161,7 +175,7 @@ function isParamScoped(body: string, param: string, alreadyScoped: string[]): bo
     new RegExp(`where:\\s*\\{\\s*id:\\s*${param}\\b`).test(body) &&
     /\.(eventId|organizationId)\s*(!==|===)/.test(body);
   const handedToAssertion = new RegExp(
-    `\\b(assert\\w+|\\w+InEvent|effectiveAccess)\\s*\\([^)]*\\b${param}\\b`,
+    `\\b(assert\\w+|\\w+InEvent|effectiveAccess|require\\w*Access)\\s*\\([^)]*\\b${param}\\b`,
   ).test(body);
   // Or it is tested for membership of a set built from a scoped query — how
   // the bulk paths narrow ids they receive by the hundred rather than issuing
@@ -337,5 +351,147 @@ describe("the club theme cannot inject CSS", () => {
     expect(body).toMatch(/isAppearance\(appearance\)/);
     // And it is still an organizer-only write.
     expect(body).toMatch(/org\.canEdit/);
+  });
+});
+
+/**
+ * The helper the IDOR sweep now trusts by name.
+ *
+ * `isParamScoped` accepts an id as scoped when it is handed to a
+ * `require*Access` helper. That is a name vouching for a behaviour, and a name
+ * is worth nothing on its own — so the behaviour is pinned here.
+ *
+ * `requirePotAccess` widened who may write a skins pot: a fourball's own game
+ * can be set up by any player in that fourball, without the organizer. That is
+ * a deliberate loosening, and it is only safe while all four of these hold. If
+ * any one goes, a player can reach another group's money.
+ */
+describe("requirePotAccess is a real check, not a reassuring name", () => {
+  const src = readFileSync(join(SERVICES_DIR, "game-access.ts"), "utf8");
+  const start = src.indexOf("async function requirePotAccess");
+  // Bounded by the next top-level declaration rather than by a brace pattern:
+  // matching "\n}\n" depends on the file's line endings, and on CRLF it found
+  // nothing and silently sliced the body down to one character — a test that
+  // passes vacuously is worse than one that fails.
+  const after = src.indexOf("\nexport ", start);
+  const fn = start === -1 ? "" : src.slice(start, after === -1 ? undefined : after);
+
+  it("exists at all", () => {
+    expect(start, "requirePotAccess has been renamed or removed").toBeGreaterThan(-1);
+    expect(fn.length).toBeGreaterThan(200);
+  });
+
+  it("proves the round belongs to the caller's tournament", () => {
+    // Without this the group check below is asked about a stage in somebody
+    // else's event, and would happily pass for a group name that matches.
+    expect(fn).toMatch(/stageInEvent\(\s*eventId\s*,\s*stageId\s*\)/);
+  });
+
+  it("keeps the FIELD's pot organizer-only", () => {
+    // An empty groupKey is the tournament's own money. Players get their own
+    // group's game, not the club's.
+    // A refusal, thrown or returned. The rule ANSWERS rather than throwing —
+    // a thrown refusal escaped the server action and reached the browser as a
+    // runtime error overlay instead of a sentence — so what is pinned here is
+    // that the field's pot is refused at all, not how the refusal travels.
+    expect(fn).toMatch(/if\s*\(!key\)\s*(throw|return no\()/);
+  });
+
+  it("reads group membership from the tee sheet, never from the caller", () => {
+    // The group name arrives over HTTP. What must NOT arrive over HTTP is who
+    // is in it — otherwise a caller names any group and claims to be in it.
+    expect(fn).toMatch(/parseTeeSheet\(/);
+    expect(fn).toMatch(/group\??\.playerIds\.includes\(me\.id\)/);
+  });
+
+  it("refuses a named group outright rather than falling through", () => {
+    /**
+     * THE HOLE THIS PINS, found on 2026-08-25 by game-access.audit.test.ts.
+     *
+     * The tee-sheet check used to be `if (member) return` and then fall on to
+     * the branch that lets anyone start a name NOBODY is in. A group's game
+     * that did not exist yet had no entrants, so that branch caught it — and a
+     * player in Group 2 could create Group 1's opt-out birdie pot, which
+     * enters Group 1 and charges them the stake.
+     *
+     * So the group branch must END in a throw. A shape check, because the
+     * behaviour is asserted against real rows next door and this is the thing
+     * that stops the shape quietly coming back.
+     */
+    const at = fn.indexOf("if (group)");
+    expect(at, "the tee-sheet branch must be a closed if (group) { ... }").toBeGreaterThan(-1);
+    // Between entering that branch and leaving it, there is a throw.
+    const branch = fn.slice(at, fn.indexOf("entrants.size === 0"));
+    expect(branch).toMatch(/throw new Error|return no\(/);
+  });
+
+  it("resolves the caller from the session, not from a parameter", () => {
+    // `me` comes from the signed-in email against this event's players. A
+    // playerId parameter here would let anyone act as anyone.
+    expect(fn).toMatch(/session\.email/);
+    expect(fn).toMatch(/prisma\.player\.findFirst\(/);
+    // No playerId PARAMETER. `e.playerId` reading the pot's own entrant rows
+    // is the opposite of the danger — a fact from the database rather than a
+    // claim from the caller — so the check is for a parameter position.
+    expect(fn).not.toMatch(/\(\s*playerId\s*[,:)]/);
+  });
+});
+
+/**
+ * The third branch of requirePotAccess: a bet that is nobody's group.
+ *
+ * Six friends across three fourballs agree a game on the first tee. That is
+ * neither the club's pot nor any one group's, so it is stored under a name
+ * they chose — and the access rule cannot be "is this a tee-sheet group",
+ * because it deliberately is not one.
+ *
+ * The rule is instead about the pot's own membership, and it is pinned here
+ * because it is the one place a player can write money into a pot the tee
+ * sheet does not vouch for.
+ */
+describe("an ad-hoc side bet is still somebody's, not everybody's", () => {
+  const src = readFileSync(join(SERVICES_DIR, "game-access.ts"), "utf8");
+  const start = src.indexOf("async function requirePotAccess");
+  const after = src.indexOf("\nexport ", start);
+  const fn = start === -1 ? "" : src.slice(start, after === -1 ? undefined : after);
+
+  it("still resolves the caller from the session before anything else", () => {
+    // The ad-hoc branch sits AFTER the caller has been resolved to a real
+    // player in this event. Reordering it above that would let a signed-in
+    // stranger write a pot in a tournament they are not in.
+    const meAt = fn.indexOf("prisma.player.findFirst");
+    const adHocAt = fn.indexOf("skinsPot.findMany");
+    expect(meAt).toBeGreaterThan(-1);
+    expect(adHocAt).toBeGreaterThan(meAt);
+  });
+
+  it("checks the pot's own entrants, not the caller's word", () => {
+    // Membership of an ad-hoc bet is the entrant rows, read from the database.
+    // Across EVERY pot under this name on the round, not the first row found.
+    // A name can carry four pots — front and back, gross and net — and
+    // deciding access from whichever turned up first answered about a
+    // different game than the one being written.
+    expect(fn).toMatch(/skinsPot\.findMany/);
+    expect(fn).toMatch(/entrants\.has\(me\.id\)/);
+  });
+
+  it("leaves an EMPTY pot open, and a populated one closed", () => {
+    // The gap between creating a pot and naming its entrants is the one
+    // moment nobody is in it. Closing that would make a bet impossible to
+    // start; leaving it open once people ARE in it would let anyone re-price
+    // or empty somebody else's game.
+    expect(fn).toMatch(/entrants\.size === 0/);
+    // Refused, thrown or returned — the rule answers rather than throwing so
+    // the player gets a sentence rather than a crashed screen.
+    expect(fn).toMatch(
+      /(throw new Error|return no)\("Only somebody in this game can change it"\)/,
+    );
+  });
+
+  it("bounds the name rather than truncating it", () => {
+    // The name is part of a unique key. Silently shortening two different
+    // names to the same forty characters would merge two groups' money.
+    expect(fn).toMatch(/key\.length > AD_HOC_NAME_MAX/);
+    expect(src).not.toMatch(/groupKey.*\.slice\(0, ?AD_HOC_NAME_MAX\)/);
   });
 });

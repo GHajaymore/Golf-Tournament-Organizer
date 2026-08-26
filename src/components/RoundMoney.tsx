@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { RoundMoneyView } from "@/lib/services/expenses";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * What the pots paid, round by round, with the outing underneath.
@@ -15,10 +16,13 @@ import type { RoundMoneyView } from "@/lib/services/expenses";
  * A player looking at forty pounds on the 14th who finishes with nothing has
  * been told something the app had no business claiming.
  */
-export function RoundMoney({ view, currency = "$" }: { view: RoundMoneyView; currency?: string }) {
+export function RoundMoney({ view }: { view: RoundMoneyView }) {
   const [open, setOpen] = useState<string | null>(null);
-  const money = (cents: number) =>
-    `${cents < 0 ? "−" : cents > 0 ? "+" : ""}${currency}${Math.abs(cents / 100).toFixed(2)}`;
+  // The club's currency from the provider, not a symbol threaded in as a
+  // prop. The prop carried only the SYMBOL, so it could not say how many minor
+  // units the currency has — and `/ 100` assumed a hundred, which yen has not.
+  const { money: fmt } = useMoney();
+  const money = (cents: number) => `${cents > 0 ? "+" : ""}${fmt(cents)}`;
   const tone = (cents: number) =>
     cents > 0 ? "var(--color-accent-2-300)" : cents < 0 ? "var(--color-danger)" : "var(--color-text)";
 
@@ -27,6 +31,39 @@ export function RoundMoney({ view, currency = "$" }: { view: RoundMoneyView; cur
   return (
     <section className="card elev-sm" style={{ gap: 10 }}>
       <span className="card-title" style={{ fontSize: 15 }}>The pots</span>
+
+      {/*
+        What is riding on the round in front of you.
+
+        A player can be in the club's pot, their fourball's skins, a birdie pot
+        and a two-man bet at once, and every one of those was its own row with
+        no total anywhere. This is the number somebody wants walking to the
+        first tee, and it is a STAKE rather than a position — knowable the
+        moment the bets are agreed, and unchanged by what the cards do — which
+        is the only reason it is safe to show while a round is still live.
+      */}
+      {view.playerId && view.stake.games > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            gap: 10,
+            padding: "8px 12px",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--color-border)",
+            minWidth: 0,
+          }}
+        >
+          <span className="text-muted" style={{ fontSize: 12.5, minWidth: 0, lineHeight: 1.5 }}>
+            You&rsquo;re in {view.stake.games} {view.stake.games === 1 ? "game" : "games"} still to
+            play
+          </span>
+          <span style={{ fontFamily: "var(--font-heading)", fontSize: 16, whiteSpace: "nowrap" }}>
+            {fmt(view.stake.cents)} in
+          </span>
+        </div>
+      )}
 
       {!view.playerId ? (
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>

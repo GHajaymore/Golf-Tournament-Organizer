@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { currencySymbol, DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import {
   membershipFor,
   threadsFor,
@@ -155,7 +156,11 @@ export async function previewSmsBroadcast(scope: string, body: string): Promise<
   if (ctx.role !== "admin" && ctx.role !== "assistant") return null;
   const org = await prisma.organization.findUnique({
     where: { id: ctx.organizationId },
-    select: { name: true, smsRateMicros: true, currencySymbol: true },
+    // The ISO CODE, not the free-text symbol. `currencySymbol` predates the
+    // currency setting and `saveOrganizationCurrency` never touches it, so a
+    // club that set itself to GBP still had "$" here and was quoted its text
+    // costs in the wrong money.
+    select: { name: true, smsRateMicros: true, currency: true },
   });
   return planSmsBroadcast(
     ctx,
@@ -163,7 +168,7 @@ export async function previewSmsBroadcast(scope: string, body: string): Promise<
     body,
     org?.name ?? "",
     org?.smsRateMicros ?? 0,
-    org?.currencySymbol ?? "$",
+    currencySymbol(org?.currency || DEFAULT_CURRENCY),
   );
 }
 

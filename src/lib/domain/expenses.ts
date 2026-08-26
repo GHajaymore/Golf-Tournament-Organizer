@@ -24,6 +24,37 @@ export interface ExpenseShare {
   playerId: string;
   /** Relative weight. 1 each is an even split; 0 excludes without deleting. */
   weight: number;
+  /**
+   * An EXACT amount in cents for this person, overriding the weight.
+   *
+   * Weights cover most of what a group needs — equal shares, double for the
+   * one with the suite, nothing for the one who did not eat — and percentages
+   * are just weights out of a hundred. What they cannot express is a bill
+   * where the real amounts do not reduce to a small ratio: two rooms at
+   * $181.37 and $218.63, or a restaurant bill split by what each person
+   * actually ordered.
+   *
+   * When ANY share on an expense carries an exact amount, the expense is
+   * split by exact amounts and weights are ignored — mixing the two on one
+   * line has no meaning a person could predict. Anyone left without an amount
+   * gets nothing, so the picker must fill them all in.
+   */
+  amountCents?: number;
+}
+
+/**
+ * One person actually putting money down.
+ *
+ * A bill is not always one card. Two of them split the dinner at the till, one
+ * puts the rooms on his card and another the buggies, somebody throws $40 cash
+ * at the bar tab. Recording that as a single `paidBy` forces whoever enters it
+ * to either lie about who paid or break one bill into several — and the second
+ * is worse, because the ledger then says the group ate two dinners.
+ */
+export interface ExpensePayment {
+  playerId: string;
+  /** Integer cents this person actually laid out. */
+  amountCents: number;
 }
 
 export interface Expense {
@@ -36,8 +67,20 @@ export interface Expense {
    * a refund shared by four is four people each owed a quarter of it.
    */
   amountCents: number;
-  /** The player who actually paid the bill (or received the refund). */
+  /**
+   * The player who paid the bill (or received the refund).
+   *
+   * Still here, and still the answer for the overwhelmingly common case of one
+   * person paying. When `payments` is present it takes over, and this becomes
+   * the fallback that keeps the ledger balanced — see `paymentsOf`.
+   */
   paidBy: string;
+  /**
+   * Who put money down, when it was more than one person. Absent or empty
+   * means `paidBy` paid the lot, which is what every row created before this
+   * existed means.
+   */
+  payments?: ExpensePayment[];
   shares: ExpenseShare[];
 }
 
@@ -66,6 +109,31 @@ export function shareOf(expense: Expense): Map<string, number> {
   const amount = clean(expense.amountCents);
   const out = new Map<string, number>();
 
+  // EXACT AMOUNTS, if this expense uses them. One share carrying an amount
+  // switches the whole line over, because a line that was half weights and
+  // half amounts would have no answer anybody could predict.
+  const exact = expense.shares.some((s) => s.amountCents !== undefined);
+  if (exact) {
+    for (const s of expense.shares) {
+      if (!s.playerId) continue;
+      out.set(s.playerId, (out.get(s.playerId) ?? 0) + clean(s.amountCents ?? 0));
+    }
+    // The amounts are what somebody typed, so they can fail to add up to the
+    // bill. The difference goes to the LARGEST share rather than being
+    // dropped: `balances` is only zero-sum because shares total the amount,
+    // and one rounded cent must not be allowed to unbalance the ledger. The
+    // boundary rejects a real mismatch before it ever gets stored; this is the
+    // last line of defence, not the check.
+    const total = [...out.values()].reduce((a, c) => a + c, 0);
+    const gap = amount - total;
+    if (gap !== 0 && out.size > 0) {
+      let biggest = [...out.keys()][0];
+      for (const [id, cents] of out) if (Math.abs(cents) > Math.abs(out.get(biggest) ?? 0)) biggest = id;
+      out.set(biggest, (out.get(biggest) ?? 0) + gap);
+    }
+    return out;
+  }
+
   // Duplicate ids collapse to one share rather than charging somebody twice.
   const weights = new Map<string, number>();
   for (const s of expense.shares) {
@@ -77,6 +145,49 @@ export function shareOf(expense: Expense): Map<string, number> {
   const parts = splitExactly(Math.abs(amount), ids.map((id) => weights.get(id) ?? 0));
   const sign = amount < 0 ? -1 : 1;
   ids.forEach((id, i) => out.set(id, parts[i] * sign));
+  return out;
+}
+
+/**
+ * Who laid out what for one expense, as a map that ALWAYS sums to the amount.
+ *
+ * That guarantee is the whole job. `balances` credits payers and debits
+ * sharers, and it sums to zero only because the credits sum to the bill — so
+ * a payments list that adds up to $190 of a $200 dinner would put $10 into
+ * existence and quietly unbalance every other number on the screen.
+ *
+ * Payments are validated at the boundary before they are stored, so a
+ * mismatch here means data that predates the check, a hand-written row, or a
+ * bug. Rather than trust it or throw, the shortfall (or overpayment) is
+ * settled against `paidBy`, who is the person the row already names as
+ * responsible for the bill. The ledger stays balanced and the discrepancy
+ * lands somewhere a human can see it, which is the behaviour that fails
+ * safely.
+ */
+export function paymentsOf(expense: Expense): Map<string, number> {
+  const amount = clean(expense.amountCents);
+  const out = new Map<string, number>();
+
+  for (const p of expense.payments ?? []) {
+    if (!p.playerId) continue;
+    out.set(p.playerId, (out.get(p.playerId) ?? 0) + clean(p.amountCents));
+  }
+
+  // Nobody itemised: the named payer covered it, which is every row written
+  // before payments existed.
+  if (out.size === 0) {
+    if (expense.paidBy) out.set(expense.paidBy, amount);
+    return out;
+  }
+
+  const paid = [...out.values()].reduce((a, c) => a + c, 0);
+  const gap = amount - paid;
+  if (gap !== 0) {
+    // Prefer the named payer; failing that, whoever is first in the list, so
+    // the total is right even for a row with no `paidBy` at all.
+    const fallback = expense.paidBy || [...out.keys()][0];
+    out.set(fallback, (out.get(fallback) ?? 0) + gap);
+  }
   return out;
 }
 
@@ -114,7 +225,10 @@ export function balances(expenses: Expense[], playerIds: string[] = []): Net[] {
     // Nothing was actually shared — a personal line on a group list.
     if (shared === 0 && [...shares.values()].every((c) => c === 0)) continue;
 
-    bump(expense.paidBy, amount);
+    // Credit whoever actually laid money out — one person or several. This
+    // sums to `amount` by construction, which is what keeps the result at
+    // zero.
+    for (const [playerId, cents] of paymentsOf(expense)) bump(playerId, cents);
     for (const [playerId, cents] of shares) bump(playerId, -cents);
   }
 
@@ -175,6 +289,34 @@ export function positionFor(
   const expensesCents = of(expenseNets);
   const gamesCents = of(gameNets);
   return { playerId, expensesCents, gamesCents, netCents: expensesCents + gamesCents };
+}
+
+/**
+ * May this person change or remove this line?
+ *
+ * Staff, or whoever entered it. Anyone in the outing may ADD what they paid
+ * for, but somebody else silently editing the amount you are owed is the one
+ * failure this feature cannot have.
+ *
+ * One function because there are two readers and they must agree. The action
+ * enforces it — it is a public endpoint and that is where it counts — and the
+ * screen asks the same question to decide whether to offer the button. Asked
+ * differently in the two places, the screen offers an Edit that the server
+ * then refuses, which reads as a broken app rather than as a rule.
+ *
+ * `createdBy` is a display name, matched against the viewer's name OR their
+ * email, because that is exactly what was written into it at creation.
+ */
+export function canChangeExpense(
+  createdBy: string,
+  viewer: { name?: string; email?: string; isStaff?: boolean },
+): boolean {
+  if (viewer.isStaff) return true;
+  const who = (createdBy ?? "").trim();
+  if (!who) return false;
+  const name = (viewer.name ?? "").trim();
+  const email = (viewer.email ?? "").trim();
+  return (!!name && who === name) || (!!email && who.toLowerCase() === email.toLowerCase());
 }
 
 /** Even weights for the common case: everyone in, split down the middle. */

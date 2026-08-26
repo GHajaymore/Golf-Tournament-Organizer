@@ -79,6 +79,18 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
 
   // Results.
   prizes: ["admin", "assistant"],
+  /**
+   * Players too, unlike Prizes.
+   *
+   * A fourball's own skins is their money, and needing the organizer to set up
+   * a $20 game between four friends is the reason it gets settled in a group
+   * chat instead. Reaching the SCREEN is all this grants: which pot a player
+   * may actually write is decided by `requirePotAccess`, which allows the
+   * group they are in and refuses the field's pot to anyone but staff. A
+   * screen-access list is navigation, never authorization — every action here
+   * is a public endpoint regardless of who can see the page.
+   */
+  "group-games": ["admin", "assistant", "player"],
   reports: ["admin", "assistant"],
 };
 

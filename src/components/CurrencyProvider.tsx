@@ -2,6 +2,7 @@
 import { createContext, useContext, useMemo } from "react";
 import {
   money as formatMoney,
+  minorUnitsFrom as parseMoney,
   currencySymbol,
   DEFAULT_CURRENCY,
 } from "@/lib/domain/money-format";
@@ -51,6 +52,12 @@ export function useMoney() {
       /** The digits only — no symbol — for an input or a column that labels itself. */
       plain: (minorUnits: number) =>
         formatMoney(minorUnits, currency).replace(/[^\d.,-]/g, "").trim(),
+      /**
+       * What somebody typed, as minor units. The inverse of `money`, and the
+       * half that was missed: every input multiplied by a hundred, so a ¥500
+       * buy-in became ¥50,000.
+       */
+      parse: (text: string) => parseMoney(text, currency),
     }),
     [currency],
   );

@@ -1,9 +1,11 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { saveSkinsPot, setSkinsEntrants, removeSkinsPot } from "@/app/actions/skins";
+import { saveSkinsPot, setSkinsEntrants, removeSkinsPot, confirmSkinsEntry } from "@/app/actions/skins";
+import { renameBet } from "@/app/actions/bet-name";
 import FieldInfo from "@/components/FieldInfo";
 import { SCOPE_LABEL, type SkinsScope } from "@/lib/domain/skins-pot";
+import { useMoney } from "@/components/CurrencyProvider";
 
 /**
  * The skins pot on one week of a league.
@@ -41,6 +43,8 @@ export interface SkinsView {
   net: boolean;
   scope: SkinsScope;
   entrantIds: string[];
+  /** Asked to join and not paid — not in the pot until somebody takes it. */
+  pendingIds: string[];
   field: Array<{ id: string; name: string; playing: boolean }>;
   result: {
     potCents: number;
@@ -56,23 +60,41 @@ export interface SkinsView {
 }
 
 /** Cents to a plain amount. No currency symbol: clubs are not all in one country. */
-const money = (cents: number) => (cents / 100).toFixed(2);
+/** Digits only — the column labels the currency — but the right digits: see
+ *  useMoney().plain, which asks how many minor units this currency has. */
 
 export function SkinsPotClient({
   rounds,
   activeStageId,
   view,
+  groupKey = "",
+  groupLabel = "",
 }: {
   rounds: SkinsRound[];
   activeStageId: string;
   view: SkinsView;
+  /**
+   * Whose pot this card is. Empty is the FIELD's, which is what every existing
+   * caller renders and what this component has always shown.
+   *
+   * Passed straight through to all three writes rather than defaulted at the
+   * action: a card that DISPLAYS one group's pot and SAVES to another's is
+   * precisely the overwrite the group key exists to prevent, and it would look
+   * correct on screen the whole time.
+   */
+  groupKey?: string;
+  /** What to call it, when it is a group's rather than the field's. */
+  groupLabel?: string;
 }) {
+  const { plain: money, parse: parseBuyIn } = useMoney();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
-  const [buyIn, setBuyIn] = useState((view.buyInCents / 100).toString());
+  const [buyIn, setBuyIn] = useState(money(view.buyInCents));
   const [scope, setScope] = useState<SkinsScope>(view.scope);
   const [picking, setPicking] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [newName, setNewName] = useState("");
   // Prefilled from who has returned a card, so it is a tick-through rather
   // than twenty names typed out — but nothing counts until staff save it.
   const [chosen, setChosen] = useState<string[]>(() =>
@@ -90,9 +112,10 @@ export function SkinsPotClient({
   const saveSetup = () =>
     run(() =>
       saveSkinsPot(activeStageId, {
-        buyInCents: Math.round(parseFloat(buyIn || "0") * 100),
+        buyInCents: parseBuyIn(buyIn),
         net: view.net,
         scope,
+        groupKey,
       }),
     );
 
@@ -103,8 +126,32 @@ export function SkinsPotClient({
     <div className="card elev-sm" style={{ gap: 14, marginTop: 16 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span className="card-title" style={{ fontSize: 15 }}>
-          Skins &mdash; {view.net ? "net" : "gross"}
+          {/* The group's name leads when there is one, because on a page of
+              several pots "Skins — net" four times over names nothing. */}
+          {groupLabel ? `${groupLabel} — ` : ""}Skins &mdash; {view.net ? "net" : "gross"}
         </span>
+        {/*
+          Renaming, offered only on a NAMED bet.
+
+          The club's own pot has no name to change — its identity is "the
+          club's" rather than anything somebody typed — so there is nothing
+          here to offer on it. See actions/bet-name.ts: renaming moves every
+          game under the name at once, because a crew running skins and a
+          birdie pot as one bet settles as one bet.
+        */}
+        {groupKey && !renaming && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ fontSize: 11.5, padding: "2px 8px" }}
+            onClick={() => {
+              setNewName(groupKey);
+              setRenaming(true);
+            }}
+          >
+            Rename
+          </button>
+        )}
         <FieldInfo label="the skins pot">
           <p>
             Every hole is a prize, won only outright. Tie a hole and nobody takes it — its value
@@ -129,6 +176,38 @@ export function SkinsPotClient({
           </select>
         )}
       </div>
+
+      {renaming && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div className="field" style={{ flex: 1, minWidth: 180 }}>
+            <label>What to call it</label>
+            <input
+              className="input"
+              value={newName}
+              maxLength={40}
+              onChange={(e) => setNewName(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={pending || !newName.trim() || newName.trim() === groupKey}
+            onClick={() => {
+              run(() => renameBet(activeStageId, groupKey, newName.trim()));
+              setRenaming(false);
+            }}
+          >
+            Save name
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => setRenaming(false)}>
+            Cancel
+          </button>
+          <p className="text-muted" style={{ fontSize: 11.5, margin: 0, flexBasis: "100%", lineHeight: 1.5 }}>
+            Every game under this name moves with it, and nobody loses their place — the people who
+            have paid stay paid.
+          </p>
+        </div>
+      )}
 
       {/* ── Setup ─────────────────────────────────────────────────────── */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -184,6 +263,43 @@ export function SkinsPotClient({
           </p>
         )}
 
+        {/*
+          People who have asked to get in and not paid yet.
+
+          Shown here because an ask nobody is shown is an ask that was never
+          made — the player tapped a button on their phone and, without this,
+          nothing would ever appear to anybody who could act on it. They are
+          NOT in the pot until somebody takes the cash: the figures above count
+          confirmed stakes only, which is why this sits below them rather than
+          among them.
+        */}
+        {!picking && view.pendingIds.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <span className="card-kicker">Asked to join</span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+              {view.pendingIds.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className="btn btn-secondary touch-target"
+                  disabled={pending}
+                  style={{ fontSize: 12.5, padding: "6px 12px" }}
+                  onClick={() =>
+                    run(() =>
+                      confirmSkinsEntry(activeStageId, view.net, view.scope, groupKey, id, true),
+                    )
+                  }
+                >
+                  {name(id)} — take {money(view.buyInCents)}
+                </button>
+              ))}
+            </div>
+            <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
+              Their money isn&rsquo;t in yet, so they are not in the pot. Tap when they hand it over.
+            </p>
+          </div>
+        )}
+
         {picking && (
           <div style={{ marginTop: 8 }}>
             <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
@@ -210,7 +326,7 @@ export function SkinsPotClient({
                 onClick={() => {
                   // view.scope, not a default: these entrants belong to THIS
                   // game, and a league night has four on the same round.
-                  run(() => setSkinsEntrants(activeStageId, view.net, view.scope, chosen));
+                  run(() => setSkinsEntrants(activeStageId, view.net, view.scope, chosen, groupKey));
                   setPicking(false);
                 }}
               >
@@ -331,7 +447,11 @@ export function SkinsPotClient({
           className="btn btn-ghost"
           style={{ alignSelf: "flex-start", fontSize: 12 }}
           disabled={pending}
-          onClick={() => run(() => removeSkinsPot(activeStageId, view.net))}
+          onClick={() =>
+            // view.scope, not the picker's `scope`: this removes the pot being
+            // SHOWN, and the picker may have been moved without saving.
+            run(() => removeSkinsPot(activeStageId, view.net, view.scope, groupKey))
+          }
         >
           Remove this pot
         </button>

@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import {
   balances,
+  canChangeExpense,
   combinedBalances,
   positionFor,
   shareOf,
@@ -14,6 +15,7 @@ import { isPlayingRound } from "../stage-types";
 import { resolveMoneyMode, sharedCostsApply, moneyScreenApplies } from "../domain/money-mode";
 import { roundMoneyIsFinal } from "../domain/money-layout";
 import { potMembership, isPotEntryMode } from "../domain/pot-entry";
+import { potAudience } from "../domain/pot-audience";
 import { contestLedger, contestNets, isContestKind, isDecided, potOf } from "../domain/contests";
 import {
   derivedNets,
@@ -50,9 +52,28 @@ export interface ExpenseRow {
   paidBy: string;
   /** The payer's name, or "" when they are no longer in the field. */
   paidByName: string;
+  /**
+   * Everyone who actually paid, when more than one person did. Empty means
+   * `paidBy` covered the whole bill, which is the ordinary case.
+   */
+  payers: Array<{ playerId: string; name: string; amountCents: number }>;
   createdBy: string;
+  /**
+   * Whether the person looking at this may change or remove it.
+   *
+   * Answered here, from the same rule the action enforces, so the screen never
+   * offers an Edit that the server refuses.
+   */
+  canEdit: boolean;
   /** Who shares it, with what each of them owes for this line. */
-  shares: Array<{ playerId: string; name: string; weight: number; cents: number }>;
+  shares: Array<{
+    playerId: string;
+    name: string;
+    weight: number;
+    /** The exact amount typed for this person, or null when split by weight. */
+    exactCents: number | null;
+    cents: number;
+  }>;
   /** True when this line's payer is a player id nobody in the field matches. */
   unknownPayer: boolean;
 }
@@ -148,6 +169,16 @@ export interface MoneyView {
     entrants: number;
     youIn: boolean;
     youConfirmed: boolean;
+    /**
+     * Present when this row is a SKINS pot rather than a derived game.
+     *
+     * A skins pot is not identified by an id the way a side game is — it is
+     * named by (round, gross-or-net, which holes, whose). So a join request
+     * has to carry all four, and the client dispatches on this being here.
+     * Threading a fake id instead would mean inventing an identity the store
+     * does not have.
+     */
+    skins?: { stageId: string; net: boolean; scope: string; groupKey: string };
   }>;
   /**
    * The signed-in player’s side-game money, itemised.
@@ -223,7 +254,14 @@ async function gameNets(
     // The SCOPE too, since a league night runs four pots on one round and
     // (stageId, net) no longer names one of them. Reading without it asked
     // for the same pot four times and missed three lots of money.
-    select: { stageId: true, net: true, scope: true },
+    //
+    // AND THE GROUP, for exactly the same reason one scope wider. Without it
+    // this enumerated every pot on the round and then re-read the FIELD's one
+    // each time: a club running its own skins beside two fourballs had its
+    // pot counted three times in the settle-up, and neither fourball's money
+    // appeared at all. Four independent passes of the 2026-08-25 audit found
+    // this, which is what a rule with many readers looks like from outside.
+    select: { stageId: true, net: true, scope: true, groupKey: true },
   });
   for (const pot of pots) {
     const view = await skinsPotFor(
@@ -231,6 +269,7 @@ async function gameNets(
       pot.stageId,
       pot.net,
       isSkinsScope(pot.scope) ? pot.scope : "full",
+      pot.groupKey,
     );
     // A pot with nobody in it has no result and no money — `result` is null
     // until somebody is entered, which is not the same as everyone at zero.
@@ -242,7 +281,13 @@ async function gameNets(
       const won = view.holes.filter((h) => h.playerId === share.playerId).map((h) => h.hole);
       lines.push({
         playerId: share.playerId,
-        label: skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full"),
+        // The group leads when there is one. Without it a player in both the
+        // club's pot and their fourball's sees two identical lines called
+        // "Skins (Net)" and cannot tell which money is which — the same
+        // failure as the unexplained lump this itemisation replaced.
+        label: pot.groupKey
+          ? `${pot.groupKey} — ${skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full")}`
+          : skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full"),
         detail: won.length
           ? `won ${won.length === 1 ? "the" : ""} ${won.length === 1 ? "" : won.length + " holes: "}${won.join(", ")}`.replace(/s+/g, " ").trim()
           : "no skins won",
@@ -257,6 +302,12 @@ async function gameNets(
   // from loadEventState's own resolver, so a net pot and the leaderboard
   // cannot disagree about how many strokes somebody receives.
   const sideGames = await prisma.sideGame.findMany({
+    // Every game, the club's and each fourball's, WITH its group — the same
+    // shape the skins pots read in. This filtered to the field's games and
+    // `saveSideGame` refused to create any other, because settling a group's
+    // game meant charging the whole field for a fourball's private bet. What
+    // was missing was never the arithmetic: it was knowing WHO the pot's
+    // audience is, which is resolved per game below.
     where: { eventId, ...stageWhere },
     include: { entrants: true },
   });
@@ -274,9 +325,27 @@ async function gameNets(
         const pars = course.pars.slice(0, holes);
 
         if (game.kind === "nassau") {
-          // Every match in the round, at the same stake — how a club calls one.
+          /**
+           * Every match in the round, at the same stake — how a club calls one.
+           *
+           * A GROUP's Nassau is the matches inside that fourball, which needs
+           * no audience calculation: a Nassau is settled between the two
+           * players in a match, so restricting to matches whose BOTH players
+           * are in the group is the whole of it. A match spanning two groups
+           * belongs to neither's private bet.
+           */
+          const nassauGroup = game.groupKey
+            ? parseTeeSheet(stage.teeSheet ?? "")?.groups.find((g) => g.name === game.groupKey)
+            : null;
+          const inNassau = nassauGroup ? new Set(nassauGroup.playerIds) : null;
           const bets = state.matches
-            .filter((m) => m.stageId === game.stageId && m.playerAId && m.playerBId)
+            .filter(
+              (m) =>
+                m.stageId === game.stageId &&
+                m.playerAId &&
+                m.playerBId &&
+                (!inNassau || (inNassau.has(m.playerAId) && inNassau.has(m.playerBId))),
+            )
             .map((m) => {
               let parsed: HoleResultArr = [];
               try {
@@ -302,9 +371,15 @@ async function gameNets(
         // intention and the stake is the cash the organizer took — and opt-out
         // means the field, which carries no rows for the people who never had
         // to say anything.
+        // Who this pot is OFFERED to: the field for the club's game, the
+        // fourball for a group's. One reader, in domain/pot-audience.ts, and
+        // tested there — the rule matters most in opt-out mode, where the
+        // audience IS the membership.
+        const audience = potAudience(game.groupKey, stage.teeSheet ?? "", fieldIds);
+
         const entrantIds = potMembership(
           isPotEntryMode(game.entryMode) ? game.entryMode : "opt-in",
-          fieldIds,
+          audience,
           game.entrants,
         ).entrants;
         const potCards = cards
@@ -382,7 +457,16 @@ async function gameNets(
   };
 }
 
-export async function moneyFor(eventId: string, email: string): Promise<MoneyView> {
+export async function moneyFor(
+  eventId: string,
+  email: string,
+  /**
+   * Who is looking, so each row can say whether THEY may change it. Omitted
+   * behaves as a plain player, which is the safe direction: a button that is
+   * missing is a smaller failure than one that is refused.
+   */
+  viewer: { name?: string; isStaff?: boolean } = {},
+): Promise<MoneyView> {
   // The field an opt-out pot draws on. Confirmed only — "everyone in the
   // field" means everyone PLAYING, and a withdrawn player is not.
   const confirmedField = await prisma.player.findMany({
@@ -391,11 +475,11 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
   });
   const moneyFieldIds = confirmedField.map((p) => p.id);
 
-  const [rows, settlements, players, stages, contestRows, sideGameRows] = await Promise.all([
+  const [rows, settlements, players, stages, contestRows, sideGameRows, skinsRows] = await Promise.all([
     prisma.expense.findMany({
       where: { eventId },
       orderBy: [{ spentOn: "desc" }, { createdAt: "desc" }],
-      include: { shares: true },
+      include: { shares: true, payments: true },
     }),
     prisma.settlement.findMany({ where: { eventId }, orderBy: { settledAt: "desc" } }),
     prisma.player.findMany({
@@ -414,13 +498,55 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
       include: { entrants: true },
     }),
     prisma.sideGame.findMany({
+      // Every game, the club's and each group's. The label below says which,
+      // because a player in both otherwise sees two rows called "Birdie pot"
+      // and cannot tell which money is which.
       where: { eventId },
       orderBy: [{ createdAt: "asc" }],
       include: { entrants: true },
     }),
+    /**
+     * The skins pots, so a player can ask into one from their own screen.
+     *
+     * They were absent, which made "can I join your skins?" unanswerable in
+     * the app: the pots existed, the player could not see them, and the only
+     * way in was to find somebody already in it and ask them to tick you.
+     * Skins is the commonest casual bet there is, so that was the commonest
+     * thing the app could not do.
+     *
+     * `groupKey` is selected — via `include` — because it decides both the
+     * label and which pot a join request names. Reading these without it is
+     * the fault the 2026-08-25 audit found four times over.
+     */
+    prisma.skinsPot.findMany({
+      where: { eventId },
+      orderBy: [{ createdAt: "asc" }],
+      select: {
+        id: true,
+        stageId: true,
+        net: true,
+        scope: true,
+        groupKey: true,
+        buyInCents: true,
+        entrants: { select: { playerId: true, confirmed: true } },
+      },
+    }),
   ]);
 
   const nameOf = new Map(players.map((p) => [p.id, p.name]));
+  /**
+   * Email to display name, for the "entered by" line.
+   *
+   * `Expense.createdBy` holds an EMAIL now — a display name is something a
+   * self-registering player chooses, and it was being used to decide who may
+   * edit a line. The screen still wants a name, so it is resolved here rather
+   * than stored twice. A row from before the change holds a name already and
+   * falls through unchanged.
+   */
+  const byEmail = new Map(
+    players.filter((p) => p.email).map((p) => [p.email.toLowerCase(), p.name]),
+  );
+  const enteredBy = (who: string) => byEmail.get((who ?? "").toLowerCase()) ?? who;
   const me = players.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
 
   const domain: DomainExpense[] = rows.map((r) => ({
@@ -428,7 +554,8 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
     description: r.description,
     amountCents: r.amountCents,
     paidBy: r.paidBy,
-    shares: r.shares.map((s) => ({ playerId: s.playerId, weight: s.weight })),
+    shares: r.shares.map((s) => ({ playerId: s.playerId, weight: s.weight, amountCents: s.amountCents ?? undefined })),
+    payments: r.payments.map((p) => ({ playerId: p.playerId, amountCents: p.amountCents })),
   }));
 
   const expenseNets = balances(domain, players.map((p) => p.id));
@@ -468,7 +595,12 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
       description: r.description,
       amountCents: r.amountCents,
       paidBy: r.paidBy,
-      shares: r.shares.map((s) => ({ playerId: s.playerId, weight: s.weight })),
+      shares: r.shares.map((s) => ({
+        playerId: s.playerId,
+        weight: s.weight,
+        amountCents: s.amountCents ?? undefined,
+      })),
+      payments: r.payments.map((p) => ({ playerId: p.playerId, amountCents: p.amountCents })),
     });
     return {
       id: r.id,
@@ -478,12 +610,36 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
       spentOn: r.spentOn,
       paidBy: r.paidBy,
       paidByName: nameOf.get(r.paidBy) ?? "",
-      createdBy: r.createdBy,
+      /**
+       * Everyone who actually put money down.
+       *
+       * The screen said "Paid by {paidByName}" — ONE name — from the moment a
+       * bill could have several payers, so a dinner split across two cards
+       * credited both in the arithmetic and named one of them on screen. The
+       * number was right and the sentence was wrong, which is the version of
+       * this that nobody reports and everybody distrusts.
+       *
+       * Empty when nobody itemised, which still means `paidBy` covered it.
+       */
+      payers: r.payments
+        .map((p) => ({
+          playerId: p.playerId,
+          name: nameOf.get(p.playerId) ?? "Not in the field",
+          amountCents: p.amountCents,
+        }))
+        .sort((a, b) => b.amountCents - a.amountCents),
+      createdBy: enteredBy(r.createdBy),
+      // The same rule the action enforces, asked once here so the screen
+      // cannot offer an Edit the server will refuse.
+      canEdit: canChangeExpense(r.createdBy, { name: viewer.name, email, isStaff: viewer.isStaff }),
       unknownPayer: !nameOf.has(r.paidBy),
       shares: r.shares.map((s) => ({
         playerId: s.playerId,
         name: nameOf.get(s.playerId) ?? "Not in the field",
         weight: s.weight,
+        // The exact amount somebody typed, when this line was split that way.
+        // Carried so an edit can reopen the form in the mode it was saved in.
+        exactCents: s.amountCents ?? null,
         cents: cents.get(s.playerId) ?? 0,
       })),
     };
@@ -582,7 +738,8 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
         return {
           id: g.id,
           kind: g.kind,
-          label: DERIVED_LABEL[kind],
+          // The group leads when there is one, the way the skins lines read.
+          label: g.groupKey ? `${g.groupKey} — ${DERIVED_LABEL[kind]}` : DERIVED_LABEL[kind],
           help: DERIVED_HELP[kind],
           buyInCents: g.buyInCents,
           // The cash collected, never the number of names.
@@ -591,7 +748,47 @@ export async function moneyFor(eventId: string, email: string): Promise<MoneyVie
           youIn: !!mine,
           youConfirmed: !!mine?.confirmed,
         };
-      }),
+      })
+      /**
+       * And the skins pots, in the same list and on the same terms.
+       *
+       * One list rather than two, because to a player they are the same
+       * question — what is running, am I in it, what does it cost. Splitting
+       * them by which table they live in would be the app explaining its own
+       * schema to somebody standing on a tee.
+       *
+       * A pot with no buy-in is not offered: there is nothing to join.
+       */
+      .concat(
+        skinsRows
+          .filter((p) => p.buyInCents > 0)
+          .map((p) => {
+            const confirmed = p.entrants.filter((e) => e.confirmed);
+            const mine = me ? p.entrants.find((e) => e.playerId === me.id) : undefined;
+            const holes =
+              p.scope === "front" ? " front 9" : p.scope === "back" ? " back 9" : "";
+            const what = `Skins — ${p.net ? "net" : "gross"}${holes}`;
+            return {
+              id: p.id,
+              kind: "skins",
+              // The group leads when there is one, the way the derived rows do.
+              label: p.groupKey ? `${p.groupKey} — ${what}` : what,
+              help: "Low score wins the hole. Ties carry to the next one.",
+              buyInCents: p.buyInCents,
+              // The cash collected, never the number of names.
+              potCents: p.buyInCents * confirmed.length,
+              entrants: confirmed.length,
+              youIn: !!mine,
+              youConfirmed: !!mine?.confirmed,
+              skins: {
+                stageId: p.stageId,
+                net: p.net,
+                scope: p.scope,
+                groupKey: p.groupKey,
+              },
+            };
+          }),
+      ),
     // Only the signed-in player’s. Somebody else’s itemised winnings are
     // not this screen’s to hand out.
     gameLines: me
@@ -698,6 +895,122 @@ export interface RoundMoneyView {
   outingStanding: Array<{ playerId: string; name: string; netCents: number }>;
   /** True when at least one round has finished and has money in it. */
   anyFinal: boolean;
+  /**
+   * What the signed-in player has riding on rounds that are still in play.
+   *
+   * A player can be in five games at once — the club's pot, their fourball's
+   * skins, a birdie pot, a two-man bet and a closest-to-the-pin — and until
+   * this the screen showed five separate rows and no total. The one number
+   * somebody wants before they tee off is what it costs if it all goes wrong,
+   * and adding up five stakes in your head on the first tee is exactly the
+   * sort of arithmetic this app exists to stop doing.
+   *
+   * Stakes, NOT a running position. See `roundMoneyIsFinal`: a half-played
+   * skins pot has a standing that looks like an answer and is not one. This
+   * number is knowable the moment the bets are agreed and does not change as
+   * holes come in, which is what makes it safe to show while a round is live.
+   */
+  stake: {
+    /** How many games they are in, across every round still in play. */
+    games: number;
+    /** What those stakes come to, in cents. */
+    cents: number;
+  };
+}
+
+/**
+ * What one player has riding on one round.
+ *
+ * Deliberately reads MEMBERSHIP and nothing else — no scorecard, no match, no
+ * winner. It cannot leak a half-played result because it never computes one,
+ * which is what lets it run on a round that `roundMoneyIsFinal` says is not
+ * ready to report.
+ *
+ * Who is in comes from `potMembership` and `potAudience`, the same two readers
+ * the settlement uses. A second opinion about who is in a pot is how a screen
+ * ends up printing "1 in" above a pot that settles for four.
+ *
+ * `entrants` are stakes already collected and `pending` are people who are in
+ * and still owe it. Both count here: what a player is exposed to is what they
+ * will owe, not what the organizer has already taken off them.
+ */
+async function stakeFor(
+  stageId: string,
+  playerId: string,
+  fieldIds: string[],
+  teeSheetJson: string,
+): Promise<{ games: number; cents: number }> {
+  const [pots, games, contests] = await Promise.all([
+    /**
+     * The player's own ENTRY rows, not the round's pots.
+     *
+     * A skins pot has no entry mode — its membership IS its entrant rows — so
+     * "which pots is this player staked in" is a question about entries, and
+     * asking it that way round means never holding a pot without knowing whose
+     * it is. Listing the round's pots and testing each one's entrants would be
+     * the shape that lost every group's money in the 2026-08-25 audit, even
+     * though it happens to be harmless here.
+     */
+    prisma.skinsEntry.findMany({
+      where: { playerId, pot: { stageId, buyInCents: { gt: 0 } } },
+      select: { pot: { select: { buyInCents: true } } },
+    }),
+    prisma.sideGame.findMany({
+      where: { stageId, buyInCents: { gt: 0 } },
+      select: {
+        buyInCents: true,
+        kind: true,
+        entryMode: true,
+        groupKey: true,
+        entrants: { select: { playerId: true, confirmed: true, excluded: true } },
+      },
+    }),
+    prisma.contest.findMany({
+      where: { stageId, buyInCents: { gt: 0 } },
+      select: {
+        buyInCents: true,
+        entryMode: true,
+        entrants: { select: { playerId: true, confirmed: true, excluded: true } },
+      },
+    }),
+  ]);
+
+  let count = 0;
+  let cents = 0;
+  const add = (inIt: boolean, buyInCents: number) => {
+    if (!inIt) return;
+    count += 1;
+    cents += buyInCents;
+  };
+
+  /**
+   * Every row here is already this player's own, on a pot on this round.
+   *
+   * Confirmed AND pending, deliberately, exactly as the side games below.
+   * `confirmed` is whether somebody has the cash; exposure is what the player
+   * will owe. Counting only paid-up rows would show £0 to somebody who has
+   * asked into four bets and not paid yet — precisely the person the figure is
+   * for.
+   */
+  for (const p of pots) add(true, p.pot.buyInCents);
+
+  for (const g of games) {
+    // A Nassau is three bets inside a match rather than a pot with a door, so
+    // it has no entrant list to read and its cost depends on who somebody is
+    // drawn against. Counting it here would mean inventing a number.
+    if (g.kind === "nassau") continue;
+    const audience = potAudience(g.groupKey, teeSheetJson, fieldIds);
+    const who = potMembership(isPotEntryMode(g.entryMode) ? g.entryMode : "opt-in", audience, g.entrants);
+    add(who.entrants.includes(playerId) || who.pending.includes(playerId), g.buyInCents);
+  }
+
+  // Contests have no group key — a closest-to-the-pin is the field's.
+  for (const c of contests) {
+    const who = potMembership(isPotEntryMode(c.entryMode) ? c.entryMode : "opt-in", fieldIds, c.entrants);
+    add(who.entrants.includes(playerId) || who.pending.includes(playerId), c.buyInCents);
+  }
+
+  return { games: count, cents };
 }
 
 /**
@@ -731,6 +1044,9 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
 
   const rounds: RoundMoneyRow[] = [];
   const outingTotals = new Map<string, number>();
+  const fieldIds = (state?.confirmed ?? []).map((p) => p.id);
+  let stakeGames = 0;
+  let stakeCents = 0;
 
   for (const [i, stage] of stages.entries()) {
     const holeCount = stage.holes === 9 ? 9 : 18;
@@ -764,6 +1080,16 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
     // Nothing is computed for a round in progress. Not hidden after the fact —
     // not worked out at all, so there is no half-answer to leak.
     const nets = final ? (await gameNets(eventId, stage.id)).nets : [];
+
+    // The other side of that rule: a round with no result yet is exactly the
+    // round a player wants their exposure for. Stakes only — see `stakeFor`,
+    // which reads membership and never touches a card.
+    if (!final && me) {
+      const s = await stakeFor(stage.id, me.id, fieldIds, stage.teeSheet ?? "");
+      stakeGames += s.games;
+      stakeCents += s.cents;
+    }
+
     for (const n of nets) outingTotals.set(n.playerId, (outingTotals.get(n.playerId) ?? 0) + n.netCents);
 
     rounds.push({
@@ -789,5 +1115,6 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       .map(([playerId, netCents]) => ({ playerId, name: nameOf.get(playerId) ?? "Unknown", netCents }))
       .sort((a, b) => b.netCents - a.netCents),
     anyFinal: rounds.some((r) => r.final && r.standing.length > 0),
+    stake: { games: stakeGames, cents: stakeCents },
   };
 }

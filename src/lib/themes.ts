@@ -63,6 +63,29 @@ export const THEME_PRESETS: ThemePreset[] = [
   // has ever been this colour, which is exactly why a society or a corporate
   // outing might pick it.
   { key: "violet", name: "Violet", blurb: "Cool violet on near-black — a society day, not a members' medal.", hue: 249, saturation: 0.88 },
+
+  // ── Three bold ones, placed by where the wheel was actually empty ────────
+  //
+  // The eight above cluster: two greens 21 apart, two warm golds 15 apart, and
+  // then a 95-degree hole with nothing in it at all. A club whose crest is
+  // teal or magenta had to pick the nearest wrong thing, and a club that
+  // wanted LOUD had only Signal.
+  //
+  // Each of these sits at the midpoint of a real gap rather than beside a
+  // colour we already had — measured, not eyeballed. They are saturated on
+  // purpose: the muted end of the wheel is well covered and none of it shouts.
+  //
+  // Hue 78, in the 95-degree hole between Bunker and Signal. Not a fairway
+  // and not a sand — the yellow-green of an optic ball, which is the one
+  // colour in golf chosen specifically to be impossible to lose.
+  { key: "optic", name: "Optic", blurb: "The yellow-green of an optic ball — bred to be impossible to lose.", hue: 78, saturation: 0.92 },
+  // Hue 182, between Ivy and Links. Aged bronze: the green a trophy goes when
+  // nobody polishes it. Comfortably past MIN_HUE_SEPARATION from Fairway (31),
+  // so a club can run it as the accent and keep green for meaning.
+  { key: "verdigris", name: "Verdigris", blurb: "Oxidised bronze — what a trophy does when nobody polishes it.", hue: 182, saturation: 0.68 },
+  // Hue 316, in the 72-degree hole between Heather and Claret. The one week a
+  // year a golf course is unapologetically pink.
+  { key: "azalea", name: "Azalea", blurb: "Hot pink — the week the azaleas are out.", hue: 316, saturation: 0.88 },
 ];
 
 export const DEFAULT_THEME = "sunset";

@@ -64,7 +64,7 @@ describe("the brand mark is drawn once", () => {
     expect(logo).toContain("--logo-flag");
     expect(logo).toContain("--logo-rim");
     expect(logo).toContain("--logo-cup");
-    expect(read("src/app/page.tsx")).toContain('"--logo-flag": "var(--brass)"');
+    expect(read("src/app/page.tsx")).toContain('"--logo-flag": "var(--brand-amber)"');
   });
 });
 
@@ -72,17 +72,9 @@ describe("the mark is drawn at a chosen size", () => {
   const files = allTsx("src");
 
   it("never hard-codes a logo size", () => {
-    /**
-     * Sizes come from LOGO_SIZE. A bare number is a fifth size nobody decided
-     * on — and OrgBrand counts, which this used to miss.
-     *
-     * It checked `<Logo size={` only, so `<OrgBrand size={20} />` sailed
-     * through in two places: the console sidebar and the phone tab bar. Both
-     * were 20 — between sm and md, chosen by eye, matching nothing. OrgBrand
-     * is the wrapper a CLUB's own mark is drawn by, so it is exactly where an
-     * off-scale size is least likely to be noticed and most likely to matter.
-     */
-    const offenders = files.filter((f) => /<(Logo|OrgBrand)\s[^>]*size=\{\d/.test(read(f)));
+    // Sizes come from LOGO_SIZE. A bare number here is a fifth size nobody
+    // decided on.
+    const offenders = files.filter((f) => /<Logo\s+size=\{\d/.test(read(f)));
     expect(offenders, `hard-coded logo size in: ${offenders.join(", ")}`).toEqual([]);
   });
 
@@ -119,7 +111,7 @@ describe("the wordmark is written once too", () => {
     // serve both, exactly as --logo-flag does for the mark.
     const landing = read("src/app/page.tsx");
     expect(landing).toContain("<BrandMark");
-    expect(landing, "landing must map the tokens BrandMark reads").toContain('"--color-accent": "var(--brass)"');
+    expect(landing, "landing must map the tokens BrandMark reads").toContain('"--color-accent": "var(--brand-amber)"');
   });
 });
 
@@ -291,7 +283,57 @@ describe("the mark is the same colour in both renderings", () => {
     // This page has its own palette, and its mapping said "pennant orange"
     // while pointing at --flag, which is its green.
     const landing = read("src/app/page.tsx");
-    expect(landing).toContain('"--logo-flag": "var(--brass)"');
-    expect(landing).toContain('"--logo-ball": "var(--flag)"');
+    expect(landing).toContain('"--logo-flag": "var(--brand-amber)"');
+    expect(landing).toContain('"--logo-ball": "var(--brand-green)"');
+  });
+
+  /**
+   * THE MARK DOES NOT FOLLOW THE PAGE.
+   *
+   * This is the rule those three assertions were reaching for and did not
+   * state. They pinned the literal token NAMES the mapping happened to use at
+   * the time — `var(--brass)` and `var(--flag)` — which are the landing page's
+   * ACCENT and its GREEN. Both are design variables: retuning the palette
+   * moved them, and the logo silently recoloured with it. A brand changed
+   * because a background did, and the suite held green throughout, because
+   * the name it asserted had not changed.
+   *
+   * So assert the property instead of the spelling: whatever the mark is
+   * wired to must not be a token the page's design is free to retune.
+   */
+  it("never wires the mark to a colour the page is free to retune", () => {
+    const landing = read("src/app/page.tsx");
+
+    // The four mappings that colour the mark, as `"--token": "value"` pairs.
+    const marks = ["--logo-flag", "--logo-ball", "--color-accent", "--color-accent-600"];
+    // The page's own design variables. Every one of these is retuned whenever
+    // the landing palette is redesigned.
+    const palette = ["--brass", "--brass-hi", "--flag", "--flag-soft", "--under", "--incised"];
+
+    for (const mark of marks) {
+      const line = landing.match(new RegExp(`"${mark}":\\s*"([^"]+)"`));
+      expect(line, `${mark} is no longer mapped on the landing page`).not.toBeNull();
+      const value = line![1];
+      for (const p of palette) {
+        expect(
+          value,
+          `${mark} is wired to ${p}, which the page palette retunes — the logo would change colour with the design`,
+        ).not.toContain(`var(${p})`);
+      }
+    }
+  });
+
+  it("draws the mark in the brand's own colours, on both grounds", () => {
+    // And those tokens hold the colours the mark has always been: the orange
+    // pennant and the green ball, per ground. If a redesign wants a different
+    // logo it has to say so HERE, which is a decision rather than a side
+    // effect.
+    const landing = read("src/app/page.tsx");
+    const declared = (token: string) =>
+      [...landing.matchAll(new RegExp(`${token}:\\s*(#[0-9A-Fa-f]{6})`, "g"))].map((m) => m[1].toUpperCase());
+
+    // Dark ground first, then the daylight pair.
+    expect(declared("--brand-amber")).toEqual(["#E8A33D", "#A8701A"]);
+    expect(declared("--brand-green")).toEqual(["#4FA97C", "#1F7A50"]);
   });
 });

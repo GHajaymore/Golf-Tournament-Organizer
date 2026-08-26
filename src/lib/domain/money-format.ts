@@ -40,6 +40,53 @@ export const CURRENCIES = [
   { code: "JPY", label: "Japanese yen" },
 ] as const;
 
+/**
+ * The currency codes this runtime can actually write — 162 of them.
+ *
+ * Asked of `Intl.supportedValuesOf`, which IS the list, rather than inferred
+ * from whether formatting produces a symbol. The inference was written first
+ * and it was wrong: Intl writes the rand as "ZAR 1.00", because the rand has
+ * no distinct symbol in this locale — so a symbol test rejected ZAR, a
+ * currency the picker itself offers. Every currency written with its own code
+ * (CHF, SEK, and a long tail) failed the same way.
+ *
+ * That is the shape of guard this codebase has been bitten by before: one
+ * that refuses real data because the rule was a proxy for the question rather
+ * than the question. Ask the list.
+ */
+const KNOWN_CODES: Set<string> = (() => {
+  try {
+    return new Set(Intl.supportedValuesOf("currency"));
+  } catch {
+    // A runtime without it: fall back to the offered list rather than to
+    // nothing, so a club can still be set to one of the eight.
+    return new Set(CURRENCIES.map((c) => c.code));
+  }
+})();
+
+/**
+ * Whether this is a currency code the app can actually format.
+ *
+ * Asked of Intl rather than of `CURRENCIES` above, and the difference matters
+ * in both directions. The list is what the PICKER offers — eight, because a
+ * hundred-row dropdown is a worse answer to "which currency is this club in".
+ * What may be STORED is anything Intl can write, so a club that already has a
+ * code from outside the list keeps it, and shortening the list later cannot
+ * quietly invalidate somebody's setting.
+ *
+ * A `"use server"` export is a public HTTP endpoint, so this is what stands
+ * between the column and whatever a caller posts.
+ */
+export function isCurrencyCode(v: string): boolean {
+  const code = (v ?? "").trim().toUpperCase();
+  // Intl accepts any three-letter string as a currency, so the shape alone
+  // proves nothing: "ABC" formats happily as "ABC 1.00" and a typo would land
+  // in the database looking deliberate.
+  if (!/^[A-Z]{3}$/.test(code)) return false;
+  return KNOWN_CODES.has(code);
+}
+
+
 /** How many minor units this currency divides into: 2 for most, 0 for yen. */
 export function minorUnitDigits(currency: string): number {
   try {
@@ -70,6 +117,27 @@ export function money(minorUnits: number, currency: string = DEFAULT_CURRENCY): 
     const fmt = new Intl.NumberFormat("en-US", { style: "currency", currency: DEFAULT_CURRENCY });
     return fmt.format(value / 100);
   }
+}
+
+/**
+ * What somebody typed, as minor units — the exact inverse of `money`.
+ *
+ * The formatter was made currency-aware and the PARSER was not, which left the
+ * bug in the more dangerous half. Every input did `parseFloat(text) * 100`, so
+ * a club in Tokyo entering a ¥500 buy-in stored 50,000 minor units and ran a
+ * pot for ¥50,000. Reading a prize at a hundredth of its value is alarming and
+ * obvious; charging a hundred times the stake is alarming and looks deliberate.
+ *
+ * Asks `minorUnitDigits` the same question `money` asks, so the two cannot
+ * disagree: whatever this parses, that formats back to the same string.
+ */
+export function minorUnitsFrom(text: string, currency: string = DEFAULT_CURRENCY): number {
+  // Digits, one decimal point and a leading minus — a refund is negative, and
+  // thousands separators and a currency symbol are things people paste.
+  const cleaned = String(text ?? "").replace(/[^0-9.-]/g, "");
+  const n = Number(cleaned);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 10 ** minorUnitDigits(currency));
 }
 
 /**

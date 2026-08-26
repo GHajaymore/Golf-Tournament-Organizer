@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isCurrencyCode } from "@/lib/domain/money-format";
 import { refusalFor } from "@/lib/services/limits";
 import {
   isThemeKey, hexToHsl, isAppearance, FAIRWAY, SECONDARY_PRESETS, DEFAULT_APPEARANCE, pairVerdict, type Appearance,
@@ -233,6 +234,42 @@ export async function saveOrganizationTheme(
       themeSecondaryHex: secondaryKey === "custom" ? secondaryHex.trim() : "",
       themeAppearance: appearance,
     },
+  });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * The club's currency.
+ *
+ * One setting, beside the theme, for the same reason: it belongs to the club
+ * and is read by every screen that shows an amount. `Organization.currency`
+ * has existed since the money work and nothing could set it — so a club
+ * outside the United States had a column saying GBP by default of nobody, and
+ * saw dollars everywhere.
+ *
+ * The ISO CODE, not a symbol. "$" cannot say which dollar, and carries
+ * nothing about minor units — amounts are stored in minor units and the yen
+ * has none, so a club in Tokyo reading every prize at a hundredth of its
+ * value would assume they had typed it wrong rather than suspect the app.
+ *
+ * `currencySymbol` is left alone and no longer read for display: it is a free
+ * text column that predates this, and rewriting it from a code would be a
+ * second source of the same truth.
+ */
+export async function saveOrganizationCurrency(currency: string): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+
+  const code = (currency ?? "").trim().toUpperCase();
+  if (!isCurrencyCode(code)) {
+    return { ok: false, error: "Pick a currency from the list." };
+  }
+
+  await prisma.organization.update({
+    where: { id: org.organizationId },
+    data: { currency: code },
   });
   revalidatePath("/", "layout");
   return { ok: true };
