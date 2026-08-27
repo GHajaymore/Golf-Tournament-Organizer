@@ -919,3 +919,28 @@ export function pairVerdict(theme: ClubTheme): PairVerdict {
   }
   return { kind: "ok" };
 }
+
+/**
+ * The palette the share-link card is painted in.
+ *
+ * Literal values, and deliberately here rather than in the image component:
+ * Satori has no stylesheet, so a share card cannot read a `--color-*` token
+ * and something has to hold the hex. `brand-consistency` requires that
+ * something to be the theme rather than a component, which is right — a
+ * second set of brand colours living in a route file is exactly how the
+ * product's look starts to drift.
+ *
+ * Dark always. The card renders inside somebody else's chat client, not in
+ * the club's theme, and `auto` resolves dark in this product anyway.
+ */
+export const SHARE_CARD = {
+  bg: DARK_GROUND.bg,
+  surface: DARK_GROUND.surface,
+  text: DARK_GROUND.text,
+  muted: DARK_GROUND.neutrals[4],
+  divider: "rgba(233,233,237,0.16)",
+  /** The default accent, resolved on the dark ground. */
+  accent: themeScale(THEME_PRESETS[0], DARK_GROUND)[500],
+  /** Fairway green, lifted so the ball reads against the dark ground. */
+  fairway: "#5fb484",
+} as const;

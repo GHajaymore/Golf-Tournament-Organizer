@@ -26,6 +26,8 @@ const GROUND = "#16181a"; // --color-bg
 // while the component drew it in currentColor: the home-screen icon did not
 // match the app it opened.
 const FLAG = "#f2862e"; // --color-accent, as the ramp actually resolves it
+const STICK = "#e9e9ed"; // --color-text on the dark ground: the T is lettering,
+//                          not accent, so it matches the wordmark beside it
 const BALL = "#5fb484"; // --color-accent-2-400: lifted one step off the in-app
 //                         green, which goes muddy at 48px
 const EDGE = "#55605a"; // the cup's rim, brightened for small sizes
@@ -38,16 +40,17 @@ const EDGE = "#55605a"; // the cup's rim, brightened for small sizes
  * same reason: the drawing spans y 49.6 (flagstick cap) to 414 (cup with its
  * stroke), an optical centre of ~232 against a box centre of 256. Left alone
  * it sits high in every tile.
- *
- * The shift is on the mark alone rather than the viewBox, because these tiles
- * have a background rect at 0,0 — moving the viewBox would drag the
- * background with it and open a gap along one edge.
+ * *
+ * THE SHIFT IS GONE, because the mark no longer needs one. The pin monogram
+ * is drawn centred in its own box — see the viewBox note in Logo.tsx — so
+ * there is nothing here to keep in step, which is a better answer than two
+ * files each remembering the same correction.
  */
-const mark = `<g transform="translate(0,24)">
-  <path d="M320 64 V288" stroke="${FLAG}" stroke-width="28.8" stroke-linecap="round"/>
-  <path d="M320 72 L440 120 L320 168 Z" fill="${FLAG}"/>
-  <ellipse cx="256" cy="352" rx="128" ry="54.4" fill="${GROUND}" stroke="${EDGE}" stroke-width="16"/>
-  <circle cx="192" cy="312" r="54.4" fill="${BALL}"/></g>`;
+const mark = `<g>
+  <path d="M128 70.4 H384" stroke="${STICK}" stroke-width="51.2" stroke-linecap="round"/>
+  <path d="M256 70.4 V328" stroke="${STICK}" stroke-width="51.2" stroke-linecap="round"/>
+  <path d="M276.8 118.4 L406.4 163.2 L276.8 208 Z" fill="${FLAG}"/>
+  <circle cx="256" cy="414.4" r="52.8" fill="${BALL}"/></g>`;
 
 const svg = (body, size = 512) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512">${body}</svg>`;
@@ -68,12 +71,10 @@ const adaptiveFg = svg(`<g transform="translate(87,87) scale(0.66)">${mark}</g>`
 /** The favicon, at the component's own scale so it stays crisp at 16px. */
 const favicon = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
   <rect width="32" height="32" rx="7" fill="${GROUND}"/>
-  <g transform="translate(0,1.5)">
-    <path d="M20 4 V18" stroke="${FLAG}" stroke-width="1.8" stroke-linecap="round"/>
-    <path d="M20 4.5 L27.5 7.5 L20 10.5 Z" fill="${FLAG}"/>
-    <ellipse cx="16" cy="22" rx="8" ry="3.4" fill="${GROUND}" stroke="${EDGE}" stroke-width="1"/>
-    <circle cx="12" cy="19.5" r="3.4" fill="${BALL}"/>
-  </g>
+  <path d="M8 4.4 H24" stroke="${STICK}" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M16 4.4 V20.5" stroke="${STICK}" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M17.3 7.4 L25.4 10.2 L17.3 13 Z" fill="${FLAG}"/>
+  <circle cx="16" cy="25.9" r="3.3" fill="${BALL}"/>
 </svg>
 `;
 

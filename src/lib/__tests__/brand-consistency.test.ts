@@ -32,9 +32,9 @@ describe("the brand mark is drawn once", () => {
   const files = allTsx("src");
 
   it("has exactly one copy of the flagstick geometry in the app", () => {
-    // The flagstick path is the mark's signature. A second file containing it
-    // means somebody drew the logo again instead of importing it.
-    const drawing = files.filter((f) => read(f).includes('d="M20 4 V18"'));
+    // The stem path is the mark's signature. A second file containing it
+// means somebody drew the logo again instead of importing it.
+const drawing = files.filter((f) => read(f).includes('d="M16 4.4 V20.5"'));
     expect(drawing, `logo geometry duplicated in: ${drawing.join(", ")}`).toEqual([
       "src/components/Logo.tsx",
     ]);
@@ -43,18 +43,21 @@ describe("the brand mark is drawn once", () => {
   it("keeps the icon generator's copy in step with the component", () => {
     // This test used to walk .tsx only, so scripts/gen-icons.mjs — which
     // carries its own copy of the mark for the PWA tiles and the favicon —
-    // escaped it entirely, and did not receive the centring fix. The icons
-    // were shipping with the artwork sitting high in the tile.
+    // escaped it entirely, and did not receive the centring fix.
     //
     // The duplicate is legitimate: those files are built by sharp at a
-    // different scale, outside React, and cannot import a component. So the
-    // rule is that it must carry the SAME optical correction, not that it must
-    // not exist.
+    // different scale, outside React, and cannot import a component.
+    //
+    // What has to agree is now the ABSENCE of a correction. The pin monogram
+    // is drawn centred in its own box, so neither file nudges it — and a
+    // translate reappearing in one of them means the two have diverged.
     const gen = readFileSync(join(root, "scripts/gen-icons.mjs"), "utf8");
-    expect(gen, "512-grid mark is not nudged").toContain('transform="translate(0,24)"');
-    expect(gen, "favicon mark is not nudged").toContain('transform="translate(0,1.5)"');
-    // 24 on the 512 grid is 1.5 on the 32 grid, which is Logo.tsx's shift.
-    expect(read("src/components/Logo.tsx")).toContain('viewBox="0 -1.5 32 32"');
+    const logo = read("src/components/Logo.tsx");
+    expect(logo, "the component nudges the mark").toContain('viewBox="0 0 32 32"');
+    expect(gen, "the generator nudges the mark").not.toMatch(/translate\(0,\s*\d/);
+    // And the generator's grid is the component's, x16.
+    expect(gen).toContain('M256 70.4 V328');
+    expect(logo).toContain('M16 4.4 V20.5');
   });
 
   it("lets a different palette re-skin the one drawing", () => {
@@ -62,8 +65,15 @@ describe("the brand mark is drawn once", () => {
     // variables are what make one component serve both, so they have to stay.
     const logo = read("src/components/Logo.tsx");
     expect(logo).toContain("--logo-flag");
-    expect(logo).toContain("--logo-rim");
-    expect(logo).toContain("--logo-cup");
+    expect(logo).toContain("--logo-stick");
+    // No --logo-rim or --logo-cup: the pin monogram has no cup, and a
+    // variable for a shape that does not exist is a promise the drawing
+    // cannot keep.
+    // Matched as a READ of the variable, not a mention of it: the comment
+    // above explains why the cup is gone, and prose must not fail a test.
+    expect(logo, "the drawing still reads a variable for a shape it removed").not.toContain(
+      "var(--logo-cup",
+    );
     expect(read("src/app/page.tsx")).toContain('"--logo-flag": "var(--brand-amber)"');
   });
 });
@@ -245,7 +255,9 @@ describe("the mark is the same colour in both renderings", () => {
   const gen = readFileSync(join(root, "scripts/gen-icons.mjs"), "utf8");
 
   it("draws the flag from the accent (orange) in the component", () => {
-    // Both the pennant and the stick fall back to --color-accent, the orange.
+    // The PENNANT falls back to --color-accent. The stick no longer does: the
+// T is lettering and takes --color-text, so the mark and the wordmark
+// beside it read as one lockup rather than two accents competing.
     expect(logo).toContain("var(--logo-flag, var(--color-accent, currentColor))");
   });
 
