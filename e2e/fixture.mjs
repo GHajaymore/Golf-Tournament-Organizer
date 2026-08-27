@@ -217,6 +217,77 @@ export async function seed() {
       });
     }
 
+    /**
+     * AND THE MODE THAT TURNS IT ON.
+     *
+     * `usesExpenses` asks the money MODE, not whether any expense exists —
+     * deliberately, because guessing from "has anyone entered a line yet" was
+     * wrong in both directions, and the comment on it says so at length. A
+     * club defaults to `none`, which correctly hides the settle-up.
+     *
+     * So a fixture that seeds expenses WITHOUT setting the mode seeds a ledger
+     * nobody can open, and a test written against it reports the app as broken
+     * when the app is right. That is what happened on the first run of
+     * money-nav.spec.
+     */
+    await prisma.event.update({
+      where: { id: event.id },
+      data: { moneyMode: "split" },
+    });
+
+    /**
+     * MONEY, which this fixture has never had.
+     *
+     * Every money screen in the app — prizes, group games, the settle-up, the
+     * week view's block — was reachable in the suite and empty in it, so the
+     * only thing any test could prove was that an empty state rendered. That
+     * is why the 2026-08-25 audit listed a navigation sweep as outstanding:
+     * there was nothing to sweep.
+     *
+     * Deliberately small and deliberately awkward. One bill split three ways
+     * that does not divide evenly, one part-payment against it, and a prize.
+     * The odd penny is the point: an even split proves nothing about the
+     * arithmetic, and every screen below has to agree about where it went.
+     */
+    const bill = await prisma.expense.create({
+      data: {
+        eventId: event.id,
+        description: `${MARK} buggies`,
+        // 4001 across three: 1334 / 1334 / 1333. Nothing here divides.
+        amountCents: 4001,
+        paidBy: players[0].id,
+        category: `cart`,
+        shares: {
+          create: [
+            { playerId: players[0].id, weight: 1 },
+            { playerId: players[1].id, weight: 1 },
+            { playerId: players[2].id, weight: 1 },
+          ],
+        },
+      },
+    });
+
+    // A part-payment, so the settle-up shows a REMAINING balance rather than
+    // a clean zero. A screen that only ever renders nothing-owed is a screen
+    // whose arithmetic has never been looked at.
+    await prisma.settlement.create({
+      data: {
+        eventId: event.id,
+        fromPlayerId: players[1].id,
+        toPlayerId: players[0].id,
+        cents: 1000,
+        recordedBy: "O. Ganizer",
+      },
+    });
+
+    await prisma.prize.create({
+      data: {
+        eventId: event.id,
+        position: 1,
+        category: `${MARK} Winner`,
+        amount: 50,
+      },
+    });
     // Two accounts: the organizer, and a player who is players[0] — matched by
     // email, which is how the app resolves "me".
     const organizer = await prisma.user.create({
@@ -247,6 +318,17 @@ export async function seed() {
        * restore it rather than every other test being written around the
        * damage.
        */
+      /**
+       * The money the sweep reads. Exported rather than repeated in the spec:
+       * a fixture and a test that each hold their own copy of an amount will
+       * disagree the first time one of them changes.
+       */
+      money: {
+        billId: bill.id,
+        billCents: 4001,
+        settledCents: 1000,
+        prizeLabel: `${MARK} Winner`,
+      },
       partialCard: {
         stageId: stage.id,
         playerId: players[0].id,
