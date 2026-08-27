@@ -120,6 +120,50 @@ function genderOf(raw: unknown): string {
   return "any";
 }
 
+/** Sort key: the hole's own number, which is the only order the source asserts. */
+const holeNumber = (h: unknown): number => num((h as { number?: unknown }).number);
+
+/**
+ * Drop a trailing hole the directory invented.
+ *
+ * Some courses come back with one row more than they have holes. Camarillo
+ * Springs, a real par-72, arrives as NINETEEN: holes 1–18 are a complete and
+ * correct card — pars totalling 72, stroke index 1 to 18 each used exactly
+ * once — followed by a nineteenth carrying a par and NO stroke index. The
+ * length check then threw the whole course away, and it was not alone: 19
+ * courses were refused for having 19 holes and 16 more for having 10, which
+ * is the same defect on a nine.
+ *
+ * Trimmed narrowly, because over-trimming is the far worse failure: silently
+ * dropping a real hole would leave a card that still validates and is wrong,
+ * which is this module's nightmare. Three things must all hold:
+ *
+ *   1. No trimmed row carries a stroke index. This is the one doing the work.
+ *      It is the actual signature of the phantom — a real hole has an index,
+ *      so a card merely misaligned by a row still has one here and is left
+ *      alone to be refused properly.
+ *   2. The surplus sits BEYOND the round. Belt-and-braces, and stated as such:
+ *      mutation testing shows removing it changes no outcome today, because
+ *      (1) already rejects the cases it was written for and the validator
+ *      catches whatever reaches it. It is kept because it says what a phantom
+ *      IS — a row past the end — so that loosening (1) later cannot silently
+ *      turn this into a truncation of holes in the middle of a round.
+ *   3. What remains still has to pass every existing check. Nothing here
+ *      judges a card; it only decides which rows are offered to the rules
+ *      that do, and it must never be able to turn a bad card into a good one.
+ */
+function withoutPhantomHoles(sorted: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  for (const round of [18, 9]) {
+    if (sorted.length <= round) continue;
+    const surplus = sorted.slice(round);
+    const phantom = surplus.every(
+      (h) => holeNumber(h) > round && num(h.handicap_index) === 0,
+    );
+    if (phantom) return sorted.slice(0, round);
+  }
+  return sorted;
+}
+
 
 
 /**
@@ -146,23 +190,30 @@ export function cardFrom(holes: unknown): DirectoryCard {
    * hole. It just does not follow from it that a real nine-hole card should
    * be discarded.
    */
-  const holeCount = rows.length === 9 ? 9 : 18;
-  if (rows.length !== holeCount) {
+  /**
+   * Ordered BEFORE the count is judged, which it was not.
+   *
+   * Trust `number` over array position: a directory that returns holes out of
+   * order is exactly the failure this module exists to catch, and sorting by
+   * the hole's own number is the only ordering the source actually asserts.
+   * The sort has to come first now, because deciding whether a surplus row is
+   * a phantom means knowing which rows are at the END of the round.
+   */
+  const sorted = [...rows].sort((a, b) => holeNumber(a) - holeNumber(b)) as Array<
+    Record<string, unknown>
+  >;
+  const ordered = withoutPhantomHoles(sorted);
+
+  const holeCount = ordered.length === 9 ? 9 : 18;
+  if (ordered.length !== holeCount) {
     return {
       usable: false,
       reason:
-        rows.length === 0
+        ordered.length === 0
           ? "The directory has no hole-by-hole card for this course."
-          : `The directory has ${rows.length} holes for this course, which is neither 9 nor 18.`,
+          : `The directory has ${ordered.length} holes for this course, which is neither 9 nor 18.`,
     };
   }
-
-  // Trust `number` over array position: a directory that returns holes out of
-  // order is exactly the failure this module exists to catch, and sorting by
-  // the hole's own number is the only ordering the source actually asserts.
-  const ordered = [...rows].sort(
-    (a, b) => num((a as { number?: unknown }).number) - num((b as { number?: unknown }).number),
-  ) as Array<Record<string, unknown>>;
 
   const pars = ordered.map((h) => num(h.par));
   const strokeIndex = ordered.map((h) => num(h.handicap_index));

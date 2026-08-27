@@ -321,6 +321,25 @@ export function cardProblems(card: { pars: number[]; strokeIndex: number[] }, ho
   }
   if (si.length !== holes) {
     problems.push(`Stroke index is needed for all ${holes} holes.`);
+  } else if (si.every((v) => !v)) {
+    /**
+     * ABSENT is not SCRAMBLED, and saying so matters.
+     *
+     * A source that returns no stroke index at all arrives here as a full-length
+     * array of zeroes, which then failed the permutation check and told the club
+     * their index "must use each number from 1 to 18 exactly once". That reads as
+     * an accusation that the card is jumbled, and sends somebody hunting for a
+     * transcription error in a card that never had an index to begin with.
+     * Abbey Par 3 is the example: eighteen genuine par-3 holes, every stroke
+     * index empty.
+     *
+     * Still refused either way — handicap shots cannot be allocated without an
+     * index — but the refusal now names the actual next move, which is to type
+     * the index off the club's own card.
+     */
+    problems.push(
+      `No stroke index was given for any hole, so handicap strokes cannot be allocated.`,
+    );
   } else {
     const sorted = [...si].sort((a, b) => a - b);
     const expected = Array.from({ length: holes }, (_, i) => i + 1);
