@@ -4,6 +4,7 @@ import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { ScorecardTable, type CardBrand } from "@/components/ScorecardTable";
 import { saveScorecard, certifyScorecard } from "@/app/actions/tournament";
 import { usePendingCard } from "@/components/usePendingCard";
+import { CardConflict } from "@/components/CardConflict";
 import { RuleCite } from "@/components/RuleCite";
 import { toParText } from "@/lib/domain";
 
@@ -50,6 +51,7 @@ export function PlayerCard({
   status,
   brand,
   initialStrokes,
+  initialRevision = "",
 }: {
   stageId: string;
   playerId: string;
@@ -75,6 +77,14 @@ export function PlayerCard({
   /** The card as already returned. Opening blank and then saving would erase
    *  a round that was half entered on the ninth tee. */
   initialStrokes: (number | null)[];
+  /**
+   * The revision of the card this screen was rendered from.
+   *
+   * Sent with every save so the server can refuse one that would land on
+   * top of somebody else's change. Empty means an unconditional write, so
+   * a caller that has not been given one behaves exactly as before.
+   */
+  initialRevision?: string;
 }) {
   const [strokes, setStrokes] = useState<(number | null)[]>(() =>
     Array.from({ length: holes }, (_, i) => initialStrokes[i] ?? null),
@@ -85,6 +95,9 @@ export function PlayerCard({
   /** Hole by hole for the round; the full card for checking it after. */
   const [view, setView] = useState<"hole" | "card">("hole");
   const [error, setError] = useState("");
+  /** What the server holds, when it refused our write for disagreeing. */
+  const [conflict, setConflict] = useState<{ strokes: (number | null)[]; revision: string } | null>(null);
+  const revision = useRef(initialRevision);
 
   const filled = strokes.filter((s) => s != null).length;
   const complete = filled >= holes;
@@ -140,7 +153,21 @@ export function PlayerCard({
     playerId,
     enabled: !locked,
     send: async (value) => {
-      await saveScorecard(stageId, playerId, value);
+      const res = await saveScorecard(stageId, playerId, value, revision.current);
+      if (!res.ok) {
+        /**
+         * Somebody else wrote this card while we were away.
+         *
+         * NOT thrown: a throw would be retried, and retrying is the one thing
+         * that must not happen — every attempt would overwrite their change
+         * the moment it stopped disagreeing. The queue holds, the strokes stay
+         * on the phone, and a person decides.
+         */
+        setConflict(res.conflict);
+        return;
+      }
+      revision.current = res.revision;
+      setConflict(null);
       setError("");
       // A save takes the card back to "entered" if it had been certified;
       // saying so is better than leaving a stale badge on screen.
@@ -171,7 +198,15 @@ export function PlayerCard({
       try {
         // Save first: certifying a card the server has not seen would certify
         // whatever was last written, which is not what is on this screen.
-        await saveScorecard(stageId, playerId, latest.current);
+        const res = await saveScorecard(stageId, playerId, latest.current, revision.current);
+        if (!res.ok) {
+          // Certifying is a statement under Rule 3.3b that these hole scores
+          // are right. Signing one while two versions disagree would be
+          // vouching for numbers this player has not seen.
+          setConflict(res.conflict);
+          return;
+        }
+        revision.current = res.revision;
         await certifyScorecard(stageId, playerId);
         setState("certified");
         setNote("Certified. It's with the committee now.");
@@ -291,6 +326,47 @@ export function PlayerCard({
               venueIsHome={venueIsHome}
               onSet={setHole}
             />
+          )}
+
+          {/*
+            Two versions of this card disagree, so a person chooses.
+
+            Above the status line and above the certify button, because while
+            this is on screen neither of those means anything: the strokes have
+            not been sent, and signing a card whose numbers are in dispute is
+            the one thing Rule 3.3b does not allow.
+          */}
+          {conflict && (
+            <div style={{ margin: "12px 0" }}>
+              <CardConflict
+                mine={strokes}
+                theirs={conflict.strokes}
+                pars={pars}
+                busy={pending}
+                onKeepMine={() => {
+                  // Adopt their revision so the next write is no longer stale,
+                  // then push ours on top. This is the destructive choice and
+                  // is only ever reached by somebody tapping "Keep mine".
+                  revision.current = conflict.revision;
+                  setConflict(null);
+                  card.push(latest.current);
+                }}
+                onTakeTheirs={() => {
+                  // Their card becomes what this screen is editing. Nothing is
+                  // sent: the server already holds exactly this.
+                  revision.current = conflict.revision;
+                  const theirs = Array.from(
+                    { length: holes },
+                    (_, i) => conflict.strokes[i] ?? null,
+                  );
+                  dirty.current = false;
+                  setStrokes(theirs);
+                  latest.current = theirs;
+                  setConflict(null);
+                  card.clearRecovered();
+                }}
+              />
+            </div>
           )}
 
           {/* No Save button. The card writes itself; this says what happened,
