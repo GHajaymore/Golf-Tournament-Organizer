@@ -126,3 +126,92 @@ test("and sends it by itself when the signal comes back", async ({ page, context
     )
     .toBe(0);
 });
+
+/**
+ * The other half of scoring offline: the card can have MOVED while you were gone.
+ *
+ * A queued card is written whole, so replaying it replaces everything stored —
+ * including a correction the committee made in the meantime. Nobody would see
+ * it happen. The rule itself is asserted against real rows in
+ * `card-conflict.audit.test.ts`; what these two prove is that the choice
+ * actually reaches the person holding the phone, which is the only place it
+ * can be made.
+ */
+
+/** Edit the stored card behind the browser, the way an organizer would. */
+async function committeeEdits(index: number, to: number) {
+  const prisma = new PrismaClient();
+  try {
+    const { stageId, playerId, strokes } = data.partialCard;
+    const next = [...strokes];
+    next[index] = to;
+    await prisma.scorecard.updateMany({
+      where: { stageId, playerId },
+      data: { strokes: JSON.stringify(next) },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+test("a card changed while you were offline asks instead of overwriting", async ({ page, context }) => {
+  await page.goto("/me/card");
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("Hole", { exact: true })).toBeVisible();
+
+  await context.setOffline(true);
+  await page.getByRole("button", { name: /^4Par$|Par$/ }).first().click();
+  await expect(page.locator('[role="status"]')).toContainText(/no signal/i, { timeout: 10_000 });
+
+  // While the phone is out of coverage, the committee corrects the 1st.
+  await committeeEdits(0, 9);
+
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+
+  // The queued write must NOT land. A person is asked which card is right.
+  const chooser = page.getByRole("alertdialog");
+  await expect(chooser).toBeVisible({ timeout: 20_000 });
+  await expect(chooser).toContainText(/changed while you were out of signal/i);
+  await expect(chooser.getByRole("button", { name: /use theirs/i })).toBeVisible();
+  await expect(chooser.getByRole("button", { name: /keep mine/i })).toBeVisible();
+
+  // And it shows the hole in dispute rather than all eighteen — a decision
+  // nobody can make by scanning two full rows on a phone.
+  await expect(chooser).toContainText("9");
+});
+
+test("taking their card clears the queue without sending anything", async ({ page, context }) => {
+  await page.goto("/me/card");
+  await page.waitForLoadState("networkidle");
+
+  await context.setOffline(true);
+  await page.getByRole("button", { name: /^4Par$|Par$/ }).first().click();
+  await expect(page.locator('[role="status"]')).toContainText(/no signal/i, { timeout: 10_000 });
+
+  await committeeEdits(0, 9);
+
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+
+  const chooser = page.getByRole("alertdialog");
+  await expect(chooser).toBeVisible({ timeout: 20_000 });
+  await chooser.getByRole("button", { name: /use theirs/i }).click();
+
+  // The disagreement is over, so the chooser goes.
+  await expect(chooser).toBeHidden();
+
+  // The device copy is released. Leaving it would resurrect the discarded card
+  // on the next reload — the scorer would be asked the same question forever.
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() =>
+          Object.keys(window.localStorage).filter((k) =>
+            k.startsWith("tourneyhq:pending-card:"),
+          ).length,
+        ),
+      { timeout: 20_000 },
+    )
+    .toBe(0);
+});

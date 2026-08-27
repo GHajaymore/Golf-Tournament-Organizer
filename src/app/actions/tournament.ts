@@ -2,6 +2,7 @@
 import { COURSE_REF } from "@/lib/services/course-resolution";
 import { roundTeeId } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
+import { cardRevision, staleAgainst } from "@/lib/domain/pending-card";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { enteredCardCount } from "@/lib/services/round-cards";
@@ -1610,7 +1611,35 @@ export async function saveCustomCourse(
   return { ok: true };
 }
 
-export async function saveScorecard(stageId: string, playerId: string, strokes: (number | null)[]) {
+/**
+ * The answer a save gives back, so a queued card cannot silently win.
+ *
+ * A card is written WHOLE. Since scoring works offline, a card can now be
+ * minutes old when it arrives — and replaying it replaces everything the
+ * server holds, including a correction an organizer made in between. Nobody
+ * would see that happen: the write succeeds, the screen looks right, and the
+ * corrected hole is simply gone.
+ *
+ * So a caller may say which revision it was working from, and a save that
+ * would land on top of somebody else's comes back as a CONFLICT carrying
+ * both sides. Choosing between them is a person's job — this app does not
+ * get to decide whose scorecard was right.
+ */
+export type SaveCardResult =
+  | { ok: true; revision: string }
+  | { ok: false; conflict: { strokes: (number | null)[]; revision: string } };
+
+export async function saveScorecard(
+  stageId: string,
+  playerId: string,
+  strokes: (number | null)[],
+  /**
+   * The revision this caller last read. Omitted means an unconditional
+   * write — every caller that has the card in front of it right now, which
+   * is the console's own entry screen.
+   */
+  expectedRevision?: string,
+): Promise<SaveCardResult> {
   const { eventId, session, settings } = await requireScoreEntry();
   // Both ids, not just the player's. The upsert below is keyed on
   // (stageId, playerId) — the `eventId` in its `create` branch decorates a new
@@ -1649,8 +1678,29 @@ export async function saveScorecard(stageId: string, playerId: string, strokes: 
   // card goes back through `reopenScorecard`, which is organizer-only.
   const existing = await prisma.scorecard.findFirst({
     where: { eventId, stageId, playerId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, strokes: true },
   });
+
+  /**
+   * HAS SOMEBODY ELSE WRITTEN THIS CARD SINCE THE CALLER READ IT?
+   *
+   * Only asked when the caller says what it was working from. A queued card
+   * from a phone that was out of signal is the case this exists for; the
+   * console's entry screen has the card in front of it and passes nothing.
+   *
+   * Refused rather than merged. Two people can disagree about a hole and
+   * only one of them was standing there — picking a winner by timestamp is
+   * how a scorer's correction disappears without anybody noticing.
+   */
+  if (expectedRevision && existing) {
+    const stored = cardRevision(JSON.parse(existing.strokes) as (number | null)[]);
+    if (staleAgainst(expectedRevision, stored)) {
+      return {
+        ok: false,
+        conflict: { strokes: JSON.parse(existing.strokes) as (number | null)[], revision: stored },
+      };
+    }
+  }
   if (existing && isCardLocked(existing.status)) throw new Error(LOCKED_CARD_REFUSAL);
   const reset = existing ? statusAfterEdit(existing.status) : null;
 
@@ -1672,6 +1722,12 @@ export async function saveScorecard(stageId: string, playerId: string, strokes: 
   // start a round. An empty save does not either — see isReturnedCard.
   if (isReturnedCard(clean)) await freezeRoundHandicaps(eventId, stageId);
   await refresh();
+
+  // The revision this write produced, so the caller can keep working from
+  // it rather than having to re-read the card to save again.
+  // Derived from what was just written, so the caller can keep saving from it
+  // without re-reading the card.
+  return { ok: true, revision: cardRevision(clean) };
 }
 
 /**

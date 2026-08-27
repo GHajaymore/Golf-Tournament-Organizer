@@ -116,6 +116,36 @@ export function shouldRetry(s: {
 }
 
 /**
+ * A card's revision — derived from its CONTENT, not from a clock.
+ *
+ * The obvious choice is a timestamp, and `Scorecard` does not carry one, which
+ * turns out to be the better outcome. A content revision answers the question
+ * actually being asked: has this card's numbers changed since I read them.
+ *
+ * Two consequences that a timestamp gets wrong:
+ *
+ *   - saving the SAME strokes twice is not a conflict. A retry that already
+ *     succeeded, or two people typing the same number, produces no argument to
+ *     put in front of anybody;
+ *   - a write that changed nothing does not invalidate everybody else's copy.
+ *
+ * Not cryptographic and does not need to be. It compares two values this app
+ * produced a moment apart; there is no adversary, and a hole that could not be
+ * distinguished from another would have to differ by a multiple of 2^32.
+ */
+export function cardRevision(strokes: Array<number | null>): string {
+  let h = 2166136261;
+  const s = JSON.stringify(strokes ?? []);
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    // FNV-1a, written as shifts because Math.imul on the prime is the same
+    // thing spelled less obviously.
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return `r${h.toString(36)}`;
+}
+
+/**
  * Whether a queued card is about to overwrite somebody else's work.
  *
  * A card is written WHOLE, so replaying one that was typed twenty minutes ago

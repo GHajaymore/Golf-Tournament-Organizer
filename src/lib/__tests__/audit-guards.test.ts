@@ -470,10 +470,19 @@ describe("a player writes their own scores and nobody else's", () => {
       const body = src.slice(src.indexOf(`export async function ${fn}`));
       expect(body.slice(0, 400), fn).toMatch(/assertOwnMatch\(session, eventId, matchId\)/);
     }
-    const card = src.slice(src.indexOf("export async function saveScorecard"));
-    // Window widened past 300 when the two event-scope assertions landed above
-    // this one — whose-card-is-it now runs after which-tournament-is-it.
-    expect(card.slice(0, 900)).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
+    /**
+     * Bounded by the function, not by a character count.
+     *
+     * This window was widened from 300 to 900 once already, when two
+     * event-scope assertions landed above the check, and it broke again the
+     * day the signature grew a documented parameter. A guard that has to be
+     * re-tuned every time the code above it moves is a guard that will one day
+     * be re-tuned to zero.
+     */
+    const start = src.indexOf("export async function saveScorecard");
+    const after = src.indexOf("\nexport ", start + 1);
+    const card = stripComments(src.slice(start, after === -1 ? undefined : after));
+    expect(card).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
   });
 
   it("links the session to its Player rows by registration email", () => {
@@ -677,10 +686,22 @@ describe("a card is written to the round and the player it names, not to an id",
     // overwrite that tournament's card outright. The `eventId` in the upsert's
     // `create` branch reads like scoping and is not; it decorates a new row
     // and constrains nothing about which row the upsert lands on.
-    const fn = src.slice(src.indexOf("export async function saveScorecard"));
-    expect(fn.slice(0, 900)).toMatch(/assertEventStage\(eventId, stageId\)/);
-    expect(fn.slice(0, 900)).toMatch(/assertEventPlayer\(eventId, playerId\)/);
-    expect(fn.slice(0, 900)).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
+    /**
+     * Bounded by the next top-level export and stripped of comments, rather
+     * than by a fixed character window.
+     *
+     * The window was 900 characters and broke the day the signature grew a
+     * documented parameter — reporting three guards as missing when all three
+     * were there, a few lines further down than they used to be. That is the
+     * same failure audit-idor.test.ts records against itself: a guard that
+     * flags correct code is the one somebody deletes.
+     */
+    const start = src.indexOf("export async function saveScorecard");
+    const after = src.indexOf("\nexport ", start + 1);
+    const fn = stripComments(src.slice(start, after === -1 ? undefined : after));
+    expect(fn).toMatch(/assertEventStage\(eventId, stageId\)/);
+    expect(fn).toMatch(/assertEventPlayer\(eventId, playerId\)/);
+    expect(fn).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
   });
 
   it("both assertions narrow by eventId and refuse rather than fall through", () => {

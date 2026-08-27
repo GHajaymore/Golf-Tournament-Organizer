@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  cardRevision,
   NAG_AFTER_MS,
   pendingKey,
   RETRY_EVERY_MS,
@@ -146,5 +147,49 @@ describe("where a pending card is kept", () => {
 
   it("is stable, because it is read back on the next load", () => {
     expect(pendingKey("s", "p")).toBe(pendingKey("s", "p"));
+  });
+});
+
+describe("a card's revision, derived from what is on it", () => {
+  it("is the same for the same card", () => {
+    expect(cardRevision([4, 5, null])).toBe(cardRevision([4, 5, null]));
+  });
+
+  it("changes when any hole changes", () => {
+    expect(cardRevision([4, 5, null])).not.toBe(cardRevision([4, 6, null]));
+    expect(cardRevision([4, 5, null])).not.toBe(cardRevision([4, 5, 3]));
+  });
+
+  it("distinguishes a hole not played from a hole played in zero", () => {
+    // They are different claims, and a scorecard that cannot tell them apart
+    // is one that can silently turn a no-return into a score.
+    expect(cardRevision([null])).not.toBe(cardRevision([0]));
+  });
+
+  it("distinguishes the same numbers on different holes", () => {
+    expect(cardRevision([4, 5])).not.toBe(cardRevision([5, 4]));
+  });
+
+  it("treats a missing card as an empty one rather than throwing", () => {
+    expect(() => cardRevision(undefined as unknown as number[])).not.toThrow();
+    expect(cardRevision(undefined as unknown as number[])).toBe(cardRevision([]));
+  });
+
+  it("does not report a conflict when the same scores are saved twice", () => {
+    /**
+     * WHY THIS IS CONTENT AND NOT A CLOCK. A retry that already succeeded, or
+     * two people typing the same number, produces no disagreement to put in
+     * front of anybody — but a timestamp would call it a conflict and make
+     * somebody choose between two identical cards.
+     */
+    const before = cardRevision([4, 5, 3]);
+    const afterRewrite = cardRevision([4, 5, 3]);
+    expect(staleAgainst(before, afterRewrite)).toBe(false);
+  });
+
+  it("reports a conflict when somebody else changed a hole", () => {
+    const mine = cardRevision([4, 5, 3]);
+    const theirs = cardRevision([4, 7, 3]);
+    expect(staleAgainst(mine, theirs)).toBe(true);
   });
 });

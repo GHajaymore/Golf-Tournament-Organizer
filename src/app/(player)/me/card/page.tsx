@@ -140,6 +140,9 @@ export default async function PlayCardPage() {
       // carries the mark that is on the paper one.
       brand={brand}
       initialStrokes={me.round.card?.strokes ?? []}
+      // Which version the screen loaded, so a save that would land on top of
+      // somebody else’s change is refused rather than winning silently.
+      initialRevision={me.round.card?.revision ?? ""}
     />
   );
 }

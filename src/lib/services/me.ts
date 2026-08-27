@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { cardRevision } from "@/lib/domain/pending-card";
 import { needsTeams } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
@@ -69,7 +70,20 @@ export interface MyRound {
    *  where it has got to. The strokes are returned, not just the count,
    *  because the entry screen has to open on what is already there — a card
    *  that opens blank and then saves is a card that erases a round. */
-  card: { strokes: (number | null)[]; filled: number; status: string } | null;
+  card: {
+    strokes: (number | null)[];
+    filled: number;
+    status: string;
+    /**
+     * Which version of this card the screen is looking at.
+     *
+     * Sent back with a save so the server can refuse one that would land on
+     * top of somebody else’s change — a queued card from a phone that was
+     * out of signal is written WHOLE, and would otherwise replace a
+     * correction made in the meantime with nobody noticing.
+     */
+    revision: string;
+  } | null;
 }
 
 export interface Me {
@@ -155,7 +169,14 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
     // Normalised to the round's length so the entry grid and the saved array
     // always agree — a 9-hole round must not be handed an 18-slot card.
     const sized: (number | null)[] = Array.from({ length: holes }, (_, i) => strokes[i] ?? null);
-    card = { strokes: sized, filled: filledHoles(sized, holes), status: row.status };
+    card = {
+      strokes: sized,
+      filled: filledHoles(sized, holes),
+      status: row.status,
+      // From the STORED strokes, sized the same way the client holds them, so
+      // the two sides hash the same array rather than two shapes of it.
+      revision: cardRevision(sized),
+    };
   }
 
   // Position from the same standingRows the leaderboard renders — never a
