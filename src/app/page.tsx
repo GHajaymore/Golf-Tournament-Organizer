@@ -627,7 +627,6 @@ function FlagMark({ size = LOGO_SIZE.md }: { size?: number }) {
           "--logo-flag": "var(--brand-amber)",
           "--logo-ball": "var(--brand-green)",
           "--logo-stick": "currentColor",
-          "--logo-rim": "var(--line-2)",
           "--logo-cup": "transparent",
         } as React.CSSProperties
       }
