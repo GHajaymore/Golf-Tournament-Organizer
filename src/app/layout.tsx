@@ -56,10 +56,18 @@ export const metadata: Metadata = {
    * reading: "golf tournament management" is itself a high-intent search, so
    * this is not a trade of findability against how it sounds. The two words
    * that actually carry the search — "golf tournament" — are untouched.
+   *
+   * What the title then STOPPED describing was the product. "Tournament &
+   * league management" is what this was before skins settled to the penny,
+   * before expenses and prize splits, before season standings and a handicap
+   * policy — a club secretary reading it would not guess that the app also
+   * does the money. The exact high-intent phrase is kept whole and the clause
+   * after it carries the scope, so this widens what the title claims without
+   * spending any of what it ranks for.
    */
-  title: "TourneyHQ — Golf tournament & league management",
+  title: "TourneyHQ — Golf tournament management, from the draw to the payout",
   description:
-    "Run a golf tournament or league end to end: flights, handicaps, brackets and live standings — with every player's card, board and settle-up on their own phone.",
+    "Run a club's whole competition: flights, handicaps, brackets, live standings and season-long order of merit — with every player's card, board, skins and settle-up on their own phone.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

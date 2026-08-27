@@ -711,8 +711,15 @@ export default async function LoginPage() {
                 and "software" now reads like a 2005 licence rather than
                 something you sign into. "All-in-one" is doing real work too —
                 the objection this product answers is a club running four
-                different tools and a spreadsheet. */}
-            <div className="eyebrow rise">All-in-one golf tournament &amp; league management</div>
+                different tools and a spreadsheet.
+
+                The trailing clause was added when the category words stopped
+                covering the product: a stranger reading "tournament & league
+                management" would not guess the app also settles the skins,
+                splits the prize fund and keeps the order of merit. It is the
+                same clause as the document title, deliberately — one line
+                everywhere beats two that describe different products. */}
+            <div className="eyebrow rise">All-in-one golf tournament &amp; league management &mdash; from the draw to the payout</div>
             <h1 className="rise">From Registration<br />to <em>Recognition.</em></h1>
             {/* The four verbs are the organizer's real path through the app —
                 registration, flights and pairings, rounds and scoring, prizes
