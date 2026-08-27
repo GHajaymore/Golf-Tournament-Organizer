@@ -47,10 +47,10 @@ const EDGE = "#55605a"; // the cup's rim, brightened for small sizes
  * files each remembering the same correction.
  */
 const mark = `<g>
-  <path d="M128 70.4 H384" stroke="${STICK}" stroke-width="51.2" stroke-linecap="round"/>
-  <path d="M256 70.4 V328" stroke="${STICK}" stroke-width="51.2" stroke-linecap="round"/>
-  <path d="M276.8 118.4 L406.4 163.2 L276.8 208 Z" fill="${FLAG}"/>
-  <circle cx="256" cy="414.4" r="52.8" fill="${BALL}"/></g>`;
+  <path d="M115.2 67.2 V444.8" stroke="${STICK}" stroke-width="51.2" stroke-linecap="round"/>
+  <path d="M150.4 105.6 h275.2 l-64 65.6 l64 65.6 H150.4 z" fill="${FLAG}"/>
+  <rect x="150.4" y="281.6" width="198.4" height="57.6" rx="28.8" fill="${STICK}"/>
+  <rect x="150.4" y="384" width="121.6" height="57.6" rx="28.8" fill="${BALL}"/></g>`;
 
 const svg = (body, size = 512) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512">${body}</svg>`;
@@ -71,10 +71,10 @@ const adaptiveFg = svg(`<g transform="translate(87,87) scale(0.66)">${mark}</g>`
 /** The favicon, at the component's own scale so it stays crisp at 16px. */
 const favicon = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
   <rect width="32" height="32" rx="7" fill="${GROUND}"/>
-  <path d="M8 4.4 H24" stroke="${STICK}" stroke-width="3.2" stroke-linecap="round"/>
-  <path d="M16 4.4 V20.5" stroke="${STICK}" stroke-width="3.2" stroke-linecap="round"/>
-  <path d="M17.3 7.4 L25.4 10.2 L17.3 13 Z" fill="${FLAG}"/>
-  <circle cx="16" cy="25.9" r="3.3" fill="${BALL}"/>
+  <path d="M7.2 4.2 V27.8" stroke="${STICK}" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M9.4 6.6 h17.2 l-4 4.1 l4 4.1 H9.4 z" fill="${FLAG}"/>
+  <rect x="9.4" y="17.6" width="12.4" height="3.6" rx="1.8" fill="${STICK}"/>
+  <rect x="9.4" y="24" width="7.6" height="3.6" rx="1.8" fill="${BALL}"/>
 </svg>
 `;
 

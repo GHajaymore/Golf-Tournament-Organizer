@@ -32,9 +32,9 @@ describe("the brand mark is drawn once", () => {
   const files = allTsx("src");
 
   it("has exactly one copy of the flagstick geometry in the app", () => {
-    // The stem path is the mark's signature. A second file containing it
-// means somebody drew the logo again instead of importing it.
-const drawing = files.filter((f) => read(f).includes('d="M16 4.4 V20.5"'));
+    // The pole is the mark's signature. A second file containing it means
+// somebody drew the logo again instead of importing it.
+const drawing = files.filter((f) => read(f).includes('d="M7.2 4.2 V27.8"'));
     expect(drawing, `logo geometry duplicated in: ${drawing.join(", ")}`).toEqual([
       "src/components/Logo.tsx",
     ]);
@@ -56,8 +56,8 @@ const drawing = files.filter((f) => read(f).includes('d="M16 4.4 V20.5"'));
     expect(logo, "the component nudges the mark").toContain('viewBox="0 0 32 32"');
     expect(gen, "the generator nudges the mark").not.toMatch(/translate\(0,\s*\d/);
     // And the generator's grid is the component's, x16.
-    expect(gen).toContain('M256 70.4 V328');
-    expect(logo).toContain('M16 4.4 V20.5');
+    expect(gen).toContain('M115.2 67.2 V444.8');
+    expect(logo).toContain('M7.2 4.2 V27.8');
   });
 
   it("lets a different palette re-skin the one drawing", () => {

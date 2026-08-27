@@ -1,34 +1,46 @@
 /**
- * TourneyHQ brand mark — the pin monogram: a T whose stem is the flagstick,
- * with the pennant flying off it and the ball at its foot.
+ * TourneyHQ brand mark — the standings flag.
  *
- * It replaced a "holing out" drawing — ball, cup and flag in perspective —
- * that was designed at large size and never checked small. At 16px, which is
- * a browser tab and a home-screen icon, the cup ellipse thinned to nothing
- * and the mark read as a green dot beside a stick. A logo that only works
- * at 200px is a picture.
+ * A pole carrying three bars of decreasing length. Read one way it is a
+ * pennant on a flagstick; read the other it is a leaderboard, longest bar
+ * at the top. Both readings are true of the product, which is the point:
+ * the second meaning is about what the software DOES, not merely about
+ * what the company is called.
  *
- * This one carries two readings at once, which is most of what separates a
- * designed mark from a stock icon: the T of TourneyHQ, and the pin. It also
- * survives as a single-colour silhouette, which the old one did not — the cup
- * was defined by its outline, so flattening the palette erased it.
+ * It replaced two earlier marks, and the reason both went is worth keeping.
+ * The first drew "holing out" — ball, cup and flag in perspective — and was
+ * designed at large size without ever being checked small: at 16px, which
+ * is a browser tab and a home-screen icon, the cup ellipse thinned to
+ * nothing and it read as a green dot beside a stick. The second was a T
+ * monogram, which was legible but safe — it said the company's initial and
+ * nothing about the game or the competition.
  *
- * ONE geometry, everywhere. The landing page used to draw its own copy with a
- * slightly larger cup and a thinner flagstick, so the logo above the sign-in
- * button was quietly not the logo inside the app. Nobody would name it, but it
- * is the kind of thing that makes a product feel assembled rather than made.
+ * Four other directions were drawn and rejected by rendering them rather
+ * than by describing them, which is the only test that decides this: green
+ * contours read as a speedometer, the Q-as-a-hole read as a magnifying
+ * glass, and a scorecard box read as a camera. A mark cannot be argued out
+ * of a collision like that — it either survives being looked at or it does
+ * not.
  *
- * Colours come from variables so the marketing page can keep its own palette
- * without keeping its own drawing:
+ * The swallowtail on the top bar is load-bearing. Without that notch the
+ * mark is a bar chart and only a bar chart; with it, the flag reading comes
+ * first and the standings reading second.
  *
- *   --logo-flag   the pennant — ORANGE
- *   --logo-stick  the T itself; defaults to the TEXT colour, so the mark and
- *                 the wordmark beside it read as one lockup on either ground
- *   --logo-ball   the ball — GREEN
+ * ONE geometry, everywhere. The landing page used to draw its own copy, so
+ * the logo above the sign-in button was quietly not the logo inside the
+ * app. Nobody would name it, but it is the kind of thing that makes a
+ * product feel assembled rather than made.
  *
- * There is no --logo-cup or --logo-rim any more: this mark has no cup. A
- * variable for a shape that does not exist is a promise the drawing cannot
- * keep.
+ * Colours come from variables so the marketing page can keep its own
+ * palette without keeping its own drawing:
+ *
+ *   --logo-flag   the leader's bar — ORANGE
+ *   --logo-stick  the pole and the second bar; defaults to the TEXT colour,
+ *                 so the mark and the wordmark read as one lockup
+ *   --logo-ball   the third bar — GREEN
+ *
+ * There is no --logo-cup or --logo-rim: this mark has no cup. A variable
+ * for a shape that does not exist is a promise the drawing cannot keep.
  */
 
 /**
@@ -91,35 +103,32 @@ export function Logo({
     <svg
       width={size}
       height={size}
-      /* NO OPTICAL SHIFT, because none is needed any more.
-         The drawing spans y 2.8 (the crossbar's cap) to 29.2 (the foot of the
-         ball) — a centre of exactly 16, which is the box centre. The previous
-         mark needed `viewBox="0 -1.5 32 32"` to correct for artwork that sat
-         high in its own box; this one is built centred instead, which is the
-         better fix because nothing downstream has to remember the correction.
-         `scripts/gen-icons.mjs` therefore carries no translate either, and
-         brand-consistency checks the two agree. */
+      /* NO OPTICAL SHIFT, because none is needed.
+         The drawing spans y 2.6 (the pole's top cap) to 29.4 (its bottom) —
+         a centre of exactly 16, which is the box centre. An older mark
+         needed `viewBox="0 -1.5 32 32"` to correct artwork that sat high in
+         its own box; building it centred is the better fix, because nothing
+         downstream has to remember the correction. `scripts/gen-icons.mjs`
+         therefore carries no translate either, and brand-consistency asserts
+         that neither of them does. */
       viewBox="0 0 32 32"
       fill="none"
       aria-hidden="true"
       style={style}
     >
-      {/* The crossbar and the stem: a T, and the pin it is named for. */}
-      <path
-        d="M8 4.4 H24"
-        // Its own variable, falling back to the flag's colour. The app draws
-        // stick and pennant in one colour; the programme palette draws the
-        // stick in ink and lets only the pennant carry the orange. Collapsing
-        // the two lost that two-tone the first time this was unified.
-        stroke={stick}
-        strokeWidth="3.2"
-        strokeLinecap="round"
-      />
-      <path d="M16 4.4 V20.5" stroke={stick} strokeWidth="3.2" strokeLinecap="round" />
-      {/* the pennant, flying off the stem */}
-      <path d="M17.3 7.4 L25.4 10.2 L17.3 13 Z" fill={flag} />
-      {/* the ball, at the foot of the pin */}
-      <circle cx="16" cy="25.9" r="3.3" fill={ball} />
+      {/* The pole. Ink rather than orange: it belongs to the wordmark beside
+          it, and leaving the pennant as the only accent stops the mark and the
+          "HQ" competing for the same attention. */}
+      <path d="M7.2 4.2 V27.8" stroke={stick} strokeWidth="3.2" strokeLinecap="round" />
+      {/* The leader's bar, which is also the pennant. Swallow-tailed on
+          purpose: that notch is the whole reason both readings survive — a
+          plain rectangle here is a bar chart and nothing else. */}
+      <path d="M9.4 6.6 h17.2 l-4 4.1 l4 4.1 H9.4 z" fill={flag} />
+      {/* Second and third, shorter, because that is what a standing IS. The
+          gaps are 2.8 units rather than 2.0: at 16px the tighter spacing let
+          the two lower bars merge into one. */}
+      <rect x="9.4" y="17.6" width="12.4" height="3.6" rx="1.8" fill={stick} />
+      <rect x="9.4" y="24" width="7.6" height="3.6" rx="1.8" fill={ball} />
     </svg>
   );
 }
