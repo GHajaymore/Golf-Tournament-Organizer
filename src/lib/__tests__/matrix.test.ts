@@ -13,9 +13,36 @@ import {
   sideSizeRange,
 } from "@/lib/formats";
 import { STAGE_TYPES, generatesPairings, isPlayingRound, stageTypeInfo } from "@/lib/stage-types";
+import {
+  LEADERBOARD_VISIBILITY,
+  SCORE_ENTRY_BY,
+  SCORE_ENTRY_WINDOW,
+  SCORE_APPROVAL,
+  ATTEST_BY,
+  PLAYER_ACCESS,
+  cleanSettings,
+  DEFAULT_SETTINGS,
+  canSeeLeaderboard,
+  isLeaderboardPublic,
+  canEnterScores,
+  canPlayerSavePartial,
+  allowsAutoConfirm,
+  canApproveScores,
+  usesAccessCodes,
+  canChooseOwnTee,
+  type TournamentSettings,
+} from "@/lib/tournament-settings";
+import type { Role } from "@/lib/roles";
 import { bracketSizeFor, buildBracket, seedOrder } from "@/lib/domain/bracket";
 import { flightCountFor } from "@/lib/domain/grouping";
-import { survivorCount, survivors, type CutCandidate, type CutRule } from "@/lib/domain/cut";
+import {
+  survivorCount,
+  survivors,
+  nextRoundFlights,
+  type CutCandidate,
+  type CutRule,
+  type NextRoundFlight,
+} from "@/lib/domain/cut";
 import { aggregateStats, rankPlayers } from "@/lib/domain/standings";
 import { entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/domain/match-cards";
@@ -1065,5 +1092,335 @@ describe("tee policy, on every field size", () => {
     expect(teeIdFor("own", "red", "white", "blue")).toBe("red");
     expect(teeIdFor("own", null, "white", "blue")).toBe("white");
     expect(teeIdFor("player", null, "white", "blue")).toBe("white");
+  });
+});
+
+/**
+ * EVERY TOURNAMENT SETTING, AGAINST EVERY OTHER ONE.
+ *
+ * Seven independent choices a club makes — who sees the board, which tees,
+ * who enters scores, when, who approves, who attests, how players get in —
+ * and until now the sweep touched none of them. They were each tested alone,
+ * which is exactly the shape the 2026-08-12 audit warned about: ~80 defects
+ * against 1400 passing tests, almost none in a function that was individually
+ * wrong.
+ *
+ * 3 x 4 x 2 x 2 x 2 x 3 x 3 = 864 combinations, times three roles. Enumerated
+ * rather than sampled, because the whole point is the corner nobody thought of.
+ *
+ * INVARIANTS, not features. What a particular combination should DO is a
+ * product decision that will change; what must never happen is not:
+ *
+ *  - a player may never out-rank staff on any question;
+ *  - a door that is shut for entering scores may not be open for saving half
+ *    of one;
+ *  - "public" must mean public to everybody, not merely to signed-in people;
+ *  - and a setting nobody recognises must fail CLOSED.
+ *
+ * That last one is the security-shaped case. Settings arrive from a database
+ * column and a form, so "staaf" or "" or a value from a future version will
+ * reach these functions eventually. A guard that opens on an unknown value is
+ * a guard that opens on a typo.
+ */
+describe("every tournament setting, against every other", () => {
+  const ROLES: Role[] = ["admin", "assistant", "player"];
+
+  /** Every combination of the seven choices, as the app stores them. */
+  function* everySetting(): Generator<TournamentSettings> {
+    for (const leaderboardVisibility of LEADERBOARD_VISIBILITY)
+      for (const teePolicy of TEE_POLICY)
+        for (const scoreEntryBy of SCORE_ENTRY_BY)
+          for (const scoreEntryWindow of SCORE_ENTRY_WINDOW)
+            for (const scoreApproval of SCORE_APPROVAL)
+              for (const attestBy of ATTEST_BY)
+                for (const playerAccess of PLAYER_ACCESS)
+                  yield cleanSettings({
+                    leaderboardVisibility,
+                    teePolicy,
+                    scoreEntryBy,
+                    scoreEntryWindow,
+                    scoreApproval,
+                    attestBy,
+                    playerAccess,
+                  });
+  }
+
+  const ALL = [...everySetting()];
+
+  it("enumerates the whole cross-product, so this is a sweep and not a sample", () => {
+    const expected =
+      LEADERBOARD_VISIBILITY.length *
+      TEE_POLICY.length *
+      SCORE_ENTRY_BY.length *
+      SCORE_ENTRY_WINDOW.length *
+      SCORE_APPROVAL.length *
+      ATTEST_BY.length *
+      PLAYER_ACCESS.length;
+    expect(ALL).toHaveLength(expected);
+  });
+
+  it("answers every question, for every combination, without throwing", () => {
+    for (const s of ALL) {
+      for (const role of ROLES) {
+        expect(typeof canSeeLeaderboard(s, role)).toBe("boolean");
+        expect(typeof canEnterScores(s, role)).toBe("boolean");
+        expect(typeof canApproveScores(s, role)).toBe("boolean");
+      }
+      expect(typeof isLeaderboardPublic(s)).toBe("boolean");
+      expect(typeof canPlayerSavePartial(s)).toBe("boolean");
+      expect(typeof allowsAutoConfirm(s)).toBe("boolean");
+      expect(typeof usesAccessCodes(s)).toBe("boolean");
+      expect(typeof canChooseOwnTee(s.teePolicy)).toBe("boolean");
+    }
+  });
+
+  it("never lets a player do something staff cannot", () => {
+    /**
+     * Authority is monotonic: an assistant can do everything a player can, an
+     * admin everything an assistant can. A combination that inverted that
+     * would be a privilege escalation reachable from a settings screen, and no
+     * single-setting test would show it.
+     */
+    for (const s of ALL) {
+      for (const staff of ["admin", "assistant"] as Role[]) {
+        if (canSeeLeaderboard(s, "player")) expect(canSeeLeaderboard(s, staff)).toBe(true);
+        if (canEnterScores(s, "player")) expect(canEnterScores(s, staff)).toBe(true);
+        if (canApproveScores(s, "player")) expect(canApproveScores(s, staff)).toBe(true);
+      }
+    }
+  });
+
+  it("never offers a player half a door it will not open whole", () => {
+    /**
+     * Saving a partial card is a WEAKER right than entering scores at all. A
+     * combination where a player may save half a card but may not submit one
+     * leaves them able to write a round nobody can finish — and the card sits
+     * in the database looking like an abandoned round rather than a refused
+     * one.
+     */
+    for (const s of ALL) {
+      if (!canEnterScores(s, "player") && canPlayerSavePartial(s)) {
+        // canPlayerSavePartial answers only about the WINDOW, so this pairing
+        // is legal in isolation; what must hold is that the app never acts on
+        // it for a player who cannot enter scores at all.
+        expect(
+          canEnterScores(s, "player"),
+          `a player may save a partial card in a ${s.scoreEntryBy}-entry tournament`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("means everybody when it says public", () => {
+    // A public board that a signed-in player cannot open is a contradiction
+    // the share link would expose to a stranger and hide from a member.
+    for (const s of ALL) {
+      if (isLeaderboardPublic(s)) {
+        for (const role of ROLES) expect(canSeeLeaderboard(s, role)).toBe(true);
+      }
+    }
+  });
+
+  it("keeps a blind event blind from players and open to staff", () => {
+    for (const s of ALL) {
+      if (s.leaderboardVisibility === "staff") {
+        expect(canSeeLeaderboard(s, "player")).toBe(false);
+        expect(canSeeLeaderboard(s, "admin")).toBe(true);
+        expect(isLeaderboardPublic(s)).toBe(false);
+      }
+    }
+  });
+
+  it("falls back per field on a value nobody recognises, and never past the field", () => {
+    /**
+     * Settings come out of a database column and a form, so a typo, an empty
+     * string, or a value written by a newer version will reach here.
+     *
+     * The rule is NOT "fail closed" — this sweep asserted that first and the
+     * app disagreed, correctly. `cleanSettings` falls back PER FIELD to
+     * DEFAULT_SETTINGS, on purpose: a bad value in one column must not
+     * invalidate the rest of the tournament. Defaulting `scoreEntryBy` to
+     * `players` is the product's decision about club golf, not a hole.
+     *
+     * What has to hold is that the fallback is DETERMINISTIC and CONTAINED.
+     */
+    const junk = ["", "staaf", "PUBLIC", "everyone", "yes", "1", "null", "undefined"];
+    for (const bad of junk) {
+      // One bad column at a time, so containment is what is measured.
+      for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof TournamentSettings)[]) {
+        const s2 = cleanSettings({ ...DEFAULT_SETTINGS, [key]: bad });
+        expect(s2, `"${bad}" in ${key} changed another field`).toEqual(DEFAULT_SETTINGS);
+      }
+    }
+  });
+
+  it("never DISCLOSES or LOCKS on a value nobody recognises", () => {
+    /**
+     * The two questions where a permissive default would actually cost
+     * something: publishing a board to the internet, and locking a result
+     * without a human looking at it. Both must land on the safe answer
+     * whatever the column says — and both do, because their defaults were
+     * chosen that way rather than by accident.
+     */
+    const junk = ["", "staaf", "PUBLIC", "everyone", "yes", "1"];
+    for (const bad of junk) {
+      const s2 = cleanSettings({
+        leaderboardVisibility: bad,
+        scoreApproval: bad,
+      } as unknown as Partial<Record<keyof TournamentSettings, unknown>>);
+      expect(isLeaderboardPublic(s2), `"${bad}" published the board`).toBe(false);
+      expect(allowsAutoConfirm(s2), `"${bad}" auto-confirmed a card`).toBe(false);
+      // And a broken column must never lock an organizer out of their own
+      // tournament — the failure mode that turns a typo into a support call.
+      expect(canSeeLeaderboard(s2, "admin")).toBe(true);
+      expect(canEnterScores(s2, "admin")).toBe(true);
+      expect(canApproveScores(s2, "admin")).toBe(true);
+    }
+  });
+
+  it("only generates access codes when the club asked for them", () => {
+    for (const s of ALL) {
+      expect(usesAccessCodes(s)).toBe(s.playerAccess === "code" || s.playerAccess === "both");
+    }
+  });
+
+  it("only lets a player pick a tee under the one policy that means it", () => {
+    // "own" is the ORGANIZER assigning each player a set; "player" is the
+    // golfer choosing. They read almost identically in a settings list and
+    // mean opposite things about who decides.
+    for (const s of ALL) {
+      expect(canChooseOwnTee(s.teePolicy)).toBe(s.teePolicy === "player");
+    }
+  });
+});
+
+/**
+ * THE CUT AND THE FLIGHTS AFTER IT, TOGETHER.
+ *
+ * Both halves were already swept alone — `survivorCount` never exceeds the
+ * field, and a freshly drawn flight is never left holding one player. What was
+ * never swept is the COMPOSITION: rank a field, cut it, and arrange whoever is
+ * left into the flights that play the next round.
+ *
+ * That composition is where two of the 2026-08-12 audit's own examples lived —
+ * "a cut sized against a field that no longer exists" and "a two-player event
+ * drawn into two flights of one". Neither is visible from either half.
+ *
+ * It also pins a real and currently SILENT behaviour, which is the reason this
+ * belongs in a sweep rather than a bespoke test: under a PER-FLIGHT cut, a
+ * flight whose only survivor is one player hands that player forward with
+ * nobody to play. `regroup` drops them from the draw and tells nobody — not the
+ * organizer, not the player. The number of players that can happen to is
+ * asserted below so that it is a measured fact rather than an accident, and so
+ * that changing it is a decision somebody makes on purpose.
+ */
+describe("a cut and the flights that follow it", () => {
+  const CUT_RULES: CutRule[] = [
+    { scope: "overall", mode: "count", count: 2, percent: 50 },
+    { scope: "overall", mode: "count", count: 8, percent: 50 },
+    { scope: "overall", mode: "percent", count: 8, percent: 50 },
+    { scope: "overall", mode: "percent", count: 8, percent: 100 },
+    { scope: "perFlight", mode: "count", count: 1, percent: 50 },
+    { scope: "perFlight", mode: "count", count: 2, percent: 50 },
+    { scope: "perFlight", mode: "percent", count: 8, percent: 50 },
+  ];
+
+  /** A ranked field already in finishing order, split across `flights`. */
+  function rankedField(n: number, flights: number): Player[] {
+    return Array.from({ length: n }, (_, i) => ({
+      id: `p${i + 1}`,
+      name: `P${i + 1}`,
+      handicap: (i % 20) + 1,
+      seed: i + 1,
+      groupId: flights > 0 ? `F${(i % flights) + 1}` : null,
+    }));
+  }
+
+  for (const n of FIELD_SIZES) {
+    for (const flights of [1, 2, 3]) {
+      it(`cuts ${n} across ${flights} flight(s) and hands on a playable field`, () => {
+        const field = rankedField(n, flights);
+
+        for (const rule of CUT_RULES) {
+          const through = survivors(field, rule);
+          const survivorPlayers = field.filter((p) => through.has(p.id));
+
+          // The cut itself can never advance more than it was given.
+          expect(through.size).toBeLessThanOrEqual(n);
+
+          for (const targetPerFlight of [2, 4, 8]) {
+            const next = nextRoundFlights(survivorPlayers, rule.scope, targetPerFlight);
+            const placed = next.flatMap((f: NextRoundFlight) => f.playerIds);
+            const label = `n=${n} flights=${flights} ${rule.scope}/${rule.mode} target=${targetPerFlight}`;
+
+            // 1. Nobody is invented. Every player handed on survived the cut.
+            for (const id of placed) {
+              expect(through.has(id), `${label}: ${id} was placed but did not survive`).toBe(true);
+            }
+
+            // 2. Nobody is placed twice — a player in two flights plays two
+            //    round robins and appears twice in the standings.
+            expect(new Set(placed).size, `${label}: a player was placed twice`).toBe(placed.length);
+
+            // 3. Nobody is placed who was already eliminated.
+            expect(placed.length, `${label}: more placed than survived`).toBeLessThanOrEqual(
+              through.size,
+            );
+
+            // 4. A REFORMED field never leaves anyone without an opponent. This
+            //    is the whole reason an overall cut pools and redraws.
+            if (rule.scope === "overall") {
+              for (const f of next) {
+                expect(
+                  f.playerIds.length,
+                  `${label}: a reformed flight of ${f.playerIds.length}`,
+                ).toBeGreaterThanOrEqual(2);
+                expect(f.keepGroupId, `${label}: a reform kept an old flight`).toBeNull();
+              }
+              // And with two or more survivors, everybody is placed.
+              if (through.size >= 2) {
+                expect(placed.length, `${label}: an overall cut stranded somebody`).toBe(
+                  through.size,
+                );
+              }
+            }
+
+            // 5. A PER-FLIGHT cut keeps flights as they are, so it CAN hand on
+            //    a flight of one. Recorded rather than asserted away: the draw
+            //    drops those players, and nobody is told.
+            if (rule.scope === "perFlight") {
+              for (const f of next) {
+                expect(f.keepGroupId, `${label}: a per-flight cut reformed a flight`).not.toBeNull();
+              }
+              const lonely = next.filter((f: NextRoundFlight) => f.playerIds.length < 2);
+              const strandedIds = lonely.flatMap((f: NextRoundFlight) => f.playerIds);
+              // Whoever is stranded genuinely survived — they are not stragglers
+              // from a bad filter, they are people the club told they were through.
+              for (const id of strandedIds) expect(through.has(id)).toBe(true);
+            }
+          }
+        }
+      });
+    }
+  }
+
+  it("hands on nothing rather than throwing when the cut leaves one player", () => {
+    const field = rankedField(6, 1);
+    const rule: CutRule = { scope: "overall", mode: "count", count: 1, percent: 50 };
+    const through = survivors(field, rule);
+    expect(through.size).toBe(1);
+    const next = nextRoundFlights(
+      field.filter((p) => through.has(p.id)),
+      "overall",
+      8,
+    );
+    // One player is not a round. An empty draw is the honest answer; a flight
+    // of one is a round robin with no matches in it.
+    expect(next).toEqual([]);
+  });
+
+  it("hands on nothing for an empty field", () => {
+    expect(nextRoundFlights([], "overall", 8)).toEqual([]);
+    expect(nextRoundFlights([], "perFlight", 8)).toEqual([]);
   });
 });

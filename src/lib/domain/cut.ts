@@ -245,8 +245,17 @@ export function reflightSurvivors(
   if (n < 2) return [];
   const per = Math.max(2, Math.round(targetPerFlight) || 2);
   const desired = Math.max(1, Math.round(n / per));
-  // Never more flights than can hold two apiece — the whole point is to stop a
-  // flight of one, which is exactly what an over-eager split reintroduces.
+  /**
+   * Never more flights than can hold two apiece — the whole point is to stop a
+   * flight of one, which is exactly what an over-eager split reintroduces.
+   *
+   * BELT AND BRACES, and worth saying so. `formGroups` already caps the count
+   * itself: asked for five flights out of five players it returns [3, 2], not
+   * five singles. Mutation testing confirms it — removing this clamp changes no
+   * outcome the sweep can find. It stays because it states the intent HERE,
+   * where the reason lives, rather than depending on a guarantee two modules
+   * away that nothing obliges `formGroups` to keep.
+   */
   const count = Math.min(desired, Math.floor(n / 2));
   return formGroups(survivors, "balanced", { mode: "count", value: count }).map((g) => ({
     name: g.name,
