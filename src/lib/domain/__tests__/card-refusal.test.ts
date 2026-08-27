@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { cardRefusal } from "../scorecard-parse";
+import { cardProblems } from "../venue";
 
 /**
  * One standard, wherever a card is written down.
@@ -181,5 +182,47 @@ describe("every path that stores a card uses it", () => {
       }
     }
     expect(suspects, "these write a card without checking one").toEqual([]);
+  });
+});
+describe("an absent stroke index is not a scrambled one", () => {
+  const PARS18 = [4, 4, 3, 5, 4, 3, 5, 3, 4, 5, 3, 3, 4, 5, 4, 5, 4, 4];
+
+  it("says the index is missing when the source gave none", () => {
+    /**
+     * Abbey Par 3: eighteen real par-3 holes, every stroke index empty. It
+     * used to be told its index "must use each number from 1 to 18 exactly
+     * once", which reads as an accusation that the card is jumbled and sends
+     * somebody hunting for a transcription error in a card that never had an
+     * index at all.
+     */
+    const problems = cardProblems({ pars: PARS18, strokeIndex: new Array(18).fill(0) }, 18);
+    expect(problems.join(" ")).toMatch(/no stroke index was given/i);
+    expect(problems.join(" ")).not.toMatch(/exactly once/i);
+  });
+
+  it("still says SCRAMBLED when the index is present and wrong", () => {
+    // The distinction is only worth having if the other message survives.
+    const si = Array.from({ length: 18 }, (_, i) => i + 1);
+    si[17] = 1; // 1 twice, 18 never
+    const problems = cardProblems({ pars: PARS18, strokeIndex: si }, 18);
+    expect(problems.join(" ")).toMatch(/exactly once/i);
+  });
+
+  it("does not call a partly-missing index absent", () => {
+    // One hole without an index is a gap in a real card, not a card with no
+    // index — and it must not be waved through as either.
+    const si = Array.from({ length: 18 }, (_, i) => i + 1);
+    si[5] = 0;
+    const problems = cardProblems({ pars: PARS18, strokeIndex: si }, 18);
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems.join(" ")).not.toMatch(/no stroke index was given/i);
+  });
+
+  it("applies on a nine as well", () => {
+    const problems = cardProblems(
+      { pars: [4, 5, 3, 4, 4, 4, 3, 4, 5], strokeIndex: new Array(9).fill(0) },
+      9,
+    );
+    expect(problems.join(" ")).toMatch(/no stroke index was given/i);
   });
 });

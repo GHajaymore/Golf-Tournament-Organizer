@@ -301,6 +301,19 @@ async function refusedUnderOldRules(): Promise<Array<{ id: string; country: stri
       // now a golf course rather than a broken eighteen.
       const m = /has (\d+) holes for this course, not 18/.exec(r.cardProblem);
       if (m && m[1] === "9") return true;
+      /**
+       * A course refused for having ONE hole more than a round.
+       *
+       * The directory appends a phantom nineteenth (or tenth) carrying a par
+       * and no stroke index; Camarillo Springs, a real par-72 whose first
+       * eighteen are a complete correct card, was thrown away for it.
+       * `cardFrom` now drops that row, so these are worth re-asking.
+       *
+       * Only 19 and 10 — one past a round. A course reporting 24 holes is not
+       * this defect and is left refused rather than spent on.
+       */
+      const n = /has (\d+) holes for this course, (?:not 18|which is neither)/.exec(r.cardProblem);
+      if (n && (n[1] === "19" || n[1] === "10")) return true;
       // A card cleared only because it had no yardage — that was a bug in
       // --revalidate, and the course still needs its card back.
       return /yardage looks wrong/.test(r.cardProblem);
