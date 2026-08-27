@@ -7,6 +7,8 @@ import { isIsoDate } from "@/lib/deadline";
 import { isValidAmount, MAX_EXPENSE_CENTS, canChangeExpense } from "@/lib/domain/expenses";
 import { money as fmtMoney } from "@/lib/domain/money-format";
 import { currencyForEvent } from "@/lib/services/organization";
+import { moneyFor } from "@/lib/services/expenses";
+import { moneyRulesVersion } from "@/lib/domain/money-rules-version";
 
 /**
  * Shared-expense actions.
@@ -497,6 +499,24 @@ export async function recordSettlement(
   const nameOf = (id: string) => both.find((p) => p.id === id)?.name ?? id;
   const currency = await currencyForEvent(eventId);
 
+  /**
+   * WHAT THIS PAYMENT IS PAYING, captured now rather than inferred later.
+   *
+   * The standing position is worked out live from the expenses, the skins and
+   * the side games. So a settlement that exactly cleared a debt stops looking
+   * like one the moment any of those move — an expense corrected next week, a
+   * skins result adjusted, a money rule fixed — and the bare row cannot then
+   * tell "they paid what they owed" from "they underpaid by six pounds".
+   *
+   * Read rather than trusted from the caller: the amount comes off a form, and
+   * a client that sent its own idea of the debt could write a settlement that
+   * claims to have cleared one that never existed.
+   */
+  const view = await moneyFor(eventId, session.email, { isStaff });
+  const standing = view.transfers.find(
+    (t) => t.fromPlayerId === fromPlayerId && t.toPlayerId === toPlayerId,
+  );
+
   await prisma.settlement.create({
     data: {
       eventId,
@@ -504,6 +524,11 @@ export async function recordSettlement(
       toPlayerId,
       cents: amount,
       recordedBy: session.name || session.email,
+      // Absent when the ledger shows nothing outstanding between these two —
+      // a real case (somebody settling ahead of an expense being entered), and
+      // one where a zero would claim the debt was nil rather than unknown.
+      owedCents: standing ? standing.cents : null,
+      rulesVersion: moneyRulesVersion(),
     },
   });
 
