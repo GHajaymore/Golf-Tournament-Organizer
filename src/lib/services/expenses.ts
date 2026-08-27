@@ -87,6 +87,17 @@ export interface SettlementRow {
   cents: number;
   recordedBy: string;
   settledAt: string;
+  /**
+   * What the ledger said was owed between these two when this was recorded.
+   *
+   * Null on rows written before it was captured, and on a payment made when
+   * nothing was outstanding. Never zero-for-unknown — see the schema comment.
+   */
+  owedCents: number | null;
+  /** Which generation of the money rules produced `owedCents`. */
+  rulesVersion: string;
+  /** True/false against `owedCents`; null when the row cannot say. */
+  clearedItsDebt: boolean | null;
 }
 
 export interface MoneyView {
@@ -661,6 +672,17 @@ export async function moneyFor(
       cents: s.cents,
       recordedBy: s.recordedBy,
       settledAt: s.settledAt.toISOString().slice(0, 10),
+      owedCents: s.owedCents,
+      rulesVersion: s.rulesVersion,
+      /**
+       * Whether this payment cleared the debt it was recorded against.
+       *
+       * Null when the row predates `owedCents` and genuinely cannot say. That
+       * is deliberately not folded into `false`: "we don't know" and "it did
+       * not settle" are different things to put in front of somebody who is
+       * about to ask a friend for money.
+       */
+      clearedItsDebt: s.owedCents == null ? null : s.cents >= s.owedCents,
     })),
     standing: standingNets
       .filter((n) => nameOf.has(n.playerId) || n.netCents !== 0)

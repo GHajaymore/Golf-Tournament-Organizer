@@ -1863,6 +1863,32 @@ model Settlement {
   recordedBy String   @default("")
   settledAt  DateTime @default(now())
 
+  /**
+   * What the ledger said was owed, from this player to that one, at the moment
+   * the payment was recorded.
+   *
+   * The standing position is worked out LIVE from the expenses, the skins and
+   * the side games. So a settlement that exactly cleared a debt stops looking
+   * like one as soon as any input moves — an expense corrected a week later,
+   * a skins result adjusted, a money rule fixed — and the row alone cannot
+   * distinguish "they paid what they owed" from "they underpaid".
+   *
+   * Nullable, and never backfilled. Rows written before this genuinely do not
+   * know, and a zero would say "nothing was owed", which is a claim rather
+   * than an absence.
+   */
+  owedCents Int?
+
+  /**
+   * Which generation of the money rules produced `owedCents`.
+   *
+   * See `moneyRulesVersion` — it is derived from what the rules answer, not
+   * from a number somebody remembers to increment, so it moves on its own the
+   * day apportionment or netting changes. Empty on rows written before it
+   * existed.
+   */
+  rulesVersion String @default("")
+
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
