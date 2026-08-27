@@ -35,7 +35,14 @@ import {
 import type { Role } from "@/lib/roles";
 import { bracketSizeFor, buildBracket, seedOrder } from "@/lib/domain/bracket";
 import { flightCountFor } from "@/lib/domain/grouping";
-import { survivorCount, survivors, type CutCandidate, type CutRule } from "@/lib/domain/cut";
+import {
+  survivorCount,
+  survivors,
+  nextRoundFlights,
+  type CutCandidate,
+  type CutRule,
+  type NextRoundFlight,
+} from "@/lib/domain/cut";
 import { aggregateStats, rankPlayers } from "@/lib/domain/standings";
 import { entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { matchCardFinished, matchStrokeCards, type MatchForCards } from "@/lib/domain/match-cards";
@@ -1284,5 +1291,136 @@ describe("every tournament setting, against every other", () => {
     for (const s of ALL) {
       expect(canChooseOwnTee(s.teePolicy)).toBe(s.teePolicy === "player");
     }
+  });
+});
+
+/**
+ * THE CUT AND THE FLIGHTS AFTER IT, TOGETHER.
+ *
+ * Both halves were already swept alone — `survivorCount` never exceeds the
+ * field, and a freshly drawn flight is never left holding one player. What was
+ * never swept is the COMPOSITION: rank a field, cut it, and arrange whoever is
+ * left into the flights that play the next round.
+ *
+ * That composition is where two of the 2026-08-12 audit's own examples lived —
+ * "a cut sized against a field that no longer exists" and "a two-player event
+ * drawn into two flights of one". Neither is visible from either half.
+ *
+ * It also pins a real and currently SILENT behaviour, which is the reason this
+ * belongs in a sweep rather than a bespoke test: under a PER-FLIGHT cut, a
+ * flight whose only survivor is one player hands that player forward with
+ * nobody to play. `regroup` drops them from the draw and tells nobody — not the
+ * organizer, not the player. The number of players that can happen to is
+ * asserted below so that it is a measured fact rather than an accident, and so
+ * that changing it is a decision somebody makes on purpose.
+ */
+describe("a cut and the flights that follow it", () => {
+  const CUT_RULES: CutRule[] = [
+    { scope: "overall", mode: "count", count: 2, percent: 50 },
+    { scope: "overall", mode: "count", count: 8, percent: 50 },
+    { scope: "overall", mode: "percent", count: 8, percent: 50 },
+    { scope: "overall", mode: "percent", count: 8, percent: 100 },
+    { scope: "perFlight", mode: "count", count: 1, percent: 50 },
+    { scope: "perFlight", mode: "count", count: 2, percent: 50 },
+    { scope: "perFlight", mode: "percent", count: 8, percent: 50 },
+  ];
+
+  /** A ranked field already in finishing order, split across `flights`. */
+  function rankedField(n: number, flights: number): Player[] {
+    return Array.from({ length: n }, (_, i) => ({
+      id: `p${i + 1}`,
+      name: `P${i + 1}`,
+      handicap: (i % 20) + 1,
+      seed: i + 1,
+      groupId: flights > 0 ? `F${(i % flights) + 1}` : null,
+    }));
+  }
+
+  for (const n of FIELD_SIZES) {
+    for (const flights of [1, 2, 3]) {
+      it(`cuts ${n} across ${flights} flight(s) and hands on a playable field`, () => {
+        const field = rankedField(n, flights);
+
+        for (const rule of CUT_RULES) {
+          const through = survivors(field, rule);
+          const survivorPlayers = field.filter((p) => through.has(p.id));
+
+          // The cut itself can never advance more than it was given.
+          expect(through.size).toBeLessThanOrEqual(n);
+
+          for (const targetPerFlight of [2, 4, 8]) {
+            const next = nextRoundFlights(survivorPlayers, rule.scope, targetPerFlight);
+            const placed = next.flatMap((f: NextRoundFlight) => f.playerIds);
+            const label = `n=${n} flights=${flights} ${rule.scope}/${rule.mode} target=${targetPerFlight}`;
+
+            // 1. Nobody is invented. Every player handed on survived the cut.
+            for (const id of placed) {
+              expect(through.has(id), `${label}: ${id} was placed but did not survive`).toBe(true);
+            }
+
+            // 2. Nobody is placed twice — a player in two flights plays two
+            //    round robins and appears twice in the standings.
+            expect(new Set(placed).size, `${label}: a player was placed twice`).toBe(placed.length);
+
+            // 3. Nobody is placed who was already eliminated.
+            expect(placed.length, `${label}: more placed than survived`).toBeLessThanOrEqual(
+              through.size,
+            );
+
+            // 4. A REFORMED field never leaves anyone without an opponent. This
+            //    is the whole reason an overall cut pools and redraws.
+            if (rule.scope === "overall") {
+              for (const f of next) {
+                expect(
+                  f.playerIds.length,
+                  `${label}: a reformed flight of ${f.playerIds.length}`,
+                ).toBeGreaterThanOrEqual(2);
+                expect(f.keepGroupId, `${label}: a reform kept an old flight`).toBeNull();
+              }
+              // And with two or more survivors, everybody is placed.
+              if (through.size >= 2) {
+                expect(placed.length, `${label}: an overall cut stranded somebody`).toBe(
+                  through.size,
+                );
+              }
+            }
+
+            // 5. A PER-FLIGHT cut keeps flights as they are, so it CAN hand on
+            //    a flight of one. Recorded rather than asserted away: the draw
+            //    drops those players, and nobody is told.
+            if (rule.scope === "perFlight") {
+              for (const f of next) {
+                expect(f.keepGroupId, `${label}: a per-flight cut reformed a flight`).not.toBeNull();
+              }
+              const lonely = next.filter((f: NextRoundFlight) => f.playerIds.length < 2);
+              const strandedIds = lonely.flatMap((f: NextRoundFlight) => f.playerIds);
+              // Whoever is stranded genuinely survived — they are not stragglers
+              // from a bad filter, they are people the club told they were through.
+              for (const id of strandedIds) expect(through.has(id)).toBe(true);
+            }
+          }
+        }
+      });
+    }
+  }
+
+  it("hands on nothing rather than throwing when the cut leaves one player", () => {
+    const field = rankedField(6, 1);
+    const rule: CutRule = { scope: "overall", mode: "count", count: 1, percent: 50 };
+    const through = survivors(field, rule);
+    expect(through.size).toBe(1);
+    const next = nextRoundFlights(
+      field.filter((p) => through.has(p.id)),
+      "overall",
+      8,
+    );
+    // One player is not a round. An empty draw is the honest answer; a flight
+    // of one is a round robin with no matches in it.
+    expect(next).toEqual([]);
+  });
+
+  it("hands on nothing for an empty field", () => {
+    expect(nextRoundFlights([], "overall", 8)).toEqual([]);
+    expect(nextRoundFlights([], "perFlight", 8)).toEqual([]);
   });
 });
