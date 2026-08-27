@@ -29,6 +29,8 @@ const FLAG = "#f2862e"; // --color-accent, as the ramp actually resolves it
 const STICK = "#e9e9ed"; // --color-text on the dark ground: the T is lettering,
 //                          not accent, so it matches the wordmark beside it
 const BALL = "#5fb484"; // --color-accent-2-400: lifted one step off the in-app
+const CUP = "#3f424d"; // --color-neutral-800 on the dark ground: a hole,
+//                        readable against the tile without an outline
 //                         green, which goes muddy at 48px
 const EDGE = "#55605a"; // the cup's rim, brightened for small sizes
 
@@ -47,10 +49,10 @@ const EDGE = "#55605a"; // the cup's rim, brightened for small sizes
  * files each remembering the same correction.
  */
 const mark = `<g>
-  <path d="M115.2 67.2 V444.8" stroke="${STICK}" stroke-width="51.2" stroke-linecap="round"/>
-  <path d="M150.4 105.6 h275.2 l-64 65.6 l64 65.6 H150.4 z" fill="${FLAG}"/>
-  <rect x="150.4" y="281.6" width="198.4" height="57.6" rx="28.8" fill="${STICK}"/>
-  <rect x="150.4" y="384" width="121.6" height="57.6" rx="28.8" fill="${BALL}"/></g>`;
+  <ellipse cx="243.2" cy="377.6" rx="134.4" ry="56" fill="${CUP}"/>
+  <path d="M297.6 97.6 V369.6" stroke="${STICK}" stroke-width="38.4" stroke-linecap="round"/>
+  <path d="M297.6 100.8 L412.8 148.8 L297.6 196.8 Z" fill="${FLAG}"/>
+  <circle cx="176" cy="291.2" r="54.4" fill="${BALL}"/></g>`;
 
 const svg = (body, size = 512) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512">${body}</svg>`;
@@ -71,10 +73,10 @@ const adaptiveFg = svg(`<g transform="translate(87,87) scale(0.66)">${mark}</g>`
 /** The favicon, at the component's own scale so it stays crisp at 16px. */
 const favicon = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
   <rect width="32" height="32" rx="7" fill="${GROUND}"/>
-  <path d="M7.2 4.2 V27.8" stroke="${STICK}" stroke-width="3.2" stroke-linecap="round"/>
-  <path d="M9.4 6.6 h17.2 l-4 4.1 l4 4.1 H9.4 z" fill="${FLAG}"/>
-  <rect x="9.4" y="17.6" width="12.4" height="3.6" rx="1.8" fill="${STICK}"/>
-  <rect x="9.4" y="24" width="7.6" height="3.6" rx="1.8" fill="${BALL}"/>
+  <ellipse cx="15.2" cy="23.6" rx="8.4" ry="3.5" fill="${CUP}"/>
+  <path d="M18.6 6.1 V23.1" stroke="${STICK}" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M18.6 6.3 L25.8 9.3 L18.6 12.3 Z" fill="${FLAG}"/>
+  <circle cx="11" cy="18.2" r="3.4" fill="${BALL}"/>
 </svg>
 `;
 

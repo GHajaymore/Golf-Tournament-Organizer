@@ -32,9 +32,9 @@ describe("the brand mark is drawn once", () => {
   const files = allTsx("src");
 
   it("has exactly one copy of the flagstick geometry in the app", () => {
-    // The pole is the mark's signature. A second file containing it means
-// somebody drew the logo again instead of importing it.
-const drawing = files.filter((f) => read(f).includes('d="M7.2 4.2 V27.8"'));
+    // The flagstick is the mark's signature. A second file containing it
+// means somebody drew the logo again instead of importing it.
+const drawing = files.filter((f) => read(f).includes('d="M18.6 6.1 V23.1"'));
     expect(drawing, `logo geometry duplicated in: ${drawing.join(", ")}`).toEqual([
       "src/components/Logo.tsx",
     ]);
@@ -56,8 +56,8 @@ const drawing = files.filter((f) => read(f).includes('d="M7.2 4.2 V27.8"'));
     expect(logo, "the component nudges the mark").toContain('viewBox="0 0 32 32"');
     expect(gen, "the generator nudges the mark").not.toMatch(/translate\(0,\s*\d/);
     // And the generator's grid is the component's, x16.
-    expect(gen).toContain('M115.2 67.2 V444.8');
-    expect(logo).toContain('M7.2 4.2 V27.8');
+    expect(gen).toContain('M297.6 97.6 V369.6');
+    expect(logo).toContain('M18.6 6.1 V23.1');
   });
 
   it("lets a different palette re-skin the one drawing", () => {
@@ -66,13 +66,12 @@ const drawing = files.filter((f) => read(f).includes('d="M7.2 4.2 V27.8"'));
     const logo = read("src/components/Logo.tsx");
     expect(logo).toContain("--logo-flag");
     expect(logo).toContain("--logo-stick");
-    // No --logo-rim or --logo-cup: the pin monogram has no cup, and a
-    // variable for a shape that does not exist is a promise the drawing
-    // cannot keep.
-    // Matched as a READ of the variable, not a mention of it: the comment
-    // above explains why the cup is gone, and prose must not fail a test.
-    expect(logo, "the drawing still reads a variable for a shape it removed").not.toContain(
-      "var(--logo-cup",
+    // The cup is back, and filled rather than outlined, so the variable
+// that colours it has to exist again. --logo-rim does not: there is
+// no outline to colour.
+    expect(logo).toContain("--logo-cup");
+    expect(logo, "an outline variable survives a fill-only cup").not.toContain(
+      "var(--logo-rim",
     );
     expect(read("src/app/page.tsx")).toContain('"--logo-flag": "var(--brand-amber)"');
   });

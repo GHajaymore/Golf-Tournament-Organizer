@@ -1,46 +1,46 @@
 /**
- * TourneyHQ brand mark — the standings flag.
+ * TourneyHQ brand mark — "holing out": the ball dropping into the cup
+ * beside the flag. The payoff moment in golf, and the moment this app is
+ * built around — a score landing, standings moving.
  *
- * A pole carrying three bars of decreasing length. Read one way it is a
- * pennant on a flagstick; read the other it is a leaderboard, longest bar
- * at the top. Both readings are true of the product, which is the point:
- * the second meaning is about what the software DOES, not merely about
- * what the company is called.
+ * REBUILT, not redrawn. The idea was always right; the execution had four
+ * faults, and every one of them only showed up when the mark was rendered
+ * small rather than looked at large:
  *
- * It replaced two earlier marks, and the reason both went is worth keeping.
- * The first drew "holing out" — ball, cup and flag in perspective — and was
- * designed at large size without ever being checked small: at 16px, which
- * is a browser tab and a home-screen icon, the cup ellipse thinned to
- * nothing and it read as a green dot beside a stick. The second was a T
- * monogram, which was legible but safe — it said the company's initial and
- * nothing about the game or the competition.
+ *  1. The cup was an ELLIPSE DEFINED BY ITS OUTLINE, at stroke-width 1. At
+ *     16px — a browser tab, a home-screen icon — that hairline thinned to
+ *     nothing and the mark read as a green dot beside a stick. It is now
+ *     filled, so it survives being small and survives being flattened to
+ *     one colour, which an outline-only shape never can.
+ *  2. The weights disagreed: a 1.8 flagstick against a 1-unit cup rim. One
+ *     drawing with two line weights reads as two drawings.
+ *  3. The pin did not touch the hole. The stick stopped at y18 and the cup
+ *     sat at y22, so the mark showed a flag NEAR a cup rather than a pin IN
+ *     one. It is now planted through the rim.
+ *  4. The ball overlapped the cup ambiguously — neither clearly in nor
+ *     clearly out. It now breaks the near rim from above, which is what
+ *     dropping in actually looks like.
  *
- * Four other directions were drawn and rejected by rendering them rather
- * than by describing them, which is the only test that decides this: green
- * contours read as a speedometer, the Q-as-a-hole read as a magnifying
- * glass, and a scorecard box read as a camera. A mark cannot be argued out
- * of a collision like that — it either survives being looked at or it does
- * not.
- *
- * The swallowtail on the top bar is load-bearing. Without that notch the
- * mark is a bar chart and only a bar chart; with it, the flag reading comes
- * first and the standings reading second.
- *
- * ONE geometry, everywhere. The landing page used to draw its own copy, so
- * the logo above the sign-in button was quietly not the logo inside the
- * app. Nobody would name it, but it is the kind of thing that makes a
- * product feel assembled rather than made.
+ * ONE geometry, everywhere. The landing page used to draw its own copy with
+ * a slightly larger cup and a thinner flagstick, so the logo above the
+ * sign-in button was quietly not the logo inside the app. Nobody would name
+ * it, but it is the kind of thing that makes a product feel assembled
+ * rather than made.
  *
  * Colours come from variables so the marketing page can keep its own
  * palette without keeping its own drawing:
  *
- *   --logo-flag   the leader's bar — ORANGE
- *   --logo-stick  the pole and the second bar; defaults to the TEXT colour,
- *                 so the mark and the wordmark read as one lockup
- *   --logo-ball   the third bar — GREEN
+ *   --logo-flag   the pennant — ORANGE
+ *   --logo-stick  the flagstick; defaults to the pennant's colour
+ *   --logo-ball   the ball — GREEN
+ *   --logo-cup    the cup, FILLED. A neutral by default so it reads as a
+ *                 hole on either ground; `transparent` leaves the mark
+ *                 open, which is what the programme palette wants.
  *
- * There is no --logo-cup or --logo-rim: this mark has no cup. A variable
- * for a shape that does not exist is a promise the drawing cannot keep.
+ * Orange flag, green ball. It was the other way round once, and the ball
+ * was not a variable at all — it was `currentColor`, so it took whatever
+ * text colour it sat in. A part of the mark that cannot be set is a part
+ * that drifts.
  */
 
 /**
@@ -85,6 +85,7 @@ export interface LogoColors {
   flag?: string;
   stick?: string;
   ball?: string;
+  cup?: string;
 }
 
 export function Logo({
@@ -97,38 +98,35 @@ export function Logo({
   colors?: LogoColors;
 }) {
   const flag = colors?.flag ?? "var(--logo-flag, var(--color-accent, currentColor))";
-  const stick = colors?.stick ?? "var(--logo-stick, var(--color-text, currentColor))";
+  const stick = colors?.stick ?? colors?.flag ?? "var(--logo-stick, var(--logo-flag, var(--color-accent, currentColor)))";
   const ball = colors?.ball ?? "var(--logo-ball, var(--color-accent-2, currentColor))";
+  const cup = colors?.cup ?? "var(--logo-cup, var(--color-neutral-800, currentColor))";
   return (
     <svg
       width={size}
       height={size}
-      /* NO OPTICAL SHIFT, because none is needed.
-         The drawing spans y 2.6 (the pole's top cap) to 29.4 (its bottom) —
-         a centre of exactly 16, which is the box centre. An older mark
-         needed `viewBox="0 -1.5 32 32"` to correct artwork that sat high in
-         its own box; building it centred is the better fix, because nothing
-         downstream has to remember the correction. `scripts/gen-icons.mjs`
-         therefore carries no translate either, and brand-consistency asserts
-         that neither of them does. */
+      /* NO OPTICAL SHIFT, because the artwork is built centred.
+         It spans y 4.9 (the flagstick's cap) to 27.1 (the foot of the cup) —
+         a centre of exactly 16, which is the box centre. The first version
+         of this mark needed `viewBox="0 -1.5 32 32"` to correct artwork that
+         sat high in its own box, and `gen-icons.mjs` had to carry the same
+         correction twice. Centring the drawing instead means nothing
+         downstream has to remember it. */
       viewBox="0 0 32 32"
       fill="none"
       aria-hidden="true"
       style={style}
     >
-      {/* The pole. Ink rather than orange: it belongs to the wordmark beside
-          it, and leaving the pennant as the only accent stops the mark and the
-          "HQ" competing for the same attention. */}
-      <path d="M7.2 4.2 V27.8" stroke={stick} strokeWidth="3.2" strokeLinecap="round" />
-      {/* The leader's bar, which is also the pennant. Swallow-tailed on
-          purpose: that notch is the whole reason both readings survive — a
-          plain rectangle here is a bar chart and nothing else. */}
-      <path d="M9.4 6.6 h17.2 l-4 4.1 l4 4.1 H9.4 z" fill={flag} />
-      {/* Second and third, shorter, because that is what a standing IS. The
-          gaps are 2.8 units rather than 2.0: at 16px the tighter spacing let
-          the two lower bars merge into one. */}
-      <rect x="9.4" y="17.6" width="12.4" height="3.6" rx="1.8" fill={stick} />
-      <rect x="9.4" y="24" width="7.6" height="3.6" rx="1.8" fill={ball} />
+      {/* The cup, FILLED rather than outlined — fault 1 above. Drawn first, so
+          the pin is planted through it and the ball breaks its near rim. */}
+      <ellipse cx="15.2" cy="23.6" rx="8.4" ry="3.5" fill={cup} />
+      {/* The pin, THROUGH the rim rather than hovering beside it. At 2.4 it
+          also matches the weight of everything else in the drawing. */}
+      <path d="M18.6 6.1 V23.1" stroke={stick} strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M18.6 6.3 L25.8 9.3 L18.6 12.3 Z" fill={flag} />
+      {/* The ball, dropping in: it breaks the near rim from above, which is the
+          one position that reads as falling rather than as resting alongside. */}
+      <circle cx="11" cy="18.2" r="3.4" fill={ball} />
     </svg>
   );
 }
