@@ -7,6 +7,7 @@ import { usePendingCard } from "@/components/usePendingCard";
 import { CardConflict } from "@/components/CardConflict";
 import { RuleCite } from "@/components/RuleCite";
 import { toParText } from "@/lib/domain";
+import { cardRevision } from "@/lib/domain/pending-card";
 
 /**
  * A player's own card, on a phone, outdoors, mid-round.
@@ -162,9 +163,14 @@ export function PlayerCard({
          * that must not happen — every attempt would overwrite their change
          * the moment it stopped disagreeing. The queue holds, the strokes stay
          * on the phone, and a person decides.
+         *
+         * "held" is what makes that true. A bare `return` resolved the promise,
+         * which the queue read as a successful send — so it deleted the device
+         * copy and cleared the queue while this chooser was on screen, and the
+         * comment above described something the code did not do.
          */
         setConflict(res.conflict);
-        return;
+        return "held";
       }
       revision.current = res.revision;
       setConflict(null);
@@ -172,8 +178,31 @@ export function PlayerCard({
       // A save takes the card back to "entered" if it had been certified;
       // saying so is better than leaving a stale badge on screen.
       setState((s) => (s === "certified" ? "entered" : s));
+      return "sent";
     },
   });
+
+  /**
+   * The recovered card, fitted to this round, and whether it says anything new.
+   *
+   * A device copy that matches what the server already holds is not a decision
+   * worth putting in front of a player mid-round — it is the ordinary case
+   * where the last send did land and only the tidy-up was missed. Compared by
+   * revision, the same content hash the conflict machinery uses, so "the same
+   * card" means the same thing in both places.
+   */
+  const recoveredFitted = useMemo(
+    () => Array.from({ length: holes }, (_, i) => card.recovered?.[i] ?? null),
+    [card.recovered, holes],
+  );
+  const recoveredDiffers =
+    !!card.recovered && cardRevision(recoveredFitted) !== cardRevision(strokes);
+
+  useEffect(() => {
+    // Nothing to decide: drop it rather than leave a stale key on the phone.
+    if (card.recovered && !recoveredDiffers) card.clearRecovered();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.recovered, recoveredDiffers]);
 
   useEffect(() => {
     if (!dirty.current || locked) return;
@@ -336,6 +365,41 @@ export function PlayerCard({
             not been sent, and signing a card whose numbers are in dispute is
             the one thing Rule 3.3b does not allow.
           */}
+          {/*
+            Holes found on this phone that the server has never seen.
+
+            The tab-eviction case the whole module exists for. `recovered` was
+            being read from localStorage on mount and then never rendered by
+            anybody, so the player came back to a card missing five holes with
+            nothing on screen to say so — and typing the next hole overwrote
+            the stored copy, which was the last one left.
+
+            Nothing is auto-sent. The device copy may be twenty minutes old and
+            the committee may have corrected the card since, which is the same
+            argument the conflict chooser exists to settle — so it uses the
+            same chooser.
+          */}
+          {!conflict && recoveredDiffers && (
+            <div style={{ margin: "12px 0" }}>
+              <CardConflict
+                mine={recoveredFitted}
+                theirs={strokes}
+                pars={pars}
+                busy={pending}
+                onKeepMine={() => {
+                  dirty.current = true;
+                  setStrokes(recoveredFitted);
+                  latest.current = recoveredFitted;
+                  card.clearRecovered();
+                  // Straight back into the queue: these holes have never
+                  // reached the server.
+                  card.push(recoveredFitted);
+                }}
+                onTakeTheirs={() => card.settle()}
+              />
+            </div>
+          )}
+
           {conflict && (
             <div style={{ margin: "12px 0" }}>
               <CardConflict
@@ -363,7 +427,11 @@ export function PlayerCard({
                   setStrokes(theirs);
                   latest.current = theirs;
                   setConflict(null);
-                  card.clearRecovered();
+                  // Settled, not merely forgotten: there is nothing left to
+                  // send, so the queue is emptied too. `clearRecovered` alone
+                  // left it flagged and the status line warning for the rest
+                  // of the round.
+                  card.settle();
                 }}
               />
             </div>
