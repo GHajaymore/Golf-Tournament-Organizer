@@ -1105,3 +1105,67 @@ describe("a round freezes the handicaps it is scored against", () => {
     });
   }
 });
+
+/**
+ * A match always belongs to a real group.
+ *
+ * `Match.groupId` is NOT NULL and carries a foreign key to `Group`, and every
+ * Group id is a cuid — so `groupId: ""` is not a placeholder, it is a row
+ * Postgres will always reject. `createSingleMatch` and `createThirdPlaceMatch`
+ * both wrote it, which made the Single Match Stage and the play-off for third
+ * one hundred percent non-functional against any real database: an organizer
+ * could add the round, configure it, press the button, and get nothing. The
+ * suite was green throughout, because no test had ever invoked either action
+ * and the components that call them are rendered with the actions mocked away.
+ *
+ * Read from the source rather than exercised, because that is what makes it
+ * cover the NEXT `match.create` as well as these two.
+ */
+describe("no match is created without a group", () => {
+  const sourceFiles = () => {
+    const out: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) {
+          if (e.name === "__tests__" || e.name === "node_modules") continue;
+          walk(p);
+        } else if (/\.tsx?$/.test(e.name)) {
+          out.push(p);
+        }
+      }
+    };
+    walk(join(process.cwd(), "src"));
+    return out;
+  };
+
+  it("never writes an empty string into groupId", () => {
+    const offenders = sourceFiles().filter((f) =>
+      /groupId:\s*(""|'')/.test(stripComments(readFileSync(f, "utf8"))),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("both one-off match creators go through the shared group helper", () => {
+    // Two call sites independently forgetting the same required field is the
+    // reason this is a helper rather than two more inline group lookups.
+    const all = actions("tournament.ts");
+    for (const name of ["createSingleMatch", "createThirdPlaceMatch"]) {
+      const body = all.find((a) => a.name === name)?.body;
+      expect(body, `${name} not found`).toBeTruthy();
+      expect(body).toMatch(/matchCarrierGroup\(/);
+      expect(body).toMatch(/groupId,/);
+    }
+  });
+
+  it("sizes the empty card to the round, not to eighteen", () => {
+    // The entry screen falls back to `holes.length || 18`, so a zero-length
+    // card silently offers eighteen holes on a nine-hole round.
+    const all = actions("tournament.ts");
+    for (const name of ["createSingleMatch", "createThirdPlaceMatch"]) {
+      const body = all.find((a) => a.name === name)!.body;
+      expect(body).toMatch(/stage\.holes === 9 \? 9 : 18/);
+      expect(body).not.toMatch(/holes: "\[\]"/);
+    }
+  });
+});
