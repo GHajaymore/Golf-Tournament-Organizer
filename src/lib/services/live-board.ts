@@ -1,7 +1,7 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { prisma } from "../db";
-import { COURSE_REF } from "./course-resolution";
+import { COURSE_REF, cardForStage } from "./course-resolution";
 import { loadEventState, matchSettled, standingRows } from "./tournament";
 import { boardKind } from "../formats";
 import { teamStandings } from "./teams";
@@ -76,15 +76,17 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
   const kind = boardKind(activeStage?.format);
   const teamRound = kind === "team" && !!activeStage;
   const holeCount = activeStage?.holes === 9 ? 9 : 18;
-  const liveCourse = resolveCourse(event);
+  // Narrowed to the nine actually played and re-ranked, so the public board
+  // allocates the same strokes the console does.
+  const liveCourse = cardForStage(resolveCourse(event), activeStage);
 
   const teamRows = teamRound
     ? await teamStandings(
         eventId,
         activeStage!.id,
         activeStage!.format,
-        liveCourse.pars.slice(0, holeCount),
-        liveCourse.strokeIndex.slice(0, holeCount),
+        liveCourse.pars,
+        liveCourse.strokeIndex,
         activeStage!.scoringBasis,
         activeStage!.handicapAllowance,
         activeStage!.allowanceWeights,
@@ -95,7 +97,7 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
   const skinsNet = activeStage ? activeStage.scoringBasis !== "gross" : true;
   const skins =
     kind === "skins" && activeStage
-      ? await skinsBoard(eventId, activeStage.id, holeCount, skinsNet, liveCourse.strokeIndex.slice(0, holeCount))
+      ? await skinsBoard(eventId, activeStage.id, holeCount, skinsNet, liveCourse.strokeIndex)
       : null;
   const nassau = kind === "nassau" && activeStage ? await nassauBoard(eventId, activeStage.id) : null;
   const modStableford =
@@ -103,8 +105,8 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
       ? await modifiedStablefordBoard(
           eventId,
           activeStage.id,
-          liveCourse.pars.slice(0, holeCount),
-          liveCourse.strokeIndex.slice(0, holeCount),
+          liveCourse.pars,
+          liveCourse.strokeIndex,
         )
       : null;
 
