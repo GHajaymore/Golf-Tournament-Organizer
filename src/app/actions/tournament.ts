@@ -3533,6 +3533,32 @@ export async function setSingleMatchRule(
 }
 
 /**
+ * The group a one-off match goes out in.
+ *
+ * `Match.groupId` is NOT NULL and carries a real foreign key to `Group`, so
+ * every match needs a group to belong to — `teams.ts` says the same thing at
+ * its own `match.create`. Both actions below used to write `groupId: ""`, and
+ * because no Group can ever have an empty id (they are all `@default(cuid())`)
+ * Postgres rejected the insert every single time. A Single Match Stage could be
+ * added and configured, and its match could never be made; the play-off for
+ * third behaved the same way. Neither feature had ever worked against a real
+ * database.
+ *
+ * Find-or-create by name, so re-running against the same round reuses the group
+ * rather than accumulating one per attempt. It is a real group because that is
+ * what it is: a final is two players going out together.
+ */
+async function matchCarrierGroup(eventId: string, name: string): Promise<string> {
+  const existing = await prisma.group.findFirst({ where: { eventId, name }, select: { id: true } });
+  if (existing) return existing.id;
+  const maxPos = await prisma.group.aggregate({ where: { eventId }, _max: { position: true } });
+  const group = await prisma.group.create({
+    data: { eventId, name, position: (maxPos._max.position ?? -1) + 1 },
+  });
+  return group.id;
+}
+
+/**
  * Create the match a Single Match Stage's rule resolves to.
  *
  * Explicit rather than automatic. The pairing is derived, so it can change
@@ -3555,7 +3581,7 @@ export async function createSingleMatch(stageId: string): Promise<{ ok: boolean;
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
-    select: { id: true },
+    select: { id: true, holes: true, format: true, position: true },
   });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
 
@@ -3569,8 +3595,14 @@ export async function createSingleMatch(stageId: string): Promise<{ ok: boolean;
   });
   if (both.length !== 2) return { ok: false, error: "Those players aren't both in this tournament." };
 
+  const groupId = await matchCarrierGroup(eventId, `${stage.format} — Round ${stage.position + 1}`);
+  // Sized to the round, like every other match this app creates. An empty
+  // array is not "no holes yet" to the entry screen — it falls back to
+  // `holes.length || 18`, which would offer eighteen holes on a nine-hole round.
+  const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
+
   await prisma.match.create({
-    data: { eventId, stageId, groupId: "", round: 1, playerAId, playerBId, holes: "[]" },
+    data: { eventId, stageId, groupId, round: 1, playerAId, playerBId, holes: emptyHoles },
   });
   await logAudit(eventId, null, "single-match", `Created the match for this round: ${view.aName} v ${view.bName}`);
   await refresh();
@@ -3609,7 +3641,7 @@ export async function createThirdPlaceMatch(stageId: string): Promise<{ ok: bool
 
   const stage = await prisma.stage.findFirst({
     where: { id: stageId, eventId },
-    select: { id: true, thirdPlace: true },
+    select: { id: true, thirdPlace: true, holes: true, position: true },
   });
   if (!stage) return { ok: false, error: "That round isn't in this tournament." };
   if (!stage.thirdPlace) return { ok: false, error: "This knockout isn't playing off for third." };
@@ -3643,8 +3675,11 @@ export async function createThirdPlaceMatch(stageId: string): Promise<{ ok: bool
   });
   if (both.length !== 2) return { ok: false, error: "Those players aren't both in this tournament." };
 
+  const groupId = await matchCarrierGroup(eventId, `Play-off for third — Round ${stage.position + 1}`);
+  const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
+
   await prisma.match.create({
-    data: { eventId, stageId, groupId: "", round: 0, playerAId: a.playerId, playerBId: b.playerId, holes: "[]" },
+    data: { eventId, stageId, groupId, round: 0, playerAId: a.playerId, playerBId: b.playerId, holes: emptyHoles },
   });
   await logAudit(eventId, null, "third-place", `Created the play-off for third: ${a.name} v ${b.name}`);
   await refresh();
