@@ -1228,3 +1228,59 @@ describe("the pending-card queue never clears a card it did not send", () => {
     expect(card).toMatch(/mine=\{recoveredFitted\}/);
   });
 });
+
+/**
+ * No scoring path takes the first N holes off a raw card.
+ *
+ * `applyNine` has been correct since it was written, and the fault was that
+ * calling it was OPTIONAL: thirteen scoring and money sites across seven files
+ * wrote `course.strokeIndex.slice(0, holes)` instead, which takes the right
+ * number of holes and the wrong values. An eighteen-hole stroke index is
+ * ranked across eighteen holes, so the front nine of an ordinary card is
+ * 1,3,5,...,17 — a player owed seven strokes over nine received four, and a
+ * BACK-nine round was scored off the FRONT nine's indexes and pars entirely.
+ *
+ * The individual stroke board went through `applyNine` and was right, so a
+ * club saw two boards for the same round three strokes apart with no way to
+ * tell which to believe.
+ *
+ * This is the CLAUDE.md rule about a guard you must remember to call. Rather
+ * than trusting fourteen call sites to remember `cardForStage`, the files that
+ * settle money or produce a board are forbidden from slicing a card at all.
+ */
+describe("a round's card is narrowed in exactly one place", () => {
+  const SCORING_FILES = [
+    "src/app/(app)/leaderboard/page.tsx",
+    "src/app/(app)/reports/page.tsx",
+    "src/lib/services/live-board.ts",
+    "src/lib/services/season.ts",
+    "src/lib/services/expenses.ts",
+    "src/app/actions/tournament.ts",
+  ];
+
+  for (const rel of SCORING_FILES) {
+    it(`${rel} does not slice a raw stroke index or par list`, () => {
+      const body = stripComments(readFileSync(join(process.cwd(), rel), "utf8"));
+      // `slice(from, to)` in skins-pot is fine — it re-ranks straight after.
+      // What is banned is taking the first N holes and using them as a card.
+      expect(body).not.toMatch(/strokeIndex\.slice\(\s*0\s*,/);
+      expect(body).not.toMatch(/pars\.slice\(\s*0\s*,\s*hole/);
+    });
+  }
+
+  it("routes them through cardForStage instead", () => {
+    for (const rel of SCORING_FILES) {
+      const body = readFileSync(join(process.cwd(), rel), "utf8");
+      expect(body, `${rel} should resolve its card through cardForStage`).toMatch(/cardForStage\(/);
+    }
+  });
+
+  it("keeps the one place honest — cardForStage always goes through applyNine", () => {
+    const src = stripComments(
+      readFileSync(join(process.cwd(), "src", "lib", "services", "course-resolution.ts"), "utf8"),
+    );
+    const fn = src.slice(src.indexOf("export function cardForStage"));
+    expect(fn).toMatch(/applyNine\(/);
+    expect(fn).toMatch(/cleanNine\(/);
+  });
+});

@@ -70,7 +70,7 @@ import type { FormationRule, HoleResult } from "@/lib/domain";
 import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
-import { applyNine, cleanNine } from "@/lib/services/course-resolution";
+import { applyNine, cleanNine, cardForStage } from "@/lib/services/course-resolution";
 import { findFormat, inputChoices, isPlayable } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
@@ -2011,16 +2011,26 @@ async function recomputeTeamMatch(
 ): Promise<void> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return;
-  const course = resolveCourse(event);
   const format = findFormat(formatName);
   // The round's own handicap settings, not just the format's defaults. This
   // used to score off `format.allowance` and an unoverridden side handicap,
   // which meant a committee that set its own allowance saw it honoured on the
   // leaderboard and ignored here — the same round settled two ways.
+  //
+  // `holes` and `nine` are selected for the same reason: which nine a round is
+  // played over decides both the pars and where a stroke lands, and this path
+  // was reading the front nine of the raw card whatever the round said.
   const stage = await prisma.stage.findUnique({
     where: { id: match.stageId },
-    select: { handicapAllowance: true, allowanceWeights: true, countBest: true },
+    select: {
+      handicapAllowance: true,
+      allowanceWeights: true,
+      countBest: true,
+      holes: true,
+      nine: true,
+    },
   });
+  const course = cardForStage(resolveCourse(event), stage);
   const allowance = effectiveAllowance(formatName, stage?.handicapAllowance ?? 0);
 
   /**
@@ -2084,8 +2094,8 @@ async function recomputeTeamMatch(
         strokes: parse(cards.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
         courseHandicap: playsOff(m.player),
       })),
-      course.pars.slice(0, holeCount),
-      course.strokeIndex.slice(0, holeCount),
+      course.pars,
+      course.strokeIndex,
       allowance,
       effectiveCountBest(formatName, stage?.countBest ?? 0),
     );
@@ -3049,7 +3059,11 @@ export async function importScores(
     netHcp = new Map(
       [...ch].map(([id, v]) => [id, playingHandicapFrom(roundHandicapOf(importRound.get(id), v), allowance)]),
     );
-    netSi = resolveCourse(event).strokeIndex.slice(0, holes);
+    // The nine actually played, re-ranked. Converting a file of NET scores
+    // back to gross allocates strokes hole by hole, so reading the raw
+    // eighteen-hole indexes here would bake the wrong holes into stored
+    // strokes — and stored strokes are the one thing that cannot be recomputed.
+    netSi = cardForStage(resolveCourse(event), stage).strokeIndex;
     if (netSi.length === 0) {
       return {
         ok: false,

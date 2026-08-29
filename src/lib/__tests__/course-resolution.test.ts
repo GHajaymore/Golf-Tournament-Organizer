@@ -2,10 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   courseForMatch,
   courseForRound,
-  applyNine,
+  applyNine, cardForStage,
   type StoredCourse,
   type EventCourseFields,
 } from "../services/course-resolution";
+import { holeStrokesReceived } from "../domain/stroke";
 import { hasCourseData } from "../courses";
 
 const arr = (n: number) => JSON.stringify(new Array(18).fill(n));
@@ -255,5 +256,93 @@ describe("whether a tournament has course data at all", () => {
     // Pointing at a row is not the same as that row having numbers on it.
     const broken = { ...stored("Blue Ash"), pars: "not json" };
     expect(hasCourseData({ ...blank, courseRef: broken })).toBe(false);
+  });
+});
+/**
+ * The card a round is actually played on.
+ *
+ * `applyNine` was always right; calling it was optional, and thirteen scoring
+ * and money call sites did the obvious thing instead — take the first `holes`
+ * values off the card. That takes the right NUMBER of holes and the wrong
+ * VALUES, because an eighteen-hole stroke index is ranked across eighteen
+ * holes: the front nine of an ordinary card carries 1,3,5,...,17.
+ *
+ * The arithmetic below is the one from the audit report, asserted rather than
+ * described.
+ */
+describe("cardForStage — the nine actually played", () => {
+  // An ordinary club card: odds out, evens back.
+  const SI = [1, 3, 5, 7, 9, 11, 13, 15, 17, 2, 4, 6, 8, 10, 12, 14, 16, 18];
+  // A par-5 11th and a par-3 13th, so the back nine's pars are distinguishable
+  // from the front's.
+  const PARS = [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 4, 3, 4, 4, 4, 4, 4];
+  const CARD = { name: "Test links", pars: PARS, yards: new Array(18).fill(400), strokeIndex: SI };
+
+  const strokesOver = (si: number[], courseHandicap: number) =>
+    si.reduce((sum, i) => sum + holeStrokesReceived(courseHandicap, i, si.length), 0);
+
+  it("re-ranks the front nine to 1..9", () => {
+    const card = cardForStage(CARD, { holes: 9, nine: "front" });
+    expect(card.strokeIndex).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it("re-ranks the back nine to 1..9 as well", () => {
+    const card = cardForStage(CARD, { holes: 9, nine: "back" });
+    expect(card.strokeIndex).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it("gives a player the strokes they are actually owed", () => {
+    // The report's case: a nine-hole course handicap of 8 off 85% is a playing
+    // handicap of 7. Raw, only 1,3,5,7 satisfy `si <= 7 % 9` — four strokes.
+    expect(strokesOver(SI.slice(0, 9), 7)).toBe(4); // what the call sites did
+    expect(strokesOver(cardForStage(CARD, { holes: 9, nine: "front" }).strokeIndex, 7)).toBe(7);
+  });
+
+  it("is wrong by a different amount for every handicap, so it never cancels out", () => {
+    // Why this could not be spotted as a constant offset on a board.
+    const raw = [3, 5, 7].map((h) => strokesOver(SI.slice(0, 9), h));
+    const fixed = [3, 5, 7].map((h) =>
+      strokesOver(cardForStage(CARD, { holes: 9, nine: "front" }).strokeIndex, h),
+    );
+    expect(raw).toEqual([2, 3, 4]);
+    expect(fixed).toEqual([3, 5, 7]);
+  });
+
+  it("takes the back nine's pars for a back-nine round", () => {
+    const card = cardForStage(CARD, { holes: 9, nine: "back" });
+    // The 11th is a par 5 and the 13th a par 3. Scored off the front nine's
+    // pars, a 4 on the 11th counted as nothing and a 4 on the 13th as a birdie.
+    expect(card.pars).toEqual([4, 5, 4, 3, 4, 4, 4, 4, 4]);
+    expect(card.pars).not.toEqual(PARS.slice(0, 9));
+  });
+
+  it("narrows a nine-hole round that never said which nine", () => {
+    // `Stage.nine` defaults to "full", which is the state of every nine-hole
+    // round nobody touched the dropdown on — the majority of them.
+    const card = cardForStage(CARD, { holes: 9, nine: "full" });
+    expect(card.strokeIndex).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(card.pars).toEqual(PARS.slice(0, 9));
+  });
+
+  it("leaves an eighteen-hole round completely alone", () => {
+    const card = cardForStage(CARD, { holes: 18, nine: "full" });
+    expect(card.strokeIndex).toEqual(SI);
+    expect(card.pars).toEqual(PARS);
+  });
+
+  it("leaves a card that is already nine holes long alone", () => {
+    // A real nine-hole course stores nine values with its own 1..9 index.
+    const nine = {
+      name: "Nine",
+      pars: [4, 3, 5, 4, 4, 3, 4, 5, 4],
+      yards: new Array(9).fill(300),
+      strokeIndex: [5, 9, 1, 3, 7, 8, 2, 4, 6],
+    };
+    expect(cardForStage(nine, { holes: 9, nine: "front" }).strokeIndex).toEqual(nine.strokeIndex);
+  });
+
+  it("treats a missing stage as eighteen holes rather than guessing a half", () => {
+    expect(cardForStage(CARD, null).strokeIndex).toEqual(SI);
+    expect(cardForStage(CARD, undefined).pars).toEqual(PARS);
   });
 });

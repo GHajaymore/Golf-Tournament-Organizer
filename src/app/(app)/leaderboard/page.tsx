@@ -13,6 +13,7 @@ import { boardKind } from "@/lib/formats";
 import { ManualRoundBoard } from "@/components/ManualRoundBoard";
 import { teamStandings } from "@/lib/services/teams";
 import { resolveCourse } from "@/lib/courses";
+import { cardForStage } from "@/lib/services/course-resolution";
 
 function ago(d: Date): string {
   const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
@@ -44,14 +45,15 @@ export default async function LeaderboardPage() {
   }
 
   if (kind === "team" && activeStage) {
-    const holeCount = activeStage.holes === 9 ? 9 : 18;
-    const course = resolveCourse(event);
+    // The nine actually played, re-ranked to 1..9 — not the first nine of an
+    // eighteen-hole card still carrying eighteen-hole index numbers.
+    const course = cardForStage(resolveCourse(event), activeStage);
     const standings = await teamStandings(
       session.eventId,
       activeStage.id,
       activeStage.format,
-      course.pars.slice(0, holeCount),
-      course.strokeIndex.slice(0, holeCount),
+      course.pars,
+      course.strokeIndex,
       activeStage.scoringBasis,
       activeStage.handicapAllowance,
       activeStage.allowanceWeights,
@@ -71,12 +73,12 @@ export default async function LeaderboardPage() {
   // card, a Nassau is a match card — so these only change the reading.
   if (activeStage) {
     const holes = activeStage.holes === 9 ? 9 : 18;
-    const c = resolveCourse(event);
+    const c = cardForStage(resolveCourse(event), activeStage);
 
     if (kind === "skins") {
       const net = activeStage.scoringBasis !== "gross";
       const board = await skinsBoard(
-        session.eventId, activeStage.id, holes, net, c.strokeIndex.slice(0, holes),
+        session.eventId, activeStage.id, holes, net, c.strokeIndex,
       );
       return <SkinsLeaderboard board={board} net={net} />;
     }
@@ -85,7 +87,7 @@ export default async function LeaderboardPage() {
     }
     if (kind === "modified-stableford") {
       const rows = await modifiedStablefordBoard(
-        session.eventId, activeStage.id, c.pars.slice(0, holes), c.strokeIndex.slice(0, holes),
+        session.eventId, activeStage.id, c.pars, c.strokeIndex,
       );
       return <ModifiedStablefordLeaderboard rows={rows} />;
     }

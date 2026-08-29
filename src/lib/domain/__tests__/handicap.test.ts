@@ -213,3 +213,62 @@ describe("holesPlayed", () => {
     expect(nine).toBeLessThan(full / 2 + 3);
   });
 });
+
+/**
+ * The one property that describes stroke allocation completely.
+ *
+ * A course handicap IS a number of strokes. Spread it across the card and the
+ * strokes must add back up to it — that is not a feature of the allocation,
+ * it is what the allocation means. Asserted as a sweep rather than a fixture
+ * because the bug it exists to catch lived at a value nobody had a fixture
+ * for: every PLUS handicap gave back eighteen strokes instead of its own,
+ * because `Math.floor(-2 / 18)` is -1 and `-2 % 18` is -2. A scratch player
+ * and a plus-5 were allocated identically, and a fixture at +2 alone would
+ * have looked like an off-by-one rather than a whole missing branch.
+ */
+describe("strokes allocated always add back up to the handicap", () => {
+  const si18 = Array.from({ length: 18 }, (_, i) => i + 1);
+  const si9 = Array.from({ length: 9 }, (_, i) => i + 1);
+
+  const allocated = (ch: number, si: number[]) =>
+    si.reduce((sum, i) => sum + holeStrokesReceived(ch, i, si.length), 0);
+
+  // -10 to 54: the full WHS range, plus handicaps included. The old code was
+  // correct on 0..54 and wrong on every single negative value.
+  for (let ch = -10; ch <= 54; ch += 1) {
+    it(`gives out exactly ${ch} stroke(s) over eighteen holes`, () => {
+      expect(allocated(ch, si18)).toBe(ch);
+    });
+  }
+
+  for (let ch = -10; ch <= 27; ch += 1) {
+    it(`gives out exactly ${ch} stroke(s) over nine holes`, () => {
+      expect(allocated(ch, si9)).toBe(ch);
+    });
+  }
+
+  it("hands a plus player's strokes back on the EASIEST holes", () => {
+    // WHS: a plus-2 gives a shot back on stroke index 18 and 17 — the mirror
+    // of a 2-handicap receiving on 1 and 2. Giving them back on the hardest
+    // holes would still sum correctly, so the sweep above cannot see this.
+    const perHole = si18.map((i) => holeStrokesReceived(-2, i, 18));
+    expect(perHole.slice(0, 16)).toEqual(Array(16).fill(0));
+    expect(perHole[16]).toBe(-1); // SI 17
+    expect(perHole[17]).toBe(-1); // SI 18
+  });
+
+  it("keeps giving back past a full lap of the card", () => {
+    // A plus-20 is not a real golfer, but the wrap has to hold or the sign
+    // handling is only accidentally right within one card.
+    expect(allocated(-20, si18)).toBe(-20);
+    expect(holeStrokesReceived(-20, 1, 18)).toBe(-1); // hardest hole: one lap only
+    expect(holeStrokesReceived(-20, 18, 18)).toBe(-2); // easiest: lap plus remainder
+  });
+
+  it("separates a scratch player from a plus player", () => {
+    // The symptom a club would report. Both were -18 before.
+    expect(allocated(0, si18)).toBe(0);
+    expect(allocated(-1, si18)).toBe(-1);
+    expect(allocated(-5, si18)).toBe(-5);
+  });
+});
