@@ -359,3 +359,35 @@ export async function unratedFlightWarning(
   if (unrated.length === 0) return null;
   return `${unrated.map((t) => t.name).join(", ")} ${unrated.length === 1 ? "has" : "have"} no Course Rating or Slope, so players off ${unrated.length === 1 ? "it" : "them"} are balanced on their raw index. Flights will be slightly uneven.`;
 }
+
+/**
+ * The tees each player's FLIGHT plays from, by player id.
+ *
+ * A club championship is one tournament off three sets — championship off the
+ * blues, seniors off the whites, ladies off the reds. Expressing that per
+ * player is 120 decisions nobody will make correctly; per flight it is three,
+ * which is why `Group.teeId` and the `flight` tee policy exist.
+ *
+ * The policy was honoured on the printed card and the tee sheet, because those
+ * read the group directly, and ignored by every scoring path — the flight's tee
+ * lives on `Group.teeId` and not one of the eight callers of
+ * `courseHandicapMap` ever joined it. So the whole field was scored off the
+ * round's default set: a 12.0 index in the Ladies flight was given 12 strokes
+ * off a neutral set instead of the ten she is owed off the reds, and the freeze
+ * wrote that wrong number into history permanently.
+ *
+ * Two small reads rather than a join on every caller's own query, so a site
+ * that supplies this cannot get it subtly different from the next one.
+ * `IndexHolder.flightTeeId` is required, so the compiler is what makes every
+ * caller reach for this.
+ */
+export async function flightTeeByPlayer(eventId: string): Promise<Map<string, string | null>> {
+  const [flights, players] = await Promise.all([
+    prisma.group.findMany({ where: { eventId }, select: { id: true, teeId: true } }),
+    prisma.player.findMany({ where: { eventId }, select: { id: true, groupId: true } }),
+  ]);
+  const byGroup = new Map(flights.map((g) => [g.id, g.teeId]));
+  return new Map(
+    players.map((p) => [p.id, (p.groupId ? byGroup.get(p.groupId) ?? null : null)] as const),
+  );
+}

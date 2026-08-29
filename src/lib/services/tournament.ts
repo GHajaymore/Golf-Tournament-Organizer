@@ -551,8 +551,21 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // One policy for both hole counts: the tees a player is held to cannot
   // depend on whether the round happens to be nine or eighteen.
   const teePolicy = event?.teePolicy ?? "own";
-  const courseHcp18 = courseHandicapMap(confirmed, teeRatings, defaultTeeId, 18, teePolicy);
-  const courseHcp9 = courseHandicapMap(confirmed, teeRatings, defaultTeeId, 9, teePolicy);
+  /**
+   * The tees each player's FLIGHT plays from, from the groups already in hand.
+   *
+   * Under the `flight` policy this is the whole answer, and it used to be
+   * absent everywhere — so a club championship off three sets scored the entire
+   * field off the round's default one. No extra query here: `groups` and the
+   * players' `groupId` are both already loaded.
+   */
+  const flightTeeOf = new Map(groups.map((g) => [g.id, g.teeId]));
+  const withFlightTee = confirmed.map((p) => ({
+    ...p,
+    flightTeeId: p.groupId ? flightTeeOf.get(p.groupId) ?? null : null,
+  }));
+  const courseHcp18 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 18, teePolicy);
+  const courseHcp9 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 9, teePolicy);
   const courseHcp = activeHoles === 9 ? courseHcp9 : courseHcp18;
   /**
    * A player's handicap for FLIGHTING and standings, which is deliberately the

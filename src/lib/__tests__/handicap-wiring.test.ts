@@ -91,7 +91,11 @@ describe("every engine receives a Course Handicap, not an Index", () => {
   const actions = read("src/app/actions/tournament.ts");
 
   it("resolves the field once, where players are loaded", () => {
-    expect(service).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId/);
+    expect(service).toMatch(/courseHandicapMap\(withFlightTee, teeRatings, defaultTeeId/);
+    // ...and the players handed to it carry their FLIGHT's tees. That is what
+    // the `flight` policy reads, and what all eight call sites used to omit —
+    // so a club championship off three sets scored the field off one.
+    expect(service).toMatch(/flightTeeId: p\.groupId \? flightTeeOf\.get\(p\.groupId\)/);
   });
 
   it("builds every domain player from the resolved map", () => {
@@ -120,7 +124,7 @@ describe("every engine receives a Course Handicap, not an Index", () => {
     // decided it. A side handicap built from either default would ignore the
     // tournament's choice.
     expect(teams).toMatch(
-      /courseHandicapMap\(\s*allMembers,\s*teeRatings,\s*defaultTeeId,\s*holes,\s*teeSetup\.policy,/,
+      /courseHandicapMap\(\s*allMembers\.map\([^;]*?\),\s*teeRatings,\s*defaultTeeId,\s*holes,\s*teeSetup\.policy,/,
     );
     expect(teams).toMatch(/const teeSetup = await teeSetupFor\(eventId, tees\)/);
     expect(teams).toMatch(/courseHcp\.get\(m\.playerId\) \?\? m\.player\.handicap/);
@@ -201,8 +205,8 @@ describe("handicap conversion follows each round's own hole count", () => {
     // The tee policy is required in both, and must be the SAME one: which
     // tees a player is held to cannot depend on whether the round is nine
     // holes or eighteen.
-    expect(src).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId, 18, teePolicy\)/);
-    expect(src).toMatch(/courseHandicapMap\(confirmed, teeRatings, defaultTeeId, 9, teePolicy\)/);
+    expect(src).toMatch(/courseHandicapMap\(withFlightTee, teeRatings, defaultTeeId, 18, teePolicy\)/);
+    expect(src).toMatch(/courseHandicapMap\(withFlightTee, teeRatings, defaultTeeId, 9, teePolicy\)/);
     expect(src).toMatch(/stage\?\.holes === 9 \? ctx\.courseHcp9 : ctx\.courseHcp18/);
   });
 

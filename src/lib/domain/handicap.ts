@@ -147,8 +147,25 @@ export interface IndexHolder {
   handicapType?: string;
   /** Which tees this player is on, if they've been assigned a specific set. */
   teeId?: string | null;
-  /** The tees this player’s flight plays from, if it claims any. */
-  flightTeeId?: string | null;
+  /**
+   * The tees this player’s flight plays from, if it claims any.
+   *
+   * REQUIRED, and that is the whole point. It was optional, and not one of the
+   * eight call sites ever supplied it — the flight's tee lives on `Group.teeId`
+   * and nobody joined it — so `teeIdFor("flight", …, undefined, defaultTeeId)`
+   * returned the default set every time. A club championship running
+   * Championship off the blues, Seniors off the whites and Ladies off the reds
+   * had every printed card and tee sheet name the right set, because those read
+   * the group directly, while the leaderboard, the round-handicap screen, team
+   * side handicaps, net skins, net match play AND the value frozen permanently
+   * into `RoundHandicap.frozen` all scored the entire field off the round's
+   * default tees.
+   *
+   * `null` is a real answer — this player's flight claims no tees — and the
+   * compiler now makes every caller say which it means. Making it required is
+   * what found all eight; the same trick that found the two `send` call sites.
+   */
+  flightTeeId: string | null;
 }
 
 /**

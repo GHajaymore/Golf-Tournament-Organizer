@@ -149,7 +149,7 @@ afterAll(async () => {
 /** The conversion, done independently of the code under test. */
 function playsOff(index: number, holes = 18, allowance = 100): number {
   const m = courseHandicapMap(
-    [{ id: "x", handicap: index }],
+    [{ id: "x", handicap: index, flightTeeId: null }],
     new Map([[teeId, { courseRating: RATING, slopeRating: SLOPE, par: 72 }]]),
     teeId,
     holes,

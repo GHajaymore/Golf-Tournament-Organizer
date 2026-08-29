@@ -1,5 +1,5 @@
 import { COURSE_REF } from "./course-resolution";
-import { roundTeeId } from "./handicaps";
+import { roundTeeId, flightTeeByPlayer } from "./handicaps";
 import "server-only";
 import { prisma } from "../db";
 import { formGroups, roundRobinSchedule } from "../domain";
@@ -189,8 +189,11 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
+  // The flight a player is being moved BETWEEN decides their tees under the
+  // `flight` policy, so the balance this screen shows has to use them.
+  const flightTee = await flightTeeByPlayer(eventId);
   const courseHcp = courseHandicapMap(
-    confirmed,
+    confirmed.map((p) => ({ ...p, flightTeeId: flightTee.get(p.id) ?? null })),
     teeRatings,
     roundTeeId(tees, event?.defaultTeeId),
     activeHoles,
