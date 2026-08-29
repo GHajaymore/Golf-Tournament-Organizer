@@ -29,6 +29,7 @@ import { skinsPotFor } from "./skins-pot";
 import { isSkinsScope, skinsGameLabel } from "@/lib/domain/skins-pot";
 import { loadEventState, matchSettled, type HoleResultArr } from "./tournament";
 import { resolveCourse } from "../courses";
+import { cardForStage } from "./course-resolution";
 import { holeStrokesReceived, allocationHoles } from "../domain";
 
 /**
@@ -332,8 +333,19 @@ async function gameNets(
         const stage = stageById.get(game.stageId);
         if (!stage) continue;
         const holes = stage.holes === 9 ? 9 : 18;
-        const course = resolveCourse(state.event);
-        const pars = course.pars.slice(0, holes);
+        /**
+         * The nine actually played, re-ranked — the same card the board uses.
+         *
+         * This read the raw eighteen-hole card and took the first `holes` of
+         * it, so a nine-hole round allocated strokes against index values
+         * scattered through 1..18 and a player owed five received three. It
+         * also counted a BACK-nine round against the FRONT nine's pars, which
+         * scores a 4 on the par-5 11th as nothing and a 4 on the par-3 13th as
+         * a birdie. The board went through `applyNine` and was right, so the
+         * settle-up and the leaderboard disagreed about the same round.
+         */
+        const course = cardForStage(resolveCourse(state.event), stage);
+        const pars = course.pars;
 
         if (game.kind === "nassau") {
           /**
