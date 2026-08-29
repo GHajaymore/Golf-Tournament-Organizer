@@ -192,3 +192,145 @@ describe("a queued card that would land on somebody else's change", () => {
     expect((await stored())[3]).toBe(PARS[3]);
   });
 });
+
+/**
+ * A signature survives a rewrite that changes nothing.
+ *
+ * `statusAfterEdit` was applied to every save without comparing the incoming
+ * strokes to the stored ones, so writing back the identical eighteen numbers
+ * set a card from certified to entered and blanked the signature.
+ *
+ * Two ways that happened for real. The console's group save loops over every
+ * player in the tee group with any score and re-saves each card unchanged — so
+ * marking one player's 15th silently de-certified a playing partner who signed
+ * on their phone twenty minutes earlier, and `approveAll` then listed them
+ * under "Not certified yet" for a card they believed they had signed. And the
+ * retry queue could replay a card up to fifteen seconds after certification,
+ * while the screen still read "Certified. It's with the committee now."
+ */
+describe("re-saving a card that has already been signed", () => {
+  const signed = async (strokes: (number | null)[]) => {
+    await prisma.scorecard.deleteMany({ where: { stageId, playerId } });
+    await prisma.scorecard.create({
+      data: {
+        eventId,
+        stageId,
+        playerId,
+        strokes: JSON.stringify(strokes),
+        status: "certified",
+        certifiedBy: `${TAG} scorer`,
+        certifiedAt: new Date(),
+      },
+    });
+    return cardRevision(strokes);
+  };
+
+  const statusNow = async () =>
+    (await prisma.scorecard.findFirstOrThrow({
+      where: { stageId, playerId },
+      select: { status: true, certifiedBy: true, certifiedAt: true },
+    }));
+
+  it("keeps the certification when the numbers are identical", async () => {
+    const card = PARS.map((p, i) => (i < 18 ? p : null));
+    const rev = await signed(card);
+
+    const res = await saveScorecard(stageId, playerId, card, rev);
+    expect(res.ok).toBe(true);
+
+    const after = await statusNow();
+    expect(after.status).toBe("certified");
+    expect(after.certifiedBy).not.toBe("");
+    expect(after.certifiedAt).not.toBeNull();
+  });
+
+  it("keeps it for a save that names no revision either", async () => {
+    // The console's group save passes no revision — it has the card in front
+    // of it — which is exactly the path that de-certified a playing partner.
+    const card = PARS.map((p, i) => (i < 18 ? p : null));
+    await signed(card);
+
+    const res = await saveScorecard(stageId, playerId, card);
+    expect(res.ok).toBe(true);
+    expect((await statusNow()).status).toBe("certified");
+  });
+
+  it("still retracts it the moment a hole actually changes", async () => {
+    // The rule this is protecting, not weakening: new strokes retract a
+    // signature given for the old ones.
+    const card = PARS.map((p, i) => (i < 18 ? p : null));
+    const rev = await signed(card);
+
+    const edited = card.map((s, i) => (i === 5 ? 9 : s));
+    const res = await saveScorecard(stageId, playerId, edited, rev);
+    expect(res.ok).toBe(true);
+
+    const after = await statusNow();
+    expect(after.status).toBe("entered");
+    expect(after.certifiedBy).toBe("");
+    expect(after.certifiedAt).toBeNull();
+  });
+
+  it("retracts it when a hole is rubbed out, too", async () => {
+    const card = PARS.map((p, i) => (i < 18 ? p : null));
+    const rev = await signed(card);
+
+    const erased = card.map((s, i) => (i === 5 ? null : s));
+    const res = await saveScorecard(stageId, playerId, erased, rev);
+    expect(res.ok).toBe(true);
+    expect((await statusNow()).status).toBe("entered");
+  });
+});
+
+/**
+ * A card stored shorter than its round does not invent a conflict.
+ *
+ * `importScores` slices to eighteen without padding, so an organizer uploading
+ * the front nine at the turn leaves a nine-element array in the row. Every
+ * other producer of a revision hashes a ROUND-SIZED array — `me.ts` says so
+ * explicitly — so the phone and the server hashed two different shapes of the
+ * same card. The next save came back as a conflict naming a hole the committee
+ * had never touched, and (before the queue was fixed) that response also wiped
+ * the device copy.
+ */
+describe("a card the committee stored short", () => {
+  it("does not report a conflict against a card nobody touched", async () => {
+    const front = PARS.slice(0, 9);
+    await prisma.scorecard.deleteMany({ where: { stageId, playerId } });
+    await prisma.scorecard.create({
+      // NINE elements on an eighteen-hole round, exactly as importScores leaves it.
+      data: { eventId, stageId, playerId, strokes: JSON.stringify(front), status: "entered" },
+    });
+
+    // What the phone read: the same card, fitted to the round.
+    const asThePhoneSawIt = Array.from({ length: 18 }, (_, i) => front[i] ?? null);
+    const readAt = cardRevision(asThePhoneSawIt);
+
+    const res = await saveScorecard(
+      stageId,
+      playerId,
+      asThePhoneSawIt.map((s, i) => (i === 9 ? 4 : s)),
+      readAt,
+    );
+    expect(res.ok, "a short stored card is the same card, not a conflict").toBe(true);
+  });
+
+  it("hands back a revision the next save can use", async () => {
+    const now = await stored();
+    const res = await saveScorecard(stageId, playerId, now, cardRevision(now));
+    expect(res.ok).toBe(true);
+  });
+
+  it("still reports a real conflict on a short card", async () => {
+    // The fitting must not blind it to an actual disagreement.
+    const front = PARS.slice(0, 9);
+    await prisma.scorecard.deleteMany({ where: { stageId, playerId } });
+    await prisma.scorecard.create({
+      data: { eventId, stageId, playerId, strokes: JSON.stringify(front), status: "entered" },
+    });
+
+    const stale = cardRevision(Array.from({ length: 18 }, (_, i) => (i === 2 ? 9 : front[i] ?? null)));
+    const res = await saveScorecard(stageId, playerId, PARS, stale);
+    expect(res.ok).toBe(false);
+  });
+});

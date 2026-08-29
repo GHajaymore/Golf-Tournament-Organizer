@@ -11,6 +11,7 @@ import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } fr
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { teamStandings } from "@/lib/services/teams";
 import { resolveCourse } from "@/lib/courses";
+import { cardForStage } from "@/lib/services/course-resolution";
 import { toParText } from "@/lib/domain";
 
 /**
@@ -39,7 +40,9 @@ export default async function ReportsPage() {
   const activeStage = state.activeStage ?? state.stages[0] ?? null;
   const kind = boardKind(activeStage?.format);
   const holes = activeStage?.holes === 9 ? 9 : 18;
-  const course = resolveCourse(event);
+  // The nine actually played, re-ranked — Reports has to agree with the
+  // leaderboard about which holes a stroke lands on.
+  const course = cardForStage(resolveCourse(event), activeStage);
 
   let board: React.ReactNode = null;
   let snapshotTitle = "Final standings snapshot";
@@ -50,8 +53,8 @@ export default async function ReportsPage() {
       session.eventId,
       activeStage.id,
       activeStage.format,
-      course.pars.slice(0, holes),
-      course.strokeIndex.slice(0, holes),
+      course.pars,
+      course.strokeIndex,
       activeStage.scoringBasis,
       activeStage.handicapAllowance,
       activeStage.allowanceWeights,
@@ -82,7 +85,7 @@ export default async function ReportsPage() {
     ];
   } else if (kind === "skins" && activeStage) {
     const net = activeStage.scoringBasis !== "gross";
-    const skins = await skinsBoard(session.eventId, activeStage.id, holes, net, course.strokeIndex.slice(0, holes));
+    const skins = await skinsBoard(session.eventId, activeStage.id, holes, net, course.strokeIndex);
     snapshotTitle = `Skins — ${net ? "net" : "gross"}`;
     board = <SkinsLeaderboard board={skins} net={net} />;
     extraCsv = [
@@ -136,8 +139,8 @@ export default async function ReportsPage() {
     const mod = await modifiedStablefordBoard(
       session.eventId,
       activeStage.id,
-      course.pars.slice(0, holes),
-      course.strokeIndex.slice(0, holes),
+      course.pars,
+      course.strokeIndex,
     );
     snapshotTitle = "Modified Stableford standings";
     board = <ModifiedStablefordLeaderboard rows={mod} />;

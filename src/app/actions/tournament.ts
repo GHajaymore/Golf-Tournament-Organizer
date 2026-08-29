@@ -70,7 +70,7 @@ import type { FormationRule, HoleResult } from "@/lib/domain";
 import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
-import { applyNine, cleanNine } from "@/lib/services/course-resolution";
+import { applyNine, cleanNine, cardForStage } from "@/lib/services/course-resolution";
 import { findFormat, inputChoices, isPlayable } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
@@ -1657,7 +1657,8 @@ export async function saveScorecard(
   // gross, net and Stableford totals — so an out-of-range value does not sit
   // in a column, it lands on the leaderboard.
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { holes: true } });
-  const clean = cleanStrokes(strokes, stage?.holes === 9 ? 9 : 18);
+  const roundHoles = stage?.holes === 9 ? 9 : 18;
+  const clean = cleanStrokes(strokes, roundHoles);
   if (!clean) throw new Error("Those scores aren't valid. Reload the round and try again.");
 
   if (session.role === "player" && !canPlayerSavePartial(settings)) {
@@ -1692,17 +1693,53 @@ export async function saveScorecard(
    * only one of them was standing there — picking a winner by timestamp is
    * how a scorer's correction disappears without anybody noticing.
    */
-  if (expectedRevision && existing) {
-    const stored = cardRevision(JSON.parse(existing.strokes) as (number | null)[]);
+  /**
+   * The stored card, fitted to the round before it is hashed.
+   *
+   * Every other producer of a revision hashes a ROUND-SIZED array — `me.ts`
+   * says so explicitly ("sized the same way the client holds them, so the two
+   * sides hash the same array rather than two shapes of it"), and the revision
+   * returned below is computed from `clean`, which is fitted. This one read the
+   * raw stored array, so any card written short — `importScores` slices to 18
+   * without padding, so an organizer uploading the front nine at the turn
+   * leaves nine elements — hashed a different shape from the one the phone
+   * hashed. The next save from that phone came back as a conflict on a card
+   * nobody had touched, naming a hole the committee never edited.
+   */
+  const storedStrokes = existing
+    ? Array.from({ length: roundHoles }, (_, i) => {
+        const raw = JSON.parse(existing.strokes) as (number | null)[];
+        return raw[i] ?? null;
+      })
+    : null;
+  const stored = storedStrokes ? cardRevision(storedStrokes) : "";
+
+  if (expectedRevision && existing && storedStrokes) {
     if (staleAgainst(expectedRevision, stored)) {
-      return {
-        ok: false,
-        conflict: { strokes: JSON.parse(existing.strokes) as (number | null)[], revision: stored },
-      };
+      return { ok: false, conflict: { strokes: storedStrokes, revision: stored } };
     }
   }
   if (existing && isCardLocked(existing.status)) throw new Error(LOCKED_CARD_REFUSAL);
-  const reset = existing ? statusAfterEdit(existing.status) : null;
+
+  /**
+   * Only a card whose NUMBERS changed retracts its certification.
+   *
+   * This applied `statusAfterEdit` to every write, so rewriting a card with
+   * the identical eighteen numbers set it back from certified to entered and
+   * blanked the signature. Two ways that happened for real: the console's
+   * group save loops over every player in the tee group with any score and
+   * re-saves each unchanged card, silently de-certifying somebody who signed
+   * on their phone twenty minutes earlier; and the retry queue could replay a
+   * card up to fifteen seconds after `certifyScorecard` had already signed it,
+   * while the screen still read "Certified. It's with the committee now."
+   *
+   * The rest of the file already treats an identical write as no change —
+   * `cardRevision` is content-derived precisely so that "saving the SAME
+   * strokes twice is not a conflict". The two mechanisms disagreed about
+   * whether an identical write was a change; now they do not.
+   */
+  const changed = !existing || cardRevision(clean) !== stored;
+  const reset = existing && changed ? statusAfterEdit(existing.status) : null;
 
   await prisma.scorecard.upsert({
     where: { stageId_playerId: { stageId, playerId } },
@@ -1974,16 +2011,26 @@ async function recomputeTeamMatch(
 ): Promise<void> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return;
-  const course = resolveCourse(event);
   const format = findFormat(formatName);
   // The round's own handicap settings, not just the format's defaults. This
   // used to score off `format.allowance` and an unoverridden side handicap,
   // which meant a committee that set its own allowance saw it honoured on the
   // leaderboard and ignored here — the same round settled two ways.
+  //
+  // `holes` and `nine` are selected for the same reason: which nine a round is
+  // played over decides both the pars and where a stroke lands, and this path
+  // was reading the front nine of the raw card whatever the round said.
   const stage = await prisma.stage.findUnique({
     where: { id: match.stageId },
-    select: { handicapAllowance: true, allowanceWeights: true, countBest: true },
+    select: {
+      handicapAllowance: true,
+      allowanceWeights: true,
+      countBest: true,
+      holes: true,
+      nine: true,
+    },
   });
+  const course = cardForStage(resolveCourse(event), stage);
   const allowance = effectiveAllowance(formatName, stage?.handicapAllowance ?? 0);
 
   /**
@@ -2047,8 +2094,8 @@ async function recomputeTeamMatch(
         strokes: parse(cards.find((c) => c.playerId === m.playerId)?.strokes ?? "[]"),
         courseHandicap: playsOff(m.player),
       })),
-      course.pars.slice(0, holeCount),
-      course.strokeIndex.slice(0, holeCount),
+      course.pars,
+      course.strokeIndex,
       allowance,
       effectiveCountBest(formatName, stage?.countBest ?? 0),
     );
@@ -3012,7 +3059,11 @@ export async function importScores(
     netHcp = new Map(
       [...ch].map(([id, v]) => [id, playingHandicapFrom(roundHandicapOf(importRound.get(id), v), allowance)]),
     );
-    netSi = resolveCourse(event).strokeIndex.slice(0, holes);
+    // The nine actually played, re-ranked. Converting a file of NET scores
+    // back to gross allocates strokes hole by hole, so reading the raw
+    // eighteen-hole indexes here would bake the wrong holes into stored
+    // strokes — and stored strokes are the one thing that cannot be recomputed.
+    netSi = cardForStage(resolveCourse(event), stage).strokeIndex;
     if (netSi.length === 0) {
       return {
         ok: false,
