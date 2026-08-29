@@ -247,7 +247,7 @@ export async function requestSideGameEntry(
 
   const game = await prisma.sideGame.findFirst({
     where: { id: sideGameId, eventId: session.eventId },
-    select: { id: true, kind: true },
+    select: { id: true, kind: true, entryMode: true },
   });
   if (!game) return { ok: false, error: "That side game isn't in this tournament." };
   if (game.kind === "nassau") {
@@ -264,6 +264,34 @@ export async function requestSideGameEntry(
   const existing = await prisma.sideGameEntry.findUnique({
     where: { sideGameId_playerId: { sideGameId, playerId: me.id } },
   });
+
+  /**
+   * Opt-out: everybody is in already, so both taps mean the opposite thing.
+   * The same inversion as a contest, and the same reason — an unconfirmed row
+   * reads as "not paid", which in this mode moves the player OUT. See
+   * `requestContestEntry`.
+   */
+  if (game.entryMode === "opt-out") {
+    if (join) {
+      if (existing?.excluded) {
+        await prisma.sideGameEntry.delete({ where: { id: existing.id } });
+        await logMoney(session.eventId, "sidegame.request", `${me.name} opted back into ${game.kind}`);
+      }
+      revalidatePath("/", "layout");
+      return { ok: true };
+    }
+    if (existing?.confirmed && !existing.excluded) {
+      return { ok: false, error: "The organizer has your money for this one — ask them to take you out." };
+    }
+    await prisma.sideGameEntry.upsert({
+      where: { sideGameId_playerId: { sideGameId, playerId: me.id } },
+      update: { excluded: true, confirmed: false },
+      create: { sideGameId, playerId: me.id, excluded: true, confirmed: false },
+    });
+    await logMoney(session.eventId, "sidegame.request", `${me.name} opted out of ${game.kind}`);
+    revalidatePath("/", "layout");
+    return { ok: true };
+  }
 
   if (!join) {
     if (existing?.confirmed) {

@@ -27,6 +27,22 @@ export const NAG_AFTER_MS = 120_000;
 /** Between retries. Long enough not to burn battery hunting for a signal. */
 export const RETRY_EVERY_MS = 15_000;
 
+/**
+ * What one attempt to send actually did.
+ *
+ * There are THREE outcomes, and the type exists because the code was written as
+ * if there were two. A send could resolve (taken) or throw (retry) — so a
+ * conflict, where the server answers and deliberately does not take the card,
+ * had nowhere to go. It resolved, which the caller read as success: the device
+ * copy was deleted and the queue cleared while the chooser was still on screen,
+ * leaving the scorer's holes in React state and nowhere else.
+ *
+ * `held` is that third outcome. The server was reached and said no for a reason
+ * a person has to settle, so the copy stays on the phone and retrying is
+ * pointless until somebody decides.
+ */
+export type SendOutcome = "sent" | "held";
+
 export interface PendingState {
   /** Holes typed and not yet confirmed by the server. */
   queued: boolean;
@@ -38,6 +54,12 @@ export interface PendingState {
   waitingMs: number;
   /** The last attempt came back with an error the server chose to send. */
   refused: boolean;
+  /**
+   * The server answered and did not take the card — a conflict awaiting a
+   * person. Distinct from `refused`, which is the server saying no for a reason
+   * nobody can act on here (a locked card, a closed round).
+   */
+  held: boolean;
 }
 
 export type SyncTone = "idle" | "working" | "queued" | "warn";
@@ -54,6 +76,22 @@ export interface SyncStatus {
 }
 
 export function syncStatus(s: PendingState): SyncStatus {
+  if (s.held) {
+    /**
+     * Checked FIRST, and it must never read as saved.
+     *
+     * This state used to be indistinguishable from a clean save: the status
+     * line said "Saved", tone idle, while the card sat unsent and the device
+     * copy had already been deleted. A scorer reading that puts the phone in
+     * their pocket, which is the one thing that loses the holes for good.
+     */
+    return {
+      tone: "warn",
+      label: "This card also changed elsewhere — choose which to keep. Your holes are still on this phone.",
+      safeToLeave: false,
+    };
+  }
+
   if (s.refused) {
     // The server understood and said no — a locked card, a closed round.
     // Retrying cannot fix it, so the wording must not promise that it will.
@@ -107,7 +145,10 @@ export function shouldRetry(s: {
   sending: boolean;
   online: boolean;
   sinceLastAttemptMs: number;
+  /** A conflict is waiting on a person; replaying it just conflicts again. */
+  held?: boolean;
 }): boolean {
+  if (s.held) return false;
   if (!s.queued || s.sending) return false;
   // Offline attempts fail instantly and cost battery for nothing. The `online`
   // event is what wakes this up, not a timer grinding away in a pocket.

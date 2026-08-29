@@ -1169,3 +1169,118 @@ describe("no match is created without a group", () => {
     }
   });
 });
+
+/**
+ * A conflict never reaches the code that deletes the device copy.
+ *
+ * The queue had two outcomes where the world has three. `send` could resolve
+ * (taken) or throw (retry), so a conflict — the server answered and refused —
+ * resolved, and everything after the await ran: `localStorage.removeItem`,
+ * `setQueued(false)`, status "Saved". The scorer's holes then existed only in
+ * React state, nothing would ever retry them, and the screen said it was safe
+ * to walk away. Locking the phone lost them.
+ *
+ * `SendOutcome` makes the third case representable and the compiler makes it
+ * unavoidable — a `send` that falls off the end no longer type-checks. What a
+ * type cannot enforce is the ORDER: that the held branch returns BEFORE the
+ * clear. Asserted here, because there is no hook-testing harness in this repo
+ * and this is the line whose reordering costs a round.
+ */
+describe("the pending-card queue never clears a card it did not send", () => {
+  const hook = () =>
+    stripComments(
+      readFileSync(join(process.cwd(), "src", "components", "usePendingCard.ts"), "utf8"),
+    );
+
+  it("returns on a held outcome before touching localStorage", () => {
+    const src = hook();
+    const held = src.indexOf('outcome === "held"');
+    const clear = src.indexOf("localStorage.removeItem");
+    expect(held, "the held branch must exist").toBeGreaterThan(-1);
+    expect(clear).toBeGreaterThan(-1);
+    expect(held, "the held branch must come before the clear").toBeLessThan(clear);
+    // And it must actually leave, not merely set a flag and fall through.
+    expect(src.slice(held, clear)).toMatch(/return;/);
+  });
+
+  it("asks send for an outcome rather than ignoring what it returned", () => {
+    expect(hook()).toMatch(/const outcome = await send\(/);
+    expect(hook()).not.toMatch(/^\s*await send\(value\.current\);\s*$/m);
+  });
+
+  it("stops retrying while a conflict is waiting on a person", () => {
+    // Replaying it just conflicts again, and would overwrite their change the
+    // moment it stopped disagreeing.
+    expect(hook()).toMatch(/held,/);
+    const domain = stripComments(
+      readFileSync(join(process.cwd(), "src", "lib", "domain", "pending-card.ts"), "utf8"),
+    );
+    expect(domain.slice(domain.indexOf("export function shouldRetry"))).toMatch(
+      /if \(s\.held\) return false;/,
+    );
+  });
+
+  it("shows the player a card recovered from a previous visit", () => {
+    // `recovered` was read from localStorage on mount and then rendered by
+    // nobody, so the tab-eviction case the module exists for still lost holes.
+    const card = readFileSync(join(process.cwd(), "src", "components", "PlayerCard.tsx"), "utf8");
+    expect(card).toMatch(/recoveredDiffers/);
+    expect(card).toMatch(/mine=\{recoveredFitted\}/);
+  });
+});
+
+/**
+ * No scoring path takes the first N holes off a raw card.
+ *
+ * `applyNine` has been correct since it was written, and the fault was that
+ * calling it was OPTIONAL: thirteen scoring and money sites across seven files
+ * wrote `course.strokeIndex.slice(0, holes)` instead, which takes the right
+ * number of holes and the wrong values. An eighteen-hole stroke index is
+ * ranked across eighteen holes, so the front nine of an ordinary card is
+ * 1,3,5,...,17 — a player owed seven strokes over nine received four, and a
+ * BACK-nine round was scored off the FRONT nine's indexes and pars entirely.
+ *
+ * The individual stroke board went through `applyNine` and was right, so a
+ * club saw two boards for the same round three strokes apart with no way to
+ * tell which to believe.
+ *
+ * This is the CLAUDE.md rule about a guard you must remember to call. Rather
+ * than trusting fourteen call sites to remember `cardForStage`, the files that
+ * settle money or produce a board are forbidden from slicing a card at all.
+ */
+describe("a round's card is narrowed in exactly one place", () => {
+  const SCORING_FILES = [
+    "src/app/(app)/leaderboard/page.tsx",
+    "src/app/(app)/reports/page.tsx",
+    "src/lib/services/live-board.ts",
+    "src/lib/services/season.ts",
+    "src/lib/services/expenses.ts",
+    "src/app/actions/tournament.ts",
+  ];
+
+  for (const rel of SCORING_FILES) {
+    it(`${rel} does not slice a raw stroke index or par list`, () => {
+      const body = stripComments(readFileSync(join(process.cwd(), rel), "utf8"));
+      // `slice(from, to)` in skins-pot is fine — it re-ranks straight after.
+      // What is banned is taking the first N holes and using them as a card.
+      expect(body).not.toMatch(/strokeIndex\.slice\(\s*0\s*,/);
+      expect(body).not.toMatch(/pars\.slice\(\s*0\s*,\s*hole/);
+    });
+  }
+
+  it("routes them through cardForStage instead", () => {
+    for (const rel of SCORING_FILES) {
+      const body = readFileSync(join(process.cwd(), rel), "utf8");
+      expect(body, `${rel} should resolve its card through cardForStage`).toMatch(/cardForStage\(/);
+    }
+  });
+
+  it("keeps the one place honest — cardForStage always goes through applyNine", () => {
+    const src = stripComments(
+      readFileSync(join(process.cwd(), "src", "lib", "services", "course-resolution.ts"), "utf8"),
+    );
+    const fn = src.slice(src.indexOf("export function cardForStage"));
+    expect(fn).toMatch(/applyNine\(/);
+    expect(fn).toMatch(/cleanNine\(/);
+  });
+});
