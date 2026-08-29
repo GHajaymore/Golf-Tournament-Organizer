@@ -26,6 +26,7 @@ const base: PendingState = {
   online: true,
   waitingMs: 0,
   refused: false,
+  held: false,
 };
 const at = (over: Partial<PendingState>) => syncStatus({ ...base, ...over });
 
@@ -191,5 +192,70 @@ describe("a card's revision, derived from what is on it", () => {
     const mine = cardRevision([4, 5, 3]);
     const theirs = cardRevision([4, 7, 3]);
     expect(staleAgainst(mine, theirs)).toBe(true);
+  });
+});
+
+/**
+ * A card the server answered and did not take.
+ *
+ * The third outcome. `send` could resolve or throw, so a conflict — where the
+ * server is reached and deliberately refuses the write — resolved, and the
+ * queue read that as success: it deleted the device copy, set `queued` false so
+ * nothing would ever retry, and showed "Saved" while the chooser was still on
+ * screen. The scorer's holes were then in React state and nowhere else, and
+ * locking the phone lost them for good.
+ */
+describe("a card held back by a conflict", () => {
+  const held = (over: Partial<PendingState> = {}) =>
+    syncStatus({ ...base, queued: true, held: true, ...over });
+
+  it("never reads as saved", () => {
+    expect(held().label).not.toMatch(/^Saved/i);
+    expect(held().tone).not.toBe("idle");
+  });
+
+  it("says it is not safe to walk away", () => {
+    // The single thing the status line exists to answer. Getting it wrong here
+    // is what puts the phone in a pocket.
+    expect(held().safeToLeave).toBe(false);
+  });
+
+  it("says the holes are still on the phone", () => {
+    expect(held().label).toMatch(/on this phone/i);
+  });
+
+  it("outranks every other state, including a clean queue", () => {
+    // It is checked first because each of these would otherwise describe the
+    // card as fine, or as merely slow.
+    expect(held({ queued: false }).safeToLeave).toBe(false);
+    expect(held({ online: false }).safeToLeave).toBe(false);
+    expect(held({ sending: true }).safeToLeave).toBe(false);
+    expect(held({ waitingMs: NAG_AFTER_MS * 2 }).safeToLeave).toBe(false);
+  });
+
+  it("is not the same thing as a refusal", () => {
+    // `refused` is the server saying no for a reason nobody on this screen can
+    // act on — a locked card, a closed round. A conflict has an answer, and it
+    // is a person's to give.
+    const refused = syncStatus({ ...base, queued: true, refused: true });
+    expect(held().label).not.toBe(refused.label);
+  });
+});
+
+describe("retrying a held card", () => {
+  const args = {
+    queued: true,
+    sending: false,
+    online: true,
+    sinceLastAttemptMs: RETRY_EVERY_MS * 4,
+  };
+
+  it("does not happen — the same write would conflict again", () => {
+    expect(shouldRetry({ ...args, held: true })).toBe(false);
+  });
+
+  it("still happens for an ordinary queued card", () => {
+    expect(shouldRetry({ ...args, held: false })).toBe(true);
+    expect(shouldRetry(args)).toBe(true);
   });
 });

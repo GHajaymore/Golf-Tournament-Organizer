@@ -1171,6 +1171,65 @@ describe("no match is created without a group", () => {
 });
 
 /**
+ * A conflict never reaches the code that deletes the device copy.
+ *
+ * The queue had two outcomes where the world has three. `send` could resolve
+ * (taken) or throw (retry), so a conflict — the server answered and refused —
+ * resolved, and everything after the await ran: `localStorage.removeItem`,
+ * `setQueued(false)`, status "Saved". The scorer's holes then existed only in
+ * React state, nothing would ever retry them, and the screen said it was safe
+ * to walk away. Locking the phone lost them.
+ *
+ * `SendOutcome` makes the third case representable and the compiler makes it
+ * unavoidable — a `send` that falls off the end no longer type-checks. What a
+ * type cannot enforce is the ORDER: that the held branch returns BEFORE the
+ * clear. Asserted here, because there is no hook-testing harness in this repo
+ * and this is the line whose reordering costs a round.
+ */
+describe("the pending-card queue never clears a card it did not send", () => {
+  const hook = () =>
+    stripComments(
+      readFileSync(join(process.cwd(), "src", "components", "usePendingCard.ts"), "utf8"),
+    );
+
+  it("returns on a held outcome before touching localStorage", () => {
+    const src = hook();
+    const held = src.indexOf('outcome === "held"');
+    const clear = src.indexOf("localStorage.removeItem");
+    expect(held, "the held branch must exist").toBeGreaterThan(-1);
+    expect(clear).toBeGreaterThan(-1);
+    expect(held, "the held branch must come before the clear").toBeLessThan(clear);
+    // And it must actually leave, not merely set a flag and fall through.
+    expect(src.slice(held, clear)).toMatch(/return;/);
+  });
+
+  it("asks send for an outcome rather than ignoring what it returned", () => {
+    expect(hook()).toMatch(/const outcome = await send\(/);
+    expect(hook()).not.toMatch(/^\s*await send\(value\.current\);\s*$/m);
+  });
+
+  it("stops retrying while a conflict is waiting on a person", () => {
+    // Replaying it just conflicts again, and would overwrite their change the
+    // moment it stopped disagreeing.
+    expect(hook()).toMatch(/held,/);
+    const domain = stripComments(
+      readFileSync(join(process.cwd(), "src", "lib", "domain", "pending-card.ts"), "utf8"),
+    );
+    expect(domain.slice(domain.indexOf("export function shouldRetry"))).toMatch(
+      /if \(s\.held\) return false;/,
+    );
+  });
+
+  it("shows the player a card recovered from a previous visit", () => {
+    // `recovered` was read from localStorage on mount and then rendered by
+    // nobody, so the tab-eviction case the module exists for still lost holes.
+    const card = readFileSync(join(process.cwd(), "src", "components", "PlayerCard.tsx"), "utf8");
+    expect(card).toMatch(/recoveredDiffers/);
+    expect(card).toMatch(/mine=\{recoveredFitted\}/);
+  });
+});
+
+/**
  * No scoring path takes the first N holes off a raw card.
  *
  * `applyNine` has been correct since it was written, and the fault was that
