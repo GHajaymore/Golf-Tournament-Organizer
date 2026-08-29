@@ -104,7 +104,22 @@ export interface StrokeAggOptions {
   /** Playing handicap for this player on this round, allowance already applied. */
   handicapFor: (playerId: string, stageId: string) => number;
   holeStrokesReceived: (handicap: number, si: number, allocationHoles: number) => number;
-  stablefordPointsForHole: (strokes: number, par: number, holeStrokes: number) => number;
+  /**
+   * The Stableford table, chosen per ROUND.
+   *
+   * `stageId` is the fourth argument because Modified Stableford is a
+   * different table rather than a different reading of the same one, and
+   * points accumulate across rounds — so the choice cannot be made once for
+   * the whole board. A three-argument function still satisfies this type,
+   * which is how the callers that only ever score standard Stableford stay
+   * exactly as they were.
+   */
+  stablefordPointsForHole: (
+    strokes: number,
+    par: number,
+    holeStrokes: number,
+    stageId: string,
+  ) => number;
   allocationHoles: (holes: number) => number;
 }
 
@@ -184,7 +199,7 @@ export function aggregateStroke(cards: StrokeCard[], opts: StrokeAggOptions): Ma
       a.parThru += pars[i] ?? 0;
       const holeStrokes = opts.holeStrokesReceived(handicap, holeDifficulty[i] ?? 18, alloc);
       a.strokesReceived += holeStrokes;
-      a.points += opts.stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes);
+      a.points += opts.stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes, card.stageId);
       perHole.gross[i] = s;
       perHole.net[i] = s - holeStrokes;
     });

@@ -3,14 +3,14 @@ import { roundTeeId } from "./handicaps";
 import { isPlayingRound } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
-import { isManualFormat } from "../formats";
+import { isManualFormat, stablefordTableFor } from "../formats";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { survivors, currentRoundCutRule, type CutCandidate } from "../domain/cut";
 import { cleanMatchTiebreakers, type MatchTiebreakKey } from "../domain/match-tiebreak";
 import { prisma } from "../db";
 import { effectiveAllowance } from "./teams";
 import {
-  holeStrokesReceived, stablefordPointsForHole, allocationHoles, playingHandicapFrom } from "../domain";
+  holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles, playingHandicapFrom } from "../domain";
 import { aggregateStroke, emptyAgg, isRanked, netOf, type StrokeCard } from "../domain/stroke-agg";
 import { matchStrokeCards, withoutSupersededStrokeCards } from "../domain/match-cards";
 import { countbackCompare } from "../domain/stroke-countback";
@@ -742,7 +742,22 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       courseFor,
       handicapFor,
       holeStrokesReceived,
-      stablefordPointsForHole,
+      /**
+       * The table each ROUND is scored on.
+       *
+       * This passed the standard table for everything and then ranked on the
+       * result whenever the unit said "modified Stableford points". The two
+       * tables order a field differently — six birdies and three doubles is
+       * 36 standard and +3 modified; one birdie and seventeen pars is 37 and
+       * +2 — so the leaderboard, which used the right table, and the honours
+       * board, the cut, the season table and the play-off seeding, which read
+       * these standings, named different winners for the same round.
+       */
+      stablefordPointsForHole: stablefordTableFor(
+        (stageId) => stageById.get(stageId)?.format,
+        stablefordPointsForHole,
+        modifiedStablefordForHole,
+      ),
       allocationHoles,
     },
   );

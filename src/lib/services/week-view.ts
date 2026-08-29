@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { resolveCourse } from "../courses";
-import { holeStrokesReceived, stablefordPointsForHole, allocationHoles } from "../domain";
+import { holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles } from "../domain";
 import { aggregateStroke, emptyAgg, netOf } from "../domain/stroke-agg";
 import { skinsPotFor, type SkinsPotView } from "./skins-pot";
 import { isSkinsScope, skinsGameLabel, type SkinsScope } from "../domain/skins-pot";
@@ -13,7 +13,7 @@ import {
   parseMatchTiebreakers,
 } from "./tournament";
 import { movementBetween, type WeekRow } from "../domain/week-movement";
-import { isManualFormat } from "../formats";
+import { isManualFormat, stablefordTableFor } from "../formats";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
 
 /**
@@ -130,7 +130,14 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     courseFor: () => ({ pars, holeDifficulty }),
     handicapFor,
     holeStrokesReceived,
-    stablefordPointsForHole,
+    // Modified Stableford is a different table, and this week's board ranks on
+    // whatever these points are — so scoring them on the standard one puts a
+    // league night in a different order from the round's own leaderboard.
+    stablefordPointsForHole: stablefordTableFor(
+      () => stage.format,
+      stablefordPointsForHole,
+      modifiedStablefordForHole,
+    ),
     allocationHoles,
   });
 
@@ -239,7 +246,9 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
  */
 async function standingsWithMovement(
   state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>,
-  weeks: Array<{ id: string }>,
+  // `format` too, because summing several weeks means each of them chooses
+  // its own Stableford table.
+  weeks: Array<{ id: string; format: string }>,
   idx: number,
   cards: Array<{ playerId: string; stageId: string; strokes: string }>,
   opts: {
@@ -277,7 +286,13 @@ async function standingsWithMovement(
       courseFor: () => ({ pars: opts.pars, holeDifficulty: opts.holeDifficulty }),
       handicapFor: opts.handicapFor,
       holeStrokesReceived,
-      stablefordPointsForHole,
+      // Per week, because this totals several of them and a league can run a
+      // modified round among ordinary ones.
+      stablefordPointsForHole: stablefordTableFor(
+        (stageId) => weeks.find((w) => w.id === stageId)?.format,
+        stablefordPointsForHole,
+        modifiedStablefordForHole,
+      ),
       allocationHoles,
     });
     return state.confirmed

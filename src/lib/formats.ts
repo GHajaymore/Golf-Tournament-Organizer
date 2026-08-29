@@ -638,3 +638,32 @@ export function playingHandicap(courseHandicap: number, formatName: string, allo
   const pct = allowanceOverride ?? findFormat(formatName).allowance;
   return Math.round((courseHandicap * pct) / 100);
 }
+
+/**
+ * The Stableford table a given ROUND is scored on.
+ *
+ * Modified Stableford is a different table, not a different presentation of
+ * the same one: it has no floor at zero and pays a birdie double what a par is
+ * worth relative to bogey. So the two order a field differently — six birdies
+ * and three doubles beats one birdie and seventeen pars on the modified table
+ * and loses to it on the standard one.
+ *
+ * `strokeStandings` accumulated points with the STANDARD table for every
+ * round, then ranked on them whenever the unit said "modified Stableford
+ * points". The leaderboard used the right table, so the board and the honours
+ * board, the cut, the season table and the play-off seeding named different
+ * winners for the same round.
+ *
+ * Takes a lookup by stage rather than a single flag because points accumulate
+ * ACROSS rounds, and which table applies is a property of each round.
+ */
+export function stablefordTableFor(
+  formatOfStage: (stageId: string) => string | null | undefined,
+  standard: (strokes: number, par: number, holeStrokes: number) => number,
+  modified: (strokes: number, par: number, holeStrokes: number) => number,
+): (strokes: number, par: number, holeStrokes: number, stageId: string) => number {
+  return (strokes, par, holeStrokes, stageId) =>
+    boardKind(formatOfStage(stageId)) === "modified-stableford"
+      ? modified(strokes, par, holeStrokes)
+      : standard(strokes, par, holeStrokes);
+}
