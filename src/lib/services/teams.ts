@@ -1,5 +1,5 @@
 import "server-only";
-import { teeSetupFor } from "./handicaps";
+import { teeSetupFor, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { findFormat, sideSizeRange } from "../formats";
 import { courseHandicapMap, holesPlayed } from "../domain/handicap";
@@ -79,8 +79,11 @@ export async function teamsForStage(
   const use = scoped.length > 0 ? scoped : rows.filter((t) => t.stageId === null);
 
   const allMembers = use.flatMap((t) => t.members.map((m) => m.player));
+  // A side's handicap is read out on the tee, so it has to be the one the
+  // player's own flight plays off.
+  const flightTee = await flightTeeByPlayer(eventId);
   const courseHcp = courseHandicapMap(
-    allMembers,
+    allMembers.map((p) => ({ ...p, flightTeeId: flightTee.get(p.id) ?? null })),
     teeRatings,
     defaultTeeId,
     holes,

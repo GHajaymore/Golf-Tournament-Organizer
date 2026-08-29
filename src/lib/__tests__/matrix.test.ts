@@ -1028,6 +1028,7 @@ describe("tee policy, on every field size", () => {
         id: p.id,
         handicap: 18,
         teeId: i % 2 === 0 ? "blue" : null,
+        flightTeeId: null,
       }));
 
       const one = courseHandicapMap(players, RATINGS, "white", 18, "one");
@@ -1052,11 +1053,58 @@ describe("tee policy, on every field size", () => {
   }
 
   it("falls back to the round's tee when a player has none, under either policy", () => {
-    const players = [{ id: "p1", handicap: 10, teeId: null }];
+    const players = [{ id: "p1", handicap: 10, teeId: null, flightTeeId: null }];
     for (const policy of TEE_POLICY) {
       const m = courseHandicapMap(players, RATINGS, "white", 18, policy);
       expect(m.get("p1")).toBe(Math.round(10 + (WHITE.courseRating - WHITE.par)));
     }
+  });
+
+  /**
+   * The `flight` policy, through the MAP rather than the pure function.
+   *
+   * `teeIdFor("flight", …)` was asserted directly and was always right. What
+   * nothing asserted was `courseHandicapMap` honouring it — and every fixture
+   * in this file built players without a `flightTeeId`, so a map that ignored
+   * the field passed the whole sweep. It did ignore it: the field's tee lives
+   * on `Group.teeId` and not one of the eight call sites ever joined it, so a
+   * club championship off three sets scored everybody off the default one.
+   *
+   * `IndexHolder.flightTeeId` is required now, which is what makes forgetting
+   * it a compile error rather than a silent wrong answer.
+   */
+  for (const n of FIELD_SIZES) {
+    it(`gives a ${n}-player field its own flight's tees under "flight"`, () => {
+      // Two divisions: even seeds off the blues, odd off the whites, exactly
+      // as a club championship sets it per flight rather than per player.
+      const players = field(n).map((p, i) => ({
+        id: p.id,
+        handicap: 18,
+        // Nobody has a personal preference — the flight is the only signal.
+        teeId: null,
+        flightTeeId: i % 2 === 0 ? "blue" : "white",
+      }));
+
+      const m = courseHandicapMap(players, RATINGS, "white", 18, "flight");
+      const off = (t: { courseRating: number; par: number }) =>
+        Math.round(18 * (113 / 113) + (t.courseRating - t.par));
+
+      players.forEach((p, i) => {
+        expect(m.get(p.id)).toBe(off(i % 2 === 0 ? BLUE : WHITE));
+      });
+      // And the two divisions really do differ, or the assertion above is
+      // satisfied by any implementation at all.
+      if (n >= 2) expect(off(BLUE)).not.toBe(off(WHITE));
+    });
+  }
+
+  it("falls back to the round's tee for a flight that claims none", () => {
+    const players = [{ id: "p1", handicap: 10, teeId: "blue", flightTeeId: null }];
+    // Under "flight" the FLIGHT decides, and a player's own preference does
+    // not get to override it — so a flight claiming nothing lands on the
+    // round's set rather than on that player's blue.
+    const m = courseHandicapMap(players, RATINGS, "white", 18, "flight");
+    expect(m.get("p1")).toBe(Math.round(10 + (WHITE.courseRating - WHITE.par)));
   });
 
   it("resolves the id itself the same way, so one reader answers for all", () => {

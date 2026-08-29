@@ -452,8 +452,8 @@ describe("Course Handicap changes real strokes end to end", () => {
       tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
     );
     const field = [
-      { id: "off-hard", handicap: 14.0, teeId: hardTeeId },
-      { id: "off-easy", handicap: 14.0, teeId: easyTeeId },
+      { id: "off-hard", handicap: 14.0, teeId: hardTeeId, flightTeeId: null },
+      { id: "off-easy", handicap: 14.0, teeId: easyTeeId, flightTeeId: null },
     ];
     const map = courseHandicapMap(field, ratings, null, 18, "own");
 
@@ -469,7 +469,7 @@ describe("Course Handicap changes real strokes end to end", () => {
     const ratings = new Map(
       tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
     );
-    const map = courseHandicapMap([{ id: "p", handicap: 14.0, teeId: hardTeeId }], ratings, null, 18, "own");
+    const map = courseHandicapMap([{ id: "p", handicap: 14.0, teeId: hardTeeId, flightTeeId: null }], ratings, null, 18, "own");
     const ch = map.get("p")!;
     const total = SI.reduce((sum, si) => sum + holeStrokesReceived(ch, si), 0);
     expect(total).toBe(ch);
@@ -484,7 +484,7 @@ describe("Course Handicap changes real strokes end to end", () => {
       data: { courseId, name: "Unrated", slopeRating: 0, courseRating: 0, par: 72, position: 2 },
     });
     const map = courseHandicapMap(
-      [{ id: "p", handicap: 14.4, teeId: plain.id }],
+      [{ id: "p", handicap: 14.4, teeId: plain.id, flightTeeId: null }],
       new Map([[plain.id, { courseRating: 0, slopeRating: 0, par: 72 }]]),
       null,
       18,

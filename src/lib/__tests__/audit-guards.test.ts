@@ -662,7 +662,10 @@ describe("net imports are converted where the real handicap lives", () => {
     // whichever set sorts first — an import converted off the wrong tee bakes
     // the wrong gross into stored strokes, which is the one place an error
     // stops being recomputable.
-    expect(fn).toMatch(/courseHandicapMap\(\s*players,\s*teeRatings,\s*roundTeeId\(tees, event\?\.defaultTeeId\),/);
+    expect(fn).toMatch(/courseHandicapMap\(\s*players\.map\([^;]*?\),\s*teeRatings,\s*roundTeeId\(tees, event\?\.defaultTeeId\),/);
+    // This path writes STORED strokes, so it converts off the flight's tees
+    // too — an error here is the one kind that cannot be recomputed away.
+    expect(fn).toMatch(/flightTeeId: importFlightTee\.get\(p\.id\)/);
     expect(fn).toMatch(/effectiveAllowance\(stage\.format, stage\.handicapAllowance\)/);
   });
 

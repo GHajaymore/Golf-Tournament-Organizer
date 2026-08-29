@@ -1,5 +1,5 @@
 import "server-only";
-import { teeSetupFor } from "./handicaps";
+import { teeSetupFor, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { courseHandicapMap } from "../domain/handicap";
 import {
@@ -82,8 +82,12 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
   const teeSetup = await teeSetupFor(eventId, tees);
+  // The flight's tees, under the `flight` policy. Without it the freeze wrote
+  // the DEFAULT set's number into history permanently, and this screen showed
+  // a different handicap from the card the player was handed.
+  const flightTee = await flightTeeByPlayer(eventId);
   const courseHcp = courseHandicapMap(
-    players,
+    players.map((p) => ({ ...p, flightTeeId: flightTee.get(p.id) ?? null })),
     teeRatings,
     teeSetup.defaultTeeId,
     holes,
@@ -239,8 +243,12 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
   const teeSetup = await teeSetupFor(eventId, tees);
+  // The flight's tees, under the `flight` policy. Without it the freeze wrote
+  // the DEFAULT set's number into history permanently, and this screen showed
+  // a different handicap from the card the player was handed.
+  const flightTee = await flightTeeByPlayer(eventId);
   const courseHcp = courseHandicapMap(
-    players,
+    players.map((p) => ({ ...p, flightTeeId: flightTee.get(p.id) ?? null })),
     teeRatings,
     teeSetup.defaultTeeId,
     holes,

@@ -1,6 +1,6 @@
 "use server";
 import { COURSE_REF } from "@/lib/services/course-resolution";
-import { roundTeeId } from "@/lib/services/handicaps";
+import { roundTeeId, flightTeeByPlayer } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { cardRevision, staleAgainst } from "@/lib/domain/pending-card";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -1843,8 +1843,13 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   const netRatings = new Map(
     netTees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
+  // Net match play under the `flight` policy: each side plays off their own
+  // flight's tees, which this never asked for.
+  const netFlightTee = await flightTeeByPlayer(eventId);
   const netHcp = courseHandicapMap(
-    [playerA, playerB].filter((x): x is NonNullable<typeof x> => !!x),
+    [playerA, playerB]
+      .filter((x): x is NonNullable<typeof x> => !!x)
+      .map((p) => ({ ...p, flightTeeId: netFlightTee.get(p.id) ?? null })),
     netRatings,
     netTees[0]?.id ?? null,
     holeCount,
@@ -2062,8 +2067,9 @@ async function recomputeTeamMatch(
         },
       }),
     ]);
+    const teamFlightTee = await flightTeeByPlayer(eventId);
     const teamHcp = courseHandicapMap(
-      members.map((m) => m.player),
+      members.map((m) => ({ ...m.player, flightTeeId: teamFlightTee.get(m.playerId) ?? null })),
       teamRatings,
       teeRows[0]?.id ?? null,
       holeCount,
@@ -3043,8 +3049,11 @@ export async function importScores(
     const teeRatings = new Map(
       tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
     );
+    // A file of NET scores converts back to gross off these strokes, and the
+    // result is STORED — so reading the wrong tees here bakes the error in.
+    const importFlightTee = await flightTeeByPlayer(eventId);
     const ch = courseHandicapMap(
-      players,
+      players.map((p) => ({ ...p, flightTeeId: importFlightTee.get(p.id) ?? null })),
       teeRatings,
       roundTeeId(tees, event?.defaultTeeId),
       holes,

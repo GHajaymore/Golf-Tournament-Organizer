@@ -8,7 +8,7 @@ import type { HoleResult } from "../domain/types";
 import { courseHandicapMap } from "../domain/handicap";
 import { strokeHandicapResolver } from "./tournament";
 import { roundHandicapRows } from "./round-handicap";
-import { teeSetupFor } from "./handicaps";
+import { teeSetupFor, flightTeeByPlayer } from "./handicaps";
 
 /**
  * Standings for the formats that read an ordinary card a different way.
@@ -80,11 +80,15 @@ async function playingHandicapFor(
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
+  // Under the `flight` policy this is what a player actually plays off, and
+  // these boards were reading the round's default set for the whole field.
+  const flightTee = await flightTeeByPlayer(eventId);
   const idx = players.map((p) => ({
     id: p.id,
     handicap: p.handicap,
     handicapType: p.handicapType,
     teeId: p.teeId,
+    flightTeeId: flightTee.get(p.id) ?? null,
   }));
   const courseHcp18 = courseHandicapMap(idx, teeRatings, teeSetup.defaultTeeId, 18, teeSetup.policy);
   const courseHcp9 = courseHandicapMap(idx, teeRatings, teeSetup.defaultTeeId, 9, teeSetup.policy);

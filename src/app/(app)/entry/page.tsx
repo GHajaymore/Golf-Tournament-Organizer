@@ -318,6 +318,18 @@ export default async function EntryPage() {
     entryTees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
 
+  /**
+   * The tees each player's flight plays from, under the `flight` policy.
+   *
+   * The dots printed on this card have to be the strokes the round is actually
+   * scored on, and both allocations below were reading the round's default set
+   * for the whole field. From `state`, so no extra query: the groups and the
+   * players' `groupId` are already here.
+   */
+  const flightTeeOf = new Map(state.groups.map((g) => [g.id, g.teeId]));
+  const withFlightTee = <T extends { groupId: string | null }>(ps: T[]) =>
+    ps.map((p) => ({ ...p, flightTeeId: p.groupId ? flightTeeOf.get(p.groupId) ?? null : null }));
+
   const rounds: EntryRound[] = await Promise.all(
     rrStages.map(async (stage, i) => {
       const holeCount = stage.holes === 9 ? 9 : 18;
@@ -477,7 +489,7 @@ export default async function EntryPage() {
           shotsByPlayer: (() => {
             if (!courseKnown) return {};
             const ch = courseHandicapMap(
-              state.confirmed,
+              withFlightTee(state.confirmed),
               entryTeeRatings,
               entryTees[0]?.id ?? null,
               holeCount,
@@ -533,7 +545,7 @@ export default async function EntryPage() {
         // The competition tee policy, so a single-tee event allocates off the
         // round tees rather than off whatever a player has on their record.
         const ch = courseHandicapMap(
-          state.confirmed,
+          withFlightTee(state.confirmed),
           teeRatings,
           roundTeeId(tees, state.event.defaultTeeId),
           holeCount,

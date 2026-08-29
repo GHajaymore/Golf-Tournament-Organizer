@@ -2,7 +2,7 @@ import "server-only";
 import { COURSE_REF, courseForRound } from "./course-resolution";
 import { roundHandicapRows } from "./round-handicap";
 import { roundHandicapOf } from "../domain/round-handicap";
-import { teeSetupFor } from "./handicaps";
+import { teeSetupFor, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
 import { rankStrokeIndex } from "../domain/stroke";
@@ -235,12 +235,16 @@ export async function skinsPotFor(
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
+  // Net skins are paid on these strokes, so a flight playing off a different
+  // set has to be priced off that set.
+  const flightTee = await flightTeeByPlayer(eventId);
   const courseHcp = courseHandicapMap(
     inPot.map((p) => ({
       id: p.id,
       handicap: p.handicap,
       handicapType: p.handicapType,
       teeId: p.teeId,
+      flightTeeId: flightTee.get(p.id) ?? null,
     })),
     teeRatings,
     teeSetup.defaultTeeId,
