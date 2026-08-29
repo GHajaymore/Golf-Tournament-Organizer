@@ -6,6 +6,7 @@ import { requestContestEntry } from "@/app/actions/contests";
 import { requestSideGameEntry } from "@/app/actions/side-games";
 import { requestSkinsEntry } from "@/app/actions/skins";
 import type { MoneyView, ExpenseRow } from "@/lib/services/expenses";
+import { shareField, initialsOf } from "@/lib/share-field";
 import { unitemisedGames } from "@/lib/domain/money-breakdown";
 import { PersonChip } from "@/components/PersonChip";
 import { useMoney } from "@/components/CurrencyProvider";
@@ -1167,40 +1168,24 @@ function splitLabel(e: ExpenseRow, money: (cents: number) => string): string {
 }
 
 /**
- * The whole field on one line, as initials.
+ * The people a bill touches, on one line, as initials.
  *
- * Four states, and the third is the one that matters:
+ * WHO is shown and in what state is decided by `shareField` in
+ * lib/share-field.ts, not here — deliberately. That rule branches on the size
+ * of the field, and a branch living only in JSX is a branch no test can
+ * reach, which is exactly how the first version of this shipped rendering
+ * nothing at all on a 33-player event with everything green. The selection is
+ * asserted over there; this file only paints it.
  *
- *   in the split      — normal
- *   not on this line  — faded; they were never part of this bill
- *   on it at nothing  — dashed; weight 0, present and owing nothing
- *   whoever paid      — accent border, and note a payer can also be at
- *                       weight 0, which is the bar tab somebody put on their
- *                       card without drinking
+ * Four states:
  *
- * Being excluded and never having been there are different facts. The expanded
- * row already says so — "(not on this bill)" — but the collapsed row lost the
- * distinction entirely, which is where most people stop reading.
- *
- * WHICH PEOPLE, THOUGH, DEPENDS ON THE SIZE OF THE FIELD — and this is the
- * part rendering against the real seed taught, because no test could:
- *
- *   A SMALL FIELD (a fourball, a society trip) shows EVERYONE, absentees
- *   faded. There the absence is the argument: seeing that two of the eight
- *   are missing from the flights line is what makes weighted splitting
- *   legible at a glance.
- *
- *   A BIG FIELD shows only the people ON the line. The demo event has 33
- *   players and a dinner shared by four; thirty-three chips with twenty-nine
- *   faded is not information, it is a wall — and the first draft of this
- *   rendered nothing at all in that case, which is worse, because the common
- *   shape of a club event is a big field and a small bill.
- *
- * Past a dozen ON THE LINE it stops entirely and the caller's own "÷ N"
- * carries the row alone.
+ *   in    — in the split
+ *   nil   — dashed: on the line at a weight of zero, present and owing
+ *           nothing, which is a different fact from never having been on it
+ *   off   — faded: never on this line
+ *   payer — accent border, and true in ANY of the three, because somebody can
+ *           pay for a bill they are not on
  */
-const SHARE_FIELD_MAX = 12;
-
 function ShareField({
   expense,
   field,
@@ -1208,65 +1193,50 @@ function ShareField({
   expense: ExpenseRow;
   field: Array<{ id: string; name: string }>;
 }) {
-  const byId = new Map(expense.shares.map((s) => [s.playerId, s]));
-  const payers = new Set(
+  const chips = shareField(
+    field,
+    expense.shares,
     expense.payers.length > 0 ? expense.payers.map((p) => p.playerId) : [expense.paidBy],
   );
-
-  // A small field shows everyone, so the gaps are visible; a big one shows
-  // only the people the bill actually touches, in the field's own order.
-  const shown =
-    field.length <= SHARE_FIELD_MAX ? field : field.filter((p) => byId.has(p.id));
-
-  if (shown.length === 0 || shown.length > SHARE_FIELD_MAX) return null;
+  if (chips.length === 0) return null;
 
   return (
     <span style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }} aria-hidden="true">
-      {shown.map((p) => {
-        const share = byId.get(p.id);
-        const off = !share;
-        const nil = !!share && share.weight === 0 && (share.exactCents ?? 0) === 0;
-        const paid = payers.has(p.id);
-        return (
-          <span
-            key={p.id}
-            title={`${p.name}${off ? " — not on this line" : nil ? " — on it, at nothing" : ""}${paid ? " — paid the bill" : ""}`}
-            style={{
-              display: "inline-grid",
-              placeItems: "center",
-              minWidth: 24,
-              height: 19,
-              padding: "0 3px",
-              borderRadius: 3,
-              // 10px is the floor this app sets itself, and the adherence test
-              // in brand-consistency.test.ts enforces it. This was 9.5 and the
-              // suite caught it, which is the test doing exactly its job.
-              fontSize: 10,
-              letterSpacing: "0.02em",
-              fontVariantNumeric: "tabular-nums",
-              border: `1px ${nil ? "dashed" : "solid"} ${
-                paid ? "var(--color-accent)" : off ? "var(--color-divider)" : "var(--color-border, var(--color-divider))"
-              }`,
-              color: paid
+      {chips.map((c) => (
+        <span
+          key={c.playerId}
+          title={`${c.name}${c.state === "off" ? " — not on this line" : c.state === "nil" ? " — on it, at nothing" : ""}${c.payer ? " — paid the bill" : ""}`}
+          style={{
+            display: "inline-grid",
+            placeItems: "center",
+            minWidth: 25,
+            height: 19,
+            padding: "0 3px",
+            borderRadius: 3,
+            // 10px is the floor this app sets itself, and the adherence test
+            // in brand-consistency.test.ts enforces it. This was 9.5 and the
+            // suite caught it, which is the test doing exactly its job.
+            fontSize: 10,
+            letterSpacing: "0.02em",
+            fontVariantNumeric: "tabular-nums",
+            border: `1px ${c.state === "nil" ? "dashed" : "solid"} ${
+              c.payer
                 ? "var(--color-accent)"
-                : off
-                  ? "var(--color-text-muted)"
-                  : "var(--color-text)",
-              opacity: off ? 0.45 : 1,
-            }}
-          >
-            {initialsOf(p.name)}
-          </span>
-        );
-      })}
+                : c.state === "off"
+                  ? "var(--color-divider)"
+                  : "var(--color-border, var(--color-divider))"
+            }`,
+            color: c.payer
+              ? "var(--color-accent)"
+              : c.state === "off"
+                ? "var(--color-text-muted)"
+                : "var(--color-text)",
+            opacity: c.state === "off" ? 0.45 : 1,
+          }}
+        >
+          {initialsOf(c.name)}
+        </span>
+      ))}
     </span>
   );
-}
-
-/** "A. Rourke" → "AR"; "Sam" → "SA". Two characters, so the row stays even. */
-function initialsOf(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "??";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }
