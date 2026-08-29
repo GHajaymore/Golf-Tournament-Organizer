@@ -122,10 +122,40 @@ export async function setContestEntrants(contestId: string, playerIds: string[])
     contest.entrants.filter((e) => e.won).map((e) => e.playerId).filter((id) => ids.includes(id)),
   );
 
+  /**
+   * Replaces the CONFIRMED entrants, and leaves everybody else where they are.
+   *
+   * This used to delete every row for the contest and recreate the ids it was
+   * given, which destroyed two kinds of row that were not its business:
+   *
+   *   - a player the organizer had explicitly taken OUT. Their row is the only
+   *     record of that decision, and in an opt-out pot a player with no row is
+   *     in and settled — so deleting it put them straight back in the pot and
+   *     charged them the buy-in, from an unrelated tick on somebody else.
+   *   - a player's outstanding ask. `ContestEntry.confirmed` defaults to TRUE,
+   *     so an unconfirmed self-signup either vanished from the collect list
+   *     with nothing to show it was made, or came back as a paid stake the
+   *     organizer never collected.
+   *
+   * Both sibling actions were fixed for exactly this and say so at length —
+   * `setSideGameEntrants` and `setSkinsEntrants`. Contests, which is where the
+   * confirmed-defaults-true rule is actually documented, is the one reader
+   * that never got it.
+   *
+   * An id explicitly passed in IS confirmed: an organizer ticking somebody in
+   * is the confirmation.
+   */
   await prisma.$transaction([
-    prisma.contestEntry.deleteMany({ where: { contestId } }),
+    prisma.contestEntry.deleteMany({
+      where: { contestId, OR: [{ confirmed: true, excluded: false }, { playerId: { in: ids } }] },
+    }),
     prisma.contestEntry.createMany({
-      data: ids.map((playerId) => ({ contestId, playerId, won: stillWinning.has(playerId) })),
+      data: ids.map((playerId) => ({
+        contestId,
+        playerId,
+        won: stillWinning.has(playerId),
+        confirmed: true,
+      })),
     }),
   ]);
 
@@ -161,11 +191,15 @@ export async function setContestWinners(contestId: string, winnerIds: string[]):
 
   // A winner who never staked is legal — see domain/contests — but they need
   // an entry row to be recorded on, so one is created without a stake.
+  //
+  // `confirmed: false` says so explicitly. Omitting it took the column's
+  // default, which is TRUE, so the row created to record a win also charged
+  // that player the buy-in — the exact opposite of the sentence above it.
   for (const playerId of winners) {
     await prisma.contestEntry.upsert({
       where: { contestId_playerId: { contestId, playerId } },
       update: { won: true },
-      create: { contestId, playerId, won: true },
+      create: { contestId, playerId, won: true, confirmed: false },
     });
   }
 
@@ -198,7 +232,7 @@ export async function requestContestEntry(contestId: string, join: boolean): Pro
 
   const contest = await prisma.contest.findFirst({
     where: { id: contestId, eventId: session.eventId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, entryMode: true },
   });
   if (!contest) return { ok: false, error: "That bet isn't in this tournament." };
 
@@ -211,6 +245,44 @@ export async function requestContestEntry(contestId: string, join: boolean): Pro
   const existing = await prisma.contestEntry.findUnique({
     where: { contestId_playerId: { contestId, playerId: me.id } },
   });
+
+  /**
+   * An opt-out pot starts with everybody in, so both taps mean the opposite
+   * thing and neither of them is a row saying "asked to join".
+   *
+   * Writing one anyway is what this used to do, and `potMembership` reads an
+   * unconfirmed row as "the organizer has not been paid" — which in opt-out
+   * mode moves the player from `entrants` to `pending`. So tapping a button
+   * labelled "I'm in" was the single act that took a player OUT of the pot,
+   * shrank it by their buy-in, and disqualified them from winning it.
+   *
+   * Here "out" is an EXCLUSION, which is the column that exists for a decision
+   * about playing, and "in" is the removal of one. `confirmed` stays a
+   * decision about money and is left to the organizer.
+   */
+  if (contest.entryMode === "opt-out") {
+    if (join) {
+      // Already in — the only thing that can be keeping them out is an
+      // exclusion, so clear it. Nothing else to write.
+      if (existing?.excluded) {
+        await prisma.contestEntry.delete({ where: { id: existing.id } });
+        await logMoney(session.eventId, "contest.request", `${me.name} opted back into ${contest.name}`);
+      }
+      revalidatePath("/", "layout");
+      return { ok: true };
+    }
+    if (existing?.confirmed && !existing.excluded) {
+      return { ok: false, error: "The organizer has your money for this one — ask them to take you out." };
+    }
+    await prisma.contestEntry.upsert({
+      where: { contestId_playerId: { contestId, playerId: me.id } },
+      update: { excluded: true, confirmed: false },
+      create: { contestId, playerId: me.id, excluded: true, confirmed: false },
+    });
+    await logMoney(session.eventId, "contest.request", `${me.name} opted out of ${contest.name}`);
+    revalidatePath("/", "layout");
+    return { ok: true };
+  }
 
   if (!join) {
     if (existing?.confirmed) {

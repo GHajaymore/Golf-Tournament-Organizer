@@ -709,6 +709,22 @@ export async function moneyFor(
         };
       }),
     contests: contestRows.map((c) => {
+      /**
+       * One read of who is in this pot, used for the figures AND for the
+       * player's own two flags below.
+       *
+       * They used to disagree: the money went through `potMembership` and the
+       * player's "am I in this" read whether a ContestEntry row existed. In an
+       * opt-out pot the ordinary case is NO row and the player is in, so the
+       * button offered "I'm in" to somebody who already was — and it sends the
+       * opposite of what it shows, so the tap took them out of a pot they were
+       * being charged for.
+       */
+      const membership = potMembership(
+        isPotEntryMode(c.entryMode) ? c.entryMode : "opt-in",
+        moneyFieldIds,
+        c.entrants,
+      );
       const shaped = {
         id: c.id,
         kind: isContestKind(c.kind) ? c.kind : ("other" as const),
@@ -724,14 +740,9 @@ export async function moneyFor(
          * potMembership returns as entrants — so no screen prints a figure
          * larger than the cash on the table.
          */
-        entrantIds: potMembership(
-          isPotEntryMode(c.entryMode) ? c.entryMode : "opt-in",
-          moneyFieldIds,
-          c.entrants,
-        ).entrants,
+        entrantIds: membership.entrants,
         winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
       };
-      const mine = me ? c.entrants.find((e) => e.playerId === me.id) : undefined;
       return {
         id: c.id,
         name: c.name,
@@ -743,9 +754,11 @@ export async function moneyFor(
         winners: shaped.winnerIds.map((id) => nameOf.get(id) ?? "Unknown"),
         decided: isDecided(shaped),
         yourCents: me ? contestNets(shaped).find((n) => n.playerId === me.id)?.netCents ?? 0 : 0,
-        /** Whether the signed-in player is in, and whether their money is in. */
-        youIn: !!mine,
-        youConfirmed: !!mine?.confirmed,
+        // Whether the signed-in player is in at all (staked or still to pay),
+        // and separately whether their money is in. Both from `membership`, so
+        // "am I in this" and "what does this pot hold" cannot disagree.
+        youIn: !!me && (membership.entrants.includes(me.id) || membership.pending.includes(me.id)),
+        youConfirmed: !!me && membership.entrants.includes(me.id),
       };
     }),
     // Nassau is left out: it applies to a match rather than being a pot with
@@ -754,8 +767,20 @@ export async function moneyFor(
     sideGames: sideGameRows
       .filter((g) => g.kind !== "nassau" && g.buyInCents > 0 && isDerivedKind(g.kind))
       .map((g) => {
-        const confirmed = g.entrants.filter((e) => e.confirmed);
-        const mine = me ? g.entrants.find((e) => e.playerId === me.id) : undefined;
+        /**
+         * Through `potMembership`, for the same reason the contests above are.
+         *
+         * This counted `entrants.filter(confirmed)` — rows only. An opt-out
+         * derived pot has no rows in the ordinary case, so it read "£0 pot ·
+         * 0 in" on the player's money screen while the settlement three inches
+         * below it charged the whole fourball a stake each. Same defect the
+         * contests list was fixed for; the side-game list was never given it.
+         */
+        const membership = potMembership(
+          isPotEntryMode(g.entryMode) ? g.entryMode : "opt-in",
+          moneyFieldIds,
+          g.entrants,
+        );
         const kind = g.kind as DerivedKind;
         return {
           id: g.id,
@@ -764,11 +789,12 @@ export async function moneyFor(
           label: g.groupKey ? `${g.groupKey} — ${DERIVED_LABEL[kind]}` : DERIVED_LABEL[kind],
           help: DERIVED_HELP[kind],
           buyInCents: g.buyInCents,
-          // The cash collected, never the number of names.
-          potCents: g.buyInCents * confirmed.length,
-          entrants: confirmed.length,
-          youIn: !!mine,
-          youConfirmed: !!mine?.confirmed,
+          // The cash collected, never the number of names — `entrants` is
+          // what potMembership counts as settled, so this stays true to that.
+          potCents: g.buyInCents * membership.entrants.length,
+          entrants: membership.entrants.length,
+          youIn: !!me && (membership.entrants.includes(me.id) || membership.pending.includes(me.id)),
+          youConfirmed: !!me && membership.entrants.includes(me.id),
         };
       })
       /**
