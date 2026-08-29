@@ -1182,10 +1182,22 @@ function splitLabel(e: ExpenseRow, money: (cents: number) => string): string {
  * row already says so — "(not on this bill)" — but the collapsed row lost the
  * distinction entirely, which is where most people stop reading.
  *
- * NOT SHOWN FOR A BIG FIELD. Initials are right for a fourball or a society
- * trip and wrong for a sixty-player open, where the row would wrap into four
- * lines of noise and say less than the count did. Above the threshold the
- * caller's own "÷ N" carries it instead.
+ * WHICH PEOPLE, THOUGH, DEPENDS ON THE SIZE OF THE FIELD — and this is the
+ * part rendering against the real seed taught, because no test could:
+ *
+ *   A SMALL FIELD (a fourball, a society trip) shows EVERYONE, absentees
+ *   faded. There the absence is the argument: seeing that two of the eight
+ *   are missing from the flights line is what makes weighted splitting
+ *   legible at a glance.
+ *
+ *   A BIG FIELD shows only the people ON the line. The demo event has 33
+ *   players and a dinner shared by four; thirty-three chips with twenty-nine
+ *   faded is not information, it is a wall — and the first draft of this
+ *   rendered nothing at all in that case, which is worse, because the common
+ *   shape of a club event is a big field and a small bill.
+ *
+ * Past a dozen ON THE LINE it stops entirely and the caller's own "÷ N"
+ * carries the row alone.
  */
 const SHARE_FIELD_MAX = 12;
 
@@ -1196,16 +1208,21 @@ function ShareField({
   expense: ExpenseRow;
   field: Array<{ id: string; name: string }>;
 }) {
-  if (field.length === 0 || field.length > SHARE_FIELD_MAX) return null;
-
   const byId = new Map(expense.shares.map((s) => [s.playerId, s]));
   const payers = new Set(
     expense.payers.length > 0 ? expense.payers.map((p) => p.playerId) : [expense.paidBy],
   );
 
+  // A small field shows everyone, so the gaps are visible; a big one shows
+  // only the people the bill actually touches, in the field's own order.
+  const shown =
+    field.length <= SHARE_FIELD_MAX ? field : field.filter((p) => byId.has(p.id));
+
+  if (shown.length === 0 || shown.length > SHARE_FIELD_MAX) return null;
+
   return (
     <span style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }} aria-hidden="true">
-      {field.map((p) => {
+      {shown.map((p) => {
         const share = byId.get(p.id);
         const off = !share;
         const nil = !!share && share.weight === 0 && (share.exactCents ?? 0) === 0;
