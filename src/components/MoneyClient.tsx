@@ -5,7 +5,7 @@ import { addExpense, updateExpense, removeExpense, recordSettlement } from "@/ap
 import { requestContestEntry } from "@/app/actions/contests";
 import { requestSideGameEntry } from "@/app/actions/side-games";
 import { requestSkinsEntry } from "@/app/actions/skins";
-import type { MoneyView } from "@/lib/services/expenses";
+import type { MoneyView, ExpenseRow } from "@/lib/services/expenses";
 import { unitemisedGames } from "@/lib/domain/money-breakdown";
 import { PersonChip } from "@/components/PersonChip";
 import { useMoney } from "@/components/CurrencyProvider";
@@ -1031,10 +1031,24 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                       ? "Paid by someone no longer in the field"
                       : `Paid by ${e.paidByName}`}
                   {" · "}
-                  {e.shares.length} {e.shares.length === 1 ? "share" : "shares"}
+                  {/* THE DIVISION, NOT THE COUNT.
+                      This said "6 shares". A count is not checkable; a
+                      division is — "$1,986.00 ÷ 6" is the arithmetic somebody
+                      can do in their head and then trust. It only says ÷ when
+                      the split really is even: an exact-amount or weighted
+                      line says "across", because printing ÷ over a 2:2:2:1
+                      room-night split would be a tidy lie. */}
+                  {splitLabel(e, money)}
                   {e.category && e.category !== "other" && ` · ${expenseCategoryLabel(e.category)}`}
                   {e.spentOn && ` · ${e.spentOn}`}
                 </span>
+                {/* WHO IS ON THIS LINE, WITHOUT OPENING IT.
+                    Weighted splitting is the hardest thing on this screen to
+                    build and the easiest to take on trust — and a collapsed
+                    row is exactly what asks for trust. The field in initials
+                    shows at a glance that no two lines are shared by the same
+                    people, which is the whole argument for weights. */}
+                <ShareField expense={e} field={view.field} />
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(e.amountCents)}</span>
             </summary>
@@ -1131,4 +1145,111 @@ export function MoneyClient({ view }: { view: MoneyView }) {
       )}
     </div>
   );
+}
+
+/**
+ * How a line divided, in words a reader can check.
+ *
+ * The row used to say "6 shares". A count says how many people were involved
+ * and nothing about whether the arithmetic is right; a division says both.
+ * The distinction below is the point: `÷` is a promise that every share is
+ * the same size, so it is only printed when that is true. A weighted line —
+ * six players over fourteen room-nights — or a line split by exact amounts
+ * says "across", because a ÷ over an uneven split is a tidy lie and this
+ * screen's whole job is being trusted.
+ */
+function splitLabel(e: ExpenseRow, money: (cents: number) => string): string {
+  const on = e.shares.filter((s) => s.weight > 0 || (s.exactCents ?? 0) !== 0);
+  if (on.length === 0) return " · no shares";
+  const exact = on.some((s) => s.exactCents !== null && s.exactCents !== 0);
+  const even = !exact && on.every((s) => s.weight === on[0].weight);
+  return ` · ${money(e.amountCents)} ${even ? "÷" : "across"} ${on.length}`;
+}
+
+/**
+ * The whole field on one line, as initials.
+ *
+ * Four states, and the third is the one that matters:
+ *
+ *   in the split      — normal
+ *   not on this line  — faded; they were never part of this bill
+ *   on it at nothing  — dashed; weight 0, present and owing nothing
+ *   whoever paid      — accent border, and note a payer can also be at
+ *                       weight 0, which is the bar tab somebody put on their
+ *                       card without drinking
+ *
+ * Being excluded and never having been there are different facts. The expanded
+ * row already says so — "(not on this bill)" — but the collapsed row lost the
+ * distinction entirely, which is where most people stop reading.
+ *
+ * NOT SHOWN FOR A BIG FIELD. Initials are right for a fourball or a society
+ * trip and wrong for a sixty-player open, where the row would wrap into four
+ * lines of noise and say less than the count did. Above the threshold the
+ * caller's own "÷ N" carries it instead.
+ */
+const SHARE_FIELD_MAX = 12;
+
+function ShareField({
+  expense,
+  field,
+}: {
+  expense: ExpenseRow;
+  field: Array<{ id: string; name: string }>;
+}) {
+  if (field.length === 0 || field.length > SHARE_FIELD_MAX) return null;
+
+  const byId = new Map(expense.shares.map((s) => [s.playerId, s]));
+  const payers = new Set(
+    expense.payers.length > 0 ? expense.payers.map((p) => p.playerId) : [expense.paidBy],
+  );
+
+  return (
+    <span style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }} aria-hidden="true">
+      {field.map((p) => {
+        const share = byId.get(p.id);
+        const off = !share;
+        const nil = !!share && share.weight === 0 && (share.exactCents ?? 0) === 0;
+        const paid = payers.has(p.id);
+        return (
+          <span
+            key={p.id}
+            title={`${p.name}${off ? " — not on this line" : nil ? " — on it, at nothing" : ""}${paid ? " — paid the bill" : ""}`}
+            style={{
+              display: "inline-grid",
+              placeItems: "center",
+              minWidth: 24,
+              height: 19,
+              padding: "0 3px",
+              borderRadius: 3,
+              // 10px is the floor this app sets itself, and the adherence test
+              // in brand-consistency.test.ts enforces it. This was 9.5 and the
+              // suite caught it, which is the test doing exactly its job.
+              fontSize: 10,
+              letterSpacing: "0.02em",
+              fontVariantNumeric: "tabular-nums",
+              border: `1px ${nil ? "dashed" : "solid"} ${
+                paid ? "var(--color-accent)" : off ? "var(--color-divider)" : "var(--color-border, var(--color-divider))"
+              }`,
+              color: paid
+                ? "var(--color-accent)"
+                : off
+                  ? "var(--color-text-muted)"
+                  : "var(--color-text)",
+              opacity: off ? 0.45 : 1,
+            }}
+          >
+            {initialsOf(p.name)}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+/** "A. Rourke" → "AR"; "Sam" → "SA". Two characters, so the row stays even. */
+function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "??";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }
