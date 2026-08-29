@@ -261,6 +261,25 @@ export function buildBracket(
 
   const rounds: BracketRound[] = [];
 
+  /**
+   * A BYE IS NOT A WIN, and in the last round it must not read as one.
+   *
+   * `bracketSizeFor(1)` is 2, so a one-player bracket's only round IS the
+   * final: the lone player was auto-advanced against nobody and crowned
+   * champion of a match that was never played. Two live paths reached it every
+   * time. A PLATE is built from the first round's losers, so the moment the
+   * first first-round result was recorded the plate held exactly one player
+   * and the screen printed the name of the player who had just been knocked
+   * out, under a trophy. And SPLIT mode — the default — with two qualifiers
+   * gives each half one player, so both brackets declared a champion before a
+   * single knockout match was played.
+   *
+   * An organizer who records a result explicitly still gets it: `claimedWinner`
+   * runs first and is untouched, so a genuine walkover is still a win. What
+   * this removes is the app deciding one on its own.
+   */
+  const lastRound = labels.length - 1;
+
   // Opening round: one match per pair in the seed order. Missing seeds are byes.
   const first: BracketMatch[] = [];
   for (let i = 0; i < size / 2; i += 1) {
@@ -268,7 +287,7 @@ export function buildBracket(
     const bId = seedSlot(order[i * 2 + 1]);
     const key = `${kind}-0-${i}`;
     let winnerId = claimedWinner(winners[key], aId, bId);
-    if (!winnerId) {
+    if (!winnerId && lastRound > 0) {
       if (aId && !bId) winnerId = aId;
       else if (bId && !aId) winnerId = bId;
     }
@@ -285,9 +304,13 @@ export function buildBracket(
       const bId = prev[i * 2 + 1].winnerId;
       const key = `${kind}-${round}-${i}`;
       let winnerId = claimedWinner(winners[key], aId, bId);
-      // Only auto-advance a bye once the other feeder is known to be empty.
-      if (!winnerId && aId && !bId && isByeFeeder(prev[i * 2 + 1])) winnerId = aId;
-      if (!winnerId && bId && !aId && isByeFeeder(prev[i * 2])) winnerId = bId;
+      // Only auto-advance a bye once the other feeder is known to be empty —
+      // and never INTO the trophy. Reaching an unopposed final is not winning
+      // one, so the last round waits for a recorded result like any other.
+      if (round < lastRound) {
+        if (!winnerId && aId && !bId && isByeFeeder(prev[i * 2 + 1])) winnerId = aId;
+        if (!winnerId && bId && !aId && isByeFeeder(prev[i * 2])) winnerId = bId;
+      }
       matches.push({
         key,
         roundIndex: round,

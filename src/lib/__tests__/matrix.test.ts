@@ -33,7 +33,7 @@ import {
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import type { Role } from "@/lib/roles";
-import { bracketSizeFor, buildBracket, seedOrder } from "@/lib/domain/bracket";
+import { bracketSizeFor, buildBracket, seedOrder, drawBrackets, firstRoundLosers } from "@/lib/domain/bracket";
 import { flightCountFor } from "@/lib/domain/grouping";
 import {
   survivorCount,
@@ -1470,5 +1470,82 @@ describe("a cut and the flights that follow it", () => {
   it("hands on nothing for an empty field", () => {
     expect(nextRoundFlights([], "overall", 8)).toEqual([]);
     expect(nextRoundFlights([], "perFlight", 8)).toEqual([]);
+  });
+});
+
+/**
+ * Nobody is crowned for a match they never played.
+ *
+ * `bracketSizeFor(1)` is 2, so a one-player bracket's only round IS the final:
+ * the lone player was auto-advanced against nobody and declared champion. The
+ * sweep above could not see it — it asserts a winner is one of its own two
+ * slots, and a bye satisfies that.
+ *
+ * Two live paths hit it every time. A PLATE is built from the first round's
+ * losers, so the instant the first result was recorded the plate held one
+ * player and the screen printed the name of the man who had just been knocked
+ * out, under a trophy. And SPLIT — the default mode — with two qualifiers puts
+ * one player in each half, so both brackets crowned somebody before a single
+ * knockout match was played.
+ */
+describe("a bracket never crowns a champion of a final nobody played", () => {
+  for (const n of FIELD_SIZES) {
+    it(`crowns nobody in a ${n}-player bracket before any result is recorded`, () => {
+      const view = buildBracket("winners", field(n), {});
+      expect(view.champion, `${n} players crowned ${view.champion?.name}`).toBeNull();
+    });
+  }
+
+  it("still crowns somebody once the final is actually decided", () => {
+    // The guard must not make a champion unreachable — that would be the same
+    // bug pointing the other way.
+    const players = field(2);
+    const decided = buildBracket("winners", players, { "winners-0-0": players[0].id });
+    expect(decided.champion?.playerId).toBe(players[0].id);
+  });
+
+  it("still advances a bye through an EARLIER round", () => {
+    // A three-player bracket is a semi-final and a final: the third player has
+    // no semi-final opponent and belongs in the final without playing one.
+    const players = field(3);
+    const view = buildBracket("winners", players, {});
+    const finalMatch = view.rounds[view.rounds.length - 1].matches[0];
+    const inFinal = [finalMatch.a.playerId, finalMatch.b.playerId].filter(Boolean);
+    expect(inFinal.length, "the bye should reach the final").toBe(1);
+    expect(view.champion).toBeNull();
+  });
+
+  it("does not crown the loser of the first match as plate champion", () => {
+    /**
+     * The reported path, in full. Four players; the first first-round match is
+     * decided; `firstRoundLosers` therefore holds exactly one name, and that
+     * name is somebody who has just LOST.
+     */
+    const players = field(4);
+    const main = buildBracket("winners", players, {});
+    const firstMatch = main.rounds[0].matches[0];
+    const winnerId = firstMatch.a.playerId!;
+    const settled = buildBracket("winners", players, { [firstMatch.key]: winnerId });
+    const losers = firstRoundLosers(settled, new Map(players.map((p) => [p.id, p])));
+
+    expect(losers.length, "exactly one player has lost so far").toBe(1);
+    const plate = buildBracket("consolation", losers, {});
+    expect(plate.champion, "the plate crowned a player who has only lost").toBeNull();
+  });
+
+  it("does not crown both halves of a two-qualifier split", () => {
+    // The default mode, and the smallest field that reaches a knockout at all.
+    const draw = drawBrackets(field(2), "split");
+    expect(draw.main.length).toBe(1);
+    expect(draw.second.length).toBe(1);
+    expect(buildBracket("winners", draw.main, {}).champion).toBeNull();
+    expect(buildBracket("consolation", draw.second, {}).champion).toBeNull();
+  });
+
+  it("does not crown a consolation champion from three qualifiers", () => {
+    // main = 2, second = [q3] — an instant Consolation champion.
+    const draw = drawBrackets(field(3), "split");
+    expect(draw.second.length).toBe(1);
+    expect(buildBracket("consolation", draw.second, {}).champion).toBeNull();
   });
 });
