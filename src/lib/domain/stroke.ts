@@ -27,6 +27,34 @@ export interface StrokeCard {
 export function holeStrokesReceived(courseHandicap: number, strokeIndex: number, holeCount = 18): number {
   const h = Math.round(courseHandicap);
   const n = holeCount === 9 ? 9 : 18;
+
+  /**
+   * A PLUS HANDICAP GIVES STROKES BACK, and the arithmetic above cannot say so.
+   *
+   * Two pieces of JavaScript conspire. `Math.floor` rounds toward negative
+   * infinity, so `Math.floor(-2 / 18)` is -1 rather than 0 — a stroke handed
+   * back on EVERY hole. And `%` keeps the sign of the left operand, so
+   * `-2 % 18` is -2, and no stroke index in 1..18 is ever `<= -2`, so the
+   * second term never fires to correct it.
+   *
+   * The result was that a plus-2 gave back EIGHTEEN strokes instead of two —
+   * and so did a plus-1 and a plus-5, because the magnitude was discarded
+   * entirely. The best player in the field was scored about sixteen shots
+   * worse than they played, in net stroke play, Stableford points, team cards,
+   * net skins and every settle-up that reads them.
+   *
+   * The correct allocation is the mirror of receiving: strokes come back on
+   * the EASIEST holes first (highest stroke index), where a receiving player
+   * would be given them last. WHS puts a plus-2's two strokes on SI 18 and 17.
+   */
+  if (h < 0) {
+    const given = -h;
+    const back = Math.floor(given / n) + (strokeIndex > n - (given % n) ? 1 : 0);
+    // Negating zero yields -0, which is not 0 to Object.is, renders as "-0" on
+    // a scorecard, and survives arithmetic into a net total.
+    return back === 0 ? 0 : -back;
+  }
+
   return Math.floor(h / n) + (strokeIndex <= h % n ? 1 : 0);
 }
 

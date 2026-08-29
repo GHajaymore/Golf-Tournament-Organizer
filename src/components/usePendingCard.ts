@@ -6,6 +6,7 @@ import {
   shouldRetry,
   syncStatus,
   type SyncStatus,
+  type SendOutcome,
 } from "@/lib/domain/pending-card";
 
 /**
@@ -36,6 +37,15 @@ export interface PendingCard<T> {
   recovered: T | null;
   /** Forget the recovered copy — the caller has taken it or rejected it. */
   clearRecovered: () => void;
+  /**
+   * Nothing is outstanding: the server's copy is the one being edited.
+   *
+   * For the end of a conflict where the scorer chose the server's card. There
+   * is nothing left to send, so the queue has to be emptied — otherwise the
+   * status line goes on warning about a card that was settled minutes ago, and
+   * a warning that is always there is one nobody reads.
+   */
+  settle: () => void;
 }
 
 export function usePendingCard<T>({
@@ -48,7 +58,7 @@ export function usePendingCard<T>({
   stageId: string;
   playerId: string;
   /** Attempt the write. Throw to signal failure. */
-  send: (value: T) => Promise<void>;
+  send: (value: T) => Promise<SendOutcome>;
   debounceMs?: number;
   enabled?: boolean;
 }): PendingCard<T> {
@@ -57,6 +67,7 @@ export function usePendingCard<T>({
   const [queued, setQueued] = useState(false);
   const [sending, setSending] = useState(false);
   const [refused, setRefused] = useState(false);
+  const [held, setHeld] = useState(false);
   const [online, setOnline] = useState(true);
   const [recovered, setRecovered] = useState<T | null>(null);
   const [, tick] = useState(0);
@@ -83,7 +94,21 @@ export function usePendingCard<T>({
     lastAttempt.current = Date.now();
     setSending(true);
     try {
-      await send(value.current);
+      const outcome = await send(value.current);
+      /**
+       * The server answered and did NOT take the card.
+       *
+       * Returning early here is the whole fix. `send` used to resolve on a
+       * conflict exactly as it does on success, so everything below ran: the
+       * device copy was deleted and the queue cleared while the chooser was
+       * still on screen. The scorer's holes then existed only in React state,
+       * `queued` was false so nothing would ever retry, and the status line
+       * said "Saved". Locking the phone lost them.
+       */
+      if (outcome === "held") {
+        setHeld(true);
+        return;
+      }
       // Cleared ONLY here. Anywhere else and there is a moment where neither
       // the device nor the server is holding the scorer's holes.
       try {
@@ -93,6 +118,7 @@ export function usePendingCard<T>({
       }
       setQueued(false);
       setRefused(false);
+      setHeld(false);
       queuedAt.current = 0;
     } catch (e) {
       /**
@@ -125,6 +151,9 @@ export function usePendingCard<T>({
       if (!queued) queuedAt.current = Date.now();
       setQueued(true);
       setRefused(false);
+      // A new hole is a new decision. Whatever the last conflict was, the
+      // scorer has carried on, so this card is worth another attempt.
+      setHeld(false);
 
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(attempt, debounceMs);
@@ -152,6 +181,7 @@ export function usePendingCard<T>({
           sending,
           online: typeof navigator === "undefined" || navigator.onLine !== false,
           sinceLastAttemptMs: Date.now() - lastAttempt.current,
+          held,
         })
       ) {
         void attempt();
@@ -162,7 +192,7 @@ export function usePendingCard<T>({
       window.removeEventListener("online", wake);
       clearInterval(t);
     };
-  }, [attempt, queued, sending]);
+  }, [attempt, queued, sending, held]);
 
   useEffect(
     () => () => {
@@ -178,10 +208,24 @@ export function usePendingCard<T>({
       online,
       waitingMs: queuedAt.current ? Date.now() - queuedAt.current : 0,
       refused,
+      held,
     }),
     push,
     recovered,
     clearRecovered: () => {
+      setRecovered(null);
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        /* nothing to do */
+      }
+    },
+    settle: () => {
+      value.current = null;
+      queuedAt.current = 0;
+      setQueued(false);
+      setHeld(false);
+      setRefused(false);
       setRecovered(null);
       try {
         window.localStorage.removeItem(key);

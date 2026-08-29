@@ -5,7 +5,7 @@ import { boardKind } from "@/lib/formats";
 import { isPlayingRound } from "@/lib/stage-types";
 import { resolveCourse } from "@/lib/courses";
 import { teamStandings } from "@/lib/services/teams";
-import { COURSE_REF } from "@/lib/services/course-resolution";
+import { COURSE_REF, cardForStage } from "@/lib/services/course-resolution";
 import { seasonStandings, seasonTotals, type SeasonRow } from "@/lib/domain/season";
 
 export interface SeasonTable {
@@ -84,13 +84,16 @@ export async function seasonTableFor(eventId: string): Promise<SeasonTable> {
 
   const perRound = await Promise.all(
     rounds.map((s) => {
-      const holeCount = s.holes === 9 ? 9 : 18;
+      // Per ROUND, not per season: a league can play week three over the front
+      // nine and week four over the back, and each week's strokes belong on
+      // the holes that week was actually played on.
+      const card = cardForStage(course, s);
       return teamStandings(
         eventId,
         s.id,
         s.format,
-        course.pars.slice(0, holeCount),
-        course.strokeIndex.slice(0, holeCount),
+        card.pars,
+        card.strokeIndex,
         s.scoringBasis,
         s.handicapAllowance,
         s.allowanceWeights,

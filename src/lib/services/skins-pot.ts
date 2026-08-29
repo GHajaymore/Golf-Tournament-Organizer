@@ -1,5 +1,7 @@
 import "server-only";
-import { COURSE_REF } from "./course-resolution";
+import { COURSE_REF, courseForRound } from "./course-resolution";
+import { roundHandicapRows } from "./round-handicap";
+import { roundHandicapOf } from "../domain/round-handicap";
 import { teeSetupFor } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
@@ -105,7 +107,9 @@ export async function skinsPotFor(
     }),
     prisma.stage.findUnique({
       where: { id: stageId },
-      select: { id: true, eventId: true, holes: true, teeSheet: true },
+      // `courseId`, because a league rotates venues. Without it the pot was
+      // always scored against the EVENT's card — see the resolution below.
+      select: { id: true, eventId: true, holes: true, teeSheet: true, courseId: true, nine: true },
     }),
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
   ]);
@@ -144,7 +148,26 @@ export async function skinsPotFor(
   // into an eighteen.
   const stored = pot && isSkinsScope(pot.scope) ? pot.scope : scope;
   const { from, to } = scopeRange(stored, stage.holes);
-  const course = resolveCourse(event);
+
+  /**
+   * The card THIS ROUND was played on, not the event's.
+   *
+   * `Stage.courseId` is what the venue library exists for, and this file never
+   * read it: a summer league playing week one at home and week three at
+   * another course settled week three's pot against the home card. Course A's
+   * stroke index 1 may be course B's 12, so the shot lands on the wrong hole
+   * and somebody is paid for a skin they did not win — while the leaderboard
+   * beside it, which DOES read `Stage.courseId`, shows the right answer.
+   *
+   * `loadEventState` records this exact bug class as already found once:
+   * "`courseForRound` had zero callers — so every round of a two-course
+   * tournament was scored against round one's par and stroke index." That fix
+   * landed on the board and not on the money.
+   */
+  const roundCourse = stage.courseId
+    ? await prisma.course.findUnique({ where: { id: stage.courseId } })
+    : null;
+  const course = courseForRound(roundCourse, event) ?? resolveCourse(event);
   /**
    * Ranked 1..N for the holes actually being played.
    *
@@ -228,13 +251,33 @@ export async function skinsPotFor(
     teeSetup.policy,
   );
 
+  /**
+   * What this ROUND says each player plays off.
+   *
+   * `round-handicap.ts` names the requirement this file missed: "Net match
+   * play, the team engines and the net importer each convert their own
+   * handicaps, so each of them needs this too — otherwise an organizer sets an
+   * override and one round type quietly ignores it, which is worse than not
+   * offering the control at all." Skins is the fourth such path, and it was
+   * the one that did not comply.
+   *
+   * Two failures, both with money on them. An organizer giving a visitor a
+   * round override saw the leaderboard price his card off it and the pot price
+   * the identical card off the roster — he lost skins on holes he had a stroke
+   * on. And because the FROZEN value was equally unread, editing a roster
+   * index a week later re-computed a settled pot: different winners, a
+   * different transfers list, for money already handed over in the bar. That
+   * is verbatim what the freeze exists to prevent.
+   */
+  const round = await roundHandicapRows(eventId, stageId);
+
   const outcome = playSkins(
     inPot.map((p) => ({
       playerId: p.id,
       strokes: (strokesBy.get(p.id) ?? []).slice(from, to),
       // Falls back to the Index only when the course has no tees on file at
       // all, which is the old behaviour and the best available guess.
-      courseHandicap: courseHcp.get(p.id) ?? p.handicap,
+      courseHandicap: roundHandicapOf(round.get(p.id), courseHcp.get(p.id) ?? p.handicap),
     })),
     holeCount,
     { net, strokeIndex },

@@ -230,3 +230,32 @@ export function applyNine<
     strokeIndex: si.length === 9 ? rerankNine(si) : si,
   };
 }
+
+/**
+ * The card a round is actually played on.
+ *
+ * `applyNine` has always been correct; the problem was that calling it was
+ * optional. Thirteen scoring and money call sites instead did the obvious
+ * thing — `course.strokeIndex.slice(0, holes)` — which takes the right NUMBER
+ * of holes and the wrong VALUES.
+ *
+ * An eighteen-hole card's stroke indexes are ranked across eighteen holes, so
+ * the front nine of an ordinary card carries 1,3,5,...,17. Allocation compares
+ * the index against the strokes to give, so a player owed seven strokes over
+ * nine received four — and a round set to the BACK nine was scored off the
+ * FRONT nine's indexes and pars entirely, counting a 4 on a par-5 11th as
+ * nothing and a 4 on a par-3 13th as a birdie.
+ *
+ * It never showed up as an obvious fault because the individual stroke board
+ * went through `applyNine` and was right, so a club saw two boards for the
+ * same round, three strokes apart, with no clue which to believe.
+ *
+ * Takes the stage rather than a hole count so the caller cannot supply one
+ * without the other: which nine and how many holes are one decision, and
+ * splitting them is what let every one of those thirteen sites get it wrong.
+ */
+export function cardForStage<
+  T extends { name: string; pars: number[]; yards: number[]; strokeIndex: number[] },
+>(course: T, stage: { holes?: number | null; nine?: string | null } | null | undefined): T {
+  return applyNine(course, cleanNine(stage?.nine), stage?.holes === 9 ? 9 : 18);
+}
