@@ -87,20 +87,6 @@ export const CLONED_EVENT_FIELDS = [
    * column was added to end.
    */
   "defaultTeeId",
-  /**
-   * `defaultTee` is the RELATION beside the id above, not a second decision.
-   *
-   * It appears in this list only because the policy test enumerates every
-   * field Prisma knows about, and it now knows about this one: the column had
-   * a real foreign key in migration 53 and no relation in schema.prisma, so
-   * every CI run stopped at the drift check. Declaring the relation fixed the
-   * drift and surfaced the field here.
-   *
-   * Listing it alongside `defaultTeeId` keeps the two together — a copy that
-   * inherited the id but not the relation, or the reverse, would be a
-   * tournament pointing at tees it does not admit to.
-   */
-  "defaultTee",
   // A society that plays a different course every week does so next season
   // too. The venue itself is not copied — see the exclusion below — but the
   // decision not to have one is part of what the tournament is.
@@ -115,6 +101,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   id: "the copy is a different tournament",
   courseRef:
     "the relation object for courseId, which IS carried — a relation is navigated, never written, so copying it is not a thing that can be done",
+  defaultTee:
+    "the relation object for defaultTeeId, which IS carried — same rule as courseRef above. It was listed as clonable on the reasoning that the id and the relation should travel together, which reads sensibly and is a category error: there is nothing to travel. Nothing caught it while the copy was a hand-written field list that wrote neither; deriving the write from this policy made the compiler reject it immediately.",
   createdAt: "set on insert",
   updatedAt: "set on insert",
   name: "supplied by the organizer",
@@ -228,3 +216,70 @@ export const CLONE_IGNORED_RELATIONS = [
   // people who were never in it. A new tournament starts quiet.
   "threads",
 ];
+
+/**
+ * What carries across on each ROUND of a copied tournament.
+ *
+ * The Event policy above existed and the copy honoured 30 of its 43 entries.
+ * The Stage loop had no policy at all, so nothing could notice that it copied
+ * `cutEnabled`, `cutMode`, `cutCount` and `cutPercent` but not `cutScope` — a
+ * per-flight cut became an overall one and a different set of players
+ * advanced — and dropped `handicapAllowance`, `allowanceWeights` and
+ * `countBest`, so a committee's 60/40 greensomes split or its best-2-of-4
+ * count reverted to the format default on every copied round.
+ *
+ * Same allowlist reasoning as the Event: forgetting to classify a new column
+ * drops it, which is a papercut, where a denylist would copy it, which for a
+ * credential is a breach.
+ */
+export const CLONED_STAGE_FIELDS = [
+  "position",
+  "type",
+  "description",
+  "format",
+  "holes",
+  "scoringBasis",
+  // How the round is RECORDED travels with its shape, the same as how it is
+  // scored. A club that asks for cards from its match-play day is running that
+  // tournament again next year for the same reason.
+  "scoreInput",
+  "singleMatchRule",
+  "thirdPlace",
+  "carryForwardEnabled",
+  "carryForwardPct",
+  "cutEnabled",
+  // The one the copy silently changed: a cut "per flight" became "overall",
+  // which advances a different set of players entirely.
+  "cutScope",
+  "cutMode",
+  "cutCount",
+  "cutPercent",
+  "courseId",
+  "nine",
+  // The committee's own arithmetic. A round copied without these is scored on
+  // the format's defaults instead of what the club actually plays.
+  "handicapAllowance",
+  "allowanceWeights",
+  "countBest",
+] as const;
+
+/** Round fields the copy must set for itself, each for a stated reason. */
+export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
+  id: "the copy is a different round",
+  eventId: "points at the new tournament",
+  event: "the relation object for eventId",
+  course: "the relation object for courseId, which IS carried",
+  playedOn: "last year's date is never this year's",
+  deadline: "same — a copied deadline is always in the past",
+  deadlineOverride: "belongs to the deadline that was not copied",
+  carryForwardAsked:
+    "records that an organizer was ASKED about carry-forward on the original; the copy asks again",
+  accessCode: "a credential — a new tournament gets new Round Codes, and only if it turns them on",
+  optDeadline: "a date, like the others",
+  teeSheet: "last year's draw, made from last year's field",
+  teeSheetPublished: "belongs to the tee sheet that was not copied",
+  matches: "results and pairings are never copied",
+  teams: "made from the field, which is not copied",
+  attendance: "who turned up last year",
+  skinsPots: "money — see the Event policy",
+};

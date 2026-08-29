@@ -5,6 +5,8 @@ import {
   CLONED_EVENT_FIELDS,
   NOT_CLONED_EVENT_FIELDS,
   CLONE_IGNORED_RELATIONS,
+  CLONED_STAGE_FIELDS,
+  NOT_CLONED_STAGE_FIELDS,
 } from "../services/clone";
 
 /** Field names declared on a model in schema.prisma, in declaration order. */
@@ -164,5 +166,110 @@ describe("clone never carries a Round Code", () => {
     expect(clone, "cloneEvent not found").toBeTruthy();
     expect(clone![0]).not.toMatch(/accessCode/);
     expect(clone![0]).not.toMatch(/shareToken:\s*source\./);
+  });
+});
+
+/**
+ * The same policy, for a ROUND.
+ *
+ * The Event had one and the copy honoured 30 of its 43 entries. The Stage loop
+ * had none at all, so nothing could notice that it copied four cut fields and
+ * not `cutScope` — turning a per-flight cut into an overall one, which advances
+ * a different set of players — or that it dropped the committee's own
+ * `handicapAllowance`, `allowanceWeights` and `countBest`.
+ */
+describe("clone field policy — rounds", () => {
+  const fields = modelFields("Stage");
+
+  it("finds the Stage model", () => {
+    // Guards the parser, exactly as the Event block above does.
+    expect(fields).toContain("cutScope");
+    expect(fields.length).toBeGreaterThan(20);
+  });
+
+  it("classifies every field on Stage", () => {
+    // Add a column to Stage and this fails until you decide, in writing,
+    // whether a copied round inherits it.
+    const classified = new Set<string>([
+      ...CLONED_STAGE_FIELDS,
+      ...Object.keys(NOT_CLONED_STAGE_FIELDS),
+    ]);
+    const unclassified = fields.filter((f) => !classified.has(f));
+    expect(
+      unclassified,
+      `Stage fields missing from src/lib/services/clone.ts — decide whether a copy inherits each: ${unclassified.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("never classifies a field as both", () => {
+    const both = CLONED_STAGE_FIELDS.filter((f) => f in NOT_CLONED_STAGE_FIELDS);
+    expect(both).toEqual([]);
+  });
+
+  it("carries the settings a committee actually chose", () => {
+    // Each of these reverted to a schema default on every copied round, which
+    // is a silent change of the arithmetic rather than an empty field.
+    for (const f of [
+      "cutScope",
+      "handicapAllowance",
+      "allowanceWeights",
+      "countBest",
+      "scoringBasis",
+      "scoreInput",
+    ]) {
+      expect(CLONED_STAGE_FIELDS, `${f} should carry across`).toContain(f);
+    }
+  });
+
+  it("never carries a Round Code or last year's dates", () => {
+    for (const f of ["accessCode", "playedOn", "deadline", "teeSheet"]) {
+      expect(CLONED_STAGE_FIELDS, `${f} must not be copied`).not.toContain(f);
+      expect(NOT_CLONED_STAGE_FIELDS[f], `${f} needs a stated reason`).toBeTruthy();
+    }
+  });
+
+  it("gives every exclusion a reason somebody can read", () => {
+    for (const [field, why] of Object.entries(NOT_CLONED_STAGE_FIELDS)) {
+      expect(why.length, `${field} needs a real reason`).toBeGreaterThan(10);
+    }
+  });
+});
+
+/**
+ * The policy is what the action actually writes.
+ *
+ * This is the gap that let thirteen declared-clonable Event fields go missing:
+ * the policy said one thing, and `cloneEvent` kept its own hand-written list
+ * that said another. A test can only be sure they agree if the write is
+ * DERIVED from the policy, so that is asserted here rather than the field
+ * names, which would just be a third list to keep in step.
+ */
+describe("cloneEvent copies from the declared policy", () => {
+  const action = readFileSync(
+    join(process.cwd(), "src", "app", "actions", "tournament.ts"),
+    "utf8",
+  );
+  const body = action.slice(action.indexOf("export async function cloneEvent"));
+
+  it("builds the event from CLONED_EVENT_FIELDS", () => {
+    expect(body).toMatch(/CLONED_EVENT_FIELDS\.map\(/);
+  });
+
+  it("builds each round from CLONED_STAGE_FIELDS", () => {
+    expect(body).toMatch(/CLONED_STAGE_FIELDS\.map\(/);
+  });
+
+  it("does not keep a second list of event fields by hand", () => {
+    // The shape that dropped `shape`, `bracketMode`, `moneyMode` and ten more.
+    expect(body).not.toMatch(/scoreEntryBy: source\.scoreEntryBy/);
+    expect(body).not.toMatch(/qualifyPerGroup: source\.qualifyPerGroup/);
+  });
+
+  it("still sets for itself the four things a copy must not inherit", () => {
+    // Derived-from-policy must not mean derived-from-everything.
+    expect(body).toMatch(/dates: "",/);
+    expect(body).toMatch(/regDeadline: "",/);
+    expect(body).toMatch(/status: "draft",/);
+    expect(body).toMatch(/shareToken: generateShareToken\(\)/);
   });
 });

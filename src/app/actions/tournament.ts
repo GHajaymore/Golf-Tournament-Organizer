@@ -1,5 +1,6 @@
 "use server";
 import { COURSE_REF } from "@/lib/services/course-resolution";
+import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
 import { roundTeeId, flightTeeByPlayer } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { cardRevision, staleAgainst } from "@/lib/domain/pending-card";
@@ -2420,43 +2421,37 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
   const refusal = await refusalFor(source.organizationId, "activeEvents");
   if (refusal) return { ok: false, error: refusal };
 
+  /**
+   * Copied FROM the declared policy, not from a second list kept by hand.
+   *
+   * `CLONED_EVENT_FIELDS` names 43 fields and this wrote 30 of them, so
+   * thirteen declared-clonable settings were silently dropped — and every one
+   * has a non-neutral schema default, so the copy came back configured as
+   * something else rather than obviously blank. `shape` defaults to "series",
+   * so a copied knockout returned as a league with every knockout control
+   * hidden. `bracketMode` reverted a plate to "split", `sideStyle` a pairs
+   * event to "individual", `attendanceMode` an opt-in league to "everyone" —
+   * entering the whole roster into every week. Three of them change
+   * arithmetic: `playPts`, `maxPerMatch` and `matchTiebreakers`.
+   *
+   * The organizer's stated reason to clone is "the organizer's own proven
+   * setup", and they got a tournament that looked configured and scored
+   * differently. `clone.test.ts` already forces every Event column to be
+   * classified in writing; deriving the write from that classification is what
+   * makes the declaration true rather than merely documented.
+   */
+  const carried = Object.fromEntries(
+    CLONED_EVENT_FIELDS.map((f) => [f, source[f]]),
+  ) as Pick<typeof source, (typeof CLONED_EVENT_FIELDS)[number]>;
+
   const created = await prisma.event.create({
     data: {
-      organizationId: source.organizationId,
+      ...carried,
       name: clean,
       // Dates and the registration deadline are the two things that are always
       // wrong on a copy, so they start empty rather than pointing at last year.
       dates: "",
       regDeadline: "",
-      format: source.format,
-      course: source.course,
-      city: source.city,
-      address: source.address,
-      customPars: source.customPars,
-      customYards: source.customYards,
-      customStrokeIndex: source.customStrokeIndex,
-      capacity: source.capacity,
-      playerCountMode: source.playerCountMode,
-      manualPlayerCount: source.manualPlayerCount,
-      formationRule: source.formationRule,
-      flightMode: source.flightMode,
-      flightValue: source.flightValue,
-      qualifyPerGroup: source.qualifyPerGroup,
-      qualifyMode: source.qualifyMode,
-      qualifyOverall: source.qualifyOverall,
-      winPts: source.winPts,
-      tiePts: source.tiePts,
-      lossPts: source.lossPts,
-      holeRatioPts: source.holeRatioPts,
-      bonusPts: source.bonusPts,
-      tiebreakers: source.tiebreakers,
-      inviteMessage: source.inviteMessage,
-      leaderboardVisibility: source.leaderboardVisibility,
-      scoreEntryBy: source.scoreEntryBy,
-      scoreEntryWindow: source.scoreEntryWindow,
-      voiceEntry: source.voiceEntry,
-      playerAccess: source.playerAccess,
-      scoreApproval: source.scoreApproval,
       status: "draft",
       // A fresh token: unique index aside, the copy must not inherit the
       // original's public link.
@@ -2469,30 +2464,20 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
     await prisma.eventCourse.create({ data: { eventId: created.id, courseId: link.courseId } });
   }
 
-  // Rounds carry their shape, but never their Round Codes.
+  // Rounds carry their shape, but never their Round Codes. From the declared
+  // policy for the same reason the Event is: this loop copied the four cut
+  // fields and not `cutScope`, so a per-flight cut quietly became an overall
+  // one and advanced a different set of players.
   for (const s of source.stages) {
+    const round = Object.fromEntries(
+      CLONED_STAGE_FIELDS.map((f) => [f, s[f]]),
+    ) as Pick<typeof s, (typeof CLONED_STAGE_FIELDS)[number]>;
     await prisma.stage.create({
       data: {
+        ...round,
         eventId: created.id,
-        position: s.position,
-        type: s.type,
-        description: s.description,
-        format: s.format,
-        holes: s.holes,
+        // Always in the past on a copy.
         deadline: "",
-        scoringBasis: s.scoringBasis,
-        // How the round is RECORDED travels with its shape, the same as how it
-        // is scored. A club that asks for cards from its match-play day is
-        // running that tournament again next year for the same reason.
-        scoreInput: s.scoreInput,
-        carryForwardEnabled: s.carryForwardEnabled,
-        carryForwardPct: s.carryForwardPct,
-        cutEnabled: s.cutEnabled,
-        cutMode: s.cutMode,
-        cutCount: s.cutCount,
-        cutPercent: s.cutPercent,
-        courseId: s.courseId,
-        nine: s.nine,
       },
     });
   }
