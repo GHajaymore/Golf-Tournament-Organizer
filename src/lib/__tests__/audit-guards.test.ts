@@ -1544,3 +1544,46 @@ describe("a preview deployment has its own database", () => {
     expect(body).not.toMatch(/PREVIEW_DB_ENABLED|USE_PREVIEW_DB/);
   });
 });
+
+/**
+ * The privacy policy carries no hard-coded address.
+ *
+ * It shipped with `privacy@tourneyhq.example` and a comment saying to set it
+ * before launch — a comment being the entire mechanism, which is the shape of
+ * guard CLAUDE.md says will be forgotten. It was: the address was still there
+ * on the day a real domain was bought.
+ *
+ * This is a source check rather than a render check on purpose. A render test
+ * proves what one configuration produces; only reading the file proves there is
+ * no literal left to go stale under a configuration nobody ran.
+ */
+describe("the privacy policy's contact address", () => {
+  const page = stripComments(
+    readFileSync(join(process.cwd(), "src", "app", "privacy", "page.tsx"), "utf8"),
+  );
+
+  it("contains no literal email address at all", () => {
+    /**
+     * Not "no .example address" — any literal is wrong here. Hard-coding a real
+     * address would pass a placeholder-specific check and reintroduce the code
+     * edit this removed, so the assertion is on the category.
+     */
+    const literal = page.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    expect(literal, `hard-coded address in the privacy page: ${literal?.[0]}`).toBeNull();
+  });
+
+  it("resolves the address through the rule that refuses a reserved one", () => {
+    // Reading the variable directly would publish whatever was typed into it.
+    expect(page).toMatch(/privacyContact\(process\.env\.PRIVACY_CONTACT_EMAIL\)/);
+  });
+
+  it("has prose for the case where no address is configured", () => {
+    /**
+     * The degradation is the point. Without it the page renders a sentence with
+     * a hole in it — "If they cannot, write to us at  and we will act on it" —
+     * which is worse than either branch done properly.
+     */
+    expect(page).toMatch(/contact\.kind === "address" \?/);
+    expect(page).toMatch(/ask your club to raise it with us/);
+  });
+});

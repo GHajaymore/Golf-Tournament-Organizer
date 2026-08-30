@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { privacyContact } from "@/lib/domain/privacy-contact";
 
 /**
  * The privacy policy, reachable without an account.
@@ -21,9 +22,6 @@ export const metadata: Metadata = {
   description: "What TourneyHQ collects, why, who it is shared with, and how to have it removed.",
 };
 
-/** Where a person should write. Set this before launch. */
-const CONTACT = "privacy@tourneyhq.example";
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section style={{ marginTop: 32 }}>
@@ -34,6 +32,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function PrivacyPage() {
+  /**
+   * Resolved per render rather than at module load, so the address follows the
+   * deployment's configuration rather than whatever was set when this module
+   * was first evaluated. `privacyContact` refuses a reserved address, so an
+   * unset variable and an example one both land in the same branch below.
+   */
+  const contact = privacyContact(process.env.PRIVACY_CONTACT_EMAIL);
+
   return (
     <main
       style={{
@@ -60,8 +66,15 @@ export default function PrivacyPage() {
         <p>
           In data-protection terms the club is the <em>controller</em> and TourneyHQ is the{" "}
           <em>processor</em>. In practice that means: if you want your details corrected or removed,
-          your club can do it directly, and that is usually the fastest route. If they cannot, write
-          to us at <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and we will act on it.
+          your club can do it directly, and that is usually the fastest route. If they cannot,{" "}
+          {contact.kind === "address" ? (
+            <>
+              write to us at <a href={`mailto:${contact.email}`}>{contact.email}</a> and we will act
+              on it.
+            </>
+          ) : (
+            <>ask your club to raise it with us, and we will act on it.</>
+          )}
         </p>
         <p>
           <strong>You may be in here without ever having signed up.</strong> That is normal for club
@@ -183,8 +196,15 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Ask your club first</strong> — they hold the relationship and can act immediately.
-          If that does not resolve it, write to <a href={`mailto:${CONTACT}`}>{CONTACT}</a> and we
-          will action it, and tell the club we have.
+          If that does not resolve it,{" "}
+          {contact.kind === "address" ? (
+            <>
+              write to <a href={`mailto:${contact.email}`}>{contact.email}</a> and we will action it,
+              and tell the club we have.
+            </>
+          ) : (
+            <>ask your club to raise it with us, and we will action it.</>
+          )}
         </p>
       </Section>
 
