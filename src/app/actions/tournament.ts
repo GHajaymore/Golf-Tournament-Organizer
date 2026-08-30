@@ -9,7 +9,10 @@ import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { prisma } from "@/lib/db";
-import { getSession, setActiveEvent, createSession, destroySession } from "@/lib/auth";
+// No `createSession` or `destroySession` here on purpose: deleting a
+// tournament moves the active event and must never re-sign or drop the
+// session — see deleteEvent.
+import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
 import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
@@ -2198,16 +2201,37 @@ export async function confirmMatch(matchId: string) {
     if (settings.scoreApproval === "staff") {
       throw new Error("An organizer approves scores for this tournament.");
     }
-    // Player confirmation is peer review, and only of a match they played.
-    const own = await prisma.player.findFirst({
-      where: {
-        eventId,
-        email: session.email,
-        id: { in: [match.playerAId, match.playerBId] },
-      },
+    /**
+     * Player confirmation is peer review, and only of a match they played.
+     *
+     * "Played in" has two shapes. An individual match names its two players in
+     * `playerAId` / `playerBId`; a TEAM match names two sides and leaves those
+     * columns deliberately empty — `teams.ts` says so at the point of writing:
+     * "the sides are teams, so the player columns stay empty".
+     *
+     * Reading only the player columns therefore asked `id: { in: ["", ""] }`
+     * for every team match, found nobody, and told a player they could only
+     * confirm a match they played in — about a match they had just played. Peer
+     * confirmation was impossible for every four-ball and foursomes round in a
+     * tournament whose own setting said players confirm.
+     *
+     * It failed silently too: the entry screen marks the row confirmed before
+     * awaiting, and the throw is swallowed inside `startTransition`, so the
+     * screen said "confirmed" while the row stayed pending.
+     */
+    const me = await prisma.player.findFirst({
+      where: { eventId, email: session.email },
       select: { id: true },
     });
-    if (!own) throw new Error("You can only confirm a match you played in.");
+    const sides = [match.teamAId, match.teamBId].filter(Boolean) as string[];
+    const inMatch = me
+      ? [match.playerAId, match.playerBId].includes(me.id) ||
+        (sides.length > 0 &&
+          (await prisma.teamMember.count({
+            where: { playerId: me.id, teamId: { in: sides } },
+          })) > 0)
+      : false;
+    if (!inMatch) throw new Error("You can only confirm a match you played in.");
   }
 
   await prisma.match.updateMany({
@@ -2640,23 +2664,63 @@ export async function deleteEvent(eventId: string) {
 
   await prisma.event.delete({ where: { id: eventId } }); // cascades to all children
 
-  // Anchor to the current event if it survived, else any remaining event of theirs.
-  const current = await prisma.account.findFirst({
-    where: { email: session.email, eventId: session.eventId },
+  /**
+   * Re-anchor the ACTIVE EVENT, and nothing else.
+   *
+   * This called `createSession(anchor.id)` with an Account id, and
+   * `createSession` takes a USER id — it says so on the line. `Account.id` and
+   * `User.id` are independent cuids, so the cookie was signed over an id no
+   * User row has: the very next request's `getSession` looked it up, found
+   * nothing, and returned null. Deleting one tournament signed the organizer
+   * out and dropped them at the sign-in page.
+   *
+   * The session already holds the right user, so the fix is to stop re-signing
+   * it. Only the active event needs to move.
+   *
+   * The anchor also has to include events reached through the CLUB. Access can
+   * come from an Account on the event or from being an owner or admin of the
+   * organization that runs it — `effectiveAccess` says so, and this action's
+   * own permission check relies on it. A club owner holds no Account rows at
+   * all, so the old lookup found nothing and took the `destroySession` branch:
+   * deleting one of ten club events signed them out while nine remained.
+   */
+  const user = await prisma.user.findUnique({
+    where: { email: session.email },
+    select: { id: true },
   });
+  const orgIds = user
+    ? (
+        await prisma.organizationMember.findMany({
+          where: { userId: user.id },
+          select: { organizationId: true },
+        })
+      ).map((m) => m.organizationId)
+    : [];
+
+  const reachable = {
+    OR: [
+      { accounts: { some: { email: session.email } } },
+      ...(orgIds.length ? [{ organizationId: { in: orgIds } }] : []),
+    ],
+  };
+
+  // The one they were looking at, if it survived; otherwise their most recent.
   const anchor =
-    current ??
-    (await prisma.account.findFirst({
-      where: { email: session.email },
-      orderBy: { event: { createdAt: "desc" } },
+    (await prisma.event.findFirst({
+      where: { AND: [{ id: session.eventId }, reachable] },
+      select: { id: true },
+    })) ??
+    (await prisma.event.findFirst({
+      where: reachable,
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
     }));
 
-  if (!anchor) {
-    await destroySession();
-    redirect("/");
-  }
-  await createSession(anchor.id);
-  await setActiveEvent(anchor.eventId);
+  // No tournaments left is not a reason to sign somebody out of their own
+  // account — they are still who they were, and the next thing they will do is
+  // create one.
+  if (!anchor) redirect("/");
+  await setActiveEvent(anchor.id);
   redirect("/dashboard");
 }
 
