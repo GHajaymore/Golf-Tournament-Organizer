@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TeamEntryMode } from "@/lib/domain/team-entry";
 import type { StandingRow } from "@/components/LeaderboardTable";
+import { LoginPanel } from "@/components/LoginPanel";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
 
 /**
  * Do these screens actually render?
@@ -4345,5 +4347,52 @@ describe("the live board says how old it is", () => {
     // board that throws is worse than a board with no age on it.
     expect(() => render(<LiveRefresh renderedAt="" />)).not.toThrow();
     expect(() => render(<LiveRefresh renderedAt="not a date" />)).not.toThrow();
+  });
+});
+
+/**
+ * The sign-up form says why its button is dead.
+ *
+ * Found by using the app: "Create account" is disabled until the password is
+ * long enough, and the form offered no hint, no message and no explanation.
+ * It simply refused to work with nothing on screen to say why — and the
+ * placeholder that carried the rule vanished the moment anyone typed, which is
+ * exactly when it was needed.
+ *
+ * A disabled control with no stated reason is the worst of both: it cannot be
+ * pressed and it cannot be understood.
+ */
+describe("the sign-up password field", () => {
+  const signUp = () =>
+    renderToStaticMarkup(<LoginPanel initialMode="signup" autoFocusFields={false} />);
+
+  /** The hint element itself, not merely the text. */
+  const HINT = new RegExp(
+    `<span class="text-muted"[^>]*>At least ${MIN_PASSWORD_LENGTH} characters</span>`,
+  );
+
+  it("states the length requirement in a HINT, not only a placeholder", () => {
+    /**
+     * Asserted against the hint element specifically. The rule was already in
+     * the input’s `placeholder`, so a test that merely searched the markup for
+     * the words passed against the broken form too — which is exactly what
+     * happened the first time this was written. A placeholder disappears the
+     * moment somebody types, which is when they need it.
+     */
+    expect(signUp()).toMatch(HINT);
+  });
+
+  it("renders the sign-up form at all", () => {
+    // Guards the test itself: an empty or login-mode render would make the
+    // assertion above pass for the wrong reason.
+    const html = signUp();
+    expect(html).toContain("Create account");
+  });
+
+  it("keeps the requirement out of the log-in form", () => {
+    // Logging in has no rule to state — the requirement belongs to a password
+    // being CREATED, not to one already chosen.
+    const html = renderToStaticMarkup(<LoginPanel initialMode="login" autoFocusFields={false} />);
+    expect(html).not.toMatch(HINT);
   });
 });
