@@ -373,6 +373,29 @@ export function LoginPanel({
 
         <Field
           label="Password"
+          /**
+           * Why the button is dead, said where the button cannot say it.
+           *
+           * Signing up disables "Create account" until the password is long
+           * enough — and offered no hint, no message and no explanation, so
+           * the form simply refused to work with nothing on screen to say
+           * why. The placeholder carried the rule and disappeared the moment
+           * anyone typed, which is exactly when it was needed.
+           *
+           * It counts down rather than restating the rule, because "4 more
+           * characters" answers the question a stuck person is actually
+           * asking. Logging in has no requirement to state — the rule belongs
+           * to the password being CREATED, not to one already chosen.
+           */
+          hint={
+            login
+              ? undefined
+              : password.length === 0 || password.length >= MIN_PASSWORD_LENGTH
+                ? `At least ${MIN_PASSWORD_LENGTH} characters`
+                : `${MIN_PASSWORD_LENGTH - password.length} more ${
+                    MIN_PASSWORD_LENGTH - password.length === 1 ? "character" : "characters"
+                  }`
+          }
           action={
             login ? (
               <button
