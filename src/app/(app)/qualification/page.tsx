@@ -3,6 +3,7 @@ import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { pts, shortName } from "@/lib/format";
+import { drawBrackets, isBracketMode, type BracketMode } from "@/lib/domain";
 
 export default async function QualificationPage() {
   const session = await requireScreen("qualification");
@@ -10,8 +11,28 @@ export default async function QualificationPage() {
   if (!state) redirect("/");
 
   const { event, groupStandings, overall, advancingCount, advancingIds, overallCutoff, qualifiers } = state;
-  const toWinners = Math.ceil(qualifiers.length / 2);
-  const toConsolation = Math.floor(qualifiers.length / 2);
+
+  /**
+   * From the DRAW, not from arithmetic this screen invented.
+   *
+   * It hardcoded the split — half to Winners, half to Consolation — and never
+   * read `bracketMode` at all, so it described a draw the tournament was not
+   * going to make. Under "One bracket" it told an organizer that four of eight
+   * qualifiers were going into a second bracket that does not exist, and then
+   * the bracket screen showed all eight in one. Under "Main + plate" it
+   * claimed four to a Consolation before anybody had lost, when a plate is
+   * filled from the first round's losers and is empty at that moment.
+   *
+   * `drawBrackets` is what the real draw uses, so asking it is the only way
+   * these numbers cannot drift from what happens next.
+   */
+  const mode: BracketMode = isBracketMode(event.bracketMode) ? event.bracketMode : "split";
+  const draw = drawBrackets(qualifiers, mode);
+  const toWinners = draw.main.length;
+  const toConsolation = draw.second.length;
+  // Empty for "One bracket", which has no second draw to describe — so the
+  // card is not rendered at all rather than reading "To Consolation: 0".
+  const secondLabel = draw.secondLabel;
   const groupByPlayer = new Map(
     state.groups.flatMap((g, i) => state.confirmed.filter((p) => p.groupId === g.id).map((p) => [p.id, i + 1])),
   );
@@ -45,10 +66,12 @@ export default async function QualificationPage() {
           <span className="card-kicker">To Winners bracket</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{toWinners}</div>
         </div>
-        <div className="card elev-sm" style={{ flex: 1, minWidth: 140, gap: 2 }}>
-          <span className="card-kicker">To Consolation</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{toConsolation}</div>
-        </div>
+        {secondLabel && (
+          <div className="card elev-sm" style={{ flex: 1, minWidth: 140, gap: 2 }}>
+            <span className="card-kicker">To {secondLabel}</span>
+            <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{toConsolation}</div>
+          </div>
+        )}
         <div className="card elev-sm" style={{ flex: 1, minWidth: 140, gap: 2 }}>
           <span className="card-kicker">Cutoff pts</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{overallCutoff === null ? "—" : pts(overallCutoff)}</div>
