@@ -57,10 +57,35 @@ export interface EventCourseFields {
   customStrokeIndex: string;
 }
 
+/**
+ * A stored hole array, at either length a golf course comes in.
+ *
+ * This required exactly EIGHTEEN, and it is the only decoder for every stored
+ * card in the app. The writers deliberately emit nine for a nine-hole course —
+ * `course-directory.ts` says so: "the import writes the card at its own length
+ * rather than padding it" — so every nine-holer decoded to null and read back
+ * as having no card at all.
+ *
+ * What a club saw: they add their home course from the directory, and the app
+ * says "The directory has no usable card for this course" about a card the
+ * database is holding. Worse on the live-API path, where the nine WAS written
+ * to `Course.pars`: the import reported success and then `clubCourses` said
+ * `hasCard: false`, `resolveCourse` returned UNKNOWN_COURSE, and score entry
+ * showed the set-up-your-course prompt instead of the scorecard. The club was
+ * locked out of scoring on a course it had correctly stored.
+ *
+ * Measured before changing: 54 courses in the catalogue hold a good nine-hole
+ * card that no reader could use. CLAUDE.md's rule for exactly this — a guard
+ * that refuses a real golf course is worse than no guard.
+ *
+ * Nine or eighteen, and nothing else. A ten- or seventeen-element array is not
+ * a shorter course, it is a broken row, and this still refuses it.
+ */
 export function parseHoleArray(json: string): number[] | null {
   try {
     const arr = JSON.parse(json);
-    return Array.isArray(arr) && arr.length === 18 && arr.every((n) => typeof n === "number") ? arr : null;
+    if (!Array.isArray(arr) || !arr.every((n) => typeof n === "number")) return null;
+    return arr.length === 9 || arr.length === 18 ? arr : null;
   } catch {
     return null;
   }
