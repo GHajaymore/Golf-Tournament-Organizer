@@ -35,12 +35,40 @@ import { spawnSync } from "node:child_process";
 
 const env = process.env.VERCEL_ENV;
 
-if (env && env !== "production") {
+/**
+ * Preview now has a database of its own, so it migrates its own database.
+ *
+ * The header above called the skip "a known consequence, and the right trade":
+ * a branch that adds a migration produced a preview running against a database
+ * without it, so those screens failed until it was merged. That trade was only
+ * worth making while Preview and Production shared one database. They no
+ * longer do — Preview is attached separately under the `PREVIEW_` prefix — so
+ * the reason for the skip is gone and its cost need not be paid.
+ *
+ * The guard is the PRESENCE of that separate database, not a flag somebody can
+ * set. No `PREVIEW_DATABASE_URL_UNPOOLED` means we are back in the old world
+ * where a preview's DATABASE_URL may be production's, and the old refusal
+ * applies unchanged. Detaching the preview database therefore fails safe,
+ * rather than silently pointing branch migrations at real members' data.
+ */
+const previewDirect = process.env.PREVIEW_DATABASE_URL_UNPOOLED;
+const previewPooled = process.env.PREVIEW_DATABASE_URL;
+
+if (env === "preview" && previewDirect && previewPooled) {
+  console.log(
+    "deploy-migrations: preview deploy — applying migrations to the PREVIEW\n" +
+      "  database, which is separate from production.",
+  );
+  // Prisma reads its datasource from the environment, so the preview values go
+  // where schema.prisma looks: `url` and `directUrl`.
+  process.env.PRISMA_DATABASE_URL = previewPooled;
+  process.env.DATABASE_URL = previewDirect;
+} else if (env && env !== "production") {
   console.log(
     `deploy-migrations: VERCEL_ENV=${env} — skipping "prisma migrate deploy".\n` +
-      "  Migrations are applied from production deploys only. This project's\n" +
-      "  DATABASE_URL is shared between Production and Preview, so migrating\n" +
-      "  from a preview would change the production database from a branch.",
+      "  No separate preview database is attached (PREVIEW_DATABASE_URL_UNPOOLED\n" +
+      "  is unset), so this build's DATABASE_URL may be production's, and\n" +
+      "  migrating from a branch would change the production database.",
   );
   process.exit(0);
 }

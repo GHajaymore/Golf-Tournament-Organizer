@@ -1482,3 +1482,65 @@ describe("nothing resolves a tee as whichever one sorts first", () => {
     expect(body.indexOf("configured")).toBeLessThan(body.indexOf("tees[0]"));
   });
 });
+
+
+/**
+ * A preview deployment never touches the production database.
+ *
+ * Opening a pull request used to produce a preview that READ AND WROTE the
+ * database holding real members' names, handicaps and money. The migration
+ * gate had already stopped a branch changing production's SCHEMA, and said in
+ * its own header that the real repair was "a separate database for the Preview
+ * environment". Preview now has one, attached under the `PREVIEW_` prefix.
+ *
+ * Asserted from the source because the alternative is a test that connects to
+ * a real database to prove it is the right one — and the whole point is that
+ * the wrong one must never be reachable from a test run.
+ */
+describe("a preview deployment has its own database", () => {
+  const db = readFileSync(join(process.cwd(), "src", "lib", "db.ts"), "utf8");
+  const gate = readFileSync(join(process.cwd(), "scripts", "deploy-migrations.mjs"), "utf8");
+
+  it("chooses the preview database only on a preview deployment", () => {
+    // VERCEL_ENV is set by the platform, so local, CI and production runs all
+    // behave exactly as they did before.
+    expect(db).toMatch(/process\.env\.VERCEL_ENV !== "preview"/);
+    expect(db).toMatch(/PREVIEW_DATABASE_URL/);
+  });
+
+  it("falls back rather than throwing if the preview database is detached", () => {
+    // Returning undefined puts Prisma back on schema.prisma's datasource. A
+    // throw here would break every screen at import time.
+    expect(stripComments(db)).toMatch(/return undefined;/);
+    expect(stripComments(db)).toMatch(/\|\| undefined;/);
+  });
+
+  it("leaves production and local runs on the schema's own datasource", () => {
+    // The override is applied conditionally — an unconditional `datasourceUrl`
+    // would point production at whatever the preview variable happened to be.
+    expect(db).toMatch(/\.\.\.\(previewDatabaseUrl\(\) \? \{ datasourceUrl: previewDatabaseUrl\(\) \} : \{\}\)/);
+  });
+
+  it("migrates a preview against the PREVIEW database, not production's", () => {
+    expect(gate).toMatch(/env === "preview" && previewDirect && previewPooled/);
+    expect(gate).toMatch(/process\.env\.DATABASE_URL = previewDirect;/);
+  });
+
+  it("still refuses to migrate a preview that has no database of its own", () => {
+    /**
+     * The fail-safe. If the preview database is ever detached, this build's
+     * DATABASE_URL may be production's again — so the original refusal has to
+     * apply, rather than the gate assuming the separation is still in place.
+     */
+    expect(gate).toMatch(/else if \(env && env !== "production"\)/);
+    expect(gate).toMatch(/process\.exit\(0\)/);
+  });
+
+  it("guards on the database being present, not on a flag", () => {
+    // A boolean somebody can set is a boolean somebody can set wrongly. The
+    // condition is the existence of the connection itself.
+    const body = stripComments(gate);
+    expect(body).toMatch(/const previewDirect = process\.env\.PREVIEW_DATABASE_URL_UNPOOLED;/);
+    expect(body).not.toMatch(/PREVIEW_DB_ENABLED|USE_PREVIEW_DB/);
+  });
+});
