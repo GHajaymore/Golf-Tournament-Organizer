@@ -55,10 +55,34 @@ export const AD_HOC_NAME_MAX = 40;
  * keeps this as safe as a throw: forgetting to check is a type error, not a
  * silent pass.
  */
-export type PotAccess = { ok: true; eventId: string } | { ok: false; error: string };
+export type PotAccess =
+  | {
+      ok: true;
+      eventId: string;
+      /** An organizer or assistant, who may name anyone. */
+      isStaff: boolean;
+      /**
+       * Which player is asking, when it is a player.
+       *
+       * Carried out because permission to WRITE a pot is not permission to
+       * enter other people into it, and the entrant setter cannot tell those
+       * apart without knowing who is asking. It was computed here and thrown
+       * away, so `setSkinsEntrants` had no way to bound an ad-hoc list and
+       * bounded nothing: any player in the field could invent a name, which
+       * this guard deliberately allows, and then stake the ENTIRE field in it
+       * at any buy-in. Null for staff, who may not be in the field at all.
+       */
+      playerId: string | null;
+    }
+  | { ok: false; error: string };
 
 const no = (error: string): PotAccess => ({ ok: false, error });
-const yes = (eventId: string): PotAccess => ({ ok: true, eventId });
+const yes = (eventId: string, playerId: string | null, isStaff = false): PotAccess => ({
+  ok: true,
+  eventId,
+  isStaff,
+  playerId,
+});
 
 /** Whether this round belongs to the caller's tournament. */
 async function stageInEvent(eventId: string, stageId: string): Promise<boolean> {
@@ -73,7 +97,7 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
   if (!(await stageInEvent(eventId, stageId))) return no("Round not found");
 
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
-  if (isStaff) return yes(eventId);
+  if (isStaff) return yes(eventId, null, true);
 
   const key = (groupKey ?? "").trim();
   if (!key) return no("Only an organizer or assistant can run the field's pot");
@@ -134,7 +158,7 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
   const entrants = new Set(
     [...pots, ...games].flatMap((p) => p.entrants.map((e) => e.playerId)),
   );
-  if (entrants.has(me.id)) return yes(eventId);
+  if (entrants.has(me.id)) return yes(eventId, me.id);
 
   /**
    * A TEE-SHEET GROUP: the fourball currently playing together, and NOBODY
@@ -156,7 +180,7 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
   const sheet = parseTeeSheet(stage?.teeSheet ?? "");
   const group = sheet?.groups.find((g) => g.name === key);
   if (group) {
-    if (group.playerIds.includes(me.id)) return yes(eventId);
+    if (group.playerIds.includes(me.id)) return yes(eventId, me.id);
     return no("Only somebody in that group can run its game");
   }
 
@@ -174,7 +198,7 @@ export async function requirePotAccess(stageId: string, groupKey: string): Promi
    * audience to the whole field rather than to a group: there is no set of
    * players it can silently enter.
    */
-  if (entrants.size === 0) return yes(eventId);
+  if (entrants.size === 0) return yes(eventId, me.id);
 
   return no("Only somebody in this game can change it");
 }

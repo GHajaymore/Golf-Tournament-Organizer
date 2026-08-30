@@ -146,6 +146,45 @@ export async function setSkinsEntrants(
           error: `${dropped.length} of those players aren't in ${key}. A group's pot is for the group playing it.`,
         };
       }
+    } else if (!access.isStaff) {
+      /**
+       * AN AD-HOC NAME, and the caller is a player rather than the organizer.
+       *
+       * The comment above says an ad-hoc bet "is bounded instead by who may
+       * write it at all" — and it was not bounded by anything. Inventing a
+       * name is deliberately open to any player in the field, because six
+       * friends across three fourballs is the case it exists for. So a player
+       * could invent "Sunday Special" at £500 a head and then name EVERY
+       * confirmed player in the tournament as an entrant. Forty stakes are
+       * written, the settle-up charges all forty, and nobody agreed to any of
+       * it. `requirePotAccess` claims in its own comment that an ad-hoc name
+       * has "no set of players it can silently enter" — true of the opt-out
+       * inference it was written about, and false of this setter beside it.
+       *
+       * A player may confirm a stake somebody ASKED for; they may not create
+       * one on that person's behalf. So the names allowed here are the ones
+       * who already have a row of their own under this name — put down by
+       * `requestSkinsEntry`, which only ever writes the caller — plus the
+       * caller themselves. Six friends each tap "I'm in" and one of them ticks
+       * them off, which is exactly what the pending-and-confirm machinery is
+       * for. An organizer is unaffected: staff may name anyone.
+       */
+      const asked = await prisma.skinsPot.findMany({
+        where: { stageId, groupKey: key },
+        select: { entrants: { select: { playerId: true } } },
+      });
+      const consented = new Set(asked.flatMap((p) => p.entrants.map((e) => e.playerId)));
+      if (access.playerId) consented.add(access.playerId);
+      const uninvited = ids.filter((id) => !consented.has(id));
+      if (uninvited.length > 0) {
+        return {
+          ok: false,
+          error:
+            uninvited.length === 1
+              ? "One of those players hasn't asked to join this bet. They can put their own name down, then you can tick them in."
+              : `${uninvited.length} of those players haven't asked to join this bet. They can put their own names down, then you can tick them in.`,
+        };
+      }
     }
   }
 
