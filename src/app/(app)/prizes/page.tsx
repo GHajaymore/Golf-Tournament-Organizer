@@ -81,10 +81,25 @@ export default async function PrizesPage({
       })
     : [];
 
-  // The pots the cards settle. No winner is stored for these by design.
+  /**
+   * The pots the cards settle. No winner is stored for these by design.
+   *
+   * THE CLUB'S, exactly as the skins query above says of itself — a fourball's
+   * own game belongs on Group games. Without the filter this fetched every
+   * side game on the round and the screen picks one per kind, so Group 2's
+   * private £5 birdie pot rendered under the club's "Birdie pot" heading. Its
+   * membership was then resolved against the whole confirmed field, so a
+   * 24-player outing read "In the pot (24)" with every chip lit while the same
+   * pot settled among Group 2's four.
+   *
+   * Worse than a wrong number: the controls beneath it acted on a different
+   * game. Ticking a chip sent field ids and was refused, and re-pricing the
+   * pot wrote the FIELD's row — creating the club pot the screen was only
+   * pretending to show.
+   */
   const sideGames = week
     ? await prisma.sideGame.findMany({
-        where: { eventId: session.eventId, stageId: week.id },
+        where: { eventId: session.eventId, stageId: week.id, groupKey: "" },
         include: { entrants: true },
       })
     : [];

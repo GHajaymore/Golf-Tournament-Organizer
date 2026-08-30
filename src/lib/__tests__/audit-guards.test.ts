@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { drawBrackets } from "@/lib/domain";
 
 /**
  * Guard checks that read the source rather than the behaviour.
@@ -1323,5 +1324,93 @@ describe("the tee sheet is drawn for the selected round", () => {
     // par and stroke index on round two's scorecards.
     expect(page).toMatch(/cardForStage\(/);
     expect(page).toMatch(/courseForRound\(roundCourse, state\.event\)/);
+  });
+});
+
+/**
+ * Two screens that described something the app was not going to do.
+ *
+ * Both are server components that nothing renders, so they are asserted from
+ * the source — and in the qualification case the arithmetic itself is checked
+ * against the real `drawBrackets`, which is the thing the screen was inventing
+ * its own version of.
+ */
+describe("the qualification screen counts the draw the tournament will make", () => {
+  const page = readFileSync(
+    join(process.cwd(), "src", "app", "(app)", "qualification", "page.tsx"),
+    "utf8",
+  );
+
+  it("asks drawBrackets rather than halving the field", () => {
+    // It hardcoded `ceil(n/2)` and `floor(n/2)` and never read bracketMode.
+    expect(page).toMatch(/drawBrackets\(qualifiers, mode\)/);
+    expect(stripComments(page)).not.toMatch(/Math\.ceil\(qualifiers\.length \/ 2\)/);
+    expect(stripComments(page)).not.toMatch(/Math\.floor\(qualifiers\.length \/ 2\)/);
+  });
+
+  it("reads the organizer's bracket mode", () => {
+    expect(page).toMatch(/isBracketMode\(event\.bracketMode\)/);
+  });
+
+  it("names the second bracket whatever the draw calls it", () => {
+    expect(page).toMatch(/To \{secondLabel\}/);
+  });
+});
+
+describe("what each bracket mode actually sends where", () => {
+  // The numbers the screen used to state, against the numbers the draw makes.
+  const eight = Array.from({ length: 8 }, (_, i) => ({
+    id: `p${i + 1}`,
+    name: `P${i + 1}`,
+    handicap: 10,
+    seed: i + 1,
+    groupId: null,
+  }));
+
+  it("puts EVERY qualifier in one bracket under 'single'", () => {
+    // The screen said four of the eight were going to a Consolation that does
+    // not exist, and the bracket screen then showed all eight in one draw.
+    const draw = drawBrackets(eight, "single");
+    expect(draw.main).toHaveLength(8);
+    expect(draw.second).toHaveLength(0);
+    expect(draw.secondLabel).toBe("");
+  });
+
+  it("starts a plate EMPTY, because it is filled from the losers", () => {
+    // It claimed four to a Consolation before anybody had lost.
+    const draw = drawBrackets(eight, "plate");
+    expect(draw.main).toHaveLength(8);
+    expect(draw.second).toHaveLength(0);
+    expect(draw.secondLabel).toBeTruthy();
+  });
+
+  it("really does halve under 'split', which is the only case the old sum fitted", () => {
+    const draw = drawBrackets(eight, "split");
+    expect(draw.main).toHaveLength(4);
+    expect(draw.second).toHaveLength(4);
+  });
+});
+
+describe("the payouts screen shows the CLUB's pots", () => {
+  const page = readFileSync(
+    join(process.cwd(), "src", "app", "(app)", "prizes", "page.tsx"),
+    "utf8",
+  );
+
+  it("filters side games to the field's own, like the skins query above it", () => {
+    /**
+     * Without it, a fourball's private £5 birdie pot rendered under the club's
+     * heading with the whole field lit as its entrants — and the controls
+     * beneath acted on a different game entirely: ticking a chip was refused,
+     * and re-pricing wrote the FIELD's row, creating the pot the screen was
+     * only pretending to show.
+     */
+    expect(page).toMatch(/stageId: week\.id, groupKey: ""/);
+  });
+
+  it("still scopes both pot queries to the tournament", () => {
+    // The narrowing must not have quietly replaced the event scope.
+    const queries = page.match(/where: \{[^}]*stageId: week\.id[^}]*\}/g) ?? [];
+    expect(queries.length).toBeGreaterThanOrEqual(2);
   });
 });
