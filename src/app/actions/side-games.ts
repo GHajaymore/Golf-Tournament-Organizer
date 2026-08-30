@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { getSession } from "@/lib/auth";
 import { isDerivedKind, DERIVED_LABEL } from "@/lib/domain/derived-games";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
@@ -59,7 +60,18 @@ async function actorName(): Promise<string> {
  * is itself a disclosure.
  */
 type GameAccess =
-  | { ok: true; game: { id: string; kind: string; stageId: string; groupKey: string }; eventId: string }
+  | {
+      ok: true;
+      game: { id: string; kind: string; stageId: string; groupKey: string };
+      eventId: string;
+      /**
+       * Carried through from `requirePotAccess`: who is asking, and whether
+       * they are staff. The entrant setter needs both to bound an ad-hoc list,
+       * and this wrapper used to drop them on the floor.
+       */
+      isStaff: boolean;
+      playerId: string | null;
+    }
   | { ok: false; error: string };
 
 const NOT_YOURS = "That side game isn't in this tournament.";
@@ -77,7 +89,13 @@ async function requireGameAccess(sideGameId: string): Promise<GameAccess> {
   if (!access.ok) return { ok: false, error: access.error };
   if (game.eventId !== access.eventId) return { ok: false, error: NOT_YOURS };
 
-  return { ok: true, game, eventId: access.eventId };
+  return {
+    ok: true,
+    game,
+    eventId: access.eventId,
+    isStaff: access.isStaff,
+    playerId: access.playerId,
+  };
 }
 
 async function logMoney(eventId: string, action: string, detail: string) {
@@ -195,6 +213,40 @@ export async function setSideGameEntrants(
   );
   if (rows.some((r) => !allowed.has(r.id))) {
     return { ok: false, error: "Somebody you picked isn't in this game's group." };
+  }
+
+  /**
+   * And for an AD-HOC name, only the people who asked.
+   *
+   * `potAudience` returns the whole field for an ad-hoc key BY DESIGN — the
+   * comment above says so — which means the check above refuses nothing there.
+   * A player could invent a name, price it at £500, and enter every confirmed
+   * player in the tournament into a birdie pot they had never heard of. The
+   * same hole `setSkinsEntrants` had, for the same reason, in the pot beside
+   * it.
+   *
+   * Confirming a stake somebody asked for is fine; creating one on their
+   * behalf is not. `requestSideGameEntry` only ever writes its own caller, so
+   * a row under this name is that player's own word.
+   */
+  const onSheet = parseTeeSheet(stage?.teeSheet ?? "")?.groups.some((g) => g.name === game.groupKey);
+  if (game.groupKey && !onSheet && !found.isStaff) {
+    const asked = await prisma.sideGame.findMany({
+      where: { stageId: game.stageId, groupKey: game.groupKey },
+      select: { entrants: { select: { playerId: true } } },
+    });
+    const consented = new Set(asked.flatMap((g) => g.entrants.map((e) => e.playerId)));
+    if (found.playerId) consented.add(found.playerId);
+    const uninvited = rows.filter((r) => !consented.has(r.id));
+    if (uninvited.length > 0) {
+      return {
+        ok: false,
+        error:
+          uninvited.length === 1
+            ? "One of those players hasn't asked to join this bet. They can put their own name down, then you can tick them in."
+            : `${uninvited.length} of those players haven't asked to join this bet. They can put their own names down, then you can tick them in.`,
+      };
+    }
   }
 
   /**
