@@ -250,6 +250,27 @@ async function cleanInput(
     if (shares.some((s) => !Number.isFinite(s.amountCents as number))) {
       return { ok: false, error: "Give everyone on this bill an amount, or split it by shares instead." };
     }
+    /**
+     * EACH share within the same bounds as the bill, not just their total.
+     *
+     * `isValidAmount` was checked on `amountCents` and on nothing else, and
+     * the only other test here is that the parts add up to the whole. Two
+     * parts can do that and still be absurd: a £10 round of drinks split as
+     * `+£20,000,000` on one player and `-£19,999,990` on another sums to £10
+     * exactly, passes every check, and fits the column.
+     *
+     * `addExpense` is a "use server" export, so any signed-in player of the
+     * tournament can post that — and the target cannot take it off again,
+     * because `canChangeExpense` gives that only to the line's creator or to
+     * staff. It stands in their balance, in the standings and in the
+     * settle-up's transfer sheet until an organizer removes it.
+     */
+    if (shares.some((s) => !isValidAmount(s.amountCents ?? 0))) {
+      return {
+        ok: false,
+        error: `Each person's share has to be at most ${money(MAX_EXPENSE_CENTS, currency)}.`,
+      };
+    }
     const split = shares.reduce((sum, s) => sum + (s.amountCents ?? 0), 0);
     if (split !== amountCents) {
       const diff = amountCents - split;
@@ -289,6 +310,16 @@ async function cleanInput(
     return { ok: false, error: "Whoever paid has to be in this tournament." };
   }
   if (payers.length > 0) {
+    // The same bound, for the same reason: "they add up to the bill" is not
+    // enough on its own, because a huge positive and a huge negative add up to
+    // anything you like. A payer's credit lands in `balances` exactly as a
+    // share's debit does.
+    if (payers.some((p) => !isValidAmount(p.amountCents))) {
+      return {
+        ok: false,
+        error: `What each person paid has to be at most ${money(MAX_EXPENSE_CENTS, currency)}.`,
+      };
+    }
     const laidOut = payers.reduce((sum, p) => sum + p.amountCents, 0);
     if (laidOut !== amountCents) {
       const diff = amountCents - laidOut;

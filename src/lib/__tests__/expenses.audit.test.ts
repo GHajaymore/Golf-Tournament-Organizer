@@ -564,3 +564,118 @@ describe("a repeated id is a double share, not a crash", () => {
     expect(view.standing.reduce((a, s) => a + s.netCents, 0)).toBe(0);
   });
 });
+
+/**
+ * A bill's PARTS are bounded, not only its total.
+ *
+ * From the 2026-08-27 exploratory audit. `isValidAmount` was checked on
+ * `amountCents` and on nothing else, and the only other test was that the
+ * shares add up to the whole. Two parts can do that and still be absurd: a £10
+ * round of drinks split as +£20,000,000 on one player and -£19,999,990 on
+ * another sums to £10 exactly, passes every check, and fits the column.
+ *
+ * `addExpense` is a "use server" export, so any signed-in player of the
+ * tournament can post it — and the target cannot take it off again, because
+ * `canChangeExpense` grants that only to the line's creator or to staff. It
+ * stands in their balance, in the standings, and in the settle-up's transfer
+ * sheet until an organizer removes it.
+ */
+describe("planting a debt through the shares", () => {
+  it("refuses a share far larger than a bill could be", async () => {
+    await signIn("dave");
+    const res = await addExpense({
+      description: "Beers",
+      amountCents: 1_000,
+      paidBy: player.dave,
+      shares: [
+        { playerId: player.ann, weight: 1, amountCents: 2_000_000_000 },
+        { playerId: player.rob, weight: 1, amountCents: -1_999_999_000 },
+      ],
+    });
+    expect(res.ok, "an arbitrary debt must be refused").toBe(false);
+    expect(res.error).toMatch(/share has to be at most/i);
+  });
+
+  it("writes nothing when it refuses", async () => {
+    // The money is what matters, not the message.
+    const before = await prisma.expense.count({ where: { eventId } });
+    await signIn("dave");
+    await addExpense({
+      description: "Beers",
+      amountCents: 1_000,
+      paidBy: player.dave,
+      shares: [
+        { playerId: player.ann, weight: 1, amountCents: 2_000_000_000 },
+        { playerId: player.rob, weight: 1, amountCents: -1_999_999_000 },
+      ],
+    });
+    expect(await prisma.expense.count({ where: { eventId } })).toBe(before);
+  });
+
+  it("refuses it in the other direction too", async () => {
+    // A huge CREDIT is the same defect wearing a different sign: it moves
+    // everybody else's number by the same amount.
+    await signIn("dave");
+    const res = await addExpense({
+      description: "Beers",
+      amountCents: 1_000,
+      paidBy: player.dave,
+      shares: [
+        { playerId: player.ann, weight: 1, amountCents: -2_000_000_000 },
+        { playerId: player.rob, weight: 1, amountCents: 2_000_001_000 },
+      ],
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it("still takes an ordinary uneven split", async () => {
+    // The guard must not refuse the thing exact amounts exist for: three
+    // people, one had the steak.
+    await signIn("dave");
+    const res = await addExpense({
+      description: "Dinner",
+      amountCents: 9_000,
+      paidBy: player.dave,
+      shares: [
+        { playerId: player.dave, weight: 1, amountCents: 4_500 },
+        { playerId: player.ann, weight: 1, amountCents: 3_000 },
+        { playerId: player.rob, weight: 1, amountCents: 1_500 },
+      ],
+    });
+    expect(res.ok, res.error ?? "").toBe(true);
+  });
+});
+
+describe("planting a debt through the payers", () => {
+  it("refuses a payment far larger than the bill", async () => {
+    // The same hole on the other side of the ledger: "they add up to the
+    // bill" is not enough, because a huge positive and a huge negative add up
+    // to anything you like.
+    await signIn("dave");
+    const res = await addExpense({
+      description: "Cart fees",
+      amountCents: 5_000,
+      paidBy: player.dave,
+      payers: [
+        { playerId: player.dave, amountCents: 2_000_000_000 },
+        { playerId: player.ann, amountCents: -1_999_995_000 },
+      ],
+    });
+    expect(res.ok, "an arbitrary credit must be refused").toBe(false);
+    expect(res.error).toMatch(/paid has to be at most/i);
+  });
+
+  it("still takes two people genuinely splitting the tab", async () => {
+    await signIn("dave");
+    const res = await addExpense({
+      description: "Cart fees",
+      amountCents: 5_000,
+      paidBy: player.dave,
+      payers: [
+        { playerId: player.dave, amountCents: 3_000 },
+        { playerId: player.ann, amountCents: 2_000 },
+      ],
+    });
+    expect(res.ok, res.error ?? "").toBe(true);
+  });
+});
