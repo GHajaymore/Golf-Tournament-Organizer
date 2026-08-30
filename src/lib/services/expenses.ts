@@ -29,7 +29,7 @@ import { skinsPotFor } from "./skins-pot";
 import { isSkinsScope, skinsGameLabel } from "@/lib/domain/skins-pot";
 import { loadEventState, matchSettled, type HoleResultArr } from "./tournament";
 import { resolveCourse } from "../courses";
-import { cardForStage } from "./course-resolution";
+import { cardForStage, courseForRound } from "./course-resolution";
 import { holeStrokesReceived, allocationHoles } from "../domain";
 
 /**
@@ -328,6 +328,22 @@ async function gameNets(
     if (state) {
       const stageById = new Map(state.stages.map((s) => [s.id, s]));
       const cards = await prisma.scorecard.findMany({ where: { eventId } });
+      /**
+       * Every course this tournament may be played on, read once.
+       *
+       * A league rotates venues, and `Stage.courseId` is what the venue
+       * library exists for. This path resolved the EVENT's card, so a summer
+       * league playing week three at another course settled that week's birdie
+       * pot against the home card — counting birdies against the wrong pars
+       * and allocating strokes off the wrong stroke index, while the
+       * leaderboard beside it read `Stage.courseId` and was right. The skins
+       * pot was fixed for this; the derived games are the other half of the
+       * same finding.
+       */
+      const venues = await prisma.course.findMany({
+        where: { events: { some: { eventId } } },
+      });
+      const venueById = new Map(venues.map((c) => [c.id, c]));
 
       for (const game of sideGames) {
         const stage = stageById.get(game.stageId);
@@ -344,7 +360,11 @@ async function gameNets(
          * a birdie. The board went through `applyNine` and was right, so the
          * settle-up and the leaderboard disagreed about the same round.
          */
-        const course = cardForStage(resolveCourse(state.event), stage);
+        const roundCourse = stage.courseId ? venueById.get(stage.courseId) ?? null : null;
+        const course = cardForStage(
+          courseForRound(roundCourse, state.event) ?? resolveCourse(state.event),
+          stage,
+        );
         const pars = course.pars;
 
         if (game.kind === "nassau") {
