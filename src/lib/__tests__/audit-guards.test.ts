@@ -1287,3 +1287,41 @@ describe("a round's card is narrowed in exactly one place", () => {
     expect(fn).toMatch(/cleanNine\(/);
   });
 });
+
+/**
+ * A tee sheet is drawn for the round the organizer picked.
+ *
+ * The page lets any playing round be selected and then computed its hole count
+ * from `playingStages(state.stages)[0]` — always round one — while the tee
+ * NAMES two dozen lines below already used the selected round. A nine-hole
+ * round inside an eighteen-hole tournament is fully supported, and it broke in
+ * both directions: a split start on a nine-hole Round 2 sent every second group
+ * off the 10th tee of a nine-hole course, and a nine-hole Round 1 followed by
+ * an eighteen-hole Round 2 printed a nine-column card for eighteen holes.
+ *
+ * Asserted from the source because the page is a server component: nothing
+ * renders it, and `draw.test.ts` proves the domain function is right about the
+ * `holes` it is GIVEN, which is exactly the half that was never wrong.
+ */
+describe("the tee sheet is drawn for the selected round", () => {
+  const page = readFileSync(
+    join(process.cwd(), "src", "app", "(app)", "foursomes", "page.tsx"),
+    "utf8",
+  );
+
+  it("takes its hole count from the selected round, not the first one", () => {
+    expect(page).toMatch(/const holes = stage\?\.holes === 9 \? 9 : 18;/);
+  });
+
+  it("never derives a hole count from the first playing round", () => {
+    // The exact shape of the bug, so it cannot come back by another route.
+    expect(stripComments(page)).not.toMatch(/playingStages\([^)]*\)\[0\]\??\.holes/);
+  });
+
+  it("prints the card the round is actually played on", () => {
+    // It printed the EVENT's card, so a two-course tournament put round one's
+    // par and stroke index on round two's scorecards.
+    expect(page).toMatch(/cardForStage\(/);
+    expect(page).toMatch(/courseForRound\(roundCourse, state\.event\)/);
+  });
+});

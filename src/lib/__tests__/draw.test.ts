@@ -207,3 +207,57 @@ describe("the clock", () => {
     expect(addMinutes("not a time", 0)).toBe("8:00 AM");
   });
 });
+
+/**
+ * No group is ever sent to a hole the course does not have.
+ *
+ * The harm the tee-sheet bug actually did. A nine-hole round drawn with the
+ * wrong hole count put groups on the 10th tee of a nine-hole course — on the
+ * sheet, on the published draw, and in each player's "your tee time".
+ *
+ * Asserted as an invariant over every start style and field size rather than a
+ * fixture, because the fault was never in the arithmetic: `startSlots` was
+ * always right about the number it was handed. What no test covered was that a
+ * start hole must lie on the course at all.
+ */
+describe("a start hole is always on the course", () => {
+  const groupsOf = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `g${i + 1}`,
+      name: `G${i + 1}`,
+      playerIds: [`p${i}a`, `p${i}b`],
+    }));
+
+  for (const holes of [9, 18] as const) {
+    for (const style of ["tee", "split", "shotgun"] as const) {
+      for (const n of [1, 2, 3, 5, 9, 10, 12, 19, 28]) {
+        it(`${style} start, ${n} groups over ${holes} holes`, () => {
+          const slots = startSlots(groupsOf(n), style, { holes, firstTee: "08:00", interval: 10 });
+          for (const s of slots) {
+            expect(s.startHole, `${s.groupId} sent to hole ${s.startHole}`).toBeGreaterThanOrEqual(1);
+            expect(s.startHole, `${s.groupId} sent to hole ${s.startHole} of ${holes}`).toBeLessThanOrEqual(holes);
+          }
+        });
+      }
+    }
+  }
+
+  it("splits a nine off the 1st and the 5th, not the 10th", () => {
+    // The concrete case: two groups, nine holes. The second tee has to be a
+    // hole that exists, and on a nine that is the 5th.
+    const slots = startSlots(groupsOf(2), "split", { holes: 9 });
+    expect(slots.map((s) => s.startHole).sort()).toEqual([1, 5]);
+  });
+
+  it("still splits an eighteen off the 1st and the 10th", () => {
+    const slots = startSlots(groupsOf(2), "split", { holes: 18 });
+    expect(slots.map((s) => s.startHole).sort()).toEqual([1, 10]);
+  });
+
+  it("doubles a shotgun back onto the course rather than inventing holes", () => {
+    // Ten groups on a nine: somebody shares a tee. Nobody goes to a 10th.
+    const slots = startSlots(groupsOf(10), "shotgun", { holes: 9 });
+    expect(Math.max(...slots.map((s) => s.startHole))).toBeLessThanOrEqual(9);
+    expect(new Set(slots.map((s) => s.startHole)).size).toBe(9);
+  });
+});

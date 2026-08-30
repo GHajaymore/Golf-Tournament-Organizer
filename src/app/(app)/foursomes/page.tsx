@@ -12,6 +12,7 @@ import { parseTeeSheet, teeSheetDrift } from "@/lib/domain/tee-sheet";
 import { shortDate } from "@/lib/domain/round-dates";
 import { TeeSheetPrint } from "@/components/TeeSheetPrint";
 import { resolveCourse } from "@/lib/courses";
+import { cardForStage, courseForRound } from "@/lib/services/course-resolution";
 import { brandForEvent } from "@/lib/services/organization";
 
 export default async function FoursomesPage({
@@ -61,7 +62,27 @@ export default async function FoursomesPage({
         .filter((r) => r.stats.played > 0)
         .map((r) => ({ playerId: r.player.id, position: r.rank }));
 
-  const holes = playingStages(state.stages)[0]?.holes === 9 ? 9 : 18;
+  /**
+   * The SELECTED round's hole count, not round one's.
+   *
+   * This read `playingStages(state.stages)[0]` — always the first round —
+   * while the page lets an organizer draw any round they like, and the tee
+   * names two dozen lines below already use `stage?.holes`. A nine-hole round
+   * inside an eighteen-hole tournament is fully supported by `setStageHoles`,
+   * and it broke both ways.
+   *
+   * Drawing a nine-hole Round 2 with a split start: `holes` arrived as 18, so
+   * `startSlots` sent every second group off the 10TH TEE of a nine-hole
+   * course. With two groups the sheet, the published draw and each player's
+   * "your tee time" all named a hole that does not exist — while the help text
+   * on the same screen said "the 1st and the 10th".
+   *
+   * The mirror is worse: a nine-hole Round 1 followed by an eighteen-hole
+   * Round 2 passed 9, and `TeeSheetPrint` builds its columns from this number
+   * — so it printed a nine-column card for an eighteen-hole round and players
+   * had nowhere to write holes 10 to 18.
+   */
+  const holes = stage?.holes === 9 ? 9 : 18;
 
   // Printed cards come from the SAVED sheet, never the on-screen preview —
   // the preview reshuffles on every visit, and a card has to match what was
@@ -73,7 +94,20 @@ export default async function FoursomesPage({
     savedSheet && stage?.teeSheetPublished
       ? teeSheetDrift(savedSheet, new Set(state.confirmed.map((p) => p.id)))
       : null;
-  const course = resolveCourse(state.event);
+  /**
+   * The card THIS ROUND is played on, narrowed to the nine it uses.
+   *
+   * This printed the EVENT's card, so a two-course tournament put round one's
+   * par and stroke index on round two's scorecards — the same gap
+   * `loadEventState` was changed to close for scoring, arriving on the sheet
+   * the players actually carry. `cardForStage` also narrows and re-ranks a
+   * nine, so the dots printed beside a name are the holes the round allocates
+   * a stroke on.
+   */
+  const roundCourse = stage?.courseId
+    ? await prisma.course.findUnique({ where: { id: stage.courseId } })
+    : null;
+  const course = cardForStage(courseForRound(roundCourse, state.event) ?? resolveCourse(state.event), stage);
   const brand = await brandForEvent(session.eventId);
   const nameOf = new Map(state.confirmed.map((p) => [p.id, p]));
   /**
