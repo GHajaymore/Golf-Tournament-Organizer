@@ -1894,7 +1894,14 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
       .filter((x): x is NonNullable<typeof x> => !!x)
       .map((p) => ({ ...p, flightTeeId: netFlightTee.get(p.id) ?? null })),
     netRatings,
-    netTees[0]?.id ?? null,
+    // The round's CONFIGURED set, not whichever tee sorts first by position.
+    // `roundTeeId` exists for exactly this and every other scoring path uses
+    // it: a club whose rows run Blue, White and sets its medal off the Whites
+    // had the board price a 12.4 index at 12 off White and this path price the
+    // same player at 19 off Blue. The per-hole winners are then derived from
+    // the 19 and STORED, so the match result was decided by a handicap no
+    // screen was showing.
+    roundTeeId(netTees, event?.defaultTeeId),
     holeCount,
     // A single-tee competition allocates off the round tees, not off
     // whatever either player has stored.
@@ -2114,7 +2121,8 @@ async function recomputeTeamMatch(
     const teamHcp = courseHandicapMap(
       members.map((m) => ({ ...m.player, flightTeeId: teamFlightTee.get(m.playerId) ?? null })),
       teamRatings,
-      teeRows[0]?.id ?? null,
+      // The round's configured set — same rule as the net match path above.
+      roundTeeId(teeRows, event?.defaultTeeId),
       holeCount,
       event?.teePolicy ?? "own",
     );

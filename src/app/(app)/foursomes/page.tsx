@@ -1,5 +1,5 @@
 import { requireScreen } from "@/lib/page-helpers";
-import { teeNamesForRound, teesForEvent } from "@/lib/services/handicaps";
+import { teeNamesForRound, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -119,14 +119,23 @@ export default async function FoursomesPage({
    * tee to the one the strokes came from would be worse than a card that
    * named none.
    */
-  // The round's own set is the first tee by position, which is the same
-  // default every scoring path uses — so the card cannot name one set while
-  // the strokes came from another.
+  /**
+   * The round's own set — the CONFIGURED one, not the first by position.
+   *
+   * The comment here used to state the opposite as a fact: "the first tee by
+   * position, which is the same default every scoring path uses". It was not.
+   * `roundTeeId` puts the round's `defaultTeeId` ahead of first-by-position and
+   * the board, the importer, the regrouper, teams and skins all go through it —
+   * so a club whose rows run Blue, White and sets its medal off the Whites had
+   * this print "Blue" beside every name on a card scored off White. The false
+   * invariant is the reason nobody looked: it read as though it had been
+   * checked.
+   */
   const eventTees = await teesForEvent(session.eventId);
   const teeNames = await teeNamesForRound(
     session.eventId,
     stage?.holes === 9 ? 9 : 18,
-    eventTees[0]?.id ?? null,
+    roundTeeId(eventTees, state.event.defaultTeeId),
   );
   const printGroups = (savedSheet?.groups ?? []).map((g) => ({
     name: g.name,
