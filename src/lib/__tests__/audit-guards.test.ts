@@ -1414,3 +1414,71 @@ describe("the payouts screen shows the CLUB's pots", () => {
     expect(queries.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+
+/**
+ * The round's tee is resolved in one place, by one rule.
+ *
+ * `roundTeeId` puts the round's configured `defaultTeeId` ahead of
+ * first-by-position, and `handicaps.ts` records that the fallback "was
+ * previously the ONLY rule, written out as `tees[0]?.id` at six separate call
+ * sites — so a club whose first set is Blue scored every unassigned player off
+ * Blue even when the medal was off the Whites, and no screen said so."
+ *
+ * Four of those six survived that clean-up: net match play, the team-match
+ * recompute, the score-entry card's stroke dots, and the printed tee sheet. A
+ * club whose rows run Blue, White and set the medal off the Whites had the
+ * board price a 12.4 index at 12 and those paths price the same player at 19 —
+ * and the net match's per-hole winners are derived from the 19 and STORED, so
+ * the result was decided by a handicap no screen was showing.
+ *
+ * The entry screen had it BOTH ways in one file, correct on one line and wrong
+ * fifty lines above. The tee sheet asserted the wrong rule in a comment as
+ * though it had been checked, which is why nobody looked.
+ *
+ * Asserted over the whole source rather than at the four sites, so the fifth
+ * cannot be written.
+ */
+describe("nothing resolves a tee as whichever one sorts first", () => {
+  const sourceFiles = () => {
+    const out: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) {
+          if (e.name === "__tests__" || e.name === "node_modules") continue;
+          walk(p);
+        } else if (/\.tsx?$/.test(e.name)) {
+          out.push(p);
+        }
+      }
+    };
+    walk(join(process.cwd(), "src"));
+    return out;
+  };
+
+  it("never takes the first tee by position outside roundTeeId itself", () => {
+    // `handicaps.ts` is where the fallback legitimately lives — it IS
+    // roundTeeId's last resort, for a club that has configured nothing.
+    const home = join("src", "lib", "services", "handicaps.ts");
+    const offenders = sourceFiles()
+      .filter((f) => !f.endsWith(home))
+      .filter((f) => /\w*[Tt]ees\w*\[0\]\??\.id/.test(stripComments(readFileSync(f, "utf8"))));
+    expect(
+      offenders.map((f) => f.replace(process.cwd(), "")),
+      "resolve the round's tee with roundTeeId(tees, event.defaultTeeId)",
+    ).toEqual([]);
+  });
+
+  it("keeps roundTeeId itself preferring the configured set", () => {
+    // The guard above is only worth anything if the one reader is right.
+    const fn = stripComments(
+      readFileSync(join(process.cwd(), "src", "lib", "services", "handicaps.ts"), "utf8"),
+    );
+    const body = fn.slice(fn.indexOf("export function roundTeeId"));
+    // It returns the configured set when the course still has it...
+    expect(body).toMatch(/if \(configured && tees\.some/);
+    // ...and only then falls back to first-by-position.
+    expect(body.indexOf("configured")).toBeLessThan(body.indexOf("tees[0]"));
+  });
+});

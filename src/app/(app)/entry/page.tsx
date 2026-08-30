@@ -491,7 +491,10 @@ export default async function EntryPage() {
             const ch = courseHandicapMap(
               withFlightTee(state.confirmed),
               entryTeeRatings,
-              entryTees[0]?.id ?? null,
+              // The round's configured set. Line 538 of this same file already
+              // does it correctly, so the dots printed on the card came off one
+              // tee while the score beside them was computed off another.
+              roundTeeId(entryTees, state.event.defaultTeeId),
               holeCount,
               // The dots on the card must come from the same tee the scoring
               // engine used, so the policy is applied here too.
