@@ -136,7 +136,15 @@ export function MoneyClient({ view }: { view: MoneyView }) {
         if (splitMode === "shares") return { playerId, weight: weights[playerId] ?? 1 };
         return { playerId, weight: 1 };
       }),
-    [shareIds, splitMode, typed, weights],
+    // `centsFrom` BELONGS HERE. It is `useMoney().parse`, bound to the club's
+    // currency, so it takes a new identity when that currency changes — and it
+    // can change while this screen stays MOUNTED, because every action on this
+    // page ends in `revalidatePath("/", "layout")` and the layout re-reads the
+    // club's currency on the way back. Left out, this memo keeps handing back
+    // amounts parsed under the PREVIOUS currency while `cents` above is already
+    // parsed under the new one, so a split that visibly adds up reports a
+    // mismatch the person typing it cannot clear.
+    [shareIds, splitMode, typed, weights, centsFrom],
   );
 
   const payers = useMemo(
@@ -146,7 +154,9 @@ export function MoneyClient({ view }: { view: MoneyView }) {
             .map((playerId) => ({ playerId, amountCents: centsFrom(paidAmounts[playerId] ?? "") }))
             .filter((p) => p.amountCents !== 0)
         : [],
-    [manyPayers, paidAmounts, shareIdsAndField],
+    // Same reason as `shares` above: parsing is currency-dependent, so the
+    // parser is a dependency.
+    [manyPayers, paidAmounts, shareIdsAndField, centsFrom],
   );
 
   /**

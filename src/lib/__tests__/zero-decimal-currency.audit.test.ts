@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 
 /**
@@ -216,5 +216,171 @@ describe("a club whose currency has no minor unit", () => {
 
     expect(money(row!.amountCents, "JPY")).not.toMatch(/[.,]\d{2}$/);
     expect(money(row!.amountCents, "JPY")).toMatch(/4,?000/);
+  });
+});
+
+/**
+ * The same club, on the day it CHANGES its currency.
+ *
+ * Everything above fixes the currency at JPY and proves the ledger is
+ * denominated correctly. This block is about the transition, which is a
+ * different fault entirely and lives on the client.
+ *
+ * `useMoney()` hands a screen a `parse` closure BOUND TO THE CURRENT
+ * CURRENCY, memoized on it, so it takes a new identity when the club's
+ * currency changes. That change reaches a MOUNTED screen: every money action
+ * ends in `revalidatePath("/", "layout")`, the layout re-reads the club's
+ * currency, and React delivers the new context value without unmounting —
+ * client state is deliberately preserved across a server re-render.
+ *
+ * MoneyClient's `shares` and `payers` memos called that parser and did not
+ * depend on it, so after a switch they kept returning amounts parsed in the
+ * currency the club had LEFT, while the bill total beside them — computed
+ * inline, not memoized — had already moved to the new one. A hundred-fold
+ * disagreement between two numbers on the same form.
+ *
+ * The assertions below are the server's half of that story, against real
+ * rows: that the currency is re-read rather than cached, that the two parses
+ * really are a hundred-fold apart, and that a payload built with the stale
+ * parser is REFUSED rather than silently banked. The refusal is the good
+ * outcome and the reason this was a usability fault rather than a corrupted
+ * ledger — but it is a refusal the person typing cannot act on, because the
+ * numbers on their screen add up.
+ */
+describe("a club that changes its currency under an open screen", () => {
+  /** Set the club's currency where the picker sets it — on the organization. */
+  async function setCurrency(code: string) {
+    const ev = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { organizationId: true },
+    });
+    await prisma.organization.update({
+      where: { id: ev!.organizationId },
+      data: { currency: code },
+    });
+  }
+
+  // Put the fixture back however a test above left it, so the order of this
+  // file cannot change what any other test in it is asserting.
+  afterEach(async () => {
+    await setCurrency("JPY");
+  });
+
+  it("reports the new currency immediately, with nothing cached anywhere", async () => {
+    /**
+     * If the SERVER cached the currency, the client bug would be unreachable
+     * and this whole block would be theatre. It does not: the value is read
+     * per request, which is exactly why it can change under a mounted screen.
+     */
+    await setCurrency("USD");
+    expect(await currencyForEvent(eventId)).toBe("USD");
+
+    await setCurrency("JPY");
+    expect(await currencyForEvent(eventId)).toBe("JPY");
+  });
+
+  it("parses one typed string a hundred-fold apart on either side of the switch", async () => {
+    // The size of the mistake, stated once. "500" is ¥500 and $500, and those
+    // are 500 and 50,000 minor units. Nothing about the text tells you which.
+    await setCurrency("USD");
+    const asDollars = minorUnitsFrom("500", await currencyForEvent(eventId));
+
+    await setCurrency("JPY");
+    const asYen = minorUnitsFrom("500", await currencyForEvent(eventId));
+
+    expect(asDollars).toBe(50_000);
+    expect(asYen).toBe(500);
+  });
+
+  it("refuses an exact split whose shares were parsed in the previous currency", async () => {
+    /**
+     * THE STALE MEMO, reproduced as a payload.
+     *
+     * A ¥3,000 bill split ¥1,000 / ¥2,000. The bill total is parsed fresh —
+     * MoneyClient computes it inline on every render — while the shares come
+     * from a memo still holding the dollar parser. So the amount says 3000
+     * and the shares say 100,000 and 200,000.
+     */
+    await setCurrency("USD");
+    const stale = (text: string) => minorUnitsFrom(text, "USD");
+    await setCurrency("JPY");
+    const fresh = (text: string) => minorUnitsFrom(text, "JPY");
+
+    const res = await addExpense({
+      description: `${TAG} clubhouse round`,
+      amountCents: fresh("3000"),
+      paidBy: aki,
+      shares: [
+        { playerId: aki, weight: 1, amountCents: stale("1000") },
+        { playerId: ben, weight: 1, amountCents: stale("2000") },
+      ],
+    });
+
+    expect(res.ok, "a hundred-fold split must never be banked").toBe(false);
+    // The message names both figures, and the gap between them is the tell.
+    expect(res.error).toMatch(/300,?000/);
+    expect(await prisma.expense.count({ where: { eventId } })).toBe(0);
+  });
+
+  it("accepts the same split once the shares follow the CURRENT currency", async () => {
+    /**
+     * The fix, end to end: the memo depends on the parser, so after the switch
+     * the shares are parsed in yen like the bill is, and the identical form
+     * the person was looking at goes through.
+     */
+    const yen = (text: string) => minorUnitsFrom(text, "JPY");
+    expect(await currencyForEvent(eventId), "setup: the club is in yen").toBe("JPY");
+
+    const res = await addExpense({
+      description: `${TAG} clubhouse round`,
+      amountCents: yen("3000"),
+      paidBy: aki,
+      shares: [
+        { playerId: aki, weight: 1, amountCents: yen("1000") },
+        { playerId: ben, weight: 1, amountCents: yen("2000") },
+      ],
+    });
+    expect(res.ok, res.error).toBe(true);
+
+    const row = await prisma.expense.findFirst({
+      where: { eventId },
+      select: { amountCents: true },
+    });
+    expect(row?.amountCents, "¥3,000 is 3000 minor units").toBe(3000);
+
+    const stored = await prisma.expenseShare.findMany({
+      where: { expense: { eventId } },
+      select: { playerId: true, amountCents: true },
+    });
+    expect(
+      stored.find((s) => s.playerId === aki)?.amountCents,
+      "and each share is yen too, not a hundred times it",
+    ).toBe(1000);
+    expect(stored.find((s) => s.playerId === ben)?.amountCents).toBe(2000);
+  });
+
+  it("refuses multi-payer amounts still parsed in the previous currency", async () => {
+    /**
+     * `payers` is the second memo with the same fault, and it fails the same
+     * way — against a different guard, because what everybody PAID has to
+     * total the bill just as what everybody OWES does.
+     */
+    await setCurrency("USD");
+    const stale = (text: string) => minorUnitsFrom(text, "USD");
+    await setCurrency("JPY");
+
+    const res = await addExpense({
+      description: `${TAG} two payers`,
+      amountCents: minorUnitsFrom("3000", "JPY"),
+      paidBy: aki,
+      payers: [
+        { playerId: aki, amountCents: stale("1000") },
+        { playerId: ben, amountCents: stale("2000") },
+      ],
+    });
+
+    expect(res.ok, "credits a hundred times the bill must not stand").toBe(false);
+    expect(res.error).toMatch(/300,?000/);
+    expect(await prisma.expense.count({ where: { eventId } })).toBe(0);
   });
 });
