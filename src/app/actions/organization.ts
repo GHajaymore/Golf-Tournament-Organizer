@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { sendStaffInviteEmail } from "@/lib/email";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 import { refusalFor } from "@/lib/services/limits";
 import {
@@ -72,11 +73,52 @@ export async function addOrganizationMember(email: string, name: string, role: s
     create: { email: cleanEmail, name: name.trim() },
   });
 
+  /**
+   * Whether this is a NEW membership, checked before the upsert writes one.
+   *
+   * The upsert cannot tell us afterwards, and the difference matters: being
+   * given access is news, having your role changed from member to admin is
+   * not. Emailing on every save would turn a correction into a second
+   * invitation and train people to ignore the first.
+   */
+  const existingMembership = await prisma.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: org.organizationId, userId: user.id } },
+    select: { id: true },
+  });
+
   await prisma.organizationMember.upsert({
     where: { organizationId_userId: { organizationId: org.organizationId, userId: user.id } },
     update: { role: cleanOrgRole(role) },
     create: { organizationId: org.organizationId, userId: user.id, role: cleanOrgRole(role) },
   });
+
+  if (!existingMembership) {
+    /**
+     * Awaited but never allowed to fail the action.
+     *
+     * `sendStaffInviteEmail` swallows its own errors by design, so this cannot
+     * throw — but it is awaited rather than left dangling because a server
+     * action's work must finish before the response, and a floating promise in
+     * a serverless function is one the runtime may kill mid-send.
+     *
+     * The membership is already written at this point. That ordering is
+     * deliberate: an invitation that fails to send leaves a person with access
+     * and no notification, which an organizer can fix by telling them. A
+     * membership that fails to write because an email bounced would leave the
+     * organizer believing they had added someone they had not.
+     */
+    const club = await prisma.organization.findUnique({
+      where: { id: org.organizationId },
+      select: { name: true },
+    });
+    await sendStaffInviteEmail(cleanEmail, {
+      organizationName: club?.name ?? "",
+      organizationId: org.organizationId,
+      role: cleanOrgRole(role),
+      hasPassword: Boolean(user.password),
+      toName: user.name ?? "",
+    });
+  }
 
   revalidatePath("/", "layout");
   return { ok: true };

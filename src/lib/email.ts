@@ -291,3 +291,87 @@ export async function sendRegistrationEmail(
     });
   }
 }
+
+/**
+ * Tell somebody an organizer just gave them access.
+ *
+ * Adding staff created a `User` and an `OrganizationMember` and then said
+ * nothing at all, so the person had no idea an account existed for them. The
+ * organizer had to message them out of band, and the app's own instruction —
+ * "claim the account by signing up" — was one nobody had been given.
+ *
+ * Fire-and-forget, exactly like the registration confirmation and for the same
+ * reason: the membership is already written and correct, and a bounced
+ * invitation must never undo it. Without `RESEND_API_KEY` this no-ops, which is
+ * every developer machine.
+ *
+ * The wording splits on whether they can already sign in, because the two
+ * situations need different instructions and guessing wrong wastes the one
+ * email they will read. Someone with a password just signs in; someone without
+ * has to set one first, and the sign-in screen routes them there once it
+ * recognises club staff as provisioned — which it did not until the change
+ * this ships alongside.
+ */
+export async function sendStaffInviteEmail(
+  to: string,
+  opts: {
+    organizationName: string;
+    /** So a failure can be shown to the club it happened in. */
+    organizationId: string;
+    /** "owner" | "admin" | "assistant" | "member" — shown as-is. */
+    role: string;
+    /** Whether they already have a password, which changes the instruction. */
+    hasPassword: boolean;
+    /** For the follow-up: an organizer needs to know who to chase. */
+    toName?: string;
+  },
+): Promise<void> {
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping staff invite to ${maskEmail(to)}.`);
+    return;
+  }
+
+  const club = opts.organizationName || "a club";
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const line = opts.hasPassword
+    ? `<p>Sign in with this email address and you will see it: <a href="${base}">${base}</a></p>`
+    : `<p>You do not have a password yet. Go to <a href="${base}">${base}</a>, enter this email address, and it will walk you through setting one.</p>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to,
+      subject: `You have been added to ${club} on TourneyHQ`,
+      html:
+        `<p>An organizer at <strong>${club}</strong> has given you ${opts.role} access on TourneyHQ.</p>` +
+        line +
+        `<p>If you were not expecting this, you can ignore it — nothing happens until you sign in.</p>`,
+    });
+    if (error) {
+      console.error(`[email] Resend rejected the staff invite for ${maskEmail(to)}: ${error.message}`);
+      await recordFailure({
+        kind: "invite",
+        reason: classifySendFailure(error.message, (error as { statusCode?: number }).statusCode),
+        detail: error.message,
+        organizationIds: [opts.organizationId],
+        // The address IS kept here, unlike a reset. An organizer who invited
+        // someone already knows they invited them, so this leaks nothing they
+        // did not type themselves — and without it they cannot tell WHICH
+        // invitation failed, which is the only thing they can act on.
+        toEmail: to,
+        toName: opts.toName ?? "",
+      });
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "unknown error";
+    console.error(`[email] Failed sending staff invite to ${maskEmail(to)}: ${message}`);
+    await recordFailure({
+      kind: "invite",
+      reason: classifySendFailure(message),
+      detail: message,
+      organizationIds: [opts.organizationId],
+      toEmail: to,
+      toName: opts.toName ?? "",
+    });
+  }
+}
