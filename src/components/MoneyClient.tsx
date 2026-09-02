@@ -124,30 +124,45 @@ export function MoneyClient({ view }: { view: MoneyView }) {
    * IS a weight out of a hundred and the ledger should not carry two ways of
    * saying the same thing. Everything else sends weights.
    */
-  const shares = useMemo(
-    () =>
-      shareIds.map((playerId) => {
-        if (splitMode === "exact") {
-          return { playerId, weight: 1, amountCents: centsFrom(typed[playerId] ?? "") };
-        }
-        if (splitMode === "percent") {
-          return { playerId, weight: Math.max(0, Math.round(Number(typed[playerId] ?? "") || 0)) };
-        }
-        if (splitMode === "shares") return { playerId, weight: weights[playerId] ?? 1 };
-        return { playerId, weight: 1 };
-      }),
-    [shareIds, splitMode, typed, weights],
-  );
+  /**
+   * NOT memoized, deliberately.
+   *
+   * This was a `useMemo` that called `centsFrom` and did not depend on it, and
+   * the bug that produced is the reason for the comment. `centsFrom` is
+   * `useMoney().parse`, bound to the club's CURRENCY, so it takes a new
+   * identity whenever that currency changes — and it changes under a MOUNTED
+   * screen, because every money action here ends in `revalidatePath("/",
+   * "layout")`, the layout re-reads the club's currency, and React delivers the
+   * new context value without unmounting. The memo went on returning amounts
+   * parsed in the currency the club had LEFT, while `cents` above — computed
+   * inline — had already moved to the new one. A hundred-fold disagreement
+   * between two numbers on the same form, and a split whose figures visibly add
+   * up refusing to submit.
+   *
+   * Adding the parser to the dependency array fixes it, but leaves the trap
+   * armed for the next person to edit this list. Nothing here needs a stable
+   * identity — `shares` is summed a few lines down and sent on submit, never
+   * passed to a memoized child — so the memo bought nothing and risked exactly
+   * this. A map over the field is cheap; recomputing it every render makes the
+   * stale parse UNREPRESENTABLE rather than merely currently-correct.
+   */
+  const shares = shareIds.map((playerId) => {
+    if (splitMode === "exact") {
+      return { playerId, weight: 1, amountCents: centsFrom(typed[playerId] ?? "") };
+    }
+    if (splitMode === "percent") {
+      return { playerId, weight: Math.max(0, Math.round(Number(typed[playerId] ?? "") || 0)) };
+    }
+    if (splitMode === "shares") return { playerId, weight: weights[playerId] ?? 1 };
+    return { playerId, weight: 1 };
+  });
 
-  const payers = useMemo(
-    () =>
-      manyPayers
-        ? shareIdsAndField
-            .map((playerId) => ({ playerId, amountCents: centsFrom(paidAmounts[playerId] ?? "") }))
-            .filter((p) => p.amountCents !== 0)
-        : [],
-    [manyPayers, paidAmounts, shareIdsAndField],
-  );
+  /** Not memoized, for the same reason as `shares` above. */
+  const payers = manyPayers
+    ? shareIdsAndField
+        .map((playerId) => ({ playerId, amountCents: centsFrom(paidAmounts[playerId] ?? "") }))
+        .filter((p) => p.amountCents !== 0)
+    : [];
 
   /**
    * The two sums a person can get wrong, checked here so the answer arrives
