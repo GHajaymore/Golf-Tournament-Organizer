@@ -115,15 +115,44 @@ async function recordFailure(input: {
   }
 }
 
-/** The organizations that would want to know an address could not be reached. */
-async function organizationsFor(email: string): Promise<string[]> {
+/**
+ * The organizations that would want to know an address could not be reached.
+ *
+ * There are TWO ways an address belongs to a club, and this used to look at one.
+ *
+ * `Member` is the club roster — the players an organizer entered, who mostly
+ * never signed up for anything. `OrganizationMember` is the staff link between a
+ * `User` and an organization, and it carries no email of its own; the address
+ * lives on the `User` it points at. An organizer who never put themselves on
+ * their own roster exists only in the second table.
+ *
+ * So a failed PASSWORD RESET for an organizer returned no organizations, and
+ * `recordFailure` drops anything with an empty list — no row, no Access-screen
+ * card, nothing. That is the worst possible person to lose the signal for: they
+ * are the one who can fix the mail configuration, and the reset form cannot tell
+ * them anything either (saying a send failed would leak which addresses are
+ * registered). The failure was invisible from every direction at once, and the
+ * one screen that would have shown it is behind the sign-in they cannot
+ * complete.
+ *
+ * Both tables now, de-duplicated: an organizer who IS also on their own roster
+ * is one organization, not two rows saying the same thing.
+ */
+export async function organizationsFor(email: string): Promise<string[]> {
   try {
-    const rows = await prisma.member.findMany({
-      where: { email },
-      select: { organizationId: true },
-      distinct: ["organizationId"],
-    });
-    return rows.map((r) => r.organizationId);
+    const [roster, staff] = await Promise.all([
+      prisma.member.findMany({
+        where: { email },
+        select: { organizationId: true },
+        distinct: ["organizationId"],
+      }),
+      prisma.organizationMember.findMany({
+        where: { user: { email } },
+        select: { organizationId: true },
+        distinct: ["organizationId"],
+      }),
+    ]);
+    return [...new Set([...roster, ...staff].map((r) => r.organizationId))];
   } catch {
     return [];
   }
