@@ -266,6 +266,37 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
     if (!cleanPhone) return { ok: false, error: "Enter a mobile number for this player." };
     if (!looksLikePhone(cleanPhone)) return { ok: false, error: "That doesn't look like a phone number." };
   }
+  /**
+   * The same de-duplication the public form has always done.
+   *
+   * This was the one entry path without it, so an organizer typing in somebody
+   * who had already self-registered — the ordinary case of "put me down" after
+   * a player has used the link — created a SECOND row for one person: two
+   * places against capacity, two tee slots, two rows in the standings, two
+   * stakes in an opt-out pot and two shares of every split expense.
+   *
+   * Reported rather than silently merged. `register.ts` returns `already` and
+   * says "you're already registered" warmly, which is right for a stranger
+   * re-using a link; an organizer typing a name in needs to know why nothing
+   * happened, because they are looking at a field they believe is short by one.
+   *
+   * Case-insensitive, matching the public form: the same address arrives from a
+   * CSV, a phone keyboard and a committee laptop in three different casings.
+   */
+  const duplicate = await prisma.player.findFirst({
+    where: { eventId, email: { equals: cleanEmail, mode: "insensitive" } },
+    select: { name: true, status: true },
+  });
+  if (duplicate) {
+    return {
+      ok: false,
+      error:
+        duplicate.status === "withdrawn"
+          ? `${duplicate.name} is already entered with that email but has withdrawn — re-enter them from the roster rather than adding a second entry.`
+          : `${duplicate.name} is already in the field with that email.`,
+    };
+  }
+
   const confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   const maxSeed = await prisma.player.aggregate({ where: { eventId }, _max: { seed: true } });
   const unlimited = event.capacity <= 0; // 0 = open / unlimited field
@@ -325,6 +356,28 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
   if (patch.email !== undefined) {
     const cleanEmail = patch.email.trim().toLowerCase();
     if (cleanEmail && !EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
+    /**
+     * Correcting an email must not create the duplicate `addSignup` now refuses.
+     *
+     * Typing an address a different entry already holds produces exactly the
+     * same two-rows-one-person state, arrived at from the other direction —
+     * and the correction that looks like tidying up is what causes it.
+     * Scoped `id: { not: playerId }` so re-saving a player's own address, or
+     * changing only its casing, is not treated as a clash.
+     */
+    if (cleanEmail && cleanEmail !== oldEmail) {
+      const taken = await prisma.player.findFirst({
+        where: {
+          eventId,
+          id: { not: playerId },
+          email: { equals: cleanEmail, mode: "insensitive" },
+        },
+        select: { name: true },
+      });
+      if (taken) {
+        return { ok: false, error: `${taken.name} is already entered with that email.` };
+      }
+    }
     data.email = cleanEmail;
     emailChanged = cleanEmail !== oldEmail;
   }
