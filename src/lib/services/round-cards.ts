@@ -19,19 +19,37 @@ import { prisma } from "@/lib/db";
  * placeholder — so it is not counted, and an untouched round reports zero and
  * changes without a fuss.
  */
-export async function enteredCardCount(eventId: string, stageId: string): Promise<number> {
+export async function enteredCardCount(eventId: string, stageId?: string): Promise<number> {
+  /**
+   * Omit the round to ask about the WHOLE EVENT.
+   *
+   * Added for the destructive organizer actions — regenerating flights,
+   * resizing the field — which until now asked `scoredMatchCount`, and that
+   * counted Round Robin matches and nothing else. For a medal, a knockout, a
+   * team event or a bracket it returned zero, so the "this will destroy
+   * results" confirmation never appeared and certified cards were discarded in
+   * silence.
+   *
+   * This function already unions every place a score can live, and its own
+   * header calls the resize guard "the app already refuses-then-reports". It
+   * did not: it refused on a count that could not see most of the app. Asking
+   * one question of one place is the point.
+   */
+  const round = stageId ? { stageId } : {};
+  const throughMatch = stageId ? { match: { stageId } } : {};
+
   const [stroke, team, match, matchHoles] = await Promise.all([
     prisma.scorecard.findMany({
-      where: { eventId, stageId },
+      where: { eventId, ...round },
       select: { strokes: true },
     }),
     prisma.teamScorecard.findMany({
-      where: { eventId, stageId },
+      where: { eventId, ...round },
       select: { strokes: true },
     }),
     // Match cards are keyed on the match, so the round is reached through it.
     prisma.matchScorecard.findMany({
-      where: { eventId, match: { stageId } },
+      where: { eventId, ...throughMatch },
       select: { strokes: true },
     }),
     /**
@@ -43,7 +61,10 @@ export async function enteredCardCount(eventId: string, stageId: string): Promis
      * through. Found by pointing the guard at a real round rather than by
      * reading it back.
      */
-    prisma.match.findMany({ where: { stageId }, select: { holes: true } }),
+    prisma.match.findMany({
+      where: stageId ? { stageId } : { eventId },
+      select: { holes: true },
+    }),
   ]);
 
   const cards = [...stroke, ...team, ...match].filter((r) => hasAStroke(r.strokes)).length;
