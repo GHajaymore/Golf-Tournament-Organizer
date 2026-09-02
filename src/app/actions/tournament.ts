@@ -3422,13 +3422,57 @@ export async function clearRoundScores(
    *  match they appear in. */
   playerIds: string[] = [],
 ): Promise<ClearScoresOutcome> {
-  const eventId = await requireStaffEvent();
+  /**
+   * ADMIN, not staff.
+   *
+   * This deletes results. `reopenScorecard` — which only moves ONE card from
+   * approved back to entered, and destroys nothing — is admin-only, and so is
+   * every other door near it. This one erased a whole round and was open to an
+   * assistant, which is the wrong way round.
+   */
+  const eventId = await requireAdminEvent();
   await assertUnlocked(eventId);
 
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
   if (!stage) return { ok: false, cleared: 0, error: "That round isn't in this tournament." };
 
   const scoped = playerIds.filter((id) => typeof id === "string" && id.length > 0);
+
+  /**
+   * A COMMITTEE-APPROVED CARD IS A RESULT, and this refuses to erase one.
+   *
+   * `status: "approved"` means the committee has accepted the card — the schema
+   * says "only now is it a result" — and `approvedBy`/`approvedAt` record who
+   * did it. All of that went with the row, silently, on a control whose own
+   * copy says the round "can simply be scored again". It cannot: re-entering
+   * the strokes does not restore who approved them or when.
+   *
+   * Refused outright rather than skipped. Clearing the unapproved cards and
+   * leaving the approved ones would produce a half-erased round — some players
+   * with results, some without, no record of which — and that is a state a
+   * committee cannot defend to the people in it. Reopening a card is one click
+   * and is already audited, so the way through is explicit rather than
+   * incidental.
+   */
+  const approved = await prisma.scorecard.count({
+    where: {
+      eventId,
+      stageId,
+      status: "approved",
+      ...(scoped.length ? { playerId: { in: scoped } } : {}),
+    },
+  });
+  if (approved > 0) {
+    return {
+      ok: false,
+      cleared: 0,
+      error:
+        approved === 1
+          ? "One card here has been approved by the committee. Reopen it first — clearing an approved card would delete the result and the record of who signed it off."
+          : `${approved} cards here have been approved by the committee. Reopen them first — clearing an approved card would delete the result and the record of who signed it off.`,
+    };
+  }
+
   let cleared = 0;
 
   // ── Stroke cards ────────────────────────────────────────────────────────
@@ -3487,6 +3531,29 @@ export async function clearRoundScores(
       where: { eventId, stageId },
       data: { frozen: null, frozenAt: null },
     });
+  }
+
+  /**
+   * Recorded, because nothing else will be.
+   *
+   * Deleting a round's scores leaves no trace of itself — the rows are simply
+   * gone, and the screen afterwards looks exactly like a round nobody has
+   * played yet. Every neighbouring destructive action writes an audit line;
+   * this one wrote nothing, so "the scores have vanished" had no answer.
+   *
+   * Written after the deletes so the count is what actually happened rather
+   * than what was intended, and only when something was cleared: an audit log
+   * that records no-ops is one people stop reading.
+   */
+  if (cleared > 0) {
+    await logAudit(
+      eventId,
+      null,
+      "clear-round-scores",
+      scoped.length
+        ? `Cleared ${cleared} score${cleared === 1 ? "" : "s"} for ${scoped.length} player${scoped.length === 1 ? "" : "s"} in round "${stage.description?.trim() || stage.type}"`
+        : `Cleared ${cleared} score${cleared === 1 ? "" : "s"} from round "${stage.description?.trim() || stage.type}"`,
+    );
   }
 
   await refresh();
