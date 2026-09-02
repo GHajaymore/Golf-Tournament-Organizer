@@ -451,7 +451,10 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
       orderBy: { seed: "asc" },
     });
     if (next) {
-      await prisma.player.update({ where: { id: next.id }, data: { status: "confirmed" } });
+      await prisma.player.update({
+        where: { id: next.id },
+        data: { status: "confirmed", promotedAt: new Date() },
+      });
       // The promise the registration email made — "we'll be in touch if a
       // place opens" — kept at the moment the place actually opens.
       await notifyFieldChange(eventId, [{ email: next.email, name: next.name }], "promoted");
@@ -756,7 +759,10 @@ export async function applyManualCount(target: number, force = false): Promise<R
     const excess = confirmed.slice(t);
     await prisma.player.updateMany({
       where: { id: { in: excess.map((p) => p.id) } },
-      data: { status: "waitlisted" },
+      // Cleared, or somebody moved back OFF the field would keep a badge
+      // reading "Promoted 2 days ago" — a true statement about a player who is
+      // no longer in it, which is worse than saying nothing.
+      data: { status: "waitlisted", promotedAt: null },
     });
     /**
      * The direction that must never be silent.
@@ -781,7 +787,7 @@ export async function applyManualCount(target: number, force = false): Promise<R
     if (wait.length) {
       await prisma.player.updateMany({
         where: { id: { in: wait.map((p) => p.id) } },
-        data: { status: "confirmed" },
+        data: { status: "confirmed", promotedAt: new Date() },
       });
       await notifyFieldChange(
         eventId,

@@ -1,6 +1,7 @@
 "use client";
 import { registrationStatus, formatDeadline } from "@/lib/registration";
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
+import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
 import { useState, useRef, useTransition } from "react";
 import { addSignup, removeSignup, removeSignups, updateSignup, importCsvSignups, setInviteMessage, type CsvImportResult } from "@/app/actions/tournament";
@@ -23,6 +24,8 @@ interface Signup {
   email?: string;
   phone?: string;
   flight?: string;
+  /** ISO string, set only for entries promoted off the waitlist. */
+  promotedAt?: string | null;
 }
 interface EventInfo {
   name: string;
@@ -354,7 +357,10 @@ export function RegistrationClient({
                 <tr key={p.id}>
                   <td><input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleSelect(p.id)} /></td>
                   <td className="text-muted">{i + 1}</td>
-                  <td style={{ fontWeight: 500 }}>{p.name}</td>
+                  <td style={{ fontWeight: 500 }}>
+                    {p.name}
+                    <PromotedBadge promotedAt={p.promotedAt} />
+                  </td>
                   {showTees && (
                     <td>
                       {/* Blank means the round's own set, which is a real
@@ -986,5 +992,52 @@ export function RegistrationClient({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * "Promoted 2 days ago", beside a player who came off the waitlist.
+ *
+ * The organizer's half of the promise the registration email makes. The player
+ * is asked to say within 48 hours if they can no longer play; this is how
+ * somebody notices that they have not, and picks up the phone.
+ *
+ * It is a prompt to chase, never a status. The player is in the field either
+ * way — nothing here is provisional, nothing expires, and no other screen has
+ * to know this badge exists.
+ *
+ * Rendered on the client on purpose: "2 days ago" against the reader's own
+ * clock is the point, and computing it on the server would freeze it at
+ * whatever the page was last rendered.
+ */
+function PromotedBadge({ promotedAt }: { promotedAt?: string | null }) {
+  const state = promotionState(promotedAt, Date.now());
+  if (state.kind === "none") return null;
+  const overdue = state.kind === "overdue";
+  return (
+    <span
+      // `text-muted` and the two tokens below are the ones this app actually
+      // defines. An invented `--color-warning` would resolve to nothing and the
+      // badge would inherit whatever was around it — wrong in a way that only
+      // shows up on one theme.
+      className={overdue ? undefined : "text-muted"}
+      title={
+        overdue
+          ? "Promoted off the waitlist and not heard from since — worth a call to confirm they are playing."
+          : "Promoted off the waitlist. They were asked to say within 48 hours if they cannot play."
+      }
+      style={{
+        marginLeft: 8,
+        fontSize: 11,
+        fontWeight: 500,
+        padding: "1px 7px",
+        borderRadius: 999,
+        whiteSpace: "nowrap",
+        color: overdue ? "var(--color-danger)" : undefined,
+        border: `1px solid ${overdue ? "var(--color-danger)" : "var(--color-divider)"}`,
+      }}
+    >
+      {state.label}
+    </span>
   );
 }

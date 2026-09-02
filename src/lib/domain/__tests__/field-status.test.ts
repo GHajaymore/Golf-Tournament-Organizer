@@ -41,10 +41,17 @@ describe("a player is told when their place in the field changes", () => {
   });
 
   it("notifies AFTER the status is written, never before", () => {
-    // A notification that beat the write would announce a change that then
-    // failed to happen. The database is the truth; the email reports it.
-    const promote = tournament.indexOf('data: { status: "confirmed" } });');
-    const tell = tournament.indexOf('], "promoted")');
+    /**
+     * A notification that beat the write would announce a change that then
+     * failed to happen. The database is the truth; the email reports it.
+     *
+     * Anchored on the STATUS CHANGE rather than on an exact literal. The first
+     * version of this test matched `data: { status: "confirmed" } });` and broke
+     * the moment a field was added to that same object — it was asserting the
+     * shape of one line, not the ordering it claimed to be about.
+     */
+    const promote = tournament.search(/data: \{ status: "confirmed"/);
+    const tell = tournament.search(/notifyFieldChange\(/);
     expect(promote).toBeGreaterThan(-1);
     expect(tell).toBeGreaterThan(promote);
   });
@@ -71,6 +78,51 @@ describe("a player is told when their place in the field changes", () => {
      * the course" is not.
      */
     expect(email).toContain("You are not currently in the field, so please do not travel to the course");
+  });
+});
+
+/**
+ * The organizer's half of the promise.
+ *
+ * The player is asked to say within 48 hours if they can no longer play.
+ * `promotedAt` is how anybody notices that they have not.
+ */
+describe("a promotion is recorded so it can be followed up", () => {
+  const tournament = src("src", "app", "actions", "tournament.ts");
+  const email = src("src", "lib", "email.ts");
+
+  it("stamps promotedAt when a withdrawal frees a place", () => {
+    expect(tournament).toMatch(/data: \{ status: "confirmed", promotedAt: new Date\(\) \}/);
+  });
+
+  it("stamps promotedAt when the field is enlarged", () => {
+    expect(tournament).toMatch(/data: \{ status: "confirmed", promotedAt: new Date\(\) \},/);
+  });
+
+  it("CLEARS promotedAt when a player is moved back off the field", () => {
+    /**
+     * Otherwise somebody demoted keeps a badge reading "Promoted 2 days ago" —
+     * a true sentence about a player who is no longer in the field, which is
+     * worse than showing nothing at all.
+     */
+    expect(tournament).toMatch(/data: \{ status: "waitlisted", promotedAt: null \}/);
+  });
+
+  it("asks for a reply in the same window the badge uses", () => {
+    // The email and the screen must agree about what 48 hours means, or the
+    // organizer chases somebody the software never asked to reply.
+    expect(email).toContain("within 48 hours");
+  });
+
+  it("does not claim the place is conditional", () => {
+    /**
+     * The decision behind this whole change: promotion is final, and the place
+     * is not held vacant pending a reply. The wording must not imply a deadline
+     * the software does not enforce — that would be a threat it never carries
+     * out, and the first player to test it would find out.
+     */
+    expect(email).toContain("there is nothing you need to do to accept it");
+    expect(email).not.toMatch(/your place will be (given|passed|released)/i);
   });
 });
 

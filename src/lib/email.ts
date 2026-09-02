@@ -439,8 +439,12 @@ export async function sendFieldStatusEmail(
     opts.change === "promoted"
       ? `<p>A place has opened in <strong>${opts.eventName}</strong> and you have moved off the waitlist.</p>` +
         heading +
-        `<p><strong>You are now confirmed in the field.</strong></p>` +
-        `<p>If you can no longer play, please tell the organizer as soon as you can - the place can then go to the next person on the list.</p>`
+        `<p><strong>You are now confirmed in the field.</strong> Your place is held - there is nothing you need to do to accept it.</p>` +
+        // Asks for a reply within the same window the organizer's screen uses
+        // to decide who to chase, so the message and the badge agree. It is a
+        // request, not a deadline: the place is theirs either way, and saying
+        // otherwise would be a threat the software does not carry out.
+        `<p>If you can no longer play, please tell the organizer <strong>within 48 hours</strong> so the place can go to the next person on the list.</p>`
       : `<p>The field for <strong>${opts.eventName}</strong> has been resized, and you have been moved to the waitlist.</p>` +
         heading +
         `<p><strong>You are not currently in the field, so please do not travel to the course expecting to play.</strong></p>` +
