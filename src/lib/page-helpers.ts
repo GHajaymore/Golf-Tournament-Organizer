@@ -1,12 +1,41 @@
 import "server-only";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { getSession, type Session } from "./auth";
 import { canAccessScreen, landingScreenFor } from "./roles";
+import { signInUrlFor } from "./domain/safe-next";
 import { loadEventState, type EventState } from "./services/tournament";
+
+/**
+ * The sign-in URL, remembering where this request was trying to go.
+ *
+ * The path comes from the headers `middleware.ts` sets, because a server
+ * component cannot see its own URL. If those headers are missing — a route the
+ * matcher excludes, or a render outside a request — this degrades to the plain
+ * sign-in page, which is exactly what happened before and is never wrong, only
+ * less helpful.
+ */
+async function signInUrl(): Promise<string> {
+  try {
+    const h = await headers();
+    const path = h.get("x-pathname");
+    if (!path) return "/";
+    return signInUrlFor(path, h.get("x-search") ?? "");
+  } catch {
+    return "/";
+  }
+}
 
 export async function requireSession(): Promise<Session> {
   const session = await getSession();
-  if (!session) redirect("/");
+  /**
+   * Sends them back afterwards instead of dropping them on the landing page.
+   *
+   * An organizer texts a player a link to the tee sheet; the player is not
+   * signed in, and used to arrive at the marketing page with no trace of where
+   * they had been going. On a phone, at a course, that is where you lose them.
+   */
+  if (!session) redirect(await signInUrl());
   return session;
 }
 

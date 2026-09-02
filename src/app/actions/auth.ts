@@ -6,6 +6,7 @@ import { createSession, destroySession, setPreviewRole, setActiveEvent, getSessi
 import { sendPasswordResetEmail } from "@/lib/email";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { passwordProblem } from "@/lib/domain/password";
+import { safeNextPath } from "@/lib/domain/safe-next";
 import { prisma } from "@/lib/db";
 import { effectiveAccess, hasAccess } from "@/lib/services/access";
 import { createOrganizationWithOwner } from "@/lib/services/organization";
@@ -17,6 +18,25 @@ const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
+}
+
+/**
+ * Where to send somebody once they are signed in.
+ *
+ * Always by way of `/choose`, never straight to the remembered path. `/choose`
+ * is what resolves WHICH tournament somebody means — it skips itself when there
+ * is only one, and shows the picker when there are several — and a deep link
+ * says nothing about that. Jumping directly to `/prizes` for somebody in two
+ * events would land them on whichever the cookie last happened to hold.
+ *
+ * The path is re-validated HERE rather than trusted from the form. This is a
+ * `"use server"` export, so it is a public HTTP endpoint that will be called
+ * with whatever the caller likes — the same reason `score-payload.ts` exists.
+ * A client that has been tampered with cannot turn this into an open redirect.
+ */
+function afterSignIn(next?: string | null): string {
+  const target = safeNextPath(next);
+  return target ? `/choose?next=${encodeURIComponent(target)}` : "/choose";
 }
 
 /**
@@ -42,6 +62,7 @@ async function startSessionFor(email: string): Promise<boolean> {
 export async function signInWithPassword(
   email: string,
   password: string,
+  next?: string,
 ): Promise<{ ok: boolean; error?: string; needsClaim?: boolean }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
@@ -69,7 +90,7 @@ export async function signInWithPassword(
   const signedIn = await startSessionFor(clean);
   if (!signedIn) return { ok: false, error: "Something went wrong." };
   await clearRateLimit("signin", clean);
-  redirect("/choose");
+  redirect(afterSignIn(next));
 }
 
 /**
@@ -82,7 +103,7 @@ export async function signInWithPassword(
  * every player and organizer whose address someone knows. `signUp` has always
  * refused to overwrite an existing password; this is the same rule.
  */
-export async function claimPassword(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+export async function claimPassword(email: string, password: string, next?: string): Promise<{ ok: boolean; error?: string }> {
   const clean = email.trim().toLowerCase();
   if (!clean || !EMAIL_RE.test(clean)) return { ok: false, error: "Enter a valid email address." };
 
@@ -133,7 +154,7 @@ export async function claimPassword(email: string, password: string): Promise<{ 
   await clearRateLimit("claim-password", clean);
   const signedIn = await startSessionFor(clean);
   if (!signedIn) return { ok: false, error: "Something went wrong." };
-  redirect("/choose");
+  redirect(afterSignIn(next));
 }
 
 /**
@@ -201,6 +222,13 @@ export async function resetPassword(token: string, password: string): Promise<{ 
 
   const signedIn = await startSessionFor(user.email);
   if (!signedIn) return { ok: false, error: "Password updated, but sign-in failed. Try logging in." };
+  /**
+   * No `next` here, deliberately. A reset arrives by following a link out of an
+   * email, so there is no interrupted journey to resume — the destination they
+   * were heading for was the reset itself. Threading one through would mean
+   * carrying it in the emailed URL, which is a live credential and not a place
+   * to put more parameters than it needs.
+   */
   redirect("/choose");
 }
 
@@ -230,6 +258,7 @@ export async function signUp(
   email: string,
   password: string,
   kind: string,
+  next?: string,
 ): Promise<{ ok: boolean; error?: string; needsClaim?: boolean }> {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
@@ -292,7 +321,7 @@ export async function signUp(
   }
 
   await createSession(user.id);
-  redirect("/choose");
+  redirect(afterSignIn(next));
 }
 
 /**

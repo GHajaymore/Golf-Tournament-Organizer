@@ -71,10 +71,27 @@ export function LoginPanel({
     setPassword("");
   };
 
+  /**
+   * Where this visitor was heading before being asked to sign in.
+   *
+   * Read at SUBMIT time rather than during render, on purpose: reading
+   * `window.location` while rendering would differ between the server pass and
+   * the browser one and produce a hydration mismatch, and nothing needs it
+   * until a form is actually sent.
+   *
+   * Passed on as-is. The server re-validates it — `afterSignIn` runs it through
+   * `safeNextPath` — because a `"use server"` export is a public endpoint and
+   * anything arriving from this component is only a suggestion.
+   */
+  const intendedNext = () => {
+    if (typeof window === "undefined") return undefined;
+    return new URLSearchParams(window.location.search).get("next") ?? undefined;
+  };
+
   const submitLogin = () => {
     setError("");
     startTransition(async () => {
-      const result = await signInWithPassword(email, password);
+      const result = await signInWithPassword(email, password, intendedNext());
       // A successful sign-in redirect()s server-side and never returns here.
       if (result.needsClaim) {
         setExtra("claim");
@@ -88,7 +105,7 @@ export function LoginPanel({
   const submitSignup = () => {
     setError("");
     startTransition(async () => {
-      const result = await signUp(name, email, password, kind);
+      const result = await signUp(name, email, password, kind, intendedNext());
       /**
        * Same branch signing in takes. An email that was invited but never
        * claimed goes to "Set your password", which says whose account it is,
@@ -106,7 +123,7 @@ export function LoginPanel({
   const submitClaim = () => {
     setError("");
     startTransition(async () => {
-      const result = await claimPassword(email, password);
+      const result = await claimPassword(email, password, intendedNext());
       if (!result.ok) setError(result.error ?? "Something went wrong.");
     });
   };

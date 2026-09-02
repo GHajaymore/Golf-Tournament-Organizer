@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
 import { enterTournament, signOutAction } from "@/app/actions/auth";
 import { homeFor } from "@/lib/roles";
+import { safeNextPath } from "@/lib/domain/safe-next";
 import { prisma } from "@/lib/db";
 import { accessibleEvents } from "@/lib/services/access";
 import { ROLE_LABEL } from "@/lib/roles";
@@ -17,10 +18,10 @@ import { orgSetupState } from "@/lib/domain/org-setup";
 export default async function ChooseTournamentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ stay?: string }>;
+  searchParams: Promise<{ stay?: string; next?: string }>;
 }) {
   const session = await requireSession();
-  const { stay } = await searchParams;
+  const { stay, next } = await searchParams;
 
   // Includes tournaments reached through organization membership, not just
   // those with an explicit per-event account — otherwise a club admin can't
@@ -54,10 +55,23 @@ export default async function ChooseTournamentPage({
   // either — with a single account, getSession's "most recent tournament"
   // fallback already resolves to this one.
   if (accounts.length === 1 && !stay) {
-    // By role, not to the console. A player with one tournament was being sent
-    // to /dashboard — the organizer's screen, emptied by the role guards —
-    // while the player app sat one hand-typed URL away.
-    redirect(homeFor(accounts[0].role));
+    /**
+     * The remembered destination wins, when there is one.
+     *
+     * This is where a deep link finally lands: somebody followed a link to the
+     * tee sheet, was asked to sign in, and this is the first point at which
+     * their one tournament is known. Re-validated rather than trusted — it
+     * arrived as a query parameter and could say anything.
+     *
+     * Only in the single-tournament branch. With several, `next` says nothing
+     * about WHICH one was meant, and sending them somewhere on the wrong
+     * tournament is worse than showing the picker they would have seen anyway.
+     *
+     * Falls back to landing BY ROLE. A player with one tournament used to be
+     * sent to /dashboard — the organizer's screen, emptied by the role guards —
+     * while the player app sat one hand-typed URL away.
+     */
+    redirect(safeNextPath(next) ?? homeFor(accounts[0].role));
   }
 
   return (
