@@ -5,7 +5,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { createSession, destroySession, setPreviewRole, setActiveEvent, getSession, hashPassword, verifyPasswordHash } from "@/lib/auth";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
-import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
+import { passwordProblem } from "@/lib/domain/password";
 import { prisma } from "@/lib/db";
 import { effectiveAccess } from "@/lib/services/access";
 import { createOrganizationWithOwner } from "@/lib/services/organization";
@@ -14,13 +14,6 @@ import { homeFor } from "@/lib/roles";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
-
-function passwordProblem(password: string): string | null {
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    return `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
-  }
-  return null;
-}
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -94,7 +87,10 @@ export async function claimPassword(email: string, password: string): Promise<{ 
   const limit = await checkRateLimit("claim-password", clean);
   if (!limit.allowed) return { ok: false, error: limit.message };
 
-  const weak = passwordProblem(password);
+  // The address is the only thing known about them at this point, and it is
+  // enough for the rule that matters here: an invited assistant claiming an
+  // account should not set their password to their own email local part.
+  const weak = passwordProblem(password, { email: clean });
   if (weak) return { ok: false, error: weak };
 
   const accounts = await prisma.account.findMany({ where: { email: clean } });
@@ -154,13 +150,30 @@ export async function requestPasswordReset(email: string): Promise<{ ok: boolean
 /** Complete a password reset from the emailed link. */
 export async function resetPassword(token: string, password: string): Promise<{ ok: boolean; error?: string }> {
   if (!token) return { ok: false, error: "Missing reset token." };
-  const weak = passwordProblem(password);
-  if (weak) return { ok: false, error: weak };
 
+  /**
+   * The link is checked BEFORE the password now, which is a deliberate
+   * reordering: there is no point telling someone their password is too short
+   * for a link that expired an hour ago, and they would fix the password, press
+   * the button again, and only then be told to start over.
+   *
+   * It also buys the account, and with it the name and address that
+   * `passwordProblem` needs to refuse a password that is simply who they are.
+   * Reset used to be the one path that could not make that check, so
+   * `annasmith` was refused at sign-up and accepted here — the same rule
+   * disagreeing with itself depending on which form you reached it through.
+   */
   const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash: hashToken(token) } });
   if (!record || record.usedAt || record.expiresAt < new Date()) {
     return { ok: false, error: "This reset link is invalid or has expired — request a new one." };
   }
+
+  const owner = await prisma.user.findUnique({
+    where: { id: record.userId },
+    select: { email: true, name: true },
+  });
+  const weak = passwordProblem(password, owner ?? undefined);
+  if (weak) return { ok: false, error: weak };
 
   const user = await prisma.user.update({ where: { id: record.userId }, data: { password: hashPassword(password) } });
   await prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
@@ -201,7 +214,9 @@ export async function signUp(
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanName) return { ok: false, error: "Enter your name." };
   if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
-  const weak = passwordProblem(password);
+  // Both are on the form being submitted, so this is the one path that can
+  // refuse a password made of the name typed two fields above it.
+  const weak = passwordProblem(password, { email: cleanEmail, name: cleanName });
   if (weak) return { ok: false, error: weak };
   if (!isOrgKind(kind)) return { ok: false, error: "Choose what you're organizing golf for." };
 

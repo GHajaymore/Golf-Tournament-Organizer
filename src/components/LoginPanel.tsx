@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from "@/app/actions/auth";
-import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
+import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
 import type { OrgKind } from "@/lib/domain/org-profile";
 
 /**
@@ -251,7 +251,9 @@ export function LoginPanel({
         {/* The email is stated above but not in the form, which leaves a
             password manager nothing to file the new credential against. */}
         <input type="hidden" name="email" value={email} autoComplete="username" readOnly />
-        <Field label="Create password" hint={`At least ${MIN_PASSWORD_LENGTH} characters`}>
+        {/* Claiming a provisioned account creates a password too, so it states
+            the same rule live rather than only in a vanishing placeholder. */}
+        <Field label="Create password" hint={passwordHint(password, { email })}>
           <PasswordInput
             value={password}
             onChange={setPassword}
@@ -387,15 +389,7 @@ export function LoginPanel({
            * asking. Logging in has no requirement to state — the rule belongs
            * to the password being CREATED, not to one already chosen.
            */
-          hint={
-            login
-              ? undefined
-              : password.length === 0 || password.length >= MIN_PASSWORD_LENGTH
-                ? `At least ${MIN_PASSWORD_LENGTH} characters`
-                : `${MIN_PASSWORD_LENGTH - password.length} more ${
-                    MIN_PASSWORD_LENGTH - password.length === 1 ? "character" : "characters"
-                  }`
-          }
+          hint={login ? undefined : passwordHint(password, { email, name })}
           action={
             login ? (
               <button
