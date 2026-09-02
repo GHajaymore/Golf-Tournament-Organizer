@@ -2,6 +2,7 @@ import "server-only";
 import { Resend } from "resend";
 import { prisma } from "@/lib/db";
 import { classifySendFailure, type EmailKind, type EmailFailureReason } from "@/lib/domain/email-trouble";
+import { appUrl } from "@/lib/domain/app-url";
 
 // Lazily constructed so a missing key doesn't crash module load — dev
 // environments without RESEND_API_KEY fall back to logging the link.
@@ -70,6 +71,23 @@ export function emailConfig(): EmailConfig {
       sandboxSender: true,
       problem:
         "Reset emails are sending from Resend's test address, which only delivers to your own inbox. Verify your domain and set RESEND_FROM_EMAIL so players actually receive them.",
+    };
+  }
+  /**
+   * Mail sends, and every link in it is broken.
+   *
+   * Reported last because it only matters once the two above are clear — but it
+   * is the most deceptive of the three. The provider accepts the message and
+   * reports success, so nothing anywhere fails; the recipient simply gets a
+   * link to `localhost` that opens nothing on their phone. Checked here because
+   * this is the one function an organizer already consults about mail.
+   */
+  if (appUrl().brokenLinks) {
+    return {
+      configured: true,
+      sandboxSender: false,
+      problem:
+        "Emails are sending, but every link inside them points at localhost, so nobody can use them. Set NEXT_PUBLIC_APP_URL to this site's address and redeploy.",
     };
   }
   return { configured: true, sandboxSender: false };
@@ -332,7 +350,7 @@ export async function sendStaffInviteEmail(
   }
 
   const club = opts.organizationName || "a club";
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const base = appUrl().base;
   const line = opts.hasPassword
     ? `<p>Sign in with this email address and you will see it: <a href="${base}">${base}</a></p>`
     : `<p>You do not have a password yet. Go to <a href="${base}">${base}</a>, enter this email address, and it will walk you through setting one.</p>`;

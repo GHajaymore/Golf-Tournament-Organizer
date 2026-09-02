@@ -7,6 +7,7 @@ import { sendPasswordResetEmail } from "@/lib/email";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { passwordProblem } from "@/lib/domain/password";
 import { safeNextPath } from "@/lib/domain/safe-next";
+import { appUrl } from "@/lib/domain/app-url";
 import { prisma } from "@/lib/db";
 import { effectiveAccess, hasAccess } from "@/lib/services/access";
 import { createOrganizationWithOwner } from "@/lib/services/organization";
@@ -177,7 +178,7 @@ export async function requestPasswordReset(email: string): Promise<{ ok: boolean
     await prisma.passwordResetToken.create({
       data: { userId: user.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
     });
-    const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const base = appUrl().base;
     // Result deliberately ignored. Returning a send failure here would make
     // this an oracle: a registered address would error while an unregistered
     // one succeeded, which is exactly the enumeration this function is
