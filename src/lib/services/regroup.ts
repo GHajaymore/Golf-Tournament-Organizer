@@ -2,6 +2,7 @@ import { COURSE_REF } from "./course-resolution";
 import { roundTeeId, flightTeeByPlayer } from "./handicaps";
 import "server-only";
 import { prisma } from "../db";
+import { enteredCardCount } from "./round-cards";
 import { formGroups, roundRobinSchedule } from "../domain";
 import { survivors, isCutScope, nextRoundFlights } from "../domain/cut";
 import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../domain";
@@ -26,34 +27,29 @@ import { chainRoundStandings, scoringFrom, parseMatchTiebreakers, roundRobinStag
  * exist (see handoff README); the UI previews the result before committing.
  */
 /**
- * How many Round Robin matches already have a hole result recorded.
+ * How many real results this event already holds, anywhere.
  *
- * Regenerating flights deletes and rebuilds every Round Robin match, so this
- * is the number that says whether doing so destroys real results. It counts
- * scored matches rather than reading `Event.status`, because status is a label
- * an organizer sets by hand — a tournament can be 83% played and still say
- * "draft" if nobody pressed Launch. Actual scores can't be forgotten about.
+ * The number that decides whether a destructive organizer action asks first.
+ * It counts results rather than reading `Event.status`, because status is a
+ * label an organizer sets by hand — a tournament can be 83% played and still
+ * say "draft" if nobody pressed Launch. Actual scores cannot be forgotten
+ * about.
+ *
+ * IT USED TO COUNT ONLY ROUND ROBIN MATCHES, and returned 0 the moment an
+ * event had no Round Robin stage. So for a medal, a knockout, a team event or
+ * a bracket the "this will destroy results" confirmation never appeared at
+ * all: `applyManualCount` moved players who had returned certified cards to
+ * the waitlist, emailed them about it, dropped their scores from the board and
+ * re-ranked the field, without asking. The guard was not weak — it was blind
+ * to most of the app.
+ *
+ * `enteredCardCount` already unions every place a score can live (stroke,
+ * team and match cards, plus hole results on the Match itself, which store no
+ * strokes at all). Asking it about the whole event is the same question these
+ * callers were always trying to ask.
  */
 export async function scoredMatchCount(eventId: string): Promise<number> {
-  const rrStages = await prisma.stage.findMany({
-    where: { eventId, type: "Round Robin" },
-    select: { id: true },
-  });
-  if (!rrStages.length) return 0;
-
-  const matches = await prisma.match.findMany({
-    where: { eventId, stageId: { in: rrStages.map((s) => s.id) } },
-    select: { holes: true },
-  });
-
-  return matches.filter((m) => {
-    try {
-      const holes = JSON.parse(m.holes) as unknown[];
-      return Array.isArray(holes) && holes.some((h) => h !== null);
-    } catch {
-      return false;
-    }
-  }).length;
+  return enteredCardCount(eventId);
 }
 
 /**
@@ -213,25 +209,78 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
     orderBy: { position: "asc" },
   });
 
+  /**
+   * The groups that already exist, so they can be REUSED rather than replaced.
+   *
+   * `Match.groupId` is `NOT NULL ON DELETE CASCADE`, so deleting a Group takes
+   * every match hanging off it with no further mention. This function was
+   * careful to scope its own match delete to the Round Robin stages — and then
+   * `group.deleteMany({ where: { eventId } })` threw that care away: it wiped
+   * every match in the EVENT, including a played Single Match Stage final and a
+   * bracket's third-place play-off, with their scorecards. No prompt, no audit
+   * row, nothing left to notice afterwards.
+   *
+   * `generateCutRound` already solves exactly this by keeping group rows and
+   * only creating what it lacks. Same approach here.
+   */
+  const existing = await prisma.group.findMany({
+    where: { eventId },
+    orderBy: { position: "asc" },
+    select: { id: true },
+  });
+
   await prisma.$transaction(async (tx) => {
     if (rrStages.length) {
       await tx.match.deleteMany({ where: { eventId, stageId: { in: rrStages.map((s) => s.id) } } });
     }
     await tx.player.updateMany({ where: { eventId }, data: { groupId: null } });
-    await tx.group.deleteMany({ where: { eventId } });
 
     const groupIdByEngineId = new Map<string, string>();
     for (let i = 0; i < groups.length; i += 1) {
       const g = groups[i];
-      const created = await tx.group.create({
-        data: { eventId, name: g.name, position: i },
-      });
-      groupIdByEngineId.set(g.id, created.id);
+      const reuse = existing[i]?.id;
+      let groupId: string;
+      if (reuse) {
+        // Renamed and repositioned in place. Any match still pointing here
+        // belongs to a stage this function does not touch, and survives.
+        await tx.group.updateMany({
+          where: { id: reuse, eventId },
+          data: { name: g.name, position: i },
+        });
+        groupId = reuse;
+      } else {
+        const created = await tx.group.create({ data: { eventId, name: g.name, position: i } });
+        groupId = created.id;
+      }
+      groupIdByEngineId.set(g.id, groupId);
       if (g.playerIds.length) {
         await tx.player.updateMany({
           where: { id: { in: g.playerIds } },
-          data: { groupId: created.id },
+          data: { groupId },
         });
+      }
+    }
+
+    /**
+     * Surplus groups, and only the ones nothing is still using.
+     *
+     * A shrinking field leaves spare rows. They are worth removing so the
+     * screens do not show an empty flight — but a row still referenced by a
+     * match on some other stage is load-bearing, and deleting it is the very
+     * cascade this change exists to stop. Left in place rather than risk it;
+     * an empty flight is a cosmetic problem, a deleted final is not.
+     */
+    const surplus = existing.slice(groups.length).map((g) => g.id);
+    if (surplus.length) {
+      const stillUsed = await tx.match.findMany({
+        where: { groupId: { in: surplus } },
+        select: { groupId: true },
+        distinct: ["groupId"],
+      });
+      const keep = new Set(stillUsed.map((m) => m.groupId));
+      const removable = surplus.filter((id) => !keep.has(id));
+      if (removable.length) {
+        await tx.group.deleteMany({ where: { id: { in: removable }, eventId } });
       }
     }
 

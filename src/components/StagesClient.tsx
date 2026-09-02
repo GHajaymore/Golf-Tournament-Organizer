@@ -536,6 +536,14 @@ function StageCard({
    * the server has counted.
    */
   const [formatCards, setFormatCards] = useState<{ format: string; cards: number } | null>(null);
+  /**
+   * What deleting this round would take with it.
+   *
+   * Null until the server refuses. Deleting a round deletes its matches, its
+   * cards and — through the cascade — its skins pot with every stake already
+   * collected, and the trash icon used to do all of that on one click.
+   */
+  const [removeCost, setRemoveCost] = useState<{ cards: number; stakes: number } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const commitFormat = (v: string) => {
@@ -856,6 +864,60 @@ function StageCard({
               </div>
             </div>
           )}
+
+          {/* Deleting a round is the one destructive control here that asked
+              nothing at all, while the format dropdown above it refuses. The
+              stake count is separate from the card count on purpose: cards can
+              be re-entered from the paper, and money cannot. */}
+          {removeCost && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: "8px 10px",
+                border: "1px solid var(--color-danger)",
+                borderRadius: 8,
+                fontSize: 12.5,
+                lineHeight: 1.55,
+              }}
+            >
+              <b style={{ color: "var(--color-danger)" }}>
+                <i className="ph ph-warning-circle" /> Deleting this round destroys{" "}
+                {removeCost.cards > 0 && (
+                  <>
+                    {removeCost.cards} entered card{removeCost.cards === 1 ? "" : "s"}
+                  </>
+                )}
+                {removeCost.cards > 0 && removeCost.stakes > 0 && " and "}
+                {removeCost.stakes > 0 && (
+                  <>
+                    {removeCost.stakes} paid stake{removeCost.stakes === 1 ? "" : "s"}
+                  </>
+                )}
+                .
+              </b>
+              <div className="text-muted" style={{ marginTop: 4 }}>
+                {removeCost.stakes > 0
+                  ? "The skins pot for this round goes with it, including the record of who has already paid in. That record is the only place the money is written down."
+                  : "The matches and cards go with it. There is no undo."}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={pending}
+                  onClick={() => {
+                    setRemoveCost(null);
+                    startTransition(() => void removeStage(stage.id, true));
+                  }}
+                >
+                  Delete the round anyway
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setRemoveCost(null)}>
+                  Keep it
+                </button>
+              </div>
+            </div>
+          )}
           {activePending && (
             <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
               This round is set to {activePending.name}, which can be configured but not yet
@@ -953,7 +1015,14 @@ function StageCard({
           className="btn btn-icon"
           title="Remove stage"
           disabled={pending}
-          onClick={() => startTransition(() => removeStage(stage.id))}
+          onClick={() =>
+            startTransition(async () => {
+              // The server refuses when the round holds results or money, and
+              // says how much of each. An empty round still deletes on one press.
+              const res = await removeStage(stage.id);
+              if (res?.needsConfirm) setRemoveCost({ cards: res.cards ?? 0, stakes: res.stakes ?? 0 });
+            })
+          }
         >
           <i className="ph ph-trash" />
         </button>

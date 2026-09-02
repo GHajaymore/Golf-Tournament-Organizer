@@ -1415,11 +1415,35 @@ export async function addStage(
   return firstId;
 }
 
-export async function removeStage(stageId: string) {
+export async function removeStage(stageId: string, force = false) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
+
+  /**
+   * Deleting a round deletes everything played in it.
+   *
+   * Matches, cards, and — through the cascade — the round's skins pot with
+   * every stake already collected. Behind one bare trash icon, with no prompt
+   * and no audit line, while changing that same round's FORMAT sixty lines
+   * above refuses when cards exist. The dangerous door was the unguarded one.
+   *
+   * `SkinsEntry.confirmed` means somebody has handed over cash. CLAUDE.md rule
+   * 7 says this app records money rather than moving it, which makes the record
+   * the only thing there is — losing it silently is losing the money.
+   */
+  if (!force) {
+    const [cards, stakes] = await Promise.all([
+      enteredCardCount(eventId, stageId),
+      prisma.skinsEntry.count({ where: { pot: { stageId }, confirmed: true } }),
+    ]);
+    if (cards > 0 || stakes > 0) {
+      return { ok: false as const, needsConfirm: true as const, cards, stakes };
+    }
+  }
+
   await prisma.stage.deleteMany({ where: { id: stageId, eventId } });
   await refresh();
+  return { ok: true as const };
 }
 
 /* ── Match score entry ────────────────────────────────────────────────── */
