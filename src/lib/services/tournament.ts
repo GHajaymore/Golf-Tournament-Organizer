@@ -1040,8 +1040,39 @@ export function matchProgress(state: EventState): { done: number; total: number;
   return { done, total, pct };
 }
 
-/** Build format-aware standings rows for the leaderboard/dashboard tables. */
+/**
+ * Build format-aware standings rows for the leaderboard/dashboard tables.
+ *
+ * REFUSES A HAND-SCORED ROUND, rather than trusting the caller to ask first.
+ *
+ * `isManualFormat` was a guard every result path had to remember to call, and
+ * CLAUDE.md names it as the example of why that shape does not hold: "a guard
+ * you must remember to call is a guard that will be forgotten". It was. Six of
+ * the seven callers asked `boardKind` or `usesStandardBoard` before calling
+ * this; `services/me.ts` did not, so the PLAYER'S OWN screen showed a rank and
+ * a "T2" for a round the leaderboard explicitly refuses to score.
+ *
+ * The comment above that call read "the same standingRows the leaderboard
+ * renders — never a second calculation, which is how two screens come to
+ * disagree about who is winning". Which was the exact outcome: the leaderboard
+ * returns a ManualRoundBoard and never reaches this function, so for a manual
+ * round the two screens disagreed, and the one contradicting the organizer was
+ * the one the player looks at.
+ *
+ * So the check moves here, where it cannot be skipped. Every existing caller
+ * already avoids reaching this for a manual round, so none of them change
+ * behaviour; what changes is that a caller ADDED LATER is correct without
+ * knowing this rule exists.
+ *
+ * Deliberately only manual. Team and engine rounds are also not this board's
+ * business, but every caller returns early for those and refusing them here
+ * would be a behaviour change dressed as a guard. Manual is the one the
+ * docstring on `isManualFormat` calls out: a round the app does not score must
+ * never reach a scoring path at all.
+ */
 export function standingRows(state: EventState): StandingRow[] {
+  if (isManualFormat(state.activeStage?.format ?? "")) return [];
+
   const flightByPlayer = new Map(
     state.groups.flatMap((g, i) =>
       state.confirmed.filter((p) => p.groupId === g.id).map((p) => [p.id, `Flight ${i + 1}`] as const),

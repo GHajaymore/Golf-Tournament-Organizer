@@ -132,16 +132,32 @@ describe("every format, on every stage type", () => {
         // stage type — that flag is the ONLY thing standing between it and a
         // scoring engine.
         //
-        // Note what this cannot assert: `EntryMode` has no "manual" member, so
+        // What this still cannot assert: `EntryMode` has no "manual" member, so
         // the manual format resolves to a normal entry mode like any other and
-        // the app will happily offer it a card. Every path that produces a
-        // result has to remember to call isManualFormat first, and the audit
-        // found one that does not — the leaderboard checks only the ACTIVE
-        // stage, so a hand-scored round mixed with a scored one gets ranked.
-        // A guard you must remember to call is a guard that will be forgotten.
+        // the app will happily offer it a card. That is deliberate — the round
+        // IS played and the cards ARE kept; what must not happen is anything
+        // ranking them.
+        //
+        // This note used to say a caller had to remember `isManualFormat` and
+        // that one did not. Both halves are now closed, and neither could be
+        // proven from a format name alone, so both are asserted against real
+        // rows instead:
+        //
+        //   mixed rounds  - `strokeRounds` filters manual stages out of the
+        //                   aggregate, so a hand-scored round sharing an event
+        //                   with a scored one is not added into it.
+        //   the sink      - `standingRows` refuses a manual active stage
+        //                   itself, so a caller written later is correct
+        //                   without knowing the rule exists. That was the one
+        //                   that was forgotten: services/me.ts ranked a round
+        //                   the leaderboard would not.
+        //
+        // See manual-round-standings.audit.test.ts.
         if (isManualFormat(format)) {
           expect(isManualFormat(format)).toBe(true);
           expect(findFormat(format).name).toBe(format);
+          // Never scored, whatever stage type it is sitting on.
+          expect(findFormat(format).scored).toBe(false);
         }
       });
     }
