@@ -1,12 +1,12 @@
 import "server-only";
-import { COURSE_REF, courseForRound } from "./course-resolution";
+import { COURSE_REF, courseForRound, cardForStage } from "./course-resolution";
 import { roundHandicapRows } from "./round-handicap";
 import { roundHandicapOf } from "../domain/round-handicap";
 import { teeSetupFor, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { playSkins } from "../domain/skins";
-import { rankStrokeIndex } from "../domain/stroke";
-import { courseHandicapMap } from "../domain/handicap";
+import { rankStrokeIndex, holeStrokesReceived } from "../domain/stroke";
+import { courseHandicapMap, holesPlayed } from "../domain/handicap";
 import {
   skinsPot,
   settle,
@@ -168,6 +168,23 @@ export async function skinsPotFor(
     ? await prisma.course.findUnique({ where: { id: stage.courseId } })
     : null;
   const course = courseForRound(roundCourse, event) ?? resolveCourse(event);
+
+  /**
+   * The card the ROUND was played on, before the pot's scope narrows it again.
+   *
+   * `Stage.nine` was selected in the query above and never read. On a nine-hole
+   * round `scopeRange` returns holes 0..9 whatever the scope, so a round played
+   * on the BACK nine was priced off the FRONT nine's stroke index: the strokes
+   * landed on the wrong holes, a different player won the skin, and the money
+   * moved to them. `/live` shows the correct winner the whole time, because the
+   * board resolves the card properly — so the two disagreed and only the pot
+   * paid out.
+   *
+   * `cardForStage` is the one sanctioned way to narrow a card to the holes a
+   * round was played on, and this file was not among those calling it.
+   */
+  const roundCard = cardForStage(course, stage);
+
   /**
    * Ranked 1..N for the holes actually being played.
    *
@@ -175,7 +192,8 @@ export async function skinsPotFor(
    * nine of a normal card is 1,3,5,…,17 — while the allocation compares them
    * against 1..9. See rankStrokeIndex for what that did to the pot.
    */
-  const strokeIndex = rankStrokeIndex(course.strokeIndex.slice(from, to));
+  const roundStrokeIndex = roundCard.strokeIndex;
+  const strokeIndex = rankStrokeIndex(roundStrokeIndex.slice(from, to));
 
   const parse = (s: string): (number | null)[] => {
     try {
@@ -218,6 +236,8 @@ export async function skinsPotFor(
   // of the pot, which is exactly why entrants are stored rather than inferred.
   const inPot = players.filter((p) => entrantIds.includes(p.id));
   const holeCount = to - from;
+  /** 9 or 18, never anything else — the round's own length, not the pot's. */
+  const roundHoles = holesPlayed(stage.holes);
 
   /**
    * A real Course Handicap, not the Index off the player row.
@@ -248,7 +268,20 @@ export async function skinsPotFor(
     })),
     teeRatings,
     teeSetup.defaultTeeId,
-    holeCount === 9 ? 9 : 18,
+    /**
+     * The ROUND's hole count, not the pot's.
+     *
+     * This passed the pot's, so a front-nine pot on an eighteen-hole round
+     * computed a nine-hole Course Handicap here — while the FROZEN round
+     * handicap, which overrides it a few lines below, is an eighteen-hole
+     * number (see `freezeRoundHandicaps`, which converts on `stage.holes`).
+     * Two different bases feeding one comparison, and whichever won decided
+     * how much money moved.
+     *
+     * Both are now the round's basis, and the conversion to the pot's holes
+     * happens once, below, where it can be reasoned about.
+     */
+    roundHoles,
     // Net skins are priced off the same tees the round is scored from. A
     // single-tee competition that allocated skins strokes off a player's
     // stored preference would pay money on a handicap nobody played to.
@@ -275,13 +308,46 @@ export async function skinsPotFor(
    */
   const round = await roundHandicapRows(eventId, stageId);
 
+  /**
+   * The strokes a player actually receives on THIS POT'S holes.
+   *
+   * A round handicap describes the whole round. A front- or back-nine pot
+   * covers half of it, and the stroke index handed to `playSkins` has been
+   * re-ranked 1..9 for those holes — so passing the round's number unchanged
+   * allocated an eighteen-hole handicap across nine holes. A 14 received
+   * fourteen strokes over nine, roughly double what he was owed, and the pot
+   * paid out on it.
+   *
+   * Counted rather than halved. Halving looks right and is wrong on one of the
+   * two nines whenever the handicap is odd: a 15 receives strokes on stroke
+   * indexes 1..15, which on a standard card is eight holes out on the front
+   * and seven on the back, and `Math.round(15 / 2)` is eight for both. Asking
+   * the app's own allocator how many strokes land on each of these specific
+   * holes is exact for any handicap and any stroke-index layout, including a
+   * course whose odd indexes are on the back nine.
+   *
+   * The count is then correct to hand back as a handicap, because allocating
+   * `k` strokes over the re-ranked 1..9 lands them on the `k` lowest original
+   * indexes among those holes — the same set the full round would have given.
+   */
+  const potHoleIndexes = roundStrokeIndex.slice(from, to);
+  const strokesForPot = (roundHandicap: number): number => {
+    if (holeCount === roundHoles) return roundHandicap;
+    return potHoleIndexes.reduce(
+      (sum, si) => sum + holeStrokesReceived(roundHandicap, si, roundHoles),
+      0,
+    );
+  };
+
   const outcome = playSkins(
     inPot.map((p) => ({
       playerId: p.id,
       strokes: (strokesBy.get(p.id) ?? []).slice(from, to),
       // Falls back to the Index only when the course has no tees on file at
       // all, which is the old behaviour and the best available guess.
-      courseHandicap: roundHandicapOf(round.get(p.id), courseHcp.get(p.id) ?? p.handicap),
+      courseHandicap: strokesForPot(
+        roundHandicapOf(round.get(p.id), courseHcp.get(p.id) ?? p.handicap),
+      ),
     })),
     holeCount,
     { net, strokeIndex },
