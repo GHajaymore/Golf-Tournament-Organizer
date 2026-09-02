@@ -45,6 +45,7 @@ import {
 } from "@/lib/domain/round-handicap";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
+import { notifyFieldChange } from "@/lib/services/field-notify";
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
 import { parseSingleMatchRule } from "@/lib/domain/single-match";
 import { singleMatchFor } from "@/lib/services/single-match";
@@ -449,7 +450,12 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
       where: { eventId, status: "waitlisted" },
       orderBy: { seed: "asc" },
     });
-    if (next) await prisma.player.update({ where: { id: next.id }, data: { status: "confirmed" } });
+    if (next) {
+      await prisma.player.update({ where: { id: next.id }, data: { status: "confirmed" } });
+      // The promise the registration email made — "we'll be in touch if a
+      // place opens" — kept at the moment the place actually opens.
+      await notifyFieldChange(eventId, [{ email: next.email, name: next.name }], "promoted");
+    }
   }
   await refresh();
   return played ? "withdrawn" : "deleted";
@@ -752,6 +758,18 @@ export async function applyManualCount(target: number, force = false): Promise<R
       where: { id: { in: excess.map((p) => p.id) } },
       data: { status: "waitlisted" },
     });
+    /**
+     * The direction that must never be silent.
+     *
+     * These people were told "You're confirmed in the field" and are not any
+     * more. Nobody re-checks whether they are still entered, so without this
+     * they find out at the course.
+     */
+    await notifyFieldChange(
+      eventId,
+      excess.map((p) => ({ email: p.email, name: p.name })),
+      "waitlisted",
+    );
   } else if (confirmed.length < t) {
     let need = t - confirmed.length;
     // Promote waitlist first.
@@ -765,6 +783,11 @@ export async function applyManualCount(target: number, force = false): Promise<R
         where: { id: { in: wait.map((p) => p.id) } },
         data: { status: "confirmed" },
       });
+      await notifyFieldChange(
+        eventId,
+        wait.map((p) => ({ email: p.email, name: p.name })),
+        "promoted",
+      );
       need -= wait.length;
     }
     // Then pad with placeholders.

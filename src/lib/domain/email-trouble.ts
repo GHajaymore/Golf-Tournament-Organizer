@@ -29,7 +29,7 @@ export type EmailFailureReason =
   | "unconfigured";
 
 /** What the email was for. Drives the wording, and who is affected. */
-export type EmailKind = "registration" | "reset" | "invite";
+export type EmailKind = "registration" | "reset" | "invite" | "field";
 
 /**
  * Classify a provider error.
@@ -135,6 +135,16 @@ const KIND_WORDING: Record<EmailKind, (n: number) => string> = {
     n === 1
       ? "One staff invitation did not arrive, so that person does not know they have access yet."
       : `${n} staff invitations did not arrive, so those people do not know they have access yet.`,
+  /**
+   * Worded as the sharpest version of the consequence, because it is the only
+   * kind here where somebody may act on stale information rather than simply
+   * miss out: a player moved OFF the field who never heard can travel to the
+   * course expecting to play.
+   */
+  field: (n) =>
+    n === 1
+      ? "One player was not told their place in the field changed, so they may not know whether they are playing."
+      : `${n} players were not told their place in the field changed, so they may not know whether they are playing.`,
 };
 
 /** Who was affected, derived from the rows rather than from counts passed in. */
