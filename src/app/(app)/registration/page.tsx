@@ -64,6 +64,10 @@ export default async function RegistrationPage() {
         phone: p.phone,
         flight: flightByPlayer.get(p.id),
         teeId: p.teeId,
+        // Serialised, because a Date does not survive the server/client
+        // boundary as a Date. The badge is rendered from this on the client so
+        // "2 days ago" is relative to the reader's clock, not the server's.
+        promotedAt: p.promotedAt ? p.promotedAt.toISOString() : null,
       }))}
       waitlist={state.waitlist.map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, handicapType: p.handicapType, seed: p.seed, email: p.email, phone: p.phone }))}
       pendingEntries={state.players

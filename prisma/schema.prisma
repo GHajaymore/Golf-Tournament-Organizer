@@ -977,6 +977,24 @@ model Player {
   handicap Float   @default(0)
   seed     Int
   status   String  @default("confirmed") // confirmed | waitlisted | withdrawn
+  /**
+   * When this entry was moved off the waitlist into the field, if it was.
+   *
+   * Recorded so an organizer can see who has been promoted recently and not
+   * been heard from. The promotion itself is NOT provisional — the player is
+   * in the field the moment this is set, and their place is not held vacant
+   * pending a reply. A golf field is a fixed number of tee slots, and holding
+   * one empty for two days while somebody decides costs the club a player,
+   * which is the opposite of what a waitlist is for.
+   *
+   * So this drives a prompt to chase, not a state machine. Nothing reads it to
+   * decide whether the player is entered; `status` alone still answers that,
+   * which is why none of the forty-odd places that ask "is this player in the
+   * field" had to learn a new answer.
+   *
+   * Null for everyone who was never on the waitlist, which is most entries.
+   */
+  promotedAt DateTime?
 
   // Registration details
   email          String  @default("")

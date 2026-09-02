@@ -45,6 +45,7 @@ import {
 } from "@/lib/domain/round-handicap";
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
+import { notifyFieldChange } from "@/lib/services/field-notify";
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
 import { parseSingleMatchRule } from "@/lib/domain/single-match";
 import { singleMatchFor } from "@/lib/services/single-match";
@@ -449,7 +450,15 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
       where: { eventId, status: "waitlisted" },
       orderBy: { seed: "asc" },
     });
-    if (next) await prisma.player.update({ where: { id: next.id }, data: { status: "confirmed" } });
+    if (next) {
+      await prisma.player.update({
+        where: { id: next.id },
+        data: { status: "confirmed", promotedAt: new Date() },
+      });
+      // The promise the registration email made — "we'll be in touch if a
+      // place opens" — kept at the moment the place actually opens.
+      await notifyFieldChange(eventId, [{ email: next.email, name: next.name }], "promoted");
+    }
   }
   await refresh();
   return played ? "withdrawn" : "deleted";
@@ -750,8 +759,23 @@ export async function applyManualCount(target: number, force = false): Promise<R
     const excess = confirmed.slice(t);
     await prisma.player.updateMany({
       where: { id: { in: excess.map((p) => p.id) } },
-      data: { status: "waitlisted" },
+      // Cleared, or somebody moved back OFF the field would keep a badge
+      // reading "Promoted 2 days ago" — a true statement about a player who is
+      // no longer in it, which is worse than saying nothing.
+      data: { status: "waitlisted", promotedAt: null },
     });
+    /**
+     * The direction that must never be silent.
+     *
+     * These people were told "You're confirmed in the field" and are not any
+     * more. Nobody re-checks whether they are still entered, so without this
+     * they find out at the course.
+     */
+    await notifyFieldChange(
+      eventId,
+      excess.map((p) => ({ email: p.email, name: p.name })),
+      "waitlisted",
+    );
   } else if (confirmed.length < t) {
     let need = t - confirmed.length;
     // Promote waitlist first.
@@ -763,8 +787,13 @@ export async function applyManualCount(target: number, force = false): Promise<R
     if (wait.length) {
       await prisma.player.updateMany({
         where: { id: { in: wait.map((p) => p.id) } },
-        data: { status: "confirmed" },
+        data: { status: "confirmed", promotedAt: new Date() },
       });
+      await notifyFieldChange(
+        eventId,
+        wait.map((p) => ({ email: p.email, name: p.name })),
+        "promoted",
+      );
       need -= wait.length;
     }
     // Then pad with placeholders.

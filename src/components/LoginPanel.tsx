@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from "@/app/actions/auth";
-import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
+import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
 import type { OrgKind } from "@/lib/domain/org-profile";
 
 /**
@@ -71,10 +71,27 @@ export function LoginPanel({
     setPassword("");
   };
 
+  /**
+   * Where this visitor was heading before being asked to sign in.
+   *
+   * Read at SUBMIT time rather than during render, on purpose: reading
+   * `window.location` while rendering would differ between the server pass and
+   * the browser one and produce a hydration mismatch, and nothing needs it
+   * until a form is actually sent.
+   *
+   * Passed on as-is. The server re-validates it — `afterSignIn` runs it through
+   * `safeNextPath` — because a `"use server"` export is a public endpoint and
+   * anything arriving from this component is only a suggestion.
+   */
+  const intendedNext = () => {
+    if (typeof window === "undefined") return undefined;
+    return new URLSearchParams(window.location.search).get("next") ?? undefined;
+  };
+
   const submitLogin = () => {
     setError("");
     startTransition(async () => {
-      const result = await signInWithPassword(email, password);
+      const result = await signInWithPassword(email, password, intendedNext());
       // A successful sign-in redirect()s server-side and never returns here.
       if (result.needsClaim) {
         setExtra("claim");
@@ -88,7 +105,17 @@ export function LoginPanel({
   const submitSignup = () => {
     setError("");
     startTransition(async () => {
-      const result = await signUp(name, email, password, kind);
+      const result = await signUp(name, email, password, kind, intendedNext());
+      /**
+       * Same branch signing in takes. An email that was invited but never
+       * claimed goes to "Set your password", which says whose account it is,
+       * rather than silently having a password attached by the sign-up form.
+       */
+      if (result.needsClaim) {
+        setExtra("claim");
+        setPassword("");
+        return;
+      }
       if (!result.ok) setError(result.error ?? "Something went wrong.");
     });
   };
@@ -96,7 +123,7 @@ export function LoginPanel({
   const submitClaim = () => {
     setError("");
     startTransition(async () => {
-      const result = await claimPassword(email, password);
+      const result = await claimPassword(email, password, intendedNext());
       if (!result.ok) setError(result.error ?? "Something went wrong.");
     });
   };
@@ -251,7 +278,9 @@ export function LoginPanel({
         {/* The email is stated above but not in the form, which leaves a
             password manager nothing to file the new credential against. */}
         <input type="hidden" name="email" value={email} autoComplete="username" readOnly />
-        <Field label="Create password" hint={`At least ${MIN_PASSWORD_LENGTH} characters`}>
+        {/* Claiming a provisioned account creates a password too, so it states
+            the same rule live rather than only in a vanishing placeholder. */}
+        <Field label="Create password" hint={passwordHint(password, { email })}>
           <PasswordInput
             value={password}
             onChange={setPassword}
@@ -387,15 +416,7 @@ export function LoginPanel({
            * asking. Logging in has no requirement to state — the rule belongs
            * to the password being CREATED, not to one already chosen.
            */
-          hint={
-            login
-              ? undefined
-              : password.length === 0 || password.length >= MIN_PASSWORD_LENGTH
-                ? `At least ${MIN_PASSWORD_LENGTH} characters`
-                : `${MIN_PASSWORD_LENGTH - password.length} more ${
-                    MIN_PASSWORD_LENGTH - password.length === 1 ? "character" : "characters"
-                  }`
-          }
+          hint={login ? undefined : passwordHint(password, { email, name })}
           action={
             login ? (
               <button

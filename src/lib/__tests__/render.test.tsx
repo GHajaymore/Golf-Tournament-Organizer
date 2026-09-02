@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { TeamEntryMode } from "@/lib/domain/team-entry";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import { LoginPanel } from "@/components/LoginPanel";
-import { MIN_PASSWORD_LENGTH } from "@/lib/auth-constants";
+import { MIN_PASSWORD_LENGTH } from "@/lib/domain/password";
 
 /**
  * Do these screens actually render?

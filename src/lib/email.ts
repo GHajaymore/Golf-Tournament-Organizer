@@ -291,3 +291,194 @@ export async function sendRegistrationEmail(
     });
   }
 }
+
+/**
+ * Tell somebody an organizer just gave them access.
+ *
+ * Adding staff created a `User` and an `OrganizationMember` and then said
+ * nothing at all, so the person had no idea an account existed for them. The
+ * organizer had to message them out of band, and the app's own instruction —
+ * "claim the account by signing up" — was one nobody had been given.
+ *
+ * Fire-and-forget, exactly like the registration confirmation and for the same
+ * reason: the membership is already written and correct, and a bounced
+ * invitation must never undo it. Without `RESEND_API_KEY` this no-ops, which is
+ * every developer machine.
+ *
+ * The wording splits on whether they can already sign in, because the two
+ * situations need different instructions and guessing wrong wastes the one
+ * email they will read. Someone with a password just signs in; someone without
+ * has to set one first, and the sign-in screen routes them there once it
+ * recognises club staff as provisioned — which it did not until the change
+ * this ships alongside.
+ */
+export async function sendStaffInviteEmail(
+  to: string,
+  opts: {
+    organizationName: string;
+    /** So a failure can be shown to the club it happened in. */
+    organizationId: string;
+    /** "owner" | "admin" | "assistant" | "member" — shown as-is. */
+    role: string;
+    /** Whether they already have a password, which changes the instruction. */
+    hasPassword: boolean;
+    /** For the follow-up: an organizer needs to know who to chase. */
+    toName?: string;
+  },
+): Promise<void> {
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping staff invite to ${maskEmail(to)}.`);
+    return;
+  }
+
+  const club = opts.organizationName || "a club";
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const line = opts.hasPassword
+    ? `<p>Sign in with this email address and you will see it: <a href="${base}">${base}</a></p>`
+    : `<p>You do not have a password yet. Go to <a href="${base}">${base}</a>, enter this email address, and it will walk you through setting one.</p>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to,
+      subject: `You have been added to ${club} on TourneyHQ`,
+      html:
+        `<p>An organizer at <strong>${club}</strong> has given you ${opts.role} access on TourneyHQ.</p>` +
+        line +
+        `<p>If you were not expecting this, you can ignore it — nothing happens until you sign in.</p>`,
+    });
+    if (error) {
+      console.error(`[email] Resend rejected the staff invite for ${maskEmail(to)}: ${error.message}`);
+      await recordFailure({
+        kind: "invite",
+        reason: classifySendFailure(error.message, (error as { statusCode?: number }).statusCode),
+        detail: error.message,
+        organizationIds: [opts.organizationId],
+        // The address IS kept here, unlike a reset. An organizer who invited
+        // someone already knows they invited them, so this leaks nothing they
+        // did not type themselves — and without it they cannot tell WHICH
+        // invitation failed, which is the only thing they can act on.
+        toEmail: to,
+        toName: opts.toName ?? "",
+      });
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "unknown error";
+    console.error(`[email] Failed sending staff invite to ${maskEmail(to)}: ${message}`);
+    await recordFailure({
+      kind: "invite",
+      reason: classifySendFailure(message),
+      detail: message,
+      organizationIds: [opts.organizationId],
+      toEmail: to,
+      toName: opts.toName ?? "",
+    });
+  }
+}
+
+/**
+ * Which way a player moved between the field and the waitlist.
+ *
+ * Two directions, and they are not symmetrical. Being promoted is good news
+ * somebody will act on when they get round to it. Being demoted is information
+ * they need BEFORE they set off for the course.
+ */
+export type FieldChange = "promoted" | "waitlisted";
+
+/**
+ * Tell a player their place in the field changed.
+ *
+ * The registration email makes a promise in writing — "The field is full, so
+ * you're on the waitlist — we'll be in touch if a place opens" — and nothing
+ * kept it. Three paths moved players between `confirmed` and `waitlisted` and
+ * none of them told anybody:
+ *
+ *   - a confirmed player withdraws, and the earliest waitlisted is promoted
+ *   - the field is enlarged, and the waitlist is promoted in bulk
+ *   - the field is SHRUNK, and confirmed players are moved to the waitlist
+ *
+ * The third matters most, and it is not the one the promise is about. Every
+ * other silent transition leaves somebody pleasantly surprised; that one leaves
+ * a player who was told "You're confirmed in the field" standing at a golf
+ * course with no tee time. So the demotion wording states the consequence
+ * plainly rather than softening it, and says it in the first line — this is the
+ * message nobody may skim.
+ *
+ * Fire-and-forget, like every other send here: the field is already correct in
+ * the database, and a bounced notification must never undo a place in it.
+ */
+export async function sendFieldStatusEmail(
+  to: string,
+  opts: {
+    change: FieldChange;
+    eventName: string;
+    /** Free text, as the organizer typed it — "12-14 June", "Saturday". */
+    eventDates: string;
+    eventCourse: string;
+    /** So a failure can be shown to the club it happened in. */
+    organizationId: string;
+    eventId: string;
+    /** For the follow-up: an organizer needs to know who to call. */
+    toName?: string;
+  },
+): Promise<void> {
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping field-status email to ${maskEmail(to)}.`);
+    return;
+  }
+
+  const where = [opts.eventDates, opts.eventCourse].filter((s) => s.trim()).join(" &middot; ");
+  const heading = where ? `<p>${where}</p>` : "";
+
+  const subject =
+    opts.change === "promoted"
+      ? `A place has opened - you're in the field for ${opts.eventName}`
+      : `Your place in ${opts.eventName} has changed`;
+
+  const body =
+    opts.change === "promoted"
+      ? `<p>A place has opened in <strong>${opts.eventName}</strong> and you have moved off the waitlist.</p>` +
+        heading +
+        `<p><strong>You are now confirmed in the field.</strong> Your place is held - there is nothing you need to do to accept it.</p>` +
+        // Asks for a reply within the same window the organizer's screen uses
+        // to decide who to chase, so the message and the badge agree. It is a
+        // request, not a deadline: the place is theirs either way, and saying
+        // otherwise would be a threat the software does not carry out.
+        `<p>If you can no longer play, please tell the organizer <strong>within 48 hours</strong> so the place can go to the next person on the list.</p>`
+      : `<p>The field for <strong>${opts.eventName}</strong> has been resized, and you have been moved to the waitlist.</p>` +
+        heading +
+        `<p><strong>You are not currently in the field, so please do not travel to the course expecting to play.</strong></p>` +
+        `<p>You keep your place in the queue, and we will be in touch if a place opens again. If you think this is a mistake, contact the organizer.</p>`;
+
+  try {
+    const { error } = await resend.emails.send({ from: FROM, to, subject, html: body });
+    if (error) {
+      console.error(`[email] Resend rejected the field-status email for ${maskEmail(to)}: ${error.message}`);
+      await recordFailure({
+        kind: "field",
+        reason: classifySendFailure(error.message, (error as { statusCode?: number }).statusCode),
+        detail: error.message,
+        organizationIds: [opts.organizationId],
+        eventId: opts.eventId,
+        // The address is kept, as for registration and unlike a reset. The
+        // organizer entered this player themselves, so it leaks nothing they
+        // did not already have, and "who do I need to phone" is the only useful
+        // thing to do about a notification that did not arrive.
+        toEmail: to,
+        toName: opts.toName ?? "",
+      });
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "unknown error";
+    console.error(`[email] Failed sending field-status email to ${maskEmail(to)}: ${message}`);
+    await recordFailure({
+      kind: "field",
+      reason: classifySendFailure(message),
+      detail: message,
+      organizationIds: [opts.organizationId],
+      eventId: opts.eventId,
+      toEmail: to,
+      toName: opts.toName ?? "",
+    });
+  }
+}

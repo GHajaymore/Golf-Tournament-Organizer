@@ -29,7 +29,7 @@ export type EmailFailureReason =
   | "unconfigured";
 
 /** What the email was for. Drives the wording, and who is affected. */
-export type EmailKind = "registration" | "reset";
+export type EmailKind = "registration" | "reset" | "invite" | "field";
 
 /**
  * Classify a provider error.
@@ -88,48 +88,71 @@ export function summariseEmailTrouble(rows: EmailFailureRow[], now: number): Ema
 
   const quota = recent.filter((r) => r.reason === "quota");
   if (quota.length > 0) {
-    const regs = quota.filter((r) => r.kind === "registration").length;
-    const resets = quota.filter((r) => r.kind === "reset").length;
-    return {
+        return {
       severity: "danger",
       count: quota.length,
       title: `${quota.length} ${quota.length === 1 ? "email was" : "emails were"} refused — the mail allowance is used up`,
       detail:
-        `${describeWho(regs, resets)} Entries and accounts are unaffected — only the email failed. ` +
+        `${describeWho(quota)} Entries and accounts are unaffected — only the email failed. ` +
         `The daily allowance resets overnight; raise the plan on the mail provider if this keeps happening on registration day.`,
     };
   }
 
   const failed = recent.filter((r) => r.reason === "rejected");
   if (failed.length > 0) {
-    const regs = failed.filter((r) => r.kind === "registration").length;
-    const resets = failed.filter((r) => r.kind === "reset").length;
-    return {
+        return {
       severity: "warning",
       count: failed.length,
       title: `${failed.length} ${failed.length === 1 ? "email was" : "emails were"} not delivered`,
-      detail: `${describeWho(regs, resets)} Usually a mistyped address — worth checking the address on the roster.`,
+      detail: `${describeWho(failed)} Usually a mistyped address — worth checking the address on the roster.`,
     };
   }
 
   return null;
 }
 
-function describeWho(registrations: number, resets: number): string {
+/**
+ * What each kind of failure means to the person who did not get the email.
+ *
+ * A `Record<EmailKind, ...>` rather than a chain of ifs, so that adding a kind
+ * without saying what it means is a COMPILE ERROR rather than a silent
+ * omission. The previous version took two positional counts, which meant a
+ * third kind would have been counted in the headline — "3 emails were refused"
+ * — and then left out of the sentence explaining who, so the number and the
+ * description would quietly disagree. That is the class of bug this file exists
+ * to prevent, and it was one `EmailKind` away from committing it.
+ */
+const KIND_WORDING: Record<EmailKind, (n: number) => string> = {
+  registration: (n) =>
+    n === 1
+      ? "One player did not get their registration confirmation."
+      : `${n} players did not get their registration confirmation.`,
+  reset: (n) =>
+    n === 1
+      ? "One password reset link did not arrive, so that person cannot sign back in."
+      : `${n} password reset links did not arrive, so those people cannot sign back in.`,
+  invite: (n) =>
+    n === 1
+      ? "One staff invitation did not arrive, so that person does not know they have access yet."
+      : `${n} staff invitations did not arrive, so those people do not know they have access yet.`,
+  /**
+   * Worded as the sharpest version of the consequence, because it is the only
+   * kind here where somebody may act on stale information rather than simply
+   * miss out: a player moved OFF the field who never heard can travel to the
+   * course expecting to play.
+   */
+  field: (n) =>
+    n === 1
+      ? "One player was not told their place in the field changed, so they may not know whether they are playing."
+      : `${n} players were not told their place in the field changed, so they may not know whether they are playing.`,
+};
+
+/** Who was affected, derived from the rows rather than from counts passed in. */
+function describeWho(rows: EmailFailureRow[]): string {
   const parts: string[] = [];
-  if (registrations > 0) {
-    parts.push(
-      registrations === 1
-        ? "One player did not get their registration confirmation."
-        : `${registrations} players did not get their registration confirmation.`,
-    );
-  }
-  if (resets > 0) {
-    parts.push(
-      resets === 1
-        ? "One password reset link did not arrive, so that person cannot sign back in."
-        : `${resets} password reset links did not arrive, so those people cannot sign back in.`,
-    );
+  for (const kind of Object.keys(KIND_WORDING) as EmailKind[]) {
+    const n = rows.filter((r) => r.kind === kind).length;
+    if (n > 0) parts.push(KIND_WORDING[kind](n));
   }
   return parts.join(" ");
 }
