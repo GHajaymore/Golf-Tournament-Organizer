@@ -75,6 +75,21 @@ export const DEFAULT_POINTS_TABLE = [100, 80, 65, 55, 50, 45, 40, 36, 32, 29, 26
  * congested event outscore a clean one.
  */
 export function pointsForRank(table: number[], rank: number, tiedCount: number): number {
+  /**
+   * A rank below 1 is not a finishing position, and must score nothing.
+   *
+   * This table is 1-BASED, so `table[rank - 1]` on a rank of 0 reads
+   * `table[-1]` — undefined, contributing nothing — and then the loop below
+   * walks FORWARD into `table[0]`, which is the winner's points. A group of
+   * non-returners sharing rank 0 was therefore paid from the top of the table
+   * downwards, out-scoring the players who finished behind them.
+   *
+   * `finishOrderFor` no longer sends unranked players here, which is the real
+   * fix. This is the second lock on the same door: the function is exported and
+   * 1-based, and nothing in its signature says so.
+   */
+  if (!Number.isFinite(rank) || rank < 1) return 0;
+
   const n = Math.max(1, tiedCount);
   let sum = 0;
   for (let i = 0; i < n; i += 1) sum += table[rank - 1 + i] ?? 0;
