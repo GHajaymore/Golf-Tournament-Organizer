@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { emailTroubleFor } from "@/lib/services/email-trouble";
 import { TROUBLE_WINDOW_MS } from "@/lib/domain/email-trouble";
+import { organizationsFor } from "@/lib/email";
 
 /**
  * That a refused email actually reaches the screen, against a real database.
@@ -123,5 +124,102 @@ describe("what the Access screen is told", () => {
     });
     expect(rows.find((r) => r.kind === "registration")?.toEmail).toContain("player@");
     expect(rows.find((r) => r.kind === "reset")?.toEmail).toBe("");
+  });
+});
+
+/**
+ * Whose failure gets recorded at all.
+ *
+ * `recordFailure` drops anything with an empty organization list, so the lookup
+ * that builds that list decides whether a failure is visible or vanishes. It
+ * read the club ROSTER only — and an organizer is not necessarily on their own
+ * roster. They are a `User` joined through `OrganizationMember`, a table that
+ * holds no email of its own.
+ *
+ * So an organizer's failed password reset produced no row, no Access card and
+ * no signal of any kind, while a roster player's produced all three. That is
+ * exactly backwards: the organizer is the person who can fix the mail
+ * configuration, and the reset form is forbidden from telling them anything
+ * (it would leak which addresses are registered). Their only channel was a
+ * screen behind the sign-in they could not complete.
+ *
+ * Needs real rows because the whole bug lives in a join.
+ */
+describe("which organizations hear about a refused email", () => {
+  const T = "ZZ-ORGSFOR";
+  const rosterEmail = `${T.toLowerCase()}.player@example.invalid`;
+  const staffEmail = `${T.toLowerCase()}.organizer@example.invalid`;
+  const bothEmail = `${T.toLowerCase()}.both@example.invalid`;
+
+  let clubId = "";
+
+  async function scrub() {
+    const orgs = await prisma.organization.findMany({
+      where: { name: { startsWith: T } },
+      select: { id: true },
+    });
+    // OrganizationMember and Member both cascade from their organization, so
+    // the orgs and the users are the only things that need naming.
+    await prisma.organization.deleteMany({ where: { id: { in: orgs.map((o) => o.id) } } });
+    await prisma.user.deleteMany({ where: { email: { in: [staffEmail, bothEmail] } } });
+  }
+
+  beforeAll(async () => {
+    await scrub();
+    const club = await prisma.organization.create({ data: { name: `${T} club`, kind: "club" } });
+    clubId = club.id;
+
+    // A roster player: an email on Member, no User at all. This is the case
+    // that always worked.
+    await prisma.member.create({
+      data: { organizationId: clubId, name: "Zz Player", email: rosterEmail },
+    });
+
+    // An organizer: a User linked through OrganizationMember, and deliberately
+    // NOT on the roster. This is the case that was invisible.
+    const organizer = await prisma.user.create({
+      data: { email: staffEmail, name: "Zz Organizer" },
+    });
+    await prisma.organizationMember.create({
+      data: { organizationId: clubId, userId: organizer.id, role: "owner" },
+    });
+
+    // Someone who is both — to prove the two lookups are merged, not summed.
+    const both = await prisma.user.create({ data: { email: bothEmail, name: "Zz Both" } });
+    await prisma.organizationMember.create({
+      data: { organizationId: clubId, userId: both.id, role: "admin" },
+    });
+    await prisma.member.create({
+      data: { organizationId: clubId, name: "Zz Both", email: bothEmail },
+    });
+  });
+
+  afterAll(async () => {
+    // In a finally so a failing assertion still leaves the database clean — a
+    // fixture left behind is one someone later mistakes for real.
+    try {
+      await scrub();
+    } catch {
+      /* the outer afterAll disconnects */
+    }
+  });
+
+  it("still finds a roster player", async () => {
+    expect(await organizationsFor(rosterEmail)).toEqual([clubId]);
+  });
+
+  it("finds an organizer who is not on their own roster", async () => {
+    // The regression. This returned [] before, so the failure was dropped.
+    expect(await organizationsFor(staffEmail)).toEqual([clubId]);
+  });
+
+  it("reports a club once for someone who is both", async () => {
+    // Not [clubId, clubId] — recordFailure writes one row per id, so a
+    // duplicate would file the same failure against the same club twice.
+    expect(await organizationsFor(bothEmail)).toEqual([clubId]);
+  });
+
+  it("returns nothing for an address that belongs to no club", async () => {
+    expect(await organizationsFor(`${T.toLowerCase()}.nobody@example.invalid`)).toEqual([]);
   });
 });
