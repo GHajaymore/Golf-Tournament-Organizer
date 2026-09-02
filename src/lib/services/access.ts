@@ -239,3 +239,47 @@ export async function accessibleEvents(email: string): Promise<AccessibleEvent[]
 
   return [...byEvent.values()];
 }
+
+/**
+ * Whether this email already belongs to somebody here.
+ *
+ * ONE QUESTION, ONE ANSWER. Sign-in, claiming an account and signing up all
+ * need to know it, and each worked it out for itself — so they disagreed, and
+ * the disagreement had teeth.
+ *
+ * There are two ways to belong, exactly as there are two ways to be reachable
+ * by email (see `organizationsFor`, and the same fault fixed there). `Account`
+ * is access to ONE EVENT — a player or an event admin, keyed by `eventId` and
+ * email. `OrganizationMember` is club-level staff, created by
+ * `addOrganizationMember`, which writes no `Account` row at all.
+ *
+ * Both auth paths looked only at `Account`, so an assistant invited to a club
+ * but not yet added to a specific event was invisible to every route in:
+ *
+ *   log in  -> no Account, so no needsClaim; fell through to
+ *              "Wrong email or password", which is a lie — the email is right
+ *              and there simply is no password yet
+ *   claim   -> never routed there, and refused anyway with
+ *              "No tournament access found for this email"
+ *   forgot  -> requestPasswordReset only sends when a password already exists,
+ *              so nothing arrived and it reported success regardless
+ *   sign up -> silently upserted a password onto their existing row
+ *
+ * Which left sign-up as the only working door, entered with no sign that it was
+ * attaching to an invitation rather than creating something new.
+ *
+ * It lives here rather than beside the actions because a `"use server"` file
+ * turns every export into a public HTTP endpoint, and this one answers "does
+ * this address have an account?" — precisely the question the reset flow goes
+ * to such lengths not to answer. As a service export it is reachable by the
+ * actions and testable against real rows, without being callable from outside.
+ */
+export async function hasAccess(email: string): Promise<boolean> {
+  const clean = email.trim().toLowerCase();
+  if (!clean) return false;
+  const [events, orgs] = await Promise.all([
+    prisma.account.count({ where: { email: clean } }),
+    prisma.organizationMember.count({ where: { user: { email: clean } } }),
+  ]);
+  return events > 0 || orgs > 0;
+}

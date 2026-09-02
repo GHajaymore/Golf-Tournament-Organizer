@@ -89,6 +89,16 @@ export function LoginPanel({
     setError("");
     startTransition(async () => {
       const result = await signUp(name, email, password, kind);
+      /**
+       * Same branch signing in takes. An email that was invited but never
+       * claimed goes to "Set your password", which says whose account it is,
+       * rather than silently having a password attached by the sign-up form.
+       */
+      if (result.needsClaim) {
+        setExtra("claim");
+        setPassword("");
+        return;
+      }
       if (!result.ok) setError(result.error ?? "Something went wrong.");
     });
   };

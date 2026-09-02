@@ -7,7 +7,7 @@ import { sendPasswordResetEmail } from "@/lib/email";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { passwordProblem } from "@/lib/domain/password";
 import { prisma } from "@/lib/db";
-import { effectiveAccess } from "@/lib/services/access";
+import { effectiveAccess, hasAccess } from "@/lib/services/access";
 import { createOrganizationWithOwner } from "@/lib/services/organization";
 import { isOrgKind } from "@/lib/domain/org-profile";
 import { homeFor } from "@/lib/roles";
@@ -56,7 +56,9 @@ export async function signInWithPassword(
   const user = await prisma.user.findUnique({ where: { email: clean } });
 
   // Provisioned but never claimed — route to password setup, not an error.
-  if ((!user || !user.password) && (await prisma.account.count({ where: { email: clean } })) > 0) {
+  // Club staff count as provisioned too; they used to be told their password
+  // was wrong when the truth was that they had never set one.
+  if ((!user || !user.password) && (await hasAccess(clean))) {
     return { ok: false, needsClaim: true };
   }
 
@@ -93,8 +95,12 @@ export async function claimPassword(email: string, password: string): Promise<{ 
   const weak = passwordProblem(password, { email: clean });
   if (weak) return { ok: false, error: weak };
 
-  const accounts = await prisma.account.findMany({ where: { email: clean } });
-  if (accounts.length === 0) return { ok: false, error: "No tournament access found for this email." };
+  // Club staff have no Account row until they are added to a specific event,
+  // so checking only that table made claiming impossible for exactly the people
+  // an organizer had just invited.
+  if (!(await hasAccess(clean))) {
+    return { ok: false, error: "No tournament access found for this email." };
+  }
 
   const existing = await prisma.user.findUnique({ where: { email: clean } });
   if (existing?.password) {
@@ -104,10 +110,25 @@ export async function claimPassword(email: string, password: string): Promise<{ 
     };
   }
 
+  /**
+   * A name to file them under, when there is no User row yet.
+   *
+   * Only the `create` branch needs it, and only an event-provisioned person can
+   * reach it: club staff already have a User row from `addOrganizationMember`,
+   * so they take `update`. Falling back to the empty string rather than
+   * asserting a row exists — `hasAccess` may have been satisfied by an
+   * organization membership, in which case there is no Account to read a name
+   * from and the old `accounts[0].name` would have thrown.
+   */
+  const provisioned = await prisma.account.findFirst({
+    where: { email: clean },
+    select: { name: true },
+  });
+
   await prisma.user.upsert({
     where: { email: clean },
     update: { password: hashPassword(password) },
-    create: { email: clean, name: accounts[0].name, password: hashPassword(password) },
+    create: { email: clean, name: provisioned?.name ?? "", password: hashPassword(password) },
   });
   await clearRateLimit("claim-password", clean);
   const signedIn = await startSessionFor(clean);
@@ -209,7 +230,7 @@ export async function signUp(
   email: string,
   password: string,
   kind: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; needsClaim?: boolean }> {
   const cleanName = name.trim();
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanName) return { ok: false, error: "Enter your name." };
@@ -220,10 +241,30 @@ export async function signUp(
   if (weak) return { ok: false, error: weak };
   if (!isOrgKind(kind)) return { ok: false, error: "Choose what you're organizing golf for." };
 
-  // Don't let sign-up silently overwrite the password of an existing account.
   const existing = await prisma.user.findUnique({ where: { email: cleanEmail } });
-  if (existing && existing.password) {
+
+  // Already has a password: this is a person who forgot they had signed up.
+  if (existing?.password) {
     return { ok: false, error: "An account already exists for this email — log in instead." };
+  }
+
+  /**
+   * Invited, but never set a password. Route to the claim screen instead of
+   * quietly attaching one here.
+   *
+   * The upsert below would succeed and say nothing, so someone who had been
+   * added to a club as staff would "sign up", land in an organization full of
+   * other people's tournaments, and have no idea whether they had created an
+   * account or joined one. That happened, and the reasonable conclusion from
+   * the outside was that a SECOND account had been created — the opposite of
+   * what actually occurred.
+   *
+   * The claim screen already exists, already says "<email> has been invited to
+   * a tournament", and is where an unclaimed sign-in already goes. This makes
+   * sign-up agree with sign-in rather than quietly doing something else.
+   */
+  if (existing && (await hasAccess(cleanEmail))) {
+    return { ok: false, needsClaim: true };
   }
 
   const user = await prisma.user.upsert({
