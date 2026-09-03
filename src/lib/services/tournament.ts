@@ -898,12 +898,38 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       }
     }
   } else {
+    /**
+     * The same rule the stroke path above applies, on the match side.
+     *
+     * `overall` and `groupStandings` are built from EVERY confirmed player
+     * against only the active round's matches, so a player eliminated by an
+     * earlier cut — still confirmed, still attached to their flight — appears
+     * on 0 points with a hole differential of 0. Zero SORTS ABOVE a survivor
+     * who played and lost, whose differential is negative. So the eliminated
+     * player was seeded into the knockout and the survivor was left out, and
+     * the lit rows on the leaderboard said so all the way.
+     *
+     * The match-side test for holding a position is `stats.played`, which is
+     * what `series.ts` and `single-match.ts` already use; `ranked` exists only
+     * on a stroke standing.
+     *
+     * The fallback is the point of the `anyPlayed` check, and not optional. A
+     * pure knockout has no qualifying round at all, so nobody has played
+     * anything and `overall` is still its zero-point initialiser — filtering
+     * there would draw an EMPTY bracket for a perfectly ordinary event. When
+     * nothing has been contested, seed order is all there is to seed on, and
+     * that is the behaviour this has always had. `generateCutRound` guards the
+     * same edge the same way.
+     */
+    const anyPlayed = overall.some((rp) => rp.stats.played > 0);
+    const stillIn = (list: RankedPlayer[]) =>
+      anyPlayed ? list.filter((rp) => rp.stats.played > 0) : list;
     qualifierIds =
       event.qualifyMode === "overall"
-        ? new Set(overall.slice(0, event.qualifyOverall).map((rp) => rp.player.id))
+        ? new Set(stillIn(overall).slice(0, event.qualifyOverall).map((rp) => rp.player.id))
         : new Set(
             groupStandings.flatMap((gs) =>
-              gs.ranked.slice(0, event.qualifyPerGroup).map((rp) => rp.player.id),
+              stillIn(gs.ranked).slice(0, event.qualifyPerGroup).map((rp) => rp.player.id),
             ),
           );
   }

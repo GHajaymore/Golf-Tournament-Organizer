@@ -1004,8 +1004,27 @@ export async function regenGroups(
 export async function generateNextRound(stageId: string) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
-  await generateCutRound(eventId, stageId);
+  const result = await generateCutRound(eventId, stageId);
+  /**
+   * A refusal has to reach the screen, or it is the same silence as before.
+   *
+   * `generateCutRound` used to return void, so a round that could not be built
+   * looked exactly like one that had been: the button finished, the page
+   * revalidated, and the round was still empty. Only `no-results` carries a
+   * message, because it is the only one an organizer can act on — the others
+   * mean the caller sent an id for a stage that is not a playing round, which
+   * the UI does not offer.
+   */
+  if (!result.ok) {
+    return result.reason === "no-results"
+      ? {
+          ok: false as const,
+          error: `${result.roundName} has no scores yet. A cut taken now would rank the whole field on zero and advance the lowest handicaps. Enter that round's results first.`,
+        }
+      : { ok: false as const, error: "That round can't be generated." };
+  }
   await refresh();
+  return { ok: true as const };
 }
 
 /* ── Scoring rules ────────────────────────────────────────────────────── */
