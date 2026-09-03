@@ -6,6 +6,7 @@ import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows, type EventState } from "@/lib/services/tournament";
 import { filledHoles } from "@/lib/domain/card-approval";
 import { positionLabel } from "@/lib/domain/shared-position";
+import { roundLabel } from "@/lib/domain/round-label";
 
 /**
  * Everything the player-facing screens need about *this* person, in one place.
@@ -31,6 +32,24 @@ export async function myPlayerIds(eventId: string, email: string): Promise<Set<s
     select: { id: true },
   });
   return new Set(rows.map((r) => r.id));
+}
+
+/**
+ * "Round 3", or empty when a number would not help.
+ *
+ * The COUNT is `roundLabel`'s, not this file's. This grew its own — an index
+ * into `playRounds` — and `round-number-source.test.ts` refused it the moment
+ * the two arrived on the same branch, which is the guard doing exactly its
+ * job: a second counter is how the app came to call one round by two numbers.
+ *
+ * What stays here is the one rule that belongs to this screen: a tournament of
+ * a single round has nothing to tell apart, and "Stroke Play" says more to a
+ * player than "Round 1" does. Empty then, and empty for a stage that is not a
+ * playing round, which leaves the caller's own fallback in place.
+ */
+function roundNumberLabel(state: EventState, stageId: string): string {
+  if (state.playRounds.length < 2) return "";
+  return roundLabel(state.stages, stageId);
 }
 
 /** The course a round names, by id. Empty when it names none. */
@@ -221,7 +240,13 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       : null,
     round: {
       stageId: stage.id,
-      label: stage.description?.trim() || stage.type || "This round",
+      // A player has to be able to tell WHICH round this is. The fallback was
+      // the stage type, so an undescribed round read "Stroke Play" — true of
+      // every round in the tournament and therefore useless for telling them
+      // apart, and worse than useless while this screen was showing the wrong
+      // one. The number is what the play shell and the score-entry picker
+      // already call it.
+      label: stage.description?.trim() || roundNumberLabel(state, stage.id) || stage.type || "This round",
       holes,
       // A match is scored against an opponent and a team round on the side's
       // card; neither is a card this player owns or can return alone.
