@@ -117,7 +117,27 @@ export async function skinsPotFor(
 
   const [players, cards, tees] = await Promise.all([
     prisma.player.findMany({
-      where: { eventId, status: "confirmed" },
+      /**
+       * EVERY entry, not only the confirmed ones.
+       *
+       * This filtered to `status: "confirmed"`, so a player who paid into the
+       * pot and was later withdrawn disappeared from it entirely — their
+       * stake with them. The pot shrank by £20 after the money had been
+       * handed over: the Prizes screen printed "2 × £20.00 = £20.00", listed
+       * the withdrawn entrant as "—" because no name could be found for them,
+       * and the player who won every skin took nothing, because the pot they
+       * won was one stake short. The player's own money card still said £40,
+       * so the app disagreed with itself about a sum of cash.
+       *
+       * A stake is paid or it is not. Withdrawing from a tournament is not a
+       * refund — CLAUDE.md rule 7 says this app records money rather than
+       * moving it, which makes the record the only thing there is, and a
+       * record that quietly drops a payment is worse than no record.
+       *
+       * `status` comes back so the two questions stay separate below: whose
+       * money is in the pot, and who is still in the field to be offered one.
+       */
+      where: { eventId },
       /**
        * `teeId`, NOT `preferredTee`.
        *
@@ -130,7 +150,7 @@ export async function skinsPotFor(
        * assigned a different set. The same name-for-an-id fault that had a
        * tournament scoring against another course's stroke index.
        */
-      select: { id: true, name: true, handicap: true, handicapType: true, teeId: true },
+      select: { id: true, name: true, handicap: true, handicapType: true, teeId: true, status: true },
       orderBy: { seed: "asc" },
     }),
     prisma.scorecard.findMany({ where: { eventId, stageId } }),
@@ -224,7 +244,14 @@ export async function skinsPotFor(
     const g = sheet?.groups.find((x) => x.name === groupKey);
     return g && g.playerIds.length > 0 ? new Set(g.playerIds) : null;
   })();
-  const offered = groupIds ? players.filter((p) => groupIds.has(p.id)) : players;
+  /**
+   * Who may still be OFFERED the pot — the field, as it stands.
+   *
+   * Separate from whose stake is in it. A withdrawn player is not asked to
+   * join anything; a withdrawn player who already paid keeps their money in.
+   */
+  const inField = players.filter((p) => p.status === "confirmed");
+  const offered = groupIds ? inField.filter((p) => groupIds.has(p.id)) : inField;
 
   // Confirmed only. `pendingIds` is the asked-but-not-paid half, and the two
   // must not be added together anywhere: one is money and one is an intention.
@@ -232,8 +259,15 @@ export async function skinsPotFor(
   const pendingIds = (pot?.entrants ?? []).filter((e) => !e.confirmed).map((e) => e.playerId);
   const nameById = Object.fromEntries(players.map((p) => [p.id, p.name]));
 
-  // Only entrants play for the money. Someone can play the round and stay out
-  // of the pot, which is exactly why entrants are stored rather than inferred.
+  /**
+   * Whose money is in. Someone can play the round and stay out of the pot,
+   * which is exactly why entrants are stored rather than inferred — and
+   * someone can pay in and then not play, which is why this reads the whole
+   * field rather than only the players still in it.
+   *
+   * A withdrawn entrant wins nothing: `playSkins` works from returned scores
+   * and they have no card. What they keep is their stake in the prize.
+   */
   const inPot = players.filter((p) => entrantIds.includes(p.id));
   const holeCount = to - from;
   /** 9 or 18, never anything else — the round's own length, not the pot's. */
