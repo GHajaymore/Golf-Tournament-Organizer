@@ -73,7 +73,38 @@ test("a hole entered with no signal is kept on the phone", async ({ page, contex
   expect(stored, "the card was not written to the device").not.toBeNull();
   expect(JSON.parse(stored!).some((n: number | null) => n != null)).toBe(true);
 
+  /**
+   * Back online, and WAIT for the hole to land before this test is over.
+   *
+   * This used to stop at `setOffline(false)`, which starts the replay and does
+   * not wait for it. The write was still in flight when the NEXT test loaded
+   * the card: that test read the revision as it stood, this one's write landed
+   * a moment later, and the next queued card was refused — "This card also
+   * changed elsewhere — choose which to keep."
+   *
+   * Which was true. A queued card is written whole and the server is right to
+   * refuse one built on a revision that has moved; the fault was this line
+   * leaving a write in flight across a test boundary. It showed up as a
+   * timeout on `/saved/i` in the test after this one, on whichever of the three
+   * viewports lost the race, so it read as flake rather than as this.
+   *
+   * The `online` event is dispatched rather than assumed: the drain is what is
+   * being waited for, so it has to be provoked deterministically and not left
+   * to whether the browser happened to fire one.
+   */
   await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() =>
+          Object.keys(window.localStorage).filter((k) =>
+            k.startsWith("tourneyhq:pending-card:"),
+          ).length,
+        ),
+      { timeout: 20_000 },
+    )
+    .toBe(0);
 });
 
 test("it tells the scorer the truth: kept, not failed", async ({ page, context }) => {
