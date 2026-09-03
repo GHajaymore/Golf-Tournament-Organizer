@@ -33,6 +33,24 @@ export async function myPlayerIds(eventId: string, email: string): Promise<Set<s
   return new Set(rows.map((r) => r.id));
 }
 
+/**
+ * "Round 3", counted over the rounds the field actually PLAYS.
+ *
+ * Not `stage.position`, which numbers every stage including the ones nobody
+ * tees off in — a cut, a seeding stage — so counting off it would call the
+ * second round of golf "Round 3". Empty when the stage is not a playing round
+ * at all, which leaves the caller's own fallback in place rather than
+ * inventing a number.
+ *
+ * Empty too when the tournament is one round, where there is nothing to tell
+ * apart and "Stroke Play" says more than "Round 1" does.
+ */
+function roundNumberLabel(state: EventState, stageId: string): string {
+  if (state.playRounds.length < 2) return "";
+  const i = state.playRounds.findIndex((s) => s.id === stageId);
+  return i >= 0 ? `Round ${i + 1}` : "";
+}
+
 /** The course a round names, by id. Empty when it names none. */
 async function venueNameFor(courseId: string): Promise<string> {
   const course = await prisma.course.findUnique({
@@ -209,7 +227,13 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       : null,
     round: {
       stageId: stage.id,
-      label: stage.description?.trim() || stage.type || "This round",
+      // A player has to be able to tell WHICH round this is. The fallback was
+      // the stage type, so an undescribed round read "Stroke Play" — true of
+      // every round in the tournament and therefore useless for telling them
+      // apart, and worse than useless while this screen was showing the wrong
+      // one. The number is what the play shell and the score-entry picker
+      // already call it.
+      label: stage.description?.trim() || roundNumberLabel(state, stage.id) || stage.type || "This round",
       holes,
       // A match is scored against an opponent and a team round on the side's
       // card; neither is a card this player owns or can return alone.

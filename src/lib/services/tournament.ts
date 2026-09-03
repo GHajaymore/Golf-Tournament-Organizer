@@ -205,6 +205,51 @@ export function currentDatedRoundIndex(
   return lastPlayed >= 0 ? lastPlayed : firstDated;
 }
 
+/**
+ * Which round an UNDATED tournament is on, read off the cards.
+ *
+ * The rule above needs dates. The one below it needs matches. A stroke-play
+ * tournament with neither — which is most of them, because a date is optional
+ * and a medal round has no matches — fell through both to "the last playing
+ * round", and the comment there called that "all there is to go on". It is
+ * not. THE CARDS SAY WHICH ROUND IS BEING PLAYED, and they are already loaded.
+ *
+ * Sunday morning of a two-round club championship, nobody having teed off yet:
+ * the app said Round 2. A player opening the app was shown Round 2's tee sheet
+ * — which is unpublished on Saturday, so most saw nothing at all, and those in
+ * a club that had drawn both rounds saw the wrong tee time and the wrong
+ * playing partners. Not a blank screen with a message: a confident, specific,
+ * wrong answer, on the one morning of the year it matters.
+ *
+ * The same shape as the two rules it sits with — the last round with evidence
+ * of play, falling back to the FIRST rather than the last when there is none.
+ * A round with a card started on it is being played or has just been played;
+ * either way that is where score entry and a player's own card belong, and
+ * looking forward is the tee sheet's job rather than this one's.
+ *
+ * Both sources, because a round can be scored either way: scorecards for
+ * stroke play, the matches themselves for pairings that are not round robin
+ * (a bracket, a knockout) and so are invisible to `currentRoundIndex`.
+ */
+export function currentPlayedRoundIndex(
+  playRounds: Array<{ id: string }>,
+  cards: Array<{ stageId: string | null; strokes: string }>,
+  matches: Array<{ stageId: string; holes: string }>,
+): number {
+  if (playRounds.length === 0) return -1;
+  const started = new Set<string>();
+  for (const c of cards) if (c.stageId && hasAnyHole(c.strokes)) started.add(c.stageId);
+  for (const m of matches) if (hasAnyHole(m.holes)) started.add(m.stageId);
+
+  let last = -1;
+  for (let i = 0; i < playRounds.length; i += 1) {
+    if (started.has(playRounds[i].id)) last = i;
+  }
+  // Nothing played yet is Round ONE. It is the only round anybody is preparing
+  // for, and it is what every other rule here answers in the same state.
+  return last >= 0 ? last : 0;
+}
+
 export function currentRoundIndex(
   rrStages: Array<{ id: string }>,
   matches: Array<{ stageId: string; holes: string; forfeitedBy?: string | null }>,
@@ -593,15 +638,15 @@ export async function loadEventState(eventId: string): Promise<EventState | null
 
   const playRounds = playingStages(stages);
   const activeRrIdx = currentRoundIndex(rrStages, matches);
-  // A dated stroke-play league is read off the calendar; an undated one keeps
-  // the old "last round" answer, which is correct for a single-round event and
-  // is all there is to go on without dates.
+  // A dated stroke-play league is read off the calendar; an undated one is read
+  // off its cards. The old fallback here was "the last playing round", which is
+  // right for a single-round event and wrong for every other one — on the
+  // morning of Round 1 it named Round 2, and every screen that reads this
+  // number believed it.
   const datedIdx = currentDatedRoundIndex(playRounds);
+  const playedIdx = datedIdx >= 0 ? datedIdx : currentPlayedRoundIndex(playRounds, scorecards, matches);
   const activeStage =
-    rrStages[activeRrIdx] ??
-    rrStages[rrStages.length - 1] ??
-    (datedIdx >= 0 ? playRounds[datedIdx] : playRounds[playRounds.length - 1]) ??
-    null;
+    rrStages[activeRrIdx] ?? rrStages[rrStages.length - 1] ?? playRounds[playedIdx] ?? null;
   // The chain runs up to the round being played, not past it. Running it to
   // the end left `overall` holding the last round's standings, which is why a
   // played Round 1 showed as zeroes while Round 2 was nominally current.

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { currentDatedRoundIndex, currentRoundIndex, hasAnyHole } from "../services/tournament";
+import {
+  currentDatedRoundIndex,
+  currentPlayedRoundIndex,
+  currentRoundIndex,
+  hasAnyHole,
+} from "../services/tournament";
 
 /**
  * Which round the console thinks is being played.
@@ -113,8 +118,8 @@ describe("which round a dated league is on", () => {
   });
 
   it("says -1 when no round carries a date", () => {
-    // Which leaves every undated tournament on exactly the behaviour it has
-    // always had — the last playing round, correct for a single-round event.
+    // Which hands the question to `currentPlayedRoundIndex` below, rather than
+    // to the old "last playing round" it used to fall through to.
     expect(currentDatedRoundIndex(season("", "", ""), at("2026-05-14"))).toBe(-1);
     expect(currentDatedRoundIndex([], at("2026-05-14"))).toBe(-1);
   });
@@ -127,5 +132,76 @@ describe("which round a dated league is on", () => {
   it("is unmoved by a single-round tournament", () => {
     expect(currentDatedRoundIndex(season("2026-05-05"), at("2026-05-14"))).toBe(0);
     expect(currentDatedRoundIndex(season("2026-05-05"), at("2026-04-01"))).toBe(0);
+  });
+});
+
+describe("which round an undated tournament is on", () => {
+  const rounds = (...ids: string[]) => ids.map((id) => ({ id }));
+  const card = (stageId: string | null, strokes: string) => ({ stageId, strokes });
+  const blank = JSON.stringify(new Array(18).fill(null));
+  const started18 = JSON.stringify([4, ...new Array(17).fill(null)]);
+
+  it("opens on Round 1 on the morning of Round 1", () => {
+    /**
+     * The defect. A two-round club championship carries no dates and no
+     * matches, so both rules above declined and the fallback said "the last
+     * playing round" — Round 2, before a ball had been struck. Every screen
+     * reading this number believed it, and a player opening the app was shown
+     * Round 2's tee sheet: unpublished on Saturday for most, and the wrong tee
+     * time with the wrong partners for a club that had drawn both rounds.
+     */
+    expect(currentPlayedRoundIndex(rounds("r1", "r2"), [], [])).toBe(0);
+  });
+
+  it("stays on Round 1 while Round 1 is being played", () => {
+    const cards = [card("r1", started18)];
+    expect(currentPlayedRoundIndex(rounds("r1", "r2"), cards, [])).toBe(0);
+  });
+
+  it("moves on once a card is opened on the next round", () => {
+    const cards = [card("r1", started18), card("r2", started18)];
+    expect(currentPlayedRoundIndex(rounds("r1", "r2"), cards, [])).toBe(1);
+  });
+
+  it("is not moved by a card row with no strokes on it", () => {
+    // A scorecard row can exist before anyone has written on it. An empty one
+    // is not evidence a round has started, and treating it as such would put
+    // the answer straight back on the last round.
+    const cards = [card("r1", started18), card("r2", blank)];
+    expect(currentPlayedRoundIndex(rounds("r1", "r2"), cards, [])).toBe(0);
+  });
+
+  it("reads a bracket off its matches, which carry no scorecard", () => {
+    // `currentRoundIndex` only looks at round-robin stages, so a knockout
+    // falls through to here. The holes are on the match.
+    const matches = [{ stageId: "r1", holes: JSON.stringify(["A", null]) }];
+    expect(currentPlayedRoundIndex(rounds("r1", "r2"), [], matches)).toBe(0);
+    expect(
+      currentPlayedRoundIndex(rounds("r1", "r2"), [], [...matches, { stageId: "r2", holes: JSON.stringify(["B"]) }]),
+    ).toBe(1);
+  });
+
+  it("rests on the final round once every round has been played", () => {
+    const cards = [card("r1", started18), card("r2", started18), card("r3", started18)];
+    expect(currentPlayedRoundIndex(rounds("r1", "r2", "r3"), cards, [])).toBe(2);
+  });
+
+  it("is unmoved by a single-round tournament", () => {
+    expect(currentPlayedRoundIndex(rounds("r1"), [], [])).toBe(0);
+    expect(currentPlayedRoundIndex(rounds("r1"), [card("r1", started18)], [])).toBe(0);
+  });
+
+  it("reports no round at all when the tournament has none", () => {
+    expect(currentPlayedRoundIndex([], [], [])).toBe(-1);
+  });
+
+  it("ignores a card that belongs to no round", () => {
+    // A side game's card carries no stageId. It says nothing about which round
+    // the field is on, and must not be read as if it did.
+    expect(currentPlayedRoundIndex(rounds("r1", "r2"), [card(null, started18)], [])).toBe(0);
+  });
+
+  it("ignores an unreadable card rather than throwing", () => {
+    expect(currentPlayedRoundIndex(rounds("r1", "r2"), [card("r2", "not json")], [])).toBe(0);
   });
 });
