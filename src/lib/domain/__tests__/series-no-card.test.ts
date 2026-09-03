@@ -1,7 +1,47 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { pointsForRank, seriesStandings, DEFAULT_POINTS_TABLE } from "@/lib/domain/series";
+import { finishingPositions } from "@/lib/services/finish-order";
+
+/**
+ * The smallest state `finishingPositions` will read.
+ *
+ * Only the four fields it actually looks at, cast at the boundary: building a
+ * whole EventState here would be fifty lines of scaffolding describing nothing,
+ * and every extra field is another thing a reader has to check is not the point
+ * of the test.
+ */
+type PositionsInput = Parameters<typeof finishingPositions>[0];
+
+const noBracket = { winners: { kind: "winners", rounds: [], champion: null } };
+
+function strokeState(
+  rows: Array<{ id: string; name: string; rank: number; ranked: boolean }>,
+): PositionsInput {
+  return {
+    isStroke: true,
+    brackets: noBracket,
+    strokeStandings: rows.map((r) => ({
+      player: { id: r.id, name: r.name },
+      rank: r.rank,
+      ranked: r.ranked,
+    })),
+    overall: [],
+  } as unknown as PositionsInput;
+}
+
+function matchState(
+  rows: Array<{ id: string; name: string; played: number }>,
+): PositionsInput {
+  return {
+    isStroke: false,
+    brackets: noBracket,
+    strokeStandings: [],
+    overall: rows.map((r) => ({
+      player: { id: r.id, name: r.name },
+      stats: { played: r.played },
+    })),
+  } as unknown as PositionsInput;
+}
 
 /**
  * A player who returned no card scores nothing in the order of merit.
@@ -147,32 +187,53 @@ describe("the order of merit ignores a non-finisher", () => {
  * arithmetic is tested properly above; this pins the one line that decides who
  * is handed to it, and names both branches because match play needed it too.
  */
-describe("finishOrderFor only reports players who returned something", () => {
-  const src = readFileSync(
-    join(process.cwd(), "src", "lib", "services", "series.ts"),
-    "utf8",
-  );
-
-  it("filters unranked players out of a stroke event", () => {
-    expect(src).toMatch(/strokeStandings\s*\r?\n?\s*\.filter\(\(s\) => s\.ranked\)/);
+/**
+ * The finishing order only reports players who returned something.
+ *
+ * These were three assertions about the TEXT of `series.ts`, and they broke the
+ * moment the rule moved into a shared function — while the behaviour they
+ * describe was untouched. That is the second time a source-pinned test here has
+ * failed for a refactor rather than a regression, so they are behavioural now:
+ * `finishingPositions` is handed a state and asked what it says.
+ */
+describe("the finishing order only reports players who returned something", () => {
+  it("leaves out a stroke player who holds no position", () => {
+    const order = finishingPositions(
+      strokeState([
+        { id: "a", name: "A", rank: 1, ranked: true },
+        { id: "dnf", name: "Stopped short", rank: 0, ranked: false },
+        { id: "b", name: "B", rank: 2, ranked: true },
+      ]),
+    );
+    expect(order.map((o) => o.playerId)).toEqual(["a", "b"]);
   });
 
-  it("filters players who played nothing out of a match event", () => {
-    // `overall` numbers everybody `i + 1`, so an absentee held a finishing
-    // position until this filter existed.
-    expect(src).toMatch(/overall\s*\r?\n?\s*\.filter\(\(rp\) => rp\.stats\.played > 0\)/);
+  it("leaves out a match player who played nothing", () => {
+    // `overall` numbers everybody in it, so an absentee held a finishing
+    // position — and rank 0 read as first place off the points table.
+    const order = finishingPositions(
+      matchState([
+        { id: "a", name: "A", played: 3 },
+        { id: "absent", name: "Never teed off", played: 0 },
+        { id: "b", name: "B", played: 3 },
+      ]),
+    );
+    expect(order.map((o) => o.playerId)).toEqual(["a", "b"]);
   });
 
-  it("filters BEFORE the position index, not after", () => {
+  it("renumbers the survivors 1..N with no gap where the absentee was", () => {
     /**
-     * Order is the whole point in the match branch: filtering after `map` would
-     * leave the survivors ranked 1, 3, 4 with a hole where the absentee was,
-     * and those gaps are read straight off the points table.
+     * Order is the whole point. Filtering after the index would leave the
+     * survivors on 1 and 3, and those gaps are read straight off the points
+     * table — so second place would be paid third-place points.
      */
-    const matchBranch = src.slice(src.indexOf("state.overall"));
-    const filterAt = matchBranch.indexOf(".filter(");
-    const mapAt = matchBranch.indexOf(".map(");
-    expect(filterAt).toBeGreaterThan(-1);
-    expect(filterAt).toBeLessThan(mapAt);
+    const order = finishingPositions(
+      matchState([
+        { id: "a", name: "A", played: 3 },
+        { id: "absent", name: "Never teed off", played: 0 },
+        { id: "b", name: "B", played: 3 },
+      ]),
+    );
+    expect(order.map((o) => o.rank)).toEqual([1, 2]);
   });
 });

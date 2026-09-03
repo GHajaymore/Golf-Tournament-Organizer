@@ -179,6 +179,73 @@ export function seedOrder(size: number): number[] {
   return order.slice(0, size);
 }
 
+/**
+ * How a knockout finished, read off the bracket.
+ *
+ * A knockout has no points table, so `computeStandings` gives every player the
+ * same zero and sorts them by the only thing left — seed, which is handicap
+ * order. Both readers of "how did this tournament finish" took that at face
+ * value: the honours board proposed the LOWEST-HANDICAP ENTRANT as champion of
+ * a competition they may have lost in the first round, and the season table
+ * scored the field in handicap order. The player who won the final was placed
+ * wherever their handicap put them.
+ *
+ * A knockout says exactly where everybody finished, in the one place nobody was
+ * reading: the draw. Losing in round r of an R-round bracket is a placing, and
+ * everyone beaten in the same round shares it — the two beaten semi-finalists
+ * are both third, which is why clubs play off for it (see `third-place.ts`).
+ * So the loser of the final is 2nd, the beaten semi-finalists 3rd, the beaten
+ * quarter-finalists 5th: 2^(rounds after theirs) + 1.
+ *
+ * Returns an empty list when the bracket has no champion. An unfinished
+ * knockout has no finishing order, and inventing one is how this went wrong in
+ * the first place — the caller falls back rather than being handed a guess.
+ *
+ * The WINNERS bracket only. A consolation draw is a second competition with its
+ * own winner, and in plate mode its field is players who are already placed in
+ * this list; scoring it would need a club to say how the two relate, which
+ * nothing in the app asks. Its players are left unplaced, exactly as they are
+ * today.
+ */
+export function bracketFinishOrder(
+  view: BracketView,
+): Array<{ playerId: string; name: string; rank: number }> {
+  if (!view.champion?.playerId) return [];
+
+  const totalRounds = view.rounds.length;
+  const placed: Array<{ playerId: string; name: string; rank: number }> = [
+    { playerId: view.champion.playerId, name: view.champion.name, rank: 1 },
+  ];
+  const seen = new Set([view.champion.playerId]);
+
+  for (const round of view.rounds) {
+    // Everyone knocked out in this round shares one placing.
+    const rank = 2 ** (totalRounds - 1 - round.roundIndex) + 1;
+    for (const match of round.matches) {
+      if (!match.winnerId) continue;
+      for (const slot of [match.a, match.b]) {
+        if (!slot.playerId || slot.playerId === match.winnerId) continue;
+        /**
+         * Placed once, at the first stage they went out.
+         *
+         * Unreachable in a draw where everybody appears once — a player only
+         * ever advances by winning, so they can lose at most one match. It is
+         * reachable through a seeded field that lists the same player twice,
+         * which `parseBracketDraw` permits on purpose: it will not silently
+         * tidy a stored draw, because deduplicating one would move every
+         * player after it into a different slot. So a duplicate reaches here,
+         * and the earlier — deeper — finish is the one that counts.
+         */
+        if (seen.has(slot.playerId)) continue;
+        seen.add(slot.playerId);
+        placed.push({ playerId: slot.playerId, name: slot.name, rank });
+      }
+    }
+  }
+
+  return placed.sort((a, b) => a.rank - b.rank);
+}
+
 /** Smallest power of two that holds `n` players, minimum 2. */
 export function bracketSizeFor(n: number): number {
   let size = 2;

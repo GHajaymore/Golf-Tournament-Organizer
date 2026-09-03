@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { loadEventState } from "./tournament";
+import { finishingPositions } from "./finish-order";
 import {
   seriesStandings,
   DEFAULT_POINTS_TABLE,
@@ -84,36 +85,28 @@ export async function finishOrderFor(eventId: string): Promise<EventFinish | nul
     state.players.filter((p) => p.memberId).map((p) => [p.id, p.memberId as string]),
   );
 
-  // Stroke and Stableford rounds rank on the stroke standings; match play on
-  // the chained round-robin standings. Both are already computed and already
-  // carry the tiebreakers the organizer configured.
   /**
-   * ONLY PLAYERS WHO RETURNED SOMETHING.
+   * How this tournament finished — the same answer the honours board gets.
    *
-   * A no-show has `ranked: false` and a rank of 0, and that rank was carried
-   * straight into `pointsForRank`, which is 1-based. `table[rank - 1]` is then
-   * `table[-1]` — undefined, so nothing for the first slot — and the loop walks
-   * FORWARD from there into `table[0]`, the winner's points. Three non-returners
-   * tied at rank 0 therefore scored sixty each, above the player who actually
-   * finished fourth on fifty-five, and each of them banked a `played` towards
-   * `minEvents`. A twenty-player hand-scored event handed all twenty members
-   * 34.7 points for a round the app does not even rank.
+   * Two things were wrong here and both now live in `finishingPositions`.
    *
-   * `positionsFrom` already applies exactly this filter; this function was
-   * written without it.
+   * ONLY PLAYERS WHO RETURNED SOMETHING. A no-show has `ranked: false` and a
+   * rank of 0, and that rank was carried straight into `pointsForRank`, which
+   * is 1-based. `table[rank - 1]` is then `table[-1]` — undefined, so nothing
+   * for the first slot — and the loop walks FORWARD from there into `table[0]`,
+   * the winner's points. Three non-returners tied at rank 0 therefore scored
+   * sixty each, above the player who actually finished fourth on fifty-five,
+   * and each banked a `played` towards `minEvents`. A twenty-player
+   * hand-scored event handed all twenty members 34.7 points for a round the
+   * app does not even rank.
    *
-   * Both branches, and match play needs it too: `overall` assigns `i + 1` to
-   * everyone it holds, so a player who never took the tee still occupied a
-   * finishing position. Filtering BEFORE the index is what makes the survivors
-   * re-rank 1..N contiguously rather than leaving a gap where the absentee was.
+   * AND A KNOCKOUT IS DECIDED BY ITS DRAW. Neither branch could see one: a
+   * knockout has no points, so every player sat on zero and sorted by seed,
+   * which is handicap order. The season table scored the whole field in
+   * handicap order — and after the filter above, scored nobody at all, since
+   * a player whose only golf was in the bracket has `played` of 0.
    */
-  const ordered = state.isStroke
-    ? state.strokeStandings
-        .filter((s) => s.ranked)
-        .map((s) => ({ playerId: s.player.id, name: s.player.name, rank: s.rank }))
-    : state.overall
-        .filter((rp) => rp.stats.played > 0)
-        .map((rp, i) => ({ playerId: rp.player.id, name: rp.player.name, rank: i + 1 }));
+  const ordered = finishingPositions(state);
 
   const finishers = ordered
     .filter((o) => memberByPlayer.has(o.playerId))
