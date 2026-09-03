@@ -319,8 +319,20 @@ describe("standings, at every field size", () => {
 
       const ranked = rankPlayers(players, stats, DEFAULT_SCORING, roundRobin(players));
       expect(ranked).toHaveLength(n);
-      // Ranks run 1..n with no gaps and no repeats. A gap means somebody was
-      // dropped from the board; a repeat means two players hold one place.
+      /**
+       * Ranks run 1..n with no gaps and no repeats — UNDER THIS CHAIN.
+       *
+       * A gap would mean somebody was dropped from the board, which is always
+       * wrong. A repeat is not: two players nothing separates share a place,
+       * and `rankPlayers` says so rather than breaking the tie on seed order.
+       *
+       * It cannot happen here because `DEFAULT_SCORING`'s chain ends in
+       * `lower-handicap` and this field's handicaps are distinct, so every
+       * pair is separated by something. That is what makes 1..n the right
+       * assertion for this fixture and not a rule about ranks in general —
+       * see tied-rank.test.ts for the chain that genuinely cannot split two
+       * players, and what a board should print then.
+       */
       expect(ranked.map((r) => r.rank)).toEqual(Array.from({ length: n }, (_, i) => i + 1));
       expect(new Set(ranked.map((r) => r.player.id)).size).toBe(n);
     });
