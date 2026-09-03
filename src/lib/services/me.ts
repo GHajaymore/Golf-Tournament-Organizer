@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { cardRevision } from "@/lib/domain/pending-card";
-import { needsTeams } from "@/lib/formats";
+import { needsTeams, ranksIndividuals } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows, type EventState } from "@/lib/services/tournament";
@@ -179,10 +179,22 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
     };
   }
 
-  // Position from the same standingRows the leaderboard renders — never a
-  // second calculation, which is how two screens come to disagree about who
-  // is winning.
-  const rows = standingRows(state);
+  /**
+   * Position from the same standingRows the leaderboard renders — never a
+   * second calculation, which is how two screens come to disagree about who is
+   * winning.
+   *
+   * And only for a round that HAS individual positions. `standingRows` refuses
+   * a hand-scored round and nothing else, deliberately — its own note says
+   * refusing team and engine rounds there would be "a behaviour change dressed
+   * as a guard", because every other caller returns early for those. This one
+   * did not. So a skins player was handed a stroke-play "Position T1" in
+   * forty-point type, beside a leaderboard that will not print one at all, and
+   * a Nassau player the same. A skins round pays holes and a Nassau is three
+   * bets; neither has a finishing order to be first in.
+   */
+  const ranked = ranksIndividuals(stage.format);
+  const rows = ranked ? standingRows(state) : [];
   const standing = rows.find((r) => r.id === playerId) ?? null;
   // "T2" when the position is shared. Whether it IS shared is a fact about the
   // field, so it cannot be read off one row — which is exactly how the screen

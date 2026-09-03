@@ -10,11 +10,58 @@ import { positionLabel, type PositionRow } from "../shared-position";
  * are equally second is not what the results sheet says.
  */
 
-const row = (id: string, rank: number, thru = 18, ranked = true): PositionRow => ({
+/**
+ * `started` used to be `thru`, a hole count. It is a boolean now because the
+ * two boards answer "has this player got a result" from different columns: a
+ * stroke round from holes returned, a match-play round from matches played,
+ * whose `thru` is zero for everybody however much golf has been played.
+ */
+const row = (id: string, rank: number, started = true, ranked = true): PositionRow => ({
   id,
   rank,
-  thru,
+  started,
   ranked,
+});
+
+/**
+ * A match-play player has a position, and was told they had none.
+ *
+ * This asked `thru > 0` — holes on a returned CARD. A match-play round keeps
+ * its results on the matches, so `thru` is zero for everybody in one however
+ * much golf they have played. A player 3-0-0 and top of their flight opened
+ * `/me` and read "Not started", position "–", while the console, the dashboard
+ * and their own Board tab all showed them first.
+ *
+ * `started` is the fact that was actually wanted, and the format decides which
+ * column answers it — see `standingRows`.
+ */
+describe("a player whose result is not a card", () => {
+  const matchRow = (id: string, rank: number, played: number): PositionRow => ({
+    id,
+    rank,
+    // What `standingRows` computes for a match-play round: matches played.
+    started: played > 0,
+    // Always true on a match-play row — which is why it cannot be the test.
+    ranked: true,
+  });
+
+  it("has a position even with no card returned", () => {
+    const rows = [matchRow("a", 1, 3), matchRow("b", 2, 3)];
+    expect(positionLabel(rows, "a")).toBe("1");
+  });
+
+  it("shares one when the points are level", () => {
+    const rows = [matchRow("a", 1, 3), matchRow("b", 1, 3), matchRow("c", 3, 3)];
+    expect(positionLabel(rows, "a")).toBe("T1");
+  });
+
+  it("still says nothing for somebody who has played no matches", () => {
+    // The rule the old test was really about, kept: a player yet to tee off
+    // holds no position and does not make anyone else's look shared.
+    const rows = [matchRow("a", 1, 3), matchRow("b", 1, 0)];
+    expect(positionLabel(rows, "b")).toBe("");
+    expect(positionLabel(rows, "a")).toBe("1");
+  });
 });
 
 describe("a player's own position", () => {
@@ -38,7 +85,8 @@ describe("a player's own position", () => {
    * and two of them are not "T0" with each other.
    */
   it("gives no position to a card that stopped short", () => {
-    const rows = [row("a", 1), row("b", 0, 14, false), row("c", 0, 14, false)];
+    // Started — there is a card — but not ranked, because it stopped short.
+    const rows = [row("a", 1), row("b", 0, true, false), row("c", 0, true, false)];
     expect(positionLabel(rows, "b")).toBe("");
     expect(positionLabel(rows, "c")).toBe("");
     // And they do not make the ranked player's position look shared.
@@ -52,13 +100,13 @@ describe("a player's own position", () => {
   it("says nothing for a player who has not started", () => {
     // "Position –" is what the screen already renders for them; a rank they
     // have not earned would be worse than a dash.
-    expect(positionLabel([row("a", 1, 0)], "a")).toBe("");
+    expect(positionLabel([row("a", 1, false)], "a")).toBe("");
   });
 
   it("does not count a player who has not started as sharing", () => {
     // Two rows on rank 2 where only one has teed off is not a tie, and saying
     // joint would tell somebody they are level with a player who has not begun.
-    const rows = [row("a", 1), row("b", 2), row("c", 2, 0)];
+    const rows = [row("a", 1), row("b", 2), row("c", 2, false)];
     expect(positionLabel(rows, "b")).toBe("2");
   });
 

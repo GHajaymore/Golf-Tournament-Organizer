@@ -1085,6 +1085,8 @@ export function standingRows(state: EventState): StandingRow[] {
       id: s.player.id,
       rank: s.rank,
       ranked: s.ranked,
+      // A stroke round's result IS the card, so holes returned is the answer.
+      started: s.thru > 0,
       name: s.player.name,
       flight: flight(s.player.id),
       advancing: state.advancingIds.has(s.player.id),
@@ -1124,6 +1126,15 @@ export function standingRows(state: EventState): StandingRow[] {
       // stroke columns beside it may be blank or short without costing anybody
       // their place in the standings.
       ranked: true,
+      /**
+       * MATCHES played, not holes on a card.
+       *
+       * `ranked` is unconditionally true here, so it cannot distinguish a
+       * player 3-0-0 from one who has not teed off — and `thru` is zero for
+       * both, because a match-play result lives on the match. Reading `thru`
+       * as "has started" told the flight leader they had no position.
+       */
+      started: r.stats.played > 0,
       name: r.player.name,
       flight: flight(r.player.id),
       advancing: state.advancingIds.has(r.player.id),
