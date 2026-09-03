@@ -6,6 +6,7 @@ import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows, type EventState } from "@/lib/services/tournament";
 import { filledHoles } from "@/lib/domain/card-approval";
 import { positionLabel } from "@/lib/domain/shared-position";
+import { roundLabel } from "@/lib/domain/round-label";
 
 /**
  * Everything the player-facing screens need about *this* person, in one place.
@@ -34,21 +35,21 @@ export async function myPlayerIds(eventId: string, email: string): Promise<Set<s
 }
 
 /**
- * "Round 3", counted over the rounds the field actually PLAYS.
+ * "Round 3", or empty when a number would not help.
  *
- * Not `stage.position`, which numbers every stage including the ones nobody
- * tees off in — a cut, a seeding stage — so counting off it would call the
- * second round of golf "Round 3". Empty when the stage is not a playing round
- * at all, which leaves the caller's own fallback in place rather than
- * inventing a number.
+ * The COUNT is `roundLabel`'s, not this file's. This grew its own — an index
+ * into `playRounds` — and `round-number-source.test.ts` refused it the moment
+ * the two arrived on the same branch, which is the guard doing exactly its
+ * job: a second counter is how the app came to call one round by two numbers.
  *
- * Empty too when the tournament is one round, where there is nothing to tell
- * apart and "Stroke Play" says more than "Round 1" does.
+ * What stays here is the one rule that belongs to this screen: a tournament of
+ * a single round has nothing to tell apart, and "Stroke Play" says more to a
+ * player than "Round 1" does. Empty then, and empty for a stage that is not a
+ * playing round, which leaves the caller's own fallback in place.
  */
 function roundNumberLabel(state: EventState, stageId: string): string {
   if (state.playRounds.length < 2) return "";
-  const i = state.playRounds.findIndex((s) => s.id === stageId);
-  return i >= 0 ? `Round ${i + 1}` : "";
+  return roundLabel(state.stages, stageId);
 }
 
 /** The course a round names, by id. Empty when it names none. */
