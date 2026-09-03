@@ -48,6 +48,11 @@ npx tsc --noEmit && npx vitest run && npx next lint && NEXT_DIST_DIR=.next-ci np
 because neither tsc nor the unit tests render a server component — a screen can throw on every
 request with a clean build and 1300 green tests.
 
+It defaults to `http://localhost:3000`; point it elsewhere with `SMOKE_BASE_URL`. In a worktree,
+check `preview_list`'s `cwd` before believing a green run — `preview_start` will reuse a dev
+server already running from the MAIN checkout, and then every route passes against code you did
+not write.
+
 The command above runs the DEFAULT config, which excludes `*.audit.test.ts` — those need a real
 database and live in `vitest.audit.config.ts`. Anything whose behaviour is only provable against
 real rows (handicap resolution, authorization, money) is asserted there, so a change to one of
@@ -98,6 +103,18 @@ impossible. Extend these rather than working around them.
 - `score-payload.ts` — scoring payloads are validated at the boundary. **TypeScript types are
   erased at runtime**; a `"use server"` export is a public HTTP endpoint and will be called with
   whatever the caller likes.
+- `round-number-source.test.ts` — no screen derives a round number from a list position.
+  `roundLabel` is the only count, and it does not count a cut as a round.
+
+**Prove a new test can fail: revert the fix, watch it go red, put it back.** Six fixtures in one
+pass could not fail — a card-venue test on gross match play (the card is never read), an
+authorization test using a money mode that does not exist (every refusal passed on "Unknown money
+setting"), a skins test with one player (nobody wins a skin either way). Each looked exactly like
+a passing test of the fix, and each was counted as coverage.
+
+Mutate the WHOLE before-state, not half of it. Reverting one of two changed lines left the
+headline case still passing: the rows were ordered wrongly but keyed the same, so they shared a
+rank anyway. A mutation that models half the old code proves half as much as it appears to.
 
 ## Course cards: measure a guard before you ship it
 
@@ -171,6 +188,12 @@ before believing anything the browser tells you.
 Windows. Both PowerShell and Git Bash are available and take different syntax — do not mix them
 (a PowerShell here-string in bash silently becomes part of the string). Node needs
 `PATH="/c/Program Files/nodejs:$PATH"` under Git Bash.
+
+**Never rewrite a source file with PowerShell.** `Set-Content -Encoding utf8` adds a BOM and
+re-encodes every em-dash and curly quote as mojibake. It corrupted `stage-types.ts` once and
+seven page files later the same day, both times invisibly — the code still compiled and the
+tests still passed. Use the Edit tool, however many files it takes. The tell is
+`git diff --stat`: a one-line change showing seventy.
 
 ## Testing: the combination sweep
 
