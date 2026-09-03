@@ -67,6 +67,79 @@ describe("a par total nobody plays", () => {
   });
 });
 
+/**
+ * Short and executive courses are real, and the floor was refusing them.
+ *
+ * A low bound existed with an exemption for a card of nothing but par 3s —
+ * added because a par-3 nine could not otherwise be stored at all. It fired
+ * only on a UNIFORM card, so one par 4 among seventeen par 3s was still thrown
+ * away and the club told that no eighteen-hole course plays their total.
+ *
+ * The floor protected nothing either way. Every hole is already checked to be
+ * a par of 3 to 6, hole by hole, so eighteen of them cannot total under 54 —
+ * the only cards a floor of 60 can reach are the ones made mostly of par 3s.
+ */
+describe("a course that is genuinely short", () => {
+  const parThrees = (n: number) => new Array(n).fill(3);
+
+  it("stores a par-3 eighteen", () => {
+    expect(implausibleCard(parThrees(18))).toBeNull();
+  });
+
+  it("stores one with a single par 4 on it, which the old exemption refused", () => {
+    /**
+     * The audit's own example: total 55, refused for not being uniform.
+     *
+     * The 4 is the 9th, not the 18th. Seventeen 3s followed by a 4 is an
+     * ASCENDING card, which the sorted-par check refuses on its own and is
+     * right to — no course is routed in par order. Putting it where a short
+     * course would actually have it keeps this test about the total.
+     */
+    const card = [3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3];
+    expect(card.reduce((a, b) => a + b, 0)).toBe(55);
+    expect(implausibleCard(card)).toBeNull();
+  });
+
+  it("stores an executive eighteen of threes and fours", () => {
+    // A real short-course routing: four par 4s among the 3s, spread the way a
+    // card actually reads, so the sorted-par check has nothing to say either.
+    const card = [3, 3, 4, 3, 3, 3, 3, 4, 3, 3, 3, 4, 3, 3, 3, 3, 4, 3];
+    expect(card.reduce((a, b) => a + b, 0)).toBe(58);
+    expect(implausibleCard(card)).toBeNull();
+  });
+
+  it("stores a par-3 nine, and one with a four on it", () => {
+    expect(implausibleCard(parThrees(9), 9)).toBeNull();
+    expect(implausibleCard([...parThrees(8), 4], 9)).toBeNull();
+  });
+
+  it("still refuses a total no course plays", () => {
+    /**
+     * The guard against the guard. Dropping the floor must not drop the
+     * ceiling: "Beaver Creek Meadows Golf Course, par 79" is in the public
+     * directory, and a card of 5s and 6s is a slipped row rather than a very
+     * long course.
+     */
+    expect(implausibleCard([5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 4, 4, 4, 4])).toContain("79");
+    expect(implausibleCard(new Array(9).fill(6), 9)).toContain("54");
+  });
+
+  it("still names the hole when a value is not a par at all", () => {
+    /**
+     * What the floor was mistaken for. A slipped row — yardages read as pars —
+     * is caught per hole, by the check that names the offending holes, and it
+     * gets nowhere near a total.
+     */
+    const yardagesAsPars = [420, 380, 155, 510, 401, 372, 168, 395, 505, 410, 388, 160, 420, 512, 398, 172, 405, 500];
+    const parsed = parseCard(
+      { pars: yardagesAsPars.join(" "), strokeIndex: SI.join(" ") },
+      18,
+    );
+    expect(parsed.ok).toBe(false);
+    expect(parsed.problems.some((p) => p.row === "pars" && p.holes.length > 0)).toBe(true);
+  });
+});
+
 describe("every path is held to the same standard", () => {
   const row = (n: number[]) => n.join(" ");
 
