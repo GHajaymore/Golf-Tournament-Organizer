@@ -100,6 +100,23 @@ export default async function MoneyPage() {
   const bettable = round && playing.some((s) => s.id === round.id) ? round : null;
 
   /**
+   * THE DRAW, only once the committee has published it.
+   *
+   * This is a PLAYER's screen, and it read `bettable.teeSheet` straight from
+   * the round — so a draft draw, group names and who is in each group, was on
+   * every player's phone the moment it was saved. A committee shuffling a
+   * fourball had the shuffle read before they had decided it, and the whole
+   * point of `teeSheetPublished` is that a saved sheet is not an announced one.
+   *
+   * `meFor` refuses this on Today, and the dashboard and the score-entry
+   * screens both check the flag — this one page did not. Resolved once here
+   * rather than at the two places below that used to parse it separately,
+   * because two readers of one rule is how the second one comes to forget it.
+   */
+  const publishedSheet =
+    bettable?.teeSheetPublished ? parseTeeSheet(bettable.teeSheet ?? "") : null;
+
+  /**
    * Names already spoken for on this round, and by WHICH game.
    *
    * Per kind, because that is how a game is keyed: the same four players can
@@ -135,7 +152,7 @@ export default async function MoneyPage() {
          * group's name would resolve its audience to that group, whatever
          * game it is.
          */
-        ...(parseTeeSheet(bettable.teeSheet ?? "")?.groups ?? []).map((g) => ({
+        ...(publishedSheet?.groups ?? []).map((g) => ({
           name: g.name,
           kind: "*",
         })),
@@ -156,8 +173,10 @@ export default async function MoneyPage() {
           field={field}
           taken={taken}
           // The draw, so a player picks the people they are walking with rather
-          // than scanning forty names for the three they know.
-          groups={parseTeeSheet(bettable.teeSheet ?? "")?.groups ?? []}
+          // than scanning forty names for the three they know — once it has
+          // been published. Before that they get the field, which is what this
+          // screen showed anyway for a round with no sheet at all.
+          groups={publishedSheet?.groups ?? []}
         />
       )}
     </div>
