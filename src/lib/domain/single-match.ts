@@ -67,6 +67,57 @@ export function parseSingleMatchRule(json: string): SingleMatchRule | null {
   }
 }
 
+/**
+ * The rule as it should be stored on a COPY of the tournament.
+ *
+ * Two of the three kinds are made of ids belonging to the tournament they were
+ * written in, and `cloneEvent` copied the JSON verbatim — so a club running
+ * last year's championship again got a final that pointed into last year's
+ * tournament:
+ *
+ *   - `stage-winners` named two Stage ids that do not exist in the copy, so
+ *     `winnerOfStage` returned null for both and the round read "Waiting on the
+ *     earlier rounds — one hasn't finished" from the day it was created to the
+ *     day of the final. Both of those rounds could be played out and it never
+ *     changed, because it was not waiting on them.
+ *   - `named` named two Player ids from a field that was not copied — players
+ *     never are — so it read "One of the players chosen for this round is no
+ *     longer in the field", blaming a withdrawal that never happened and
+ *     sending an organizer to look for it.
+ *
+ * Neither is an error the copy can recover from by itself, and both LOOK like
+ * an ordinary not-ready state, which is what made them survive: the message a
+ * final shows for most of a tournament is "not ready yet".
+ *
+ * So: seeds carry (they are positions in a standing, and a copy has standings
+ * of its own); stage-winners are REMAPPED onto the copy's own rounds; named is
+ * dropped, because there is nothing in the copy to remap a player id to. An
+ * empty rule is the honest state and says "This round has no pairing rule set
+ * — choose who plays it", which is a sentence an organizer can act on.
+ *
+ * Never falls back to the default. `parseSingleMatchRule` refuses to do that
+ * for a rule it cannot read, on the grounds that quietly running first against
+ * second when the committee announced something else is worse than running
+ * nothing, and this is the same rule at the same stakes.
+ */
+export function cloneSingleMatchRule(
+  json: string,
+  newStageIdOf: (oldStageId: string) => string | null,
+): string {
+  const rule = parseSingleMatchRule(json);
+  if (!rule) return "";
+  if (rule.kind === "seeds") return JSON.stringify(rule);
+  if (rule.kind === "stage-winners") {
+    const a = newStageIdOf(rule.a);
+    const b = newStageIdOf(rule.b);
+    // A round that was not copied cannot be waited on. Better to have the copy
+    // ask than to point it at a round in another tournament.
+    if (!a || !b || a === b) return "";
+    return JSON.stringify({ kind: "stage-winners", a, b } satisfies SingleMatchRule);
+  }
+  return "";
+}
+
 export interface SingleMatchContext {
   /**
    * The standings, best first, as player ids — only players who have actually

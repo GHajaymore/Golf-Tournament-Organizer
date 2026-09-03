@@ -47,7 +47,7 @@ import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
-import { parseSingleMatchRule } from "@/lib/domain/single-match";
+import { cloneSingleMatchRule, parseSingleMatchRule } from "@/lib/domain/single-match";
 import { singleMatchFor } from "@/lib/services/single-match";
 import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
@@ -2645,18 +2645,41 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
   // policy for the same reason the Event is: this loop copied the four cut
   // fields and not `cutScope`, so a per-flight cut quietly became an overall
   // one and advanced a different set of players.
+  const newStageId = new Map<string, string>();
   for (const s of source.stages) {
     const round = Object.fromEntries(
       CLONED_STAGE_FIELDS.map((f) => [f, s[f]]),
     ) as Pick<typeof s, (typeof CLONED_STAGE_FIELDS)[number]>;
-    await prisma.stage.create({
+    const copyStage = await prisma.stage.create({
       data: {
         ...round,
         eventId: created.id,
         // Always in the past on a copy.
         deadline: "",
+        /**
+         * Written in the second pass below, once every round exists and has an
+         * id to point at.
+         *
+         * Empty in between rather than last year's value: a `stage-winners`
+         * rule names Stage ids, and copying those verbatim gave the new
+         * tournament a final waiting on two rounds in the OLD one — forever,
+         * and saying "Waiting on the earlier rounds" the whole time. If this
+         * copy is interrupted between the passes, "no pairing rule set" is a
+         * state an organizer can see and fix.
+         */
+        singleMatchRule: "",
       },
     });
+    newStageId.set(s.id, copyStage.id);
+  }
+
+  // Second pass, now that the map is complete: a rule may name a round that
+  // comes after it (a play-off for third against the winner of a plate), so
+  // remapping inside the loop above would be right only by luck of ordering.
+  for (const s of source.stages) {
+    const rule = cloneSingleMatchRule(s.singleMatchRule, (id) => newStageId.get(id) ?? null);
+    if (!rule) continue;
+    await prisma.stage.update({ where: { id: newStageId.get(s.id)! }, data: { singleMatchRule: rule } });
   }
 
   // The creator is the organizer of the copy.
