@@ -409,6 +409,51 @@ describe("generateCutRound refuses a round with nothing to cut on", () => {
     expect(result.ok === false && result.reason).toBe("no-pairings");
   });
 
+  it("does not fabricate stroke cards for a bracket round", async () => {
+    /**
+     * A Bracket Stage is a playing round that draws no pairings, which put it
+     * straight into the branch that hands every survivor an empty stroke-play
+     * scorecard. So "Generate" wrote a card per player for a round nobody
+     * scores that way, and each one added eighteen holes to that player's
+     * `holesOwed` — a board reporting a field that owed scores for a knockout.
+     *
+     * It was doing it off a cut the bracket never applied, too: the draw reads
+     * the EVENT's qualification settings, so the round's own cut changed
+     * nothing but the published rules sheet.
+     */
+    const { eventId } = await seedEvent();
+    const r1 = await prisma.stage.create({
+      data: { eventId, position: 0, type: "Round Robin", format: "Match Play", holes: 18 },
+    });
+    const bracket = await prisma.stage.create({
+      data: {
+        eventId,
+        position: 1,
+        type: "Bracket Stage",
+        format: "Match Play",
+        holes: 18,
+        // The setting that did nothing but print.
+        cutEnabled: true,
+        cutScope: "overall",
+        cutMode: "count",
+        cutCount: 8,
+      },
+    });
+    const g = await addFlight(eventId, "A", 0);
+    const a = await addPlayer(eventId, g, "A1", 3, 1);
+    const b = await addPlayer(eventId, g, "A2", 9, 2);
+    await prisma.match.create({
+      data: { eventId, stageId: r1.id, groupId: g, round: 1, playerAId: a, playerBId: b, holes: A_WINS },
+    });
+
+    const result = await generateCutRound(eventId, bracket.id);
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toBe("seeded-not-generated");
+    // The concrete harm: not one card written against the knockout.
+    expect(await prisma.scorecard.count({ where: { eventId, stageId: bracket.id } })).toBe(0);
+  });
+
   it("counts a conceded match as a result, though it leaves no card", async () => {
     /**
      * A flight settled by concessions has no strokes and no holes — Rule

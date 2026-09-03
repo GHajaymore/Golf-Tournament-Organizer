@@ -1031,6 +1031,13 @@ export async function generateNextRound(stageId: string) {
             : `Only ${result.survivors} players survive this cut and none of them can be paired. Widen the cut.`,
       };
     }
+    if (result.reason === "seeded-not-generated") {
+      return {
+        ok: false as const,
+        error:
+          "A bracket is seeded from the standings, not generated. Set who qualifies under Qualification — a cut on this round does not change the draw.",
+      };
+    }
     return { ok: false as const, error: "That round can't be generated." };
   }
   await refresh();

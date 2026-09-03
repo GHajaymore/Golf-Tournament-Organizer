@@ -29,6 +29,7 @@ import {
   STAGE_TYPES,
   stageTypeInfo,
   generatesPairings,
+  seededFromQualifiers,
   nextPlayingStage,
   MAX_ROUNDS_AT_ONCE,
   type StageTypeKey,
@@ -313,6 +314,19 @@ function NextRoundTransition({
   // cards — so it is "generated" by handing the survivors a card, not by
   // building matches. Before it exists, assume a Round Robin (what gets created).
   const nextDrawsPairings = nextStage ? generatesPairings(nextStage.type) : true;
+  /**
+   * A bracket takes its field from Qualification, not from a cut here.
+   *
+   * Both controls below were offered for one anyway, and neither did anything.
+   * The cut saved, displayed as saved, printed on the published rules sheet as
+   * "Top 8 advance" — and the draw went on seeding two per flight, because it
+   * reads the event's qualification settings. Generate then handed every
+   * "survivor" an empty stroke-play card for a knockout round.
+   *
+   * Offering a setting that does nothing is worse than not offering it: the
+   * organizer believes they have set the thing, and the sheet agrees with them.
+   */
+  const nextIsSeeded = nextStage ? seededFromQualifiers(nextStage.type) : false;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -412,18 +426,27 @@ function NextRoundTransition({
       )}
 
       <div style={{ borderTop: "1px solid var(--color-divider)", margin: "4px 0", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-        <CutControl
-          formId={stageId}
-          getStageId={ensureNextStageId}
-          roundLabel={roundLabel}
-          enabled={nextStage?.cutEnabled ?? false}
-          mode={nextStage?.cutMode ?? "count"}
-          count={nextStage?.cutCount ?? 16}
-          percent={nextStage?.cutPercent ?? 50}
-          scope={nextStage?.cutScope ?? "overall"}
-          confirmedCount={confirmedCount}
-          flightCount={flightCount}
-        />
+        {nextIsSeeded ? (
+          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            <i className="ph ph-tree-structure" /> {roundLabel} is a bracket, so its field is
+            whoever qualifies — set that under Qualification. A cut here would not change the
+            draw.
+          </p>
+        ) : (
+          <CutControl
+            formId={stageId}
+            getStageId={ensureNextStageId}
+            roundLabel={roundLabel}
+            enabled={nextStage?.cutEnabled ?? false}
+            mode={nextStage?.cutMode ?? "count"}
+            count={nextStage?.cutCount ?? 16}
+            percent={nextStage?.cutPercent ?? 50}
+            scope={nextStage?.cutScope ?? "overall"}
+            confirmedCount={confirmedCount}
+            flightCount={flightCount}
+          />
+        )}
+        {!nextIsSeeded && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <button
             type="button"
@@ -452,6 +475,7 @@ function NextRoundTransition({
             {nextDrawsPairings && !!nextStage?.matchCount && " Re-running replaces that round's matches."}
           </span>
         </div>
+        )}
         {/* The refusal, in the place the organizer was looking when they
             pressed the button. Without this the only feedback is the "not
             generated yet" tag below, which was already there before the

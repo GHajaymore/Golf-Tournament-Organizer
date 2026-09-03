@@ -7,7 +7,7 @@ import { formGroups, roundRobinSchedule } from "../domain";
 import { survivors, isCutScope, nextRoundFlights } from "../domain/cut";
 import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../domain";
 import { needsTeams } from "../formats";
-import { generatesPairings, isPlayingRound } from "../stage-types";
+import { generatesPairings, isPlayingRound, seededFromQualifiers } from "../stage-types";
 import { courseHandicapMap } from "../domain";
 import { resolveCourse } from "../courses";
 import { chainRoundStandings, scoringFrom, parseMatchTiebreakers, roundRobinStages } from "./tournament";
@@ -361,7 +361,8 @@ export type CutRoundResult =
   | { ok: false; reason: "no-stage" }
   | { ok: false; reason: "no-prior-round" }
   | { ok: false; reason: "no-results"; roundName: string }
-  | { ok: false; reason: "no-pairings"; survivors: number };
+  | { ok: false; reason: "no-pairings"; survivors: number }
+  | { ok: false; reason: "seeded-not-generated" };
 
 export async function generateCutRound(
   eventId: string,
@@ -373,6 +374,25 @@ export async function generateCutRound(
   // boundary, and keying this off "Round Robin" alone made that impossible.
   if (!stage || stage.eventId !== eventId || !isPlayingRound(stage.type)) {
     return { ok: false, reason: "no-stage" };
+  }
+
+  /**
+   * A bracket is seeded, not generated.
+   *
+   * Its field is the event's qualifiers and its results live on the bracket —
+   * so nothing below applies to it. But a Bracket Stage IS a playing round and
+   * draws no pairings, which put it straight into the branch that hands every
+   * survivor an empty stroke-play scorecard. That fabricated a card per player
+   * for a round nobody scores that way, and each one added eighteen holes to
+   * their `holesOwed`, so the board reported a field owing scores for a
+   * knockout.
+   *
+   * It was doing that off a cut the bracket never applied, too: the draw reads
+   * the EVENT's qualification settings, so "Top 8 advance" on the round went
+   * into the published rules sheet while the engine seeded two per flight.
+   */
+  if (seededFromQualifiers(stage.type)) {
+    return { ok: false, reason: "seeded-not-generated" };
   }
 
   const [event, allStages, confirmed, allMatches, groups] = await Promise.all([

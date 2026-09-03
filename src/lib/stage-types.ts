@@ -56,6 +56,22 @@ export interface StageTypeInfo {
   isPlayingRound: boolean;
   /** Whether its results feed the running match-points standings. */
   chainsMatchPoints: boolean;
+  /**
+   * Whether this round's field comes from the event's QUALIFICATION settings
+   * rather than from a cut on the round before it.
+   *
+   * True only for a bracket. Its field is the qualifiers the event seeds —
+   * `qualifyMode`, `qualifyPerGroup`, `qualifyOverall` — and its results live
+   * on the bracket, not in scorecards.
+   *
+   * Both of those were being ignored. A round cut set on a Bracket Stage did
+   * not change who was in the bracket at all, so the published rules sheet
+   * printed "Top 8 advance" while the engine seeded two per flight; and
+   * "Generate" fabricated an empty stroke-play SCORECARD for each survivor of
+   * a cut the bracket never applied, adding eighteen holes to everybody's
+   * `holesOwed` for a round that is not scored that way at all.
+   */
+  seededFromQualifiers: boolean;
 }
 
 export const STAGE_TYPE_INFO: StageTypeInfo[] = [
@@ -68,6 +84,7 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     generatesPairings: true,
     isPlayingRound: true,
     chainsMatchPoints: true,
+    seededFromQualifiers: false,
   },
   {
     key: "Stroke Play Round",
@@ -81,6 +98,7 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     generatesPairings: false,
     isPlayingRound: true,
     chainsMatchPoints: false,
+    seededFromQualifiers: false,
   },
   {
     key: "Qualification Stage",
@@ -91,6 +109,7 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     generatesPairings: false,
     isPlayingRound: false,
     chainsMatchPoints: false,
+    seededFromQualifiers: false,
   },
   {
     key: "Single Match Stage",
@@ -101,6 +120,11 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     generatesPairings: false,
     isPlayingRound: true,
     chainsMatchPoints: false,
+    // Left as it was, deliberately. A play-in's field is derived from results
+    // too, so it may well have the same complaint — but the audit named the
+    // bracket, and changing how a single match is generated is a separate
+    // question that wants its own look.
+    seededFromQualifiers: false,
   },
   {
     key: "Bracket Stage",
@@ -111,6 +135,7 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     generatesPairings: false,
     isPlayingRound: true,
     chainsMatchPoints: false,
+    seededFromQualifiers: true,
   },
 ];
 
@@ -169,6 +194,17 @@ export function generatesPairings(type: string): boolean {
 /** Rounds the field actually plays, in play order. */
 export function isPlayingRound(type: string): boolean {
   return lookupStageType(type)?.isPlayingRound ?? false;
+}
+
+/**
+ * Whether this round's field is the event's qualifiers rather than the
+ * survivors of a cut.
+ *
+ * False for an unknown type, which keeps a type nobody has taught the app about
+ * on the ordinary path rather than silently exempting it.
+ */
+export function seededFromQualifiers(type: string): boolean {
+  return lookupStageType(type)?.seededFromQualifiers ?? false;
 }
 
 /**
