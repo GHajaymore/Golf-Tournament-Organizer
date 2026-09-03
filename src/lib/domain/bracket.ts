@@ -246,6 +246,33 @@ export function bracketFinishOrder(
   return placed.sort((a, b) => a.rank - b.rank);
 }
 
+/**
+ * The stored draw: qualifier ids in seeding order, or null for "not drawn yet".
+ *
+ * Null on anything it cannot read — empty, malformed, not an array, an array of
+ * no usable ids. That is deliberate: falling back to seeding from live
+ * standings is exactly what the app did before there was a stored draw, so a
+ * corrupt value degrades to the old behaviour rather than to an empty bracket.
+ * A knockout that silently loses its field is a worse failure than one that
+ * re-derives it.
+ */
+export function parseBracketDraw(json: string): string[] | null {
+  if (!json) return null;
+  try {
+    const arr = JSON.parse(json) as unknown;
+    if (!Array.isArray(arr)) return null;
+    const ids = arr.filter((v): v is string => typeof v === "string" && v.trim() !== "");
+    return ids.length ? ids : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The draw, ready to store. Order is the whole point — it IS the seeding. */
+export function serializeBracketDraw(playerIds: string[]): string {
+  return JSON.stringify(playerIds);
+}
+
 /** Smallest power of two that holds `n` players, minimum 2. */
 export function bracketSizeFor(n: number): number {
   let size = 2;

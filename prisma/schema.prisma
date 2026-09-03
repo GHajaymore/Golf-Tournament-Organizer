@@ -708,6 +708,26 @@ model Event {
    */
   bracketMode      String  @default("split") // single | split | plate
   /**
+   * The draw, once it has been made: a JSON array of player ids in qualifying
+   * order. Empty until the first knockout result is recorded.
+   *
+   * A knockout was seeded from LIVE standings on every page load, so the draw
+   * was never a thing that had happened — it was a thing recomputed from
+   * whatever the standings said this second. A withdrawal, or a corrected
+   * round-robin score entered after the quarter-finals were played, reshuffled
+   * every pairing underneath the results: a played quarter-final read as
+   * unplayed AND vanished from the draw, so it could not even be entered
+   * again, while winners who survived the reshuffle sat in slots they had
+   * never contested.
+   *
+   * A draw is an event. Once it is made it does not change because a score was
+   * corrected — that is what "the draw" means at every club in the world, and
+   * the fix is to write it down. Deliberately a JSON array on the event rather
+   * than a new model: it is one ordered list, read in one place, and the rest
+   * of the schema already stores cards and hole results exactly this way.
+   */
+  bracketDraw      String  @default("")
+  /**
    * What shape of tournament this is, asked once at the start.
    * Decides what the rest of setup is about: a single round has no next round
    * to carry into, and a knockout has a bracket where a league has none.

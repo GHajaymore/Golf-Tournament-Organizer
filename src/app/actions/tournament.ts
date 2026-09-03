@@ -71,6 +71,7 @@ import {
   playingHandicapFrom,
   holeStrokesReceived,
   allocationHoles,
+  serializeBracketDraw,
 } from "@/lib/domain";
 import type { FormationRule, HoleResult } from "@/lib/domain";
 import { effectiveAllowance } from "@/lib/services/teams";
@@ -2550,9 +2551,52 @@ export async function reopenMatch(matchId: string) {
 export async function setBracketWinner(key: string, winnerId: string) {
   const eventId = await requireStaffEvent();
   const existing = await prisma.bracketWinner.findFirst({ where: { eventId, key } });
+
+  /**
+   * The first result is what makes the draw a draw.
+   *
+   * Until somebody has played, re-seeding from live standings is right: a late
+   * entry or a corrected score SHOULD change who is in the bracket. The moment
+   * one knockout match has a winner, it stops being right — the pairings are
+   * now the thing the results are recorded against, and recomputing them
+   * reshuffles played matches out of existence.
+   *
+   * So the draw is written down here, before the result that ends the
+   * re-seeding, and it is the draw the organizer was looking at when they
+   * clicked. Nothing else in the app writes it.
+   */
+  if (!existing) {
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { bracketDraw: true },
+    });
+    if (event && !event.bracketDraw) {
+      const state = await loadEventState(eventId);
+      if (state && state.qualifiers.length > 0) {
+        await prisma.event.update({
+          where: { id: eventId },
+          data: { bracketDraw: serializeBracketDraw(state.qualifiers.map((p) => p.id)) },
+        });
+      }
+    }
+  }
+
   if (existing?.winnerId === winnerId) {
     // Toggle off if the same slot is clicked again.
     await prisma.bracketWinner.delete({ where: { id: existing.id } });
+    /**
+     * Clearing the last result re-opens the draw.
+     *
+     * Without this a frozen draw would be a one-way door: an organizer who
+     * recorded a result by mistake, undid it, and then fixed the qualifying
+     * scores would be stuck with a bracket seeded from the wrong standings and
+     * no way in the UI to say so. A bracket with no results has not started,
+     * so there is no draw to protect.
+     */
+    const remaining = await prisma.bracketWinner.count({ where: { eventId } });
+    if (remaining === 0) {
+      await prisma.event.update({ where: { id: eventId }, data: { bracketDraw: "" } });
+    }
   } else if (existing) {
     await prisma.bracketWinner.update({ where: { id: existing.id }, data: { winnerId } });
   } else {

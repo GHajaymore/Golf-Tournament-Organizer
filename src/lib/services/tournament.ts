@@ -28,6 +28,7 @@ import {
   drawBrackets,
   firstRoundLosers,
   isBracketMode,
+  parseBracketDraw,
   roundRobinMatchCount,
   resolveMatch,
   courseHandicapMap,
@@ -1046,9 +1047,36 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     }
     return resolveMatch(holes).complete && effectiveScoreStatus(m, autoConfirm) === "pending";
   }).length;
-  const qualifiers = isStroke
+  const liveQualifiers = isStroke
     ? strokeStandings.filter((s) => qualifierIds.has(s.player.id)).map((s) => toDomainPlayer(s.player, hcpOf(s.player)))
     : overall.filter((rp) => qualifierIds.has(rp.player.id)).map((rp) => rp.player);
+
+  /**
+   * The draw, once it has been made.
+   *
+   * Everything above recomputes who qualifies from the standings as they stand
+   * RIGHT NOW, which is correct up until the moment somebody plays a knockout
+   * match — and catastrophic one moment later. A withdrawal, or a round-robin
+   * score corrected after the quarter-finals, reshuffled every pairing beneath
+   * the results already recorded: a played quarter-final read as unplayed (its
+   * stored winner no longer matched either name in the slot, so `claimedWinner`
+   * discarded it) AND vanished from the draw, so it could not be entered again.
+   * Meanwhile a winner who happened to survive the reshuffle sat in a slot
+   * against an opponent they had never played.
+   *
+   * `event.bracketDraw` is written once, by the first recorded result. From
+   * then on the draw is what it was on the day. Players are looked up in the
+   * FULL field rather than the confirmed one on purpose: a player who withdraws
+   * after the draw stays in it and is beaten by walkover, which is what the
+   * Rules expect and what the sheet on the noticeboard already says.
+   */
+  const drawnIds = parseBracketDraw(event.bracketDraw);
+  const domainById = new Map(
+    players.map((p) => [p.id, toDomainPlayer(p, hcpOf(p))] as const),
+  );
+  const qualifiers = drawnIds
+    ? drawnIds.map((id) => domainById.get(id)).filter((p): p is Player => !!p)
+    : liveQualifiers;
 
   const advTotals = overall
     .filter((rp) => qualifierIds.has(rp.player.id))
