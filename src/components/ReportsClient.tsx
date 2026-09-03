@@ -53,7 +53,20 @@ export function ReportsClient({
   scored?: boolean;
 }) {
   const router = useRouter();
-  const status = (r: StandingRow) => (r.advancing ? "Advancing" : "Eliminated");
+  /**
+   * What the exported sheet says about each player's qualification.
+   *
+   * This was a flat Advancing / Eliminated, and the file that came out of it
+   * carried two rows at the same rank — one of each — with nothing to say the
+   * split had been made by seed order after a countback failed to separate
+   * them. That sheet gets printed and pinned up, and it reads as a decision.
+   *
+   * A tie for the last qualifying place is settled by a play-off or a
+   * published countback, so neither player is Advancing or Eliminated yet and
+   * the export must not claim they are.
+   */
+  const status = (r: StandingRow) =>
+    r.tiedAtCut ? "Tied — play-off to decide" : r.advancing ? "Advancing" : "Eliminated";
 
   const fullStandings = () => {
     const header = isStroke

@@ -28,6 +28,19 @@ export interface StandingRow {
   name: string;
   flight: string;
   advancing: boolean;
+  /**
+   * Whether the cut line runs THROUGH this player's position.
+   *
+   * True for every player sharing a finishing position that has players on
+   * both sides of qualification. `advancing` is still set, because a
+   * tournament has to keep running — but it is a provisional pick made by the
+   * sort's last fallback, which is seed, which is handicap order. The board
+   * printed the two players level and then quietly advanced one of them.
+   *
+   * A tie for the last qualifying place is settled by a play-off or a
+   * published countback, not by software. This is how a screen says so.
+   */
+  tiedAtCut?: boolean;
   // match-play
   record: string;
   diff: string;
@@ -58,6 +71,19 @@ function unrankedNote(r: StandingRow): string {
   return r.holesOwed > r.thru
     ? `Not ranked — ${r.thru} of ${r.holesOwed} holes played`
     : "Not ranked — card incomplete";
+}
+
+/**
+ * The note under a player the cut line runs through.
+ *
+ * Same reason `unrankedNote` is on the page rather than in a tooltip: this
+ * board is read on a phone, and the row it belongs to is lit as advancing
+ * while the row below it is not, though the two are printed on the same
+ * position. Without a word here the board simply looks wrong, and a reader
+ * cannot tell whether the app broke the tie or made a mistake.
+ */
+function tieNote(r: StandingRow): string {
+  return r.tiedAtCut ? "Tied for the last place — play-off to decide" : "";
 }
 
 /** Renders the standings for either format. `compact` = the dashboard preview. */
@@ -105,6 +131,11 @@ export function LeaderboardTable({
                   {unrankedNote(r) && (
                     <div className="text-muted" style={{ fontWeight: 400, fontSize: "0.85em" }}>
                       {unrankedNote(r)}
+                    </div>
+                  )}
+                  {tieNote(r) && (
+                    <div className="text-muted" style={{ fontWeight: 400, fontSize: "0.85em" }}>
+                      {tieNote(r)}
                     </div>
                   )}
                 </td>

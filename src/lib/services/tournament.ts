@@ -23,6 +23,7 @@ import {
   computeStandings,
   groupCutoff,
   qualificationBubble,
+  cutLineTies,
   buildBracket,
   drawBrackets,
   firstRoundLosers,
@@ -1080,6 +1081,27 @@ export function standingRows(state: EventState): StandingRow[] {
   );
   const flight = (id: string) => flightByPlayer.get(id) ?? "—";
 
+  /**
+   * Positions the cut line runs through, worked out once for every reader.
+   *
+   * The board and the exported CSV are built from these same rows, so finding
+   * the tie here is what stops one of them saying "Advancing" while the other
+   * says two players are level. It is the same fault this file keeps finding:
+   * one rule, one reader.
+   */
+  const tied = new Set(
+    cutLineTies(
+      state.strokeStandings.map((s) => ({
+        id: s.player.id,
+        rank: s.rank,
+        ranked: s.ranked,
+        advancing: state.advancingIds.has(s.player.id),
+        groupId: s.player.groupId,
+      })),
+      state.event.qualifyMode === "overall" ? "overall" : "perFlight",
+    ).flatMap((t) => t.playerIds),
+  );
+
   if (state.isStroke) {
     return state.strokeStandings.map((s) => ({
       id: s.player.id,
@@ -1090,6 +1112,7 @@ export function standingRows(state: EventState): StandingRow[] {
       name: s.player.name,
       flight: flight(s.player.id),
       advancing: state.advancingIds.has(s.player.id),
+      tiedAtCut: tied.has(s.player.id),
       record: "",
       diff: "",
       pts: "",
@@ -1205,7 +1228,36 @@ export function computeHighlights(state: EventState): Highlight[] {
       state.event.qualifyMode === "overall" ? "overall" : "perFlight",
       stableford,
     );
-    if (bubble) {
+    /**
+     * A gap of nothing is not a gap. It is a tie for the last place.
+     *
+     * This said "X is 0 points outside qualification", which is not a sentence
+     * about anything — the player is not outside by a margin, they are level
+     * with the player who got in and were separated by seed order. The
+     * organizer has a decision to make and the card that told them about it
+     * was reporting a distance of zero.
+     */
+    const tiedAtLine = cutLineTies(
+      scored.map((s) => ({
+        id: s.player.id,
+        rank: s.rank,
+        ranked: s.ranked,
+        advancing: state.advancingIds.has(s.player.id),
+        groupId: s.player.groupId,
+      })),
+      state.event.qualifyMode === "overall" ? "overall" : "perFlight",
+    );
+    if (tiedAtLine.length > 0) {
+      const nameOf = (id: string) => scored.find((s) => s.player.id === id)?.player.name ?? "—";
+      const names = tiedAtLine[0].playerIds.map(nameOf);
+      out.push({
+        icon: "⚖️",
+        title: "Tied for the last place",
+        text: `${names.join(" and ")} are level on ${tiedAtLine[0].rank}${
+          tiedAtLine.length > 1 ? `, and ${tiedAtLine.length - 1} more flight(s) are tied too` : ""
+        }. A play-off or your published countback decides who goes through — the app has not.`,
+      });
+    } else if (bubble) {
       const outName = scored.find((s) => s.player.id === bubble.firstOut.id)!.player.name;
       out.push({
         icon: "🚨",
