@@ -16,10 +16,23 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A newer push makes an in-flight run pointless.
+# A newer push makes an in-flight run pointless — on a FEATURE branch.
+#
+# Never on `main`. Vercel deploys `main` to production from its own Git
+# integration, on push, without waiting for this file. So `main` is the one
+# branch where cancelling costs something real: on 2026-09-02 two PRs merged a
+# minute apart, the second cancelled the first's run, and the merge commit that
+# had just gone to production ended with `verify` reading `cancelled` — no
+# completed check, on the commit users were being served.
+#
+# Nothing was wrong that time. But "deployed on a commit CI never finished
+# judging" is the same shape as the day main sat red in production, and the
+# whole point of this file is that the build is verified rather than assumed.
+# A duplicate run on main costs a few free minutes; a missing verdict costs the
+# only signal there is.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   verify:
