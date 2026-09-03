@@ -255,7 +255,6 @@ export default async function EntryPage() {
   };
 
   const nameById = new Map(state.players.map((p) => [p.id, p.name]));
-  const handicapById = new Map(state.players.map((p) => [p.id, p.handicap]));
   const groupById = new Map(state.groups.map((g) => [g.id, g.position]));
   // resolveCourse falls back to a demo preset so scoring never crashes. That
   // fallback must not be *shown*: printing one course's par and stroke index
@@ -393,8 +392,27 @@ export default async function EntryPage() {
             bId: m.playerBId,
             aName: nameById.get(m.playerAId) ?? "—",
             bName: nameById.get(m.playerBId) ?? "—",
-            aHandicap: handicapById.get(m.playerAId) ?? 0,
-            bHandicap: handicapById.get(m.playerBId) ?? 0,
+            /**
+             * The ROUND's Playing Handicap, resolved on the server.
+             *
+             * These were the raw stored Handicap Index, so net match play
+             * allocated strokes off a number the round does not use: no slope
+             * conversion, no format allowance, and — worse — no sight of a
+             * committee `override` or the `frozen` value a returned card
+             * writes. The client showed four strokes where the server stored
+             * six.
+             *
+             * That is not only a display fault here. In HOLE-RESULTS mode,
+             * which is the first input this format offers, the dots decide who
+             * won each hole and the winners are stored as entered and never
+             * recomputed — so a wrong allocation becomes a wrong result.
+             *
+             * `strokeHandicapFor` is the same resolver `/me/card` and the week
+             * view already use, and it also handles a nine-hole round halving
+             * the index, which the client did not.
+             */
+            aHandicap: state.strokeHandicapFor(m.playerAId, stage.id),
+            bHandicap: state.strokeHandicapFor(m.playerBId, stage.id),
             groupName: `Flight ${(groupById.get(m.groupId) ?? 0) + 1}`,
             round: m.round,
             holes,

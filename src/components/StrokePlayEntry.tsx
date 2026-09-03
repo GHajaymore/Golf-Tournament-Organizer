@@ -4,7 +4,14 @@ import Link from "next/link";
 import { CardPhotoReader } from "@/components/CardPhotoReader";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { ScorecardTable, type CardBrand } from "@/components/ScorecardTable";
-import { computeStrokeCard, toParText, parseStrokesTranscript } from "@/lib/domain";
+import {
+  computeStrokeCard,
+  toParText,
+  parseStrokesTranscript,
+  stablefordPointsForHole,
+  modifiedStablefordForHole,
+} from "@/lib/domain";
+import { boardKind } from "@/lib/formats";
 import { cardTotals, TOTAL_LABEL } from "@/lib/domain/card-totals";
 import { isCardLocked } from "@/lib/domain/card-approval";
 import { saveScorecard } from "@/app/actions/tournament";
@@ -117,9 +124,34 @@ export function StrokePlayEntry({
 
   const player = players.find((p) => p.id === playerId);
   const strokes = cards[playerId] ?? new Array(holes).fill(null);
+  /**
+   * The totals are built from what the ROUND allocated, not from an index.
+   *
+   * `shotsByPlayer` is the server-resolved Playing Handicap, hole by hole — the
+   * same numbers this screen prints as dots beside each hole. The totals were
+   * computed separately from `player.handicap`, the raw Handicap Index, so the
+   * net and the Stableford points disagreed with the dots directly above them:
+   * three to five strokes at a rated club, and one stroke at minimum anywhere,
+   * because Stroke Play carries a 95% allowance and needs no ratings to
+   * diverge. A committee override made it worse still.
+   *
+   * `PlayerCard.tsx` was fixed this way already, and its comment names this
+   * defect by location. This is that fix, on the screen it points at.
+   *
+   * And a Modified Stableford round is scored on the Modified table. It was
+   * shown standard points, labelled "Stableford" and displayed first, so two
+   * eagles and sixteen pars read 40 on the card and 10 on the board.
+   */
   const card = useMemo(
-    () => computeStrokeCard(strokes, pars, player?.handicap ?? 0, strokeIndex),
-    [strokes, pars, strokeIndex, player],
+    () =>
+      computeStrokeCard(strokes, pars, player?.handicap ?? 0, strokeIndex, {
+        shotsPerHole: shotsByPlayer[playerId],
+        pointsForHole:
+          boardKind(format) === "modified-stableford"
+            ? modifiedStablefordForHole
+            : stablefordPointsForHole,
+      }),
+    [strokes, pars, strokeIndex, player, shotsByPlayer, playerId, format],
   );
 
   /**
