@@ -436,6 +436,68 @@ export function groupCutoff(ranked: RankedPlayer[], qualifyPerGroup: number): nu
   return ranked[idx].stats.totalPoints;
 }
 
+/** Players who share the position that the cut line runs through. */
+export interface CutLineTie {
+  /** The shared finishing position — the one printed twice on the board. */
+  rank: number;
+  /** Everyone on it: some marked advancing, at least one not. */
+  playerIds: string[];
+}
+
+/**
+ * A tie for the last qualifying place, which is not the app's to break.
+ *
+ * Stroke standings share a rank when a countback cannot separate two players —
+ * the board prints "8" twice, and correctly. Qualification then takes the first
+ * N of that list, and the order inside a tied pair is whatever the sort's last
+ * fallback produced, which is SEED: handicap order. So the board printed two
+ * players level and the app advanced one of them and eliminated the other,
+ * saying nothing about how it chose. The exported standings carried both rows
+ * at rank 8, one "Advancing" and one "Eliminated".
+ *
+ * Under the Rules a tie for the last qualifying place is decided by a play-off,
+ * or by a countback the committee has published beforehand (Committee
+ * Procedures 5A). Neither is a thing software may do quietly on a club's
+ * behalf. So this does not change who the app provisionally picks — a
+ * tournament must still run — it finds the tie so every screen can say one is
+ * outstanding.
+ *
+ * Scoped like `qualificationBubble`, and for the same reason: ranks are
+ * assigned across the whole field, so under a per-flight cut two players in
+ * different flights can share a rank without being in the same race at all.
+ * Comparing them would report a play-off between players who never had a place
+ * to argue over.
+ */
+export function cutLineTies(
+  rows: Array<{
+    id: string;
+    rank: number;
+    ranked: boolean;
+    advancing: boolean;
+    groupId?: string | null;
+  }>,
+  scope: "overall" | "perFlight",
+): CutLineTie[] {
+  const buckets = new Map<string, typeof rows>();
+  for (const r of rows) {
+    // An unranked player holds no position, so they cannot be tied for one.
+    if (!r.ranked || !Number.isFinite(r.rank) || r.rank < 1) continue;
+    const key = scope === "perFlight" ? `${r.groupId ?? ""}|${r.rank}` : `${r.rank}`;
+    const list = buckets.get(key);
+    if (list) list.push(r);
+    else buckets.set(key, [r]);
+  }
+
+  const ties: CutLineTie[] = [];
+  for (const group of buckets.values()) {
+    if (group.length < 2) continue;
+    // The line runs THROUGH this position only if it has players on both sides.
+    if (!group.some((r) => r.advancing) || !group.some((r) => !r.advancing)) continue;
+    ties.push({ rank: group[0].rank, playerIds: group.map((r) => r.id) });
+  }
+  return ties.sort((a, b) => a.rank - b.rank);
+}
+
 export interface BubblePlayer {
   id: string;
   /** Ranking value. Read as points (higher is better) or strokes (lower is
