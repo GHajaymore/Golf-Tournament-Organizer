@@ -243,6 +243,22 @@ export const CLONED_STAGE_FIELDS = [
   // scored. A club that asks for cards from its match-play day is running that
   // tournament again next year for the same reason.
   "scoreInput",
+  /**
+   * Carried, but TRANSLATED — the one field on this list that cannot be copied
+   * as it stands. See `cloneSingleMatchRule`.
+   *
+   * A "1 v 2" rule is about positions and copies straight across. The other two
+   * kinds are made of ids belonging to the tournament they were written in: a
+   * `stage-winners` rule names Stage ids, and copying those verbatim gave the
+   * new tournament a final waiting on two rounds in the OLD one — "Waiting on
+   * the earlier rounds", forever, however completely this year's were played.
+   * A `named` rule names Player ids from a field that is never copied, so it
+   * reported a withdrawal that had not happened.
+   *
+   * The stage-winners ids are remapped onto the copy's own rounds and the
+   * named rule is dropped, which leaves the round asking to be set rather than
+   * blaming something.
+   */
   "singleMatchRule",
   "thirdPlace",
   "carryForwardEnabled",
