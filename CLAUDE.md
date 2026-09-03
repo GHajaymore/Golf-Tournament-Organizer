@@ -60,6 +60,32 @@ npx vitest run --config vitest.audit.config.ts
 Use `NEXT_DIST_DIR=.next-ci` for builds while a dev server is running; sharing `.next` between
 them corrupts it.
 
+## What gates a merge, and what does not gate a deploy
+
+`ci.yml` is the only workflow that runs on its own — every push and every PR. It does the
+command above plus the smoke pass and Playwright.
+
+**What stops a bad merge** is a RULESET named "main must be green", not classic branch
+protection. Branch protection is OFF, so `/repos/.../branches/main/protection` returns 404
+and tells you nothing; ask `/rules/branches/main` instead. It requires the `verify` check
+and blocks deletion and force-push on `main`. `strict` is off, so a branch need not be
+rebased onto `main` to merge.
+
+**What does not stop a bad deploy**: Vercel ships `main` to production from its own Git
+integration, on push, BEFORE `verify` finishes. A bad commit on `main` is therefore
+REPORTED, not stopped. Closing that needs a `VERCEL_TOKEN` secret and Vercel's production
+Git deploys turned off, so the deploy can run from a job that `needs: verify`. Neither is
+done as of 2026-09-03.
+
+Related: `main` is exempt from `cancel-in-progress`. Two merges a minute apart used to leave
+the first one's `verify` reading `cancelled` on a commit already in production — a deploy
+with no verdict at all. Feature branches still cancel.
+
+The two mobile workflows are scaffolding, not pipelines. `android-release.yml` reads five
+secrets and `ios-testflight.yml` seven; the repository has NONE — `gh secret list` is empty.
+Both are `workflow_dispatch` only, so nothing goes red on a push, but "Run workflow" fails at
+signing. That is a missing certificate, not a broken file.
+
 ## What the tests enforce
 
 The suite is not only about behaviour — several files exist to make a whole class of mistake
