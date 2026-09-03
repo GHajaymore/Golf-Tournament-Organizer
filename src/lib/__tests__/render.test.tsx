@@ -2651,6 +2651,7 @@ describe("the board answers 'where am I' first", () => {
     id: "p1",
     rank: 1,
     ranked: true,
+    started: true,
     holesOwed: 18,
     name: "A. Moore",
     flight: "—",

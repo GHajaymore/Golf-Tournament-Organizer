@@ -15,6 +15,16 @@ export interface StandingRow {
    * `rank` is 0 wherever this is false.
    */
   ranked: boolean;
+  /**
+   * Whether this player has a RESULT in this round yet.
+   *
+   * Distinct from `thru`, which counts holes on a returned CARD. A match-play
+   * round keeps its results on the matches, so `thru` is zero for everybody in
+   * one — and anything reading `thru > 0` as "has started" told a player
+   * 3-0-0 and top of their flight that they had no position. See
+   * `shared-position.ts`.
+   */
+  started: boolean;
   name: string;
   flight: string;
   advancing: boolean;

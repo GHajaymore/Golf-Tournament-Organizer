@@ -613,6 +613,26 @@ export function usesStandardBoard(formatName: string | null | undefined): boolea
   return boardKind(formatName) === "standard";
 }
 
+/**
+ * Whether this round gives a player an individual POSITION at all.
+ *
+ * Wider than `usesStandardBoard`, and deliberately: a Modified Stableford round
+ * is ranked, it is simply ranked on a different points table, so a player in
+ * one has a position and should be told it.
+ *
+ * The rounds that have none are the four that no board in the product will
+ * rank. A skins round pays holes, not places; a Nassau is three bets, not a
+ * finishing order; a team round places SIDES; and a manual one the app does not
+ * score at all. Every board already refuses these — and `/me` did not, so it
+ * handed a skins player a stroke-play "Position T1" in forty-point type,
+ * beside a leaderboard that would not print one. A number that large is not a
+ * detail; it is what the player believes they finished.
+ */
+export function ranksIndividuals(formatName: string | null | undefined): boolean {
+  const kind = boardKind(formatName);
+  return kind === "standard" || kind === "modified-stableford";
+}
+
 /** True when the side shares a single scorecard rather than one card each. */
 export function sharesOneCard(formatName: string): boolean {
   return findFormat(formatName).ball === "single";

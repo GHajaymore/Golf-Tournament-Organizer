@@ -20,8 +20,21 @@
 export interface PositionRow {
   id: string;
   rank: number;
-  /** Holes played. Zero means they have not started. */
-  thru: number;
+  /**
+   * Whether this player has a RESULT in this round yet.
+   *
+   * Not the same as holes played, which is what this used to ask. A match-play
+   * round stores its results on the matches rather than in scorecards, so
+   * `thru` is zero for everybody in it however much golf they have played —
+   * and a player 3-0-0 and top of their flight was told their position was
+   * "–" while the console, the dashboard and their own Board tab all showed
+   * them first.
+   *
+   * The format knows which fact answers this, so the answer is computed where
+   * the format is known — see `standingRows` — rather than inferred here from
+   * a column that means different things on different boards.
+   */
+  started: boolean;
   /**
    * Whether this row holds a position at all.
    *
@@ -41,10 +54,10 @@ export interface PositionRow {
  */
 export function positionLabel(rows: PositionRow[], playerId: string): string {
   const mine = rows.find((r) => r.id === playerId);
-  // Both, and they are different questions. `thru` is whether a card exists to
-  // report on; `ranked` is whether it earned a place. A 5&4 card has the first
-  // and not the second.
-  if (!mine || mine.thru <= 0 || !mine.ranked) return "";
-  const sharing = rows.filter((r) => r.thru > 0 && r.ranked && r.rank === mine.rank).length;
+  // Both, and they are different questions. `started` is whether there is a
+  // result to report on; `ranked` is whether it earned a place. A 5&4 card has
+  // the first and not the second.
+  if (!mine || !mine.started || !mine.ranked) return "";
+  const sharing = rows.filter((r) => r.started && r.ranked && r.rank === mine.rank).length;
   return sharing > 1 ? `T${mine.rank}` : `${mine.rank}`;
 }
