@@ -288,6 +288,127 @@ describe("generateCutRound refuses a round with nothing to cut on", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("hands on a playable round when the cut leaves one survivor per flight", async () => {
+    /**
+     * "1 from each of 3 flights — 3 of 12 advance" is an ordinary cut, and it
+     * produced an EMPTY round. Each flight kept its single survivor, a round
+     * robin of one draws no pairings, the draw dropped every flight under two,
+     * and the round it had already wiped was rebuilt with nothing in it —
+     * under a screen still promising three advance and a "not generated yet"
+     * tag that had been there before the click.
+     *
+     * Flight winners play each other. So the survivors are pooled, and the
+     * round that comes back is one somebody can actually play.
+     */
+    const { eventId } = await seedEvent();
+    const r1 = await prisma.stage.create({
+      data: { eventId, position: 0, type: "Round Robin", format: "Match Play", holes: 18 },
+    });
+    const r2 = await prisma.stage.create({
+      data: {
+        eventId,
+        position: 1,
+        type: "Round Robin",
+        format: "Match Play",
+        holes: 18,
+        cutEnabled: true,
+        cutScope: "perFlight",
+        cutMode: "count",
+        cutCount: 1,
+      },
+    });
+
+    // Three flights of four, each flight fully played so it has a real winner.
+    const flights: string[] = [];
+    const byFlight: string[][] = [];
+    let seed = 1;
+    for (let f = 0; f < 3; f += 1) {
+      const g = await addFlight(eventId, String.fromCharCode(65 + f), f);
+      flights.push(g);
+      const ids: string[] = [];
+      for (let k = 0; k < 4; k += 1) {
+        ids.push(await addPlayer(eventId, g, `F${f}P${k}`, 4 + k * 3 + f, seed++));
+      }
+      byFlight.push(ids);
+      for (let i = 0; i < ids.length; i += 1) {
+        for (let j = i + 1; j < ids.length; j += 1) {
+          await prisma.match.create({
+            data: {
+              eventId,
+              stageId: r1.id,
+              groupId: g,
+              round: 1,
+              playerAId: ids[i], // the better seed wins every match
+              playerBId: ids[j],
+              holes: A_WINS,
+            },
+          });
+        }
+      }
+    }
+
+    const result = await generateCutRound(eventId, r2.id);
+    expect(result.ok).toBe(true);
+
+    const matches = await prisma.match.findMany({ where: { eventId, stageId: r2.id } });
+    // Three survivors pooled into one flight is a round robin of three.
+    expect(matches.length).toBe(3);
+
+    const survivorsNow = await prisma.player.findMany({
+      where: { eventId, groupId: { not: null } },
+      select: { id: true, groupId: true },
+    });
+    expect(survivorsNow).toHaveLength(3);
+
+    // Every survivor has an opponent — the assertion the empty round failed.
+    const paired = new Set(matches.flatMap((m) => [m.playerAId, m.playerBId]));
+    for (const s of survivorsNow) {
+      expect(paired.has(s.id), `${s.id} has somebody to play`).toBe(true);
+    }
+
+    // And each match is filed under the flight both its players are in, which
+    // is what breaks if the reform flag and the reform itself disagree.
+    const groupOf = new Map(survivorsNow.map((s) => [s.id, s.groupId]));
+    for (const m of matches) {
+      expect(groupOf.get(m.playerAId)).toBe(m.groupId);
+      expect(groupOf.get(m.playerBId)).toBe(m.groupId);
+    }
+  });
+
+  it("says so when the cut leaves nobody to play", async () => {
+    // A cut to a single player across the whole field is a real answer, but it
+    // must not arrive as an empty round under a screen saying somebody
+    // advanced.
+    const { eventId } = await seedEvent();
+    const r1 = await prisma.stage.create({
+      data: { eventId, position: 0, type: "Round Robin", format: "Match Play", holes: 18 },
+    });
+    const r2 = await prisma.stage.create({
+      data: {
+        eventId,
+        position: 1,
+        type: "Round Robin",
+        format: "Match Play",
+        holes: 18,
+        cutEnabled: true,
+        cutScope: "overall",
+        cutMode: "count",
+        cutCount: 1,
+      },
+    });
+    const g = await addFlight(eventId, "A", 0);
+    const a = await addPlayer(eventId, g, "A1", 3, 1);
+    const b = await addPlayer(eventId, g, "A2", 9, 2);
+    await prisma.match.create({
+      data: { eventId, stageId: r1.id, groupId: g, round: 1, playerAId: a, playerBId: b, holes: A_WINS },
+    });
+
+    const result = await generateCutRound(eventId, r2.id);
+
+    expect(result.ok).toBe(false);
+    expect(result.ok === false && result.reason).toBe("no-pairings");
+  });
+
   it("counts a conceded match as a result, though it leaves no card", async () => {
     /**
      * A flight settled by concessions has no strokes and no holes — Rule

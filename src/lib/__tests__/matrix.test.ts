@@ -1449,18 +1449,42 @@ describe("a cut and the flights that follow it", () => {
               }
             }
 
-            // 5. A PER-FLIGHT cut keeps flights as they are, so it CAN hand on
-            //    a flight of one. Recorded rather than asserted away: the draw
-            //    drops those players, and nobody is told.
+            /**
+             * 5. A PER-FLIGHT cut keeps its flights — while they are still
+             *    flights.
+             *
+             * This block used to assert the DEFECT, and said so: "it CAN hand
+             * on a flight of one... the draw drops those players, and nobody is
+             * told". A cut of "1 from each of 3 flights" is an ordinary thing
+             * for a club to run, and it left three flights of one, drew no
+             * matches at all, and rebuilt the round empty after wiping it.
+             *
+             * Asserted against the golf now, per CLAUDE.md: a round handed on
+             * to players must be playable. When a per-flight cut would leave
+             * somebody alone the survivors are pooled instead — flight winners
+             * play each other — and a pooled field keeps no old flight rows.
+             */
             if (rule.scope === "perFlight") {
               for (const f of next) {
-                expect(f.keepGroupId, `${label}: a per-flight cut reformed a flight`).not.toBeNull();
+                expect(
+                  f.playerIds.length,
+                  `${label}: handed on a flight of ${f.playerIds.length}`,
+                ).toBeGreaterThanOrEqual(2);
               }
-              const lonely = next.filter((f: NextRoundFlight) => f.playerIds.length < 2);
-              const strandedIds = lonely.flatMap((f: NextRoundFlight) => f.playerIds);
-              // Whoever is stranded genuinely survived — they are not stragglers
-              // from a bad filter, they are people the club told they were through.
-              for (const id of strandedIds) expect(through.has(id)).toBe(true);
+              const pooled = next.some((f: NextRoundFlight) => f.keepGroupId === null);
+              if (!pooled) {
+                // Nothing was stranded, so every flight is one that already
+                // existed — a kept flight must never invent a new row.
+                for (const f of next) {
+                  expect(f.keepGroupId, `${label}: a kept flight lost its row`).not.toBeNull();
+                }
+              }
+              // And with anyone left to pair, nobody is quietly dropped.
+              if (through.size >= 2) {
+                expect(placed.length, `${label}: a per-flight cut stranded somebody`).toBe(
+                  through.size,
+                );
+              }
             }
           }
         }

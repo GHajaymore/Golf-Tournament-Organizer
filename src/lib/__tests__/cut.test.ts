@@ -226,17 +226,40 @@ describe("re-flighting the survivors of a cut", () => {
   });
 
   it("leaves a per-flight cut's flights exactly as they were", () => {
-    // Nobody is stranded by a per-flight cut — survivors keep their flight and
-    // its mates — so the arrangement is untouched: the same players in the same
-    // flights they were already in.
-    const flights = nextRoundFlights(survivorField(), "perFlight", 8);
+    // The ordinary case, and the one this rule exists for: every flight still
+    // has players to play each other, so nothing moves. Survivors keep their
+    // flight and its mates, and the arrangement is untouched.
+    const twoApiece: Player[] = [
+      { id: "a1", name: "a1", handicap: 2, seed: 1, groupId: "A" },
+      { id: "a2", name: "a2", handicap: 5, seed: 2, groupId: "A" },
+      { id: "b1", name: "b1", handicap: 6, seed: 3, groupId: "B" },
+      { id: "b2", name: "b2", handicap: 9, seed: 4, groupId: "B" },
+    ];
+    const flights = nextRoundFlights(twoApiece, "perFlight", 8);
     const byGroup = Object.fromEntries(flights.map((f) => [f.keepGroupId, f.playerIds.sort()]));
-    expect(byGroup).toEqual({
-      A: ["a1", "a2", "a3", "a4"],
-      B: ["b1"],
-      C: ["c1"],
-    });
+    expect(byGroup).toEqual({ A: ["a1", "a2"], B: ["b1", "b2"] });
     for (const f of flights) expect(f.keepGroupId).not.toBeNull();
+  });
+
+  it("pools a per-flight cut that would leave somebody on their own", () => {
+    /**
+     * This test used to assert `B: ["b1"], C: ["c1"]` — two flights of ONE —
+     * under a comment reading "nobody is stranded by a per-flight cut". Both
+     * of those players were stranded: a round robin of one draws no pairings,
+     * the caller drops any flight under two, and they were simply not in the
+     * round. A cut of "1 from each of 3 flights" produced an empty round.
+     *
+     * A per-flight cut down to one means the flight winners go through, and
+     * flight winners play each other. So the survivors are pooled.
+     */
+    const flights = nextRoundFlights(survivorField(), "perFlight", 8);
+    const placed = flights.flatMap((f) => f.playerIds);
+
+    expect(placed.sort()).toEqual(["a1", "a2", "a3", "a4", "b1", "c1"]);
+    for (const f of flights) {
+      expect(f.playerIds.length, "no flight of one after pooling").toBeGreaterThanOrEqual(2);
+      expect(f.keepGroupId, "a pooled flight is not an old flight").toBeNull();
+    }
   });
 
   it("splits into several balanced flights when the target size is small", () => {

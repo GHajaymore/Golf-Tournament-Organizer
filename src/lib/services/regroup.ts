@@ -360,7 +360,8 @@ export type CutRoundResult =
   | { ok: true }
   | { ok: false; reason: "no-stage" }
   | { ok: false; reason: "no-prior-round" }
-  | { ok: false; reason: "no-results"; roundName: string };
+  | { ok: false; reason: "no-results"; roundName: string }
+  | { ok: false; reason: "no-pairings"; survivors: number };
 
 export async function generateCutRound(
   eventId: string,
@@ -526,12 +527,36 @@ export async function generateCutRound(
   // out a familiar size rather than one giant round robin.
   const origSizes = groups.map((g) => confirmed.filter((p) => p.groupId === g.id).length);
   const targetPerFlight = origSizes.length ? Math.max(...origSizes) : survivorIds.size;
-  const reformed = scope === "overall" && stage.cutEnabled;
   // Seed order in, so a kept flight's pairings match a plain regeneration's; a
   // reform re-sorts by strength internally and ignores the order.
   const flights = nextRoundFlights(survivorPlayers, scope, targetPerFlight).filter(
     (f) => f.playerIds.length >= 2,
   );
+  /**
+   * Whether the field was re-flighted, asked of the ANSWER rather than the
+   * scope.
+   *
+   * This read `scope === "overall" && stage.cutEnabled`, which was true exactly
+   * when `nextRoundFlights` reformed — until a per-flight cut that strands a
+   * player started reforming too. Left as it was, those matches would be filed
+   * under new flight rows while the players stayed in their old ones: every
+   * pairing recorded in a flight neither player belonged to.
+   *
+   * A reformed flight is the one with no existing row to keep, so the flights
+   * themselves say which happened and there is no second rule to keep in step.
+   */
+  const reformed = flights.some((f) => f.keepGroupId === null);
+
+  /**
+   * Survivors, but no pairing to be drawn from them.
+   *
+   * A cut down to a single player across the whole field leaves nobody to play
+   * — which is a real answer, not an error, but it must not arrive as an empty
+   * round under a screen that says somebody advanced.
+   */
+  if (flights.length === 0 && survivorPlayers.length > 0) {
+    return { ok: false, reason: "no-pairings", survivors: survivorPlayers.length };
+  }
 
   const emptyHoles = JSON.stringify(new Array(holeCount).fill(null));
 

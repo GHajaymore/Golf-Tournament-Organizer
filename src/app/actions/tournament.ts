@@ -1016,12 +1016,22 @@ export async function generateNextRound(stageId: string) {
    * the UI does not offer.
    */
   if (!result.ok) {
-    return result.reason === "no-results"
-      ? {
-          ok: false as const,
-          error: `${result.roundName} has no scores yet. A cut taken now would rank the whole field on zero and advance the lowest handicaps. Enter that round's results first.`,
-        }
-      : { ok: false as const, error: "That round can't be generated." };
+    if (result.reason === "no-results") {
+      return {
+        ok: false as const,
+        error: `${result.roundName} has no scores yet. A cut taken now would rank the whole field on zero and advance the lowest handicaps. Enter that round's results first.`,
+      };
+    }
+    if (result.reason === "no-pairings") {
+      return {
+        ok: false as const,
+        error:
+          result.survivors === 1
+            ? "Only one player survives this cut, so there is nobody left to play. Widen the cut, or finish the tournament here."
+            : `Only ${result.survivors} players survive this cut and none of them can be paired. Widen the cut.`,
+      };
+    }
+    return { ok: false as const, error: "That round can't be generated." };
   }
   await refresh();
   return { ok: true as const };
