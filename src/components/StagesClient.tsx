@@ -29,6 +29,7 @@ import {
   STAGE_TYPES,
   stageTypeInfo,
   generatesPairings,
+  seededFromQualifiers,
   nextPlayingStage,
   MAX_ROUNDS_AT_ONCE,
   type StageTypeKey,
@@ -240,6 +241,15 @@ function NextRoundTransition({
   const [carryPct, setCarryPct] = useState(nextStage?.carryPct ?? 0);
   const [pending, startTransition] = useTransition();
   const [genPending, startGenTransition] = useTransition();
+  /**
+   * Why the round would not build. Null until the server refuses.
+   *
+   * The action returned nothing, so pressing Generate on a round whose
+   * qualifying had not been played looked identical to success: the spinner
+   * stopped and the round was still empty. The refusal it now returns is the
+   * only warning an organizer gets before a cut ranks the field on zero.
+   */
+  const [genError, setGenError] = useState<string | null>(null);
 
   // The next round is guaranteed to exist by the time anything below runs —
   // the no-next-round case returns early. Kept as a function because the cut
@@ -304,6 +314,19 @@ function NextRoundTransition({
   // cards — so it is "generated" by handing the survivors a card, not by
   // building matches. Before it exists, assume a Round Robin (what gets created).
   const nextDrawsPairings = nextStage ? generatesPairings(nextStage.type) : true;
+  /**
+   * A bracket takes its field from Qualification, not from a cut here.
+   *
+   * Both controls below were offered for one anyway, and neither did anything.
+   * The cut saved, displayed as saved, printed on the published rules sheet as
+   * "Top 8 advance" — and the draw went on seeding two per flight, because it
+   * reads the event's qualification settings. Generate then handed every
+   * "survivor" an empty stroke-play card for a knockout round.
+   *
+   * Offering a setting that does nothing is worse than not offering it: the
+   * organizer believes they have set the thing, and the sheet agrees with them.
+   */
+  const nextIsSeeded = nextStage ? seededFromQualifiers(nextStage.type) : false;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -403,18 +426,27 @@ function NextRoundTransition({
       )}
 
       <div style={{ borderTop: "1px solid var(--color-divider)", margin: "4px 0", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-        <CutControl
-          formId={stageId}
-          getStageId={ensureNextStageId}
-          roundLabel={roundLabel}
-          enabled={nextStage?.cutEnabled ?? false}
-          mode={nextStage?.cutMode ?? "count"}
-          count={nextStage?.cutCount ?? 16}
-          percent={nextStage?.cutPercent ?? 50}
-          scope={nextStage?.cutScope ?? "overall"}
-          confirmedCount={confirmedCount}
-          flightCount={flightCount}
-        />
+        {nextIsSeeded ? (
+          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            <i className="ph ph-tree-structure" /> {roundLabel} is a bracket, so its field is
+            whoever qualifies — set that under Qualification. A cut here would not change the
+            draw.
+          </p>
+        ) : (
+          <CutControl
+            formId={stageId}
+            getStageId={ensureNextStageId}
+            roundLabel={roundLabel}
+            enabled={nextStage?.cutEnabled ?? false}
+            mode={nextStage?.cutMode ?? "count"}
+            count={nextStage?.cutCount ?? 16}
+            percent={nextStage?.cutPercent ?? 50}
+            scope={nextStage?.cutScope ?? "overall"}
+            confirmedCount={confirmedCount}
+            flightCount={flightCount}
+          />
+        )}
+        {!nextIsSeeded && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <button
             type="button"
@@ -422,8 +454,10 @@ function NextRoundTransition({
             disabled={genPending}
             onClick={() =>
               startGenTransition(async () => {
+                setGenError(null);
                 const id = await ensureNextStageId();
-                await generateNextRound(id);
+                const res = await generateNextRound(id);
+                if (!res.ok) setGenError(res.error);
               })
             }
           >
@@ -441,6 +475,27 @@ function NextRoundTransition({
             {nextDrawsPairings && !!nextStage?.matchCount && " Re-running replaces that round's matches."}
           </span>
         </div>
+        )}
+        {/* The refusal, in the place the organizer was looking when they
+            pressed the button. Without this the only feedback is the "not
+            generated yet" tag below, which was already there before the
+            click and so reads as nothing having happened. */}
+        {genError && (
+          <div
+            style={{
+              padding: "8px 10px",
+              border: "1px solid var(--color-danger)",
+              borderRadius: 8,
+              fontSize: 12.5,
+              lineHeight: 1.55,
+            }}
+          >
+            <b style={{ color: "var(--color-danger)" }}>
+              <i className="ph ph-warning-circle" /> Not generated.
+            </b>{" "}
+            {genError}
+          </div>
+        )}
         {nextDrawsPairings && nextStage && nextStage.matchCount === 0 && (
           <span className="tag tag-neutral" style={{ alignSelf: "flex-start" }}>
             <i className="ph ph-clock" /> {roundLabel} not generated yet

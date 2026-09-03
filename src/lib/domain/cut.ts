@@ -305,9 +305,37 @@ export function nextRoundFlights(
     if (list) list.push(p.id);
     else byFlight.set(p.groupId, [p.id]);
   }
-  return [...byFlight.entries()].map(([groupId, playerIds]) => ({
+
+  /**
+   * A FLIGHT OF ONE IS NOT A FLIGHT, and keeping it is how a round comes back
+   * empty.
+   *
+   * "1 from each of 3 flights" is a perfectly ordinary cut, and it left three
+   * flights holding one player each. A round robin of one draws no pairings,
+   * the caller drops any flight under two, and the round it had just wiped was
+   * rebuilt with nothing in it — under a screen still saying "3 of 12 advance"
+   * and a tag reading "not generated yet", which was there before the click.
+   * The partial version was quieter still: one flight reduced to a single
+   * survivor while the others drew normally, so that player sat in a round with
+   * no opponent and nothing anywhere said so.
+   *
+   * When it happens, the survivors are pooled and re-flighted together. That is
+   * what the cut meant: a per-flight cut down to one is "the flight winners go
+   * through", and flight winners play each other. Flights are only preserved
+   * while they are still flights — which is every ordinary case, and every case
+   * the caller had before this.
+   */
+  const kept = [...byFlight.entries()].map(([groupId, playerIds]) => ({
     keepGroupId: groupId,
     name: "",
     playerIds,
   }));
+  if (kept.some((f) => f.playerIds.length < 2)) {
+    return reflightSurvivors(survivors, targetPerFlight).map((f) => ({
+      keepGroupId: null,
+      name: f.name,
+      playerIds: f.playerIds,
+    }));
+  }
+  return kept;
 }

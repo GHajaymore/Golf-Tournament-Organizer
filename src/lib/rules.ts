@@ -1,4 +1,5 @@
 import { tiebreakerLabel, type TiebreakerKey } from "@/lib/domain/types";
+import { seededFromQualifiers } from "@/lib/stage-types";
 
 /**
  * The rules a competition actually runs under, in the three tiers a golfer
@@ -235,7 +236,16 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
     });
   }
 
-  if (input.cutEnabled) {
+  /**
+   * A cut the engine will actually apply, and no other.
+   *
+   * A bracket's field is the event's qualifiers, so a round cut set on one
+   * changes nothing — but it was still printed here, and this is the sheet a
+   * club publishes to its players. It read "Top 8 advance to the next round"
+   * while the draw seeded two per flight. The players are entitled to a rules
+   * sheet that describes the competition they are in.
+   */
+  if (input.cutEnabled && !seededFromQualifiers(input.type)) {
     out.push({
       label: "Cut",
       value:

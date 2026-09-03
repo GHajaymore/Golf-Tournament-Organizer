@@ -7,7 +7,7 @@ import { formGroups, roundRobinSchedule } from "../domain";
 import { survivors, isCutScope, nextRoundFlights } from "../domain/cut";
 import type { FormationRule, FlightConfig, Player as DomainPlayer } from "../domain";
 import { needsTeams } from "../formats";
-import { generatesPairings, isPlayingRound } from "../stage-types";
+import { generatesPairings, isPlayingRound, seededFromQualifiers } from "../stage-types";
 import { courseHandicapMap } from "../domain";
 import { resolveCourse } from "../courses";
 import { chainRoundStandings, scoringFrom, parseMatchTiebreakers, roundRobinStages } from "./tournament";
@@ -348,12 +348,52 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
  *     of the round is exactly who advanced. Points are not carried across the
  *     boundary (see carryUnitsCompatible); the advancement is what chains.
  */
-export async function generateCutRound(eventId: string, stageId: string): Promise<void> {
+/**
+ * Why a round could not be built, when it could not be.
+ *
+ * This returned `void`, so every refusal below was a bare `return` and the
+ * screen showed a spinner, then the same empty round, with nothing said. The
+ * one that matters is `no-results`: it is the difference between "nothing
+ * happened" and "I did not silently advance your sixteen lowest handicaps".
+ */
+export type CutRoundResult =
+  | { ok: true }
+  | { ok: false; reason: "no-stage" }
+  | { ok: false; reason: "no-prior-round" }
+  | { ok: false; reason: "no-results"; roundName: string }
+  | { ok: false; reason: "no-pairings"; survivors: number }
+  | { ok: false; reason: "seeded-not-generated" };
+
+export async function generateCutRound(
+  eventId: string,
+  stageId: string,
+): Promise<CutRoundResult> {
   const stage = await prisma.stage.findUnique({ where: { id: stageId } });
   // Any round the field plays can be cut into, not only a Round Robin. The cut
   // that qualifies a match-play field into a stroke-play final crosses a format
   // boundary, and keying this off "Round Robin" alone made that impossible.
-  if (!stage || stage.eventId !== eventId || !isPlayingRound(stage.type)) return;
+  if (!stage || stage.eventId !== eventId || !isPlayingRound(stage.type)) {
+    return { ok: false, reason: "no-stage" };
+  }
+
+  /**
+   * A bracket is seeded, not generated.
+   *
+   * Its field is the event's qualifiers and its results live on the bracket —
+   * so nothing below applies to it. But a Bracket Stage IS a playing round and
+   * draws no pairings, which put it straight into the branch that hands every
+   * survivor an empty stroke-play scorecard. That fabricated a card per player
+   * for a round nobody scores that way, and each one added eighteen holes to
+   * their `holesOwed`, so the board reported a field owing scores for a
+   * knockout.
+   *
+   * It was doing that off a cut the bracket never applied, too: the draw reads
+   * the EVENT's qualification settings, so "Top 8 advance" on the round went
+   * into the published rules sheet while the engine seeded two per flight.
+   */
+  if (seededFromQualifiers(stage.type)) {
+    return { ok: false, reason: "seeded-not-generated" };
+  }
 
   const [event, allStages, confirmed, allMatches, groups] = await Promise.all([
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
@@ -362,7 +402,7 @@ export async function generateCutRound(eventId: string, stageId: string): Promis
     prisma.match.findMany({ where: { eventId } }),
     prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
   ]);
-  if (!event) return;
+  if (!event) return { ok: false, reason: "no-stage" };
 
   const rrStages = roundRobinStages(allStages);
   // groupId carried through so a per-flight cut can be taken flight by flight.
@@ -389,7 +429,44 @@ export async function generateCutRound(eventId: string, stageId: string): Promis
     // still cuts from the match-play qualifying that fed it. (Cutting from a
     // stroke round is not supported here; the qualifying is a points ladder.)
     const priorRr = rrStages.filter((s) => s.position < stage.position);
-    if (priorRr.length === 0) return; // nothing to cut from — use Generate flights instead
+    if (priorRr.length === 0) {
+      return { ok: false, reason: "no-prior-round" }; // use Generate flights instead
+    }
+
+    /**
+     * A cut needs something to cut ON.
+     *
+     * Run before a ball is struck, every tiebreak in the default chain returns
+     * 0 for everybody, so the sort falls through to the last thing that
+     * separates the field — seed, which is handicap order. "Top 16 advance"
+     * then advances the SIXTEEN LOWEST HANDICAPS, and because the cut's scope
+     * is overall by default, the reform below dissolves Round 1's flights to
+     * do it. The button sits next to the text "run it once this round is
+     * complete", which is advice the organizer has to remember; this is the
+     * same sentence enforced.
+     *
+     * Deliberately narrow. It refuses only a round with NOTHING in it — one
+     * card, one hole, one conceded match and the cut is the organizer's call,
+     * because a cut taken with a match still out is a real thing clubs do.
+     * `enteredCardCount` unions all four places a score can live, and a
+     * forfeit is counted separately because it is a result that leaves no
+     * card at all: a flight settled by two concessions has no strokes and no
+     * holes, and refusing that would refuse a legitimate cut.
+     */
+    const lastPriorRound = priorRr[priorRr.length - 1];
+    const priorResults = await enteredCardCount(eventId, lastPriorRound.id);
+    const priorForfeits = allMatches.some(
+      (m) => m.stageId === lastPriorRound.id && m.forfeitedBy,
+    );
+    if (priorResults === 0 && !priorForfeits) {
+      return {
+        ok: false,
+        reason: "no-results",
+        // Same label the boards use: what the organizer called the round if
+        // they named it, and its number if they did not.
+        roundName: lastPriorRound.description.trim() || `Round ${priorRr.length}`,
+      };
+    }
 
     /**
      * Only the players who actually contested the round being cut from.
@@ -463,19 +540,43 @@ export async function generateCutRound(eventId: string, stageId: string): Promis
         });
       }
     });
-    return;
+    return { ok: true };
   }
 
   // Reformed against the original players-per-flight, so a rebuilt flight comes
   // out a familiar size rather than one giant round robin.
   const origSizes = groups.map((g) => confirmed.filter((p) => p.groupId === g.id).length);
   const targetPerFlight = origSizes.length ? Math.max(...origSizes) : survivorIds.size;
-  const reformed = scope === "overall" && stage.cutEnabled;
   // Seed order in, so a kept flight's pairings match a plain regeneration's; a
   // reform re-sorts by strength internally and ignores the order.
   const flights = nextRoundFlights(survivorPlayers, scope, targetPerFlight).filter(
     (f) => f.playerIds.length >= 2,
   );
+  /**
+   * Whether the field was re-flighted, asked of the ANSWER rather than the
+   * scope.
+   *
+   * This read `scope === "overall" && stage.cutEnabled`, which was true exactly
+   * when `nextRoundFlights` reformed — until a per-flight cut that strands a
+   * player started reforming too. Left as it was, those matches would be filed
+   * under new flight rows while the players stayed in their old ones: every
+   * pairing recorded in a flight neither player belonged to.
+   *
+   * A reformed flight is the one with no existing row to keep, so the flights
+   * themselves say which happened and there is no second rule to keep in step.
+   */
+  const reformed = flights.some((f) => f.keepGroupId === null);
+
+  /**
+   * Survivors, but no pairing to be drawn from them.
+   *
+   * A cut down to a single player across the whole field leaves nobody to play
+   * — which is a real answer, not an error, but it must not arrive as an empty
+   * round under a screen that says somebody advanced.
+   */
+  if (flights.length === 0 && survivorPlayers.length > 0) {
+    return { ok: false, reason: "no-pairings", survivors: survivorPlayers.length };
+  }
 
   const emptyHoles = JSON.stringify(new Array(holeCount).fill(null));
 
@@ -517,4 +618,5 @@ export async function generateCutRound(eventId: string, stageId: string): Promis
       }
     }
   });
+  return { ok: true };
 }
