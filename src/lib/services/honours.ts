@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "../db";
 import { loadEventState } from "./tournament";
+import { finishingPositions } from "./finish-order";
 import {
   suggestChampion,
   honoursYear,
@@ -71,24 +72,16 @@ export async function honoursBoard(organizationId: string) {
 }
 
 /**
- * The order a finished tournament ended in, from whichever board scored it.
+ * The order a finished tournament ended in.
  *
- * Stroke play ranks off `strokeStandings`, everything else off `overall`. Both
- * carry a rank and both leave unranked players at 0 — a card that stopped short
- * holds no position — so `suggestChampion` filters them out rather than reading
- * a zero as first place.
+ * `finishingPositions` is now the single answer, shared with the season table —
+ * see the note there. This function used to build its own list, which could not
+ * see a knockout (proposing the lowest handicap in the field as champion) and
+ * ranked players who had returned nothing, because the filter it applied to
+ * stroke play was missing from the branch beside it.
  */
 function positionsFrom(state: NonNullable<Awaited<ReturnType<typeof loadEventState>>>): FinishingPosition[] {
-  if (state.isStroke) {
-    return state.strokeStandings
-      .filter((s) => s.ranked)
-      .map((s) => ({ playerId: s.player.id, name: s.player.name, rank: s.rank }));
-  }
-  return state.overall.map((r) => ({
-    playerId: r.player.id,
-    name: r.player.name,
-    rank: r.rank,
-  }));
+  return finishingPositions(state);
 }
 
 /**
