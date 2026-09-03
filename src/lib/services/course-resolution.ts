@@ -259,3 +259,46 @@ export function cardForStage<
 >(course: T, stage: { holes?: number | null; nine?: string | null } | null | undefined): T {
   return applyNine(course, cleanNine(stage?.nine), stage?.holes === 9 ? 9 : 18);
 }
+
+/**
+ * Which half a MATCH is played over: its own answer, then the round's.
+ *
+ * `Match.nine` exists because a pairing can arrange its own tee time on the
+ * other nine, and two actions write it. It was read in exactly one place, and
+ * only when the match ALSO named its own course — the reasoning being that a
+ * pairing choosing a venue also chose which half of it.
+ *
+ * That is true and it is not the only case. A match playing the round's course
+ * on the other nine sets `nine` and nothing else, and every such match was
+ * scored on the round's half: a back-nine match counted a 4 on the par-5 11th
+ * as nothing and a 4 on the par-3 13th as a birdie, and allocated its strokes
+ * off the front nine's indexes.
+ *
+ * "full" is not a choice of half — it is the absence of one, and the default on
+ * every match nobody has touched — so it defers to the round rather than
+ * overriding it with the whole card.
+ */
+export function nineForMatch(
+  match: { nine?: string | null } | null | undefined,
+  stage: { nine?: string | null } | null | undefined,
+): Nine {
+  const own = cleanNine(match?.nine);
+  return own !== "full" ? own : cleanNine(stage?.nine);
+}
+
+/**
+ * The card one match is played on, narrowed to the holes it is played over.
+ *
+ * The match-level twin of `cardForStage`, and it exists for the same reason:
+ * which nine and how many holes are one decision, and every site that split
+ * them got it wrong.
+ */
+export function cardForMatch<
+  T extends { name: string; pars: number[]; yards: number[]; strokeIndex: number[] },
+>(
+  course: T,
+  match: { nine?: string | null } | null | undefined,
+  stage: { holes?: number | null; nine?: string | null } | null | undefined,
+): T {
+  return applyNine(course, nineForMatch(match, stage), stage?.holes === 9 ? 9 : 18);
+}

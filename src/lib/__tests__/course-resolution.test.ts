@@ -3,6 +3,8 @@ import {
   courseForMatch,
   courseForRound,
   applyNine, cardForStage,
+  cardForMatch,
+  nineForMatch,
   type StoredCourse,
   type EventCourseFields,
 } from "../services/course-resolution";
@@ -38,6 +40,76 @@ const presetEvent: EventCourseFields = {
   customYards: JSON.stringify(Array(18).fill(400)),
   customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
 };
+
+/**
+ * Which half a MATCH is played over.
+ *
+ * `Match.nine` is written by two actions and was read in one place, and there
+ * only when the match ALSO named its own course. So a pairing that played the
+ * round's course on the other nine had its choice ignored: the match was
+ * scored on the round's half, counting a 4 on the par-5 11th as nothing and a
+ * 4 on the par-3 13th as a birdie, and allocating strokes off the wrong
+ * indexes. The board and the stored result then disagreed.
+ */
+describe("which nine a match is played over", () => {
+  it("takes the match's own half when it has one", () => {
+    expect(nineForMatch({ nine: "back" }, { nine: "front" })).toBe("back");
+    expect(nineForMatch({ nine: "front" }, { nine: "back" })).toBe("front");
+  });
+
+  it("takes the match's half even when it names no course of its own", () => {
+    // The whole fault in one line: this is a pairing playing the round's
+    // course on the other nine, which is the ordinary way it happens.
+    expect(nineForMatch({ nine: "back" }, { nine: "front" })).toBe("back");
+  });
+
+  it("falls back to the round when the match says nothing", () => {
+    expect(nineForMatch({ nine: "full" }, { nine: "back" })).toBe("back");
+    expect(nineForMatch({ nine: "" }, { nine: "back" })).toBe("back");
+    expect(nineForMatch({}, { nine: "back" })).toBe("back");
+    expect(nineForMatch(null, { nine: "back" })).toBe("back");
+  });
+
+  it("treats 'full' as no answer rather than as the whole card", () => {
+    /**
+     * "full" is the default on every match nobody has touched, and it is a
+     * real option in the picker ("Not fixed"). Letting it override would mean
+     * every untouched match silently cancelled its round's nine.
+     */
+    expect(nineForMatch({ nine: "full" }, { nine: "front" })).toBe("front");
+    expect(nineForMatch({ nine: "full" }, { nine: "full" })).toBe("full");
+  });
+
+  it("reads anything unrecognised as no answer", () => {
+    expect(nineForMatch({ nine: "middle" }, { nine: "back" })).toBe("back");
+  });
+
+  it("scores the back nine's pars when the match says back and the round says front", () => {
+    // End to end, on a card whose two halves differ: par 3s on the front, par
+    // 5s on the back, so the wrong half is unmissable.
+    const course = {
+      name: "Split",
+      pars: [...new Array(9).fill(3), ...new Array(9).fill(5)],
+      yards: new Array(18).fill(400),
+      strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
+    };
+    const card = cardForMatch(course, { nine: "back" }, { holes: 9, nine: "front" });
+
+    expect(card.pars).toEqual(new Array(9).fill(5));
+    // And its indexes are re-ranked 1..9, not left as the back nine's 10..18.
+    expect([...card.strokeIndex].sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it("leaves an eighteen-hole match on the whole card whatever it says", () => {
+    const course = {
+      name: "Full",
+      pars: [...new Array(9).fill(3), ...new Array(9).fill(5)],
+      yards: new Array(18).fill(400),
+      strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
+    };
+    expect(cardForMatch(course, { nine: "back" }, { holes: 18, nine: "front" }).pars).toHaveLength(18);
+  });
+});
 
 describe("course resolution hierarchy", () => {
   it("prefers the match's own course", () => {
