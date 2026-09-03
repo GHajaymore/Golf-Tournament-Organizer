@@ -14,6 +14,7 @@ import { parseTeeSheet, groupForPlayer } from "../domain/tee-sheet";
 import { isPlayingRound } from "../stage-types";
 import { resolveMoneyMode, sharedCostsApply, moneyScreenApplies } from "../domain/money-mode";
 import { roundMoneyIsFinal } from "../domain/money-layout";
+import { roundLabel } from "../domain/round-label";
 import { potMembership, isPotEntryMode } from "../domain/pot-entry";
 import { potAudience } from "../domain/pot-audience";
 import { contestLedger, contestNets, isContestKind, isDecided, potOf } from "../domain/contests";
@@ -730,12 +731,12 @@ export async function moneyFor(
     // of strangers to scroll past.
     rounds: stages
       .filter((s) => isPlayingRound(s.type))
-      .map((s, i) => {
+      .map((s) => {
         const sheet = parseTeeSheet(s.teeSheet);
         const group = sheet && me ? groupForPlayer(sheet, me.id) : null;
         return {
           stageId: s.id,
-          label: `Round ${i + 1}`,
+          label: roundLabel(stages, s.id),
           groupName: group?.name ?? "",
           groupPlayerIds: group?.playerIds.filter((id) => nameOf.has(id)) ?? [],
         };
@@ -1128,7 +1129,7 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
   let stakeGames = 0;
   let stakeCents = 0;
 
-  for (const [i, stage] of stages.entries()) {
+  for (const stage of stages) {
     const holeCount = stage.holes === 9 ? 9 : 18;
     // How much of the round is in. A hole counts as returned once anybody has
     // posted it — the pot is decided by the field, not by one card.
@@ -1174,7 +1175,7 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
 
     rounds.push({
       stageId: stage.id,
-      label: `Round ${i + 1}`,
+      label: roundLabel(stages, stage.id),
       final,
       holesReturned,
       holeCount,

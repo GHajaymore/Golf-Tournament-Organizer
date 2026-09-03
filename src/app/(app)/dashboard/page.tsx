@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
 import { requireState } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { StatCard } from "@/components/PageHeader";
@@ -51,9 +52,12 @@ export default async function DashboardPage() {
   const { event, groupStandings, advancingCount, overallCutoff, brackets } = state;
   const progress = matchProgress(state);
   const currentStage = state.activeStage ?? state.stages[0];
+  // Counted over the rounds the field plays, not over the Round Robins: those
+  // two lists are the same only in a tournament that is nothing but round
+  // robins, and this screen sits beside others that always counted rounds.
   const currentRoundLabel =
-    state.rrStages.length > 1 && currentStage
-      ? `Round ${state.rrStages.findIndex((s) => s.id === currentStage.id) + 1} · ${currentStage.type}`
+    state.playRounds.length > 1 && currentStage
+      ? roundLabelWith(state.playRounds, currentStage.id, currentStage.type)
       : currentStage?.type ?? "—";
   const currentRoundDesc =
     currentStage?.type === "Round Robin"
@@ -185,7 +189,7 @@ export default async function DashboardPage() {
         const g = groupForPlayer(sheet, id);
         if (g) { mine = g.name; break; }
       }
-      publishedSheet = { roundLabel: `Round ${i + 1}`, sheet, mine };
+      publishedSheet = { roundLabel: roundLabel(rounds, r.id), sheet, mine };
       break;
     }
   }

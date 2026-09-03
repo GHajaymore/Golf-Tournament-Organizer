@@ -8,6 +8,7 @@ import {
   type AttendanceMode,
 } from "@/lib/domain/attendance";
 import { cleanIsoDate, relativeDay, shortDate } from "@/lib/domain/round-dates";
+import { roundLabel } from "@/lib/domain/round-label";
 import { todayIso } from "@/lib/deadline";
 
 /**
@@ -154,7 +155,7 @@ export async function availabilityFor(
   });
 
   const today = todayIso(now);
-  const rounds: AvailabilityRound[] = leagueRounds.map((r, i) => {
+  const rounds: AvailabilityRound[] = leagueRounds.map((r) => {
     const mine = explicit.find((e) => e.stageId === r.id && e.playerId === playerId);
     const chosen = mine && (mine.status === "in" || mine.status === "out") ? (mine.status as "in" | "out") : null;
     const playedOn = cleanIsoDate(r.playedOn);
@@ -162,7 +163,7 @@ export async function availabilityFor(
     const locked = !playerMayChange(r.optDeadline, now);
     return {
       stageId: r.id,
-      label: `Round ${i + 1}`,
+      label: roundLabel(state.stages, r.id),
       playedOn,
       dateLabel: playedOn ? shortDate(playedOn) : "",
       whenLabel: playedOn ? relativeDay(playedOn, today) : "",

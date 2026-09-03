@@ -1,4 +1,5 @@
 import { requireScreen } from "@/lib/page-helpers";
+import { roundLabel } from "@/lib/domain/round-label";
 import { roundTeeId } from "@/lib/services/handicaps";
 import { clubCourses } from "@/lib/services/courses";
 import { cardBrand } from "@/lib/services/organization";
@@ -331,7 +332,7 @@ export default async function EntryPage() {
     ps.map((p) => ({ ...p, flightTeeId: p.groupId ? flightTeeOf.get(p.groupId) ?? null : null }));
 
   const rounds: EntryRound[] = await Promise.all(
-    rrStages.map(async (stage, i) => {
+    rrStages.map(async (stage) => {
       const holeCount = stage.holes === 9 ? 9 : 18;
       const netMode = stage.format === "Match Play" && stage.scoringBasis === "net";
       const stageCourse = stage.courseId ? venueById.get(stage.courseId) ?? null : null;
@@ -424,7 +425,10 @@ export default async function EntryPage() {
 
       return {
         stageId: stage.id,
-        label: `Round ${i + 1}`,
+        // Over the whole tournament, not over `rrStages`: this counted the round
+        // robins only, so a medal round earlier in the week did not move the
+        // number and score entry called Round 2 "Round 1".
+        label: roundLabel(state.stages, stage.id),
         format: stage.format,
         // A medal round has no opponents, so match entry has nothing to show
         // for it — and it showed "No matches yet: generate flights on the

@@ -1,7 +1,8 @@
 import "server-only";
 import { prisma } from "../db";
-import { loadEventState } from "./tournament";
+import { loadEventState, playingStages } from "./tournament";
 import { resolveMatch } from "../domain/match";
+import { roundLabel } from "../domain/round-label";
 import {
   parseSingleMatchRule,
   resolveSingleMatch,
@@ -103,10 +104,7 @@ export async function singleMatchFor(eventId: string, stageId: string): Promise<
 
   const rule = parseSingleMatchRule(stage.singleMatchRule);
   const nameOf = (id: string) => state.confirmed.find((p) => p.id === id)?.name ?? "Unknown";
-  const roundLabelOf = (id: string) => {
-    const i = state.stages.findIndex((s) => s.id === id);
-    return i >= 0 ? `Round ${i + 1}` : "an earlier round";
-  };
+  const roundLabelOf = (id: string) => roundLabel(state.stages, id) || "an earlier round";
 
   const resolution = resolveSingleMatch(rule, {
     // Only players who hold a POSITION can be seeded — a standing built on
@@ -140,7 +138,16 @@ export async function singleMatchFor(eventId: string, stageId: string): Promise<
     matchId: existing?.id ?? null,
     canCreate: !!pair && !existing,
     stale,
-    rounds: state.stages.map((s, i) => ({ id: s.id, label: `Round ${i + 1}` })),
+    /**
+     * Only rounds that are PLAYED can be offered here.
+     *
+     * This listed every stage, so a cut appeared in the "winner of" picker.
+     * Nobody wins a cut — it has no matches — so choosing it produced a rule
+     * that reported "Waiting on the earlier rounds" for the life of the
+     * tournament, which is exactly the failure a copied rule used to cause,
+     * reachable here from the dropdown.
+     */
+    rounds: playingStages(state.stages).map((s) => ({ id: s.id, label: roundLabel(state.stages, s.id) })),
     players: state.confirmed.map((p) => ({ id: p.id, name: p.name })),
   };
 }

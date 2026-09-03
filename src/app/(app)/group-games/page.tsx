@@ -1,4 +1,5 @@
 import { requireScreen } from "@/lib/page-helpers";
+import { roundLabel } from "@/lib/domain/round-label";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { skinsPotFor } from "@/lib/services/skins-pot";
 import { SkinsPotClient } from "@/components/SkinsPotClient";
@@ -34,7 +35,7 @@ export default async function GroupGamesPage({
 
   const weeks = playingStages(state.stages);
   const week = weeks.find((s) => s.id === params.round) ?? state.activeStage ?? weeks[0] ?? null;
-  const rounds = weeks.map((s, i) => ({ stageId: s.id, label: `Round ${i + 1}` }));
+  const rounds = weeks.map((s) => ({ stageId: s.id, label: roundLabel(weeks, s.id) }));
 
   const sheet = week ? parseTeeSheet(week.teeSheet ?? "") : null;
   // A group of one cannot run a skins game against itself. Filtering here

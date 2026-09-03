@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+import { roundLabelWith } from "@/lib/domain/round-label";
 import {
   canFanOutToSms,
   composeSms,
@@ -602,17 +603,19 @@ export async function composableScopes(
   ]);
   const groupName = new Map(groups.map((g) => [g.id, g.name]));
   /**
-   * "Round 1 — Round Robin", matching how rounds are named everywhere else in
-   * the app (play-auth). Not `description`: that field holds a sentence
+   * "Round 1 — Round Robin". Not `description`: that field holds a sentence
    * explaining the format ("Every player meets every other in their group over
    * 3 rounds"), which reads as an explanation rather than a destination when a
    * dropdown of places to send a message puts it beside "Flight A".
+   *
+   * This used to say it matched "how rounds are named everywhere else in the
+   * app (play-auth)", and it did not — it counted every stage where other
+   * screens counted rounds, so a tournament with a cut in it named the same
+   * round differently here. A comment claiming two places agree is not a
+   * mechanism for making them agree; `roundLabelWith` is.
    */
   const stageName = new Map(
-    stages.map((s, i) => {
-      const type = s.type?.trim();
-      return [s.id, type ? `Round ${i + 1} — ${type}` : `Round ${i + 1}`] as const;
-    }),
+    stages.map((s) => [s.id, roundLabelWith(stages, s.id, s.type ?? "", " — ")] as const),
   );
   const teamName = new Map(teams.map((t) => [t.id, t.name]));
 

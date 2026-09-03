@@ -8,6 +8,7 @@ import { settingsOf } from "@/lib/services/tournament";
 import { usesAccessCodes, canPlayerSavePartial, canEnterScores } from "@/lib/tournament-settings";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { cleanHoleResults } from "@/lib/domain/score-payload";
+import { roundLabel } from "@/lib/domain/round-label";
 import { marginToHoles } from "@/lib/domain";
 
 /**
@@ -62,10 +63,12 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
     select: { id: true, name: true },
   });
 
+  // `type` as well as `id` — see play-auth: the number counts rounds, not rows,
+  // and a cut is a row that is not a round.
   const stages = await prisma.stage.findMany({
     where: { eventId: stage.eventId },
     orderBy: { position: "asc" },
-    select: { id: true },
+    select: { id: true, type: true },
   });
 
   await clearRateLimit("round-code", code);
@@ -74,7 +77,7 @@ export async function redeemRoundCode(input: string): Promise<RedeemResult> {
     players,
     stageId: stage.id,
     eventName: stage.event.name,
-    roundLabel: `Round ${stages.findIndex((s) => s.id === stage.id) + 1}`,
+    roundLabel: roundLabel(stages, stage.id),
   };
 }
 

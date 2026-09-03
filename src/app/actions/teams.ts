@@ -198,6 +198,17 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
     await prisma.match.deleteMany({ where: { id: { in: existing.map((m) => m.id) } } });
   }
 
+  /**
+   * NOT a label — a lookup key, which is why it does not use `roundLabel`.
+   *
+   * The flight is found again by this exact name on every regenerate, so the
+   * string is effectively an identifier that happens to read as English.
+   * Renumbering it onto the app's round count would not correct existing
+   * tournaments: it would fail to match the flight already there, create a
+   * second one beside it, and split a club's matches across the two. Changing
+   * it is a migration, not an edit. `round-number-source.test.ts` exempts this
+   * line and asserts the lookup below is still here.
+   */
   const groupName = `${stage.format} — Round ${stage.position + 1}`;
   let group = await prisma.group.findFirst({ where: { eventId, name: groupName } });
   if (!group) {

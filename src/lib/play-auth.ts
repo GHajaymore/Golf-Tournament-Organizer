@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { prisma } from "./db";
 import { sign, verify } from "./auth";
 import { cleanSettings, usesAccessCodes } from "./tournament-settings";
+import { roundLabel } from "./domain/round-label";
 
 /**
  * The Round Code play session.
@@ -98,18 +99,20 @@ export async function getPlaySession(): Promise<PlaySession | null> {
   });
   if (!player) return null;
 
+  // `type` as well as `id`: the number is over the rounds the field PLAYS, and
+  // a cut is a stage nobody plays. Counting rows made the round after a cut one
+  // higher here than the same round on every screen that counted rounds.
   const stages = await prisma.stage.findMany({
     where: { eventId: stage.eventId },
     orderBy: { position: "asc" },
-    select: { id: true },
+    select: { id: true, type: true },
   });
-  const index = stages.findIndex((s) => s.id === stage.id);
 
   return {
     stageId,
     playerId,
     eventId: stage.eventId,
     playerName: player.name,
-    roundLabel: `Round ${index + 1}`,
+    roundLabel: roundLabel(stages, stage.id),
   };
 }
