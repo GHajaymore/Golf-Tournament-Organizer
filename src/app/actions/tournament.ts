@@ -303,7 +303,11 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const status = unlimited || confirmedCount < event.capacity ? "confirmed" : "waitlisted";
   // Entering someone in a tournament is also how they join the club roster —
   // so the club list is never a separate chore an organizer has to remember.
-  const memberId = await upsertMember(event.organizationId, { ...input, name: clean, email: cleanEmail });
+  const memberId = await upsertMember(
+    event.organizationId,
+    { ...input, name: clean, email: cleanEmail },
+    "staff",
+  );
   await prisma.player.create({
     data: {
       eventId,
@@ -400,7 +404,9 @@ export async function updateSignup(playerId: string, patch: SignupPatch): Promis
       handicap: (data.handicap as number) ?? player.handicap,
       handicapType: (data.handicapType as string) ?? player.handicapType,
       handicapSource: (data.handicapSource as string) ?? player.handicapSource,
-    });
+    },
+      "staff",
+    );
     if (memberId && memberId !== player.memberId) {
       await prisma.player.update({ where: { id: playerId }, data: { memberId } });
     }
@@ -659,14 +665,11 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     const phone = cell(table, cols, "phone");
     // Importing a field also builds the roster: a club that uploads its
     // spring CSV has its member list from then on, without a second import.
-    const memberId = await upsertMember(event.organizationId, {
-      name,
-      email: emailKey,
-      phone,
-      handicap,
-      handicapType,
-      handicapSource,
-    });
+    const memberId = await upsertMember(
+      event.organizationId,
+      { name, email: emailKey, phone, handicap, handicapType, handicapSource },
+      "staff",
+    );
     await prisma.player.create({
       data: {
         eventId,

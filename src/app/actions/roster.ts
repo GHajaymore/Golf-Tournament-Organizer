@@ -376,7 +376,7 @@ export async function addFieldToRoster(): Promise<{
   let linked = 0;
 
   for (const p of todo) {
-    const memberId = await upsertMember(organizationId, p);
+    const memberId = await upsertMember(organizationId, p, "staff");
     // A player with no name has nothing to become a member of; upsertMember
     // says so by returning null rather than creating an anonymous row.
     if (!memberId) continue;
