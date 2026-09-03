@@ -116,7 +116,44 @@ export function computeStrokeCard(
   pars: number[],
   handicap: number,
   strokeIndex?: number[],
+  /**
+   * What the ROUND says, where the caller knows it better than this function can.
+   *
+   * Both of these were faults on the one screen that calls this. The entry card
+   * printed a net total and a Stableford total derived from the raw Handicap
+   * INDEX passed as `handicap`, while the dots printed beside them came from the
+   * server-resolved Playing Handicap — three to five strokes apart on the same
+   * screen, and one stroke apart at minimum, since Stroke Play carries a 95%
+   * allowance and needs no course ratings to diverge. And it scored a Modified
+   * Stableford round on the STANDARD table: two eagles and sixteen pars read 40
+   * on the card and 10 on the board.
+   *
+   * Both are answered by letting the caller supply the truth it already holds,
+   * rather than by this function guessing from an index.
+   */
+  opts?: {
+    /**
+     * Per-hole strokes received, resolved on the server.
+     *
+     * Wins over `handicap` outright when present. `PlayerCard.tsx` was fixed
+     * this way already and its comment names this defect by location; this is
+     * the same fix on the screen that comment points at.
+     */
+    shotsPerHole?: number[];
+    /**
+     * The points table this format is played on.
+     *
+     * Defaults to standard Stableford, which is what every existing caller
+     * means. The services pick their table with `stablefordTableFor`, which
+     * keys by stage because points accumulate across rounds; a screen scoring
+     * one round already knows its format and asks `boardKind` directly. Either
+     * way the choice is made by the caller, which is the only place that can
+     * make it — this function has never been told which competition it is in.
+     */
+    pointsForHole?: (grossOnHole: number, par: number, strokesOnHole: number) => number;
+  },
 ): StrokeCard {
+  const pointsForHole = opts?.pointsForHole ?? stablefordPointsForHole;
   let gross = 0;
   let front = 0;
   let back = 0;
@@ -135,9 +172,21 @@ export function computeStrokeCard(
     // Allocate strokes per hole actually played, so net is accurate mid-round
     // (not the full handicap subtracted against a partial gross). Falls back
     // to a flat full-handicap split if course stroke-index data is unknown.
-    const holeStrokes = strokeIndex ? holeStrokesReceived(handicap, strokeIndex[i] ?? 18, allocationHoles(strokeIndex.length)) : Math.round(handicap) / strokes.length;
+    /**
+     * The round's own allocation first, then this function's best guess.
+     *
+     * A caller that already knows what the server allocated must not have it
+     * recomputed from an index here — that is precisely how the totals and the
+     * dots on the entry card came to disagree.
+     */
+    const holeStrokes =
+      opts?.shotsPerHole
+        ? (opts.shotsPerHole[i] ?? 0)
+        : strokeIndex
+          ? holeStrokesReceived(handicap, strokeIndex[i] ?? 18, allocationHoles(strokeIndex.length))
+          : Math.round(handicap) / strokes.length;
     strokesReceived += holeStrokes;
-    points += stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes);
+    points += pointsForHole(s, pars[i] ?? 0, holeStrokes);
   }
   return {
     gross,
