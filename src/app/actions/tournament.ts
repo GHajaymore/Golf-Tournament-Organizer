@@ -46,6 +46,7 @@ import {
 import { shapeOf, shapeOption } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
+import { drainWaitlist } from "@/lib/services/waitlist";
 import { parseCsv, hasNameColumn, nameFrom, cell } from "@/lib/csv";
 import { parseSingleMatchRule } from "@/lib/domain/single-match";
 import { singleMatchFor } from "@/lib/services/single-match";
@@ -501,24 +502,26 @@ export async function removeSignup(playerId: string): Promise<"deleted" | "withd
   }
   if (player.email.trim()) await revokePlayerAccount(eventId, player.email);
 
-  // Promote the earliest waitlisted signup if a confirmed spot opened. True of
-  // a withdrawal as much as a deletion — the place in the field is free either
-  // way, which is the whole reason a club keeps a waitlist.
+  /**
+   * Promote the earliest waitlisted signup if a confirmed spot opened. True of
+   * a withdrawal as much as a deletion — the place in the field is free either
+   * way, which is the whole reason a club keeps a waitlist.
+   *
+   * IT NOW CHECKS THAT THERE IS ROOM. This promoted somebody on every departure
+   * regardless of the limit, so a field an organizer had just shrunk was pushed
+   * back over it one withdrawal at a time — and each promoted player was
+   * emailed "you're in, your place is held" for a place that did not exist.
+   *
+   * `drainWaitlist` is the same arithmetic that fills a field when the capacity
+   * goes UP, which is the fault this shares a root with. Doing it here rather
+   * than inline also means the limit is read from `playerCountMode` rather than
+   * from `capacity`, which goes stale the moment an organizer sets a manual
+   * field size.
+   */
   if (player.status === "confirmed") {
-    const next = await prisma.player.findFirst({
-      where: { eventId, status: "waitlisted" },
-      orderBy: { seed: "asc" },
-    });
-    if (next) {
-      await prisma.player.update({
-        where: { id: next.id },
-        data: { status: "confirmed", promotedAt: new Date() },
-      });
-      // The promise the registration email made — "we'll be in touch if a
-      // place opens" — kept at the moment the place actually opens.
-      await notifyFieldChange(eventId, [{ email: next.email, name: next.name }], "promoted");
-    }
+    await drainWaitlist(eventId);
   }
+
   await refresh();
   return played ? "withdrawn" : "deleted";
 }
@@ -790,6 +793,31 @@ export async function saveEvent(data: {
       sideStyle: cleanSideStyle(data.sideStyle),
     },
   });
+
+  /**
+   * A bigger field takes the people already queuing for it.
+   *
+   * Nothing reconciled this. An organizer with eight confirmed and four waiting
+   * who opened the field to sixteen left all four exactly where they were —
+   * while the public registration page began advertising the new places
+   * immediately. So the next strangers to open the link were confirmed ahead of
+   * the people who had queued first, which is the one thing a waitlist exists
+   * to prevent.
+   *
+   * Unconditional rather than gated on "did the capacity go up". `drainWaitlist`
+   * promotes nobody when there is no room, so asking it every save is both
+   * correct and cheaper to reason about than reconstructing what changed — and
+   * it catches the cases a capacity comparison would miss, such as switching
+   * playerCountMode from a manual count back to registration.
+   *
+   * It never demotes. Cutting the capacity with a full field is a decision an
+   * organizer makes with the field in front of them, and silently moving
+   * confirmed players out because a number went down would be a far worse
+   * surprise than an over-full field they can see. `applyManualCount` handles
+   * the trimming case deliberately, behind a confirmation.
+   */
+  await drainWaitlist(eventId);
+
   await refresh();
 }
 

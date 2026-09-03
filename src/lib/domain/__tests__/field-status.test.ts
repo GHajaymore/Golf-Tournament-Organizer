@@ -20,10 +20,25 @@ describe("a player is told when their place in the field changes", () => {
   const notify = src("src", "lib", "services", "field-notify.ts");
 
   it("notifies the player promoted when somebody withdraws", () => {
-    // The literal promise being kept: a place opened, so the next person hears.
-    const withdraw = tournament.slice(tournament.indexOf("status: \"waitlisted\" },"));
-    expect(tournament).toMatch(/notifyFieldChange\(eventId, \[\{ email: next\.email, name: next\.name \}\], "promoted"\)/);
-    expect(withdraw.length).toBeGreaterThan(0);
+    /**
+     * The literal promise being kept: a place opened, so the next person hears.
+     *
+     * This used to match the inline `notifyFieldChange(eventId, [{ email:
+     * next.email, ... }], "promoted")` that `removeSignup` performed itself.
+     * That promotion moved into `drainWaitlist`, because promoting on a
+     * withdrawal without checking the field limit pushed a field an organizer
+     * had just shrunk back over it — the same arithmetic that fills a field
+     * when the capacity goes up.
+     *
+     * So the assertion follows the behaviour rather than the line: the
+     * withdrawal path must still cause a promotion, and `drainWaitlist` must
+     * still tell whoever it promotes. Matching the old literal was pinning
+     * WHERE the code lived, not what it did.
+     */
+    const waitlist = src("src", "lib", "services", "waitlist.ts");
+    expect(tournament).toMatch(/await drainWaitlist\(eventId\);/);
+    expect(waitlist).toMatch(/notifyFieldChange\(/);
+    expect(waitlist).toMatch(/"promoted"/);
   });
 
   it("notifies everybody promoted when the field is enlarged", () => {
@@ -49,11 +64,23 @@ describe("a player is told when their place in the field changes", () => {
      * version of this test matched `data: { status: "confirmed" } });` and broke
      * the moment a field was added to that same object — it was asserting the
      * shape of one line, not the ordering it claimed to be about.
+     *
+     * Checked in BOTH files now. The demotion path still writes and notifies
+     * inline in `tournament.ts`; promotion moved into `drainWaitlist`, and the
+     * ordering matters just as much there — a promotion announced before the
+     * update would tell somebody they were in the field on the strength of a
+     * write that had not happened yet.
      */
-    const promote = tournament.search(/data: \{ status: "confirmed"/);
-    const tell = tournament.search(/notifyFieldChange\(/);
+    const demote = tournament.search(/data: \{ status: "waitlisted"/);
+    const tellDemoted = tournament.search(/notifyFieldChange\(/);
+    expect(demote).toBeGreaterThan(-1);
+    expect(tellDemoted).toBeGreaterThan(demote);
+
+    const waitlist = src("src", "lib", "services", "waitlist.ts");
+    const promote = waitlist.search(/data: \{ status: "confirmed"/);
+    const tellPromoted = waitlist.search(/notifyFieldChange\(/);
     expect(promote).toBeGreaterThan(-1);
-    expect(tell).toBeGreaterThan(promote);
+    expect(tellPromoted).toBeGreaterThan(promote);
   });
 
   it("cannot throw into the action that changed the field", () => {
