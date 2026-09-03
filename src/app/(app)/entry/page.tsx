@@ -11,7 +11,12 @@ import { EntryModes, type EntryRound } from "@/components/EntryModes";
 import { CourseSetupPrompt } from "@/components/CourseSetupPrompt";
 import { prisma } from "@/lib/db";
 import { resolveCourse, hasCourseData, needsCourseData, parseHoleArray } from "@/lib/courses";
-import { courseForMatch, applyNine, type Nine } from "@/lib/services/course-resolution";
+import {
+  courseForMatch,
+  courseForRound,
+  cardForMatch,
+  cardForStage,
+} from "@/lib/services/course-resolution";
 import type { HoleResult } from "@/lib/domain";
 import { needsTeams, entryModeFor } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
@@ -139,7 +144,27 @@ export default async function EntryPage() {
       }
     };
 
-    const teamCourse = resolveCourse(state.event);
+    /**
+     * The card this TEAM round is played on, narrowed by the one reader.
+     *
+     * This resolved the event's course and then sliced it —
+     * `teamCourse.pars.slice(0, holeCount)` — which is the pattern
+     * `cardForStage` exists to replace, named in its own docstring as the
+     * mistake thirteen call sites made. It takes the right NUMBER of holes and
+     * the wrong VALUES: a back-nine round gets the front nine's pars, and a
+     * nine-hole round gets eighteen-hole stroke indexes it then allocates
+     * against a base of nine.
+     *
+     * `recomputeTeamMatch` already goes through `cardForStage`, so the running
+     * net on this screen and the result stored for the same round differed by
+     * one to three strokes — and the screen was the one the scorer was
+     * reading while they signed it.
+     */
+    const teamVenue = activeStage.courseId ? venueById.get(activeStage.courseId) ?? null : null;
+    const teamResolved = courseForRound(teamVenue ?? soleVenue, state.event);
+    const teamCard = teamResolved ? cardForStage(teamResolved, activeStage) : null;
+    const teamPars = teamCard?.pars ?? [];
+    const teamStrokeIndex = teamCard?.strokeIndex ?? [];
     const rows: TeamEntryRow[] = [];
     const pushRow = (teamId: string, matchId: string, opponentName?: string) => {
       const t = teamById.get(teamId);
@@ -157,9 +182,9 @@ export default async function EntryPage() {
         sideOnly
           ? singleBallTeamCard(
               cardRows[0].strokes,
-              teamCourse.pars.slice(0, holeCount),
+              teamPars,
               t.playingHandicap,
-              teamCourse.strokeIndex.slice(0, holeCount),
+              teamStrokeIndex,
             )
           : aggregateTeamCard(
               cardRows.map((c) => ({
@@ -167,8 +192,8 @@ export default async function EntryPage() {
                 strokes: c.strokes,
                 courseHandicap: c.handicap,
               })),
-              teamCourse.pars.slice(0, holeCount),
-              teamCourse.strokeIndex.slice(0, holeCount),
+              teamPars,
+              teamStrokeIndex,
               effectiveAllowance(activeStage.format, activeStage.handicapAllowance),
               effectiveCountBest(activeStage.format, activeStage.countBest),
             );
@@ -222,8 +247,8 @@ export default async function EntryPage() {
         <TeamEntryClient
           round={`${activeStage.format}`}
           teams={visible}
-          pars={courseKnown ? teamCourse.pars.slice(0, holeCount) : []}
-          strokeIndex={courseKnown ? teamCourse.strokeIndex.slice(0, holeCount) : []}
+          pars={teamPars}
+          strokeIndex={teamStrokeIndex}
           note={teamEntryNote(activeStage.format, activeStage.scoreInput, activeStage.scoringBasis)}
           holes={holeCount}
         />
@@ -293,10 +318,9 @@ export default async function EntryPage() {
   // Offered first when a venue is asked for: a card somebody at this club
   // already entered beats anything typed again from memory.
   const clubLibrary = await clubCourses(state.event.organizationId, session.eventId);
+  // Kept only for its NAME, in the header. Every card on this screen is now
+  // resolved per round, because rounds differ — see `roundCard` below.
   const course = resolveCourse(state.event);
-  const pars = courseKnown ? course.pars : [];
-  const yards = courseKnown ? course.yards : [];
-  const strokeIndex = courseKnown ? course.strokeIndex : [];
 
   // A tournament can sequence more than one Round Robin round; build entry data
   // for each so staff/players can switch between them (e.g. fix Round 1 while
@@ -336,6 +360,24 @@ export default async function EntryPage() {
       const netMode = stage.format === "Match Play" && stage.scoringBasis === "net";
       const stageCourse = stage.courseId ? venueById.get(stage.courseId) ?? null : null;
 
+      /**
+       * THIS round's card, narrowed to the holes it is played over.
+       *
+       * The screen used to resolve one card from the event, once, outside this
+       * loop, and hand the same eighteen numbers to every round. So a nine-hole
+       * round printed eighteen-hole stroke indexes against a nine-hole
+       * allocation base — a Playing Handicap of 7 drew four dots instead of
+       * seven — and a back-nine round printed the front nine's pars, which puts
+       * "to par" out too. The player's own card goes through `cardForStage` and
+       * was right, so the organizer and the player were shown the same round
+       * three strokes apart.
+       *
+       * Per round, because rounds differ: a tournament can play Saturday over
+       * eighteen and Sunday over the back nine of somewhere else.
+       */
+      const roundCourse = courseForRound(stageCourse ?? soleVenue, state.event);
+      const roundCard = roundCourse ? cardForStage(roundCourse, stage) : null;
+
       const cards = await prisma.scorecard.findMany({ where: { eventId: session.eventId, stageId: stage.id } });
       const cardsByPlayer: Record<string, (number | null)[]> = {};
       // Where each card is between "written down" and "accepted". Sent so the
@@ -374,17 +416,24 @@ export default async function EntryPage() {
           } catch {
             holes = new Array(holeCount).fill(null);
           }
-          // match → round → event, then narrowed to the nine actually played.
-          // The match's own nine wins over the round's, since a pairing that
-          // chose its own venue also chose which half of it.
+          /**
+           * match → round → event, then narrowed to the nine actually played.
+           *
+           * The match's own nine wins over the round's WHENEVER IT IS SET. It
+           * used to be read only when the match also named its own course, on
+           * the reasoning that a pairing choosing a venue also chose which half
+           * of it — true, and not the only case. A pairing that plays the
+           * round's course on the other nine sets `nine` and nothing else, and
+           * every one of those was scored on the round's half instead. See
+           * `nineForMatch`, which both this screen and the save path now share.
+           */
           const matchCourse = m.courseId ? venueById.get(m.courseId) ?? null : null;
           // A tournament with exactly one venue is played there, full stop —
           // no round or match ever needs to say so. Without this the event
           // level would fall through to its legacy course fields and find
           // nothing, because the venue lives in the course library instead.
           const resolved = courseForMatch(matchCourse, stageCourse ?? soleVenue, state.event);
-          const nine = (matchCourse ? m.nine : stage.nine) as Nine;
-          const card = resolved ? applyNine(resolved, nine, holeCount) : null;
+          const card = resolved ? cardForMatch(resolved, m, stage) : null;
 
           return {
             id: m.id,
@@ -481,6 +530,14 @@ export default async function EntryPage() {
             hasCard: parseHoleArray(v.pars) !== null && parseHoleArray(v.strokeIndex) !== null,
           };
         })(),
+        // The card this round is scored against. Empty when no real course
+        // resolves, which renders hole numbers only rather than printing some
+        // other course's par over a round played elsewhere.
+        card: {
+          pars: roundCard?.pars ?? [],
+          yards: roundCard?.yards ?? [],
+          strokeIndex: roundCard?.strokeIndex ?? [],
+        },
         stroke: {
           holes: holeCount,
           stageId: stage.id,
@@ -509,7 +566,11 @@ export default async function EntryPage() {
           // scoring engine uses, so the dots on the card cannot disagree with
           // the result.
           shotsByPlayer: (() => {
-            if (!courseKnown) return {};
+            // This round's own index. It read the screen-wide eighteen-hole
+            // one, so on a nine-hole round the dots were allocated against
+            // indexes that do not exist on the card being drawn — the same
+            // fault as the pars above, in the numbers the scorer counts.
+            if (!roundCard) return {};
             const ch = courseHandicapMap(
               withFlightTee(state.confirmed),
               entryTeeRatings,
@@ -527,7 +588,7 @@ export default async function EntryPage() {
             for (const p of state.confirmed) {
               const playing = playingHandicapFrom(ch.get(p.id) ?? 0, allowance);
               out[p.id] = Array.from({ length: holeCount }, (_, h) =>
-                holeStrokesReceived(playing, strokeIndex[h] ?? 18, holeCount),
+                holeStrokesReceived(playing, roundCard.strokeIndex[h] ?? 18, holeCount),
               );
             }
             return out;
@@ -613,9 +674,6 @@ export default async function EntryPage() {
       players={state.confirmed
         .filter((p) => !ownIds || ownIds.has(p.id))
         .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap }))}
-      pars={pars}
-      yards={yards}
-      strokeIndex={strokeIndex}
       isStaff={isStaff}
       // Off the round's format, not the event's match/stroke flag. A skins
       // round is entered as a stroke card and a Nassau as a match card, which

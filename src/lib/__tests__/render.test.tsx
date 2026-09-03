@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { TeamEntryMode } from "@/lib/domain/team-entry";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import { LoginPanel } from "@/components/LoginPanel";
+import { PlayClient } from "@/components/PlayClient";
 import { MIN_PASSWORD_LENGTH } from "@/lib/domain/password";
 
 /**
@@ -4397,3 +4398,102 @@ describe("the sign-up password field", () => {
     expect(html).not.toMatch(HINT);
   });
 });
+
+/**
+ * A player with a round code can hand in a nine-hole card.
+ *
+ * The grid was sized from the length of the CARD rather than the round, and the
+ * card handed down was the event's whole eighteen. So a nine-hole match drew
+ * eighteen cells; only nine of them can ever be filled, so the submit button
+ * read "Fill all 18 holes to submit" and stayed disabled for good. The player
+ * had no way to submit at all, and the nine cells past the end were discarded
+ * on save, so the number on screen was never the number being stored either.
+ */
+describe("the round-code card is drawn for the round's own holes", () => {
+  const NINE_PARS = [4, 3, 5, 4, 4, 3, 4, 4, 4];
+  const NINE_SI = [5, 9, 1, 3, 7, 8, 2, 4, 6];
+
+  const play = (over: Record<string, unknown> = {}) =>
+    renderToStaticMarkup(
+      <PlayClient
+        stage="score"
+        playerName="A. Player"
+        eventName="Nine Hole Cup"
+        roundLabel="Round 1"
+        submitWhole
+        match={{
+          id: "m1",
+          aId: "a",
+          bId: "b",
+          aName: "A. Player",
+          bName: "B. Rival",
+          aHandicap: 8,
+          bHandicap: 12,
+          holes: new Array(9).fill(null),
+          flipped: false,
+        }}
+        holes={9}
+        pars={NINE_PARS}
+        yards={new Array(9).fill(350)}
+        strokeIndex={NINE_SI}
+        {...over}
+      />,
+    );
+
+  it("asks for nine holes on a nine-hole round, not eighteen", () => {
+    const html = play();
+    expect(html).toContain("Fill all 9 holes to submit");
+    expect(html).not.toContain("Fill all 18 holes to submit");
+  });
+
+  it("counts the round out of nine", () => {
+    expect(play()).toContain("0/9 holes");
+    expect(play()).not.toContain("0/18 holes");
+  });
+
+  it("takes the round's hole count over the card's length", () => {
+    /**
+     * The fault exactly: a nine-hole round handed an eighteen-hole card. The
+     * round is the answer — a card can be absent, or a different length, and
+     * neither decides how many holes were played.
+     */
+    const html = play({
+      pars: new Array(18).fill(4),
+      yards: new Array(18).fill(400),
+      strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
+    });
+    expect(html).toContain("Fill all 9 holes to submit");
+    expect(html).toContain("0/9 holes");
+  });
+
+  it("still draws eighteen for an eighteen-hole round", () => {
+    const html = play({
+      holes: 18,
+      match: {
+        id: "m1",
+        aId: "a",
+        bId: "b",
+        aName: "A. Player",
+        bName: "B. Rival",
+        aHandicap: 8,
+        bHandicap: 12,
+        holes: new Array(18).fill(null),
+        flipped: false,
+      },
+      pars: new Array(18).fill(4),
+      yards: new Array(18).fill(400),
+      strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
+    });
+    expect(html).toContain("Fill all 18 holes to submit");
+    expect(html).toContain("0/18 holes");
+  });
+
+  it("draws the round's holes even with no card at all", () => {
+    // Gross match play needs no card, and a community league routinely has
+    // none. Falling back to eighteen there would break the same submit button
+    // by the other route.
+    const html = play({ pars: [], yards: [], strokeIndex: [] });
+    expect(html).toContain("Fill all 9 holes to submit");
+  });
+});
+

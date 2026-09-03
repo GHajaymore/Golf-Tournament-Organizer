@@ -76,7 +76,7 @@ import type { FormationRule, HoleResult } from "@/lib/domain";
 import { effectiveAllowance } from "@/lib/services/teams";
 import { FORMAT_NAMES } from "@/lib/formats";
 import { resolveCourse } from "@/lib/courses";
-import { applyNine, cleanNine, cardForStage } from "@/lib/services/course-resolution";
+import { cardForStage, cardForMatch, courseForMatch } from "@/lib/services/course-resolution";
 import { findFormat, inputChoices, isPlayable } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
@@ -2032,7 +2032,27 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
     prisma.stage.findUnique({ where: { id: match.stageId } }),
   ]);
-  const course = resolveCourse({
+  /**
+   * The card THIS MATCH was played on: match → round → event.
+   *
+   * This resolved the EVENT's card and nothing else, so `Match.courseId` and
+   * `Stage.courseId` were both ignored — a match played at another venue, or a
+   * round moved to one, was scored against a course nobody played, and the
+   * per-hole winners derived from it were STORED. Meanwhile `/live` read the
+   * same match through `courseForMatch` and showed the right answer, so the
+   * board and the record disagreed with no way to tell which was which.
+   *
+   * `resolveCourse` also never fails: it falls back to a demo preset. That is
+   * right for a screen, which would otherwise crash, and wrong here, because a
+   * fabricated par and stroke index decided who won each hole and the result
+   * was written down. `courseForMatch` returns null when there is genuinely no
+   * card, and the net path below refuses rather than inventing one.
+   */
+  const [matchVenue, stageVenue] = await Promise.all([
+    match.courseId ? prisma.course.findUnique({ where: { id: match.courseId } }) : null,
+    stage?.courseId ? prisma.course.findUnique({ where: { id: stage.courseId } }) : null,
+  ]);
+  const resolved = courseForMatch(matchVenue, stageVenue, {
     course: event?.course ?? "",
     city: event?.city ?? "",
     customPars: event?.customPars ?? "",
@@ -2088,11 +2108,28 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   const netRound = await roundHandicapRows(eventId, match.stageId);
   const netFor = (p: { id: string; handicap: number } | null) =>
     p ? roundHandicapOf(netRound.get(p.id), netHcp.get(p.id) ?? p.handicap) : 0;
-  // The card the round is actually played on: the round's nine, with its
-  // stroke indexes re-ranked 1..9. Passing the full eighteen allocated strokes
-  // off the wrong holes AND sized the match at eighteen holes, so a nine-hole
-  // match could never be closed out.
-  const roundCard = applyNine(course, cleanNine(stage?.nine), holeCount);
+  /**
+   * A net match cannot be scored without a card, and must not pretend to be.
+   *
+   * Handicap strokes are allocated by stroke index. With no card there is no
+   * index, so every hole was decided scratch — and then stored as the NET
+   * result. The organizer sees a settled match, correctly formatted, decided
+   * by a rule the round is not being played under.
+   *
+   * Gross match play is untouched: it needs no par and no stroke index, and a
+   * community league with no fixed venue is exactly the case the app supports.
+   */
+  if (netMode && !resolved) {
+    throw new Error(
+      "This round is scored Net, and there is no course card to allocate strokes from. Set the round's course before entering scores.",
+    );
+  }
+  // The card the MATCH is actually played on: its own nine when it has one,
+  // otherwise the round's, with the stroke indexes re-ranked 1..9. Passing the
+  // full eighteen allocated strokes off the wrong holes AND sized the match at
+  // eighteen holes, so a nine-hole match could never be closed out.
+  const course = resolved ?? { name: "", pars: [], yards: [], strokeIndex: [] };
+  const roundCard = cardForMatch(course, match, stage);
   const holes = deriveNetHoles(
     strokesA,
     strokesB,

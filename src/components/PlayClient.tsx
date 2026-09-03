@@ -26,6 +26,18 @@ interface Props {
   roundLabel?: string;
   submitWhole?: boolean;
   match?: PlayMatch;
+  /**
+   * How many holes THIS ROUND is played over.
+   *
+   * The grid used to be sized from `pars.length`, which is the card and not
+   * the round. A nine-hole match handed the event's eighteen-hole card drew
+   * eighteen cells, and since only nine of them can ever be filled the submit
+   * button read "Fill all 18 holes to submit" and stayed disabled for good —
+   * a player with a round code could not hand in their card at all. The nine
+   * cells past the end were then discarded on save, so the number on screen
+   * was never the number being stored either.
+   */
+  holes?: number;
   pars?: number[];
   yards?: number[];
   strokeIndex?: number[];
@@ -224,7 +236,10 @@ export function PlayClient(props: Props) {
   /* ── Step 2: the card ─────────────────────────────────────────────── */
 
   const m = props.match!;
-  const holeCount = props.pars?.length || holes.length || 18;
+  // The round's own answer first. The card's length is a fallback for a caller
+  // that has not been taught to send one, and 18 the last resort — but neither
+  // of those is what decides how many holes a round is.
+  const holeCount = props.holes || props.pars?.length || holes.length || 18;
   const filled = holes.filter((h) => h !== null).length;
   const complete = filled === holeCount;
 

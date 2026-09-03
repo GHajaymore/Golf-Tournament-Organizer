@@ -198,7 +198,41 @@ export function applyNine<
   // score a back nine off the front.
   T extends { name: string; pars: number[]; yards: number[]; strokeIndex: number[] },
 >(course: T, nine: Nine, holes: number): T {
-  if (holes !== 9) return course;
+  /**
+   * EIGHTEEN HOLES ON A NINE-HOLE COURSE: you play the nine twice.
+   *
+   * The catalogue holds 54 genuine nine-hole cards, and `parseHoleArray`
+   * accepts them precisely so a nine-hole club can score. Nothing then
+   * lengthened one for an eighteen-hole round, so the card was handed on at
+   * nine and every reader indexed off the end of it:
+   *
+   *   - `pars[i] ?? 0` for holes 10-18, so those nine holes were scored
+   *     against a par of ZERO — a level round read +54 instead of level, and
+   *     Stableford paid nothing at all for the second nine;
+   *   - `allocationHoles` saw a nine-length index and used a base of NINE
+   *     across eighteen holes, so a Course Handicap of 10 was allocated
+   *     nineteen strokes.
+   *
+   * Doubling is what the golf does and what every club running an eighteen on
+   * a nine already writes on the card. The second nine repeats the first's
+   * pars and yards, and its stroke indexes are the same order plus nine — so
+   * the hardest hole is SI 1 the first time round and SI 10 the second, which
+   * is the standard allocation for a doubled nine.
+   *
+   * Re-ranked before doubling, because a stored "nine" may carry one half of
+   * an eighteen-hole card's numbers (1,3,5,...,17). Adding nine to those would
+   * produce indexes past eighteen and allocate nothing on the second lap.
+   */
+  if (holes !== 9) {
+    if (course.pars.length !== 9) return course;
+    const base = course.strokeIndex.length === 9 ? rerankNine(course.strokeIndex) : course.strokeIndex;
+    return {
+      ...course,
+      pars: [...course.pars, ...course.pars],
+      yards: [...course.yards, ...course.yards],
+      strokeIndex: [...base, ...base.map((si) => si + 9)],
+    };
+  }
   if (course.pars.length < 18) return course;
 
   /**
@@ -258,4 +292,47 @@ export function cardForStage<
   T extends { name: string; pars: number[]; yards: number[]; strokeIndex: number[] },
 >(course: T, stage: { holes?: number | null; nine?: string | null } | null | undefined): T {
   return applyNine(course, cleanNine(stage?.nine), stage?.holes === 9 ? 9 : 18);
+}
+
+/**
+ * Which half a MATCH is played over: its own answer, then the round's.
+ *
+ * `Match.nine` exists because a pairing can arrange its own tee time on the
+ * other nine, and two actions write it. It was read in exactly one place, and
+ * only when the match ALSO named its own course — the reasoning being that a
+ * pairing choosing a venue also chose which half of it.
+ *
+ * That is true and it is not the only case. A match playing the round's course
+ * on the other nine sets `nine` and nothing else, and every such match was
+ * scored on the round's half: a back-nine match counted a 4 on the par-5 11th
+ * as nothing and a 4 on the par-3 13th as a birdie, and allocated its strokes
+ * off the front nine's indexes.
+ *
+ * "full" is not a choice of half — it is the absence of one, and the default on
+ * every match nobody has touched — so it defers to the round rather than
+ * overriding it with the whole card.
+ */
+export function nineForMatch(
+  match: { nine?: string | null } | null | undefined,
+  stage: { nine?: string | null } | null | undefined,
+): Nine {
+  const own = cleanNine(match?.nine);
+  return own !== "full" ? own : cleanNine(stage?.nine);
+}
+
+/**
+ * The card one match is played on, narrowed to the holes it is played over.
+ *
+ * The match-level twin of `cardForStage`, and it exists for the same reason:
+ * which nine and how many holes are one decision, and every site that split
+ * them got it wrong.
+ */
+export function cardForMatch<
+  T extends { name: string; pars: number[]; yards: number[]; strokeIndex: number[] },
+>(
+  course: T,
+  match: { nine?: string | null } | null | undefined,
+  stage: { holes?: number | null; nine?: string | null } | null | undefined,
+): T {
+  return applyNine(course, nineForMatch(match, stage), stage?.holes === 9 ? 9 : 18);
 }

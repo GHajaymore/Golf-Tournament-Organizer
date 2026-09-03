@@ -43,6 +43,19 @@ export interface EntryRound {
    * same rule, and the two would disagree the first time the chain changed.
    */
   venue: { name: string; courseId: string; hasCard: boolean } | null;
+  /**
+   * The card THIS round is scored against, already narrowed to its holes.
+   *
+   * One card used to be resolved from the event and handed to every round, so
+   * a nine-hole round was drawn with eighteen-hole stroke indexes and a
+   * back-nine round with the front nine's pars. Rounds differ — a tournament
+   * can play Saturday over eighteen and Sunday over the back nine somewhere
+   * else — so the card belongs to the round, not to the screen.
+   *
+   * Empty arrays when no real course resolves: the card then renders hole
+   * numbers only, rather than printing another course's par over it.
+   */
+  card: { pars: number[]; yards: number[]; strokeIndex: number[] };
   stroke: {
     holes: number;
     stageId: string;
@@ -61,9 +74,6 @@ export function EntryModes({
   rounds,
   activeIndex,
   players,
-  pars,
-  yards,
-  strokeIndex,
   isStaff,
   defaultMode = "match",
   courseKnown = true,
@@ -85,9 +95,6 @@ export function EntryModes({
    *  a feature nobody can see is a feature nobody asks for. */
   cardScanAvailable?: boolean;
   players: Array<{ id: string; name: string; handicap: number }>;
-  pars: number[];
-  yards: number[];
-  strokeIndex: number[];
   isStaff: boolean;
   defaultMode?: "match" | "stroke";
   /** Whether real par/stroke-index data backs this event. */
@@ -276,9 +283,9 @@ export function EntryModes({
           format={round.format}
           isStaff={isStaff}
           hideHeader
-          pars={pars}
-          yards={yards}
-          strokeIndex={strokeIndex}
+          pars={round.card.pars}
+          yards={round.card.yards}
+          strokeIndex={round.card.strokeIndex}
           netMode={round.netMode}
           scoreInput={round.scoreInput}
           courseKnown={courseKnown}
@@ -292,9 +299,9 @@ export function EntryModes({
           key={round.stageId}
           cardScanAvailable={cardScanAvailable}
           players={players}
-          pars={pars}
-          yards={yards}
-          strokeIndex={strokeIndex}
+          pars={round.card.pars}
+          yards={round.card.yards}
+          strokeIndex={round.card.strokeIndex}
           holes={round.stroke.holes}
           stageId={round.stroke.stageId}
           cardsByPlayer={round.stroke.cardsByPlayer}
