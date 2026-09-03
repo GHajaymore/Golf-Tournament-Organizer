@@ -35,15 +35,25 @@ export interface RosterRow {
   notes: string;
   entryCount: number;
   lastEvent: string;
-  /** Has an entry of any kind in the tournament currently open. */
+  /**
+   * Has a LIVE entry in the tournament currently open — one that adding them
+   * again would duplicate.
+   *
+   * A withdrawn entry is not one. This used to count it, so the member was
+   * greyed out of the picker and an organizer had no way to re-enter somebody
+   * who had pulled out and changed their mind.
+   */
   entered: boolean;
   /**
-   * Whether that entry is a place in the field or a place in the queue.
+   * Which kind of entry that is: a place, a queue place, a request awaiting
+   * approval, or none.
    *
-   * "in field" was shown for both, which is wrong for the waitlisted member
-   * and misleading for the organizer deciding who else to add.
+   * "in field" was shown for all of them. It is wrong for the waitlisted
+   * member, wrong for the withdrawn one, wrong for the unapproved one — and
+   * misleading for the organizer deciding who else to add, which is the
+   * question this screen exists to answer.
    */
-  entryStatus: "in" | "waitlisted" | "out";
+  entryStatus: "in" | "waitlisted" | "pending" | "out";
 }
 
 interface Props {
@@ -61,7 +71,13 @@ interface Props {
   eventName: string;
   fieldLocked: boolean;
   members: RosterRow[];
-  /** Everyone in the open tournament, entered and waitlisted. */
+  /**
+   * The FIELD of the open tournament — confirmed entries.
+   *
+   * Not "everyone with a row", which is what it used to be: a withdrawn or
+   * unapproved entry counted, so this read five higher than the Registration
+   * screen one tab away.
+   */
   fieldSize: number;
   /** How many of them have no roster member behind them. */
   unlinkedCount: number;
@@ -656,10 +672,16 @@ export function RosterClient({
                         title={
                           m.entryStatus === "waitlisted"
                             ? `Signed up for ${eventName}, waiting for a place`
-                            : `Already in ${eventName}`
+                            : m.entryStatus === "pending"
+                              ? `Asked to play in ${eventName}, not approved yet`
+                              : `Already in ${eventName}`
                         }
                       >
-                        {m.entryStatus === "waitlisted" ? "waitlisted" : "in field"}
+                        {m.entryStatus === "waitlisted"
+                          ? "waitlisted"
+                          : m.entryStatus === "pending"
+                            ? "awaiting approval"
+                            : "in field"}
                       </span>
                     )}
                     {m.status !== "active" && (
