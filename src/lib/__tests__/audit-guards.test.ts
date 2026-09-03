@@ -1260,6 +1260,22 @@ describe("a round's card is narrowed in exactly one place", () => {
     "src/lib/services/season.ts",
     "src/lib/services/expenses.ts",
     "src/app/actions/tournament.ts",
+    /**
+     * SCORE ENTRY, which this list did not cover and should have.
+     *
+     * The rule above was written for "the files that settle money or produce a
+     * board", and the entry screen is neither by that reading — so it went on
+     * doing the banned thing in two places. Its team path used the literal
+     * `teamCourse.pars.slice(0, holeCount)`, while `recomputeTeamMatch` — in a
+     * file this list DOES cover — went through `cardForStage`. The running net
+     * a scorer read while signing the card and the result stored for the same
+     * round differed by one to three strokes.
+     *
+     * A screen somebody signs a card against is a scoring file. The narrow
+     * reading of this list is the whole reason the fault survived the guard
+     * built to prevent it.
+     */
+    "src/app/(app)/entry/page.tsx",
   ];
 
   for (const rel of SCORING_FILES) {
@@ -1277,6 +1293,36 @@ describe("a round's card is narrowed in exactly one place", () => {
       const body = readFileSync(join(process.cwd(), rel), "utf8");
       expect(body, `${rel} should resolve its card through cardForStage`).toMatch(/cardForStage\(/);
     }
+  });
+
+  /**
+   * Score entry resolves a card PER ROUND, not one for the screen.
+   *
+   * The slice ban above cannot see this fault: the page resolved the event's
+   * card once, outside the loop that builds the rounds, and handed the same
+   * eighteen numbers to every one of them without slicing anything. So a
+   * nine-hole round was drawn with eighteen-hole stroke indexes against a
+   * nine-hole allocation base — a Playing Handicap of 7 printed four dots —
+   * and a back-nine round printed the front nine's pars, which puts "to par"
+   * out as well. The player's own card goes through `cardForStage` and was
+   * right, so the two screens disagreed by three strokes.
+   *
+   * Asserted from the source because it is a server component that nothing
+   * renders; the narrowing itself is tested properly in
+   * `course-resolution.test.ts`.
+   */
+  it("score entry resolves each round's card inside the round loop", () => {
+    const page = stripComments(
+      readFileSync(join(process.cwd(), "src", "app", "(app)", "entry", "page.tsx"), "utf8"),
+    );
+    // The card is built from the ROUND's own stage, and carried on the round.
+    expect(page).toMatch(/cardForStage\(roundCourse, stage\)/);
+    expect(page).toMatch(/card:\s*\{[\s\S]{0,160}roundCard\?\.strokeIndex/);
+    // The per-hole dots come off that same card rather than a screen-wide one.
+    expect(page).toMatch(/roundCard\.strokeIndex\[h\]/);
+    // And no screen-wide card survives to be handed to a round by mistake.
+    expect(page).not.toMatch(/^\s*const pars = /m);
+    expect(page).not.toMatch(/^\s*const strokeIndex = /m);
   });
 
   it("keeps the one place honest — cardForStage always goes through applyNine", () => {
