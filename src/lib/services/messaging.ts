@@ -779,8 +779,23 @@ export async function smsAudienceFor(
       select: { name: true, email: true },
     });
   } else if (parsed.kind === "team") {
+    /**
+     * Scoped to the caller's own tournament, like every branch above it.
+     *
+     * This was the one that selected on the id alone. A scope key is a string
+     * off the wire — `team:<id>` — so an organizer of one event could ask for
+     * a side in ANOTHER CLUB'S tournament and get its players back. The phone
+     * numbers stayed private, because those are looked up against the
+     * caller's own roster below; the NAMES came back regardless, listed in the
+     * preview as "skipped — no mobile number".
+     *
+     * A roster of names is the thing a club is most careful with, and this
+     * handed one over in a screen whose whole purpose is to look before you
+     * send. `staffBroadcast` validates the same id against the same event, and
+     * says so in its own comment; this is that check, on the read path.
+     */
     const members = await prisma.teamMember.findMany({
-      where: { teamId: parsed.id },
+      where: { teamId: parsed.id, team: { eventId: ctx.eventId } },
       select: { player: { select: { name: true, email: true } } },
     });
     players = members.map((m) => m.player).filter((p): p is { name: string; email: string } => !!p);

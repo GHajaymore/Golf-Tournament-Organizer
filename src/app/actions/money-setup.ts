@@ -1,5 +1,6 @@
 "use server";
 import { getSession } from "@/lib/auth";
+import { organizationAccess } from "@/lib/services/org-access";
 import { prisma } from "@/lib/db";
 import { currencyForEvent } from "@/lib/services/organization";
 import { minorUnitsFrom, money } from "@/lib/domain/money-format";
@@ -73,15 +74,31 @@ export async function setOrgMoneyMode(mode: string): Promise<MoneyResult> {
   const clean = (mode ?? "").trim();
   if (clean !== "" && !isMoneyMode(clean)) return { ok: false, error: "Unknown money setting." };
 
-  // Reached through the event, the same way the roster is: an organizer may
-  // set the default of the club that owns the tournament they are running.
-  const event = await prisma.event.findUnique({
-    where: { id: who.eventId },
-    select: { organizationId: true },
-  });
-  if (!event) return { ok: false, error: "Tournament not found." };
+  /**
+   * A CLUB-WIDE default needs club-wide authority, not an event role.
+   *
+   * This was reached through the event, "the same way the roster is" — and a
+   * roster is genuinely the club's list that an event's staff maintain. A
+   * money mode is not: it is a house default that EVERY OTHER TOURNAMENT
+   * inherits, including ones this person has no access to. So a guest brought
+   * in to run one Saturday medal — an assistant, at that, which the check
+   * above admits — could hide the expense ledger and settle-up across the
+   * whole club.
+   *
+   * `organizationAccess` is the rule every other club-level setter uses, and
+   * `org-access.ts` explains at length why "organizer of an event" was the
+   * wrong reading. This was the one setter that did not ask it.
+   */
+  const access = await organizationAccess(await getSession());
+  if (!access) return { ok: false, error: "No organization found." };
+  if (!access.canEdit) {
+    return {
+      ok: false,
+      error: "Only an organization owner or admin can change the club's money default.",
+    };
+  }
 
-  await prisma.organization.update({ where: { id: event.organizationId }, data: { moneyMode: clean } });
+  await prisma.organization.update({ where: { id: access.organizationId }, data: { moneyMode: clean } });
   await logMoney(who.eventId, who.name, "money.mode.club", `${who.name} set the club default to ${clean || "follow the kind"}`);
   refresh();
   return { ok: true };

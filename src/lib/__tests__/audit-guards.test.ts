@@ -1252,6 +1252,51 @@ describe("the pending-card queue never clears a card it did not send", () => {
  * than trusting fourteen call sites to remember `cardForStage`, the files that
  * settle money or produce a board are forbidden from slicing a card at all.
  */
+/**
+ * A draw a player can see is a draw the committee has published.
+ *
+ * `teeSheetPublished` is the whole difference between a saved sheet and an
+ * announced one: a committee shuffles a fourball, saves, and shuffles again
+ * before it goes out. `/me/money` read `stage.teeSheet` straight from the
+ * round to offer side-bet groups, so the draft draw — group names and who is
+ * in each group — was on every player's phone the moment it was saved.
+ *
+ * Swept from the filesystem rather than from a list, for the same reason the
+ * layout suite is: a hand-written list covers the screens somebody remembered,
+ * and the one that leaks is the one nobody thought of. Any PLAYER-facing file
+ * that reads a stored sheet has to name the flag that says it may.
+ */
+describe("player screens only show a published tee sheet", () => {
+  const PLAYER_DIR = join(process.cwd(), "src", "app", "(player)");
+
+  function playerFiles(dir: string): string[] {
+    const out: string[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...playerFiles(full));
+      else if (entry.name.endsWith(".tsx") || entry.name.endsWith(".ts")) out.push(full);
+    }
+    return out;
+  }
+
+  const readers = playerFiles(PLAYER_DIR).filter((f) =>
+    /\.teeSheet\b/.test(stripComments(readFileSync(f, "utf8"))),
+  );
+
+  it("finds the screens that read one at all", () => {
+    // Guards the sweep itself: if this ever hits zero the assertions below are
+    // vacuous and would pass however the draw is handled.
+    expect(readers.length).toBeGreaterThan(0);
+  });
+
+  for (const file of readers) {
+    const rel = file.slice(process.cwd().length + 1).replace(/\\/g, "/");
+    it(`${rel} checks it was published`, () => {
+      expect(stripComments(readFileSync(file, "utf8"))).toMatch(/teeSheetPublished/);
+    });
+  }
+});
+
 describe("a round's card is narrowed in exactly one place", () => {
   const SCORING_FILES = [
     "src/app/(app)/leaderboard/page.tsx",
