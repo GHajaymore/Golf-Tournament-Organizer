@@ -5,7 +5,8 @@ import { addExpense, updateExpense, removeExpense, recordSettlement } from "@/ap
 import { requestContestEntry } from "@/app/actions/contests";
 import { requestSideGameEntry } from "@/app/actions/side-games";
 import { requestSkinsEntry } from "@/app/actions/skins";
-import type { MoneyView } from "@/lib/services/expenses";
+import type { MoneyView, ExpenseRow } from "@/lib/services/expenses";
+import { shareField, initialsOf } from "@/lib/share-field";
 import { unitemisedGames } from "@/lib/domain/money-breakdown";
 import { PersonChip } from "@/components/PersonChip";
 import { useMoney } from "@/components/CurrencyProvider";
@@ -1046,10 +1047,24 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                       ? "Paid by someone no longer in the field"
                       : `Paid by ${e.paidByName}`}
                   {" · "}
-                  {e.shares.length} {e.shares.length === 1 ? "share" : "shares"}
+                  {/* THE DIVISION, NOT THE COUNT.
+                      This said "6 shares". A count is not checkable; a
+                      division is — "$1,986.00 ÷ 6" is the arithmetic somebody
+                      can do in their head and then trust. It only says ÷ when
+                      the split really is even: an exact-amount or weighted
+                      line says "across", because printing ÷ over a 2:2:2:1
+                      room-night split would be a tidy lie. */}
+                  {splitLabel(e, money)}
                   {e.category && e.category !== "other" && ` · ${expenseCategoryLabel(e.category)}`}
                   {e.spentOn && ` · ${e.spentOn}`}
                 </span>
+                {/* WHO IS ON THIS LINE, WITHOUT OPENING IT.
+                    Weighted splitting is the hardest thing on this screen to
+                    build and the easiest to take on trust — and a collapsed
+                    row is exactly what asks for trust. The field in initials
+                    shows at a glance that no two lines are shared by the same
+                    people, which is the whole argument for weights. */}
+                <ShareField expense={e} field={view.field} />
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(e.amountCents)}</span>
             </summary>
@@ -1145,5 +1160,98 @@ export function MoneyClient({ view }: { view: MoneyView }) {
         </section>
       )}
     </div>
+  );
+}
+
+/**
+ * How a line divided, in words a reader can check.
+ *
+ * The row used to say "6 shares". A count says how many people were involved
+ * and nothing about whether the arithmetic is right; a division says both.
+ * The distinction below is the point: `÷` is a promise that every share is
+ * the same size, so it is only printed when that is true. A weighted line —
+ * six players over fourteen room-nights — or a line split by exact amounts
+ * says "across", because a ÷ over an uneven split is a tidy lie and this
+ * screen's whole job is being trusted.
+ */
+function splitLabel(e: ExpenseRow, money: (cents: number) => string): string {
+  const on = e.shares.filter((s) => s.weight > 0 || (s.exactCents ?? 0) !== 0);
+  if (on.length === 0) return " · no shares";
+  const exact = on.some((s) => s.exactCents !== null && s.exactCents !== 0);
+  const even = !exact && on.every((s) => s.weight === on[0].weight);
+  return ` · ${money(e.amountCents)} ${even ? "÷" : "across"} ${on.length}`;
+}
+
+/**
+ * The people a bill touches, on one line, as initials.
+ *
+ * WHO is shown and in what state is decided by `shareField` in
+ * lib/share-field.ts, not here — deliberately. That rule branches on the size
+ * of the field, and a branch living only in JSX is a branch no test can
+ * reach, which is exactly how the first version of this shipped rendering
+ * nothing at all on a 33-player event with everything green. The selection is
+ * asserted over there; this file only paints it.
+ *
+ * Four states:
+ *
+ *   in    — in the split
+ *   nil   — dashed: on the line at a weight of zero, present and owing
+ *           nothing, which is a different fact from never having been on it
+ *   off   — faded: never on this line
+ *   payer — accent border, and true in ANY of the three, because somebody can
+ *           pay for a bill they are not on
+ */
+function ShareField({
+  expense,
+  field,
+}: {
+  expense: ExpenseRow;
+  field: Array<{ id: string; name: string }>;
+}) {
+  const chips = shareField(
+    field,
+    expense.shares,
+    expense.payers.length > 0 ? expense.payers.map((p) => p.playerId) : [expense.paidBy],
+  );
+  if (chips.length === 0) return null;
+
+  return (
+    <span style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }} aria-hidden="true">
+      {chips.map((c) => (
+        <span
+          key={c.playerId}
+          title={`${c.name}${c.state === "off" ? " — not on this line" : c.state === "nil" ? " — on it, at nothing" : ""}${c.payer ? " — paid the bill" : ""}`}
+          style={{
+            display: "inline-grid",
+            placeItems: "center",
+            minWidth: 25,
+            height: 19,
+            padding: "0 3px",
+            borderRadius: 3,
+            // 10px is the floor this app sets itself, and the adherence test
+            // in brand-consistency.test.ts enforces it. This was 9.5 and the
+            // suite caught it, which is the test doing exactly its job.
+            fontSize: 10,
+            letterSpacing: "0.02em",
+            fontVariantNumeric: "tabular-nums",
+            border: `1px ${c.state === "nil" ? "dashed" : "solid"} ${
+              c.payer
+                ? "var(--color-accent)"
+                : c.state === "off"
+                  ? "var(--color-divider)"
+                  : "var(--color-border, var(--color-divider))"
+            }`,
+            color: c.payer
+              ? "var(--color-accent)"
+              : c.state === "off"
+                ? "var(--color-text-muted)"
+                : "var(--color-text)",
+            opacity: c.state === "off" ? 0.45 : 1,
+          }}
+        >
+          {initialsOf(c.name)}
+        </span>
+      ))}
+    </span>
   );
 }
