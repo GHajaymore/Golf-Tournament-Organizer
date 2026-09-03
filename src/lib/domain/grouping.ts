@@ -50,8 +50,15 @@ export function flightCountFor(playerCount: number, config: FlightConfig = { mod
 /** Legacy alias. */
 export const groupCountFor = (n: number): number => flightCountFor(n);
 
-/** Even-as-possible flight capacities (earlier flights absorb the remainder). */
-function flightSizes(n: number, count: number): number[] {
+/**
+ * Even-as-possible flight capacities (earlier flights absorb the remainder).
+ *
+ * Exported because the tee-sheet draw needs the same arithmetic. Grouping off
+ * the leaderboard used to chunk the board into fixed slices of its own and had
+ * no idea this existed, which is how the same screen offered five rules and
+ * one of them drew a five-ball.
+ */
+export function flightSizes(n: number, count: number): number[] {
   const base = Math.floor(n / count);
   const rem = n % count;
   return Array.from({ length: count }, (_, i) => base + (i < rem ? 1 : 0));
