@@ -198,7 +198,41 @@ export function applyNine<
   // score a back nine off the front.
   T extends { name: string; pars: number[]; yards: number[]; strokeIndex: number[] },
 >(course: T, nine: Nine, holes: number): T {
-  if (holes !== 9) return course;
+  /**
+   * EIGHTEEN HOLES ON A NINE-HOLE COURSE: you play the nine twice.
+   *
+   * The catalogue holds 54 genuine nine-hole cards, and `parseHoleArray`
+   * accepts them precisely so a nine-hole club can score. Nothing then
+   * lengthened one for an eighteen-hole round, so the card was handed on at
+   * nine and every reader indexed off the end of it:
+   *
+   *   - `pars[i] ?? 0` for holes 10-18, so those nine holes were scored
+   *     against a par of ZERO — a level round read +54 instead of level, and
+   *     Stableford paid nothing at all for the second nine;
+   *   - `allocationHoles` saw a nine-length index and used a base of NINE
+   *     across eighteen holes, so a Course Handicap of 10 was allocated
+   *     nineteen strokes.
+   *
+   * Doubling is what the golf does and what every club running an eighteen on
+   * a nine already writes on the card. The second nine repeats the first's
+   * pars and yards, and its stroke indexes are the same order plus nine — so
+   * the hardest hole is SI 1 the first time round and SI 10 the second, which
+   * is the standard allocation for a doubled nine.
+   *
+   * Re-ranked before doubling, because a stored "nine" may carry one half of
+   * an eighteen-hole card's numbers (1,3,5,...,17). Adding nine to those would
+   * produce indexes past eighteen and allocate nothing on the second lap.
+   */
+  if (holes !== 9) {
+    if (course.pars.length !== 9) return course;
+    const base = course.strokeIndex.length === 9 ? rerankNine(course.strokeIndex) : course.strokeIndex;
+    return {
+      ...course,
+      pars: [...course.pars, ...course.pars],
+      yards: [...course.yards, ...course.yards],
+      strokeIndex: [...base, ...base.map((si) => si + 9)],
+    };
+  }
   if (course.pars.length < 18) return course;
 
   /**

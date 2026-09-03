@@ -8,7 +8,7 @@ import {
   type StoredCourse,
   type EventCourseFields,
 } from "../services/course-resolution";
-import { holeStrokesReceived } from "../domain/stroke";
+import { holeStrokesReceived, allocationHoles } from "../domain/stroke";
 import { hasCourseData } from "../courses";
 
 const arr = (n: number) => JSON.stringify(new Array(18).fill(n));
@@ -108,6 +108,107 @@ describe("which nine a match is played over", () => {
       strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
     };
     expect(cardForMatch(course, { nine: "back" }, { holes: 18, nine: "front" }).pars).toHaveLength(18);
+  });
+});
+
+/**
+ * Eighteen holes on a nine-hole course, which is how nine-hole clubs run one.
+ *
+ * The catalogue holds 54 genuine nine-hole cards — `parseHoleArray` accepts
+ * them precisely so those clubs can score — and nothing lengthened one for an
+ * eighteen-hole round. The card was handed on at nine and every reader indexed
+ * off the end of it.
+ */
+describe("an eighteen-hole round on a nine-hole card", () => {
+  /** A real nine: par 35, indexes 1..9, and a distinctive yardage per hole. */
+  const nineHole = {
+    name: "Short Nine",
+    pars: [4, 3, 5, 4, 4, 3, 4, 4, 4],
+    yards: [300, 310, 320, 330, 340, 350, 360, 370, 380],
+    strokeIndex: [5, 9, 1, 3, 7, 8, 2, 4, 6],
+  };
+
+  it("plays the nine twice", () => {
+    const card = cardForStage(nineHole, { holes: 18, nine: "full" });
+    expect(card.pars).toHaveLength(18);
+    expect(card.pars.slice(0, 9)).toEqual(nineHole.pars);
+    expect(card.pars.slice(9)).toEqual(nineHole.pars);
+    expect(card.yards.slice(9)).toEqual(nineHole.yards);
+  });
+
+  it("scores the second nine against real pars, not zero", () => {
+    /**
+     * `pars[i] ?? 0` for holes 10-18 scored those nine against a par of ZERO.
+     * A level round read +54 rather than level, and Stableford paid nothing
+     * for the whole back half.
+     */
+    const card = cardForStage(nineHole, { holes: 18, nine: "full" });
+    const par = card.pars.reduce((a, b) => a + b, 0);
+    expect(par).toBe(70); // 35 twice
+    expect(card.pars.every((p) => p > 0)).toBe(true);
+  });
+
+  it("allocates on a base of eighteen, so a 10 gets ten strokes and not nineteen", () => {
+    /**
+     * The money half. `allocationHoles` reads the index length, so a
+     * nine-length array put an eighteen-hole round on a base of NINE: one
+     * stroke a hole plus a second on SI 1, nineteen in total for a Course
+     * Handicap of 10.
+     */
+    const card = cardForStage(nineHole, { holes: 18, nine: "full" });
+    // Counted the way a consumer counts it: eighteen holes, reading the card
+    // with `?? 18` for anything past its end. Summing the card's own array
+    // instead would hide the fault, because a short array is short in the
+    // total too — the nineteen strokes come from the nine holes that fall off
+    // the end and are allocated on a base of nine.
+    const base = allocationHoles(card.strokeIndex.length);
+    const total = Array.from({ length: 18 }, (_, i) =>
+      holeStrokesReceived(10, card.strokeIndex[i] ?? 18, base),
+    ).reduce((a, b) => a + b, 0);
+    expect(total).toBe(10);
+  });
+
+  it("gives the second lap of a hole the same difficulty order, nine later", () => {
+    // The standard doubled-nine allocation: the hardest hole is SI 1 the first
+    // time round and SI 10 the second.
+    const card = cardForStage(nineHole, { holes: 18, nine: "full" });
+    expect([...card.strokeIndex].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: 18 }, (_, i) => i + 1),
+    );
+    for (let h = 0; h < 9; h += 1) {
+      expect(card.strokeIndex[h + 9]).toBe(card.strokeIndex[h] + 9);
+    }
+  });
+
+  it("re-ranks a nine stored with eighteen-hole numbers before doubling", () => {
+    /**
+     * A stored "nine" can carry one half of an eighteen-hole card's indexes —
+     * 1,3,5,...,17. Adding nine to those would run past eighteen and allocate
+     * nothing at all on the second lap.
+     */
+    const oddNine = { ...nineHole, strokeIndex: [1, 3, 5, 7, 9, 11, 13, 15, 17] };
+    const card = cardForStage(oddNine, { holes: 18, nine: "full" });
+    expect([...card.strokeIndex].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: 18 }, (_, i) => i + 1),
+    );
+  });
+
+  it("leaves a nine-hole ROUND on a nine-hole card exactly as it was", () => {
+    // The case that already worked: nine holes on a nine-hole course is the
+    // card itself, and must not be doubled or narrowed.
+    const card = cardForStage(nineHole, { holes: 9, nine: "full" });
+    expect(card.pars).toEqual(nineHole.pars);
+    expect(card.strokeIndex).toEqual(nineHole.strokeIndex);
+  });
+
+  it("leaves an eighteen-hole card alone", () => {
+    const full = {
+      name: "Regulation",
+      pars: new Array(18).fill(4),
+      yards: new Array(18).fill(400),
+      strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
+    };
+    expect(cardForStage(full, { holes: 18, nine: "full" })).toEqual(full);
   });
 });
 
