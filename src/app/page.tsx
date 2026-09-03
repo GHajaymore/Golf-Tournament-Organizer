@@ -734,7 +734,17 @@ export default async function LoginPage() {
             </div>
             <div className="proof rise">
               <span><i></i>Every recognised format</span>
-              <span><i></i>WHS course handicaps</span>
+              {/* NOT "WHS course handicaps".
+                  `domain/handicap-record.ts` sets the rule this has to obey:
+                  a figure this app produces is "labelled as the club's own
+                  figure, never 'Index' and never 'WHS'". The METHOD is public
+                  — the Rules of Handicapping publish it — and the DATA is
+                  licensed, association-held, and the association's figure is
+                  the authority we never overwrite. A two-word badge saying
+                  "WHS" claims an endorsement nobody has given us, which is a
+                  different and worse thing than describing the arithmetic.
+                  Below is the arithmetic. */}
+              <span><i></i>Slope-and-rating handicaps</span>
               {/* The money promise belongs in the hero, not four screens down.
                   It is half of what this product is, and "No spreadsheets"
                   said what a visitor avoids rather than what they get. */}
@@ -1307,7 +1317,13 @@ export default async function LoginPage() {
             <details open>
               <summary style={paperInk}>How are course handicaps calculated?<Chevron /></summary>
               <div className="ans" style={paperSoft}>
-                <p>To the World Handicap System, from the <b style={paperInk}>tee&rsquo;s own rating and slope</b> and then the format&rsquo;s published allowance — never the raw index. A {EXAMPLE.index.toFixed(1)} index off blue tees rated {EXAMPLE.tee.courseRating}&nbsp;/&nbsp;{EXAMPLE.tee.slopeRating}, playing four-ball at its 90% allowance, works out like this:</p>
+                {/* "To the published METHOD", not "to the WHS" flat. The
+                    method is public and this follows it; the Index itself is
+                    licensed association data and an association's figure is
+                    the authority here. One word, and it is the difference
+                    between describing our arithmetic and implying somebody
+                    approved it. */}
+                <p>To the published World Handicap System method, from the <b style={paperInk}>tee&rsquo;s own rating and slope</b> and then the format&rsquo;s published allowance — never the raw index. A {EXAMPLE.index.toFixed(1)} index off blue tees rated {EXAMPLE.tee.courseRating}&nbsp;/&nbsp;{EXAMPLE.tee.slopeRating}, playing four-ball at its 90% allowance, works out like this:</p>
                 <div className="calc" style={{ borderColor: "color-mix(in srgb, var(--paper-ink) 20%, transparent)" }}>
                   <div className="cr" style={{ borderColor: "color-mix(in srgb, var(--paper-ink) 12%, transparent)" }}><span className="k" style={paperSoft}>Handicap index</span><span className="v" style={paperInk}>{EXAMPLE.index.toFixed(1)}</span></div>
                   <div className="cr" style={{ borderColor: "color-mix(in srgb, var(--paper-ink) 12%, transparent)" }}><span className="k" style={paperSoft}>Course rating / slope</span><span className="v" style={paperInk}>{EXAMPLE.tee.courseRating} / {EXAMPLE.tee.slopeRating}</span></div>
