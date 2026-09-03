@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "../db";
+import { handicapPolicyOf, refuseHandByHand } from "../domain/handicap-policy";
 
 /**
  * The club roster — the primary record of who plays here.
@@ -135,6 +136,22 @@ export interface MemberIdentity {
 }
 
 /**
+ * Who is writing this roster row, and therefore whose word the index is.
+ *
+ * Required rather than defaulted, on purpose. A default would be the wrong
+ * answer for whichever kind of caller forgot to pass it, and the caller that
+ * forgets is exactly the one that matters — see the note on `upsertMember`.
+ */
+export type MemberWriter =
+  /** An organizer, acting inside the club with a session. Their typed index is
+   *  the club's answer, subject to the club's handicap policy. */
+  | "staff"
+  /** Public self-registration. No session, no identity beyond a form: an
+   *  entrant may complete their own roster row but never restate somebody
+   *  else's index. */
+  | "public";
+
+/**
  * Find this person on the club roster, or add them.
  *
  * Every path that puts someone in a tournament goes through here, so entering
@@ -145,17 +162,48 @@ export interface MemberIdentity {
  * spelling variants), falling back to an exact case-insensitive name match.
  * Details on an existing member are filled in but not overwritten: a blank
  * phone in a CSV should not wipe the number the club already had.
+ *
+ * THE HANDICAP IS THE EXCEPTION, and it was the wrong kind of exception.
+ *
+ * It was overwritten on every upsert, reasoned as "the one field the latest
+ * entry is authoritative for — it's what the organizer just typed". True of an
+ * organizer; six callers reach this and one of them is PUBLIC SELF-
+ * REGISTRATION, which has no session at all. Anyone who knew a member's email
+ * address could enter a tournament as them and restate their Handicap Index,
+ * and `Member.handicap` is what every future event snapshots.
+ *
+ * It also walked straight past the club's handicap policy. `refuseHandByHand`
+ * exists for that and its own docstring says why — "the action behind it is a
+ * public HTTP endpoint and will be called with whatever the caller likes" —
+ * but it was called from exactly ONE of the seven places that can set an
+ * index. So under `handicapPolicy: "ghin"` an unauthenticated stranger could
+ * do what the club's own organizer is refused.
+ *
+ * Both checks now live here, where every path has to pass through them,
+ * rather than in a guard six callers must remember. That is CLAUDE.md's rule
+ * about guards, and this is the case it was written about.
  */
-export async function upsertMember(organizationId: string, input: MemberIdentity): Promise<string | null> {
+export async function upsertMember(
+  organizationId: string,
+  input: MemberIdentity,
+  writer: MemberWriter,
+): Promise<string | null> {
   const name = input.name.trim();
   if (!organizationId || !name) return null;
   const email = (input.email ?? "").trim().toLowerCase();
 
-  const existing = email
-    ? await prisma.member.findFirst({ where: { organizationId, email } })
-    : await prisma.member.findFirst({
-        where: { organizationId, name: { equals: name, mode: "insensitive" } },
-      });
+  const [existing, org] = await Promise.all([
+    email
+      ? prisma.member.findFirst({ where: { organizationId, email } })
+      : prisma.member.findFirst({
+          where: { organizationId, name: { equals: name, mode: "insensitive" } },
+        }),
+    prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { handicapPolicy: true },
+    }),
+  ]);
+  const policy = handicapPolicyOf(org?.handicapPolicy);
 
   if (existing) {
     const fill: Record<string, string | number> = {};
@@ -173,7 +221,22 @@ export async function upsertMember(organizationId: string, input: MemberIdentity
     // retyping their index. Only a handicap somebody actually entered is
     // authoritative; anything else leaves the roster's value alone.
     const claimed = (input.handicapSource ?? "manual") !== "none";
-    if (claimed && Number.isFinite(input.handicap) && input.handicap !== existing.handicap) {
+    /**
+     * Two more things have to be true before that index is written.
+     *
+     * A PUBLIC entrant is not authoritative for a roster row that already
+     * exists. They may complete their own — the gap-filling above still runs —
+     * but restating the club's stored index for somebody is a thing only the
+     * club does. Knowing an email address is not knowing a handicap.
+     *
+     * And the club's policy decides whether a typed figure is allowed at all,
+     * for this member. Under `ghin` it never is; under `hybrid` it is not for
+     * anybody who has an association number.
+     */
+    const mayWriteIndex =
+      writer === "staff" &&
+      refuseHandByHand(policy, input, { handicap: existing.handicap, ghin: existing.ghin }) === null;
+    if (mayWriteIndex && claimed && Number.isFinite(input.handicap) && input.handicap !== existing.handicap) {
       fill.handicap = input.handicap as number;
       fill.handicapType = input.handicapType === "9" ? "9" : "18";
     }
@@ -183,21 +246,39 @@ export async function upsertMember(organizationId: string, input: MemberIdentity
     return existing.id;
   }
 
+  /**
+   * A NEW member under a policy that forbids typed indexes.
+   *
+   * "A member without a GHIN number is an unfinished roster row rather than a
+   * player at zero" — the policy's own words. So the row is created and the
+   * typed figure is not kept: recording it would put a hand-typed index beside
+   * association ones looking equally official, which is the outcome the policy
+   * exists to prevent. `handicapSource: "none"` is how the rest of the app
+   * already says "nobody has claimed a figure for this person".
+   *
+   * A brand-new member has no association number of their own to consult yet,
+   * so the question is asked with the one they supplied.
+   */
+  const newGhin = (input.ghin ?? "").trim();
+  const mayRecordIndex =
+    refuseHandByHand(policy, input, { handicap: 0, ghin: newGhin }) === null;
   const created = await prisma.member.create({
     data: {
       organizationId,
       name,
       email,
       phone: (input.phone ?? "").trim(),
-      ghin: (input.ghin ?? "").trim(),
+      ghin: newGhin,
       homeClub: (input.homeClub ?? "").trim(),
       gender: (input.gender ?? "").trim(),
       preferredTee: (input.preferredTee ?? "").trim(),
-      handicap: Number.isFinite(input.handicap) ? (input.handicap as number) : 0,
+      handicap: mayRecordIndex && Number.isFinite(input.handicap) ? (input.handicap as number) : 0,
       handicapType: input.handicapType === "9" ? "9" : "18",
-      handicapSource: ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
-        ? input.handicapSource!
-        : "manual",
+      handicapSource: !mayRecordIndex
+        ? "none"
+        : ["ghin", "manual", "none"].includes(input.handicapSource ?? "")
+          ? input.handicapSource!
+          : "manual",
     },
   });
   return created.id;

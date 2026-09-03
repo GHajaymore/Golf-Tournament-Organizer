@@ -130,15 +130,28 @@ export async function registerForEvent(token: string, form: RegistrationForm): P
   // Roster write-through, exactly like the organizer-side add: registering
   // someone is also how they join the club roster, so there's one record of the
   // person and their history spans events.
-  const memberId = await upsertMember(event.organizationId, {
-    name: person.name,
-    email: person.email,
-    phone: person.phone,
-    preferredTee: person.preferredTee,
-    handicap: person.handicap,
-    handicapType: person.handicapType,
-    handicapSource: person.handicapSource,
-  });
+  const memberId = await upsertMember(
+    event.organizationId,
+    {
+      name: person.name,
+      email: person.email,
+      phone: person.phone,
+      preferredTee: person.preferredTee,
+      handicap: person.handicap,
+      handicapType: person.handicapType,
+      handicapSource: person.handicapSource,
+    },
+    /**
+     * PUBLIC. There is no session here at all — this is the one board-affecting
+     * write with none.
+     *
+     * So the index they type enters this event, and does not restate the club's
+     * stored figure for a member who already exists. Anyone who knew a member's
+     * email could otherwise sign up as them and rewrite the Handicap Index every
+     * future event snapshots.
+     */
+    "public",
+  );
 
   // What they typed, turned into the set they play from. Unmatched or
   // ambiguous stays null, which means the round’s tees and is correctable on
