@@ -1325,6 +1325,28 @@ describe("a round's card is narrowed in exactly one place", () => {
     expect(page).not.toMatch(/^\s*const strokeIndex = /m);
   });
 
+  /**
+   * The round-code screen is a scoring surface too.
+   *
+   * It handed the player the EVENT's card — ignoring the match's venue, the
+   * round's, and which nine — and then sized its grid from that card's length,
+   * so a nine-hole match drew eighteen cells and could never be submitted.
+   * Asserted from the source because the page is a server component; what it
+   * renders is covered in `render.test.tsx`.
+   */
+  it("the round-code play screen resolves the match's own card", () => {
+    const page = stripComments(
+      readFileSync(join(process.cwd(), "src", "app", "play", "page.tsx"), "utf8"),
+    );
+    expect(page).toMatch(/courseForMatch\(playMatchVenue, playStageVenue, event\)/);
+    expect(page).toMatch(/cardForMatch\(playResolved, match, stage\)/);
+    // The round's hole count travels explicitly, so the grid never has to
+    // guess it from the length of a card.
+    expect(page).toMatch(/holes=\{holeCount\}/);
+    // And the event's whole card is no longer handed down.
+    expect(page).not.toMatch(/pars=\{course\.pars\}/);
+  });
+
   it("keeps the one place honest — cardForStage always goes through applyNine", () => {
     const src = stripComments(
       readFileSync(join(process.cwd(), "src", "lib", "services", "course-resolution.ts"), "utf8"),
