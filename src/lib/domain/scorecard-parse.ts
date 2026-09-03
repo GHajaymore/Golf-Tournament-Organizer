@@ -419,24 +419,31 @@ export function implausibleCard(pars: number[], holes = 18): string | null {
   const distinct = new Set(pars);
 
   /**
-   * A course where every hole is a par 3 is a real and ordinary thing.
+   * ONLY A HIGH BOUND. The floor was refusing real short courses.
    *
-   * Executive and short courses are everywhere, and their total is 27 or 54
-   * BY CONSTRUCTION rather than because a row has slipped out of line — which
-   * is the only thing the range below is evidence of. Applied to one, the
-   * range refused a genuine card and told the club their course does not
-   * exist. It did exactly that until this: a par-3 nine could not be stored
-   * at all.
+   * There used to be a low bound too, with an exemption for a card of nothing
+   * but par 3s — added because a par-3 nine could not otherwise be stored at
+   * all. The exemption fired only on a UNIFORM card, so one par 4 among
+   * seventeen par 3s (total 55) was still thrown away, told that "no 18-hole
+   * course plays" it. Executive and short courses are everywhere and very few
+   * of them are uniform; that is the exact shape of guard CLAUDE.md's course
+   * section was written about, arriving through the fix for its predecessor.
    *
-   * Only par 3, not any uniform card. Eighteen identical 6s is a row of
-   * something that is not pars.
+   * The floor is not merely too low — it protects nothing. Every hole is
+   * already checked to be a par of 3 to 6, hole by hole, naming the offending
+   * ones. Eighteen such holes cannot total less than 54 or a nine less than
+   * 27, so the only cards a floor of 60 (or 30) can ever reject are the ones
+   * made mostly of par 3s: precisely the real short courses it was refusing.
+   * A slipped row — yardages or stroke indexes read as pars — is caught by
+   * that per-hole check long before any total is added up.
+   *
+   * The HIGH bound is doing real work and stays. "Beaver Creek Meadows Golf
+   * Course, par 79" is in the public directory, and a card of 5s and 6s is
+   * evidence of a row that has slipped rather than of a very long course.
    */
-  const allParThree = distinct.size === 1 && pars[0] === 3;
-
   const total = pars.reduce((sum, p) => sum + p, 0);
-  const low = holes === 9 ? 30 : 60;
   const high = holes === 9 ? 39 : 78;
-  if (!allParThree && (total < low || total > high)) {
+  if (total > high) {
     return `These pars add up to ${total}, which no ${holes}-hole course plays. Check the row lines up with the holes.`;
   }
 
