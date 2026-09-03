@@ -55,6 +55,76 @@ export function unlinkedPlayers<T extends PlayerRef>(players: T[], members: Memb
   });
 }
 
+/** Where a roster member stands in the tournament currently open. */
+export type EntryStatus = "in" | "waitlisted" | "pending" | "out";
+
+/** One entry row, as much of it as this decision needs. */
+export interface EntryRow {
+  memberId: string | null;
+  email: string;
+  status: string;
+}
+
+export interface MemberEntry {
+  status: EntryStatus;
+  /**
+   * Whether adding this member again would duplicate a LIVE entry.
+   *
+   * True for a place, a queue place and an unapproved request alike — all
+   * three are entries somebody already has. False for a withdrawn one, which
+   * is not an entry: treating it as one greyed the member out of the picker
+   * and left an organizer no way to re-enter somebody who pulled out and
+   * changed their mind.
+   */
+  live: boolean;
+}
+
+const emailKey = (v: string) => v.trim().toLowerCase();
+
+/** Whether this entry row is this member, by roster link or by address. */
+function isSamePerson(member: { id: string; email: string }, row: EntryRow): boolean {
+  if (row.memberId && row.memberId === member.id) return true;
+  const key = emailKey(member.email);
+  return !!key && emailKey(row.email) === key;
+}
+
+/**
+ * What the roster screen should say about one member.
+ *
+ * The screen used to ask only "is there a Player row" and tag every answer
+ * "in field". That is wrong for three of the four statuses: a WAITLISTED
+ * member has no place, a PENDING one has asked and not been approved, and a
+ * WITHDRAWN one has left. All three read as being in the tournament, and the
+ * organizer standing on this page is deciding who to add.
+ *
+ * Ordered deliberately. A member can hold more than one row across a
+ * tournament's life — withdrawn in the morning, re-entered in the afternoon —
+ * so the strongest live claim wins rather than whichever row came back first.
+ */
+export function memberEntryFor(
+  member: { id: string; email: string },
+  entries: EntryRow[],
+): MemberEntry {
+  const mine = entries.filter((row) => isSamePerson(member, row));
+  const has = (status: string) => mine.some((row) => row.status === status);
+  const live = mine.some((row) => row.status !== "withdrawn");
+  if (has("confirmed")) return { status: "in", live };
+  if (has("waitlisted")) return { status: "waitlisted", live };
+  if (has("pending")) return { status: "pending", live };
+  return { status: "out", live };
+}
+
+/**
+ * The FIELD: confirmed entries, and nothing else.
+ *
+ * This was every row whatever its status, so a tournament with thirty players
+ * and five withdrawn or unapproved reported thirty-five — while Registration,
+ * one tab away, said thirty, and both were badged green.
+ */
+export function fieldSizeOf(entries: EntryRow[]): number {
+  return entries.filter((row) => row.status === "confirmed").length;
+}
+
 export interface FieldRosterSummary {
   /** Everyone in the field, entered and waitlisted. */
   fieldSize: number;
