@@ -1,4 +1,5 @@
 import { requireScreen } from "@/lib/page-helpers";
+import { roundLabel } from "@/lib/domain/round-label";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { skinsPotFor, skinsSeasonFor } from "@/lib/services/skins-pot";
 import { isSkinsScope, type SkinsScope } from "@/lib/domain/skins-pot";
@@ -170,7 +171,7 @@ export default async function PrizesPage({
         skinsGames.map((g) => (
           <SkinsPotClient
             key={g.key}
-            rounds={weeks.map((s, i) => ({ stageId: s.id, label: `Round ${i + 1}` }))}
+            rounds={weeks.map((s) => ({ stageId: s.id, label: roundLabel(weeks, s.id) }))}
             activeStageId={week.id}
             view={g.view}
           />
@@ -181,7 +182,7 @@ export default async function PrizesPage({
           tournament-wide setting. */}
       {week && (
         <ContestsClient
-          roundLabel={`Round ${weeks.findIndex((s) => s.id === week.id) + 1}`}
+          roundLabel={roundLabel(weeks, week.id)}
           stageId={week.id}
           contests={contests.map((c) => {
             // One rule for both modes — see potMembership. Opt-in counts the
@@ -248,7 +249,7 @@ export default async function PrizesPage({
             stageId: l.stageId,
             createdBy: l.createdBy,
           }))}
-          rounds={weeks.map((s, i) => ({ id: s.id, label: `Round ${i + 1}` }))}
+          rounds={weeks.map((s) => ({ id: s.id, label: roundLabel(weeks, s.id) }))}
           canEdit={isStaff}
         />
       )}

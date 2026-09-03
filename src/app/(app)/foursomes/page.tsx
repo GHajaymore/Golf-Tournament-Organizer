@@ -1,4 +1,5 @@
 import { requireScreen } from "@/lib/page-helpers";
+import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
 import { teeNamesForRound, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
@@ -225,9 +226,9 @@ export default async function FoursomesPage({
         stageId={stage?.id ?? ""}
         savedAt={stage ? parseTeeSheet(stage.teeSheet)?.savedAt ?? "" : ""}
         published={stage?.teeSheetPublished ?? false}
-        rounds={rounds.map((r, i) => ({
+        rounds={rounds.map((r) => ({
           id: r.id,
-          label: r.playedOn ? `Round ${i + 1} · ${shortDate(r.playedOn)}` : `Round ${i + 1}`,
+          label: roundLabelWith(rounds, r.id, r.playedOn ? shortDate(r.playedOn) : ""),
         }))}
         activeRoundId={stage?.id ?? ""}
       />
@@ -237,7 +238,7 @@ export default async function FoursomesPage({
         clubLogoUrl={brand?.logoUrl ?? ""}
         courseName={course.name || state.event.course}
         dates={state.event.dates}
-        roundLabel={`Round ${Math.max(1, rounds.findIndex((r) => r.id === stage?.id) + 1)}`}
+        roundLabel={roundLabel(rounds, stage?.id ?? "")}
         pars={course.pars}
         strokeIndex={course.strokeIndex}
         holes={holes}

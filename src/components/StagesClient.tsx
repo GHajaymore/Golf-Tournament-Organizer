@@ -1,5 +1,8 @@
 "use client";
 import React, { useState, useTransition } from "react";
+// Aliased: several components here hold a local `roundLabel` string built from
+// it, and shadowing the import would read as a bug rather than as a value.
+import { roundLabel as roundLabelOf } from "@/lib/domain/round-label";
 import {
   setStageDeadline,
   setStageCarry,
@@ -217,6 +220,7 @@ function SettingsGroup({
 function NextRoundTransition({
   stageId,
   nextStage,
+  allStages,
   confirmedCount,
   flightCount = 1,
   carry,
@@ -224,6 +228,8 @@ function NextRoundTransition({
   /** The current round's id — where a newly-created next round gets appended after. */
   stageId: string;
   nextStage: StageView | undefined;
+  /** Every stage, so the next round can be numbered the way the app numbers rounds. */
+  allStages: StageView[];
   confirmedCount: number;
   /** Number of flights, so a per-flight cut can say what it really advances. */
   flightCount?: number;
@@ -291,7 +297,9 @@ function NextRoundTransition({
     );
   }
 
-  const roundLabel = `Round ${nextStage.position + 1}`;
+  // From the tournament's own count, not `position + 1`, which counts a cut as
+  // a round and so named this one differently from every other screen.
+  const roundLabel = roundLabelOf(allStages, nextStage.id);
   // A stroke-play / medal next round draws no pairings — the field returns
   // cards — so it is "generated" by handing the survivors a card, not by
   // building matches. Before it exists, assume a Round Robin (what gets created).
@@ -448,6 +456,7 @@ function StageCard({
   isFirst,
   standing,
   nextStage,
+  allStages,
   rrMatchesPerPlayer,
   scoring,
   tiebreakers,
@@ -483,6 +492,15 @@ function StageCard({
    */
   standing: "played" | "active" | "upcoming";
   nextStage: StageView | undefined;
+  /**
+   * Every stage in the tournament, so a round can be numbered the way the rest
+   * of the app numbers rounds.
+   *
+   * This card had `stage` and read `stage.position + 1`, which counts a cut as
+   * a round — so the round after a cut was one higher here than on the prizes
+   * screen, in score entry and on the player's own dashboard.
+   */
+  allStages: StageView[];
   rrMatchesPerPlayer: number;
   scoring: ScoringValues;
   tiebreakers: TiebreakerKey[];
@@ -661,7 +679,7 @@ function StageCard({
   if (showTransition) {
     customizeParts.push(
       nextStage
-        ? `Into Round ${nextStage.position + 1}: ${transitionParts.length ? transitionParts.join(" · ") : "no cut or carry-forward"}`
+        ? `Into ${roundLabelOf(allStages, nextStage.id)}: ${transitionParts.length ? transitionParts.join(" · ") : "no cut or carry-forward"}`
         : "No round after this yet",
     );
   }
@@ -961,7 +979,7 @@ function StageCard({
             value={playedOn}
             disabled={pending}
             onChange={(e) => commitPlayedOn(e.target.value)}
-            aria-label={`Date round ${stage.position + 1} is played`}
+            aria-label={`Date ${roundLabelOf(allStages, stage.id) || "this round"} is played`}
           />
           {playedOn && (
             <span className="text-muted" style={{ fontSize: 11.5, marginTop: 3, display: "block" }}>
@@ -1324,7 +1342,7 @@ function StageCard({
                 <SectionLabel>Scoring window</SectionLabel>
                 <RoundDeadlineControl
                   stageId={stage.id}
-                  roundLabel={`Round ${stage.position + 1}`}
+                  roundLabel={roundLabelOf(allStages, stage.id)}
                   deadline={deadline}
                   override={stage.deadlineOverride}
                   locked={pending}
@@ -1384,7 +1402,7 @@ function StageCard({
                 }
                 blurb="What carries forward, who survives the cut, and drawing the next round's matches."
               >
-                <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} confirmedCount={confirmedCount} flightCount={flightCount} carry={carryPrompt} />
+                <NextRoundTransition key={nextStage?.id ?? "none"} stageId={stage.id} nextStage={nextStage} allStages={allStages} confirmedCount={confirmedCount} flightCount={flightCount} carry={carryPrompt} />
               </SettingsGroup>
             )}
 
@@ -1535,7 +1553,9 @@ export function StagesClient({
   // can be any format, they often don't.
   const chain = chainIssues(
     stages.map((s) => ({
+      id: s.id,
       position: s.position,
+      type: s.type,
       format: s.format,
       scoringBasis: s.scoringBasis,
       carryForwardEnabled: s.carryEnabled,
@@ -1572,6 +1592,7 @@ export function StagesClient({
           <StageCard
             key={s.id}
             stage={s}
+            allStages={stages}
             singleMatch={singleMatches?.[s.id] ?? null}
             thirdPlace={thirdPlaces?.[s.id] ?? null}
             expanded={openRound === s.id}

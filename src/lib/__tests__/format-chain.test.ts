@@ -10,6 +10,10 @@ import {
 } from "../format-chain";
 
 const round = (position: number, format: string, over: Partial<ChainRound> = {}): ChainRound => ({
+  id: `s${position}`,
+  // A playing round unless a case says otherwise: these fixtures are about
+  // whether consecutive ROUNDS fit together, and a cut is not one.
+  type: "Stroke Play Round",
   position,
   format,
   scoringBasis: "gross",

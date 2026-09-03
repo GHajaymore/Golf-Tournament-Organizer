@@ -1,4 +1,5 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { roundLabelWith } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { PlaySettings } from "@/components/PlaySettings";
 import { teesForEvent } from "@/lib/services/handicaps";
@@ -153,9 +154,9 @@ export default async function EventPage({
           settings={settingsOf(e)}
           canEdit={session.viewRole === "admin"}
           shareToken={e.shareToken}
-          rounds={state.stages.map((s, i) => ({
+          rounds={state.stages.map((s) => ({
             stageId: s.id,
-            label: `Round ${i + 1} · ${s.type}`,
+            label: roundLabelWith(state.stages, s.id, s.type),
             code: s.accessCode,
           }))}
           // The sets this course is rated for, so the choice names real tees

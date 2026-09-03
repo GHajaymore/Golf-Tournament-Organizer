@@ -294,8 +294,8 @@ describe("the other format engines", () => {
 describe("cross-cutting rules", () => {
   it("flags an incompatible chain into the next round", () => {
     const issues = chainIssues([
-      { position: 0, format: "Four-Ball", scoringBasis: "net", carryForwardEnabled: false, cutEnabled: false },
-      { position: 1, format: "Stroke Play", scoringBasis: "gross", carryForwardEnabled: true, cutEnabled: true },
+      { id: "s0", type: "Stroke Play Round", position: 0, format: "Four-Ball", scoringBasis: "net", carryForwardEnabled: false, cutEnabled: false },
+      { id: "s1", type: "Stroke Play Round", position: 1, format: "Stroke Play", scoringBasis: "gross", carryForwardEnabled: true, cutEnabled: true },
     ]);
     expect(issues.length).toBeGreaterThan(0);
     expect(issues.some((i) => i.kind === "cut-team-to-individual")).toBe(true);

@@ -3810,6 +3810,17 @@ export async function setSingleMatchRule(
  * rather than accumulating one per attempt. It is a real group because that is
  * what it is: a final is two players going out together.
  */
+/**
+ * The flight a derived match is filed under, found or created BY NAME.
+ *
+ * The name is a lookup key, so the two callers below build it from
+ * `stage.position + 1` rather than from `roundLabel`. That number counts a cut
+ * as a round and so differs from what every screen shows — deliberately left
+ * alone, because renumbering would stop matching the flight already in an
+ * existing tournament and quietly create a second one beside it, splitting a
+ * club's matches. Changing it is a migration. `round-number-source.test.ts`
+ * exempts those two lines and asserts this lookup is still what they feed.
+ */
 async function matchCarrierGroup(eventId: string, name: string): Promise<string> {
   const existing = await prisma.group.findFirst({ where: { eventId, name }, select: { id: true } });
   if (existing) return existing.id;

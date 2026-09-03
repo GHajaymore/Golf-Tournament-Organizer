@@ -1,4 +1,5 @@
 import { requireScreen } from "@/lib/page-helpers";
+import { roundLabelWith } from "@/lib/domain/round-label";
 import { prisma } from "@/lib/db";
 import { TeamsClient } from "@/components/TeamsClient";
 import { teamsForStage, unassignedPlayers, teamProblems, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
@@ -59,7 +60,10 @@ export default async function TeamsPage({
       <TeamsClient
         rounds={teamStages.map((s) => ({
           id: s.id,
-          label: `Round ${s.position + 1} — ${s.format}`,
+          // `stages`, not `teamStages` — the number is where a round sits in the
+          // TOURNAMENT, and this list is a subset of it. `s.position + 1` was
+          // the other way of getting that wrong: it counts the cut as a round.
+          label: roundLabelWith(stages, s.id, s.format, " — "),
           format: s.format,
         }))}
         activeRoundId={active.id}

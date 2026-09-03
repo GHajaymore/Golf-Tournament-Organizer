@@ -1,4 +1,5 @@
 import { findFormat, lookupFormat, sideSizeRange, type ScoringEngine } from "./formats";
+import { roundLabel } from "./domain/round-label";
 
 /**
  * Whether a sequence of rounds actually fits together.
@@ -23,8 +24,18 @@ import { findFormat, lookupFormat, sideSizeRange, type ScoringEngine } from "./f
 export type StandingsUnit = "match points" | "strokes" | "Stableford points" | "modified Stableford points" | "skins";
 
 export interface ChainRound {
+  id: string;
   /** 0-based order in the tournament. */
   position: number;
+  /**
+   * The stage type, carried so these messages can name a round the way every
+   * other screen does.
+   *
+   * They said "Round 3" off `position + 1`, which counts a cut as a round — so
+   * an issue about the bracket named a round number that appeared nowhere else
+   * in the app, in a sentence telling an organizer to go and look at it.
+   */
+  type: string;
   format: string;
   scoringBasis: string;
   carryForwardEnabled: boolean;
@@ -78,7 +89,14 @@ export function standingsUnit(format: string, scoringBasis: string): StandingsUn
   }
 }
 
-const label = (r: ChainRound) => `Round ${r.position + 1}`;
+/**
+ * "Round 3", from the same count every screen uses.
+ *
+ * Bound to the whole ordered list rather than reading one round, because the
+ * number is a fact about where a round sits among the others.
+ */
+const labeller = (rounds: readonly ChainRound[]) => (r: ChainRound) =>
+  roundLabel(rounds, r.id) || "That round";
 
 /**
  * Problems in an ordered list of rounds.
@@ -90,6 +108,9 @@ const label = (r: ChainRound) => `Round ${r.position + 1}`;
 export function chainIssues(rounds: ChainRound[]): ChainIssue[] {
   const issues: ChainIssue[] = [];
   const ordered = [...rounds].sort((a, b) => a.position - b.position);
+  // Numbered off the ORDERED list — the caller's array order is not promised
+  // to be play order, and a round number read off an unsorted list is wrong.
+  const label = labeller(ordered);
 
   for (let i = 1; i < ordered.length; i += 1) {
     const prev = ordered[i - 1];
