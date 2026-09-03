@@ -402,10 +402,51 @@ export function rankPlayers(
     i = j;
   }
 
+  /**
+   * TWO PLAYERS NOTHING SEPARATES SHARE A PLACE.
+   *
+   * This numbered `i + 1` down the sorted list, so `overall` could never hold
+   * the same rank twice — however level two players actually were. The sort's
+   * last fallback is `seed`, which is entry order, so a genuine dead heat was
+   * silently broken by whoever signed up first and the board printed 1 and 2
+   * as though somebody had won.
+   *
+   * It is not only a display fault. `suggestChampion` refuses to name a
+   * champion when `leaders.length > 1`, and that branch could never fire for
+   * any non-stroke event — so a two-player match halved on the last green put
+   * the lower seed on the club's honours board, permanently, with no tie for a
+   * committee to resolve. The stroke board has always shared ranks; this is
+   * the same rule on the other one.
+   *
+   * "Nothing separates them" means the points are equal AND every tiebreaker
+   * the organizer configured returned zero. The seed fallback above is
+   * deliberately not consulted: it exists to make the ORDER stable, which a
+   * list still needs, and using it here is exactly what hid the tie.
+   */
+  const separated = (a: Player, b: Player): boolean => {
+    const sa = stats.get(a.id)!;
+    const sb = stats.get(b.id)!;
+    if ((sa.totalPoints ?? 0) !== (sb.totalPoints ?? 0)) return true;
+    // The mini-league is computed over the players who are actually level, the
+    // same way the sort does it — head-to-head over a wider set is a different
+    // question and would answer this one wrongly.
+    const pair = [a, b];
+    const h2h = new Map(pair.map((p) => [p.id, miniLeague(p.id, pair, matches)]));
+    return chain.some(
+      (key) => tiebreakerCompare(key, a, b, sa, sb, matches, holeDifficulty, h2h) !== 0,
+    );
+  };
+
+  const ranks: number[] = [];
+  sorted.forEach((player, i) => {
+    const prev = i > 0 ? sorted[i - 1] : null;
+    ranks.push(prev && !separated(prev, player) ? ranks[i - 1] : i + 1);
+  });
+
   return sorted.map((player, i) => ({
     player,
     stats: stats.get(player.id)!,
-    rank: i + 1,
+    rank: ranks[i],
   }));
 }
 
