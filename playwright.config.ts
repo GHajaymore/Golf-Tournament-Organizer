@@ -85,17 +85,24 @@ export default defineConfig({
     // once the chunker has run — which is exactly how the 44px touch rule
     // silently lost to design-system.css.
     //
-    // `next start` warns because next.config sets output:"standalone". That
-    // output exists for the ELECTRON shell, which needs a self-contained
-    // server bundle; the web app deploys to Vercel, which uses neither. So
-    // `next start` is the closer match to what actually ships on the web, and
-    // the warning is noise here rather than a defect to chase. If the desktop
-    // build ever needs covering, it wants its own project running
+    // `next start` is the closer match to what ships on the web: standalone
+    // output exists for the ELECTRON shell, and Vercel uses neither. If the
+    // desktop build ever needs covering, it wants its own project running
     // `node <distDir>/standalone/server.js` — not a change to this one.
+    //
+    // This used to build standalone anyway and treat the resulting "next start
+    // does not work with output: standalone" warning as noise. It was not
+    // noise: see next.config.mjs. `NEXT_NO_STANDALONE` below turns the
+    // standalone output off for THIS build only, so the server here is one
+    // Next actually supports.
     command: `npm run build && npx next start --port ${PORT}`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
-    env: { NEXT_DIST_DIR: ".next-e2e", AUTH_SECRET: process.env.AUTH_SECRET! },
+    env: {
+      NEXT_DIST_DIR: ".next-e2e",
+      NEXT_NO_STANDALONE: "1",
+      AUTH_SECRET: process.env.AUTH_SECRET!,
+    },
   },
 });
