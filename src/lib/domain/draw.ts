@@ -18,6 +18,7 @@
  * front of the crowd and who finishes in the dark.
  */
 
+import { flightCountFor, flightSizes } from "./grouping";
 import type { Group, Player } from "./types";
 
 /** Where a player stands, 1 = leading. */
@@ -130,7 +131,30 @@ export function orderGroups(
  * Deliberately not part of formGroups: every rule there works off attributes a
  * player carries with them, and this one needs a round to have been played.
  * Folding it in would mean every caller had to supply standings it may not
- * have.
+ * have. Only the SORT is different, though — how the sorted field is then cut
+ * into groups is the same question the other four rules ask, and it is asked
+ * in one place (`flightCountFor` + `flightSizes`) rather than twice.
+ *
+ * IT USED TO BE ASKED TWICE, AND THE SECOND ANSWER DREW A FIVE-BALL. This cut
+ * the board into fixed slices of `size` and then folded a trailing single into
+ * the group in front, on the sound principle that nobody plays a one-ball. But
+ * a field one more than a multiple of the group size leaves exactly one, so
+ * nine players in fours came out 4 + 5 and five players in fours came out as a
+ * single group of five. There is no such thing as a five-ball in a
+ * competition: four is the maximum group, the tee sheet saved and published
+ * without a word, and the summary read "1 5-ball" in the same voice it uses
+ * for "7 foursomes". The other four rules on the same screen returned 3 + 3 +
+ * 3 for that field, which is what it should always have been.
+ *
+ * Sizes come out non-increasing, and on a board that is the convention rather
+ * than a coincidence: the leaders are in the fullest group, and the short
+ * group is at the bottom of the leaderboard — which under "leaders out last"
+ * is the first group off the tee, exactly where every club puts it.
+ *
+ * The one place a group can exceed `size` is a field in twos with an odd
+ * number in it, which must contain one three-ball. That is `flightCountFor`
+ * refusing to leave anyone on their own, and a three-ball is the right answer
+ * to it.
  */
 export function groupByStandings(
   players: Player[],
@@ -138,27 +162,22 @@ export function groupByStandings(
   size: number,
   makeId: (index: number) => string = (i) => `group-${i}`,
 ): Group[] {
-  const per = Math.max(2, Math.round(size));
+  const per = Math.max(2, Math.round(size) || 2);
   const ordered = players
     .map((p, i) => ({ p, i, pos: positionOf(p.id) }))
     .sort((a, b) => (a.pos === b.pos ? a.i - b.i : a.pos - b.pos))
     .map((d) => d.p);
 
+  const n = ordered.length;
   const groups: Group[] = [];
-  for (let i = 0; i < ordered.length; i += per) {
-    const chunk = ordered.slice(i, i + per);
+  let taken = 0;
+  for (const chunk of flightSizes(n, flightCountFor(n, { mode: "perFlight", value: per }))) {
     groups.push({
       id: makeId(groups.length),
       name: `Group ${groups.length + 1}`,
-      playerIds: chunk.map((p) => p.id),
+      playerIds: ordered.slice(taken, taken + chunk).map((p) => p.id),
     });
-  }
-
-  // A trailing single cannot play alone. The convention is to fold them into
-  // the group in front rather than send out a one-ball.
-  if (groups.length > 1 && groups[groups.length - 1].playerIds.length === 1) {
-    const last = groups.pop()!;
-    groups[groups.length - 1].playerIds.push(...last.playerIds);
+    taken += chunk;
   }
 
   return groups;

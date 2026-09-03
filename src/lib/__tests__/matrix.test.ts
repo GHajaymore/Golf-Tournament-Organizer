@@ -34,7 +34,8 @@ import {
 } from "@/lib/tournament-settings";
 import type { Role } from "@/lib/roles";
 import { bracketSizeFor, buildBracket, seedOrder, drawBrackets, firstRoundLosers } from "@/lib/domain/bracket";
-import { flightCountFor } from "@/lib/domain/grouping";
+import { flightCountFor, formGroups } from "@/lib/domain/grouping";
+import { groupByStandings, positionLookup } from "@/lib/domain/draw";
 import {
   survivorCount,
   survivors,
@@ -283,6 +284,89 @@ describe("flights, at every field size", () => {
   it("draws no flights for an empty field", () => {
     expect(flightCountFor(0)).toBe(0);
   });
+});
+
+/**
+ * Every grouping rule x every group size x every field size.
+ *
+ * `FIELD_SIZES` skips the sizes this class of bug actually lives at. A group
+ * of five appears only when the field is exactly ONE more than a multiple of
+ * the group size — 9 in fours, 5 in fours, 13 in fours — and the curated list
+ * holds none of those. So this sweeps a contiguous range instead: the point of
+ * a combination sweep is that nobody has to have thought of the cell.
+ *
+ * The invariants are the Rules-of-Golf ones rather than the code's:
+ *   - four is the maximum group in a competition, so there is no five-ball;
+ *   - nobody plays alone while there is anyone else in the field;
+ *   - everybody is drawn exactly once.
+ * All five rules on the tee-sheet screen are held to them together, because
+ * the bug was one of them answering differently from the other four.
+ */
+describe("who plays together, at every field size and every group size", () => {
+  const RULES = ["random", "handicap", "balanced", "seeding", "manual"] as const;
+  const straight = (n: number) =>
+    positionLookup(Array.from({ length: n }, (_, i) => ({ playerId: `p${i + 1}`, position: i + 1 })));
+
+  for (let n = 0; n <= 30; n += 1) {
+    for (const per of [2, 3, 4]) {
+      it(`a ${n}-player field in ${per}s draws no five-ball and no one-ball`, () => {
+        const players = field(n);
+        const drawn: Array<[string, string[][]]> = [
+          [
+            "standings",
+            groupByStandings(players, straight(n), per).map((g) => g.playerIds),
+          ],
+          ...RULES.map(
+            (rule) =>
+              [rule, formGroups(players, rule, { mode: "perFlight", value: per }).map((g) => g.playerIds)] as [
+                string,
+                string[][],
+              ],
+          ),
+        ];
+
+        for (const [rule, groups] of drawn) {
+          const sizes = groups.map((g) => g.length);
+          const where = `${rule}: ${n} in ${per}s -> ${sizes.join("+")}`;
+
+          // Everyone drawn, once.
+          const placed = groups.flat();
+          expect(placed.length, where).toBe(n);
+          expect(new Set(placed).size, where).toBe(n);
+
+          // No five-ball. Four is the maximum group in a competition, and this
+          // is the assertion the old chunk-and-fold failed at n % per === 1.
+          for (const size of sizes) expect(size, where).toBeLessThanOrEqual(4);
+
+          // Never bigger than asked for, with one exception that is golf and
+          // not a bug: an odd field in twos must contain a three-ball, because
+          // the alternative is sending someone out on their own.
+          const cap = per === 2 ? 3 : per;
+          for (const size of sizes) expect(size, where).toBeLessThanOrEqual(cap);
+
+          // Nobody plays alone unless they are the entire field.
+          if (n >= 2) for (const size of sizes) expect(size, where).toBeGreaterThanOrEqual(2);
+        }
+
+        // And all five agree on the SHAPE of the sheet. An organizer switching
+        // rules for one field gets the same sizes out of every one of them —
+        // which is precisely what "By position" stopped doing.
+        //
+        // Compared as a multiset, not a sequence: the snake draft deals its
+        // remainder into the LAST buckets and the others into the first, and
+        // for lettered flights that order carries no meaning. It does carry
+        // meaning off a leaderboard, where the groups are the board in order,
+        // and `draw.test.ts` pins that sequence separately.
+        const shapes = drawn.map(([, groups]) =>
+          groups
+            .map((g) => g.length)
+            .sort((a, b) => b - a)
+            .join("+"),
+        );
+        expect(new Set(shapes).size, shapes.join(" | ")).toBe(1);
+      });
+    }
+  }
 });
 
 describe("standings, at every field size", () => {

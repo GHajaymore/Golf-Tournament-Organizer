@@ -9,6 +9,7 @@ import {
   DRAW_ORDERS,
   type Standing,
 } from "../domain/draw";
+import { formGroups } from "../domain/grouping";
 import type { Group, Player } from "../domain/types";
 
 /**
@@ -117,11 +118,14 @@ describe("grouping by position", () => {
     expect(groups[1].playerIds).toEqual(["p5", "p6", "p7", "p8"]);
   });
 
-  it("folds a trailing single into the group in front", () => {
-    // Nobody plays a one-ball. Five players in twos is 2 + 3, not 2 + 2 + 1.
+  it("never leaves a one-ball: five in twos is 3 + 2", () => {
+    // Nobody plays alone, so an odd field in twos has to contain one
+    // three-ball. It goes at the TOP of the board, which puts the short group
+    // at the bottom — under "leaders out last" that is the first group off the
+    // tee, where every club puts it.
     const groups = groupByStandings(field(5), positionLookup(straightStandings(5)), 2);
-    expect(groups).toHaveLength(2);
-    expect(groups[1].playerIds).toEqual(["p3", "p4", "p5"]);
+    expect(groups.map((g) => g.playerIds.length)).toEqual([3, 2]);
+    expect(groups[0].playerIds).toEqual(["p1", "p2", "p3"]);
   });
 
   it("leaves a lone player alone when they are the whole field", () => {
@@ -136,12 +140,60 @@ describe("grouping by position", () => {
     const players = [...field(4), player("late", 99)];
     const groups = groupByStandings(players, positionLookup(straightStandings(4)), 2);
     expect(groups[groups.length - 1].playerIds).toContain("late");
-    expect(groups[0].playerIds).toEqual(["p1", "p2"]);
+    expect(groups[0].playerIds).toEqual(["p1", "p2", "p3"]);
   });
 
   it("keeps everyone", () => {
     const groups = groupByStandings(field(23), positionLookup(straightStandings(23)), 4);
     expect(groups.flatMap((g) => g.playerIds)).toHaveLength(23);
+  });
+
+  it("draws no five-ball out of nine players in fours", () => {
+    /**
+     * The audit's case, and the reason this rule stopped chunking on its own.
+     * Nine cut into fixed fours leaves 4 + 4 + 1, and folding the single
+     * forward — right in itself, nobody plays a one-ball — made a FIVE-ball.
+     * There is no such group in a competition: four is the maximum, and the
+     * sheet saved and published without a word.
+     */
+    const groups = groupByStandings(field(9), positionLookup(straightStandings(9)), 4);
+    expect(groups.map((g) => g.playerIds.length)).toEqual([3, 3, 3]);
+  });
+
+  it("draws no five-ball when the whole field is five", () => {
+    // The same arithmetic with one group in it: 4 + 1 folded to a single
+    // five-ball, so the entire tee sheet was one illegal group.
+    const groups = groupByStandings(field(5), positionLookup(straightStandings(5)), 4);
+    expect(groups.map((g) => g.playerIds.length)).toEqual([3, 2]);
+  });
+
+  it("agrees with the other four rules on the same screen", () => {
+    /**
+     * The fault was never the arithmetic on its own — it was having a second
+     * copy of it. "By position" sits beside Random, Balanced handicap,
+     * Balanced skill and Seeded, and an organizer switching between them for
+     * the same field expects the same shape of sheet out of all five.
+     */
+    const players = field(9);
+    const mine = groupByStandings(players, positionLookup(straightStandings(9)), 4).map(
+      (g) => g.playerIds.length,
+    );
+    for (const rule of ["random", "handicap", "balanced", "seeding", "manual"] as const) {
+      const theirs = formGroups(players, rule, { mode: "perFlight", value: 4 }).map(
+        (g) => g.playerIds.length,
+      );
+      expect(mine, rule).toEqual(theirs);
+    }
+  });
+
+  it("puts the fuller groups at the top of the board", () => {
+    // Ten in fours is 4 + 3 + 3. The leaders are in the full group and the
+    // short one is last on the board, i.e. first off the tee.
+    const sizes = groupByStandings(field(10), positionLookup(straightStandings(10)), 4).map(
+      (g) => g.playerIds.length,
+    );
+    expect(sizes).toEqual([4, 3, 3]);
+    expect([...sizes].sort((a, b) => b - a)).toEqual(sizes);
   });
 });
 
