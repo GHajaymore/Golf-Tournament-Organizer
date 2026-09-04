@@ -276,6 +276,35 @@ So, for any change to scoring, draw, cut, bracket or handicap code:
    Prefer that shape. A rule enforced where the data is built cannot be
    forgotten by a caller; a rule documented in a comment will be.
 
+6. **A green cell is not a checked cell — this file is UNEVEN.** Half of it
+   asserts VALUES over a fixture built so a wrong answer looks different.
+   `tee policy` computes the expected course handicap from the ratings, asserts
+   both branches, and asserts the two tees differ so passing cannot be an
+   accident of them being equal. `forfeits` halves every other match, so a
+   credited hole can only have come from the concession. `round handicaps`
+   asserts the exact number, source and editability. Those cells earn their
+   green.
+
+   The other half asserted only SHAPE, and on 2026-09-04 four blocks were each
+   found to pass a materially wrong answer:
+
+       season      ranked on a raw sum — a side won the league by missing weeks,
+                   and the absentee was also the best scorer, so no assertion
+                   could tell "top for the right reason" from "top for the wrong"
+       standings   the whole leaderboard inverted, loser first — every match in
+                   the fixture was halved, so nobody ever won anything
+       brackets    seeds 1 and 2 drawn against each other in round one —
+                   "every seed exactly once" is satisfied by 1,2,3,4,…
+       cuts        the bottom of the field advancing instead of the top — the
+                   COUNT is identical either way, and only the count was checked
+
+   All four passed a 598-cell suite. Size, count, contiguity and membership are
+   cheap to satisfy; being right is not.
+
+   So before trusting a cell: **mutate the thing it covers and watch it go
+   red.** If it stays green the fixture cannot express a wrong answer, and the
+   cell is decoration however many sizes it runs at.
+
 The multi-agent exploratory audit that produced all this is a RELEASE GATE or
 post-feature pass, not a per-change step — it costs over a million tokens. Use
 it to find unknown classes of bug; use the sweep above to stop known ones
