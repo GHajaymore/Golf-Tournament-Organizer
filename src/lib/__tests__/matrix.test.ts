@@ -991,9 +991,18 @@ describe("season standings, at every team count and round count", () => {
         members: [t.name],
         // Deliberately NOT distinct per team: ties are the point, and a
         // league board pays money against a placing, so a tie must read as
-        // one rather than being broken by sort order.
-        gross: absent ? 0 : 72 + (i % 3),
-        net: absent ? 0 : 70 + (i % 3),
+        // one rather than being broken by sort order. Sides 2 upwards still
+        // tie on `i % 3`.
+        //
+        // THE SIDE THAT SITS OUT IS THE WORST SCORER, and that is the whole
+        // point of it. It used to be the best (net 70 of 70/71/72), which
+        // made the fault this sweep should catch invisible: a season ranked
+        // on a raw ascending SUM puts a side that played five weeks above one
+        // that played six, and if the absentee is also the best golfer it ends
+        // up on top for the right reason and the wrong one at once. At 76 it
+        // can only reach the top by being credited for the week it missed.
+        gross: absent ? 0 : 72 + (i === 0 ? 6 : i % 3),
+        net: absent ? 0 : 70 + (i === 0 ? 6 : i % 3),
         points: absent ? 0 : 30 - (i % 3),
         played: absent ? 0 : 18,
         toPar: absent ? 0 : i % 3,
@@ -1060,6 +1069,35 @@ describe("season standings, at every team count and round count", () => {
           for (const u of unplayed) {
             const anyPlayed = table.some((r) => r.roundsPlayed > 0);
             if (anyPlayed) expect(u.rank).toBeGreaterThan(1);
+          }
+
+          /**
+           * THE ORDER IS RIGHT, not merely contiguous.
+           *
+           * Everything above checks the SHAPE of the table — everybody
+           * present, nothing NaN, ranks that skip properly after a tie. None
+           * of it checks who is above whom, so this sweep passed the exact
+           * fault it exists to catch: net and gross ranked on a raw ascending
+           * sum, where missing a week lowers your total and wins you the
+           * league.
+           *
+           * Lower-is-better orders on the per-round average. Stableford
+           * deliberately keeps the sum, because counting upwards already
+           * rewards turning up, and averaging there would hand the season to
+           * whoever played their best week and stopped. Both are asserted so
+           * that neither gets "tidied" into the other.
+           */
+          const played = table.filter((r) => r.roundsPlayed > 0);
+          for (let i = 1; i < played.length; i += 1) {
+            const above = played[i - 1];
+            const below = played[i];
+            const where = `${above.teamId} (${above.roundsPlayed} rds) placed above ${below.teamId} (${below.roundsPlayed} rds)`;
+            if (basis === "stableford") {
+              expect(above.points, where).toBeGreaterThanOrEqual(below.points);
+            } else {
+              // Epsilon because these are divisions, not sums.
+              expect(above.netPerRound, where).toBeLessThanOrEqual(below.netPerRound + 1e-9);
+            }
           }
 
           // The stated total reconciles with the rows printed above it.
