@@ -243,17 +243,28 @@ jobs:
       - name: Install the Vercel CLI
         run: npm i -g vercel@latest
 
-      # Fetches the project's own settings and production environment
-      # variables. Without it the build below has no DATABASE_URL and every
-      # statically generated page fails.
-      - name: Pull the production environment
+      # Links the project and proves the credentials work before anything is
+      # uploaded, so a bad token fails in two seconds rather than after a build.
+      - name: Link the project
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
-      # Built here rather than on Vercel, so what gets uploaded is exactly what
-      # this commit produced — the same artifact `verify` just judged, not a
-      # second build of the same source somewhere else.
-      - name: Build
-        run: vercel build --prod --token="$VERCEL_TOKEN"
-
+      # VERCEL BUILDS IT. This job does not, and must not.
+      #
+      # The first version built here and uploaded with `--prebuilt`, on the
+      # reasoning that shipping the exact artifact CI judged beats shipping a
+      # second build of the same source. That reasoning is sound in general and
+      # wrong for this repository, because `vercel-build` is
+      #
+      #     pad-migration-names && deploy-migrations && next build
+      #
+      # — it runs `prisma migrate deploy` against the PRODUCTION database. To
+      # build here, this runner would need production database credentials, and
+      # would then migrate production from a GitHub runner. Neither is something
+      # to arrange casually, and the failure that exposed it was Vercel
+      # correctly refusing to hand `vercel pull` a sensitive value.
+      #
+      # So the source is uploaded and Vercel builds it, exactly as before this
+      # gate existed. What the gate changes is WHEN: only after `verify` is
+      # green, rather than on push regardless.
       - name: Deploy
-        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        run: vercel deploy --prod --token="$VERCEL_TOKEN"
