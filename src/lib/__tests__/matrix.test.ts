@@ -242,7 +242,21 @@ describe("cuts, at every field size", () => {
           // nobody ends the tournament, which is never what was meant.
           expect(n2, `${mode} ${value} of ${n}`).toBeLessThanOrEqual(n);
           expect(n2).toBeGreaterThanOrEqual(1);
-          expect(survivors(candidates(n), rule).size).toBe(n2);
+
+          /**
+           * AND IT IS THE RIGHT PLAYERS, not merely the right number of them.
+           *
+           * `survivors` takes `slice(0, n)` of a list whose parameter is
+           * called `rankedInOrder` — best first. Asserting only `.size` meant
+           * a cut that advanced the BOTTOM n instead passed at every field
+           * size and every rule, because the count is identical either way.
+           * The one thing a cut decides is who carries on.
+           */
+          const through = survivors(candidates(n), rule);
+          expect(through.size).toBe(n2);
+          const expected = candidates(n).slice(0, n2).map((p) => p.id);
+          expect([...through].sort(), `${mode} ${value} of ${n} advanced the wrong players`)
+            .toEqual([...expected].sort());
         }
       });
     }
