@@ -248,9 +248,21 @@ So, for any change to scoring, draw, cut, bracket or handicap code:
    missed had no layout assertion at all. Do not reintroduce a hand list.
 
 5. **A guard you must remember to call is a guard that will be forgotten.**
-   `isManualFormat` is the only thing between the hand-scored format and a
-   scoring engine, and one result path forgets it. Prefer making the wrong
-   thing unrepresentable over documenting that callers must check.
+   `isManualFormat` was exactly that, and one of seven result paths forgot it —
+   `services/me.ts` handed a player a rank, a "T2" and a to-par for a round the
+   leaderboard refuses to score, so the screen contradicting the organizer was
+   the one the player looks at.
+
+   FIXED, and the shape of the fix is the point. It is checked at the SINK now:
+   `standingRows` returns `[]` on its first line for a manual format, and
+   `strokeRounds` keeps manual formats out of the cards that feed
+   `strokeStandings` at all. So a caller written later is correct without
+   knowing the rule exists — the tee sheet's "by position" grouping reads
+   `strokeStandings` directly, has no guard of its own, and is safe because
+   there is nothing there to rank. Checked again 2026-09-04.
+
+   Prefer that shape. A rule enforced where the data is built cannot be
+   forgotten by a caller; a rule documented in a comment will be.
 
 The multi-agent exploratory audit that produced all this is a RELEASE GATE or
 post-feature pass, not a per-change step — it costs over a million tokens. Use
