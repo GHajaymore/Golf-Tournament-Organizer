@@ -422,6 +422,59 @@ describe("standings, at every field size", () => {
     });
   }
 
+  /**
+   * A round robin somebody actually WINS.
+   *
+   * The sweep above halves every match, so every player scores the same and
+   * the order comes entirely from the handicap tiebreak. That makes the
+   * contiguity assertion sound and leaves the sweep unable to tell a correct
+   * ranking from an inverted one — nobody ever wins anything, so there is no
+   * result for the order to disagree with. It is the same hole the season
+   * block had: the fixture cannot express the fault.
+   *
+   * Here the lower index always wins, so player 1 wins every match, player 2
+   * wins all but one, and so on down. Points are then strictly descending by
+   * index with no ties at all, and the ranking has exactly one right answer.
+   */
+  const decisive = (players: Player[]): Match[] => {
+    const out: Match[] = [];
+    for (let i = 0; i < players.length; i += 1) {
+      for (let j = i + 1; j < players.length; j += 1) {
+        out.push({
+          id: `d${i}-${j}`,
+          stageId: "s1",
+          groupId: "g1",
+          round: 1,
+          playerAId: players[i].id,
+          playerBId: players[j].id,
+          holes: new Array(18).fill("A") as Match["holes"],
+        });
+      }
+    }
+    return out;
+  };
+
+  for (const n of FIELD_SIZES.filter((s) => s >= 2)) {
+    it(`puts the ${n} player(s) who won more above those who won less`, () => {
+      const players = field(n);
+      const matches = decisive(players);
+      const stats = aggregateStats(players, matches, DEFAULT_SCORING);
+      const ranked = rankPlayers(players, stats, DEFAULT_SCORING, matches);
+
+      // Wins strictly decrease with index, so the board is the field in order.
+      expect(ranked.map((r) => r.player.id)).toEqual(players.map((p) => p.id));
+      expect(ranked.map((r) => r.rank)).toEqual(Array.from({ length: n }, (_, i) => i + 1));
+
+      // And say it as the golf, not just as an array: nobody below has more
+      // points than anybody above them.
+      for (let i = 1; i < ranked.length; i += 1) {
+        const above = ranked[i - 1].stats.totalPoints;
+        const below = ranked[i].stats.totalPoints;
+        expect(above, `${ranked[i - 1].player.id} above ${ranked[i].player.id}`).toBeGreaterThan(below);
+      }
+    });
+  }
+
   it("ranks an empty field without throwing", () => {
     const stats = aggregateStats([], [], DEFAULT_SCORING);
     expect(rankPlayers([], stats, DEFAULT_SCORING, [])).toEqual([]);
