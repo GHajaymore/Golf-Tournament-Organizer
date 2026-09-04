@@ -205,3 +205,55 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  # Production ships from HERE, and only after `verify` has gone green.
+  #
+  # It used to ship from Vercel's own Git integration, on push, without waiting
+  # for this file — so a bad commit on `main` was REPORTED by CI rather than
+  # stopped by it. On 2026-09-03 twenty-seven merges each deployed before their
+  # own checks had finished. Nothing went wrong; nothing was preventing it
+  # either.
+  #
+  # `vercel.json` turns that automatic deploy off for `main`, and this job
+  # replaces it. The two arrived in the same commit on purpose: apart, there is
+  # a window where `main` deploys twice or not at all.
+  deploy:
+    name: Deploy to production
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      # Identifiers, not credentials — they name which project to deploy, and
+      # the token is scoped to that one project so it cannot infer them.
+      VERCEL_ORG_ID: team_du2Cf2nXyLU3G2Dju8DZUYg8
+      VERCEL_PROJECT_ID: prj_wGD4aR7UauZ1NXVWpEMDl27bWgog
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install the Vercel CLI
+        run: npm i -g vercel@latest
+
+      # Fetches the project's own settings and production environment
+      # variables. Without it the build below has no DATABASE_URL and every
+      # statically generated page fails.
+      - name: Pull the production environment
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      # Built here rather than on Vercel, so what gets uploaded is exactly what
+      # this commit produced — the same artifact `verify` just judged, not a
+      # second build of the same source somewhere else.
+      - name: Build
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
