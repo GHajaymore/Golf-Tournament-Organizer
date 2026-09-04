@@ -200,6 +200,29 @@ describe("brackets, at every field size", () => {
       expect(new Set(order).size).toBe(size);
       expect(Math.min(...order)).toBe(1);
       expect(Math.max(...order)).toBe(size);
+
+      /**
+       * AND THEY ARE PAIRED THE WAY A SEEDED DRAW PAIRS THEM.
+       *
+       * Everything above is satisfied by `[1, 2, 3, 4, …]`, which is every
+       * seed exactly once and is also the worst possible draw: the top two
+       * meet in the first round. So the checks passed while saying nothing
+       * about the one thing `seedOrder` exists to do.
+       *
+       * The defining property is that the first round pairs the best
+       * remaining with the worst remaining — 1 v 8, 4 v 5, 3 v 6, 2 v 7 —
+       * so every pair sums to `size + 1`. That is what keeps the top two
+       * apart until the final, and it holds for the hardcoded eight and for
+       * every size the reflection generates.
+       */
+      if (size >= 2) {
+        for (let i = 0; i < order.length; i += 2) {
+          expect(
+            order[i] + order[i + 1],
+            `seeds ${order[i]} v ${order[i + 1]} in a bracket of ${size}`,
+          ).toBe(size + 1);
+        }
+      }
     });
 
     it(`builds a ${n}-player bracket without inventing players`, () => {
