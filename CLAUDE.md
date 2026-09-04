@@ -65,7 +65,7 @@ npx vitest run --config vitest.audit.config.ts
 Use `NEXT_DIST_DIR=.next-ci` for builds while a dev server is running; sharing `.next` between
 them corrupts it.
 
-## What gates a merge, and what does not gate a deploy
+## What gates a merge, and what gates a deploy
 
 `ci.yml` is the only workflow that runs on its own — every push and every PR. It does the
 command above plus the smoke pass and Playwright.
@@ -76,15 +76,34 @@ and tells you nothing; ask `/rules/branches/main` instead. It requires the `veri
 and blocks deletion and force-push on `main`. `strict` is off, so a branch need not be
 rebased onto `main` to merge.
 
-**What does not stop a bad deploy**: Vercel ships `main` to production from its own Git
-integration, on push, BEFORE `verify` finishes. A bad commit on `main` is therefore
-REPORTED, not stopped. Closing that needs a `VERCEL_TOKEN` secret and Vercel's production
-Git deploys turned off, so the deploy can run from a job that `needs: verify`. Neither is
-done as of 2026-09-03.
+**What stops a bad deploy**, since 2026-09-04: the `deploy` job in `ci.yml`, which
+`needs: verify` and runs only on a push to `main`. Nothing reaches production until the
+whole gate is green. Vercel's own Git deploy for `main` is off — `vercel.json` sets
+`git.deploymentEnabled.main = false` — so that job is the only route in. Preview deploys
+on other branches are untouched.
+
+Until that day Vercel shipped `main` on push, BEFORE `verify` finished, and a bad commit
+was REPORTED rather than stopped. On 2026-09-03 twenty-seven merges each deployed
+unverified. Nothing went wrong; nothing was preventing it either.
+
+**The deploy job does not build.** It uploads the source and Vercel builds it, exactly as
+before. Building in CI and shipping with `--prebuilt` is the obvious improvement and is
+wrong here: `vercel-build` is `pad-migration-names && deploy-migrations && next build`, so
+it runs `prisma migrate deploy` against the PRODUCTION database. Building on the runner
+would put production database credentials on a GitHub runner and move schema migrations
+into CI. The symptom, if anyone tries again, is Prisma refusing an empty URL — Vercel does
+not hand `vercel pull` a sensitive value, and that refusal is correct.
+
+`VERCEL_TOKEN` is the only secret; `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` sit in the
+workflow because they are identifiers, not credentials. If the deploy fails, check the
+token FIRST and check it directly — `vercel whoami`. An invalid token reports
+"Could not retrieve Project Settings", which reads like a permissions or id problem and
+is not one. That error cost two wrong fixes before anyone ran `whoami`.
 
 Related: `main` is exempt from `cancel-in-progress`. Two merges a minute apart used to leave
 the first one's `verify` reading `cancelled` on a commit already in production — a deploy
-with no verdict at all. Feature branches still cancel.
+with no verdict at all. Still right for the plainer reason that a cancelled check is a
+missing verdict. Feature branches still cancel.
 
 The two mobile workflows are scaffolding, not pipelines. `android-release.yml` reads five
 secrets and `ios-testflight.yml` seven; the repository has NONE — `gh secret list` is empty.
