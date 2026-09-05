@@ -6,6 +6,7 @@ import {
   retryAfterText,
   throttleMessage,
   unavailableDecision,
+  unidentifiedDecision,
   windowFor,
   type RateLimitKind,
 } from "../domain/rate-limit";
@@ -187,6 +188,27 @@ describe("the counting window", () => {
     const key = bucketKeyFor("round-code", "hashed-not-raw", 0);
     expect(key).not.toMatch(/@/);
     expect(key).toContain("hashed-not-raw");
+  });
+});
+
+describe("when the caller cannot say who it is", () => {
+  it("refuses, because an empty identifier is one bucket for everybody", () => {
+    // sha256("") is a single fixed key. Every caller arriving without an
+    // identity would share one budget across accounts, clubs and tournaments —
+    // which is how four AI-spend call sites keying on an empty `accountId`
+    // gave all org-derived admins forty card readings an hour BETWEEN them.
+    expect(unidentifiedDecision().allowed).toBe(false);
+  });
+
+  it("does not tell them to wait, because nothing is counting", () => {
+    // The distinction from an ordinary throttle, and from an unreachable store:
+    // both of those pass with time and this one does not. A retry time here
+    // would send somebody away to wait out a lockout that will never lift.
+    const d = unidentifiedDecision();
+    expect(d.retryAfterSeconds).toBe(0);
+    expect(d.message).not.toBe("");
+    expect(d.message).not.toMatch(/\b\d+ (second|minute|hour)/);
+    expect(unavailableDecision().retryAfterSeconds).toBeGreaterThan(0);
   });
 });
 

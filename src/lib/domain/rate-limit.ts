@@ -4,10 +4,7 @@
  * Three endpoints in this app are reachable with no session at all, and each
  * one of them checks a secret that a computer can simply try over and over:
  *
- *  | "register-email"
-  | "card-photo";
-| "register-email"
-  | "card-photo"; - a Round Code, which is 8 characters from a 27-symbol alphabet
+ *   - a Round Code, which is 8 characters from a 27-symbol alphabet
  *   - a password
  *   - an email address, for "send me a reset link"
  *
@@ -205,6 +202,32 @@ export function unavailableDecision(): RateLimitDecision {
     allowed: false,
     retryAfterSeconds: 30,
     message: "We couldn't check that just now. Wait 30 seconds and try again.",
+  };
+}
+
+/**
+ * What to do when the caller cannot say WHO the attempt is from.
+ *
+ * Refuse, and never count it. An empty identifier is not a person: hashing one
+ * produces a single fixed key, so every caller that arrives without an identity
+ * shares one budget with every other — across accounts, across clubs, across
+ * tournaments. That is the opposite of a per-person limit, and it fails in the
+ * least visible direction, as a lockout with no cause the affected person can
+ * see or clear.
+ *
+ * It happened. `session.accountId` is empty for anyone holding organizer rights
+ * through OrganizationMember rather than an Account row, and four AI-spend call
+ * sites keyed on it, so all of those admins everywhere shared forty readings an
+ * hour. Refusing here is what makes the next version of that mistake a visible
+ * failure on the first call rather than an intermittent one on somebody else's.
+ *
+ * Retry time is zero because waiting is not the remedy — nothing is counting.
+ */
+export function unidentifiedDecision(): RateLimitDecision {
+  return {
+    allowed: false,
+    retryAfterSeconds: 0,
+    message: "We couldn't tell who that request was from. Sign out, sign back in and try again.",
   };
 }
 

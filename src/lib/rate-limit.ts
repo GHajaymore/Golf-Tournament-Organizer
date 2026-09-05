@@ -6,6 +6,7 @@ import {
   bucketKeyFor,
   decideRateLimit,
   unavailableDecision,
+  unidentifiedDecision,
   windowFor,
   type RateLimitDecision,
   type RateLimitKind,
@@ -61,6 +62,32 @@ function keyFor(kind: RateLimitKind, identifier: string, now: number): string {
  */
 export async function checkRateLimit(kind: RateLimitKind, identifier: string): Promise<RateLimitDecision> {
   const now = Date.now();
+  // Enforced HERE rather than trusted of each caller, because the failure is
+  // invisible from the call site: an empty identifier does not error, it
+  // silently merges that caller's budget with every other caller who arrives
+  // without one. See unidentifiedDecision(). Trimmed and folded first, so the
+  // check sees exactly what keyFor would have hashed — " " is not an identity
+  // either.
+  //
+  // `typeof` and not just `.trim()`: the type says string, and types are erased.
+  // A caller reading a field off a session shape that has since lost it hands
+  // this `undefined`, and a TypeError here would take down the action instead of
+  // refusing the call.
+  // Enforced HERE rather than trusted of each caller, because the failure is
+  // invisible from the call site: an empty identifier does not error, it
+  // silently merges that caller's budget with every other caller who arrives
+  // without one. See unidentifiedDecision(). Trimmed and folded first, so the
+  // check sees exactly what keyFor would have hashed — " " is not an identity
+  // either.
+  //
+  // `typeof` and not just `.trim()`: the type says string, and types are erased.
+  // A caller reading a field off a session shape that has since lost it hands
+  // this `undefined`, and a TypeError here would take down the action instead of
+  // refusing the call.
+  if (typeof identifier !== "string" || !identifier.trim()) {
+    console.error(`[rate-limit] refused a "${kind}" attempt with no identifier`);
+    return unidentifiedDecision();
+  }
   const key = keyFor(kind, identifier, now);
   // As an ISO string with an explicit cast, not as a Date. Binding a JS Date
   // through $queryRaw into a `timestamp` column writes the server's *local*
@@ -105,6 +132,9 @@ export async function checkRateLimit(kind: RateLimitKind, identifier: string): P
  * take them.
  */
 export async function clearRateLimit(kind: RateLimitKind, identifier: string): Promise<void> {
+  // Same reason as the check: a blank identifier names the shared bucket, so
+  // clearing it would hand a fresh allowance to everyone at once.
+  if (typeof identifier !== "string" || !identifier.trim()) return;
   try {
     await prisma.rateLimitHit.deleteMany({ where: { key: keyFor(kind, identifier, Date.now()) } });
   } catch (err) {
