@@ -187,9 +187,30 @@ test("availability is on the player's own screen, grouped and dated", async ({ p
   await expect(card.getByText("Next round")).toBeVisible();
   await expect(card.getByText(/Future rounds/)).toBeVisible();
 
-  // Dated. The fixture plays its next round three days out, so the card must
-  // say so in words as well as showing the date.
-  await expect(card.getByText("in 3 days")).toBeVisible();
+  /**
+   * Dated — in words, and NOT the exact number of them.
+   *
+   * This asserted the literal "in 3 days", because the fixture plays its next
+   * round three days out. But that offset is computed when global-setup SEEDS
+   * the database, and this assertion runs minutes later — so a run crossing
+   * MIDNIGHT between the two renders "in 2 days" and fails.
+   *
+   * Not a flake: deterministic for a window every night. It turned `main` red
+   * on 2026-09-05 at 00:02 on all three viewports while the run twenty minutes
+   * earlier was green, and on one PR the phone project passed at 23:59 while
+   * the two that ran after midnight failed — same commit, decided by the clock.
+   *
+   * The app's promise is that an imminent round is dated in relative words.
+   * WHICH number appears is the fixture's arithmetic and the clock's, not the
+   * app's. `relativeDay` returns "Today", "Tomorrow" or "in N days" inside a
+   * fortnight and "" beyond it, so this still fails if the phrase disappears,
+   * stops being relative, or falls out of that window.
+   *
+   * `.first()` because every round inside the fortnight carries one of these
+   * tags — the fixture's next two are "in 3 days" and "in 10 days" — and the
+   * first is the next round's, whose primacy the very next test asserts.
+   */
+  await expect(card.getByText(/Today|Tomorrow|in \d+ days/).first()).toBeVisible();
 
   // Played rounds are kept but collapsed, not deleted and not in the way.
   await expect(card.getByText(/Earlier rounds \(1\)/)).toBeVisible();
