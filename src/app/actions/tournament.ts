@@ -17,6 +17,7 @@ import { getSession, setActiveEvent } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
 import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
+import { myPlayerIds } from "@/lib/services/me";
 import {
   canEnterScores,
   canPlayerSavePartial,
@@ -130,17 +131,19 @@ async function requireScoreEntry(): Promise<{ eventId: string; session: Session;
 /**
  * The Player rows this signed-in person is, in this event.
  *
- * A console session knows an email, not a Player id — the link is the email
- * on the registration. Case-insensitive because sign-in lowercases and CSV
- * imports arrive however the spreadsheet had them.
+ * `myPlayerIds`, not a third copy of it. `services/me.ts` says why in its own
+ * header: "if the screen resolves 'me' differently from the action that writes
+ * my card, the app will show one person's round and save another's". That
+ * consolidation was started and not finished — this file and
+ * `actions/attendance.ts` each kept a private duplicate, identical to the
+ * shared one and to each other, and all three matched on email and event with
+ * no status test.
+ *
+ * Which is how a waitlisted entrant came to have a writable card: the screen
+ * offered it and this function authorised the write, both agreeing about a row
+ * the scoring engines ignore.
  */
-async function ownPlayerIds(eventId: string, email: string): Promise<Set<string>> {
-  const rows = await prisma.player.findMany({
-    where: { eventId, email: { equals: email, mode: "insensitive" } },
-    select: { id: true },
-  });
-  return new Set(rows.map((r) => r.id));
-}
+const ownPlayerIds = myPlayerIds;
 
 /**
  * A player may write scores for their own match and nobody else's.
