@@ -87,16 +87,33 @@ describe("the Round Code play session expires on the server", () => {
   it("signs a deadline into the cookie, not just a maxAge", () => {
     // maxAge is advice to the browser. Anyone who copies the cookie string
     // ignores it, and a signature over "stage:player" alone never goes stale.
-    expect(src).toMatch(/sign\(`\$\{stageId\}:\$\{playerId\}:\$\{Date\.now\(\) \+ PLAY_SESSION_TTL_MS\}`\)/);
+    expect(src).toMatch(
+      /sign\(`\$\{stageId\}:\$\{playerId\}:\$\{Date\.now\(\) \+ PLAY_SESSION_TTL_MS\}:\$\{codeFingerprint\(accessCode\)\}`\)/,
+    );
+  });
+
+  it("signs WHICH code opened the session, and checks it on every request", () => {
+    /**
+     * Non-emptiness is not revocation. `regenerateRoundCode` writes a new
+     * non-empty code onto the same row, so `!stage.accessCode` was false
+     * before and after a reissue and every outstanding cookie kept working —
+     * while the app told the organizer in three places that reissuing ends
+     * them. The behaviour is proved in `play-score-entry.audit.test.ts`; this
+     * pins the two lines it depends on.
+     */
+    expect(src).toMatch(/codeFingerprint\(stage\.accessCode\) !== codePrint/);
+    // A fingerprint, not the code: the shared secret stays out of the cookie.
+    expect(src).not.toMatch(/\$\{stage\.accessCode\}/);
   });
 
   it("refuses a session past its deadline", () => {
     expect(src).toMatch(/Date\.now\(\) > deadline/);
   });
 
-  it("refuses a cookie with no deadline in it", () => {
-    // Old-format cookies are precisely the never-expiring ones being retired.
-    expect(src).toMatch(/!stageId \|\| !playerId \|\| !expiresAt/);
+  it("refuses a cookie missing any field of the payload", () => {
+    // Old-format cookies are precisely the sessions being retired — the
+    // never-expiring ones, and now the ones bound to no code.
+    expect(src).toMatch(/!stageId \|\| !playerId \|\| !expiresAt \|\| !codePrint/);
   });
 
   it("re-checks that the tournament still runs on codes", () => {
