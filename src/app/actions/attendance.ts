@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { settingsOf } from "@/lib/services/tournament";
+import { myPlayerIds } from "@/lib/services/me";
 import { playerMayChange, playersAnswer, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { isIsoDate } from "@/lib/deadline";
 
@@ -52,14 +53,14 @@ async function requireStaffSession(): Promise<Session> {
   return session;
 }
 
-/** The Player rows this signed-in person is, in this event — by email. */
-async function ownPlayerIds(eventId: string, email: string): Promise<Set<string>> {
-  const rows = await prisma.player.findMany({
-    where: { eventId, email: { equals: email, mode: "insensitive" } },
-    select: { id: true },
-  });
-  return new Set(rows.map((r) => r.id));
-}
+/**
+ * The Player rows this signed-in person is, in this event — by email.
+ *
+ * The shared reader, not the third private copy of it. See the note on
+ * `myPlayerIds`: a waitlisted entrant is not in the field, so setting their
+ * own availability for a round they are not in is not a thing to allow.
+ */
+const ownPlayerIds = myPlayerIds;
 
 /**
  * Set one player's in/out for one round.

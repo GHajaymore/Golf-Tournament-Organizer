@@ -486,8 +486,47 @@ describe("a player writes their own scores and nobody else's", () => {
     expect(card).toMatch(/assertOwnCard\(session, eventId, playerId\)/);
   });
 
-  it("links the session to its Player rows by registration email", () => {
-    expect(src).toMatch(/email: \{ equals: email, mode: "insensitive" \}/);
+  /**
+   * The session-to-player link is one function, and this file uses it.
+   *
+   * This used to assert the literal query fragment in each action file, which
+   * passed while THREE identical copies of it existed — here, in
+   * `actions/attendance.ts`, and the exported `myPlayerIds` the other two were
+   * supposed to have replaced. `services/me.ts` says why that matters in its
+   * own header: "if the screen resolves 'me' differently from the action that
+   * writes my card, the app will show one person's round and save another's".
+   *
+   * Asserting the shared reader is used, rather than that a matching query
+   * appears somewhere in the file, is what makes a fourth copy fail here
+   * instead of passing.
+   */
+  it("links the session to its Player rows through the one shared reader", () => {
+    expect(src).toMatch(/ownPlayerIds = myPlayerIds/);
+    expect(src).toMatch(/from "@\/lib\/services\/me"/);
+    // And no private re-implementation of the link survives in this file.
+    expect(stripComments(src)).not.toMatch(/email: \{ equals: email, mode: "insensitive" \}/);
+  });
+
+  /**
+   * ...and that reader answers "yours to PLAY", not "yours on the roster".
+   *
+   * A waitlisted entrant is given an Account by `syncPlayerAccount`, so they
+   * can sign in — and with no status test they resolved to a live playerId,
+   * got a working card headed "My card", certified it, and scored nothing. The
+   * organizer saw it in the round's cards as "Unknown player", because the
+   * name is looked up in `confirmed`.
+   *
+   * `confirmed` is the same set `state.confirmed` and `domainPlayers` are built
+   * from, so the screen, the write guard and the scoring engine now agree about
+   * who is in the field.
+   */
+  it("and that reader counts only confirmed entries", () => {
+    const me = stripComments(
+      readFileSync(join(process.cwd(), "src", "lib", "services", "me.ts"), "utf8"),
+    );
+    const fn = me.slice(me.indexOf("export async function myPlayerIds"));
+    expect(fn.slice(0, 600)).toMatch(/email: \{ equals: email, mode: "insensitive" \}/);
+    expect(fn.slice(0, 600)).toMatch(/status: "confirmed"/);
   });
 
   it("recognises team membership as being in the match", () => {
@@ -519,10 +558,13 @@ describe("the console refuses impossible match margins", () => {
 describe("league attendance answers are scoped like scores", () => {
   const src = readFileSync(join(process.cwd(), "src/app/actions/attendance.ts"), "utf8");
 
-  it("a player answers for themself, by registration email", () => {
+  it("a player answers for themself, through the one shared reader", () => {
     expect(src).toMatch(/own\.has\(playerId\)/);
-    expect(src).toMatch(/email: \{ equals: email, mode: "insensitive" \}/);
     expect(src).toMatch(/You can only answer for yourself/);
+    // The same link the score guards use — see the note in audit-guards above.
+    // This file held the third private copy of it.
+    expect(src).toMatch(/ownPlayerIds = myPlayerIds/);
+    expect(stripComments(src)).not.toMatch(/email: \{ equals: email, mode: "insensitive" \}/);
   });
 
   it("the opt deadline binds players and never staff", () => {
