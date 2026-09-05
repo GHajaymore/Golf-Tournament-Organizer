@@ -28,7 +28,7 @@ vi.mock("@/lib/auth", () => ({ getSession: async () => session }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 const { saveScorecard } = await import("@/app/actions/tournament");
-const { cardRevision } = await import("@/lib/domain/pending-card");
+const { cardRevision, NO_CARD_REVISION } = await import("@/lib/domain/pending-card");
 
 let eventId = "";
 let stageId = "";
@@ -190,6 +190,95 @@ describe("a queued card that would land on somebody else's change", () => {
     const res = await saveScorecard(stageId, playerId, before);
     expect(res.ok).toBe(true);
     expect((await stored())[3]).toBe(PARS[3]);
+  });
+});
+
+/**
+ * THE CARD THAT DID NOT EXIST WHEN THE PHONE LOADED IT.
+ *
+ * Every case above seeds a row first, so this whole path was untested — and it
+ * is the one where the two meanings of an empty revision collided.
+ *
+ * `expectedRevision` is optional. Omitting it means "I have the card in front
+ * of me, write unconditionally" — that is the console. The player's card page
+ * did `card?.revision ?? ""`, and an empty string is falsy, so a screen that
+ * loaded with NO card asked for the console's unconditional write. Opposite
+ * situations, identical request.
+ *
+ * What it cost: a player opens their card before any row exists, loses signal,
+ * enters nine holes. A staff member enters that player's full eighteen on the
+ * console. The queue drains and the phone's nine replace all of it — no
+ * conflict raised, "Saved" on the player's screen, the committee's card gone.
+ */
+describe("a queued card written before any card existed", () => {
+  it("is refused once somebody else has entered one", async () => {
+    await prisma.scorecard.deleteMany({ where: { stageId, playerId } });
+
+    // The phone loads: no card at all. This is what the screen now reports.
+    const readAt = NO_CARD_REVISION;
+
+    // The committee enters the full round while the phone is out of signal.
+    const committee = [...PARS];
+    await prisma.scorecard.create({
+      data: { eventId, stageId, playerId, strokes: JSON.stringify(committee), status: "entered" },
+    });
+
+    // The queue drains.
+    const mine = PARS.map((p, i) => (i < 9 ? p : null));
+    const res = await saveScorecard(stageId, playerId, mine, readAt);
+
+    expect(res.ok).toBe(false);
+    // And the committee's eighteen are untouched — a refusal, not a rollback.
+    expect(await stored()).toEqual(committee);
+  });
+
+  it("is refused for a client still sending the empty string", async () => {
+    /**
+     * Normalised on the SERVER, not just fixed on the page.
+     *
+     * A phone that has not reloaded still sends "". A rule enforced only where
+     * the value is produced is a rule the next caller will not know about, so
+     * the write itself treats "" as "there was no card" rather than as "no
+     * opinion".
+     */
+    await prisma.scorecard.deleteMany({ where: { stageId, playerId } });
+    const committee = [...PARS];
+    await prisma.scorecard.create({
+      data: { eventId, stageId, playerId, strokes: JSON.stringify(committee), status: "entered" },
+    });
+
+    const res = await saveScorecard(stageId, playerId, PARS.map((p, i) => (i < 9 ? p : null)), "");
+    expect(res.ok).toBe(false);
+    expect(await stored()).toEqual(committee);
+  });
+
+  it("still goes through when the card genuinely is still absent", async () => {
+    /**
+     * The other half, and the one a careless fix breaks: if nothing has been
+     * written since, there is nothing to protect and the holes must land.
+     * Refusing here would strand every first save made offline.
+     */
+    await prisma.scorecard.deleteMany({ where: { stageId, playerId } });
+
+    const mine = PARS.map((p, i) => (i < 9 ? p : null));
+    const res = await saveScorecard(stageId, playerId, mine, NO_CARD_REVISION);
+
+    expect(res.ok).toBe(true);
+    expect(await stored()).toEqual(mine);
+  });
+
+  it("leaves the console's unconditional write alone", async () => {
+    // Omitted still means omitted. The fix must not turn every no-revision
+    // caller into a conditional one.
+    await prisma.scorecard.deleteMany({ where: { stageId, playerId } });
+    await prisma.scorecard.create({
+      data: { eventId, stageId, playerId, strokes: JSON.stringify(PARS), status: "entered" },
+    });
+
+    const replacement = PARS.map((p, i) => (i === 3 ? 7 : p));
+    const res = await saveScorecard(stageId, playerId, replacement);
+    expect(res.ok).toBe(true);
+    expect((await stored())[3]).toBe(7);
   });
 });
 

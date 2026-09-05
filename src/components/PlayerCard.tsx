@@ -382,6 +382,14 @@ export function PlayerCard({
           {!conflict && recoveredDiffers && (
             <div style={{ margin: "12px 0" }}>
               <CardConflict
+                /**
+                 * The situation, which this did not say — so the recovery case
+                 * rendered the CONFLICT's words: "Somebody else — usually the
+                 * committee — edited this card while your phone was offline",
+                 * when nobody had edited anything, and "If you are not sure,
+                 * use theirs", which discards the only copy of these holes.
+                 */
+                kind="recovered"
                 mine={recoveredFitted}
                 theirs={strokes}
                 pars={pars}

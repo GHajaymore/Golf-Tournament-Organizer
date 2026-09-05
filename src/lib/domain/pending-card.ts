@@ -187,6 +187,28 @@ export function cardRevision(strokes: Array<number | null>): string {
 }
 
 /**
+ * What a screen reports when it loaded and there was NO card on the server.
+ *
+ * "There was no card when I read this" and "I have the card in front of me,
+ * write unconditionally" are opposite situations, and both used to arrive at
+ * `saveScorecard` as the empty string — one because the page did
+ * `card?.revision ?? ""`, the other because the console omits the argument.
+ * The staleness check is skipped for a falsy revision, so the offline player
+ * got the console's unconditional write.
+ *
+ * What that costs: a player opens their card before any row exists, loses
+ * signal, enters nine holes. A staff member enters their full eighteen on the
+ * console. The queue drains, and the phone's nine replace all of it with no
+ * conflict raised and "Saved" on screen.
+ *
+ * Derived rather than a magic string, and deliberately the revision of an
+ * EMPTY array: every real card is hashed at the round's length, 9 or 18, so
+ * this cannot collide with one. Any card at all on the server differs from it,
+ * which is exactly the comparison wanted.
+ */
+export const NO_CARD_REVISION = cardRevision([]);
+
+/**
  * Whether a queued card is about to overwrite somebody else's work.
  *
  * A card is written WHOLE, so replaying one that was typed twenty minutes ago
