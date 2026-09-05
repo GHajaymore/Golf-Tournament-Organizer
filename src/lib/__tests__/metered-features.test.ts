@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { readSource, stripComments } from "./source";
 import {
   PLANS,
   planFor,
@@ -114,7 +115,7 @@ describe("every metered feature is actually gated", () => {
       // Matched per line rather than with a nested-paren regex: the call is
       // sometimes `hasFeature(await planForOrganization(id), "sms")`, and the
       // inner `)` defeats any [^)]* pattern.
-      const lines = readFileSync(join(process.cwd(), "src", file), "utf8").split("\n");
+      const lines = readSource("src", file).split("\n");
       const gated = lines.some(
         (l) => /entitlementForEvent|hasFeature/.test(l) && l.includes(`"${feature}"`),
       );
@@ -125,10 +126,7 @@ describe("every metered feature is actually gated", () => {
   it("routes the refusal wording through METERED_FEATURES", () => {
     // So the words at the locked door and the words on the upgrade page are
     // the same string, and updating one updates both.
-    const ent = readFileSync(
-      join(process.cwd(), "src", "lib", "services", "entitlements.ts"),
-      "utf8",
-    );
+    const ent = readSource("src", "lib", "services", "entitlements.ts");
     expect(ent).toMatch(/METERED_FEATURES/);
   });
 
@@ -139,7 +137,7 @@ describe("every metered feature is actually gated", () => {
     const dir = join(process.cwd(), "src", "app", "actions");
     const spenders = readdirSync(dir)
       .filter((f) => f.endsWith(".ts"))
-      .filter((f) => /api\.anthropic\.com|sendSms\(/.test(readFileSync(join(dir, f), "utf8")))
+      .filter((f) => /api\.anthropic\.com|sendSms\(/.test(stripComments(readFileSync(join(dir, f), "utf8"))))
       .map((f) => join("app", "actions", f))
       .filter((f) => !known.has(f));
     expect(spenders, "gate it and add it to SPENDERS").toEqual([]);

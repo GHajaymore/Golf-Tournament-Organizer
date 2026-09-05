@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "./source";
 import { PLANS, upgradeBenefits, retentionNotice, METERED_FEATURES, type FeatureKey } from "@/lib/plans";
 
 /**
@@ -36,7 +37,7 @@ function tsxFiles(dir: string, out: string[] = []): string[] {
 
 const appSource = tsxFiles(join(process.cwd(), "src"))
   .filter((f) => !f.includes("__tests__") && !f.endsWith(join("lib", "plans.ts")))
-  .map((f) => readFileSync(f, "utf8"))
+  .map((f) => stripComments(readFileSync(f, "utf8")))
   .join("\n");
 
 describe("what a club gets for its money is actually said", () => {

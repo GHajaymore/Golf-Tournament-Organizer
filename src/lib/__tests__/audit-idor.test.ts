@@ -35,8 +35,8 @@ const ACTIONS_DIR = join(process.cwd(), "src", "app", "actions");
  * may write a group's money. A "use server" file cannot export a helper
  * without publishing it as an HTTP endpoint, so sharing it meant moving it.
  */
-const SERVICES_DIR = join(process.cwd(), "src", "lib", "services");
-import { stripComments } from "./source";
+const _SERVICES_DIR =join(process.cwd(), "src", "lib", "services");
+import { stripComments, readSource } from "./source";
 
 interface Action {
   file: string;
@@ -321,11 +321,8 @@ describe("the club theme cannot inject CSS", () => {
   // saveOrganizationTheme stores a hex a club typed, and the layout renders the
   // theme through dangerouslySetInnerHTML. The hex never reaches the output —
   // themeCss regenerates every value — but both halves of that need pinning.
-  const themes = readFileSync(join(process.cwd(), "src", "lib", "themes.ts"), "utf8");
-  const layout = readFileSync(
-    join(process.cwd(), "src", "app", "(app)", "layout.tsx"),
-    "utf8",
-  );
+  const themes = readSource("src", "lib", "themes.ts");
+  const layout = readSource("src", "app", "(app)", "layout.tsx");
 
   it("filters every emitted declaration through a value whitelist", () => {
     expect(themes).toMatch(/SAFE_CSS_VALUE/);
@@ -366,7 +363,7 @@ describe("the club theme cannot inject CSS", () => {
  * any one goes, a player can reach another group's money.
  */
 describe("requirePotAccess is a real check, not a reassuring name", () => {
-  const src = readFileSync(join(SERVICES_DIR, "game-access.ts"), "utf8");
+  const src = readSource("src", "lib", "services", "game-access.ts");
   const start = src.indexOf("async function requirePotAccess");
   // Bounded by the next top-level declaration rather than by a brace pattern:
   // matching "\n}\n" depends on the file's line endings, and on CRLF it found
@@ -449,7 +446,7 @@ describe("requirePotAccess is a real check, not a reassuring name", () => {
  * sheet does not vouch for.
  */
 describe("an ad-hoc side bet is still somebody's, not everybody's", () => {
-  const src = readFileSync(join(SERVICES_DIR, "game-access.ts"), "utf8");
+  const src = readSource("src", "lib", "services", "game-access.ts");
   const start = src.indexOf("async function requirePotAccess");
   const after = src.indexOf("\nexport ", start);
   const fn = start === -1 ? "" : src.slice(start, after === -1 ? undefined : after);

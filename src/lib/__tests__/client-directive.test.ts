@@ -39,7 +39,7 @@ describe("a hook only ever runs in a client component", () => {
   it("declares every hook-using component as a client one", () => {
     const offenders: string[] = [];
     for (const f of files) {
-      const src = readFileSync(join(COMPONENTS, f), "utf8");
+      const src = stripComments(readFileSync(join(COMPONENTS, f), "utf8"));
       // Comments stripped first: a hook NAMED in a comment is not a call, and
       // several of these files discuss hooks at length.
       const code = stripComments(src);

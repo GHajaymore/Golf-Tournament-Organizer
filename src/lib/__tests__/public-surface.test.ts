@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname, relative, sep } from "node:path";
+import { readSource, stripComments } from "./source";
 
 /**
  * Guards for the surface reachable with no login at all: the public
@@ -17,8 +18,7 @@ import { join, dirname, relative, sep } from "node:path";
  */
 
 const SRC = join(process.cwd(), "src");
-const read = (...p: string[]) => readFileSync(join(SRC, ...p), "utf8");
-import { stripComments } from "./source";
+const read = (...p: string[]) => readSource("src", ...p);
 
 /**
  * Every route says whether a search engine may keep it, and only two say yes.
@@ -79,7 +79,7 @@ describe("nothing but the marketing pages invites indexing", () => {
     for (;;) {
       const layout = join(dir, "layout.tsx");
       try {
-        readFileSync(layout, "utf8");
+        stripComments(readFileSync(layout, "utf8"));
         files.push(layout);
       } catch {
         // No layout at this level, which is ordinary.
@@ -101,7 +101,9 @@ describe("nothing but the marketing pages invites indexing", () => {
     if (INDEXABLE.has(route)) continue;
 
     it(`${route} refuses to be indexed`, () => {
-      const declared = chainFor(pageFile).some((f) => /robots:\s*NOINDEX/.test(readFileSync(f, "utf8")));
+      const declared = chainFor(pageFile).some((f) =>
+        /robots:\s*NOINDEX/.test(stripComments(readFileSync(f, "utf8"))),
+      );
       expect(
         declared,
         `${route} may be indexed. Add \`robots: NOINDEX\` to its metadata, or to the layout above it.`,
@@ -115,7 +117,7 @@ describe("nothing but the marketing pages invites indexing", () => {
     for (const route of INDEXABLE) {
       const file = pages.find((p) => routeOf(p) === route);
       expect(file, `${route} should exist`).toBeTruthy();
-      expect(readFileSync(file!, "utf8")).not.toMatch(/robots:\s*NOINDEX/);
+      expect(stripComments(readFileSync(file!, "utf8"))).not.toMatch(/robots:\s*NOINDEX/);
     }
   });
 
@@ -261,7 +263,7 @@ describe("the Round Code play session expires on the server", () => {
 });
 
 describe("response headers protect the tokens that live in URLs", () => {
-  const config = readFileSync(join(process.cwd(), "next.config.mjs"), "utf8");
+  const config = readSource("next.config.mjs");
 
   it("states a referrer policy rather than inheriting the browser's", () => {
     // /live/<token> and /reset-password?token= are both credentials in a URL,

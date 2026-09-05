@@ -1,13 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "./source";
 import {
   computeStrokeCard,
   modifiedStablefordForHole,
   stablefordPointsForHole,
 } from "../domain/stroke";
 
-const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
+const read = (p: string) => readSource(p);
 
 /**
  * Eighteen par 4s with a textbook stroke index. Flat on purpose: every hole is

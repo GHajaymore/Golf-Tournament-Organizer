@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "./source";
 import * as settings from "@/lib/tournament-settings";
 
 /**
@@ -70,7 +69,7 @@ describe("every setting explains itself", () => {
        */
       const help = (settings as Record<string, unknown>)[helpKey];
       if (!help) return;
-      const ui = readFileSync(join(process.cwd(), "src/components/PlaySettings.tsx"), "utf8");
+      const ui = readSource("src/components/PlaySettings.tsx");
       // `help={X_HELP}`, not merely the name appearing somewhere. The first
       // version looked for the name and an IMPORT satisfied it — so deleting
       // the one line that put the text on screen left the guard green. A

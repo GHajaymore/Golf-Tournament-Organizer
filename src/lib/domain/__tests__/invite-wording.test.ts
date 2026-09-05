@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "@/lib/__tests__/source";
 import { summariseEmailTrouble, TROUBLE_WINDOW_MS, type EmailFailureRow } from "@/lib/domain/email-trouble";
 
 const row = (over: Partial<EmailFailureRow> = {}): EmailFailureRow => ({
@@ -67,11 +66,8 @@ describe("the Access banner accounts for every kind of email", () => {
  * Both correspond to a real way this could go wrong rather than to a style.
  */
 describe("how the invite is sent", () => {
-  const action = readFileSync(
-    join(process.cwd(), "src", "app", "actions", "organization.ts"),
-    "utf8",
-  );
-  const mail = readFileSync(join(process.cwd(), "src", "lib", "email.ts"), "utf8");
+  const action = readSource("src", "app", "actions", "organization.ts");
+  const mail = readSource("src", "lib", "email.ts");
 
   it("only emails when the membership is new", () => {
     /**

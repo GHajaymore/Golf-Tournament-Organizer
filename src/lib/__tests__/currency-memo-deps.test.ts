@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "./source";
 
 /**
  * A memo that parses money must depend on the parser.
@@ -139,7 +140,9 @@ describe("a memo that parses money depends on the parser", () => {
     const offenders: string[] = [];
 
     for (const full of files) {
-      const src = readFileSync(full, "utf8");
+      // Stripped: the indexOf walks below decide whether one call comes before
+      // another, and a comment naming either satisfies them just as well.
+      const src = stripComments(readFileSync(full, "utf8"));
       const bindings = moneyBindings(src);
       if (!bindings.length) continue;
 

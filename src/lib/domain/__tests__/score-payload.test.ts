@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { readSource, stripComments } from "@/lib/__tests__/source";
 import {
   cleanHoleResults,
   cleanStrokes,
@@ -166,7 +167,7 @@ describe("no action stores a card it did not validate", () => {
   it("cleans the payload in every action that accepts one", () => {
     const missing: string[] = [];
     for (const [file, fn, cleaner] of TAKES_A_CARD_FROM_THE_CLIENT) {
-      const src = readFileSync(join(root, file), "utf8");
+      const src = stripComments(readFileSync(join(root, file), "utf8"));
       const start = src.indexOf(`export async function ${fn}`);
       if (start === -1) {
         missing.push(`${fn} not found in ${file}`);
@@ -184,7 +185,7 @@ describe("no action stores a card it did not validate", () => {
   it("still has a cleaner to call", () => {
     // Guards the guard: if score-payload.ts were deleted the test above would
     // keep passing on the import line alone.
-    const src = readFileSync(join(root, "src/lib/domain/score-payload.ts"), "utf8");
+    const src = readSource("src/lib/domain/score-payload.ts");
     expect(src).toMatch(/export function cleanStrokes/);
     expect(src).toMatch(/export function cleanHoleResults/);
   });

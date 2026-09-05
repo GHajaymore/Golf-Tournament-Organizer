@@ -75,7 +75,7 @@ describe("an association credential never leaves the server", () => {
     // A "use client" file importing the integration service would pull the
     // credential path into the browser bundle.
     const offenders = files.filter((f) => {
-      const src = readFileSync(f, "utf8");
+      const src = strip(readFileSync(f, "utf8"));
       if (!/^["']use client["']/m.test(src)) return false;
       return /services\/integrations/.test(src);
     });
@@ -85,7 +85,7 @@ describe("an association credential never leaves the server", () => {
   });
 
   it("keeps the service server-only, so an accidental import fails loudly", () => {
-    const service = readFileSync(join(SRC, ALLOWED), "utf8");
+    const service = strip(readFileSync(join(SRC, ALLOWED), "utf8"));
     expect(service).toMatch(/import ["']server-only["']/);
   });
 });

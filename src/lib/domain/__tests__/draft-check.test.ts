@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "@/lib/__tests__/source";
 import { checkDraft, draftPrompt } from "../draft-check";
 
 /**
@@ -88,10 +87,7 @@ describe("degenerate input", () => {
  * and whoever did it has to argue with a test rather than a comment.
  */
 describe("drafting cannot send", () => {
-  const actionSrc = readFileSync(
-    join(process.cwd(), "src/app/actions/draft-message.ts"),
-    "utf8",
-  );
+  const actionSrc = readSource("src/app/actions/draft-message.ts");
 
   it("never imports the mailer", () => {
     expect(actionSrc).not.toMatch(/from\s+["']@\/lib\/email["']/);

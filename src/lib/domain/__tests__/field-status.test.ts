@@ -1,9 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "@/lib/__tests__/source";
 import { summariseEmailTrouble, type EmailFailureRow } from "@/lib/domain/email-trouble";
 
-const src = (...parts: string[]) => readFileSync(join(process.cwd(), ...parts), "utf8");
+const src = (...parts: string[]) => readSource(...parts);
 
 /**
  * The promise the registration email makes, and the code that has to keep it.

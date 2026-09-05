@@ -1,6 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+// Relative, not the `@/` alias: Playwright compiles this file with its own
+// tsconfig and does not resolve the app's path aliases.
+import { readSource } from "../src/lib/__tests__/source";
 
 const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8"));
 
@@ -42,7 +45,7 @@ const SCREENS = readdirSync(join(process.cwd(), "src", "app", "(app)"), { withFi
   // Detected rather than listed, so a route that stops being a stub rejoins
   // the sweep on its own.
   .filter((e) => {
-    const src = readFileSync(join(process.cwd(), "src", "app", "(app)", e.name, "page.tsx"), "utf8");
+    const src = readSource("src", "app", "(app)", e.name, "page.tsx");
     return !/^\s*redirect\(/m.test(src);
   })
   .map((e) => `/${e.name}`)

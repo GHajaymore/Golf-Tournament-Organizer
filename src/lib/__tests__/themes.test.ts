@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "./source";
 import {
   THEME_PRESETS,
   ACCENT_PRESETS,
@@ -758,7 +757,7 @@ describe("two colours have to read as two colours", () => {
   });
 
   it("is enforced where it matters — on the save endpoint", () => {
-    const src = readFileSync(join(process.cwd(), "src/app/actions/organization.ts"), "utf8");
+    const src = readSource("src/app/actions/organization.ts");
     expect(src).toMatch(/pairVerdict\(/);
     expect(src).toMatch(/pair\.kind === "indistinct"/);
   });

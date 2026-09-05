@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { readSource, stripComments } from "./source";
 import { drawBrackets } from "@/lib/domain";
 
 /**
@@ -13,8 +14,8 @@ import { drawBrackets } from "@/lib/domain";
  */
 
 const ACTIONS_DIR = join(process.cwd(), "src", "app", "actions");
-const read = (f: string) => readFileSync(join(ACTIONS_DIR, f), "utf8");
-import { stripComments, readSource } from "./source";
+/** An action file with its comments already gone. See __tests__/source.ts. */
+const read = (f: string) => readSource("src", "app", "actions", f);
 
 /** Every exported action in a file, with its body, comments removed. */
 function actions(file: string): { name: string; body: string }[] {
@@ -177,7 +178,7 @@ describe("round code guessing", () => {
     // The limiter was a Map in the instance's memory, which on serverless
     // hosting means each cold start handed the attacker a fresh budget — so
     // the limit that /play's entire security rests on was mostly theatre.
-    const store = readFileSync(join(process.cwd(), "src", "lib", "rate-limit.ts"), "utf8");
+    const store = readSource("src", "lib", "rate-limit.ts");
     expect(store).toMatch(/RateLimitHit/);
     expect(stripComments(store), "counters must not live in a module-level Map").not.toMatch(
       /new Map\(/,
@@ -254,10 +255,8 @@ describe("the flight generator leaves team rounds alone", () => {
   it("skips a team round instead of pairing its players", () => {
     // Player-vs-player matches in a four-ball round are matches nobody plays,
     // and they would count toward the standings.
-    const regroup = readFileSync(
-      join(process.cwd(), "src", "lib", "services", "regroup.ts"),
-      "utf8",
-    ).replace(/\/\/.*$/gm, "");
+    // Was a half-strip — line comments only, block comments left in.
+    const regroup = readSource("src", "lib", "services", "regroup.ts");
     expect(regroup).toMatch(/if \(needsTeams\(rrStage\.format\)\) continue;/);
   });
 });
@@ -314,10 +313,7 @@ describe("roster CSV import", () => {
 });
 
 describe("the styleguide never ships", () => {
-  const page = readFileSync(
-    join(process.cwd(), "src", "app", "styleguide", "page.tsx"),
-    "utf8",
-  );
+  const page = readSource("src", "app", "styleguide", "page.tsx");
 
   it("returns a 404 in production", () => {
     // It is an unauthenticated page whose whole job is to enumerate the
@@ -329,7 +325,7 @@ describe("the styleguide never ships", () => {
   it("is not linked from anywhere in the app", () => {
     // A dev-only route reachable from the sidebar would be a dead link for
     // every real user.
-    const nav = readFileSync(join(process.cwd(), "src", "lib", "nav.ts"), "utf8");
+    const nav = readSource("src", "lib", "nav.ts");
     expect(nav).not.toMatch(/styleguide/);
   });
 });
@@ -420,10 +416,7 @@ describe("registration close / extend", () => {
 
   it("the screen derives status from the deadline rather than capacity alone", () => {
     // The bug: a tournament whose deadline passed still read "Open · unlimited".
-    const client = readFileSync(
-      join(process.cwd(), "src", "components", "RegistrationClient.tsx"),
-      "utf8",
-    );
+    const client = readSource("src", "components", "RegistrationClient.tsx");
     expect(client).toMatch(/registrationStatus\(\{/);
     expect(client).toMatch(/deadline: event\.regDeadline/);
     expect(client).not.toMatch(/const status = unlimited \? "Open · unlimited"/);
@@ -436,7 +429,7 @@ describe("the event switcher never lists another club's tournaments", () => {
     // saw every club's event names, dates, venues and field sizes, and the
     // switcher offered rows the actions then refused. The access list is the
     // single source of what appears, exactly as it is for what switches.
-    const src = readFileSync(join(process.cwd(), "src/app/(app)/event/page.tsx"), "utf8");
+    const src = readSource("src/app/(app)/event/page.tsx");
     expect(src).toMatch(/prisma\.event\.findMany\(\{\s*\n\s*where: \{ id: \{ in: \[\.\.\.accessible\.keys\(\)\] \} \}/);
   });
 });
@@ -532,7 +525,7 @@ describe("a player writes their own scores and nobody else's", () => {
   });
 
   it("scopes the entry screen with the same rule it enforces", () => {
-    const page = readFileSync(join(process.cwd(), "src/app/(app)/entry/page.tsx"), "utf8");
+    const page = readSource("src/app/(app)/entry/page.tsx");
     expect(page).toMatch(/\.filter\(mine\)/);
     expect(page).toMatch(/ownIds\.has\(p\.id\)/);
   });
@@ -553,7 +546,7 @@ describe("the console refuses impossible match margins", () => {
 });
 
 describe("league attendance answers are scoped like scores", () => {
-  const src = readFileSync(join(process.cwd(), "src/app/actions/attendance.ts"), "utf8");
+  const src = readSource("src/app/actions/attendance.ts");
 
   it("a player answers for themself, through the one shared reader", () => {
     expect(src).toMatch(/own\.has\(playerId\)/);
@@ -581,7 +574,7 @@ describe("league attendance answers are scoped like scores", () => {
 });
 
 describe("the round-code result path carries every guard the hole path has", () => {
-  const src = readFileSync(join(process.cwd(), "src/app/actions/play.ts"), "utf8");
+  const src = readSource("src/app/actions/play.ts");
   const fn = src.slice(src.indexOf("export async function savePlayMatchResult"));
 
   it("requires a play session scoped to the match's round", () => {
@@ -669,7 +662,7 @@ describe("a round code obeys the tournament's score-entry setting", () => {
 });
 
 describe("the tee sheet is the organizer's to save and announce", () => {
-  const src = readFileSync(join(process.cwd(), "src/app/actions/tee-sheet.ts"), "utf8");
+  const src = readSource("src/app/actions/tee-sheet.ts");
 
   it("both actions require staff and scope to the session's event", () => {
     expect(src).toMatch(/requireStaffSession/);
@@ -818,7 +811,7 @@ describe("an accepted result is only undone by someone entitled to undo it", () 
 });
 
 describe("naming a venue can only reach this club's own courses", () => {
-  const src = readFileSync(join(process.cwd(), "src/app/actions/courses.ts"), "utf8");
+  const src = readSource("src/app/actions/courses.ts");
   const fn = src.slice(src.indexOf("export async function nameMatchVenue"));
 
   it("checks the course id it was handed against the organization", () => {
@@ -916,7 +909,7 @@ describe("the preview toggle can only ever reduce", () => {
    * is the whole safety argument, so it is asserted here instead of asserted
    * in a comment nobody re-checks.
    */
-  const src = readFileSync(join(process.cwd(), "src", "lib", "auth.ts"), "utf8");
+  const src = readSource("src", "lib", "auth.ts");
 
   it("only ever accepts a LOWER role than admin", () => {
     // The whitelist is the mechanism: anything not assistant/player clears the
@@ -1077,7 +1070,7 @@ describe("nothing builds a CSV by hand", () => {
 
   it("still has the escaper the guard points at", () => {
     // So the sweep above cannot pass by the file having been renamed away.
-    const src = readFileSync(join(SRC, "lib", "domain", "csv-export.ts"), "utf8");
+    const src = readSource("src", "lib", "domain", "csv-export.ts");
     expect(src).toMatch(/export function csvCell/);
     expect(src).toMatch(/export function toCsv/);
   });
@@ -1451,10 +1444,7 @@ describe("the pending-card queue never clears a card it did not send", () => {
     // Not re-derived on the screen. The action tests `mayReportPartialCard`,
     // and a second copy of "player, and the window is after" is exactly how
     // this screen came to disagree with the server in the first place.
-    const page = readFileSync(
-      join(process.cwd(), "src", "app", "(player)", "me", "card", "page.tsx"),
-      "utf8",
-    );
+    const page = readSource("src", "app", "(player)", "me", "card", "page.tsx");
     expect(page).toMatch(/savePartial=\{mayReportPartialCard\(settings, session\.role\)\}/);
     expect(stripComments(page), "the window must not be re-tested by hand").not.toMatch(
       /scoreEntryWindow/,
@@ -1470,7 +1460,7 @@ describe("the pending-card queue never clears a card it did not send", () => {
   it("shows the player a card recovered from a previous visit", () => {
     // `recovered` was read from localStorage on mount and then rendered by
     // nobody, so the tab-eviction case the module exists for still lost holes.
-    const card = readFileSync(join(process.cwd(), "src", "components", "PlayerCard.tsx"), "utf8");
+    const card = readSource("src", "components", "PlayerCard.tsx");
     expect(card).toMatch(/recoveredDiffers/);
     expect(card).toMatch(/mine=\{recoveredFitted\}/);
   });
@@ -1625,7 +1615,7 @@ describe("a round's card is narrowed in exactly one place", () => {
 
   it("routes them through cardForStage instead", () => {
     for (const rel of SCORING_FILES) {
-      const body = readFileSync(join(process.cwd(), rel), "utf8");
+      const body = readSource(rel);
       expect(body, `${rel} should resolve its card through cardForStage`).toMatch(/cardForStage\(/);
     }
   });
@@ -1906,10 +1896,7 @@ describe("a round's card is narrowed in exactly one place", () => {
  * `holes` it is GIVEN, which is exactly the half that was never wrong.
  */
 describe("the tee sheet is drawn for the selected round", () => {
-  const page = readFileSync(
-    join(process.cwd(), "src", "app", "(app)", "foursomes", "page.tsx"),
-    "utf8",
-  );
+  const page = readSource("src", "app", "(app)", "foursomes", "page.tsx");
 
   it("takes its hole count from the selected round, not the first one", () => {
     expect(page).toMatch(/const holes = stage\?\.holes === 9 \? 9 : 18;/);
@@ -1937,10 +1924,7 @@ describe("the tee sheet is drawn for the selected round", () => {
  * its own version of.
  */
 describe("the qualification screen counts the draw the tournament will make", () => {
-  const page = readFileSync(
-    join(process.cwd(), "src", "app", "(app)", "qualification", "page.tsx"),
-    "utf8",
-  );
+  const page = readSource("src", "app", "(app)", "qualification", "page.tsx");
 
   it("asks drawBrackets rather than halving the field", () => {
     // It hardcoded `ceil(n/2)` and `floor(n/2)` and never read bracketMode.
@@ -1993,10 +1977,7 @@ describe("what each bracket mode actually sends where", () => {
 });
 
 describe("the payouts screen shows the CLUB's pots", () => {
-  const page = readFileSync(
-    join(process.cwd(), "src", "app", "(app)", "prizes", "page.tsx"),
-    "utf8",
-  );
+  const page = readSource("src", "app", "(app)", "prizes", "page.tsx");
 
   it("filters side games to the field's own, like the skins query above it", () => {
     /**
@@ -2099,8 +2080,8 @@ describe("nothing resolves a tee as whichever one sorts first", () => {
  * the wrong one must never be reachable from a test run.
  */
 describe("a preview deployment has its own database", () => {
-  const db = readFileSync(join(process.cwd(), "src", "lib", "db.ts"), "utf8");
-  const gate = readFileSync(join(process.cwd(), "scripts", "deploy-migrations.mjs"), "utf8");
+  const db = readSource("src", "lib", "db.ts");
+  const gate = readSource("scripts", "deploy-migrations.mjs");
 
   it("chooses the preview database only on a preview deployment", () => {
     // VERCEL_ENV is set by the platform, so local, CI and production runs all
