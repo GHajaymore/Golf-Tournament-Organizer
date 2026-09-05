@@ -94,6 +94,100 @@ describe("there is one comment stripper, and it knows what a string is", () => {
   });
 });
 
+/**
+ * The rule itself, and the one that would have caught the second incident.
+ *
+ * A variable assigned straight from `readFileSync(..., "utf8")` still holds
+ * comments. Asserting positively on it — or on something sliced out of it, or
+ * searching it with `indexOf` — is what a comment can satisfy.
+ *
+ * Absence assertions are deliberately allowed. A `not.toMatch` that a comment
+ * trips fails LOUDLY and gets fixed; it is the positive ones that rot in
+ * silence.
+ */
+describe("no assertion is made against source that still has its comments", () => {
+  /** The names this file's tests may legitimately hand raw text. */
+  const WRAPPERS = ["stripComments", "strip", "readSource", "readVerbatim"];
+
+  /**
+   * Variables holding raw file text, plus anything sliced out of one.
+   *
+   * Only names declared EXACTLY ONCE in the file count. A test file reuses
+   * `src` and `page` across a dozen describe blocks, some reading through a
+   * stripper and some not, and this analysis has no block scope — so treating a
+   * reused name as raw because one of its twelve declarations is raw reported
+   * eleven innocent assertions. The first version of this did exactly that and
+   * flagged 200 lines across nine files, which is a guard nobody would keep.
+   * Unambiguous names only: fewer catches, and no false ones.
+   */
+  function rawVars(src: string): Set<string> {
+    const declared = new Map<string, number>();
+    for (const m of src.matchAll(/(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=/g)) {
+      declared.set(m[1], (declared.get(m[1]) ?? 0) + 1);
+    }
+    const once = (n: string) => declared.get(n) === 1;
+
+    const raw = new Set<string>();
+    for (const m of src.matchAll(/(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*\()?\s*readFileSync\(/g)) {
+      const tail = src.slice(m.index, m.index + 300);
+      if (!/"utf8"/.test(tail)) continue; // a byte read is not text
+      if (m[2] && WRAPPERS.includes(m[2].slice(0, -1))) continue; // already stripped
+      if (once(m[1])) raw.add(m[1]);
+    }
+    // One hop of derivation: `const body = whole.slice(...)` is still raw text.
+    for (const m of src.matchAll(
+      /(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\s*\.\s*slice\(/g,
+    )) {
+      if (raw.has(m[2]) && once(m[1])) raw.add(m[1]);
+    }
+    return raw;
+  }
+
+  it("finds raw reads at all, so this cannot pass by matching nothing", () => {
+    // A control. If `rawVars` stopped matching, every file below would look
+    // clean and this suite would report a problem solved that is not.
+    const probe = 'const s = readFileSync(p, "utf8");\nconst b = s.slice(1);';
+    expect([...rawVars(probe)].sort()).toEqual(["b", "s"]);
+    // And a wrapped read is NOT raw, or every converted file would be flagged.
+    expect([...rawVars('const w = stripComments(readFileSync(p, "utf8"));')]).toEqual([]);
+  });
+
+  for (const f of FILES) {
+    const name = rel(f);
+    it(`${name} asserts only on stripped text`, () => {
+      const src = readVerbatim(name);
+      const raw = rawVars(src);
+      if (raw.size === 0) return;
+
+      const offences: string[] = [];
+      for (const v of raw) {
+        const esc = v.replace(/\$/g, "\\$");
+        const positive = new RegExp(
+          `expect\\(\\s*${esc}\\b[^)]*\\)(?:\\s*,[^)]*\\))?\\s*\\.(toMatch|toContain)\\(`,
+          "g",
+        );
+        for (const m of src.matchAll(positive)) {
+          offences.push(`line ${src.slice(0, m.index).split("\n").length}: expect(${v}).${m[1]}(...)`);
+        }
+        // `indexOf` is the same search wearing a different hat: it is how a
+        // guard asserts one thing comes before another, and a comment
+        // satisfies it just as well.
+        const searched = new RegExp(`\\b${esc}\\s*\\.\\s*indexOf\\(`, "g");
+        for (const m of src.matchAll(searched)) {
+          offences.push(`line ${src.slice(0, m.index).split("\n").length}: ${v}.indexOf(...)`);
+        }
+      }
+
+      expect(
+        offences,
+        `${name} searches file text that still has its comments — read it with readSource() ` +
+          `from src/lib/__tests__/source.ts, or wrap it in stripComments():\n  ` +
+          offences.join("\n  "),
+      ).toEqual([]);
+    });
+  }
+});
+
 describe("the two readers really differ", () => {
   it("readSource hides comments; readVerbatim shows them", () => {
     /**
