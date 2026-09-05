@@ -18,8 +18,7 @@ import { join, dirname, relative, sep } from "node:path";
 
 const SRC = join(process.cwd(), "src");
 const read = (...p: string[]) => readFileSync(join(SRC, ...p), "utf8");
-const stripComments = (s: string) =>
-  s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+import { stripComments } from "./source";
 
 /**
  * Every route says whether a search engine may keep it, and only two say yes.

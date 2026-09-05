@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "./source";
 
 /**
  * A hook in a server component throws on every request.
@@ -41,7 +42,7 @@ describe("a hook only ever runs in a client component", () => {
       const src = readFileSync(join(COMPONENTS, f), "utf8");
       // Comments stripped first: a hook NAMED in a comment is not a call, and
       // several of these files discuss hooks at length.
-      const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+      const code = stripComments(src);
       if (!HOOK.test(code)) continue;
 
       // The directive has to be the first statement in the file. Anywhere

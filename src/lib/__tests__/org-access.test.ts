@@ -5,7 +5,7 @@ import { canAdministerOrganization } from "../services/org-access";
 
 /** Same helper the other source-reading guards use: an assertion about code
  *  must not be satisfied — or defeated — by a comment describing it. */
-const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+import { stripComments } from "./source";
 
 /**
  * Who may administer a club.

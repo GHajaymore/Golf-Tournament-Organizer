@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "./source";
 import {
   approvalModeOf,
   decideIntake,
@@ -94,7 +95,6 @@ describe("the bulk delete takes the rows it counted", () => {
    * in one component, and there is no rendering of it that would show it —
    * the screen looks correct right up until the rows disappear.
    */
-  const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   const src = stripComments(
     readFileSync(join(process.cwd(), "src/components/RegistrationClient.tsx"), "utf8"),
   );
@@ -123,7 +123,6 @@ describe("every path that reads a handicap uses that one reading", () => {
   // The form was right and the two importers were wrong, and the difference
   // was invisible until a plus-handicapper entered. Asserted at the source
   // because the alternative is three copies drifting again.
-  const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   const read = (p: string) => stripComments(readFileSync(join(process.cwd(), p), "utf8"));
 
   const paths = [

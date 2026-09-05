@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "./source";
 import {
   CLONED_EVENT_FIELDS,
   NOT_CLONED_EVENT_FIELDS,
@@ -129,7 +130,7 @@ describe("cloneEvent authorization", () => {
     // actually see.
     const m = /export async function cloneEvent[\s\S]*?\r?\n\}\r?\n/.exec(action());
     if (!m) throw new Error("cloneEvent not found");
-    return m[0].replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    return stripComments(m[0]);
   };
 
   it("requires organizer, not merely access", () => {
