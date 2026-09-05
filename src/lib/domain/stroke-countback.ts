@@ -75,12 +75,27 @@ function tailTotal(holes: (number | null)[], n: number): number | null {
  * finished rounds, and using it to punish a missing hole would decide a
  * competition on a data-entry gap.
  */
-export function countbackCompare(a: CountbackCard, b: CountbackCard, holeCount: number): number {
+export function countbackCompare(
+  a: CountbackCard,
+  b: CountbackCard,
+  holeCount: number,
+  /**
+   * Which way the numbers run.
+   *
+   * Strokes: fewer is better, and that is the default so every existing caller
+   * keeps its meaning. POINTS: more is better, and comparing them the other way
+   * round hands a Stableford tie to whoever scored least.
+   *
+   * A parameter rather than negating at the call site, because the direction is
+   * a fact about the basis being compared and belongs next to the comparison.
+   */
+  higherWins = false,
+): number {
   for (const n of countbackSegments(holeCount)) {
     const ta = tailTotal(a.holes, n);
     const tb = tailTotal(b.holes, n);
     if (ta === null || tb === null) return 0;
-    if (ta !== tb) return ta - tb;
+    if (ta !== tb) return higherWins ? tb - ta : ta - tb;
   }
   return 0;
 }

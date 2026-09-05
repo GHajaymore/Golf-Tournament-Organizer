@@ -223,6 +223,94 @@ describe("a gross round is ranked by gross", () => {
   });
 });
 
+/**
+ * A Stableford tie is separated by the countback, on POINTS.
+ *
+ * Two faults, one fixture, because a fix for either alone still gives the
+ * wrong winner.
+ *
+ *   1. The sort did `if (stableford) return y.points - x.points` and stopped.
+ *      A comparator returning 0 leaves a stable sort in array order — which is
+ *      SEED order — so two players level on points were ordered by who signed
+ *      up first. The rank pass below then asked `countbackCompare`, got a
+ *      non-zero answer, and concluded they were not level: ranks 1 and 2,
+ *      printed as a clean result off an order nothing had decided.
+ *
+ *   2. The countback card was always net STROKES. A Stableford countback runs
+ *      on points, and the two disagree because points are capped: anything
+ *      worse than a net double bogey scores nothing, however much worse it
+ *      was. A blow-up costs a player everything on strokes and one hole's
+ *      points.
+ *
+ * The fixture is built so all three candidate answers differ:
+ *
+ *   seed order       -> Ainsley (seed 1)      the old behaviour
+ *   strokes countback-> Ainsley (36 v 38)     the old basis, sort fixed
+ *   POINTS countback -> Brody   (20 v 18)     the Committee's rule
+ *
+ * so it cannot pass by accident on a half-fix.
+ */
+describe("two players level on Stableford points", () => {
+  it("is separated on the countback, on points, not by who entered first", async () => {
+    const event = await twoPlayerEvent("stableford countback");
+    // Both scratch, so points come straight off the gross card and the fixture
+    // says what it means.
+    await prisma.player.updateMany({ where: { eventId: event.id }, data: { handicap: 0 } });
+
+    const stage = await prisma.stage.create({
+      data: newStage(event.id, 0, { scoringBasis: "stableford" }),
+    });
+
+    // Par 4 every hole, scratch: 3 = birdie (3pts), 4 = par (2), 5 = bogey (1),
+    // 10 = far past a net double bogey (0).
+    //
+    // Ainsley: 9 pars out (18), 9 pars back (18)          = 36, last nine 18 pts / 36 strokes
+    // Brody:   7 pars + 2 bogeys out (16),
+    //          4 birdies + 4 pars + one 10 back (20)      = 36, last nine 20 pts / 38 strokes
+    const ainsley = new Array(18).fill(4);
+    const brody = [4, 4, 4, 4, 4, 4, 4, 5, 5, 3, 3, 3, 3, 4, 4, 4, 4, 10];
+
+    for (const [key, strokes] of [["ainsley", ainsley], ["brody", brody]] as const) {
+      await prisma.scorecard.create({
+        data: { eventId: event.id, stageId: stage.id, playerId: player[key], strokes: JSON.stringify(strokes) },
+      });
+    }
+
+    const state = await loadEventState(event.id);
+    if (!state) throw new Error("no state");
+
+    const a = state.strokeStandings.find((s) => s.player.id === player.ainsley)!;
+    const b = state.strokeStandings.find((s) => s.player.id === player.brody)!;
+
+    // The premise: genuinely level, so the countback is what decides. If this
+    // ever stops holding the rest of the test proves nothing.
+    expect(a.points, "the fixture must be a real tie on points").toBe(b.points);
+
+    // Brody's last nine is worth more, so Brody wins — even though Ainsley
+    // entered first AND has the better last nine in strokes.
+    expect(state.strokeStandings[0].player.id).toBe(player.brody);
+    expect(b.rank).toBe(1);
+    expect(a.rank).toBe(2);
+  });
+
+  it("still leaves a tie the countback cannot break as a shared position", async () => {
+    // The other half of the rule, and the one a fix for the above can break:
+    // two identical cards must stay level rather than being ordered at all.
+    const event = await twoPlayerEvent("stableford dead heat");
+    await prisma.player.updateMany({ where: { eventId: event.id }, data: { handicap: 0 } });
+    const stage = await prisma.stage.create({
+      data: newStage(event.id, 0, { scoringBasis: "stableford" }),
+    });
+    await addCards(event.id, stage.id, { ainsley: 4, brody: 4 });
+
+    const state = await loadEventState(event.id);
+    if (!state) throw new Error("no state");
+
+    expect(state.strokeStandings[0].rank).toBe(1);
+    expect(state.strokeStandings[1].rank, "a dead heat is T1, not 1 and 2").toBe(1);
+  });
+});
+
 describe("a round is scored against the course it was played on", () => {
   it("uses Stage.courseId rather than the event's card", async () => {
     // courseForRound had ZERO production callers, so a tournament that moves
