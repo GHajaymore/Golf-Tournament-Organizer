@@ -189,17 +189,37 @@ export async function setContestWinners(contestId: string, winnerIds: string[]):
       : []),
   ]);
 
-  // A winner who never staked is legal — see domain/contests — but they need
-  // an entry row to be recorded on, so one is created without a stake.
-  //
-  // `confirmed: false` says so explicitly. Omitting it took the column's
-  // default, which is TRUE, so the row created to record a win also charged
-  // that player the buy-in — the exact opposite of the sentence above it.
+  /**
+   * A winner who never staked is legal — see domain/contests — but they need
+   * an entry row to be recorded on, so one is created for them.
+   *
+   * What `confirmed` should be depends entirely on the MODE, because the two
+   * modes read a missing row in opposite ways.
+   *
+   * Opt-in: no row means not in the pot, so a row created purely to record a
+   * win must not charge anybody. `confirmed: false` says so explicitly, and
+   * omitting it took the column default of TRUE and charged the buy-in — the
+   * exact opposite of the sentence above.
+   *
+   * Opt-out: no row means IN and settled — that is what "everyone in the
+   * field" means, and it is the ordinary state of an opt-out contest, where
+   * there are usually no rows at all. So `confirmed: false` here does not
+   * record "did not stake"; it removes a paid-up player from their own pot.
+   * Recording the winner shrank the pot by one stake, flipped `youConfirmed`
+   * false, and put that player on the organizer's "Asked to join — take their
+   * money" list for money already handed over. Reopening does not undo it:
+   * clearing winners only sets `won: false`, so the row and its false
+   * `confirmed` persist.
+   *
+   * Creating the row must therefore leave membership exactly as the mode
+   * already had it, which for opt-out means confirmed.
+   */
+  const staked = contest.entryMode === "opt-out";
   for (const playerId of winners) {
     await prisma.contestEntry.upsert({
       where: { contestId_playerId: { contestId, playerId } },
       update: { won: true },
-      create: { contestId, playerId, won: true, confirmed: false },
+      create: { contestId, playerId, won: true, confirmed: staked },
     });
   }
 

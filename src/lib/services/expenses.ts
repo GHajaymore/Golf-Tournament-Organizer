@@ -302,7 +302,12 @@ async function gameNets(
           ? `${pot.groupKey} — ${skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full")}`
           : skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full"),
         detail: won.length
-          ? `won ${won.length === 1 ? "the" : ""} ${won.length === 1 ? "" : won.length + " holes: "}${won.join(", ")}`.replace(/s+/g, " ").trim()
+          ? // `\s+`, not `s+`. Without the backslash this matched runs of the
+            // LETTER s and collapsed them to a space, so the line a player
+            // reads to check a figure said "won 3 hole : 4, 7, 12". The
+            // collapse itself is wanted — the template leaves a double space
+            // where the singular branch contributes nothing.
+            `won ${won.length === 1 ? "the" : ""} ${won.length === 1 ? "" : won.length + " holes: "}${won.join(", ")}`.replace(/\s+/g, " ").trim()
           : "no skins won",
         cents: share.netCents,
       });
