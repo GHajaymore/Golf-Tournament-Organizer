@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   resolveMatch,
+  matchIsOver,
   marginToHoles,
   parseResultTranscript,
   aggregateStats,
@@ -567,5 +568,51 @@ describe("a per-match points cap", () => {
     const uncapped = aggregateStats(players, matches, { ...DEFAULT_SCORING, maxPerMatch: 0 });
     expect(capped.get("p1")!.wins).toBe(uncapped.get("p1")!.wins);
     expect(capped.get("p1")!.holesWon).toBe(uncapped.get("p1")!.holesWon);
+  });
+});
+
+/**
+ * Over is not the same as started, and the two questions have similar names.
+ *
+ * `matchSettled` (services/tournament.ts) means STARTED: one hole is enough,
+ * which is what "which round is the tournament on" needs. `matchIsOver` means
+ * DECIDED, which is what anything paying out needs. `roundMoneyFor` asked the
+ * first and used the answer as the second, and a match round read as finished
+ * from the first hole.
+ */
+describe("a match is over when it is decided, not when it is started", () => {
+  it("is not over on the first hole", () => {
+    // Rule 3.2a: the match is won when one side leads by more holes than
+    // remain. One up with seventeen to play is a lead, and nothing else.
+    expect(matchIsOver(H("A" + ".".repeat(17)))).toBe(false);
+  });
+
+  it("is over on a closeout, with holes still unplayed", () => {
+    // A five up with four to play — 5&4. Refusing this would refuse most real
+    // match play, which almost never reaches the 18th.
+    expect(matchIsOver(H("AAAAAHHHHHHHHH" + "....".slice(0, 4)))).toBe(true);
+  });
+
+  it("is over when every hole has been played", () => {
+    // Halved all the way: a result, and one nobody wins.
+    expect(matchIsOver(H("H".repeat(18)))).toBe(true);
+  });
+
+  it("is not over while the last holes are still out", () => {
+    // One up with two to play is dormie-adjacent and emphatically live: B can
+    // still square it or win it.
+    expect(matchIsOver(H("AHHHHHHHHHHHHHHH.."))).toBe(false);
+  });
+
+  it("does not read an untouched card as a finished match", () => {
+    /**
+     * The trap, and the reason the guard is explicit rather than relying on
+     * `resolveMatch`. A scheduled match nobody has played is stored as `"[]"`,
+     * and `resolveMatch([])` is COMPLETE — nothing remains to play, so
+     * `remaining` is zero. A round of matches that had never been started
+     * would have read as finished.
+     */
+    expect(matchIsOver([])).toBe(false);
+    expect(matchIsOver(H(".".repeat(18)))).toBe(false);
   });
 });

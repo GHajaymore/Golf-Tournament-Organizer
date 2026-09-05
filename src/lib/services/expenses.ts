@@ -28,7 +28,8 @@ import {
 } from "../domain/derived-games";
 import { skinsPotFor } from "./skins-pot";
 import { isSkinsScope, skinsGameLabel } from "@/lib/domain/skins-pot";
-import { loadEventState, matchSettled, type HoleResultArr } from "./tournament";
+import { loadEventState, type HoleResultArr } from "./tournament";
+import { matchIsOver } from "../domain/match";
 import { resolveCourse } from "../courses";
 import { cardForStage, courseForRound } from "./course-resolution";
 import { holeStrokesReceived, allocationHoles } from "../domain";
@@ -1306,13 +1307,44 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
     }
 
     const stageMatches = matches.filter((m) => m.stageId === stage.id);
-    const matchesDone = stageMatches.length > 0 && stageMatches.every((m) => matchSettled(m));
+    /**
+     * Every match OVER, not every match started.
+     *
+     * This read `matchSettled`, which is satisfied by a match with one hole on
+     * it. So a match round flipped to final the moment each pairing had a
+     * single hole entered, and the exposure block below — gated on `!final` —
+     * stopped running. A player halfway through their match was shown no
+     * stake and no standing: the money screen went silent rather than wrong,
+     * which is worse for being unreportable. Nothing leaked, because every pot
+     * family refuses a provisional result on its own, so an empty screen was
+     * the whole symptom.
+     *
+     * `matchIsOver` is the strict reading and lives in domain/match.ts beside
+     * `resolveMatch`, which already knows what finishing a match means —
+     * including a closeout, so 5&4 is over with four holes unplayed. It is not
+     * a tightening of `matchSettled`: that function has four readers outside
+     * the money path (`currentRoundIndex`, round progress) for which "has
+     * anybody started scoring this" is the correct question, and changing it
+     * would move a tournament's idea of which round it is on.
+     */
+    const matchesDone =
+      stageMatches.length > 0 &&
+      stageMatches.every((m) => {
+        if (m.forfeitedBy) return true;
+        try {
+          return matchIsOver(JSON.parse(m.holes) as HoleResultArr);
+        } catch {
+          // An unreadable card is not a finished match. Reading it as one
+          // would end the round on a parse error.
+          return false;
+        }
+      });
 
     const final = roundMoneyIsFinal({
       holesReturned,
       holeCount,
       // Either measure can finish a round: every card in, every match
-      // settled, or the organizer closing the tournament.
+      // decided, or the organizer closing the tournament.
       roundComplete: matchesDone || state?.event.status === "completed",
     });
 
