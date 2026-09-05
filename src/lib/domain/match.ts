@@ -70,6 +70,39 @@ export function countedHoles(holes: HoleResult[]): HoleResult[] {
   return closeout ? holes.slice(0, closeout.atIndex + 1) : holes;
 }
 
+/**
+ * Whether a match is OVER — decided, not merely started.
+ *
+ * The distinction this exists for: `matchSettled` in services/tournament.ts
+ * answers a different question with a very similar name. It is satisfied by a
+ * match with ONE hole on it, which is exactly right for "which round is the
+ * tournament on" — a round somebody has begun scoring is the round being
+ * played — and exactly wrong for anything that pays out. A match one hole old
+ * is not a result.
+ *
+ * That gap was load-bearing. `roundMoneyFor` fed `matchSettled` into
+ * `roundMoneyIsFinal`, so a match round flipped to "final" the moment every
+ * pairing had a single hole entered, and the player's EXPOSURE line — which is
+ * computed only while a round is unfinished — vanished from their screen
+ * mid-round. No money leaked, because every pot family refuses a provisional
+ * result for its own reasons, so the screen simply went silent: no stake, no
+ * standing, nothing. An empty screen reads as "nothing to report" rather than
+ * as a fault, which is why it went unnoticed.
+ *
+ * A closeout counts, so 5&4 is over with four holes unplayed — that is what
+ * `resolveMatch` already means by `complete`, and a rule that demanded
+ * eighteen returned holes would refuse most real match play.
+ *
+ * The empty card is the trap and is guarded explicitly. `resolveMatch([])` is
+ * COMPLETE: nothing is left to play, so `remaining` is zero. A scheduled match
+ * nobody has touched is stored as `"[]"`, so without this line a round of
+ * matches that had never been started would read as finished.
+ */
+export function matchIsOver(holes: HoleResult[]): boolean {
+  if (!holes.some((h) => h !== null)) return false;
+  return resolveMatch(holes).complete;
+}
+
 export function resolveMatch(holes: HoleResult[]): MatchResolution {
   const total = holes.length;
 

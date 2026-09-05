@@ -2,6 +2,7 @@ import "dotenv/config";
 import { describe, it, expect } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { roundMoneyFor } from "@/lib/services/expenses";
+import { matchIsOver, type HoleResult } from "@/lib/domain";
 
 /**
  * The player's round-by-round money, against real data.
@@ -58,8 +59,16 @@ describe("what a player is told about the money", () => {
      * scorecards at all, so on that measure alone a match round would never
      * finish and its pots would never be reported — which is what happened
      * the first time this was tried against a real match-play tournament.
-     * Every match settled is the second reading, and the organizer closing
-     * the tournament is the third.
+     * Every match OVER is the second reading, and the organizer closing the
+     * tournament is the third.
+     *
+     * "Over" is the word that matters and this test used to get it wrong. It
+     * checked for a match with any hole on it, mirroring what the service did
+     * — which is how a test comes to assert current behaviour rather than the
+     * rule, and it passed happily while a round one hole old called itself
+     * final. See `round-finality.audit.test.ts`, which owns that rule against
+     * a fixture it can control; this stays a shape check over whatever the
+     * dev database happens to hold.
      */
     const ev = await prisma.event.findFirst({ select: { id: true } });
     if (!ev) return;
@@ -83,8 +92,7 @@ describe("what a player is told about the money", () => {
         matches.every((m) => {
           if (m.forfeitedBy) return true;
           try {
-            const h = JSON.parse(m.holes) as (string | null)[];
-            return h.some((x) => x !== null);
+            return matchIsOver(JSON.parse(m.holes) as HoleResult[]);
           } catch {
             return false;
           }
