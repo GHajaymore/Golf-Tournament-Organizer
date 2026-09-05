@@ -190,9 +190,29 @@ export function PlayerCard({
       revision.current = res.revision;
       setConflict(null);
       setError("");
-      // A save takes the card back to "entered" if it had been certified;
-      // saying so is better than leaving a stale badge on screen.
-      setState((s) => (s === "certified" ? "entered" : s));
+      /**
+       * The badge is what the SERVER says the card is, not what this screen
+       * guessed a save would do to it.
+       *
+       * It used to read `s === "certified" ? "entered" : s` — every successful
+       * save retracts the signature. That was true of the server once and is
+       * not now: a save only de-certifies when the NUMBERS changed, because
+       * the console re-saves every unchanged card in a tee group and the retry
+       * queue can replay a card seconds after `certifyScorecard` signed it.
+       *
+       * The second case is this screen's own. A player finishing a round on
+       * patchy signal certifies, the queued card goes up a moment later
+       * unchanged, and the badge fell back to "entered" over a card the
+       * committee held as certified — telling a player who had signed that
+       * they had not, with nothing they could do but sign again.
+       *
+       * Taking the answer removes the copy rather than correcting it, so the
+       * next change to what a save does to a status cannot leave this screen
+       * behind. It is also strictly more informative: a card another screen
+       * disputed now reads as disputed instead of keeping whatever this one
+       * last believed.
+       */
+      setState(res.status);
       return "sent";
     },
   });
@@ -242,7 +262,11 @@ export function PlayerCard({
       try {
         // Save first: certifying a card the server has not seen would certify
         // whatever was last written, which is not what is on this screen.
-        const res = await saveScorecard(stageId, playerId, latest.current, revision.current);
+        //
+        // Captured, not re-read after the await: `settle()` below has to know
+        // whether THIS card is the one still outstanding.
+        const sent = latest.current;
+        const res = await saveScorecard(stageId, playerId, sent, revision.current);
         if (!res.ok) {
           // Certifying is a statement under Rule 3.3b that these hole scores
           // are right. Signing one while two versions disagree would be
@@ -254,6 +278,33 @@ export function PlayerCard({
         await certifyScorecard(stageId, playerId);
         setState("certified");
         setNote("Certified. It's with the committee now.");
+        /**
+         * Nothing is outstanding, so the queue must be told.
+         *
+         * `certify` saves through the action directly, not through the queue —
+         * and it saves `latest.current`, which is exactly what the queue was
+         * holding. Leaving it queued left the status line reading "Saving…"
+         * over a card the committee already had, and sent the identical card
+         * again on the next retry.
+         *
+         * That replay is what turned the badge back to "entered": it was a
+         * successful save, and a successful save used to mean de-certified on
+         * this screen. The badge is fixed above by taking the server's word;
+         * this stops the pointless replay that exposed it.
+         *
+         * Guarded, because settling clears the DEVICE copy. A hole typed
+         * between the save above and this line is not covered by what was
+         * just certified, and dropping it would lose a stroke that exists
+         * nowhere else.
+         *
+         * By IDENTITY rather than by comparing revisions: `setHole` builds a
+         * new array every time, so `latest.current === sent` is exactly "no
+         * hole has been typed since". A revision comparison would be a second
+         * way of asking the same question that can quietly answer `false`
+         * forever if the two sides ever hash differently shaped arrays — and
+         * a guard that never fires looks identical to a guard that works.
+         */
+        if (latest.current === sent) card.settle();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Couldn't certify that card.");
       }
