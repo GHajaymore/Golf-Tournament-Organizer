@@ -8,6 +8,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
+import { isNetBasis } from "@/lib/domain/match-entry";
 import { prisma } from "@/lib/db";
 // No `createSession` or `destroySession` here on purpose: deleting a
 // tournament moves the active event and must never re-sign or drop the
@@ -2066,7 +2067,12 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   });
   // Handicap strokes only apply when the round is scored Net — a Gross round
   // uses the same card, decided scratch (lower strokes wins the hole).
-  const netMode = stage?.scoringBasis === "net";
+  //
+  // Through `isNetBasis`, which `resolveMatchEntry` already uses, so the two
+  // paths into a match result cannot disagree about what the round is. The
+  // hand-rolled `=== "net"` here said GROSS for a "both" round while the
+  // resolver said net.
+  const netMode = isNetBasis(stage?.scoringBasis ?? "");
   const strokesA = cardA ? (JSON.parse(cardA.strokes) as (number | null)[]) : [];
   const strokesB = cardB ? (JSON.parse(cardB.strokes) as (number | null)[]) : [];
   // Net match play allocates off Course Handicaps, not roster Indexes. Two

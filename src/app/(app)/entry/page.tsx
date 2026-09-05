@@ -24,6 +24,7 @@ import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/ser
 import { aggregateTeamCard, singleBallTeamCard } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
 import { courseHandicapMap, playingHandicapFrom } from "@/lib/domain/handicap";
+import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { standingRows } from "@/lib/services/tournament";
@@ -357,7 +358,25 @@ export default async function EntryPage() {
   const rounds: EntryRound[] = await Promise.all(
     rrStages.map(async (stage) => {
       const holeCount = stage.holes === 9 ? 9 : 18;
-      const netMode = stage.format === "Match Play" && stage.scoringBasis === "net";
+      /**
+       * Whether this round is played off handicap — the SAME question the
+       * server asks, through the same function.
+       *
+       * This named one format. A Nassau is a match card by every other measure
+       * — `entryModeFor` routes it to this very screen, `resolveMatchEntry`
+       * scores it, and the basis control offers Net on it without complaint —
+       * but `netMode` was false, so the grid showed no strokes and the badge
+       * read "Gross scoring". On the hole-results path the organizer then taps
+       * winners decided scratch, and `saveMatchHoles` stores them verbatim: all
+       * three Nassau bets settle gross in a round configured Net.
+       *
+       * `isNetBasis` also answers "both", which a hand-rolled `=== "net"` gets
+       * wrong. A match cannot be 2 up gross and 1 down net and have been won,
+       * so "both" means net for a match — `needsCourseData` already treats a
+       * "both" match round as needing a card to allocate from, which is only
+       * true if it is net.
+       */
+      const netMode = isNetBasis(stage.scoringBasis);
       const stageCourse = stage.courseId ? venueById.get(stage.courseId) ?? null : null;
 
       /**
