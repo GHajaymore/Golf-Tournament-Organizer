@@ -6,6 +6,7 @@ import { courseForMatch, cardForMatch } from "@/lib/services/course-resolution";
 import { brandForEvent } from "@/lib/services/organization";
 import { PlayClient } from "@/components/PlayClient";
 import type { HoleResult } from "@/lib/domain";
+import { isNetBasis } from "@/lib/domain/match-entry";
 
 /**
  * The Round Code surface.
@@ -127,7 +128,9 @@ export default async function PlayPage() {
       pars={playCard?.pars ?? []}
       yards={playCard?.yards ?? []}
       strokeIndex={playCard?.strokeIndex ?? []}
-      netMode={stage?.scoringBasis === "net"}
+      // The same predicate the console and the server use, so a player and an
+      // organizer cannot be shown a different basis for one round.
+      netMode={isNetBasis(stage?.scoringBasis ?? "")}
     />
   );
 }

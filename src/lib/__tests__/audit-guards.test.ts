@@ -1388,6 +1388,52 @@ describe("a round's card is narrowed in exactly one place", () => {
   });
 
   /**
+   * Whether a match is played off handicap is asked ONCE, by name.
+   *
+   * `isNetBasis` exists, is documented, and answers "both" — which a match
+   * needs, because you cannot be 2 up gross and 1 down net and have won.
+   * `resolveMatchEntry` uses it. Three outer readers hand-rolled
+   * `scoringBasis === "net"` instead, and disagreed with it and with each
+   * other:
+   *
+   *   - the console's entry screen ALSO required `format === "Match Play"`, so
+   *     a Nassau configured Net rendered with no strokes under a "Gross
+   *     scoring" badge. On the hole-results path the organizer then taps
+   *     winners decided scratch and `saveMatchHoles` stores them verbatim —
+   *     three bets settled on the wrong basis in a round the club set to Net;
+   *   - all three read "both" as gross, while the resolver read it as net and
+   *     `needsCourseData` already demanded a card to allocate strokes from.
+   *
+   * A LABEL may still compare the raw value: `rules.ts` prints "Net" and
+   * "Gross and net" differently and must. What is banned is deciding whether
+   * strokes APPLY from a hand-rolled comparison.
+   */
+  it("decides net match play through isNetBasis, not a hand-rolled basis check", () => {
+    const root = join(process.cwd(), "src");
+    const sources: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, e.name);
+        if (e.isDirectory()) {
+          if (e.name !== "__tests__" && e.name !== "node_modules") walk(full);
+        } else if (/\.tsx?$/.test(e.name)) sources.push(full);
+      }
+    };
+    walk(root);
+    // A broken read would make the assertion below vacuous.
+    expect(sources.length, "no sources scanned").toBeGreaterThan(100);
+
+    const offenders = sources
+      .filter((f) =>
+        // A netMode decided on the same line as a raw scoringBasis comparison.
+        /netMode[^\n]*scoringBasis[^\n]*[!=]==/.test(stripComments(readFileSync(f, "utf8"))),
+      )
+      .map((f) => f.slice(process.cwd().length + 1).replace(/\\/g, "/"));
+
+    expect(offenders, "these decide net match play for themselves").toEqual([]);
+  });
+
+  /**
    * Score entry resolves a card PER ROUND, not one for the screen.
    *
    * The slice ban above cannot see this fault: the page resolved the event's
