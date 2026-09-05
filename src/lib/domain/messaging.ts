@@ -112,6 +112,35 @@ export interface MembershipContext {
   foursomeIds: string[];
   /** Direct threads they are a named participant of. */
   directThreadIds: string[];
+  /**
+   * Every flight, round and team in THIS tournament — staff only, empty for a
+   * player.
+   *
+   * Staff may broadcast to a flight, round or team they are not personally in;
+   * that is what running a tournament is, and `BROADCASTABLE` in the service
+   * has always allowed it. Their READ set was still built from their own
+   * membership alone, so a non-playing organizer — the ordinary case — could
+   * send to Flight A and then not see the thread they had just created. The
+   * pane went blank, it was absent from their own list, `markRead` was a
+   * silent no-op, and every player reply stayed outside their unread count
+   * for the rest of the event.
+   *
+   * Carried on the context rather than special-cased in a query, so
+   * `visibleScopes` remains the ONLY answer to "what may this person read" —
+   * `canReadScope` is defined in terms of it precisely so the two cannot
+   * drift, and a second rule in a `where` clause is how that guarantee is
+   * lost.
+   *
+   * Deliberately NOT foursome, match or direct. Those are private
+   * conversations rather than structures an organizer administers, and
+   * `BROADCASTABLE` excludes them for the same reason. This widens reading to
+   * exactly what was already writable, and nothing else.
+   */
+  staffScopes: {
+    groupIds: string[];
+    stageIds: string[];
+    teamIds: string[];
+  };
 }
 
 /**
@@ -165,7 +194,26 @@ export function visibleScopes(ctx: MembershipContext): ScopeKey[] {
   for (const id of ctx.matchIds) keys.push(scopeKey("match", id));
   for (const id of ctx.directThreadIds) keys.push(scopeKey("direct", id));
 
-  return keys;
+  /**
+   * And, for staff, every flight, round and team they may broadcast to.
+   *
+   * Reading what you are allowed to write. An organizer who sends to Flight A
+   * and cannot then see the thread has been told the send worked and given no
+   * way to check — the same argument the "players only" comment above already
+   * makes, applied to the scopes it did not cover.
+   *
+   * Last, so a playing organizer's own flight is already in the list; the
+   * caller de-duplicates on the way out.
+   */
+  if (ctx.role === "admin" || ctx.role === "assistant") {
+    for (const id of ctx.staffScopes.groupIds) keys.push(scopeKey("flight", id));
+    for (const id of ctx.staffScopes.stageIds) keys.push(scopeKey("round", id));
+    for (const id of ctx.staffScopes.teamIds) keys.push(scopeKey("team", id));
+  }
+
+  // Deduplicated because a playing organizer reaches their own flight by both
+  // routes, and a duplicated key would inflate an `IN` list for no reason.
+  return [...new Set(keys)];
 }
 
 /**

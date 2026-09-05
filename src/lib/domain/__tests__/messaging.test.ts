@@ -27,6 +27,9 @@ const base: MembershipContext = {
   matchIds: ["m1"],
   foursomeIds: [teeGroupId("s1", "Group 3")],
   directThreadIds: ["d1"],
+  // Empty for a player, and required rather than optional so no construction
+  // site can silently omit it and quietly narrow an organizer's reach.
+  staffScopes: { groupIds: [], stageIds: [], teamIds: [] },
 };
 
 const ctx = (over: Partial<MembershipContext> = {}): MembershipContext => ({ ...base, ...over });
@@ -101,12 +104,89 @@ describe("what staff can see", () => {
     expect(canReadScope(staff, scopeKey("event"))).toBe(true);
   });
 
-  it("still does not read a flight thread they are not in", () => {
-    // Deliberate. An organizer can post to the whole tournament and to any
-    // flight from the console; silently sitting inside every private four's
-    // conversation is a different thing, and not one anybody asked for.
-    const staff = ctx({ role: "admin", groupIds: [] });
-    expect(canReadScope(staff, scopeKey("flight", "g1"))).toBe(false);
+  /**
+   * Reading what they are allowed to write.
+   *
+   * The comment that used to sit here said an organizer "can post to the whole
+   * tournament and to any flight from the console" and then asserted they
+   * could not READ that flight — while justifying it with "silently sitting
+   * inside every private four's conversation", which is a foursome, a
+   * different scope kind entirely. The distinction it was reaching for is real
+   * and is now the actual rule: a flight, a round and a side are structures an
+   * organizer administers; a four, a match and a direct message are private
+   * conversations.
+   *
+   * What the old behaviour cost: a non-playing organizer — the ordinary case —
+   * broadcast to Flight A, the send succeeded, and the thread was invisible to
+   * them. The pane went blank, it was absent from their list, `markRead` was a
+   * no-op, and every player reply stayed outside their unread count.
+   */
+  it("reads a flight, round or side it may broadcast to, without being in it", () => {
+    const staff = ctx({
+      role: "admin",
+      playerId: null,
+      groupIds: [],
+      stageIds: [],
+      teamIds: [],
+      staffScopes: { groupIds: ["g9"], stageIds: ["s9"], teamIds: ["t9"] },
+    });
+    expect(canReadScope(staff, scopeKey("flight", "g9"))).toBe(true);
+    expect(canReadScope(staff, scopeKey("round", "s9"))).toBe(true);
+    expect(canReadScope(staff, scopeKey("team", "t9"))).toBe(true);
+  });
+
+  it("still does not read a private four, a match or a direct thread", () => {
+    // The bound on the widening, and the thing the old comment actually meant.
+    // These are conversations rather than structures, and `BROADCASTABLE`
+    // excludes them for the same reason.
+    const staff = ctx({
+      role: "admin",
+      playerId: null,
+      groupIds: [],
+      stageIds: [],
+      matchIds: [],
+      foursomeIds: [],
+      directThreadIds: [],
+      staffScopes: { groupIds: ["g9"], stageIds: ["s9"], teamIds: ["t9"] },
+    });
+    expect(canReadScope(staff, scopeKey("foursome", teeGroupId("s9", "Group 1")))).toBe(false);
+    expect(canReadScope(staff, scopeKey("match", "m9"))).toBe(false);
+    expect(canReadScope(staff, scopeKey("direct", "d9"))).toBe(false);
+  });
+
+  it("does not read another tournament's flight", () => {
+    // The bound that matters most. `staffScopes` is built per event, so an id
+    // from somewhere else is simply not in the list — the widening is to the
+    // structures of THIS tournament and no wider.
+    const staff = ctx({
+      role: "admin",
+      groupIds: [],
+      staffScopes: { groupIds: ["g9"], stageIds: [], teamIds: [] },
+    });
+    expect(canReadScope(staff, scopeKey("flight", "someone-elses-flight"))).toBe(false);
+  });
+
+  it("gives a PLAYER none of it, however the context is built", () => {
+    // A player never gets these ids from `membershipFor`, but the rule is in
+    // `visibleScopes` rather than in the query, so it is asserted here too.
+    const player = ctx({
+      role: "player",
+      groupIds: [],
+      stageIds: [],
+      teamIds: [],
+      staffScopes: { groupIds: ["g9"], stageIds: ["s9"], teamIds: ["t9"] },
+    });
+    expect(canReadScope(player, scopeKey("flight", "g9"))).toBe(false);
+    expect(canReadScope(player, scopeKey("round", "s9"))).toBe(false);
+    expect(canReadScope(player, scopeKey("team", "t9"))).toBe(false);
+  });
+
+  it("lists a playing organizer's own flight once", () => {
+    // They reach it by both routes. A duplicated key would inflate the `IN`
+    // list every read is built from, for nothing.
+    const staff = ctx({ role: "admin", groupIds: ["g1"], staffScopes: { groupIds: ["g1"], stageIds: [], teamIds: [] } });
+    const keys = visibleScopes(staff).filter((k) => k === scopeKey("flight", "g1"));
+    expect(keys).toHaveLength(1);
   });
 });
 

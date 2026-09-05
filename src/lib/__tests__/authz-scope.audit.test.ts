@@ -91,6 +91,15 @@ const ctxFor = (club: Club): MembershipContext => ({
   matchIds: [],
   foursomeIds: [],
   directThreadIds: [],
+  /**
+   * Their OWN club's team, which is what `membershipFor` builds for staff.
+   *
+   * Staff may read the flights, rounds and teams they may broadcast to, and
+   * this is the list that says which. Populated realistically rather than left
+   * empty, so the cross-club case below actually exercises the widening
+   * instead of passing against a context that grants nothing.
+   */
+  staffScopes: { groupIds: [], stageIds: [], teamIds: [club.teamId] },
 });
 
 beforeAll(async () => {
