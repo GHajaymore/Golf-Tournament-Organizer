@@ -2,7 +2,7 @@
 // scoring + tiebreaker chain, rank within groups and overall, and compute the
 // qualification cutoff. All values are derived on every call — never stored.
 
-import { resolveMatch } from "./match";
+import { resolveMatch, countedHoles } from "./match";
 import { breakMatchTie, type MatchTiebreakKey } from "./match-tiebreak";
 import { toughestN } from "./types";
 import type {
@@ -210,7 +210,12 @@ function forfeitWinnerSide(m: Match): "A" | "B" | null {
   return null;
 }
 
-function miniLeague(playerId: string, tied: Player[], matches: Match[]): number {
+function miniLeague(
+  playerId: string,
+  tied: Player[],
+  matches: Match[],
+  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
+): number {
   const others = new Set(tied.map((p) => p.id).filter((id) => id !== playerId));
   if (others.size === 0) return 0;
 
@@ -222,16 +227,11 @@ function miniLeague(playerId: string, tied: Player[], matches: Match[]): number 
     const opponent = isA ? m.playerBId : m.playerAId;
     if (!others.has(opponent)) continue;
 
-    // A forfeit decides the meeting, whatever the card says.
-    const conceded = forfeitWinnerSide(m);
-    if (conceded) {
-      score += (conceded === "A" && isA) || (conceded === "B" && isB) ? 1 : -1;
-      continue;
-    }
-
-    const r = resolveMatch(m.holes);
-    if (!r.complete || r.winner === "H") continue;
-    const wonIt = (r.winner === "A" && isA) || (r.winner === "B" && isB);
+    // Forfeit and all-square countback both handled in one place, so this
+    // agrees with the wins and losses on the table.
+    const outcome = decidedOutcome(m, matchTiebreak);
+    if (outcome === null || outcome === "H") continue;
+    const wonIt = (outcome === "A" && isA) || (outcome === "B" && isB);
     score += wonIt ? 1 : -1;
   }
   return score;
@@ -241,19 +241,58 @@ function miniLeague(playerId: string, tied: Player[], matches: Match[]): number 
  * Result of the head-to-head between two players within `matches`:
  * -1 if `aId` won the meeting, 1 if `bId` won, 0 if halved / no completed meeting.
  */
-function headToHead(aId: string, bId: string, matches: Match[]): number {
+function headToHead(
+  aId: string,
+  bId: string,
+  matches: Match[],
+  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
+): number {
   for (const m of matches) {
     const isPair =
       (m.playerAId === aId && m.playerBId === bId) ||
       (m.playerAId === bId && m.playerBId === aId);
     if (!isPair) continue;
-    const r = resolveMatch(m.holes);
-    if (!r.complete || r.winner === "H") continue;
-    const winnerId = r.winner === "A" ? m.playerAId : m.playerBId;
+    const outcome = decidedOutcome(m, matchTiebreak);
+    if (outcome === null || outcome === "H") continue;
+    const winnerId = outcome === "A" ? m.playerAId : m.playerBId;
     if (winnerId === aId) return -1;
     if (winnerId === bId) return 1;
   }
   return 0;
+}
+
+/**
+ * How a match FINISHED, as the standings count it.
+ *
+ * `aggregateStats` already answers this: a forfeit decides the meeting, and a
+ * card that comes back all square is put through `breakMatchTie` when the
+ * organizer has configured a sequence, so the wins and losses on the table
+ * reflect the countback.
+ *
+ * `headToHead` and `miniLeague` answered it separately and stopped at
+ * `r.winner === "H"`, treating a match the countback had decided as no meeting
+ * at all. So two players level on points, one of whom beat the other on the
+ * all-square countback, fell straight through head-to-head to whatever the
+ * next tiebreaker said — and the table showed the win.
+ *
+ * One reader now, because a tiebreaker disagreeing with the record it is
+ * breaking a tie about is the whole fault.
+ *
+ * Returns null for a match with no result yet — not "H", which means played
+ * and level.
+ */
+function decidedOutcome(
+  m: Match,
+  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
+): "A" | "B" | "H" | null {
+  const conceded = forfeitWinnerSide(m);
+  if (conceded) return conceded;
+
+  const r = resolveMatch(m.holes);
+  if (!r.complete || !r.winner) return null;
+  if (r.winner !== "H") return r.winner;
+  if (!matchTiebreak?.sequence.length) return "H";
+  return breakMatchTie(m.holes, matchTiebreak.strokeIndex, matchTiebreak.sequence).winner ?? "H";
 }
 
 /** Indexes (0-based) of the `n` hardest holes, by ascending stroke index (1 = hardest). */
@@ -279,9 +318,25 @@ function holesDiffOn(playerId: string, matches: Match[], holeIdxs: Set<number>):
     // was up flatters him — and this tiebreaker was still counting them, on
     // the six hardest holes of the course.
     if (forfeitWinnerSide(m)) continue;
+    /**
+     * And only the holes the RESULT counted.
+     *
+     * Same argument as the forfeit above, one step further. `resolveMatch`
+     * stops at the closeout — Rule 3.2a(3), a match ends when one side leads
+     * by more holes than remain — and its own comment says why: holes played
+     * after that "must not be part of the record either", because they were
+     * feeding `holes-won-ratio` and `fewest-holes-lost`.
+     *
+     * That fix went into `resolveMatch` and this reader was missed, so a
+     * player beaten 3&2 who took the 17th and 18th in the walk-in had those
+     * two holes excluded from every stat and counted here — on the six
+     * hardest holes of the course, deciding a tie about the very match the
+     * result says ended two holes earlier.
+     */
+    const counted = countedHoles(m.holes);
     for (const idx of holeIdxs) {
-      const h = m.holes[idx];
-      if (h === null || h === "H") continue;
+      const h = counted[idx];
+      if (h === null || h === undefined || h === "H") continue;
       const won = (h === "A" && isA) || (h === "B" && isB);
       diff += won ? 1 : -1;
     }
@@ -299,6 +354,8 @@ function tiebreakerCompare(
   holeDifficulty?: number[],
   /** Mini-league scores for the tied group this comparison belongs to. */
   h2h?: Map<string, number>,
+  /** The round's all-square rule, so a decided halved match counts as a meeting. */
+  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
 ): number {
   switch (key) {
     case "head-to-head":
@@ -307,7 +364,7 @@ function tiebreakerCompare(
       // compare two players outside a ranking, where a "group" of two makes
       // the two answers identical anyway.
       if (h2h) return (h2h.get(pb.id) ?? 0) - (h2h.get(pa.id) ?? 0);
-      return headToHead(pa.id, pb.id, matches);
+      return headToHead(pa.id, pb.id, matches, matchTiebreak);
     case "most-wins":
       return sb.wins - sa.wins; // more wins ranks first
     case "win-percentage": {
@@ -353,6 +410,14 @@ export function rankPlayers(
   matches: Match[],
   /** Stroke index per hole (1 = hardest), for the "toughest N holes" tiebreakers. Omit if unknown. */
   holeDifficulty?: number[],
+  /**
+   * The round's all-square rule.
+   *
+   * `aggregateStats` already receives this and applies it to wins and losses.
+   * Without it here, head-to-head read a match the countback had decided as no
+   * meeting at all — the table showed the win and the tiebreaker did not.
+   */
+  matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
 ): RankedPlayer[] {
   const chain = scoring.tiebreakers?.length
     ? scoring.tiebreakers
@@ -387,12 +452,12 @@ export function rankPlayers(
     } else {
       // One mini-league for this group, computed once rather than per
       // comparison — and it is the group's own results, not the field's.
-      const h2h = new Map(tied.map((p) => [p.id, miniLeague(p.id, tied, matches)]));
+      const h2h = new Map(tied.map((p) => [p.id, miniLeague(p.id, tied, matches, matchTiebreak)]));
       const ordered = [...tied].sort((pa, pb) => {
         const sa = stats.get(pa.id)!;
         const sb = stats.get(pb.id)!;
         for (const key of chain) {
-          const c = tiebreakerCompare(key, pa, pb, sa, sb, matches, holeDifficulty, h2h);
+          const c = tiebreakerCompare(key, pa, pb, sa, sb, matches, holeDifficulty, h2h, matchTiebreak);
           if (c !== 0) return c;
         }
         return pa.seed - pb.seed;
@@ -431,9 +496,9 @@ export function rankPlayers(
     // same way the sort does it — head-to-head over a wider set is a different
     // question and would answer this one wrongly.
     const pair = [a, b];
-    const h2h = new Map(pair.map((p) => [p.id, miniLeague(p.id, pair, matches)]));
+    const h2h = new Map(pair.map((p) => [p.id, miniLeague(p.id, pair, matches, matchTiebreak)]));
     return chain.some(
-      (key) => tiebreakerCompare(key, a, b, sa, sb, matches, holeDifficulty, h2h) !== 0,
+      (key) => tiebreakerCompare(key, a, b, sa, sb, matches, holeDifficulty, h2h, matchTiebreak) !== 0,
     );
   };
 
@@ -463,7 +528,10 @@ export function computeStandings(
     sequence: matchTiebreakers,
     strokeIndex: holeDifficulty ?? [],
   });
-  return rankPlayers(players, stats, scoring, matches, holeDifficulty);
+  return rankPlayers(players, stats, scoring, matches, holeDifficulty, {
+    sequence: matchTiebreakers,
+    strokeIndex: holeDifficulty ?? [],
+  });
 }
 
 /**
