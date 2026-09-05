@@ -24,12 +24,32 @@ import { roundLabel } from "@/lib/domain/round-label";
  * the app will show one person's round and save another's.
  */
 
-/** The Player rows this signed-in person is, in this event — matched by email. */
+/**
+ * The Player rows this signed-in person is, in this event — matched by email.
+ *
+ * CONFIRMED only, which is the same set `state.confirmed` and `domainPlayers`
+ * are built from. Without that filter a waitlisted entrant — an over-capacity
+ * row that `syncPlayerAccount` still gives an account to — resolved to a live
+ * playerId here, and got a fully working card headed "My card" that the
+ * tournament never reads. They filled it, certified it, and it scored nothing;
+ * on the organizer's side it appeared in the round's cards and rendered as
+ * "Unknown player", because the name is looked up in `confirmed` and they are
+ * not there.
+ *
+ * The neighbouring case was already closed — a withdrawn player loses their
+ * Account and cannot sign in — which is what makes the waitlist one look like
+ * an oversight rather than a decision.
+ *
+ * "Yours to play" is the question every caller is asking: which card may I
+ * open, may I write to this one, may I set my own availability, should the
+ * play shell be offered at all. A row the engines do not score is not yours to
+ * play, whatever the roster says.
+ */
 export async function myPlayerIds(eventId: string, email: string): Promise<Set<string>> {
   const rows = await prisma.player.findMany({
     // Case-insensitive: an address typed into a roster import is not
     // necessarily cased the way the same person typed it when signing up.
-    where: { eventId, email: { equals: email, mode: "insensitive" } },
+    where: { eventId, email: { equals: email, mode: "insensitive" }, status: "confirmed" },
     select: { id: true },
   });
   return new Set(rows.map((r) => r.id));
