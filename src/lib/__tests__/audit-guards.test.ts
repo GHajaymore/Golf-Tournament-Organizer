@@ -1464,6 +1464,77 @@ describe("a round's card is narrowed in exactly one place", () => {
   });
 
   /**
+   * Nothing decides club-admin rights from "not a member of this club".
+   *
+   * `session.role === "admin" && !membership` reads "I am an organizer
+   * somewhere and hold no membership here" — true of a guest brought in to run
+   * one Saturday medal, and the escalation `canAdministerOrganization` was
+   * written to close. Its replacement asks whether the club has ANY members,
+   * because an ownerless tenant cannot be taken from anyone while a club that
+   * has an owner can.
+   *
+   * The clause survived in one place: the Club settings page, under a comment
+   * claiming it mirrored the server action's rule. Nothing could be written
+   * through it — every action refused — so the cost was branding, theme,
+   * currency, play settings, handicap and money setup all rendered enabled,
+   * and a refusal on every save.
+   *
+   * Swept from the filesystem and banned by shape, because the danger is a
+   * SECOND copy of an authorization rule rather than this one line. Comments
+   * are stripped first: the phrase appears in several of them describing this
+   * very fix, and those should stay.
+   */
+  it("no screen decides club-admin rights from the absence of a membership", () => {
+    const root = join(process.cwd(), "src");
+    const sources: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, e.name);
+        if (e.isDirectory()) {
+          if (e.name !== "__tests__" && e.name !== "node_modules") walk(full);
+        } else if (/\.tsx?$/.test(e.name)) sources.push(full);
+      }
+    };
+    walk(root);
+    expect(sources.length, "no sources scanned").toBeGreaterThan(100);
+
+    const offenders = sources
+      .filter((f) => /role === "admin"[^\n]*&&\s*!\s*membership/.test(stripComments(readFileSync(f, "utf8"))))
+      .map((f) => f.slice(process.cwd().length + 1).replace(/\\/g, "/"));
+
+    expect(offenders, "these grant club rights for not being a member").toEqual([]);
+
+    // And the one screen that used to carry it now asks the shared reader.
+    const page = stripComments(
+      readFileSync(join(process.cwd(), "src", "app", "(app)", "organization", "page.tsx"), "utf8"),
+    );
+    expect(page).toMatch(/organizationAccess\(session\)/);
+  });
+
+  /**
+   * Today never offers a card My card would refuse.
+   *
+   * `MyRound.ownCard` says so in its own doc comment — "Decided here rather
+   * than on each screen so Today cannot offer a card that My card then refuses
+   * to show" — and it consulted only the format and the stage type. In a
+   * committee-scored tournament Today rendered the primary "Start my card"
+   * link while `/me/card` answered "Scores for this tournament are entered by
+   * the organizer", so the contract was violated on its own terms.
+   *
+   * `canEnterScores` is the rule `/me/card` applies, so `ownCard` has to
+   * include it or the two screens read the same round and disagree about it.
+   */
+  it("ownCard consults whether players may report at all", () => {
+    const me = stripComments(readFileSync(join(process.cwd(), "src", "lib", "services", "me.ts"), "utf8"));
+    expect(me).toMatch(/ownCard:[\s\S]{0,300}canEnterScores\(/);
+    // The same function /me/card gates on, so the two cannot drift.
+    const card = stripComments(
+      readFileSync(join(process.cwd(), "src", "app", "(player)", "me", "card", "page.tsx"), "utf8"),
+    );
+    expect(card).toMatch(/canEnterScores\(/);
+  });
+
+  /**
    * NOTHING hands `aggregateStroke` a card that ignores which round it is for.
    *
    * `courseFor` takes a stageId precisely so a nine, or a second venue, is
