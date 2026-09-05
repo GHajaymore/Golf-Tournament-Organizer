@@ -289,6 +289,58 @@ describe("recording a winner who never staked", () => {
     expect(row.confirmed).toBe(true);
     expect(row.won).toBe(true);
   });
+
+  /**
+   * THE OTHER MODE, which both cases above skip.
+   *
+   * Each builds its fixture with `freshContest("opt-in")`, so `confirmed:
+   * false` was only ever asserted where it is right. In opt-out the ordinary
+   * state is NO rows and the whole field in, and `potMembership` reads a
+   * non-excluded row with `confirmed: false` as PENDING — so the row created
+   * to record the win took the winner out of their own pot.
+   *
+   * The organizer causes it by doing the one thing the screen asks: tapping
+   * the winner's chip.
+   */
+  it("does not take an opt-out winner out of the pot that pays them", async () => {
+    const c = await freshContest("opt-out");
+    await signIn("ann");
+
+    const before = await entrantsOf(c.id, "opt-out");
+    expect(before.entrants).toContain(player.dave);
+
+    await setContestWinners(c.id, [player.dave]);
+
+    const after = await entrantsOf(c.id, "opt-out");
+    // Still in, still settled, and NOT sitting in the organizer's
+    // "asked to join — take their money" list for a stake already handed over.
+    expect(after.entrants).toContain(player.dave);
+    expect(after.pending).not.toContain(player.dave);
+    // The pot is the size it was: a winner is not a player who left.
+    expect(after.entrants).toHaveLength(before.entrants.length);
+
+    const row = await prisma.contestEntry.findUniqueOrThrow({
+      where: { contestId_playerId: { contestId: c.id, playerId: player.dave } },
+    });
+    expect(row.won).toBe(true);
+    expect(row.confirmed).toBe(true);
+  });
+
+  it("leaves the opt-out winner in even after the contest is reopened", async () => {
+    /**
+     * Reopening only sets `won: false` — the row itself persists — so a wrong
+     * `confirmed` written here is permanent from the organizer's point of
+     * view. Nothing on any screen offers to put it back.
+     */
+    const c = await freshContest("opt-out");
+    await signIn("ann");
+    await setContestWinners(c.id, [player.dave]);
+    await setContestWinners(c.id, []);
+
+    const after = await entrantsOf(c.id, "opt-out");
+    expect(after.entrants).toContain(player.dave);
+    expect(after.pending).not.toContain(player.dave);
+  });
 });
 
 /**
