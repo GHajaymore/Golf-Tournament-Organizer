@@ -65,6 +65,24 @@ npx vitest run --config vitest.audit.config.ts
 Use `NEXT_DIST_DIR=.next-ci` for builds while a dev server is running; sharing `.next` between
 them corrupts it.
 
+**The command at the top is FIVE SIXTHS of the gate. Playwright is the sixth**, and nothing
+above it can see what it sees — a scorecard wider than its column, a target under the touch
+minimum, a card that opens blank over a round already played, a date rendered in the wrong
+words. It needs a database and about four minutes:
+
+```bash
+AUTH_SECRET=local-e2e-secret npx playwright test
+```
+
+Skipping it on an ordinary change is reasonable; CI runs it on every push. What is NOT
+reasonable is skipping it and then saying a branch or `main` is verified. On 2026-09-05 `main`
+was declared green after tsc, vitest, the audit config, lint and build all passed — and it was
+RED, on an end-to-end test, and had been for twenty minutes. Running five of six and reporting
+"the gate" is how a red `main` goes unnoticed, which this file has a whole section about.
+
+It seeds a real fixture through `e2e/fixture.mjs` and tears it down afterwards, so it needs a
+database it may write to. Never point it at anything but the development one.
+
 ## What gates a merge, and what gates a deploy
 
 `ci.yml` is the only workflow that runs on its own — every push and every PR. It does the
