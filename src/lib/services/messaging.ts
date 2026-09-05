@@ -151,6 +151,33 @@ export async function membershipFor(
     ]),
   ];
 
+  /**
+   * The structures an organizer administers, so they can READ what they are
+   * already allowed to WRITE. See `MembershipContext.staffScopes`.
+   *
+   * Queried only for staff — a player must not pay for a lookup that can only
+   * ever produce an empty list for them — and scoped to this event by every
+   * `where` below, which is the bound on the widening.
+   */
+  const isStaff = role === "admin" || role === "assistant";
+  const [allGroups, allStages, allTeams] = isStaff
+    ? await Promise.all([
+        /**
+         * Ordered, because `composableScopes` builds its picker by walking
+         * `visibleScopes` first and these now appear in it. Unordered, the
+         * rounds arrived in whatever order the database returned them and the
+         * compose dropdown listed Round 2 above Round 1 — caught by the test
+         * that pins how a round is named.
+         *
+         * The same order every other screen uses: `position` for rounds, name
+         * for the things a person picks by name.
+         */
+        prisma.group.findMany({ where: { eventId }, select: { id: true }, orderBy: { position: "asc" } }),
+        prisma.stage.findMany({ where: { eventId }, select: { id: true }, orderBy: { position: "asc" } }),
+        prisma.team.findMany({ where: { eventId }, select: { id: true }, orderBy: { name: "asc" } }),
+      ])
+    : [[], [], []];
+
   return {
     email: key,
     role,
@@ -163,6 +190,11 @@ export async function membershipFor(
     teamIds,
     matchIds: [...new Set(matchIds)],
     foursomeIds,
+    staffScopes: {
+      groupIds: allGroups.map((g) => g.id),
+      stageIds: allStages.map((s) => s.id),
+      teamIds: allTeams.map((t) => t.id),
+    },
     directThreadIds: directs
       .map((d) => parseScopeKey(d.thread.scopeKey))
       .filter((p): p is { kind: ScopeKind; id: string } => p?.kind === "direct")
