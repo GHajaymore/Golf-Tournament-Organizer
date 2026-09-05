@@ -945,6 +945,100 @@ describe("the preview toggle can only ever reduce", () => {
   });
 });
 
+describe("a rate limit is keyed on somebody", () => {
+  /**
+   * A per-person budget keyed on a field that is routinely EMPTY is a global
+   * budget wearing a per-person label, and it fails invisibly.
+   *
+   * `session.accountId` is the per-event Account row's id, and `effectiveAccess`
+   * returns `""` for it whenever the role came from OrganizationMember instead —
+   * the path `accessibleEvents` exists to support, and the one a club admin
+   * reaching a colleague's event takes. Four AI-spend call sites keyed on it, so
+   * `sha256("")` named one bucket that every such admin at every club shared:
+   * forty card readings an hour between all of them, spent by strangers, with a
+   * refusal on the first scan and nothing the person could do about it. The
+   * comment beside one of them read "a shared budget would let one busy
+   * organizer lock out a club", which is what it had built.
+   *
+   * Two guards, because either alone leaves the door open. The sweep below bans
+   * the empty field from every call site including ones written later; the
+   * limiter itself refuses a blank identifier rather than hashing it, so a field
+   * that becomes empty in future fails loudly on the first call instead of
+   * quietly merging budgets.
+   */
+  const files = readdirSync(ACTIONS_DIR).filter((f) => f.endsWith(".ts"));
+
+  /** Every `checkRateLimit(<kind>, <identifier>)` in the actions, by file. */
+  const callSites = files.flatMap((file) =>
+    [...stripComments(read(file)).matchAll(/checkRateLimit\(\s*("[^"]+")\s*,\s*([^)]+?)\s*\)/g)].map(
+      (m) => ({ file, kind: m[1], identifier: m[2] }),
+    ),
+  );
+
+  it("finds the call sites at all, so an empty sweep cannot pass", () => {
+    // The sweep below is vacuously true if the regex stops matching. It has to
+    // fail when the code changes shape, not shrug.
+    expect(callSites.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("never keys a budget on the id that is empty for org-derived access", () => {
+    for (const { file, kind, identifier } of callSites) {
+      expect(
+        identifier,
+        `${file} keys the ${kind} budget on ${identifier}, which is "" for anyone whose role comes from their organization`,
+      ).not.toMatch(/accountId/);
+    }
+  });
+
+  it("hands the AI spend budget the person, on every screen that spends it", () => {
+    // One budget per person across their events, not per Account row: the bill
+    // is the club's however many tournaments it is spread over. All four of
+    // these share the "card-photo" kind deliberately.
+    const spenders = callSites.filter((c) => c.kind === '"card-photo"');
+    expect(spenders.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(spenders.map((c) => c.file)).size).toBeGreaterThanOrEqual(3);
+    for (const { file, identifier } of spenders) {
+      expect(identifier, `${file} spends the AI budget against ${identifier}`).toMatch(
+        /^(who|session\.userId)$/,
+      );
+    }
+    // `who` is only as good as what fills it. Both helpers are called
+    // requireStaff and both live in files that spend money.
+    for (const file of ["card-photo.ts", "setup-suggest.ts"]) {
+      expect(stripComments(read(file)), `${file}'s requireStaff must return the person`).toMatch(
+        /who: session\.userId/,
+      );
+    }
+  });
+
+  it("puts the person on the session on BOTH paths out of getSession", () => {
+    // The early return, for somebody with no events yet, is the one that gets
+    // forgotten — and it is exactly the branch that used to hand back an empty
+    // accountId. Two assignments, not one.
+    const src = stripComments(readFileSync(join(process.cwd(), "src", "lib", "auth.ts"), "utf8"));
+    expect(src).toMatch(/export interface Session \{[\s\S]*?userId: string/);
+    expect([...src.matchAll(/userId: user\.id/g)].length).toBe(2);
+  });
+
+  it("refuses an unidentified attempt instead of counting it under one key", () => {
+    // The sink. Checked before the hash, because hashing "" is what silently
+    // built the shared bucket. Behaviour is asserted in rate-limit.audit.test.ts.
+    //
+    // Comments stripped FIRST. Written without that, this passed against a
+    // checkRateLimit whose guard had been deleted but whose comment still said
+    // "see unidentifiedDecision()" — the assertion was reading the prose that
+    // describes the guard rather than the guard.
+    const store = stripComments(
+      readFileSync(join(process.cwd(), "src", "lib", "rate-limit.ts"), "utf8"),
+    );
+    const check = store.slice(store.indexOf("export async function checkRateLimit"));
+    const refusal = check.indexOf("unidentifiedDecision()");
+    const hash = check.indexOf("keyFor(");
+    expect(refusal, "checkRateLimit must refuse a blank identifier").toBeGreaterThan(-1);
+    expect(refusal, "and must do it before deriving a key from it").toBeLessThan(hash);
+  });
+});
+
 describe("nothing builds a CSV by hand", () => {
   /**
    * D9 of the 2026-08-12 audit. The reports export escaped inline, in a client

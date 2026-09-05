@@ -68,9 +68,19 @@ async function requireStaff(): Promise<{ eventId: string; who: string }> {
   if (session.viewRole !== "admin" && session.viewRole !== "assistant") {
     throw new Error("Only an organizer or assistant can do that");
   }
-  // Identified by account, not email: the budget follows the person even if
-  // a club changes the address on their account mid-season.
-  return { eventId: session.eventId, who: session.accountId };
+  // Identified by the PERSON, not by their Account row on this event.
+  //
+  // `accountId` is a grant, not an identity, and it is empty for anyone whose
+  // organizer rights come from OrganizationMember rather than an Account —
+  // which is the path `accessibleEvents` exists to support. Keying on it sent
+  // every such admin, at every club, into one bucket named after the hash of
+  // the empty string: forty readings an hour shared by all of them, and a
+  // first scan refused because a stranger elsewhere had spent it.
+  //
+  // The User id is set for every session, survives a change of address, and is
+  // one budget per person rather than one per person per event — which is what
+  // a spend limit should be, given the bill is the club's either way.
+  return { eventId: session.eventId, who: session.userId };
 }
 
 
@@ -342,7 +352,7 @@ export async function readCourseCardPhoto(
     return { ok: false, error: "That doesn't look like a photo. Use a JPEG, PNG or WebP." };
   }
 
-  const limit = await checkRateLimit("card-photo", session.accountId);
+  const limit = await checkRateLimit("card-photo", session.userId);
   if (!limit.allowed) return { ok: false, error: limit.message };
 
   // The club's plan, reached through the event the organizer is signed in to —

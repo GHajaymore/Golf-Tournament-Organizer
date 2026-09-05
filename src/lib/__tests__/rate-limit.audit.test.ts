@@ -37,7 +37,7 @@ afterAll(async () => {
     // honest cleanup available. Delete anything already expired plus this
     // run's rows, found by re-deriving each key through the public API.
     for (const id of identifiers) {
-      for (const kind of ["signin", "round-code", "password-reset"] as const) {
+      for (const kind of ["signin", "round-code", "password-reset", "card-photo"] as const) {
         await clearRateLimit(kind, id);
       }
     }
@@ -138,6 +138,62 @@ describe("attempts are counted in the database, not in this process", () => {
     const { limit } = RATE_LIMITS["round-code"];
     for (let i = 1; i < limit; i += 1) await checkRateLimit("round-code", id);
     expect((await checkRateLimit("round-code", id)).allowed).toBe(false);
+  });
+
+  it("refuses an attempt that names nobody, rather than counting it", async () => {
+    /**
+     * The shared-bucket defect, at the sink.
+     *
+     * `session.accountId` is `""` for anyone whose organizer role comes from
+     * their organization rather than an Account row, and the AI-spend call
+     * sites keyed on it. `sha256("")` is one key, so every one of those admins,
+     * at every club, drew on a single budget of forty an hour — and the first
+     * card any of them scanned could be refused because a stranger had spent
+     * it.
+     *
+     * Refusing is the safe direction and the honest one: an empty identifier is
+     * not somebody with no attempts left, it is a caller that cannot say who it
+     * is. Whitespace counts as empty because `keyFor` trims before hashing, so
+     * " " and "" are the same bucket.
+     */
+    const before = await prisma.rateLimitHit.count();
+    for (const nobody of ["", "   ", "\t\n"]) {
+      const d = await checkRateLimit("card-photo", nobody);
+      expect(d.allowed, `"${nobody.replace(/\s/g, "·")}" must not be allowed`).toBe(false);
+      // Not the ordinary throttle: nothing is counting, so waiting is no remedy
+      // and the message must not tell them to.
+      expect(d.retryAfterSeconds).toBe(0);
+    }
+    // Nothing was written, so no bucket exists for the next blank caller to
+    // inherit. This is the assertion that fails on the old code: hashing "" wrote
+    // a row and the second caller read the first one's count.
+    expect(await prisma.rateLimitHit.count()).toBe(before);
+  });
+
+  it("never tells an unidentified caller to wait out a budget that was never theirs", async () => {
+    /**
+     * The symptom as it was actually felt, and the reason the two refusals must
+     * not look alike.
+     *
+     * Under the shared bucket the 41st blank call in an hour came back as an
+     * ordinary throttle — "Too many card readings just now", with a real wait —
+     * to an admin who had scanned nothing at all. Nothing they could do would
+     * clear it and nothing they could see explained it.
+     *
+     * Now every blank call is refused identically, on the first one, with no
+     * wait: the refusal says the caller could not be identified, which is true,
+     * instead of saying they have been busy, which was not.
+     */
+    const { limit } = RATE_LIMITS["card-photo"];
+    for (let i = 0; i < limit + 5; i += 1) {
+      const d = await checkRateLimit("card-photo", "");
+      expect(d.allowed, `blank call ${i + 1} was allowed`).toBe(false);
+      expect(d.retryAfterSeconds, `blank call ${i + 1} was told to wait`).toBe(0);
+    }
+    // And a real person still holds their whole allowance, because the calls
+    // above wrote nothing for them to be sharing.
+    const admin = fresh("org-derived-admin");
+    expect((await checkRateLimit("card-photo", admin)).allowed).toBe(true);
   });
 
   it("stores no readable email address or round code", async () => {

@@ -54,7 +54,7 @@ export async function draftMessage(kind: string, extra: string): Promise<DraftRe
 
   // Shares the one AI budget rather than getting its own: it is a person's
   // spend on the model, not an allowance per feature.
-  const limit = await checkRateLimit("card-photo", session.accountId);
+  const limit = await checkRateLimit("card-photo", session.userId);
   if (!limit.allowed) return { ok: false, error: limit.message };
 
   const facts = await draftFactsFor(session.eventId);

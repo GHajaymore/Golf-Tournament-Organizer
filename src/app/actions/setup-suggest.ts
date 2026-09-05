@@ -75,7 +75,9 @@ async function requireStaff(): Promise<{ eventId: string; who: string }> {
   if (session.viewRole !== "admin" && session.viewRole !== "assistant") {
     throw new Error("Only an organizer or assistant can do that");
   }
-  return { eventId: session.eventId, who: session.accountId };
+  // The person, not their Account row on this event — see card-photo.ts, where
+  // the same helper explains why an empty `accountId` shared one budget.
+  return { eventId: session.eventId, who: session.userId };
 }
 
 export async function suggestSetup(description: string): Promise<SetupSuggestResult> {

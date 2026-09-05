@@ -110,6 +110,16 @@ export type { Role } from "./roles";
 import type { Role } from "./roles";
 
 export interface Session {
+  /**
+   * The signed-in PERSON, from the User row. Always set.
+   *
+   * `accountId` below is per-event and is empty whenever the role came from
+   * organization membership rather than an Account row, so it is not an
+   * identity — it is a grant. Anything that has to name the person (a spend
+   * budget, an audit line) keys on this; anything that describes their
+   * standing in one tournament keys on that.
+   */
+  userId: string;
   accountId: string;
   eventId: string;
   name: string;
@@ -170,7 +180,15 @@ export async function getSession(): Promise<Session | null> {
   // created without being added to each one by hand.
   const accessible = await accessibleEvents(user.email);
   if (accessible.length === 0) {
-    return { accountId: "", eventId: "", name: user.name, email: user.email, role: "player", viewRole: "player" };
+    return {
+      userId: user.id,
+      accountId: "",
+      eventId: "",
+      name: user.name,
+      email: user.email,
+      role: "player",
+      viewRole: "player",
+    };
   }
 
   const activeEventId = verify(jar.get(ACTIVE_COOKIE)?.value);
@@ -193,6 +211,7 @@ export async function getSession(): Promise<Session | null> {
     role === "admin" && (preview === "assistant" || preview === "player") ? (preview as Role) : role;
 
   return {
+    userId: user.id,
     accountId: access?.accountId ?? "",
     eventId: current.eventId,
     name: access?.name || user.name,
