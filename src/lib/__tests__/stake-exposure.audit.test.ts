@@ -1,7 +1,7 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { roundMoneyFor } from "@/lib/services/expenses";
+import { roundMoneyFor, moneyFor } from "@/lib/services/expenses";
 
 /**
  * What a player has riding on a round that has not finished.
@@ -241,5 +241,90 @@ describe("what a player has riding on a round still in play", () => {
       expect(r.final, r.label).toBe(false);
       expect(r.standing, r.label).toEqual([]);
     }
+  });
+});
+
+/**
+ * The OUTING ledger has to keep the same rule the round card keeps.
+ *
+ * Every case above goes through `roundMoneyFor`, which gates on
+ * `roundMoneyIsFinal` before computing anything. `moneyFor` — the settle-up on
+ * `/me/money` in split mode — called the same `gameNets` with no stage and no
+ * gate, and `skinsPotFor` returns a result whenever anybody is in the pot,
+ * however many holes are left. It sets `provisional` to say so; nothing read
+ * it.
+ *
+ * So a half-played pot's shares landed in `gamesCents`, `netCents`, the
+ * standing and the `settle()` transfer list — a list of who hands cash to
+ * whom — directly beneath a round card correctly saying the round is still
+ * being played. `money-layout.ts` opens by saying the app has no business
+ * doing that: "a player looking at £40 on the 14th who finishes with nothing
+ * has been told something the app had no business claiming".
+ */
+describe("the outing ledger, while a pot is still being played for", () => {
+  /** Ann takes the first three holes outright; fifteen are still to come. */
+  async function halfPlayedPot() {
+    const pot = await prisma.skinsPot.create({
+      data: { eventId, stageId, buyInCents: 2000, net: true, scope: "full", groupKey: "" },
+    });
+    await prisma.skinsEntry.createMany({
+      data: [player.ann, player.bob, player.cat, player.dan].map((playerId) => ({
+        potId: pot.id,
+        playerId,
+      })),
+    });
+    // Ann birdies 1-3, everybody else pars. Then nothing: the round stops.
+    for (const [who, first] of [["ann", 3], ["bob", 4], ["cat", 4], ["dan", 4]] as const) {
+      await prisma.scorecard.create({
+        data: {
+          eventId,
+          stageId,
+          playerId: player[who],
+          strokes: JSON.stringify(Array.from({ length: 18 }, (_, i) => (i < 3 ? first : null))),
+        },
+      });
+    }
+    return pot;
+  }
+
+  afterEach(async () => {
+    await prisma.scorecard.deleteMany({ where: { stageId } });
+  });
+
+  it("reports no skins money at all while holes are unplayed", async () => {
+    await halfPlayedPot();
+    const view = await moneyFor(eventId, email.ann);
+
+    // The control: the pot really would pay her if it were settled, so a zero
+    // here is the gate working rather than the fixture producing no money.
+    expect(view.gamesCents, "no provisional winnings in the outing total").toBe(0);
+    expect(view.gameLines.filter((l) => /skins/i.test(l.label))).toEqual([]);
+    // And nothing is proposed as a payment between two people.
+    expect(view.transfers).toEqual([]);
+  });
+
+  it("settles it once every hole is in", async () => {
+    /**
+     * The other half, and the one a careless gate breaks: a finished pot must
+     * still pay. Without this the test above passes just as well against a
+     * skins ledger that never reports anything.
+     */
+    await halfPlayedPot();
+    await prisma.scorecard.updateMany({
+      where: { stageId, playerId: player.ann },
+      data: { strokes: JSON.stringify([3, 3, 3, ...new Array(15).fill(4)]) },
+    });
+    for (const who of ["bob", "cat", "dan"] as const) {
+      await prisma.scorecard.updateMany({
+        where: { stageId, playerId: player[who] },
+        data: { strokes: JSON.stringify(new Array(18).fill(4)) },
+      });
+    }
+
+    const view = await moneyFor(eventId, email.ann);
+    // Four stakes of £20; Ann took three skins and nobody else took any, so
+    // the whole pot is hers less her own stake.
+    expect(view.gamesCents).toBeGreaterThan(0);
+    expect(view.gameLines.some((l) => /skins/i.test(l.label))).toBe(true);
   });
 });

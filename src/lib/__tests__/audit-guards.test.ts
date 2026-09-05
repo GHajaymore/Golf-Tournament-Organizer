@@ -1231,6 +1231,53 @@ describe("the pending-card queue never clears a card it did not send", () => {
     expect(card).toMatch(/recoveredDiffers/);
     expect(card).toMatch(/mine=\{recoveredFitted\}/);
   });
+
+  /**
+   * ...and tells them it is a RECOVERY, not somebody else's edit.
+   *
+   * The assertion above pins that the chooser is rendered, and that was all it
+   * pinned — so the recovery case went on rendering the CONFLICT's words:
+   * "Somebody else — usually the committee — edited this card while your phone
+   * was offline", when nobody had, above a footnote reading "If you are not
+   * sure, use theirs". In this case "theirs" runs `settle()`, which drops the
+   * localStorage key holding the only copy of those holes.
+   *
+   * The two situations put the destructive button in different places, so the
+   * component has to know which one it is in.
+   */
+  it("tells the recovery case apart from a concurrent edit", () => {
+    const card = stripComments(
+      readFileSync(join(process.cwd(), "src", "components", "PlayerCard.tsx"), "utf8"),
+    );
+    // The recovery chooser declares itself; the conflict one takes the default.
+    expect(card).toMatch(/kind="recovered"[\s\S]{0,200}mine=\{recoveredFitted\}/);
+
+    const chooser = stripComments(
+      readFileSync(join(process.cwd(), "src", "components", "CardConflict.tsx"), "utf8"),
+    );
+    // It branches on the kind rather than describing one situation twice.
+    expect(chooser).toMatch(/kind === "recovered"/);
+    // And the committee-edit sentence is reachable only from the conflict copy.
+    const recoveredCopy = chooser.slice(chooser.indexOf("recovered\n    ? {"), chooser.indexOf(": {", chooser.indexOf("recovered\n    ? {") + 20));
+    expect(recoveredCopy).not.toMatch(/Somebody else/);
+  });
+
+  /**
+   * A screen that loaded with NO card says so, rather than saying nothing.
+   *
+   * `card?.revision ?? ""` reached `saveScorecard` as a falsy revision, which
+   * that action reads as "write unconditionally" — the CONSOLE's meaning, and
+   * the opposite of this screen's. A player who opened an empty card, went
+   * offline and entered nine holes then replaced the committee's full eighteen
+   * with no conflict raised.
+   */
+  it("the player's card page reports an absent card as a revision", () => {
+    const page = stripComments(
+      readFileSync(join(process.cwd(), "src", "app", "(player)", "me", "card", "page.tsx"), "utf8"),
+    );
+    expect(page).toMatch(/initialRevision=\{me\.round\.card\?\.revision \?\? NO_CARD_REVISION\}/);
+    expect(page).not.toMatch(/initialRevision=\{[^}]*\?\?\s*""\s*\}/);
+  });
 });
 
 /**
@@ -1341,6 +1388,52 @@ describe("a round's card is narrowed in exactly one place", () => {
   });
 
   /**
+   * Whether a match is played off handicap is asked ONCE, by name.
+   *
+   * `isNetBasis` exists, is documented, and answers "both" — which a match
+   * needs, because you cannot be 2 up gross and 1 down net and have won.
+   * `resolveMatchEntry` uses it. Three outer readers hand-rolled
+   * `scoringBasis === "net"` instead, and disagreed with it and with each
+   * other:
+   *
+   *   - the console's entry screen ALSO required `format === "Match Play"`, so
+   *     a Nassau configured Net rendered with no strokes under a "Gross
+   *     scoring" badge. On the hole-results path the organizer then taps
+   *     winners decided scratch and `saveMatchHoles` stores them verbatim —
+   *     three bets settled on the wrong basis in a round the club set to Net;
+   *   - all three read "both" as gross, while the resolver read it as net and
+   *     `needsCourseData` already demanded a card to allocate strokes from.
+   *
+   * A LABEL may still compare the raw value: `rules.ts` prints "Net" and
+   * "Gross and net" differently and must. What is banned is deciding whether
+   * strokes APPLY from a hand-rolled comparison.
+   */
+  it("decides net match play through isNetBasis, not a hand-rolled basis check", () => {
+    const root = join(process.cwd(), "src");
+    const sources: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, e.name);
+        if (e.isDirectory()) {
+          if (e.name !== "__tests__" && e.name !== "node_modules") walk(full);
+        } else if (/\.tsx?$/.test(e.name)) sources.push(full);
+      }
+    };
+    walk(root);
+    // A broken read would make the assertion below vacuous.
+    expect(sources.length, "no sources scanned").toBeGreaterThan(100);
+
+    const offenders = sources
+      .filter((f) =>
+        // A netMode decided on the same line as a raw scoringBasis comparison.
+        /netMode[^\n]*scoringBasis[^\n]*[!=]==/.test(stripComments(readFileSync(f, "utf8"))),
+      )
+      .map((f) => f.slice(process.cwd().length + 1).replace(/\\/g, "/"));
+
+    expect(offenders, "these decide net match play for themselves").toEqual([]);
+  });
+
+  /**
    * Score entry resolves a card PER ROUND, not one for the screen.
    *
    * The slice ban above cannot see this fault: the page resolved the event's
@@ -1368,6 +1461,54 @@ describe("a round's card is narrowed in exactly one place", () => {
     // And no screen-wide card survives to be handed to a round by mistake.
     expect(page).not.toMatch(/^\s*const pars = /m);
     expect(page).not.toMatch(/^\s*const strokeIndex = /m);
+  });
+
+  /**
+   * NOTHING hands `aggregateStroke` a card that ignores which round it is for.
+   *
+   * `courseFor` takes a stageId precisely so a nine, or a second venue, is
+   * resolved per round. An arrow that takes no argument and closes over one
+   * card satisfies the type and throws that away — and it is invisible to both
+   * guards above, because it slices nothing and the file need never mention
+   * `cardForStage`.
+   *
+   * That is how the weekly league board came to score every week off the
+   * event's whole eighteen. `week-view.ts` did it twice: once for the week on
+   * screen, and once inside `through()`, which totals SEVERAL weeks against a
+   * single card. Handicaps went through `state.strokeHandicapFor` and were
+   * right for the nine actually played, so a back-nine league week allocated
+   * off 18-hole stroke indexes — a player owed 9 drew 5 — and `/week` named a
+   * different winner from the round's own leaderboard, every week, all season.
+   *
+   * Banned by SHAPE rather than by file, so a service written next year cannot
+   * reintroduce it by not being on a list. The state exposes `strokeCourseFor`
+   * for exactly this; pass that, or a function that reads its stageId.
+   */
+  it("no scoring path passes a courseFor that ignores its round", () => {
+    const root = join(process.cwd(), "src");
+    const sources: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, e.name);
+        if (e.isDirectory()) {
+          if (e.name !== "__tests__" && e.name !== "node_modules") walk(full);
+        } else if (/\.tsx?$/.test(e.name)) {
+          sources.push(full);
+        }
+      }
+    };
+    walk(root);
+
+    // A broken read would make the assertion below vacuous, which is the way
+    // a filesystem-swept guard fails silently.
+    expect(sources.length, "no sources scanned").toBeGreaterThan(100);
+
+    const offenders = sources
+      // `courseFor: () =>` and `courseFor: _ =>` both discard the stage.
+      .filter((f) => /courseFor:\s*(\(\s*\)|\(\s*_\w*\s*\)|_\w*)\s*=>/.test(stripComments(readFileSync(f, "utf8"))))
+      .map((f) => f.slice(process.cwd().length + 1).replace(/\\/g, "/"));
+
+    expect(offenders, "these resolve one card for every round").toEqual([]);
   });
 
   /**

@@ -112,13 +112,23 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
 
   const cards = await prisma.scorecard.findMany({ where: { eventId } });
   const course = await resolveCourse(state.event);
-  const pars = course.pars;
+  // Event level on purpose, and the only thing still resolved that way here:
+  // this orders MATCH tiebreaks across a whole season's chain, not one round's
+  // card. Anything that scores a card goes through `state.strokeCourseFor`.
   const holeDifficulty = course.strokeIndex ?? [];
 
-  // The resolver loadEventState built, not a copy of it. Rebuilding the tee
-  // maps here is exactly the drift handicap-wiring.test.ts exists to stop:
-  // both screens would look right and quietly disagree about a net score.
+  // The resolvers loadEventState built, not copies of them. Rebuilding either
+  // here is exactly the drift handicap-wiring.test.ts exists to stop: both
+  // screens would look right and quietly disagree about a net score.
+  //
+  // The handicap has been read from the state since that comment was written.
+  // The COURSE was rebuilt from `resolveCourse(event)` directly underneath it
+  // for just as long, under the heading "one week is one round at one venue,
+  // so every card here shares a course" — true of the venue, and silent about
+  // the NINE. A league playing the back nine got a handicap for nine holes and
+  // a card for eighteen, so a player owed 9 strokes drew 5.
   const handicapFor = state.strokeHandicapFor;
+  const courseFor = state.strokeCourseFor;
 
   // Checked before anything is aggregated. A hand-scored round has cards, and
   // adding them up would produce a ranking the club never played for.
@@ -126,8 +136,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
 
   const thisWeek = manual ? [] : parseStrokeCards(cards.filter((c) => c.stageId === stage.id));
   const agg = aggregateStroke(thisWeek, {
-    // One week is one round at one venue, so every card here shares a course.
-    courseFor: () => ({ pars, holeDifficulty }),
+    courseFor,
     handicapFor,
     holeStrokesReceived,
     // Modified Stableford is a different table, and this week's board ranks on
@@ -173,7 +182,6 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   const standings = manual
     ? []
     : await standingsWithMovement(state, weeks, idx, cards, {
-        pars,
         holeDifficulty,
         handicapFor,
         stableford,
@@ -252,7 +260,8 @@ async function standingsWithMovement(
   idx: number,
   cards: Array<{ playerId: string; stageId: string; strokes: string }>,
   opts: {
-    pars: number[];
+    // No `pars`: the stroke card comes from `state.strokeCourseFor`, per round.
+    // This one is the match-play tiebreak order, which is an event-level chain.
     holeDifficulty: number[];
     handicapFor: (playerId: string, stageId: string) => number;
     stableford: boolean;
@@ -283,7 +292,10 @@ async function standingsWithMovement(
   const through = (n: number) => {
     const ids = new Set(weeks.slice(0, n + 1).map((s) => s.id));
     const agg = aggregateStroke(parseStrokeCards(cards.filter((c) => ids.has(c.stageId))), {
-      courseFor: () => ({ pars: opts.pars, holeDifficulty: opts.holeDifficulty }),
+      // Per stage, and here it matters twice over: this totals SEVERAL weeks,
+      // so one card for all of them is wrong the moment a season plays two
+      // venues or mixes a nine among the eighteens.
+      courseFor: state.strokeCourseFor,
       handicapFor: opts.handicapFor,
       holeStrokesReceived,
       // Per week, because this totals several of them and a league can run a

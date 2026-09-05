@@ -1,7 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { prisma } from "./db";
-import { sign, verify } from "./auth";
+import { sign, verify, fingerprint } from "./auth";
 import { cleanSettings, usesAccessCodes } from "./tournament-settings";
 import { roundLabel } from "./domain/round-label";
 
@@ -42,14 +42,37 @@ export interface PlaySession {
   roundLabel: string;
 }
 
-export async function createPlaySession(stageId: string, playerId: string): Promise<void> {
+/**
+ * Which code a session was opened with, as a fingerprint rather than the code.
+ *
+ * The session has to be bound to the code that opened it, or reissuing one
+ * cannot end it (see `getPlaySession`). Binding to a digest rather than the
+ * code itself keeps the shared secret out of the cookie: this is only ever
+ * compared against a value recomputed from the row, so it never needs to be
+ * reversed. Keyed with the app secret so it cannot be precomputed against the
+ * small alphabet a Round Code is drawn from.
+ */
+export function codeFingerprint(code: string): string {
+  // Colon-free by construction, because the payload it joins is colon-split.
+  return fingerprint(`round-code:${code}`).slice(0, 16);
+}
+
+export async function createPlaySession(stageId: string, playerId: string, accessCode: string): Promise<void> {
   const jar = await cookies();
   // The expiry is inside the signed value, not only in the cookie's maxAge.
   // maxAge is a request the browser may honour; anyone holding the cookie
   // string can keep replaying it forever, because the signature over
   // "stage:player" alone never goes stale. Signing the deadline is what makes
   // "12 hours" a rule the server enforces rather than a hint the client obeys.
-  jar.set(PLAY_COOKIE, sign(`${stageId}:${playerId}:${Date.now() + PLAY_SESSION_TTL_MS}`), PLAY_COOKIE_OPTS);
+  //
+  // The code's fingerprint is signed for the same reason: so that WHICH code
+  // let this holder in is a fact the server can check, not something it has to
+  // take on trust.
+  jar.set(
+    PLAY_COOKIE,
+    sign(`${stageId}:${playerId}:${Date.now() + PLAY_SESSION_TTL_MS}:${codeFingerprint(accessCode)}`),
+    PLAY_COOKIE_OPTS,
+  );
 }
 
 export async function destroyPlaySession(): Promise<void> {
@@ -70,13 +93,13 @@ export async function getPlaySession(): Promise<PlaySession | null> {
   const raw = verify(jar.get(PLAY_COOKIE)?.value);
   if (!raw) return null;
 
-  const [stageId, playerId, expiresAt] = raw.split(":");
-  if (!stageId || !playerId || !expiresAt) return null;
+  const [stageId, playerId, expiresAt, codePrint] = raw.split(":");
+  if (!stageId || !playerId || !expiresAt || !codePrint) return null;
 
-  // Cookies signed before the deadline joined the payload have no third field
-  // and land here, which is the intended outcome: they are exactly the
-  // never-expiring ones this check exists to retire. The holder re-enters the
-  // code that is already on their tee sheet.
+  // Cookies signed before the deadline and the code fingerprint joined the
+  // payload are short a field and land here, which is the intended outcome:
+  // they are exactly the sessions these checks exist to retire. The holder
+  // re-enters the code that is already on their tee sheet.
   const deadline = Number(expiresAt);
   if (!Number.isFinite(deadline) || Date.now() > deadline) return null;
 
@@ -84,9 +107,25 @@ export async function getPlaySession(): Promise<PlaySession | null> {
     where: { id: stageId },
     include: { event: true },
   });
-  // No code on the round means code access was switched off or the code was
-  // reissued — either way this session is no longer valid.
+  // No code on the round means code access was switched off.
   if (!stage || !stage.accessCode) return null;
+  /**
+   * And it must be the SAME code this session was opened with.
+   *
+   * This tested non-emptiness, and `regenerateRoundCode` writes a new
+   * non-empty code onto the same row — so a reissue changed nothing for anyone
+   * already holding a cookie. A leaked code stayed usable for the remaining
+   * twelve hours, and the holder went on writing match results through
+   * `savePlayMatchHoles`, each of which clears `confirmedById` and puts the
+   * score back to pending.
+   *
+   * The comment above this function has always said a reissue "takes effect
+   * immediately"; three places in the app tell the organizer the same, and
+   * `PlaySettings.tsx` recommends reissuing "if it travels beyond the field".
+   * That is the remedy the product offers for exactly this situation, so it
+   * has to be the one thing that certainly works.
+   */
+  if (codeFingerprint(stage.accessCode) !== codePrint) return null;
   // And the tournament must still be running on codes at all. Switching
   // playerAccess away from codes clears them, so this is belt-and-braces —
   // but it is the setting that actually decides, and a stale accessCode left

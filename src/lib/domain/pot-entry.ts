@@ -83,8 +83,51 @@ export function potMembership(
   mode: PotEntryMode,
   fieldIds: string[],
   decisions: PotDecision[],
+  /**
+   * Everyone with a real Player row in this event, WHATEVER their status.
+   *
+   * Two different questions were being answered with one list, and a player
+   * who withdraws separates them: who is still in the field to be offered a
+   * pot, and whose money is already in one.
+   *
+   * `removeSignup` keeps a player with playing history as `withdrawn` rather
+   * than deleting them, so a confirmed `ContestEntry` — a stake the organizer
+   * has taken — outlives their place in the field. Filtered against the
+   * confirmed field alone, that row landed in no bucket at all: not entrant,
+   * not pending, not excluded. The pot showed three stakes against four
+   * collected, the winner was paid £30 of £40, and the player who paid showed
+   * as square.
+   *
+   * `skinsPotFor` already loads every status and says why: "a stake is paid or
+   * it is not. Withdrawing from a tournament is not a refund" — rule 7 makes
+   * the record the only thing there is, and a record that quietly drops a
+   * payment is worse than no record. The two pot families disagreed about the
+   * same fact; this is skins' shape.
+   *
+   * NOT simply removing the filter. `ContestEntry` has no foreign key to
+   * `Player`, so a hard-deleted player leaves an orphan row behind, and the
+   * filter is what keeps that out of a pot. This narrows it to "is a real
+   * player in this event" instead of "is still playing".
+   *
+   * Defaults to `fieldIds`, so a caller that has not been given the wider list
+   * behaves exactly as before.
+   */
+  stakeholderIds: string[] = fieldIds,
 ): PotMembership {
   const byId = new Map(decisions.map((d) => [d.playerId, d]));
+  const inField = new Set(fieldIds);
+  const isPlayer = new Set(stakeholderIds);
+
+  /**
+   * A stake taken from somebody who has since left the field.
+   *
+   * Confirmed only. An unpaid ask from a player who has withdrawn is not money
+   * the organizer holds, and carrying it into `pending` would put a departed
+   * player on the "take their money" list for a pot they will never play.
+   */
+  const paidButGone = decisions.filter(
+    (d) => !d.excluded && d.confirmed && !inField.has(d.playerId) && isPlayer.has(d.playerId),
+  );
 
   const excluded = decisions.filter((d) => d.excluded).map((d) => d.playerId);
   const excludedSet = new Set(excluded);
@@ -99,17 +142,23 @@ export function potMembership(
       if (!row || row.confirmed) entrants.push(id);
       else pending.push(id);
     }
+    // Plus anyone whose stake was taken before they left. Opt-out reaches this
+    // too: the withdrawal removes them from `fieldIds`, and the loop above
+    // walks that list.
+    for (const d of paidButGone) entrants.push(d.playerId);
     return { entrants, pending, excluded };
   }
 
   // Opt-in: only the rows that exist, and only where the money arrived.
-  // Filtered against the field so a player removed from the tournament after
-  // signing up cannot keep a stake in a pot they are no longer playing for.
-  const inField = new Set(fieldIds);
+  // Still filtered, so an orphan row from a hard-deleted player cannot enter a
+  // pot — but on "is a real player in this event" rather than "is still
+  // playing", which is what dropped a paid stake on withdrawal.
   const entrants: string[] = [];
   const pending: string[] = [];
   for (const d of decisions) {
-    if (d.excluded || !inField.has(d.playerId)) continue;
+    if (d.excluded || !isPlayer.has(d.playerId)) continue;
+    // Gone and never paid: nothing is owed and nobody should be chased.
+    if (!inField.has(d.playerId) && !d.confirmed) continue;
     (d.confirmed ? entrants : pending).push(d.playerId);
   }
   return { entrants, pending, excluded };

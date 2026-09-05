@@ -65,6 +65,24 @@ npx vitest run --config vitest.audit.config.ts
 Use `NEXT_DIST_DIR=.next-ci` for builds while a dev server is running; sharing `.next` between
 them corrupts it.
 
+**The command at the top is FIVE SIXTHS of the gate. Playwright is the sixth**, and nothing
+above it can see what it sees — a scorecard wider than its column, a target under the touch
+minimum, a card that opens blank over a round already played, a date rendered in the wrong
+words. It needs a database and about four minutes:
+
+```bash
+AUTH_SECRET=local-e2e-secret npx playwright test
+```
+
+Skipping it on an ordinary change is reasonable; CI runs it on every push. What is NOT
+reasonable is skipping it and then saying a branch or `main` is verified. On 2026-09-05 `main`
+was declared green after tsc, vitest, the audit config, lint and build all passed — and it was
+RED, on an end-to-end test, and had been for twenty minutes. Running five of six and reporting
+"the gate" is how a red `main` goes unnoticed, which this file has a whole section about.
+
+It seeds a real fixture through `e2e/fixture.mjs` and tears it down afterwards, so it needs a
+database it may write to. Never point it at anything but the development one.
+
 ## What gates a merge, and what gates a deploy
 
 `ci.yml` is the only workflow that runs on its own — every push and every PR. It does the
@@ -225,6 +243,30 @@ re-encodes every em-dash and curly quote as mojibake. It corrupted `stage-types.
 seven page files later the same day, both times invisibly — the code still compiled and the
 tests still passed. Use the Edit tool, however many files it takes. The tell is
 `git diff --stat`: a one-line change showing seventy.
+
+**The READ is what corrupts, so no output encoding saves you.** `Get-Content -Raw` decodes with
+the system ANSI codepage, not UTF-8, so an em-dash (`E2 80 94`) comes back as three CP1252
+characters before anything is written. Round-tripping through
+`[System.IO.File]::WriteAllText` — which writes correct, BOM-free UTF-8 — then stores those
+three characters faithfully, and the file is double-encoded. On 2026-09-05 that took out three
+files and reached three PUSHED branches, because the rule above names `Set-Content` and this is
+not `Set-Content`.
+
+The trap is that it looks like the careful way to do it. `$o = Get-Content $f -Raw` … edit …
+`WriteAllText($f, $o)` is the obvious shape for "mutate a file, run the test, put it back",
+which is exactly the mutation-testing loop this file asks for on every change. Use `git` for
+that instead — `git checkout -- <file>` restores far more reliably than a saved copy, and it
+cannot re-encode anything.
+
+So: **PowerShell may READ a source file for inspection and never write one back.**
+`Select-String`, `Get-Content | Select-Object` and friends are fine; any path where bytes leave
+PowerShell and return is not, whatever function does the writing.
+
+Detecting it: `git diff --stat` shows the whole file changed, and
+`([regex]::Matches([System.IO.File]::ReadAllText($f),'â€')).Count` is non-zero. Note that
+PowerShell's own console rendering shows `â€` for a correct em-dash too, so the terminal is not
+evidence either way — check a file with that command, or `git show HEAD:<file>`, before
+believing there is a problem or that there isn't.
 
 ## Testing: the combination sweep
 

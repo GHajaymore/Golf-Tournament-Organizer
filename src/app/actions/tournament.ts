@@ -3,11 +3,12 @@ import { COURSE_REF } from "@/lib/services/course-resolution";
 import { CLONED_EVENT_FIELDS, CLONED_STAGE_FIELDS } from "@/lib/services/clone";
 import { roundTeeId, flightTeeByPlayer } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
-import { cardRevision, staleAgainst } from "@/lib/domain/pending-card";
+import { cardRevision, staleAgainst, NO_CARD_REVISION } from "@/lib/domain/pending-card";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { cardRefusal } from "@/lib/domain/scorecard-parse";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { teamEntryChoices, type TeamEntryMode } from "@/lib/domain/team-entry";
+import { isNetBasis } from "@/lib/domain/match-entry";
 import { prisma } from "@/lib/db";
 // No `createSession` or `destroySession` here on purpose: deleting a
 // tournament moves the active event and must never re-sign or drop the
@@ -1931,8 +1932,24 @@ export async function saveScorecard(
     : null;
   const stored = storedStrokes ? cardRevision(storedStrokes) : "";
 
-  if (expectedRevision && existing && storedStrokes) {
-    if (staleAgainst(expectedRevision, stored)) {
+  /**
+   * An empty revision is "there was no card when I loaded", NOT "no opinion".
+   *
+   * Normalised HERE rather than trusted from the caller, because the two
+   * meanings are opposite and the falsy one silently selected the dangerous
+   * behaviour. Omitting the argument gives `undefined` and still means an
+   * unconditional write — that is the console, which has the card on screen.
+   * An empty STRING can only come from a screen that loaded without one, and
+   * that screen has everything to lose from an unconditional write.
+   *
+   * The player's card page now sends `NO_CARD_REVISION` explicitly, so this
+   * covers a client that has not reloaded and any caller written later. A rule
+   * enforced where the write happens cannot be forgotten by a caller.
+   */
+  const expected = expectedRevision === "" ? NO_CARD_REVISION : expectedRevision;
+
+  if (expected && existing && storedStrokes) {
+    if (staleAgainst(expected, stored)) {
       return { ok: false, conflict: { strokes: storedStrokes, revision: stored } };
     }
   }
@@ -2066,7 +2083,12 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   });
   // Handicap strokes only apply when the round is scored Net — a Gross round
   // uses the same card, decided scratch (lower strokes wins the hole).
-  const netMode = stage?.scoringBasis === "net";
+  //
+  // Through `isNetBasis`, which `resolveMatchEntry` already uses, so the two
+  // paths into a match result cannot disagree about what the round is. The
+  // hand-rolled `=== "net"` here said GROSS for a "both" round while the
+  // resolver said net.
+  const netMode = isNetBasis(stage?.scoringBasis ?? "");
   const strokesA = cardA ? (JSON.parse(cardA.strokes) as (number | null)[]) : [];
   const strokesB = cardB ? (JSON.parse(cardB.strokes) as (number | null)[]) : [];
   // Net match play allocates off Course Handicaps, not roster Indexes. Two

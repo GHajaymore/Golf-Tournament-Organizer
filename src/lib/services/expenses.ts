@@ -234,13 +234,25 @@ async function gameNets(
   eventId: string,
   onlyStageId?: string,
 ): Promise<{ nets: Net[]; lines: GameLine[] }> {
-  // The field an opt-out pot draws its members from. Confirmed entries only:
-  // "everyone in the field" means everyone PLAYING.
-  const fieldRows = await prisma.player.findMany({
-    where: { eventId, status: "confirmed" },
-    select: { id: true },
-  });
+  /**
+   * TWO lists, because a withdrawal separates two questions.
+   *
+   * `fieldIds` is who an opt-out pot draws its members from — everyone
+   * PLAYING, which is what "everyone in the field" means.
+   *
+   * `stakeholderIds` is everyone with a row in this event whatever their
+   * status, and it exists so a stake the organizer has already taken survives
+   * its payer withdrawing. `skinsPotFor` has loaded every status for the same
+   * reason since it was written: withdrawing is not a refund. Filtering the
+   * contest pots on the confirmed field alone dropped a paid stake into no
+   * bucket at all.
+   */
+  const [fieldRows, stakeholderRows] = await Promise.all([
+    prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } }),
+    prisma.player.findMany({ where: { eventId }, select: { id: true } }),
+  ]);
   const fieldIds = fieldRows.map((r) => r.id);
+  const stakeholderIds = stakeholderRows.map((r) => r.id);
   // Scoped to one round when asked. Every pot type here is already per-stage,
   // so this is a filter rather than a second implementation — the player round
   // view and the outing ledger read the same arithmetic.
@@ -284,6 +296,35 @@ async function gameNets(
       isSkinsScope(pot.scope) ? pot.scope : "full",
       pot.groupKey,
     );
+    /**
+     * A HALF-PLAYED POT IS NOT A RESULT, and this is where that is enforced.
+     *
+     * `skinsPotFor` returns a result whenever anybody is in the pot, however
+     * many holes are still to play, and sets `provisional` to say so. Nothing
+     * read the flag. `roundMoneyFor` was safe because it gates the whole round
+     * on `roundMoneyIsFinal` before asking; `moneyFor` calls this with no
+     * stage and no gate, so the outing ledger settled a pot mid-round.
+     *
+     * On `/me/money` in split mode that put provisional shares into
+     * `gamesCents`, `netCents`, `standing`, `gameLines` and the `settle()`
+     * transfer list — a list of who hands what to whom — directly beneath a
+     * round card correctly saying the round is still being played. Two
+     * answers about the same pot, on one screen, one of which the app has no
+     * business giving: `money-layout.ts` opens by saying exactly that. "A
+     * player looking at £40 on the 14th who finishes with nothing has been
+     * told something the app had no business claiming, and he will remember
+     * it." The carry is the whole character of skins — one hole can take the
+     * lot — so a running position is not an early view of the answer.
+     *
+     * Refused HERE rather than at each caller, because the caller that had it
+     * right and the caller that had it wrong were reading the same function.
+     * A third one written later cannot get it wrong by forgetting.
+     *
+     * What a player still SEES mid-round is their exposure — what they have
+     * riding on the pot — through `stakeFor`, which reads membership and never
+     * touches a card. That is the honest half and it is unaffected.
+     */
+    if (view?.result?.provisional) continue;
     // A pot with nobody in it has no result and no money — `result` is null
     // until somebody is entered, which is not the same as everyone at zero.
     for (const share of view?.result?.shares ?? []) {
@@ -302,7 +343,12 @@ async function gameNets(
           ? `${pot.groupKey} — ${skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full")}`
           : skinsGameLabel(pot.net, isSkinsScope(pot.scope) ? pot.scope : "full"),
         detail: won.length
-          ? `won ${won.length === 1 ? "the" : ""} ${won.length === 1 ? "" : won.length + " holes: "}${won.join(", ")}`.replace(/s+/g, " ").trim()
+          ? // `\s+`, not `s+`. Without the backslash this matched runs of the
+            // LETTER s and collapsed them to a space, so the line a player
+            // reads to check a figure said "won 3 hole : 4, 7, 12". The
+            // collapse itself is wanted — the template leaves a double space
+            // where the singular branch contributes nothing.
+            `won ${won.length === 1 ? "the" : ""} ${won.length === 1 ? "" : won.length + " holes: "}${won.join(", ")}`.replace(/\s+/g, " ").trim()
           : "no skins won",
         cents: share.netCents,
       });
@@ -425,6 +471,7 @@ async function gameNets(
           isPotEntryMode(game.entryMode) ? game.entryMode : "opt-in",
           audience,
           game.entrants,
+          stakeholderIds,
         ).entrants;
         const potCards = cards
           .filter((c) => c.stageId === game.stageId && entrantIds.includes(c.playerId))
@@ -488,6 +535,7 @@ async function gameNets(
         isPotEntryMode(c.entryMode) ? c.entryMode : "opt-in",
         fieldIds,
         c.entrants,
+        stakeholderIds,
       ).entrants,
       winnerIds: c.entrants.filter((e) => e.won).map((e) => e.playerId),
     })),
@@ -513,11 +561,17 @@ export async function moneyFor(
 ): Promise<MoneyView> {
   // The field an opt-out pot draws on. Confirmed only — "everyone in the
   // field" means everyone PLAYING, and a withdrawn player is not.
-  const confirmedField = await prisma.player.findMany({
-    where: { eventId, status: "confirmed" },
-    select: { id: true },
-  });
+  //
+  // And, separately, everyone with a row at all: a stake the organizer has
+  // taken stays in the pot when its payer withdraws. See `potMembership` —
+  // filtering both questions through the confirmed list dropped a paid stake
+  // into no bucket at all, and the player who paid it showed as square.
+  const [confirmedField, moneyStakeholders] = await Promise.all([
+    prisma.player.findMany({ where: { eventId, status: "confirmed" }, select: { id: true } }),
+    prisma.player.findMany({ where: { eventId }, select: { id: true } }),
+  ]);
   const moneyFieldIds = confirmedField.map((p) => p.id);
+  const moneyStakeholderIds = moneyStakeholders.map((p) => p.id);
 
   const [rows, settlements, players, stages, contestRows, sideGameRows, skinsRows] = await Promise.all([
     prisma.expense.findMany({
@@ -757,6 +811,7 @@ export async function moneyFor(
         isPotEntryMode(c.entryMode) ? c.entryMode : "opt-in",
         moneyFieldIds,
         c.entrants,
+        moneyStakeholderIds,
       );
       const shaped = {
         id: c.id,
@@ -813,6 +868,7 @@ export async function moneyFor(
           isPotEntryMode(g.entryMode) ? g.entryMode : "opt-in",
           moneyFieldIds,
           g.entrants,
+          moneyStakeholderIds,
         );
         const kind = g.kind as DerivedKind;
         return {
@@ -1020,6 +1076,13 @@ async function stakeFor(
   playerId: string,
   fieldIds: string[],
   teeSheetJson: string,
+  /**
+   * Everyone with a row in the event, whatever their status — see
+   * `potMembership`. Passed in rather than queried here so this reads exactly
+   * the same two lists the settlement does; a second opinion about who is in a
+   * pot is the failure the doc comment above already warns about.
+   */
+  stakeholderIds: string[],
 ): Promise<{ games: number; cents: number }> {
   const [pots, games, contests] = await Promise.all([
     /**
@@ -1081,13 +1144,13 @@ async function stakeFor(
     // drawn against. Counting it here would mean inventing a number.
     if (g.kind === "nassau") continue;
     const audience = potAudience(g.groupKey, teeSheetJson, fieldIds);
-    const who = potMembership(isPotEntryMode(g.entryMode) ? g.entryMode : "opt-in", audience, g.entrants);
+    const who = potMembership(isPotEntryMode(g.entryMode) ? g.entryMode : "opt-in", audience, g.entrants, stakeholderIds);
     add(who.entrants.includes(playerId) || who.pending.includes(playerId), g.buyInCents);
   }
 
   // Contests have no group key — a closest-to-the-pin is the field's.
   for (const c of contests) {
-    const who = potMembership(isPotEntryMode(c.entryMode) ? c.entryMode : "opt-in", fieldIds, c.entrants);
+    const who = potMembership(isPotEntryMode(c.entryMode) ? c.entryMode : "opt-in", fieldIds, c.entrants, stakeholderIds);
     add(who.entrants.includes(playerId) || who.pending.includes(playerId), c.buyInCents);
   }
 
@@ -1126,6 +1189,10 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
   const rounds: RoundMoneyRow[] = [];
   const outingTotals = new Map<string, number>();
   const fieldIds = (state?.confirmed ?? []).map((p) => p.id);
+  // Everyone with a row, so a stake already taken from somebody who has since
+  // withdrawn still counts as theirs. `state.players` is the whole roster;
+  // `state.confirmed` is only who is still playing.
+  const stakeholderIds = (state?.players ?? []).map((p) => p.id);
   let stakeGames = 0;
   let stakeCents = 0;
 
@@ -1166,7 +1233,7 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
     // round a player wants their exposure for. Stakes only — see `stakeFor`,
     // which reads membership and never touches a card.
     if (!final && me) {
-      const s = await stakeFor(stage.id, me.id, fieldIds, stage.teeSheet ?? "");
+      const s = await stakeFor(stage.id, me.id, fieldIds, stage.teeSheet ?? "", stakeholderIds);
       stakeGames += s.games;
       stakeCents += s.cents;
     }

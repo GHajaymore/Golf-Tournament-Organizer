@@ -47,6 +47,24 @@ describe("separating two cards on the same score", () => {
     expect(countbackCompare(a, b, 18)).toBeLessThan(0);
   });
 
+  it("runs the other way for points", () => {
+    /**
+     * A Stableford countback compares POINTS, and more is better.
+     *
+     * The same numbers read as strokes give the opposite answer, which is the
+     * whole reason the direction is a parameter rather than assumed: a points
+     * competition separated the strokes way hands the tie to whoever scored
+     * fewest.
+     */
+    // Level on 72 "points"; A scores one more on the last hole, one fewer on
+    // the first — so A is ahead over the last nine, six, three and one.
+    const a = card("a", { 0: 3, 17: 5 });
+    const b = card("b");
+    expect(countbackCompare(a, b, 18, true), "more points over the last nine wins").toBeLessThan(0);
+    // And the default is unchanged for every existing caller.
+    expect(countbackCompare(a, b, 18)).toBeGreaterThan(0);
+  });
+
   it("says nothing when two cards match at every step", () => {
     expect(countbackCompare(card("a"), card("b"), 18)).toBe(0);
   });

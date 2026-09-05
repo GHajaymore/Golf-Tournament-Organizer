@@ -125,7 +125,9 @@ export async function claimPlayerSlot(rawCode: string, playerId: string): Promis
   // A genuine claim resets the budget, so a fourball fumbling the code on the
   // first tee doesn't lock the group out of the round they're about to play.
   await clearRateLimit("round-code", code);
-  await createPlaySession(stage.id, player.id);
+  // The stored code, not the typed one, so the session is bound to the row a
+  // reissue will overwrite.
+  await createPlaySession(stage.id, player.id, stage.accessCode);
   revalidatePath("/play");
   return { ok: true };
 }

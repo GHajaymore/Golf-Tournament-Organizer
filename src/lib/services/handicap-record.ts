@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { teeRatingFor } from "./handicaps";
-import { courseHandicap } from "../domain/handicap";
+import { courseHandicap, teeIdFor, indexForHoles } from "../domain/handicap";
 import { resolveRoundHandicap } from "../domain/round-handicap";
 import {
   handicapRecordFrom,
@@ -60,7 +60,16 @@ export async function memberHandicapRecord(
   // Every entry this member has made, scoped to their own club's events.
   const entries = await prisma.player.findMany({
     where: { memberId, event: { organizationId } },
-    select: { id: true, eventId: true, handicap: true, teeId: true },
+    /**
+     * `groupId` and `handicapType` are here because the two lines that read
+     * them below were each resolving without them.
+     *
+     * `groupId` carries the FLIGHT's tee, which is the whole point of the
+     * "by division" policy; `handicapType` says whether the stored index is a
+     * nine or an eighteen, and passing a nine-hole index raw into an 18-hole
+     * round doubles nothing and halves nothing — it just uses the wrong number.
+     */
+    select: { id: true, eventId: true, handicap: true, teeId: true, groupId: true, handicapType: true },
   });
   if (entries.length === 0) {
     return {
@@ -108,6 +117,13 @@ export async function memberHandicapRecord(
     }),
   ]);
 
+  // The flights these entries sit in, for the tee a DIVISION plays off.
+  const groupIds = [...new Set(entries.map((p) => p.groupId).filter((g): g is string => !!g))];
+  const groups = groupIds.length
+    ? await prisma.group.findMany({ where: { id: { in: groupIds } }, select: { id: true, teeId: true } })
+    : [];
+  const flightTeeOf = new Map(groups.map((g) => [g.id, g.teeId]));
+
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const eventById = new Map(events.map((e) => [e.id, e]));
   const venueById = new Map(venues.map((c) => [c.id, c]));
@@ -130,10 +146,34 @@ export async function memberHandicapRecord(
     if (!resolved) continue;
     const card18 = applyNine(resolved, cleanNine(stage.nine), holes);
 
-    // The tee this player was entered off, and the rating that goes with it.
-    // No tee, or an unrated one, and `handicapRecordFrom` counts the round out
-    // with a reason rather than inventing a rating.
-    const tee = entry.teeId ? teeById.get(entry.teeId) ?? null : null;
+    /**
+     * The tee this round was SCORED off, through the one resolver.
+     *
+     * This read `entry.teeId` alone. `Player.teeId` is only ever written from a
+     * matched `preferredTee`, so in the ordinary club setup — rated tees, an
+     * `Event.defaultTeeId`, and nobody carrying a personal tee — every entry
+     * resolved to null, `teeRatingFor` returned no rating, and
+     * `handicapRecordFrom` counted every card out. The screen said "N cards
+     * found, 0 differentials" and no index was ever issued, however many
+     * approved medals a member returned. That is not a defect in the feature;
+     * it is the feature not existing for the default configuration.
+     *
+     * Under `teePolicy: "one"` — what the club-championship template sets — it
+     * was wrong in the other direction: a stale personal tee was used to build
+     * a differential for a round the whole field played off the default set.
+     *
+     * `teeIdFor` is what the board, the printed card and score entry all use,
+     * so a differential now comes from the same tee the net score did.
+     */
+    const tee =
+      teeById.get(
+        teeIdFor(
+          event.teePolicy ?? "own",
+          entry.teeId,
+          entry.groupId ? flightTeeOf.get(entry.groupId) ?? null : null,
+          event.defaultTeeId,
+        ),
+      ) ?? null;
     const rating = teeRatingFor(tee, holes);
 
     // What this player played off THAT DAY. The frozen value first, then the
@@ -141,10 +181,15 @@ export async function memberHandicapRecord(
     // `resolveRoundHandicap` uses everywhere else, so a differential cannot
     // disagree with the net score the board showed.
     const row = frozenBy.get(`${stage.id}:${entry.id}`);
+    // Converted to the holes actually played before anything is computed from
+    // it, exactly as `handicapsForRound` does. The raw column is a stored index
+    // that may be a nine, and a nine handed to an eighteen-hole round is simply
+    // the wrong number — it is not scaled by either path below.
+    const index = indexForHoles(entry.handicap, entry.handicapType, holes);
     const played = resolveRoundHandicap({
       frozen: row?.frozen,
       override: row?.override,
-      member: rating ? courseHandicap(entry.handicap, rating) : entry.handicap,
+      member: rating ? courseHandicap(index, rating) : index,
     });
 
     let strokes: (number | null)[] = [];

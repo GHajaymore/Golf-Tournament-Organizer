@@ -1478,24 +1478,35 @@ describe("every tournament setting, against every other", () => {
     }
   });
 
-  it("never offers a player half a door it will not open whole", () => {
+  it("pins the pairing where saving half a card outlives the right to enter one", () => {
     /**
-     * Saving a partial card is a WEAKER right than entering scores at all. A
-     * combination where a player may save half a card but may not submit one
-     * leaves them able to write a round nobody can finish — and the card sits
-     * in the database looking like an abandoned round rather than a refused
-     * one.
+     * Saving a partial card is a WEAKER right than entering scores at all, and
+     * the two functions do not know about each other: `canPlayerSavePartial`
+     * reads only the WINDOW, `canEnterScores` only WHO MAY ENTER. So they
+     * disagree across a whole slice of the cross product — every staff-entry
+     * tournament scored during play.
+     *
+     * This assertion USED TO BE A TAUTOLOGY. It branched on
+     * `!canEnterScores(s, "player")` and then expected exactly that to be
+     * false, inside the branch that had just established it. It ran on
+     * hundreds of combinations, could not fail on any of them, and counted as
+     * coverage — the same fault as the six fixtures named further up this file,
+     * sitting in the sweep itself.
+     *
+     * What is true, and can fail, is that the pairing OCCURS and occurs for
+     * the reason claimed. If either function changed so that it no longer
+     * arose, the note above would be describing an impossible case and should
+     * go with it.
+     *
+     * Enforcement is NOT here and cannot be: it is at the actions, where every
+     * write path checks `session.role === "player" && !canPlayerSavePartial`
+     * alongside who may enter at all. See `audit-idor.test.ts`.
      */
-    for (const s of ALL) {
-      if (!canEnterScores(s, "player") && canPlayerSavePartial(s)) {
-        // canPlayerSavePartial answers only about the WINDOW, so this pairing
-        // is legal in isolation; what must hold is that the app never acts on
-        // it for a player who cannot enter scores at all.
-        expect(
-          canEnterScores(s, "player"),
-          `a player may save a partial card in a ${s.scoreEntryBy}-entry tournament`,
-        ).toBe(false);
-      }
+    const conflicted = ALL.filter((s) => !canEnterScores(s, "player") && canPlayerSavePartial(s));
+    expect(conflicted.length, "the pairing this note describes no longer occurs").toBeGreaterThan(0);
+    for (const s of conflicted) {
+      expect(s.scoreEntryBy).not.toBe("players");
+      expect(s.scoreEntryWindow).toBe("during");
     }
   });
 

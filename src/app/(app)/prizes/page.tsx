@@ -113,7 +113,17 @@ export default async function PrizesPage({
    * disagree about who the field is.
    */
   const fieldIds = state.confirmed.map((p) => p.id);
-  const nameOf = (id: string) => state.confirmed.find((p) => p.id === id)?.name ?? "Unknown";
+  /**
+   * And everyone with a row, whatever their status.
+   *
+   * A stake the organizer has taken stays in the pot when its payer withdraws
+   * — see `potMembership`, and `skinsPotFor`, which has said so since it was
+   * written. Without this the paid entrant vanished from the pot's own screen.
+   */
+  const stakeholderIds = state.players.map((p) => p.id);
+  // Over the whole roster too, or a withdrawn entrant the pot still holds
+  // money for renders as "Unknown" on the screen that lists them.
+  const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? "Unknown";
   // A stored mode is free text; anything unrecognised falls back to the
   // original behaviour rather than to whichever branch happens to be the else.
   const modeOf = (v: string) => (isPotEntryMode(v) ? v : "opt-in");
@@ -189,7 +199,7 @@ export default async function PrizesPage({
             // rows that exist; opt-out counts the field minus whoever said
             // otherwise, so a weekly contest needs no ticking and a player
             // entered later joins by himself.
-            const m = potMembership(modeOf(c.entryMode), fieldIds, c.entrants);
+            const m = potMembership(modeOf(c.entryMode), fieldIds, c.entrants, stakeholderIds);
             return {
               id: c.id,
               kind: c.kind,
@@ -208,7 +218,7 @@ export default async function PrizesPage({
             };
           })}
           sideGames={sideGames.map((g) => {
-            const m = potMembership(modeOf(g.entryMode), fieldIds, g.entrants);
+            const m = potMembership(modeOf(g.entryMode), fieldIds, g.entrants, stakeholderIds);
             return {
             id: g.id,
             kind: g.kind,

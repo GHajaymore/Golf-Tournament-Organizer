@@ -199,6 +199,114 @@ describe("a member's record, from the database", () => {
     await prisma.player.update({ where: { id: playerId }, data: { teeId } });
   });
 
+  /**
+   * THE ORDINARY CLUB SETUP: rated tees, an event default, and nobody carrying
+   * a personal tee.
+   *
+   * Every test above assigns `teeId` to the player in `beforeAll`, so the case
+   * that actually ships was the one case never exercised. `Player.teeId` is
+   * only ever written from a matched `preferredTee` — most members have none —
+   * and this resolved the tee from that column alone. So `teeRatingFor` got
+   * null, every card was counted out, and the screen read "N cards found, 0
+   * differentials". No club handicap was ever issued, however many approved
+   * medals a member returned.
+   */
+  it("prices a round off the event's tee when the player carries none", async () => {
+    await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: teeId, teePolicy: "own" } });
+    await prisma.player.update({ where: { id: playerId }, data: { teeId: null } });
+    try {
+      const r = await memberHandicapRecord(orgId, memberId);
+      expect(r!.cardsFound).toBeGreaterThan(0);
+      // The differentials the same cards produce when the tee IS on the player.
+      expect(r!.differentials).toHaveLength(3);
+      expect(r!.skipped["unrated-tee"] ?? 0).toBe(0);
+    } finally {
+      // In a finally because this fixture is shared with every test below, and
+      // a failure here used to leave the player on no tee — so the next four
+      // tests failed too, describing this fault rather than their own.
+      await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: null } });
+      await prisma.player.update({ where: { id: playerId }, data: { teeId } });
+    }
+  });
+
+  /**
+   * `one` means the committee's set for the whole field, and a stale personal
+   * tee must not quietly win — Rule 6.1b makes playing from the wrong tee a
+   * penalty, so a differential built off one the player did not use is worse
+   * than no differential.
+   */
+  it("under a single-tee policy the round is priced off the round's tee, not a stale personal one", async () => {
+    const other = await prisma.tee.create({
+      data: { courseId, name: `${TAG} Forward`, gender: "men", courseRating: 68.0, slopeRating: 113, par: 72 },
+    });
+    try {
+      await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: teeId, teePolicy: "one" } });
+      await prisma.player.update({ where: { id: playerId }, data: { teeId: other.id } });
+      const single = await memberHandicapRecord(orgId, memberId);
+
+      // The same cards off the default set, with no personal tee in the way.
+      await prisma.player.update({ where: { id: playerId }, data: { teeId: null } });
+      const baseline = await memberHandicapRecord(orgId, memberId);
+
+      expect(single!.differentials).toEqual(baseline!.differentials);
+
+      // And the two tees really do price a card differently, so the assertion
+      // above cannot pass by their being interchangeable — which is how a
+      // policy test quietly stops testing the policy.
+      await prisma.event.update({ where: { id: eventId }, data: { teePolicy: "own" } });
+      await prisma.player.update({ where: { id: playerId }, data: { teeId: other.id } });
+      const ownTee = await memberHandicapRecord(orgId, memberId);
+      expect(ownTee!.differentials).not.toEqual(baseline!.differentials);
+    } finally {
+      await prisma.event.update({ where: { id: eventId }, data: { defaultTeeId: null, teePolicy: "own" } });
+      await prisma.player.update({ where: { id: playerId }, data: { teeId } });
+      await prisma.tee.delete({ where: { id: other.id } });
+    }
+  });
+
+  /**
+   * A stored NINE-hole index is not the number an 18-hole round is priced off.
+   *
+   * `handicapsForRound` converts through `indexForHoles` before it computes
+   * anything; this passed `entry.handicap` raw, so a member whose index is
+   * recorded as a nine had every eighteen-hole differential built off half the
+   * handicap they actually play to.
+   */
+  it("doubles a stored nine-hole index for an eighteen-hole round", async () => {
+    /**
+     * On a BLOW-UP hole, because nothing else can show this.
+     *
+     * The cards above are straight bogeys, and a bogey never exceeds net double
+     * bogey at any handicap — so the caps never bind, the adjusted gross is the
+     * gross whatever index is used, and a differential built off half the right
+     * handicap looks identical to one built off all of it. The first version of
+     * this test asserted against those cards and passed on both branches.
+     *
+     * A 10 on the stroke-index-1 hole is the discriminator: capped at par+2+1
+     * off an 18 index, and at par+2+3 once that index is read as a nine and
+     * doubled.
+     */
+    const blowUp = PARS.map((p, i) => (i === SI.indexOf(1) ? 10 : p));
+    const card = await prisma.scorecard.create({
+      data: { eventId, stageId: stageIds[3], playerId, strokes: JSON.stringify(blowUp), status: "approved" },
+    });
+    try {
+      const eighteen = await memberHandicapRecord(orgId, memberId);
+      await prisma.player.update({ where: { id: playerId }, data: { handicapType: "9" } });
+      const nine = await memberHandicapRecord(orgId, memberId);
+
+      // Both read the same four cards, so any difference is the index alone.
+      expect(eighteen!.differentials).toHaveLength(4);
+      expect(nine!.differentials).toHaveLength(4);
+      // More strokes received raises the cap on that hole, so the adjusted
+      // gross is higher and the differential with it.
+      expect(nine!.differentials).not.toEqual(eighteen!.differentials);
+    } finally {
+      await prisma.player.update({ where: { id: playerId }, data: { handicapType: "18" } });
+      await prisma.scorecard.delete({ where: { id: card.id } });
+    }
+  });
+
   it("never suggests over an association figure", async () => {
     await prisma.member.update({ where: { id: memberId }, data: { handicapSource: "ghin" } });
     const r = await memberHandicapRecord(orgId, memberId);

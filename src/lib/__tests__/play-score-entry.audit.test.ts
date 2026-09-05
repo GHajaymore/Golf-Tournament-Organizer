@@ -44,6 +44,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 // Imported after the mocks are declared for readability only — vi.mock is
 // hoisted above every import in this file regardless of where it is written.
 import { claimPlayerSlot, savePlayMatchHoles, savePlayMatchResult } from "@/app/actions/play";
+import { getPlaySession } from "@/lib/play-auth";
 
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-PLAY-ENTRY";
@@ -207,5 +208,63 @@ describe("the same code once the organizer lets players score", () => {
     // next sign-in.
     await setScoreEntryBy("staff");
     expect((await savePlayMatchHoles(matchId, FULL_CARD)).ok).toBe(false);
+  });
+});
+
+/**
+ * Reissuing a Round Code ends the sessions opened with the old one.
+ *
+ * This is the remedy the product recommends in its own copy — `PlaySettings`
+ * tells the organizer to reissue the code "if it travels beyond the field" —
+ * and it did nothing to anyone already holding a cookie. `getPlaySession`
+ * tested `stage.accessCode` for NON-EMPTINESS, and `regenerateRoundCode`
+ * writes a new non-empty code onto the same row, so the check passed for a
+ * code that no longer existed.
+ *
+ * A leaked code therefore stayed good for the remaining twelve hours, and its
+ * holder went on writing results — each write clearing `confirmedById` and
+ * putting the score back to pending.
+ */
+describe("reissuing the round code", () => {
+  // In a `finally` throughout: these rewrite the code on the shared fixture,
+  // and a failure that leaves the wrong one there fails the test after it too —
+  // which reads as two faults instead of one.
+  it("ends a session opened with the old code", async () => {
+    try {
+      await prisma.stage.updateMany({ where: { eventId }, data: { accessCode: CODE } });
+      await clearRateLimit("round-code", CODE);
+      expect(await claimPlayerSlot(CODE, playerAId)).toEqual({ ok: true });
+
+      // The session is live: this is the control, so a null below cannot be the
+      // sign-in having quietly failed.
+      expect(await getPlaySession()).not.toBeNull();
+
+      const reissued = generateAccessCode();
+      expect(reissued).not.toBe(CODE);
+      await prisma.stage.updateMany({ where: { eventId }, data: { accessCode: reissued } });
+
+      // Same cookie, same browser, code replaced. The holder is out.
+      expect(await getPlaySession()).toBeNull();
+
+      // And the new code still works, so this revokes rather than just breaks.
+      await clearRateLimit("round-code", reissued);
+      expect(await claimPlayerSlot(reissued, playerAId)).toEqual({ ok: true });
+      expect(await getPlaySession()).not.toBeNull();
+    } finally {
+      await prisma.stage.updateMany({ where: { eventId }, data: { accessCode: CODE } });
+    }
+  });
+
+  it("ends it for switching code access off too, as it always did", async () => {
+    // The behaviour that DID work, asserted so the equality check above cannot
+    // be mistaken for the whole rule.
+    try {
+      await clearRateLimit("round-code", CODE);
+      expect(await claimPlayerSlot(CODE, playerAId)).toEqual({ ok: true });
+      await prisma.stage.updateMany({ where: { eventId }, data: { accessCode: "" } });
+      expect(await getPlaySession()).toBeNull();
+    } finally {
+      await prisma.stage.updateMany({ where: { eventId }, data: { accessCode: CODE } });
+    }
   });
 });

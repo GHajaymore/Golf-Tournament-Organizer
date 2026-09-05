@@ -79,7 +79,7 @@ export interface StrokeAgg {
    * EMPTIED where a player holds more than one card for the same round — see
    * `aggregateStroke`. A countback reads a card; it cannot read two at once.
    */
-  holesByStage: Map<string, { gross: (number | null)[]; net: (number | null)[] }>;
+  holesByStage: Map<string, { gross: (number | null)[]; net: (number | null)[]; points: (number | null)[] }>;
 }
 
 /** Par and stroke index for one round, as that round is actually played. */
@@ -188,6 +188,17 @@ export function aggregateStroke(cards: StrokeCard[], opts: StrokeAggOptions): Ma
     const perHole = {
       gross: Array.from({ length: card.strokes.length }, () => null) as (number | null)[],
       net: Array.from({ length: card.strokes.length }, () => null) as (number | null)[],
+      /**
+       * And POINTS, because a Stableford countback runs on points.
+       *
+       * Computed on this line already and thrown away, so the countback for a
+       * points competition had to borrow the net-strokes card. The two do not
+       * agree: points are capped — nothing worse than a net double bogey scores
+       * anything — so a player who blobs two holes has the same points as one
+       * who bogeyed them and a very different net total. Separating a Stableford
+       * tie on net strokes answers a question the competition did not ask.
+       */
+      points: Array.from({ length: card.strokes.length }, () => null) as (number | null)[],
     };
 
     let returned = 0;
@@ -199,9 +210,11 @@ export function aggregateStroke(cards: StrokeCard[], opts: StrokeAggOptions): Ma
       a.parThru += pars[i] ?? 0;
       const holeStrokes = opts.holeStrokesReceived(handicap, holeDifficulty[i] ?? 18, alloc);
       a.strokesReceived += holeStrokes;
-      a.points += opts.stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes, card.stageId);
+      const holePoints = opts.stablefordPointsForHole(s, pars[i] ?? 0, holeStrokes, card.stageId);
+      a.points += holePoints;
       perHole.gross[i] = s;
       perHole.net[i] = s - holeStrokes;
+      perHole.points[i] = holePoints;
     });
 
     // The round's own card decides how many holes are owed, not the length of
@@ -219,7 +232,7 @@ export function aggregateStroke(cards: StrokeCard[], opts: StrokeAggOptions): Ma
     // means the question has no single answer, so the entry is emptied rather
     // than overwritten — `countbackCompare` reads an empty card as "cannot
     // separate", which is the treatment it already gives an incomplete one.
-    a.holesByStage.set(card.stageId, seen === 1 ? perHole : { gross: [], net: [] });
+    a.holesByStage.set(card.stageId, seen === 1 ? perHole : { gross: [], net: [], points: [] });
 
     out.set(card.playerId, a);
   }
