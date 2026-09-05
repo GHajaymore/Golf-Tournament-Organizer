@@ -1464,6 +1464,39 @@ describe("a round's card is narrowed in exactly one place", () => {
   });
 
   /**
+   * The tee sheet is judged against the field it was DRAWN from.
+   *
+   * `teeSheetDrift` compares a published sheet with a set of ids, and the
+   * foursomes page passed `state.confirmed` — the season's whole roster. A
+   * league draws each week's sheet from that week's attendees, so a
+   * twenty-player league with fourteen in produced "6 confirmed players have
+   * no tee time" against a sheet that was exactly right, and republishing
+   * could not clear it because the next draw excluded the same six.
+   *
+   * The domain function is fine and is tested with hand-built sets; the fault
+   * was entirely in which set the page handed it. This is the only call site
+   * in the app, and it is a server component nothing renders — same reason the
+   * assertion above reads the source.
+   *
+   * A permanent false alarm is worse than no alarm: it trains an organizer to
+   * ignore a banner that is real in other circumstances.
+   */
+  it("the tee sheet drift check uses the week's field, not the season roster", () => {
+    const page = stripComments(
+      readFileSync(join(process.cwd(), "src", "app", "(app)", "foursomes", "page.tsx"), "utf8"),
+    );
+    expect(page).toMatch(/teeSheetDrift\(savedSheet, new Set\(field\.map\(\(p\) => p\.id\)\)\)/);
+    // And the roster is never what it is compared against.
+    expect(page).not.toMatch(/teeSheetDrift\([^)]*state\.confirmed/);
+    // `field` has to be resolved BEFORE the check, or it is the roster by
+    // another name — this is what made the original a one-line fault.
+    const fieldAt = page.indexOf("let field =");
+    const driftAt = page.indexOf("teeSheetDrift(");
+    expect(fieldAt, "field must be computed").toBeGreaterThan(-1);
+    expect(fieldAt, "field must be resolved before the drift check").toBeLessThan(driftAt);
+  });
+
+  /**
    * NOTHING hands `aggregateStroke` a card that ignores which round it is for.
    *
    * `courseFor` takes a stageId precisely so a nine, or a second venue, is

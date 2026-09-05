@@ -973,6 +973,29 @@ export async function movePlayerToGroup(
   }
 
   await prisma.player.update({ where: { id: playerId }, data: { groupId } });
+  /**
+   * They cannot captain a flight they have left.
+   *
+   * `setFlightCaptain` refuses to appoint somebody who is not a member; this
+   * is the other end of the same rule, and it was missing — the move wrote
+   * `Player.groupId` and left `captainId` pointing at a player who is now
+   * somewhere else. The grouping screen then named an absent captain, and the
+   * ex-captain kept the flight's availability panel.
+   *
+   * Scoped to the flight they came FROM. Moving into a flight they already
+   * captain is not a resignation, and `player.groupId === groupId` returned
+   * early above anyway.
+   */
+  if (player.groupId) {
+    await prisma.group.updateMany({
+      where: { id: player.groupId, eventId, captainId: playerId },
+      data: { captainId: null },
+    });
+    await prisma.group.updateMany({
+      where: { id: player.groupId, eventId, viceCaptainId: playerId },
+      data: { viceCaptainId: null },
+    });
+  }
   // The flight decides who they play. Without this the move changed a foreign
   // key and nothing else: the player kept a full card of matches against their
   // old flight and had none against their new one, and the standings showed

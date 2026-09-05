@@ -89,11 +89,43 @@ export default async function FoursomesPage({
   // the preview reshuffles on every visit, and a card has to match what was
   // announced. No saved sheet, no print button.
   const savedSheet = stage ? parseTeeSheet(stage.teeSheet) : null;
+
+  /**
+   * A league tee sheet is drawn from the week's attendees, not the season's
+   * roster. Outside league mode this filter is the identity — every confirmed
+   * player is in, exactly as before.
+   *
+   * Computed HERE rather than just above the draw, because the drift check
+   * below has to compare the published sheet against the same field the sheet
+   * was drawn FROM. It was comparing against `state.confirmed`, the whole
+   * season roster: a twenty-player league with fourteen in for the week
+   * produced "6 confirmed players have no tee time" on a sheet that was
+   * perfectly correct, and republishing could not clear it because the next
+   * draw excluded the same six. A warning that is permanently on is a warning
+   * nobody reads the day it is real.
+   */
+  const attendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
+  let field = state.confirmed;
+  let attendanceNote = "";
+  if (tracksPerRound(attendanceMode) && stage) {
+    const explicit = await prisma.roundAttendance.findMany({
+      where: { eventId: session.eventId, stageId: stage.id },
+    });
+    const resolved = resolveAttendance(
+      attendanceMode,
+      state.confirmed.map((p) => p.id),
+      explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
+    );
+    const inIds = new Set(resolved.rows.filter((r) => r.status === "in").map((r) => r.playerId));
+    field = state.confirmed.filter((p) => inIds.has(p.id));
+    attendanceNote = `This week: ${resolved.in} in${resolved.inByDefault ? ` (${resolved.inByDefault} by default)` : ""} · ${resolved.out} out. The sheet below is drawn from the ${resolved.in} who are in.`;
+  }
+
   // Only meaningful once a sheet has actually gone out: an unpublished draft
   // being out of step with the field is just a draft.
   const drift =
     savedSheet && stage?.teeSheetPublished
-      ? teeSheetDrift(savedSheet, new Set(state.confirmed.map((p) => p.id)))
+      ? teeSheetDrift(savedSheet, new Set(field.map((p) => p.id)))
       : null;
   /**
    * The card THIS ROUND is played on, narrowed to the nine it uses.
@@ -148,26 +180,6 @@ export default async function FoursomesPage({
       .filter((pl): pl is NonNullable<typeof pl> => !!pl)
       .map((pl) => ({ name: pl.name, handicap: pl.handicap, tee: teeNames.get(pl.id) ?? "" })),
   }));
-
-  // A league tee sheet is drawn from the week's attendees, not the season's
-  // roster. Outside league mode this filter is the identity — every confirmed
-  // player is in, exactly as before.
-  const attendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
-  let field = state.confirmed;
-  let attendanceNote = "";
-  if (tracksPerRound(attendanceMode) && stage) {
-    const explicit = await prisma.roundAttendance.findMany({
-      where: { eventId: session.eventId, stageId: stage.id },
-    });
-    const resolved = resolveAttendance(
-      attendanceMode,
-      state.confirmed.map((p) => p.id),
-      explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
-    );
-    const inIds = new Set(resolved.rows.filter((r) => r.status === "in").map((r) => r.playerId));
-    field = state.confirmed.filter((p) => inIds.has(p.id));
-    attendanceNote = `This week: ${resolved.in} in${resolved.inByDefault ? ` (${resolved.inByDefault} by default)` : ""} · ${resolved.out} out. The sheet below is drawn from the ${resolved.in} who are in.`;
-  }
 
   return (
     <>
