@@ -58,6 +58,19 @@ export function sign(value: string): string {
   return `${value}.${mac}`;
 }
 
+/**
+ * A keyed digest of a value, for binding a credential into a signed cookie
+ * without putting the credential itself into it.
+ *
+ * Keyed rather than a plain hash because the values this is used on are drawn
+ * from small alphabets — a Round Code is six characters — and an unkeyed digest
+ * of one of those is a lookup table away from the code. The secret is not
+ * exported for the same reason a raw hash is not enough.
+ */
+export function fingerprint(value: string): string {
+  return createHmac("sha256", secret()).update(value).digest("base64url");
+}
+
 export function verify(signed: string | undefined): string | null {
   if (!signed) return null;
   const idx = signed.lastIndexOf(".");
