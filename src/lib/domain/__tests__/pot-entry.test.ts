@@ -22,11 +22,85 @@ describe("opt-in — a name is in because somebody put it there", () => {
     expect(m.pending).toEqual(["b"]);
   });
 
-  it("drops a signup who is no longer in the field", () => {
-    // Withdrawn after putting their name down. A stake in a pot they are not
-    // playing for would be paid out to somebody who went home.
-    const m = potMembership("opt-in", field, [d("a"), d("gone")]);
+  it("drops a row for somebody who is not a player in this event at all", () => {
+    /**
+     * `ContestEntry` has no foreign key to `Player`, so a hard-deleted player
+     * leaves an orphan row behind. This filter is what keeps it out of a pot,
+     * and it is the reason the filter cannot simply be removed.
+     *
+     * With no wider list given, "is a player" defaults to "is in the field",
+     * which is how it has always behaved.
+     */
+    const m = potMembership("opt-in", field, [d("a"), d("orphan")]);
     expect(m.entrants).toEqual(["a"]);
+  });
+});
+
+/**
+ * A stake the organizer has already taken, from somebody who later withdrew.
+ *
+ * `removeSignup` keeps a player with playing history as `withdrawn` rather
+ * than deleting them, so a confirmed row outlives their place in the field.
+ * Filtered against the confirmed field alone that row landed in NO bucket —
+ * not entrant, not pending, not excluded — so a four-stake pot showed three,
+ * the winner was paid £30 of £40, and the player who paid showed as square.
+ *
+ * `skinsPotFor` has loaded every status since it was written, and says why:
+ * "a stake is paid or it is not. Withdrawing from a tournament is not a
+ * refund." Rule 7 makes the record the only thing there is. The two pot
+ * families disagreed about the same fact; these pin the agreement.
+ */
+describe("a paid stake outlives its payer withdrawing", () => {
+  // Still on the roster, no longer in the field.
+  const roster = [...field, "gone"];
+
+  it("keeps a confirmed stake in an opt-in pot", () => {
+    const m = potMembership("opt-in", field, [d("a"), d("gone")], roster);
+    expect(m.entrants).toEqual(["a", "gone"]);
+    // Four stakes collected, four in the pot.
+    expect(m.entrants).toHaveLength(2);
+  });
+
+  it("keeps it in an opt-out pot too", () => {
+    // Opt-out reaches this by another route: the withdrawal removes them from
+    // the field list the opt-out branch walks, so the row was orphaned there
+    // as well.
+    const m = potMembership("opt-out", field, [d("gone")], roster);
+    expect(m.entrants).toContain("gone");
+    expect(m.entrants).toHaveLength(field.length + 1);
+  });
+
+  it("does not chase somebody who left without paying", () => {
+    // An unpaid ask is not money the organizer holds, and a departed player on
+    // the "take their money" list is a bill nobody will collect.
+    const m = potMembership("opt-in", field, [d("gone", { confirmed: false })], roster);
+    expect(m.entrants).toEqual([]);
+    expect(m.pending).toEqual([]);
+  });
+
+  it("still refuses an orphan row, even a confirmed one", () => {
+    // The whole reason the filter stays. "orphan" is on no roster.
+    const m = potMembership("opt-in", field, [d("a"), d("orphan")], roster);
+    expect(m.entrants).toEqual(["a"]);
+  });
+
+  it("still lets the organizer take a withdrawn player out", () => {
+    // Excluded beats paid, in both modes, exactly as before.
+    const optIn = potMembership("opt-in", field, [d("gone", { excluded: true })], roster);
+    const optOut = potMembership("opt-out", field, [d("gone", { excluded: true })], roster);
+    expect(optIn.entrants).not.toContain("gone");
+    expect(optOut.entrants).not.toContain("gone");
+    expect(optIn.excluded).toContain("gone");
+  });
+
+  it("puts each player in exactly one bucket", () => {
+    // The invariant the fault broke: the withdrawn payer was in none of them.
+    for (const mode of ["opt-in", "opt-out"] as const) {
+      const m = potMembership(mode, field, [d("gone"), d("b", { confirmed: false })], roster);
+      const all = [...m.entrants, ...m.pending, ...m.excluded];
+      expect(all).toContain("gone");
+      expect(all.length, mode).toBe(new Set(all).size);
+    }
   });
 });
 
