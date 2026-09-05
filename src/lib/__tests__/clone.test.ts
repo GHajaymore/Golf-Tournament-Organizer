@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { stripComments } from "./source";
+import { stripComments, readSource } from "./source";
 import {
   CLONED_EVENT_FIELDS,
   NOT_CLONED_EVENT_FIELDS,
@@ -12,7 +12,7 @@ import {
 
 /** Field names declared on a model in schema.prisma, in declaration order. */
 function modelFields(model: string): string[] {
-  const schema = readFileSync(join(process.cwd(), "prisma", "schema.prisma"), "utf8");
+  const schema = readSource("prisma", "schema.prisma");
   const block = new RegExp(`^model ${model} \\{$([\\s\\S]*?)^\\}$`, "m").exec(schema);
   if (!block) throw new Error(`model ${model} not found in schema.prisma`);
   return block[1]
@@ -118,7 +118,7 @@ describe("clone field policy", () => {
 
 describe("cloneEvent authorization", () => {
   const action = () =>
-    readFileSync(join(process.cwd(), "src", "app", "actions", "tournament.ts"), "utf8");
+    readSource("src", "app", "actions", "tournament.ts");
   /** cloneEvent's body with comments stripped — the guard comment names the
    *  very anti-pattern being asserted against, so prose would false-positive. */
   const cloneBody = () => {
@@ -158,10 +158,7 @@ describe("clone never carries a Round Code", () => {
     const stage = modelFields("Stage");
     expect(stage).toContain("accessCode");
 
-    const action = readFileSync(
-      join(process.cwd(), "src", "app", "actions", "tournament.ts"),
-      "utf8",
-    );
+    const action = readSource("src", "app", "actions", "tournament.ts");
     // `\r?\n` for the same reason as above: CRLF checkouts.
     const clone = /export async function cloneEvent[\s\S]*?\r?\n\}\r?\n/.exec(action);
     expect(clone, "cloneEvent not found").toBeTruthy();
@@ -246,10 +243,7 @@ describe("clone field policy — rounds", () => {
  * names, which would just be a third list to keep in step.
  */
 describe("cloneEvent copies from the declared policy", () => {
-  const action = readFileSync(
-    join(process.cwd(), "src", "app", "actions", "tournament.ts"),
-    "utf8",
-  );
+  const action = readSource("src", "app", "actions", "tournament.ts");
   const body = action.slice(action.indexOf("export async function cloneEvent"));
 
   it("builds the event from CLONED_EVENT_FIELDS", () => {

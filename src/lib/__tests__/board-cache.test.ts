@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { stripComments } from "./source";
+import { stripComments, readSource } from "./source";
 
 /**
  * The public board is cached. These are the three things that make that safe.
@@ -62,8 +62,8 @@ describe("the writer and the reader agree on the tag", () => {
 });
 
 describe("what the cache must never swallow", () => {
-  const board = readFileSync(join(SERVICES, "live-board.ts"), "utf8");
-  const page = readFileSync(LIVE_PAGE, "utf8");
+  const board = readSource("src", "lib", "services", "live-board.ts");
+  const page = readSource("src", "app", "live", "[token]", "page.tsx");
 
   it("keeps the timestamp OUT of the cached payload", () => {
     /**

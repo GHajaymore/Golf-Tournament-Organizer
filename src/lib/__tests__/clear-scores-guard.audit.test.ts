@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "./source";
 
 /**
  * Clearing a round's scores is an admin act, it refuses approved cards, and it
@@ -29,10 +28,7 @@ import { join } from "node:path";
  *   npx vitest run --config vitest.audit.config.ts
  */
 
-const src = readFileSync(
-  join(process.cwd(), "src", "app", "actions", "tournament.ts"),
-  "utf8",
-);
+const src = readSource("src", "app", "actions", "tournament.ts");
 
 /** The body of clearRoundScores, so neighbouring actions cannot satisfy a match. */
 const body = (() => {

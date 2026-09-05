@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
+import { stripComments } from "./source";
 import { join } from "node:path";
 
 /**
@@ -16,7 +17,7 @@ import { join } from "node:path";
  */
 
 const root = process.cwd();
-const read = (p: string) => readFileSync(join(root, p), "utf8");
+const read = (p: string) => stripComments(readFileSync(join(root, p), "utf8"));
 
 /** Every .tsx under src, so a new file cannot quietly reintroduce either. */
 function allTsx(dir: string, out: string[] = []): string[] {
@@ -51,7 +52,7 @@ const drawing = files.filter((f) => read(f).includes('d="M18.6 6.1 V23.1"'));
     // What has to agree is now the ABSENCE of a correction. The pin monogram
     // is drawn centred in its own box, so neither file nudges it — and a
     // translate reappearing in one of them means the two have diverged.
-    const gen = readFileSync(join(root, "scripts/gen-icons.mjs"), "utf8");
+    const gen = stripComments(readFileSync(join(root, "scripts/gen-icons.mjs"), "utf8"));
     const logo = read("src/components/Logo.tsx");
     expect(logo, "the component nudges the mark").toContain('viewBox="0 0 32 32"');
     expect(gen, "the generator nudges the mark").not.toMatch(/translate\(0,\s*\d/);
@@ -251,7 +252,7 @@ describe("the mark is the same colour in both renderings", () => {
    * literal hex, so changing the club ramp cannot leave the icons behind.
    */
   const logo = read("src/components/Logo.tsx");
-  const gen = readFileSync(join(root, "scripts/gen-icons.mjs"), "utf8");
+  const gen = stripComments(readFileSync(join(root, "scripts/gen-icons.mjs"), "utf8"));
 
   it("draws the flag from the accent (orange) in the component", () => {
     // The PENNANT falls back to --color-accent. The stick no longer does: the
