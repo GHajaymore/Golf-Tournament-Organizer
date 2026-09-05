@@ -859,9 +859,23 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     return {
       playerId,
       total: 0, // unused: this is only ever handed to countbackCompare
-      holes: (grossBasis ? card?.gross : card?.net) ?? [],
+      /**
+       * On the basis the competition was RANKED on, which for a points
+       * competition is points.
+       *
+       * This read net strokes for Stableford too. Points are capped — nothing
+       * worse than a net double bogey scores at all — so two cards level on
+       * points can be several net strokes apart, and separating them on strokes
+       * decides a Stableford competition by a measure it does not use. The
+       * player who blobbed the 17th and 18th is behind on net strokes and level
+       * on points, which is the whole point of the format.
+       */
+      holes: (stableford ? card?.points : grossBasis ? card?.gross : card?.net) ?? [],
     };
   };
+  // Points run the other way: most wins. See countbackCompare's `higherWins`.
+  const cbCompare = (a: ReturnType<typeof cbCard>, b: ReturnType<typeof cbCard>) =>
+    countbackCompare(a, b, lastRoundHoles, stableford);
 
   const strokeStandings: StrokeStanding[] = confirmed
     .map((p) => {
@@ -885,20 +899,32 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       const started = (y.ranked ? 1 : 0) - (x.ranked ? 1 : 0);
       if (started !== 0) return started;
       if (!x.ranked) return 0;
-      if (stableford) return y.points - x.points;
-      const byScore = grossBasis
-        ? x.gross - y.gross || x.net - y.net
-        : x.net - y.net || x.gross - y.gross;
-      if (byScore !== 0) return byScore;
       /**
-       * Level on the score — go to the countback.
+       * Level on the score — go to the countback, WHATEVER the basis.
        *
-       * This used to fall straight through to array order, which is seed
-       * order, so two players on 72 finished 1st and 2nd silently. The ladder
-       * is the standard one (last 9, 6, 3, then the last hole) read off the
-       * LAST round's card, which is what "the last nine" means to a committee.
+       * Stableford used to `return y.points - x.points` and stop there. A
+       * comparator that returns 0 leaves a stable sort in array order, which is
+       * seed order — so two players on 36 points were ordered by who signed up
+       * first. The rank pass below then asked `countbackCompare`, got a
+       * non-zero answer off their differing last nines, and concluded they were
+       * NOT level: ranks 1 and 2, printed as a clean result.
+       *
+       * So the sort and the rank pass disagreed about what "separated" means.
+       * The number on the sheet came from the countback; the order it was
+       * applied to came from the entry list, and the countback's own answer
+       * about who was ahead was never read.
+       *
+       * The ladder is the standard one — last 9, 6, 3, then the last hole —
+       * read off the LAST round's card, which is what "the last nine" means to
+       * a committee.
        */
-      return countbackCompare(cbCard(x.player.id), cbCard(y.player.id), lastRoundHoles);
+      const byScore = stableford
+        ? y.points - x.points
+        : grossBasis
+          ? x.gross - y.gross || x.net - y.net
+          : x.net - y.net || x.gross - y.gross;
+      if (byScore !== 0) return byScore;
+      return cbCompare(cbCard(x.player.id), cbCard(y.player.id));
     })
     .map((s) => ({ ...s, rank: 0 }));
 
@@ -932,9 +958,10 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       (stableford
         ? prev.points === s.points
         : prev.gross === s.gross && prev.net === s.net);
-    const level =
-      sameScore &&
-      countbackCompare(cbCard(prev!.player.id), cbCard(s.player.id), lastRoundHoles) === 0;
+    // The same comparison the sort used, through the same helper — these two
+    // reading the countback differently is exactly what produced a rank the
+    // order did not support.
+    const level = sameScore && cbCompare(cbCard(prev!.player.id), cbCard(s.player.id)) === 0;
     s.rank = level ? strokeStandings[i - 1].rank : i + 1;
   }
 

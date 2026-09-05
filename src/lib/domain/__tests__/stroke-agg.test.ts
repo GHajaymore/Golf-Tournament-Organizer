@@ -238,7 +238,9 @@ describe("more than one card for the same round", () => {
     expect(a.holesOwed).toBe(36);
     // Emptied rather than left holding whichever card was queried last, which
     // would separate a tie on an arbitrary one of the two.
-    expect(a.holesByStage.get("r1")).toEqual({ gross: [], net: [] });
+    // Points too: a Stableford countback reads that array, so leaving it
+    // populated would separate a points tie on one arbitrary card of the two.
+    expect(a.holesByStage.get("r1")).toEqual({ gross: [], net: [], points: [] });
   });
 
   it("keeps the countback card for a round the player played once", () => {
