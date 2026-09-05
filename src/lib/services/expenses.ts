@@ -296,6 +296,35 @@ async function gameNets(
       isSkinsScope(pot.scope) ? pot.scope : "full",
       pot.groupKey,
     );
+    /**
+     * A HALF-PLAYED POT IS NOT A RESULT, and this is where that is enforced.
+     *
+     * `skinsPotFor` returns a result whenever anybody is in the pot, however
+     * many holes are still to play, and sets `provisional` to say so. Nothing
+     * read the flag. `roundMoneyFor` was safe because it gates the whole round
+     * on `roundMoneyIsFinal` before asking; `moneyFor` calls this with no
+     * stage and no gate, so the outing ledger settled a pot mid-round.
+     *
+     * On `/me/money` in split mode that put provisional shares into
+     * `gamesCents`, `netCents`, `standing`, `gameLines` and the `settle()`
+     * transfer list — a list of who hands what to whom — directly beneath a
+     * round card correctly saying the round is still being played. Two
+     * answers about the same pot, on one screen, one of which the app has no
+     * business giving: `money-layout.ts` opens by saying exactly that. "A
+     * player looking at £40 on the 14th who finishes with nothing has been
+     * told something the app had no business claiming, and he will remember
+     * it." The carry is the whole character of skins — one hole can take the
+     * lot — so a running position is not an early view of the answer.
+     *
+     * Refused HERE rather than at each caller, because the caller that had it
+     * right and the caller that had it wrong were reading the same function.
+     * A third one written later cannot get it wrong by forgetting.
+     *
+     * What a player still SEES mid-round is their exposure — what they have
+     * riding on the pot — through `stakeFor`, which reads membership and never
+     * touches a card. That is the honest half and it is unaffected.
+     */
+    if (view?.result?.provisional) continue;
     // A pot with nobody in it has no result and no money — `result` is null
     // until somebody is entered, which is not the same as everyone at zero.
     for (const share of view?.result?.shares ?? []) {
