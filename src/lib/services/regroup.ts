@@ -270,6 +270,38 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
      * cascade this change exists to stop. Left in place rather than risk it;
      * an empty flight is a cosmetic problem, a deleted final is not.
      */
+    /**
+     * A captain who is no longer in the flight they captain is not its captain.
+     *
+     * Every `groupId` was nulled above and reassigned from the new draw, while
+     * the Group rows — and their `captainId` / `viceCaptainId` — were reused in
+     * place. So a reshuffle that moved somebody left the flight they came from
+     * still naming them, on the grouping screen and in the flight's own
+     * availability panel.
+     *
+     * Cleared per flight rather than wholesale: an appointment that SURVIVES
+     * the reshuffle is still the organizer's decision and is kept. Only the
+     * ones the new draw contradicts are dropped.
+     */
+    for (const [, groupId] of groupIdByEngineId) {
+      const members = await tx.player.findMany({
+        where: { eventId, groupId },
+        select: { id: true },
+      });
+      const ids = new Set(members.map((m) => m.id));
+      const g = await tx.group.findFirst({
+        where: { id: groupId, eventId },
+        select: { captainId: true, viceCaptainId: true },
+      });
+      if (!g) continue;
+      const data: { captainId?: null; viceCaptainId?: null } = {};
+      if (g.captainId && !ids.has(g.captainId)) data.captainId = null;
+      if (g.viceCaptainId && !ids.has(g.viceCaptainId)) data.viceCaptainId = null;
+      if (Object.keys(data).length) {
+        await tx.group.updateMany({ where: { id: groupId, eventId }, data });
+      }
+    }
+
     const surplus = existing.slice(groups.length).map((g) => g.id);
     if (surplus.length) {
       const stillUsed = await tx.match.findMany({
