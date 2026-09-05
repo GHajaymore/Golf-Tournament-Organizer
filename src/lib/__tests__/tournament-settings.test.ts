@@ -6,12 +6,14 @@ import {
   isLeaderboardPublic,
   canEnterScores,
   canPlayerSavePartial,
+  mayReportPartialCard,
   usesAccessCodes,
   usesEmailSignIn,
   allowsAutoConfirm,
   canApproveScores,
   LEADERBOARD_VISIBILITY,
   SCORE_ENTRY_BY,
+  SCORE_ENTRY_WINDOW,
   SCORE_APPROVAL,
   type TournamentSettings,
   ATTEST_BY,
@@ -145,6 +147,33 @@ describe("score entry", () => {
   it("blocks partial cards from players only when set to submit after the round", () => {
     expect(canPlayerSavePartial(withSettings({ scoreEntryWindow: "during" }))).toBe(true);
     expect(canPlayerSavePartial(withSettings({ scoreEntryWindow: "after" }))).toBe(false);
+  });
+
+  /**
+   * The window plus the role, in one place.
+   *
+   * Written out by hand at four call sites and reachable from no screen, which
+   * is why `/me/card` auto-saved every hole into a refusal the server was
+   * always going to give. All four cells are asserted: the "after" × player
+   * cell is the only false one, and a test that checked fewer would pass on a
+   * function that ignored either argument.
+   */
+  it("refuses a part card only from a player, and only after the round", () => {
+    const during = withSettings({ scoreEntryWindow: "during" });
+    const after = withSettings({ scoreEntryWindow: "after" });
+
+    expect(mayReportPartialCard(after, "player")).toBe(false);
+    expect(mayReportPartialCard(during, "player")).toBe(true);
+  });
+
+  it("never restricts staff, who enter scores as groups come in", () => {
+    // Including under "after": an organizer typing a fourball's cards at the
+    // turn is the ordinary way that setting is used, not a violation of it.
+    for (const window of SCORE_ENTRY_WINDOW) {
+      const s = withSettings({ scoreEntryWindow: window });
+      expect(mayReportPartialCard(s, "admin"), window).toBe(true);
+      expect(mayReportPartialCard(s, "assistant"), window).toBe(true);
+    }
   });
 });
 

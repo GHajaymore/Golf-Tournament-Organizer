@@ -1415,6 +1415,61 @@ describe("the pending-card queue never clears a card it did not send", () => {
     );
   });
 
+  /**
+   * A card the tournament will not take yet must not be sent, and must not be
+   * reported as broken.
+   *
+   * Under `scoreEntryWindow: "after"` the server refuses a part-filled card
+   * from a player — deliberately, at four call sites. `/me/card` auto-saves
+   * every hole and knew none of it, so from the first hole of the round the
+   * player was shown "This card wouldn't save. Show it to the committee before
+   * you sign.", with `safeToLeave: false`, and the queue retried every fifteen
+   * seconds until they finished. The one line this screen has for "are my holes
+   * safe" was false for an entire round of a perfectly ordinary setting.
+   *
+   * The rule reaches the screen through `mayReportPartialCard`, which is the
+   * same reader the action refuses on. Asserted as source because the screen is
+   * a server component rendering a client one, and there is no unit that can be
+   * handed an "after" tournament and asked what it sends.
+   */
+  it("holds a part card back rather than sending it into a certain refusal", () => {
+    const hookSrc = hook();
+    // The hold suppresses the REQUEST only. If it ever reached `push`, the
+    // device copy would stop being written and this hook's whole purpose —
+    // holes surviving a locked phone — would be lost on exactly the rounds
+    // where nothing is being sent to fall back on.
+    const push = hookSrc.slice(hookSrc.indexOf("const push = useCallback"));
+    expect(push.slice(0, push.indexOf("localStorage.setItem"))).not.toMatch(/holding/);
+    expect(hookSrc).toMatch(/if \(!enabled \|\| holding \|\| value\.current === null\) return;/);
+
+    const domain = stripComments(
+      readFileSync(join(process.cwd(), "src", "lib", "domain", "pending-card.ts"), "utf8"),
+    );
+    expect(domain.slice(domain.indexOf("export function shouldRetry"))).toMatch(
+      /if \(s\.holding\) return false;/,
+    );
+  });
+
+  it("takes that rule from the reader the save action refuses on", () => {
+    // Not re-derived on the screen. The action tests `mayReportPartialCard`,
+    // and a second copy of "player, and the window is after" is exactly how
+    // this screen came to disagree with the server in the first place.
+    const page = readFileSync(
+      join(process.cwd(), "src", "app", "(player)", "me", "card", "page.tsx"),
+      "utf8",
+    );
+    expect(page).toMatch(/savePartial=\{mayReportPartialCard\(settings, session\.role\)\}/);
+    expect(stripComments(page), "the window must not be re-tested by hand").not.toMatch(
+      /scoreEntryWindow/,
+    );
+
+    // And the actions ask the same function rather than spelling the role test
+    // out again — which is what kept it out of reach of any screen.
+    const actionsSrc = stripComments(read("tournament.ts"));
+    expect(actionsSrc).toMatch(/mayReportPartialCard\(settings, session\.role\)/);
+    expect(actionsSrc).not.toMatch(/session\.role === "player" && .*canPlayerSavePartial/);
+  });
+
   it("shows the player a card recovered from a previous visit", () => {
     // `recovered` was read from localStorage on mount and then rendered by
     // nobody, so the tab-eviction case the module exists for still lost holes.

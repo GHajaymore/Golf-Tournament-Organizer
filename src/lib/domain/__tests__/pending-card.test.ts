@@ -27,6 +27,7 @@ const base: PendingState = {
   waitingMs: 0,
   refused: false,
   held: false,
+  holding: false,
 };
 const at = (over: Partial<PendingState>) => syncStatus({ ...base, ...over });
 
@@ -89,6 +90,46 @@ describe("what the scorer is told", () => {
   it("reports a refusal even while offline, because it is not about the signal", () => {
     expect(at({ queued: true, refused: true, online: false }).tone).toBe("warn");
   });
+
+  /**
+   * A tournament that takes the whole card at the end.
+   *
+   * The player is nine holes into a `scoreEntryWindow: "after"` round. Their
+   * holes are on the phone and there is nothing to send yet — by design, not by
+   * failure. Every other branch here describes something going wrong, and this
+   * one describes the arrangement working.
+   */
+  it("does not call a card it is holding on purpose a failure", () => {
+    const s = at({ queued: true, holding: true });
+    expect(s.tone).toBe("queued");
+    expect(s.label).not.toMatch(/wouldn't save|committee|still trying/i);
+    expect(s.label).toMatch(/whole card/i);
+  });
+
+  it("tells them it is safe to walk away, because the holes are on the phone", () => {
+    // The one line that matters most on this screen, and the reason the old
+    // behaviour was worse than cosmetic: the refusal branch says
+    // safeToLeave: false, so from the first hole of the round a player was
+    // being told their card was not safe to leave. A warning that is always on
+    // is one nobody reads — including on the round where it is true.
+    expect(at({ queued: true, holding: true }).safeToLeave).toBe(true);
+  });
+
+  it("still lets a real conflict and a real refusal speak over it", () => {
+    // Both need a person; being mid-round does not make either wait. A held
+    // card is somebody else's edit, and a refusal after the card was completed
+    // and sent is a locked card or a closed round.
+    expect(at({ queued: true, holding: true, held: true }).label).toMatch(/choose which to keep/i);
+    expect(at({ queued: true, holding: true, refused: true }).label).toMatch(/committee/i);
+  });
+
+  it("does not say 'no signal' to somebody whose card was never going to send", () => {
+    // Offline is irrelevant while nothing is being attempted, and "will send
+    // when it returns" would be a promise the signal cannot keep.
+    const s = at({ queued: true, holding: true, online: false });
+    expect(s.label).not.toMatch(/no signal/i);
+    expect(s.safeToLeave).toBe(true);
+  });
 });
 
 describe("when to try again", () => {
@@ -107,6 +148,16 @@ describe("when to try again", () => {
 
   it("never doubles up on a request already in flight", () => {
     expect(r({ sending: true })).toBe(false);
+  });
+
+  it("never retries a card that is being held until it is whole", () => {
+    // The server refuses a part-filled card in this mode, deliberately and
+    // every time. Retrying is fifteen seconds of nothing, repeated for the
+    // length of a round — and each failure re-arms the warning on screen.
+    expect(r({ holding: true })).toBe(false);
+    // And the moment the card is complete, the hold lifts and the same queued
+    // card goes. Nothing else has to change for it to send.
+    expect(r({ holding: false })).toBe(true);
   });
 
   it("does nothing when there is nothing queued", () => {

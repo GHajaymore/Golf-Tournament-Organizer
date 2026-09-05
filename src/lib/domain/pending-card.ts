@@ -60,6 +60,19 @@ export interface PendingState {
    * nobody can act on here (a locked card, a closed round).
    */
   held: boolean;
+  /**
+   * The card is being kept on the phone ON PURPOSE, because this tournament
+   * takes whole cards and this one is not finished.
+   *
+   * Distinct from every other state here, and the distinction is the point.
+   * `queued` normally means "on its way"; under `scoreEntryWindow: "after"` a
+   * part-filled card is not on its way to anywhere and no amount of waiting or
+   * signal will change that. The screen used to describe it as a failure —
+   * "This card wouldn't save. Show it to the committee before you sign." — from
+   * the first hole of the round, because the server's refusal is not a network
+   * error and nothing told the screen to expect it.
+   */
+  holding: boolean;
 }
 
 export type SyncTone = "idle" | "working" | "queued" | "warn";
@@ -106,6 +119,29 @@ export function syncStatus(s: PendingState): SyncStatus {
     return { tone: "idle", label: "Saved", safeToLeave: true };
   }
 
+  if (s.holding) {
+    /**
+     * Kept back deliberately, and SAFE TO LEAVE.
+     *
+     * That last part is the whole reason this branch exists rather than
+     * falling through to "Saving…". The holes are on the phone — `push` writes
+     * the device copy before anything else, whether or not a request follows —
+     * so a player who pockets the phone on the 9th loses nothing. Reporting
+     * `safeToLeave: false` for a state that will not resolve until they have
+     * played nine more holes would make the one line this screen has for
+     * "are my holes safe" permanently false, which is how a warning stops
+     * being read.
+     *
+     * Placed after `held` and `refused` so a real conflict or a real server
+     * refusal still wins: those need a person, and this does not.
+     */
+    return {
+      tone: "queued",
+      label: "Saved on this phone. This tournament takes the whole card, so it goes in when you finish.",
+      safeToLeave: true,
+    };
+  }
+
   if (s.sending) {
     return { tone: "working", label: "Saving…", safeToLeave: false };
   }
@@ -147,8 +183,15 @@ export function shouldRetry(s: {
   sinceLastAttemptMs: number;
   /** A conflict is waiting on a person; replaying it just conflicts again. */
   held?: boolean;
+  /**
+   * The card is whole-card-only and not whole yet. Retrying cannot help — the
+   * server will refuse every one — and the timer would fire every fifteen
+   * seconds for the length of a round.
+   */
+  holding?: boolean;
 }): boolean {
   if (s.held) return false;
+  if (s.holding) return false;
   if (!s.queued || s.sending) return false;
   // Offline attempts fail instantly and cost battery for nothing. The `online`
   // event is what wakes this up, not a timer grinding away in a pocket.

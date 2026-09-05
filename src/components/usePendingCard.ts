@@ -54,6 +54,7 @@ export function usePendingCard<T>({
   send,
   debounceMs = 600,
   enabled = true,
+  holding = false,
 }: {
   stageId: string;
   playerId: string;
@@ -61,6 +62,21 @@ export function usePendingCard<T>({
   send: (value: T) => Promise<SendOutcome>;
   debounceMs?: number;
   enabled?: boolean;
+  /**
+   * Keep this card on the device and do not try the network yet.
+   *
+   * The device copy is still written on every change — that is `push`'s first
+   * act and the reason this hook exists. What this suppresses is only the
+   * request, for the one case where the server is CERTAIN to refuse it: a
+   * tournament that takes whole cards, and a card that is not whole. Sending
+   * anyway does not fail safely, it fails loudly and wrongly, because a
+   * deliberate refusal is not a network error and the screen reports it as a
+   * card that would not save.
+   *
+   * Distinct from `enabled`. That means the card cannot be written at all
+   * (approved, locked); this means not yet.
+   */
+  holding?: boolean;
 }): PendingCard<T> {
   const key = pendingKey(stageId, playerId);
 
@@ -90,7 +106,7 @@ export function usePendingCard<T>({
   }, [key]);
 
   const attempt = useCallback(async () => {
-    if (!enabled || value.current === null) return;
+    if (!enabled || holding || value.current === null) return;
     lastAttempt.current = Date.now();
     setSending(true);
     try {
@@ -136,7 +152,10 @@ export function usePendingCard<T>({
     } finally {
       setSending(false);
     }
-  }, [enabled, key, send]);
+    // `holding` is a dependency, not a value read at push time: the hole that
+    // completes the card flips it false in the same render that schedules the
+    // send, so the debounced attempt has to be the new one.
+  }, [enabled, holding, key, send]);
 
   const push = useCallback(
     (next: T) => {
@@ -182,6 +201,7 @@ export function usePendingCard<T>({
           online: typeof navigator === "undefined" || navigator.onLine !== false,
           sinceLastAttemptMs: Date.now() - lastAttempt.current,
           held,
+          holding,
         })
       ) {
         void attempt();
@@ -192,7 +212,7 @@ export function usePendingCard<T>({
       window.removeEventListener("online", wake);
       clearInterval(t);
     };
-  }, [attempt, queued, sending, held]);
+  }, [attempt, queued, sending, held, holding]);
 
   useEffect(
     () => () => {
@@ -209,6 +229,7 @@ export function usePendingCard<T>({
       waitingMs: queuedAt.current ? Date.now() - queuedAt.current : 0,
       refused,
       held,
+      holding,
     }),
     push,
     recovered,
