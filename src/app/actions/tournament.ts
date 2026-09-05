@@ -20,7 +20,7 @@ import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from 
 import { myPlayerIds } from "@/lib/services/me";
 import {
   canEnterScores,
-  canPlayerSavePartial,
+  mayReportPartialCard,
   allowsAutoConfirm,
   type TournamentSettings,
 } from "@/lib/tournament-settings";
@@ -1610,7 +1610,7 @@ export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   // Where the organizer wants finished cards only, a player can't dribble
   // holes onto the leaderboard as they play. Staff are never restricted this
   // way — they enter scores as groups come in.
-  if (session.role === "player" && !complete && !canPlayerSavePartial(settings)) {
+  if (!complete && !mayReportPartialCard(settings, session.role)) {
     throw new Error("Enter the full round, then submit it.");
   }
   // Any score edit resets confirmation to pending — including an organizer's,
@@ -1905,7 +1905,7 @@ export async function saveScorecard(
   const clean = cleanStrokes(strokes, roundHoles);
   if (!clean) throw new Error("Those scores aren't valid. Reload the round and try again.");
 
-  if (session.role === "player" && !canPlayerSavePartial(settings)) {
+  if (!mayReportPartialCard(settings, session.role)) {
     const filled = clean.filter((s) => typeof s === "number" && s > 0).length;
     if (filled < clean.length) throw new Error("Enter the full round, then submit it.");
   }
@@ -2054,7 +2054,7 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   const clean = cleanStrokes(strokes, cardStage?.holes === 9 ? 9 : 18);
   if (!clean) throw new Error("Those scores aren't valid. Reload the round and try again.");
 
-  if (session.role === "player" && !canPlayerSavePartial(settings)) {
+  if (!mayReportPartialCard(settings, session.role)) {
     const filled = clean.filter((s) => typeof s === "number" && s > 0).length;
     if (filled < clean.length) throw new Error("Enter the full round, then submit it.");
   }
@@ -2290,7 +2290,7 @@ export async function saveTeamScorecard(
     return { ok: false, error: "Those scores aren't valid. Reload the round and try again." };
   }
 
-  if (session.role === "player" && !canPlayerSavePartial(settings)) {
+  if (!mayReportPartialCard(settings, session.role)) {
     const filled = cleanCard.filter((s) => typeof s === "number" && s > 0).length;
     if (filled < cleanCard.length) {
       return { ok: false, error: "Enter the full round, then submit it." };

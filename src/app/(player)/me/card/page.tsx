@@ -4,7 +4,7 @@ import { needsTeams } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
-import { canEnterScores } from "@/lib/tournament-settings";
+import { canEnterScores, mayReportPartialCard } from "@/lib/tournament-settings";
 import { resolveCourse, hasCourseData } from "@/lib/courses";
 import { courseForRound, applyNine, cleanNine } from "@/lib/services/course-resolution";
 import { holeStrokesReceived, allocationHoles } from "@/lib/domain";
@@ -151,6 +151,18 @@ export default async function PlayCardPage() {
       // then replaced a full eighteen the committee had entered meanwhile,
       // with no conflict shown.
       initialRevision={me.round.card?.revision ?? NO_CARD_REVISION}
+      /**
+       * Whether this card may go in hole by hole, from the same reader
+       * `saveScorecard` refuses on — and on `session.role`, not `viewRole`,
+       * because that is what the action tests. An organizer previewing as a
+       * player still saves as staff, and telling this screen otherwise would
+       * hold a card the server would have taken.
+       *
+       * Without it the screen auto-saved every hole into a certain refusal and
+       * reported it as "This card wouldn't save. Show it to the committee
+       * before you sign." for the whole round.
+       */
+      savePartial={mayReportPartialCard(settings, session.role)}
     />
   );
 }
