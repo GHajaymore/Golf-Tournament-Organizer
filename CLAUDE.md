@@ -123,6 +123,33 @@ the first one's `verify` reading `cancelled` on a commit already in production �
 with no verdict at all. Still right for the plainer reason that a cancelled check is a
 missing verdict. Feature branches still cancel.
 
+**That exemption protects a run that has STARTED, not one still queued**, and the difference
+shows up the moment you merge a batch. GitHub allows one RUNNING and one PENDING run per
+concurrency group; a third arrival cancels the pending one, and `cancel-in-progress: false`
+does not enter into it. So merging nineteen PRs in thirteen minutes on 2026-09-05 left
+**fifteen of them cancelled** — every one killed while queued, with zero jobs ever started —
+and four green.
+
+Nothing shipped unverified, and the reason is worth knowing rather than assuming: `deploy`
+has `needs: verify`, so a cancelled verify means the deploy job never runs at all. Production
+only ever received the commits whose gate actually went green, and because the last one is
+the tip it carried everything before it. The gate held exactly as designed.
+
+What it costs is the AUDIT TRAIL. `gh run list --branch main` now shows a wall of
+`cancelled` against real merge commits, and nothing in that output distinguishes "cancelled
+while queued behind a newer merge, never deployed" from "cancelled mid-flight on a commit
+that went out" — which is the exact confusion the paragraph above was written to prevent.
+Reading it later, you cannot tell which commits were ever verified.
+
+So: **merge one at a time and let each `verify` finish** when the history needs to mean
+something — a release, anything you may have to reconstruct afterwards. It costs about eight
+minutes a PR. A batch merge is fine when you only care that the TIP is green, which is the
+common case; just do not then read the run list as evidence about the commits underneath it.
+
+To check whether a specific commit was verified, ask for its run rather than scanning the
+list: `gh run list --branch main --json headSha,conclusion`. A commit with no successful run
+was never verified, whether or not the code in it is now live under a later one.
+
 The two mobile workflows are scaffolding, not pipelines. `android-release.yml` reads five
 secrets and `ios-testflight.yml` seven; the repository holds NONE of them. (`gh secret list`
 is no longer empty — it has held `VERCEL_TOKEN` since 2026-09-04 — so read the names rather
