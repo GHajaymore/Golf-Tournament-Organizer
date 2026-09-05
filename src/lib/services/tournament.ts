@@ -358,6 +358,19 @@ export interface EventState {
    * maps and drifting.
    */
   strokeHandicapFor: (playerId: string, stageId: string) => number;
+  /**
+   * The card a given round is scored against — round venue, then event, with
+   * the played nine already applied and its stroke indexes re-ranked 1..9.
+   *
+   * Exposed for the same reason as `strokeHandicapFor` directly above, and it
+   * should have been exposed at the same time. The weekly league view reused
+   * the handicap and rebuilt the COURSE by hand from `resolveCourse(event)`,
+   * under a comment saying not to do exactly that — so a nine-hole week, or a
+   * week at the second venue, was priced with a handicap for the nine played
+   * and pars and stroke indexes for all eighteen. A player owed 9 strokes over
+   * nine got 5, because only holes whose 18-hole index was <= 9 drew one.
+   */
+  strokeCourseFor: (stageId: string) => { pars: number[]; holeDifficulty: number[] };
   advancingCount: number;
   advancingIds: Set<string>;
   pendingConfirmations: number;
@@ -1123,6 +1136,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     strokeUnit,
     strokeRounds,
     strokeHandicapFor: handicapFor,
+    strokeCourseFor: courseFor,
     advancingCount,
     advancingIds,
     pendingConfirmations,
