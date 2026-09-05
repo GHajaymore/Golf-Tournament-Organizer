@@ -392,6 +392,56 @@ async function gameNets(
       });
       const venueById = new Map(venues.map((c) => [c.id, c]));
 
+      /**
+       * Is this round's money knowable yet — asked exactly as the round card
+       * above the ledger asks it.
+       *
+       * `roundMoneyFor` computes this per stage and refuses to call `gameNets`
+       * at all until it is true. `moneyFor` calls `gameNets` with no stage and
+       * no gate, so the derived pots below needed the same answer down here —
+       * same domain function, and asking twice on the round path is idempotent
+       * rather than a second opinion.
+       *
+       * One measure of the round card's two is deliberately absent: "every
+       * match settled". `matchSettled` is satisfied by a match with ONE hole
+       * on it, which is loose enough for "which round are we on" and far too
+       * loose to release money. The round card can afford it because a match
+       * round returns no `Scorecard` rows at all — match play writes
+       * `MatchScorecard`, which nothing below reads — so a derived pot on a
+       * match round has nothing to pay either way and the measure changes
+       * nothing there. Where it WOULD have changed something is a stroke round
+       * still holding match rows from before its format was changed, and there
+       * it could only open the gate on half-played cards. So: holes returned,
+       * or the organizer closing the tournament.
+       *
+       * Cached per stage: a club can run four derived pots on one round, and
+       * the answer is a property of the round, not of the pot.
+       */
+      const finalByStage = new Map<string, boolean>();
+      const roundIsFinal = (stageId: string, holeCount: number): boolean => {
+        const cached = finalByStage.get(stageId);
+        if (cached !== undefined) return cached;
+        const forStage = cards.filter((c) => c.stageId === stageId);
+        let holesReturned = 0;
+        for (let h = 0; h < holeCount; h += 1) {
+          const played = forStage.some((c) => {
+            try {
+              return (JSON.parse(c.strokes) as (number | null)[])[h] != null;
+            } catch {
+              return false;
+            }
+          });
+          if (played) holesReturned += 1;
+        }
+        const answer = roundMoneyIsFinal({
+          holesReturned,
+          holeCount,
+          roundComplete: state.event.status === "completed",
+        });
+        finalByStage.set(stageId, answer);
+        return answer;
+      };
+
       for (const game of sideGames) {
         const stage = stageById.get(game.stageId);
         if (!stage) continue;
@@ -456,6 +506,47 @@ async function gameNets(
         }
 
         if (!isDerivedKind(game.kind)) continue;
+
+        /**
+         * A HALF-PLAYED POT IS NOT A RESULT — the derived half of the rule the
+         * skins loop above enforces, and for the same reason.
+         *
+         * `derivedNets` pays out of whatever cards exist at the time and has
+         * no `provisional` of its own to read, so through `moneyFor` — which
+         * gates nothing — a pot mid-round landed in `gamesCents`, `netCents`,
+         * the standing and the `settle()` transfer list. `money-layout.ts`
+         * opens with why the app has no business doing that.
+         *
+         * Each kind was judged on its own rather than assumed to behave alike,
+         * and all four are wrong mid-round:
+         *
+         *   low gross,   meaningless until every card is in. `lowScoreWinners`
+         *   low net      compares only the cards with the MOST holes played,
+         *                so mid-round the pot goes to whoever is furthest
+         *                round — a leader, dressed as a winner.
+         *
+         *   birdies,     the birdie already made does not un-happen, and that
+         *   eagles       is not the question. The pot divides by the counts
+         *                RELATIVE to each other, so one birdie on the 3rd
+         *                shows a player taking all of it and four more birdies
+         *                across the field leaves them with a fifth. The event
+         *                is settled; the amount is not, and the amount is what
+         *                the ledger claims.
+         *
+         * The Nassau above is deliberately NOT gated, because it fails neither
+         * test: `nassauNets` pays only segments that are COMPLETE, and a front
+         * nine that is finished cannot be re-decided by the back — the money
+         * on it is fixed the moment the segment ends. Withholding that would
+         * be hiding a settled bet, which is the opposite failure.
+         *
+         * Refused HERE rather than at each caller, as the skins gate is: the
+         * caller that had it right and the caller that had it wrong were
+         * reading the same function, and a third written later cannot get it
+         * wrong by forgetting. What a player still sees mid-round is their
+         * exposure, through `stakeFor`, which reads membership and never
+         * touches a card.
+         */
+        if (!roundIsFinal(game.stageId, holes)) continue;
         // Through potMembership, the same as the contests below. Opt-in still
         // means confirmed stakes only — a name put down in the app is an
         // intention and the stake is the cash the organizer took — and opt-out
