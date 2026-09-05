@@ -1231,6 +1231,53 @@ describe("the pending-card queue never clears a card it did not send", () => {
     expect(card).toMatch(/recoveredDiffers/);
     expect(card).toMatch(/mine=\{recoveredFitted\}/);
   });
+
+  /**
+   * ...and tells them it is a RECOVERY, not somebody else's edit.
+   *
+   * The assertion above pins that the chooser is rendered, and that was all it
+   * pinned — so the recovery case went on rendering the CONFLICT's words:
+   * "Somebody else — usually the committee — edited this card while your phone
+   * was offline", when nobody had, above a footnote reading "If you are not
+   * sure, use theirs". In this case "theirs" runs `settle()`, which drops the
+   * localStorage key holding the only copy of those holes.
+   *
+   * The two situations put the destructive button in different places, so the
+   * component has to know which one it is in.
+   */
+  it("tells the recovery case apart from a concurrent edit", () => {
+    const card = stripComments(
+      readFileSync(join(process.cwd(), "src", "components", "PlayerCard.tsx"), "utf8"),
+    );
+    // The recovery chooser declares itself; the conflict one takes the default.
+    expect(card).toMatch(/kind="recovered"[\s\S]{0,200}mine=\{recoveredFitted\}/);
+
+    const chooser = stripComments(
+      readFileSync(join(process.cwd(), "src", "components", "CardConflict.tsx"), "utf8"),
+    );
+    // It branches on the kind rather than describing one situation twice.
+    expect(chooser).toMatch(/kind === "recovered"/);
+    // And the committee-edit sentence is reachable only from the conflict copy.
+    const recoveredCopy = chooser.slice(chooser.indexOf("recovered\n    ? {"), chooser.indexOf(": {", chooser.indexOf("recovered\n    ? {") + 20));
+    expect(recoveredCopy).not.toMatch(/Somebody else/);
+  });
+
+  /**
+   * A screen that loaded with NO card says so, rather than saying nothing.
+   *
+   * `card?.revision ?? ""` reached `saveScorecard` as a falsy revision, which
+   * that action reads as "write unconditionally" — the CONSOLE's meaning, and
+   * the opposite of this screen's. A player who opened an empty card, went
+   * offline and entered nine holes then replaced the committee's full eighteen
+   * with no conflict raised.
+   */
+  it("the player's card page reports an absent card as a revision", () => {
+    const page = stripComments(
+      readFileSync(join(process.cwd(), "src", "app", "(player)", "me", "card", "page.tsx"), "utf8"),
+    );
+    expect(page).toMatch(/initialRevision=\{me\.round\.card\?\.revision \?\? NO_CARD_REVISION\}/);
+    expect(page).not.toMatch(/initialRevision=\{[^}]*\?\?\s*""\s*\}/);
+  });
 });
 
 /**

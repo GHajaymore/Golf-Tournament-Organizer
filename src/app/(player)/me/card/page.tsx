@@ -11,6 +11,7 @@ import { holeStrokesReceived, allocationHoles } from "@/lib/domain";
 import { prisma } from "@/lib/db";
 import { meFor } from "@/lib/services/me";
 import { cardBrand } from "@/lib/services/organization";
+import { NO_CARD_REVISION } from "@/lib/domain/pending-card";
 import { PlayerCard } from "@/components/PlayerCard";
 
 /**
@@ -142,7 +143,14 @@ export default async function PlayCardPage() {
       initialStrokes={me.round.card?.strokes ?? []}
       // Which version the screen loaded, so a save that would land on top of
       // somebody else’s change is refused rather than winning silently.
-      initialRevision={me.round.card?.revision ?? ""}
+      //
+      // `NO_CARD_REVISION` rather than "" when there is no card yet. The empty
+      // string reached the server as "no opinion, write unconditionally" —
+      // which is the CONSOLE's meaning, and the opposite of this screen's. A
+      // player who opened an empty card, went offline and entered nine holes
+      // then replaced a full eighteen the committee had entered meanwhile,
+      // with no conflict shown.
+      initialRevision={me.round.card?.revision ?? NO_CARD_REVISION}
     />
   );
 }

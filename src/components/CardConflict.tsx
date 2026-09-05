@@ -16,13 +16,34 @@
  * Deliberately NOT a merge. Taking the newest value per hole would produce a
  * third card that neither person entered and nobody can vouch for — which,
  * under Rule 3.3b, is precisely what a scorecard cannot be.
+ *
+ * TWO SITUATIONS, and they are opposites. This chooser is shown for both, and
+ * for a long time it described only one of them.
+ *
+ *   "conflict"  — the server holds a card that changed under us. Both versions
+ *                 exist. Taking theirs changes nothing, because the server
+ *                 already holds exactly that, so it is the safe default.
+ *
+ *   "recovered" — holes are sitting on this phone that the server has NEVER
+ *                 seen. Nobody edited anything. Taking "theirs" deletes the
+ *                 device copy, and the device copy is the only copy.
+ *
+ * Rendered with the conflict's wording, the recovery case told the player
+ * "Somebody else — usually the committee — edited this card while your phone
+ * was offline" (nobody had), and advised "If you are not sure, use theirs"
+ * (which erased five holes they had walked in with). The safe button and the
+ * destructive one are swapped between the two, so the wording, the order and
+ * the footnote all have to swap with them.
  */
+export type CardConflictKind = "conflict" | "recovered";
+
 export function CardConflict({
   mine,
   theirs,
   pars,
   onKeepMine,
   onTakeTheirs,
+  kind = "conflict",
   busy = false,
 }: {
   mine: (number | null)[];
@@ -30,12 +51,55 @@ export function CardConflict({
   pars: number[];
   onKeepMine: () => void;
   onTakeTheirs: () => void;
+  /**
+   * Which situation this is. Defaults to "conflict" — the stricter reading, in
+   * that it never calls unsent holes a committee edit.
+   */
+  kind?: CardConflictKind;
   busy?: boolean;
 }) {
   const holes = Math.max(mine.length, theirs.length);
   const differing = Array.from({ length: holes }, (_, i) => i).filter(
     (i) => (mine[i] ?? null) !== (theirs[i] ?? null),
   );
+
+  const recovered = kind === "recovered";
+
+  /**
+   * Every word that differs between the two situations, in one place.
+   *
+   * Gathered rather than sprinkled through the JSX so that adding a third
+   * situation later cannot half-describe it — which is the failure this whole
+   * prop exists to fix.
+   */
+  const copy = recovered
+    ? {
+        title: "Holes on this phone that were never sent",
+        // No accusation, because nothing happened: these simply never left the
+        // phone. Saying the committee edited the card sent players to ask an
+        // organizer about a change nobody had made.
+        body: "These holes are saved on this phone and have never reached the committee. Nothing has been sent yet. Below them is the card the committee currently holds.",
+        mineLabel: "On this phone",
+        theirsLabel: "Sent so far",
+        keepLabel: "Send these holes",
+        takeLabel: "Discard them",
+        // Reversed, and it has to be: discarding is the irreversible choice
+        // here, and the phone is holding the only copy.
+        footnote:
+          "Discarding cannot be undone — this phone holds the only copy of these holes. If you are not sure, send them and tell the committee.",
+        aria: "Holes on this phone were never sent",
+      }
+    : {
+        title: "This card changed while you were out of signal",
+        body: "Somebody else — usually the committee — edited this card while your phone was offline. Your holes are still here and nothing has been sent. Pick which card is right; only one of you was standing on",
+        mineLabel: "Mine",
+        theirsLabel: "Theirs",
+        keepLabel: "Keep mine",
+        takeLabel: "Use theirs",
+        footnote:
+          "Keeping yours replaces their version. If you are not sure, use theirs and tell the committee what you had — a card is a statement under Rule 3.3b, not a race.",
+        aria: "This card was changed somewhere else",
+      };
 
   const cell = (v: number | null, changed: boolean) => (
     <td
@@ -57,16 +121,19 @@ export function CardConflict({
       className="card elev-sm"
       style={{ gap: 12, borderColor: "var(--color-danger)" }}
       role="alertdialog"
-      aria-label="This card was changed somewhere else"
+      aria-label={copy.aria}
     >
       <span className="card-title" style={{ fontSize: 15 }}>
-        This card changed while you were out of signal
+        {copy.title}
       </span>
       <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.55 }}>
-        Somebody else — usually the committee — edited this card while your phone was
-        offline. Your holes are still here and nothing has been sent. Pick which card is
-        right; only one of you was standing on{" "}
-        {differing.length === 1 ? "that hole" : "those holes"}.
+        {recovered ? (
+          copy.body
+        ) : (
+          <>
+            {copy.body} {differing.length === 1 ? "that hole" : "those holes"}.
+          </>
+        )}
       </p>
 
       {/*
@@ -96,7 +163,7 @@ export function CardConflict({
           </thead>
           <tbody>
             <tr style={{ borderTop: "1px solid var(--color-divider)" }}>
-              <th style={{ textAlign: "left", padding: "5px 8px", fontWeight: 600 }}>Yours</th>
+              <th style={{ textAlign: "left", padding: "5px 8px", fontWeight: 600 }}>{copy.mineLabel}</th>
               {differing.map((i) => (
                 <span key={i} style={{ display: "contents" }}>
                   {cell(mine[i] ?? null, true)}
@@ -104,7 +171,7 @@ export function CardConflict({
               ))}
             </tr>
             <tr style={{ borderTop: "1px solid var(--color-divider)" }}>
-              <th style={{ textAlign: "left", padding: "5px 8px", fontWeight: 600 }}>Theirs</th>
+              <th style={{ textAlign: "left", padding: "5px 8px", fontWeight: 600 }}>{copy.theirsLabel}</th>
               {differing.map((i) => (
                 <span key={i} style={{ display: "contents" }}>
                   {cell(theirs[i] ?? null, true)}
@@ -115,35 +182,44 @@ export function CardConflict({
         </table>
       </div>
 
+      {/*
+        THE NON-DESTRUCTIVE CHOICE LEADS, and which one that is flips between
+        the two situations.
+
+        In a conflict, "theirs" is already what the tournament holds, so taking
+        it changes nothing — it leads, and a destructive choice should never be
+        the easier one to hit with a glove on.
+
+        In a recovery the same button DELETES the device's only copy of holes
+        the server has never seen, while sending them changes nothing that
+        exists anywhere else. So the order swaps with the meaning; leaving it
+        fixed would have put the irreversible option under the thumb.
+      */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {/*
-          "Theirs" leads. The other version is already what the tournament
-          holds, so taking it is the outcome that changes nothing — and a
-          destructive choice should never be the easier one to hit with a
-          glove on.
-        */}
-        <button
-          type="button"
-          className="btn btn-secondary touch-target"
-          style={{ flex: 1, minWidth: 140 }}
-          disabled={busy}
-          onClick={onTakeTheirs}
-        >
-          Use theirs
-        </button>
-        <button
-          type="button"
-          className="btn btn-primary touch-target"
-          style={{ flex: 1, minWidth: 140 }}
-          disabled={busy}
-          onClick={onKeepMine}
-        >
-          Keep mine
-        </button>
+        {(recovered
+          ? ([
+              { label: copy.keepLabel, onClick: onKeepMine, primary: true },
+              { label: copy.takeLabel, onClick: onTakeTheirs, primary: false },
+            ] as const)
+          : ([
+              { label: copy.takeLabel, onClick: onTakeTheirs, primary: false },
+              { label: copy.keepLabel, onClick: onKeepMine, primary: true },
+            ] as const)
+        ).map((b) => (
+          <button
+            key={b.label}
+            type="button"
+            className={`btn ${b.primary ? "btn-primary" : "btn-secondary"} touch-target`}
+            style={{ flex: 1, minWidth: 140 }}
+            disabled={busy}
+            onClick={b.onClick}
+          >
+            {b.label}
+          </button>
+        ))}
       </div>
       <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
-        Keeping yours replaces their version. If you are not sure, use theirs and tell the
-        committee what you had — a card is a statement under Rule 3.3b, not a race.
+        {copy.footnote}
       </p>
     </section>
   );
