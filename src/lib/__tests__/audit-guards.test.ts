@@ -14,8 +14,7 @@ import { drawBrackets } from "@/lib/domain";
 
 const ACTIONS_DIR = join(process.cwd(), "src", "app", "actions");
 const read = (f: string) => readFileSync(join(ACTIONS_DIR, f), "utf8");
-const stripComments = (s: string) =>
-  s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+import { stripComments, readSource } from "./source";
 
 /** Every exported action in a file, with its body, comments removed. */
 function actions(file: string): { name: string; body: string }[] {
@@ -223,9 +222,7 @@ describe("team score entry authorization", () => {
 
 describe("team match generation", () => {
   const src = () =>
-    readFileSync(join(ACTIONS_DIR, "teams.ts"), "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/\/\/.*$/gm, "");
+    readSource("src", "app", "actions", "teams.ts");
 
   it("exists — the team columns were dead until it did", () => {
     // Match gained teamAId/teamBId, the entry screen read them and

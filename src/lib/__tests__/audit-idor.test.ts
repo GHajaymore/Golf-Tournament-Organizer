@@ -36,8 +36,7 @@ const ACTIONS_DIR = join(process.cwd(), "src", "app", "actions");
  * without publishing it as an HTTP endpoint, so sharing it meant moving it.
  */
 const SERVICES_DIR = join(process.cwd(), "src", "lib", "services");
-const stripComments = (s: string) =>
-  s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+import { stripComments } from "./source";
 
 interface Action {
   file: string;

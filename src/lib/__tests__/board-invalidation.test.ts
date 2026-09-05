@@ -25,7 +25,7 @@ import { join } from "node:path";
  */
 
 const ACTIONS = join(process.cwd(), "src", "app", "actions");
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+import { stripComments as strip } from "./source";
 
 /**
  * The models the public board is computed from.

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "./source";
 
 /**
  * The public board is cached. These are the three things that make that safe.
@@ -50,9 +51,13 @@ describe("the writer and the reader agree on the tag", () => {
   it("composes the tag in ONE place", () => {
     // `board:` spelled out at a call site is a contract with a second author.
     // Everything must go through boardTag().
-    const refresh = readFileSync(join(SERVICES, "board-refresh.ts"), "utf8");
+    // Stripped once at the read rather than inline on the second assertion.
+    // The inline version stripped only BLOCK comments, so a `// board:` in a
+    // line comment would have tripped the ban — and the first assertion, which
+    // pins the call, was reading the comments too.
+    const refresh = stripComments(readFileSync(join(SERVICES, "board-refresh.ts"), "utf8"));
     expect(refresh).toMatch(/boardTag\(/);
-    expect(refresh.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/["'`]board:/);
+    expect(refresh).not.toMatch(/["'`]board:/);
   });
 });
 

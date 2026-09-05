@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "./source";
 import { money, isCurrencyCode, CURRENCIES, currencySymbol, minorUnitsFrom } from "@/lib/domain/money-format";
 
 /**
@@ -204,9 +205,7 @@ describe("nothing reads a skins pot without saying whose it is", () => {
         // between the call and its `select`, and a fixed window over the raw
         // source cut the `groupKey` off and reported two correct readers as
         // faults. A guard that flags correct code is the one somebody deletes.
-        const src = readFileSync(file, "utf8")
-          .replace(/\/\*[\s\S]*?\*\//g, "")
-          .replace(/\/\/.*$/gm, "");
+        const src = stripComments(readFileSync(file, "utf8"));
         if (!/prisma\.skinsPot\.(findMany|findFirst)/.test(src)) continue;
         // The query must mention groupKey — either filtering to the club's
         // ("") or selecting it so the caller can pass it on.

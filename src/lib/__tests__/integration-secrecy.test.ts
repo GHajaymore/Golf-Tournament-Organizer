@@ -39,7 +39,7 @@ function walk(dir: string): string[] {
 
 const files = walk(SRC).filter((f) => !f.includes("__tests__"));
 const rel = (f: string) => f.replace(SRC + sep, "");
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+import { stripComments as strip } from "./source";
 
 describe("an association credential never leaves the server", () => {
   it("has files to check, so this cannot pass vacuously", () => {

@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "./source";
 
 /**
  * The team entry screen identifies each card by team, match and player.
@@ -14,10 +13,7 @@ import { join } from "node:path";
  * test with one match per side would go green either way.
  */
 
-const SRC = readFileSync(
-  join(process.cwd(), "src", "components", "TeamEntryClient.tsx"),
-  "utf8",
-).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+const SRC = readSource("src", "components", "TeamEntryClient.tsx");
 
 describe("team entry card identity", () => {
   it("includes the match in the draft key", () => {
