@@ -6,6 +6,7 @@ import { courseForMatch, cardForMatch } from "@/lib/services/course-resolution";
 import { brandForEvent } from "@/lib/services/organization";
 import { PlayClient } from "@/components/PlayClient";
 import type { HoleResult } from "@/lib/domain";
+import { NOINDEX } from "@/lib/site";
 
 /**
  * The Round Code surface.
@@ -17,7 +18,8 @@ import type { HoleResult } from "@/lib/domain";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Enter your score" };
+// Reached with a Round Code, and it renders the field's names once redeemed.
+export const metadata = { title: "Enter your score", robots: NOINDEX };
 
 export default async function PlayPage() {
   const session = await getPlaySession();

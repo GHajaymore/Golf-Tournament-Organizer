@@ -6,6 +6,10 @@ import { homeFor } from "@/lib/roles";
 import { safeNextPath } from "@/lib/domain/safe-next";
 import { prisma } from "@/lib/db";
 import { accessibleEvents } from "@/lib/services/access";
+import { NOINDEX } from "@/lib/site";
+
+// Behind a session, and it lists the tournaments this person can reach.
+export const metadata = { title: "Choose a tournament", robots: NOINDEX };
 import { ROLE_LABEL } from "@/lib/roles";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";

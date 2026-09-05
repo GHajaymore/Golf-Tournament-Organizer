@@ -2,6 +2,7 @@ import { openRegistrationView, registrationPrefillFor } from "@/lib/services/reg
 import { getSession } from "@/lib/auth";
 import { OrgBrand } from "@/components/OrgBrand";
 import { RegisterClient } from "@/components/RegisterClient";
+import { NOINDEX } from "@/lib/site";
 
 /**
  * The public self-service registration page.
@@ -22,8 +23,10 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   const { token } = await params;
   const view = await openRegistrationView(token);
   // Don't leak the event's name through the tab title when the link isn't live.
-  if (!view) return { title: "Registration" };
-  return { title: `Register — ${view.eventName}` };
+  // Never indexed either way: the token IS the credential, so an indexed
+  // registration link is an open door with the event's details attached.
+  if (!view) return { title: "Registration", robots: NOINDEX };
+  return { title: `Register — ${view.eventName}`, robots: NOINDEX };
 }
 
 const pageStyle: React.CSSProperties = {

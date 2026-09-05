@@ -4,6 +4,7 @@ import { GeistMono } from "geist/font/mono";
 import { Fraunces } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { siteOrigin } from "@/lib/site";
 
 /**
  * Geist, self-hosted.
@@ -65,9 +66,57 @@ export const metadata: Metadata = {
    * after it carries the scope, so this widens what the title claims without
    * spending any of what it ranks for.
    */
-  title: "TourneyHQ — Golf tournament management, from the draw to the payout",
+  /**
+   * A TEMPLATE, because a child title used to replace this one outright.
+   *
+   * `/play` set `title: "Enter your score"` and that is exactly what the tab,
+   * the bookmark and the shared link said — three words with no product, no
+   * club and no context. Every page that names itself needs the suffix, and
+   * the one page that should carry the full sentence is the landing page, so
+   * that is `default`.
+   */
+  title: {
+    default: "TourneyHQ — Golf tournament management, from the draw to the payout",
+    template: "%s · TourneyHQ",
+  },
   description:
     "Run a club's whole competition: flights, handicaps, brackets, live standings and season-long order of merit — with every player's card, board, skins and settle-up on their own phone.",
+  /**
+   * The origin every relative URL below is resolved against.
+   *
+   * Without it Next emits Open Graph and canonical URLs as paths, which no
+   * share card and no crawler can follow — so the whole block underneath was
+   * inert whether or not it existed. See `src/lib/site.ts` for why this is
+   * resolved rather than written down here.
+   */
+  metadataBase: new URL(siteOrigin()),
+  /**
+   * NO `alternates.canonical` here, deliberately.
+   *
+   * Next inherits it, so a canonical set on the root layout is claimed by every
+   * page that does not override it — and a canonical is a statement that THIS
+   * url is the real one for this content. Setting "/" here told a crawler that
+   * `/privacy` is a duplicate of the landing page, which is both false and
+   * exactly the kind of instruction search engines act on.
+   *
+   * Caught by building and reading the emitted HTML rather than by reasoning
+   * about it: the tag renders identically on every page and looks right on the
+   * only page it IS right for. Each indexable page declares its own below.
+   */
+  openGraph: {
+    type: "website",
+    siteName: "TourneyHQ",
+    url: "/",
+    title: "TourneyHQ — Golf tournament management, from the draw to the payout",
+    description:
+      "Flights, handicaps, brackets and live standings for a club's whole competition — with every player's card, board, skins and settle-up on their own phone.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "TourneyHQ — Golf tournament management",
+    description:
+      "Flights, handicaps, brackets and live standings — with every player's card, board and settle-up on their own phone.",
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
