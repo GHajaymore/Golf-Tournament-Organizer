@@ -11,6 +11,14 @@ import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 
 /**
+ * Only the canonical. Title, description and the share cards come from the root
+ * layout, and this is the one page whose content those defaults describe — so
+ * naming them again here would be two copies of the same sentence to keep in
+ * step.
+ */
+export const metadata = { alternates: { canonical: "/" } };
+
+/**
  * The app's wordmark tokens, mapped to the BRAND's own colours.
  *
  * BrandMark reads --color-accent* and --color-bg, which the landing page does

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, dirname, relative, sep } from "node:path";
 
 /**
  * Guards for the surface reachable with no login at all: the public
@@ -20,6 +20,146 @@ const SRC = join(process.cwd(), "src");
 const read = (...p: string[]) => readFileSync(join(SRC, ...p), "utf8");
 const stripComments = (s: string) =>
   s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+/**
+ * Every route says whether a search engine may keep it, and only two say yes.
+ *
+ * Swept from the filesystem rather than listed, for the reason the layout sweep
+ * in `e2e/layout.spec.ts` gives: a hand-written list covered 14 of 22 routes
+ * and the eight it missed had no assertion at all. A page added next year is
+ * the exact case that matters, and it will not be added to a list.
+ *
+ * What this protects is not ranking. `/live/<token>` renders real club members
+ * by name, with their positions and scores — its own docblock says so — and
+ * until now nothing in the app asked a crawler to leave it alone. The token
+ * keeps it out of a crawler's reach only until somebody posts a board link on a
+ * club website or through a service that follows links to build a preview.
+ * After that, a member's name and score can sit in a public index for as long
+ * as the index keeps it, which is not a thing this app can undo.
+ *
+ * `robots.txt` is the other half and cannot replace this one: a Disallowed URL
+ * can still be listed from an external link, built out of the anchor text
+ * alone. Only the page itself can refuse to be kept.
+ *
+ * Inheritance counts. `(app)` and `(player)` declare it once on their layouts,
+ * which is the right shape — twenty-two console screens should not each have to
+ * remember — so this walks a page's ancestor layouts before failing it.
+ */
+describe("nothing but the marketing pages invites indexing", () => {
+  const APP = join(SRC, "app");
+
+  /** Route groups are organisational — `(app)/dashboard` serves `/dashboard`. */
+  const routeOf = (pageFile: string) =>
+    "/" +
+    relative(APP, dirname(pageFile))
+      .split(sep)
+      .filter((seg) => seg && !seg.startsWith("("))
+      .join("/");
+
+  const pages: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.name === "page.tsx") pages.push(full);
+    }
+  };
+  walk(APP);
+
+  /**
+   * The pages that exist to be found. Everything else is either credentialed by
+   * a token in its URL or behind a session, and none of it benefits from being
+   * in an index.
+   */
+  const INDEXABLE = new Set(["/", "/privacy"]);
+
+  /** A page's own file, plus every layout above it up to src/app. */
+  const chainFor = (pageFile: string) => {
+    const files = [pageFile];
+    let dir = dirname(pageFile);
+    for (;;) {
+      const layout = join(dir, "layout.tsx");
+      try {
+        readFileSync(layout, "utf8");
+        files.push(layout);
+      } catch {
+        // No layout at this level, which is ordinary.
+      }
+      if (dir === APP) break;
+      dir = dirname(dir);
+    }
+    return files;
+  };
+
+  it("finds the routes", () => {
+    // A broken walk would make every assertion below vacuous.
+    expect(pages.length).toBeGreaterThan(30);
+    expect(pages.map(routeOf)).toContain("/live/[token]");
+  });
+
+  for (const pageFile of pages) {
+    const route = routeOf(pageFile);
+    if (INDEXABLE.has(route)) continue;
+
+    it(`${route} refuses to be indexed`, () => {
+      const declared = chainFor(pageFile).some((f) => /robots:\s*NOINDEX/.test(readFileSync(f, "utf8")));
+      expect(
+        declared,
+        `${route} may be indexed. Add \`robots: NOINDEX\` to its metadata, or to the layout above it.`,
+      ).toBe(true);
+    });
+  }
+
+  it("the two marketing pages are left indexable on purpose", () => {
+    // Asserted so the rule above cannot be satisfied by blanketing everything —
+    // which would quietly delist the only pages the product wants found.
+    for (const route of INDEXABLE) {
+      const file = pages.find((p) => routeOf(p) === route);
+      expect(file, `${route} should exist`).toBeTruthy();
+      expect(readFileSync(file!, "utf8")).not.toMatch(/robots:\s*NOINDEX/);
+    }
+  });
+
+  it("robots.txt allows only those two, and names the sitemap", () => {
+    const robots = stripComments(read("app", "robots.ts"));
+    expect(robots).toMatch(/allow:\s*\["\/", "\/privacy"\]/);
+    for (const p of ["/live/", "/register/", "/reset-password", "/play"]) {
+      expect(robots, `robots.txt should disallow ${p}`).toContain(`"${p}"`);
+    }
+    expect(robots).toMatch(/sitemap:/);
+    // A preview deployment must not invite indexing at all.
+    expect(robots).toMatch(/isProductionSite\(\)/);
+  });
+
+  it("no canonical is declared on the root layout", () => {
+    /**
+     * A canonical says "THIS url is the real one for this content", and Next
+     * inherits it — so one on the root layout is claimed by every page that
+     * does not override it. Set to "/" there, it told a crawler that /privacy
+     * was a duplicate of the landing page.
+     *
+     * It renders identically on every page and looks correct on the only page
+     * it IS correct for, so nothing on screen shows the fault. Found by
+     * building and reading the emitted HTML; pinned here so the next person to
+     * add SEO metadata to the layout does not reach for it again.
+     */
+    expect(stripComments(read("app", "layout.tsx"))).not.toMatch(/alternates/);
+    // And each indexable page names its own.
+    expect(stripComments(read("app", "page.tsx"))).toMatch(/canonical:\s*"\/"/);
+    expect(stripComments(read("app", "privacy", "page.tsx"))).toMatch(/canonical:\s*"\/privacy"/);
+  });
+
+  it("the sitemap lists only the marketing pages", () => {
+    const sitemap = stripComments(read("app", "sitemap.ts"));
+    // A token-bearing URL in a sitemap publishes the credential in a file whose
+    // whole purpose is to be read by strangers.
+    for (const bad of ["/live", "/register", "/play", "reset-password", "token"]) {
+      expect(sitemap, `the sitemap must not mention ${bad}`).not.toContain(bad);
+    }
+    expect(sitemap).toContain('siteUrl("/")');
+    expect(sitemap).toContain('siteUrl("/privacy")');
+  });
+});
 
 describe("the public leaderboard ships no contact details", () => {
   /**

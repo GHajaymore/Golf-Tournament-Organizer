@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { NOINDEX } from "@/lib/site";
 import { settingsOf } from "@/lib/services/tournament";
 import { liveBoard } from "@/lib/services/live-board";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
@@ -60,9 +61,24 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
     where: { shareToken: token },
     select: { name: true, leaderboardVisibility: true },
   });
-  // Don't leak a tournament's name through the tab title when it isn't public.
-  if (!event || event.leaderboardVisibility !== "public") return { title: "Leaderboard" };
-  return { title: `${event.name} — Live leaderboard` };
+  /**
+   * NEVER INDEXED, whether or not the board is public.
+   *
+   * "Public" here means "anyone holding the link may read it" — it is not a
+   * decision to publish members' names to the open web, and a club that ticks
+   * it is not agreeing to that. This page shows names, positions and scores of
+   * real people; the token keeps it out of a crawler's reach, but a board link
+   * posted on a club website or passed through a link-preview service is a
+   * fetch nothing else refuses.
+   *
+   * The tab title still hides the tournament's name on a non-public board, for
+   * the separate reason that a title leaks through browser history and link
+   * previews even when the body does not.
+   */
+  if (!event || event.leaderboardVisibility !== "public") {
+    return { title: "Leaderboard", robots: NOINDEX };
+  }
+  return { title: `${event.name} — Live leaderboard`, robots: NOINDEX };
 }
 
 export default async function PublicLeaderboardPage({ params }: { params: Promise<{ token: string }> }) {

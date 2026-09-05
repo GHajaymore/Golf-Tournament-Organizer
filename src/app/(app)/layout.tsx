@@ -1,3 +1,4 @@
+import { NOINDEX } from "@/lib/site";
 import { Sidebar } from "@/components/Sidebar";
 import { MobileTopBar } from "@/components/MobileTopBar";
 import { MobileTabBar } from "@/components/MobileTabBar";
@@ -6,6 +7,17 @@ import { navForRole } from "@/lib/nav";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { brandForEvent, themeForEvent, currencyForEvent } from "@/lib/services/organization";
+
+/**
+ * Every organizer screen, in one declaration.
+ *
+ * On the LAYOUT rather than on twenty-two pages, so a console screen added
+ * later inherits it instead of having to remember. Nothing here is reachable
+ * without a session, so a crawler cannot read it — but a page that redirects
+ * can still be listed by URL, and a rule stated once at the boundary is the
+ * shape that does not rot.
+ */
+export const metadata = { robots: NOINDEX };
 import { DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
 import { themeCss, DEFAULT_CLUB_THEME } from "@/lib/themes";

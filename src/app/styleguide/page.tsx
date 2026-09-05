@@ -3,6 +3,12 @@ import { themeCss, DEFAULT_CLUB_THEME, THEME_PRESETS, type Appearance, type Club
 import { NAV } from "@/lib/nav";
 import { ScoreImport } from "@/components/ScoreImport";
 import FieldInfo from "@/components/FieldInfo";
+import { NOINDEX } from "@/lib/site";
+
+// 404s in production already, so this is belt to that brace — and it keeps the
+// rule "every route that is not marketing says noindex" true without an
+// exemption, which is one fewer thing for the guard to have to know about.
+export const metadata = { title: "Style guide", robots: NOINDEX };
 
 /**
  * Every component class, on both grounds, side by side.

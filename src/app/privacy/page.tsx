@@ -18,8 +18,14 @@ import { privacyContact } from "@/lib/domain/privacy-contact";
  */
 
 export const metadata: Metadata = {
-  title: "Privacy — TourneyHQ",
+  // "Privacy", not "Privacy — TourneyHQ": the root layout now appends the
+  // product with a template, and carrying it here too rendered
+  // "Privacy — TourneyHQ · TourneyHQ".
+  title: "Privacy",
   description: "What TourneyHQ collects, why, who it is shared with, and how to have it removed.",
+  // Its own, because a canonical inherited from the root would tell a crawler
+  // this page is a duplicate of the landing page.
+  alternates: { canonical: "/privacy" },
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

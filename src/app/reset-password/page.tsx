@@ -1,6 +1,11 @@
 import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 import { ResetPasswordForm } from "@/components/ResetPasswordForm";
+import { NOINDEX } from "@/lib/site";
+
+// The reset token travels in the query string, so this URL IS a credential for
+// as long as it is valid. An indexed copy, or a cached snippet, outlives that.
+export const metadata = { title: "Reset your password", robots: NOINDEX };
 
 export default async function ResetPasswordPage({
   searchParams,

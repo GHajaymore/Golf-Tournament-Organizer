@@ -6,6 +6,11 @@ import { CurrencyProvider } from "@/components/CurrencyProvider";
 import { currencyForEvent } from "@/lib/services/organization";
 import { DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import { OrgBrand } from "@/components/OrgBrand";
+import { NOINDEX } from "@/lib/site";
+
+// Every player screen — their card, their board, their money, their messages.
+// Declared on the layout so a screen added later inherits it.
+export const metadata = { robots: NOINDEX };
 import { PlayTabs } from "@/components/PlayTabs";
 import { usesExpenses } from "@/lib/services/expenses";
 import { membershipFor, unreadTotal } from "@/lib/services/messaging";
