@@ -203,6 +203,37 @@ async function captainFlightsFor(
   });
   if (!captained.length) return [];
 
+  /**
+   * And they must still BE IN the flight they captain.
+   *
+   * `setFlightCaptain` refuses to appoint a non-member and says so. Nothing
+   * revoked it afterwards: `movePlayerToGroup` writes `Player.groupId` and
+   * never touches `Group.captainId`, and `regroup` reuses Group rows while
+   * nulling `groupId`. So a captain moved to another flight — or dropped out
+   * of every flight by a regroup — kept this panel.
+   *
+   * What it showed them is the reason this is a privacy fix rather than a
+   * tidiness one: the flight they LEFT, listing every current member by name
+   * with their in-or-out answer for every round of the season. None of those
+   * people are theirs any more.
+   *
+   * Checked HERE, at the reader, rather than only by clearing the column on
+   * the way out. Two writers already forgot, and a third will: membership is
+   * the actual rule, and a rule enforced where the data is read cannot be
+   * skipped by a writer that does not know about it. The columns are cleared
+   * as well, so the grouping screen stops naming an absent captain — but that
+   * is data hygiene, and this is the guard.
+   */
+  const stillIn = new Set(
+    state.confirmed
+      .filter((p) => p.groupId && ownIds.includes(p.id))
+      .map((p) => `${p.id}:${p.groupId}`),
+  );
+  const mine = captained.filter((g) =>
+    ownIds.some((id) => stillIn.has(`${id}:${g.id}`)),
+  );
+  if (!mine.length) return [];
+
   const roundCols = leagueRounds.map((r, i) => ({ stageId: r.id, label: `R${i + 1}` }));
   // Resolve each round once for the whole field rather than per flight, so a
   // twelve-flight league doesn't repeat the work twelve times.
@@ -219,7 +250,7 @@ async function captainFlightsFor(
     ]),
   );
 
-  return captained.map((g) => {
+  return mine.map((g) => {
     const members = state.confirmed.filter((pl) => pl.groupId === g.id);
     return {
       flightName: g.name,
