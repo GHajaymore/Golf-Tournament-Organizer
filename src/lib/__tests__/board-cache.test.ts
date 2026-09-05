@@ -25,7 +25,7 @@ const { boardChanged } = await import("@/lib/services/board-refresh");
 const { boardTag } = await import("@/lib/services/live-board");
 
 const SERVICES = join(process.cwd(), "src", "lib", "services");
-const LIVE_PAGE = join(process.cwd(), "src", "app", "live", "[token]", "page.tsx");
+const _LIVE_PAGE =join(process.cwd(), "src", "app", "live", "[token]", "page.tsx");
 
 beforeEach(() => revalidateTag.mockClear());
 

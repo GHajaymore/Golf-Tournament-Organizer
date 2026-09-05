@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { readSource, stripComments } from "./source";
 import { drawBrackets } from "@/lib/domain";
 
 /**
@@ -13,8 +14,8 @@ import { drawBrackets } from "@/lib/domain";
  */
 
 const ACTIONS_DIR = join(process.cwd(), "src", "app", "actions");
+/** An action file with its comments already gone. See __tests__/source.ts. */
 const read = (f: string) => readSource("src", "app", "actions", f);
-import { stripComments, readSource } from "./source";
 
 /** Every exported action in a file, with its body, comments removed. */
 function actions(file: string): { name: string; body: string }[] {

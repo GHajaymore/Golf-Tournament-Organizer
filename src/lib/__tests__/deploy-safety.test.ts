@@ -19,7 +19,7 @@ import { readSource, readVerbatim } from "./source";
  * lives in the repository.
  */
 
-const ROOT = process.cwd();
+const _ROOT =process.cwd();
 // Verbatim: JSON has no comments and parsing it is the point.
 const pkg = JSON.parse(readVerbatim("package.json")) as {
   scripts: Record<string, string>;

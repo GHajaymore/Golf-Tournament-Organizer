@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "./source";
 import {
   cleanSideStyle,
   defaultFormatFor,
@@ -117,7 +118,7 @@ describe("no scoring code reads it", () => {
     for (const dir of scoringDirs) {
       for (const f of walk(dir)) {
         if (f.includes("__tests__")) continue;
-        if (reads.test(readFileSync(join(root, f), "utf8"))) offenders.push(f);
+        if (reads.test(stripComments(readFileSync(join(root, f), "utf8")))) offenders.push(f);
       }
     }
     expect(offenders, `sideStyle reached scoring code: ${offenders.join(", ")}`).toEqual([]);

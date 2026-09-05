@@ -35,7 +35,7 @@ const ACTIONS_DIR = join(process.cwd(), "src", "app", "actions");
  * may write a group's money. A "use server" file cannot export a helper
  * without publishing it as an HTTP endpoint, so sharing it meant moving it.
  */
-const SERVICES_DIR = join(process.cwd(), "src", "lib", "services");
+const _SERVICES_DIR =join(process.cwd(), "src", "lib", "services");
 import { stripComments, readSource } from "./source";
 
 interface Action {

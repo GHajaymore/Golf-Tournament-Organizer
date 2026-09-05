@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "./source";
 import {
   STAGE_TYPES,
   STAGE_TYPE_INFO,
@@ -128,7 +127,7 @@ describe("the catalogue", () => {
 });
 
 describe("one catalogue, not two", () => {
-  const read = (...p: string[]) => readFileSync(join(process.cwd(), ...p), "utf8");
+  const read = (...p: string[]) => readSource(...p);
 
   it("the picker and the server action share it", () => {
     // A type offered in the UI but missing from the validator silently becomes
