@@ -8,6 +8,7 @@ import { ThemePicker } from "@/components/ThemePicker";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { organizationAccessReport } from "@/lib/services/access";
+import { organizationAccess } from "@/lib/services/org-access";
 import { PlaySettings } from "@/components/PlaySettings";
 import { PlanPanel } from "@/components/PlanPanel";
 import { MoneySetup } from "@/components/MoneySetup";
@@ -32,20 +33,33 @@ export default async function OrganizationPage() {
   });
   if (!org) redirect("/dashboard");
 
-  const user = await prisma.user.findUnique({ where: { email: session.email } });
-  const membership = user
-    ? await prisma.organizationMember.findUnique({
-        where: { organizationId_userId: { organizationId: org.id, userId: user.id } },
-      })
-    : null;
-
-  // Mirrors the server action's rule: organization owners/admins, plus an
-  // event organizer whose membership predates the organization layer.
   const handicaps = await integrationSetup(org.id);
-  const canEdit =
-    membership?.role === "owner" ||
-    membership?.role === "admin" ||
-    (session.role === "admin" && !membership);
+
+  /**
+   * The SAME rule the actions enforce, through the same function.
+   *
+   * The comment here used to say "Mirrors the server action's rule" above a
+   * hand-rolled copy of it, and the copy had not been updated when the rule
+   * changed. `session.role === "admin" && !membership` reads "I am an
+   * organizer somewhere and not a member of this club" — which is true of a
+   * guest brought in to run one Saturday medal, and was the escalation
+   * `canAdministerOrganization` was written to close. It survived in exactly
+   * one place in `src`: this line. Everywhere else it appears only inside
+   * comments describing the fix.
+   *
+   * Nothing could be written through it — every action refused — so this was
+   * never an escalation. What the guest actually got was branding, theme,
+   * currency, play settings, handicap and money setup all rendered enabled,
+   * and "Only an organization owner or admin can change these settings." on
+   * every save. A screen that offers a control the server refuses is a bug
+   * report waiting to be filed against the wrong thing.
+   *
+   * `organizationAccess` also counts members, which is the part a mirror
+   * cannot fake: the ownerless-club escape hatch has to know whether ANYBODY
+   * holds the club, not whether the caller does.
+   */
+  const access = await organizationAccess(session);
+  const canEdit = access?.canEdit ?? false;
 
   const report = await organizationAccessReport(org.id);
 

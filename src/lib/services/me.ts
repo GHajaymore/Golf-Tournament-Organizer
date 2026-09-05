@@ -3,7 +3,8 @@ import { cardRevision } from "@/lib/domain/pending-card";
 import { needsTeams, ranksIndividuals } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
-import { standingRows, type EventState } from "@/lib/services/tournament";
+import { standingRows, settingsOf, type EventState } from "@/lib/services/tournament";
+import { canEnterScores } from "@/lib/tournament-settings";
 import { filledHoles } from "@/lib/domain/card-approval";
 import { positionLabel } from "@/lib/domain/shared-position";
 import { roundLabel } from "@/lib/domain/round-label";
@@ -248,9 +249,30 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       // already call it.
       label: stage.description?.trim() || roundNumberLabel(state, stage.id) || stage.type || "This round",
       holes,
-      // A match is scored against an opponent and a team round on the side's
-      // card; neither is a card this player owns or can return alone.
-      ownCard: !needsTeams(stage.format) && !generatesPairings(stage.type),
+      /**
+       * A match is scored against an opponent and a team round on the side's
+       * card; neither is a card this player owns or can return alone.
+       *
+       * AND the tournament has to let players report at all. This asked only
+       * about the format and the stage type, so in a committee-scored
+       * tournament Today rendered the primary "Start my card" link and
+       * `/me/card` answered "Scores for this tournament are entered by the
+       * organizer" — which is exactly what the comment on this field says
+       * cannot happen: "Today cannot offer a card that My card then refuses to
+       * show". The contract was violated on its own terms.
+       *
+       * Asked as a PLAYER deliberately, not with the viewer's own role. This
+       * is the player app, its audience is players, and the honest question is
+       * whether a player may return this card. An organizer previewing /me
+       * therefore sees the same thing their field sees, which is the point of
+       * a preview — and if they navigate to `/me/card` anyway it still works
+       * for them, so the failure is toward showing less rather than promising
+       * more.
+       */
+      ownCard:
+        !needsTeams(stage.format) &&
+        !generatesPairings(stage.type) &&
+        canEnterScores(settingsOf(state.event), "player"),
       venue: stage.courseId ? (await venueNameFor(stage.courseId)) : "",
       group,
       card,
