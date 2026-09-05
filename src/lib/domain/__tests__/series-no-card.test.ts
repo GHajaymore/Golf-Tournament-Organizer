@@ -1,14 +1,21 @@
 import { describe, it, expect } from "vitest";
 import { pointsForRank, seriesStandings, DEFAULT_POINTS_TABLE } from "@/lib/domain/series";
 import { finishingPositions } from "@/lib/services/finish-order";
+import { buildBracket } from "@/lib/domain/bracket";
+import type { Player } from "@/lib/domain/types";
 
 /**
  * The smallest state `finishingPositions` will read.
  *
- * Only the four fields it actually looks at, cast at the boundary: building a
- * whole EventState here would be fifty lines of scaffolding describing nothing,
- * and every extra field is another thing a reader has to check is not the point
- * of the test.
+ * Only the fields it actually looks at, cast at the boundary: building a whole
+ * EventState here would be fifty lines of scaffolding describing nothing, and
+ * every extra field is another thing a reader has to check is not the point of
+ * the test.
+ *
+ * `matches` joined them when the play-off for third started being read — the
+ * play-off is stored outside the bracket, as the one match on `round: 0`, so
+ * the finishing order has to look at the event's matches to see it. An empty
+ * list is "no play-off was played", which is the default and the ordinary case.
  */
 type PositionsInput = Parameters<typeof finishingPositions>[0];
 
@@ -20,6 +27,7 @@ function strokeState(
   return {
     isStroke: true,
     brackets: noBracket,
+    matches: [],
     strokeStandings: rows.map((r) => ({
       player: { id: r.id, name: r.name },
       rank: r.rank,
@@ -43,6 +51,7 @@ function matchState(
   return {
     isStroke: false,
     brackets: noBracket,
+    matches: [],
     strokeStandings: [],
     overall: rows.map((r) => ({
       player: { id: r.id, name: r.name },
@@ -206,6 +215,115 @@ describe("the order of merit ignores a non-finisher", () => {
  * `finishingPositions` is handed a state and asked what it says.
  */
 describe("the finishing order only reports players who returned something", () => {
+  /**
+   * The SEAM: the finishing order actually finds the play-off and reads it.
+   *
+   * `bracketFinishOrder` is unit-tested with a winner id handed to it. That
+   * proves the arithmetic and nothing about whether anybody supplies one — and
+   * "nobody supplies one" was the entire defect: the match was created, played,
+   * scored and audited, and no code path read it back.
+   */
+  describe("the play-off for third, read off the event's matches", () => {
+    const field: Player[] = Array.from({ length: 4 }, (_, i) => ({
+      id: `p${i + 1}`,
+      name: `Seed ${i + 1}`,
+      handicap: i + 1,
+      seed: i + 1,
+      groupId: null,
+    }));
+
+    /** A played-out bracket of four, B winning every match. */
+    function bracketOfFour() {
+      const winners: Record<string, string> = {};
+      let view = buildBracket("winners", field, winners);
+      for (let r = 0; r < view.rounds.length; r += 1) {
+        for (const m of view.rounds[r].matches) {
+          if (m.a.playerId && m.b.playerId) winners[m.key] = m.b.playerId;
+        }
+        view = buildBracket("winners", field, winners);
+      }
+      return view;
+    }
+
+    /** An 18-hole card where `side` wins the first ten holes outright. */
+    const wonBy = (side: "A" | "B" | "H") =>
+      JSON.stringify(Array.from({ length: 18 }, (_, i) => (i < 10 ? side : null)));
+
+    const bracketState = (view: ReturnType<typeof buildBracket>, matches: unknown[]): PositionsInput =>
+      ({
+        isStroke: false,
+        brackets: { winners: view },
+        matches,
+        strokeStandings: [],
+        overall: [],
+      }) as unknown as PositionsInput;
+
+    const thirdPair = (view: ReturnType<typeof buildBracket>) =>
+      finishingPositions(bracketState(view, [])).filter((o) => o.rank === 3).map((o) => o.playerId);
+
+    it("splits third once the play-off has a winner", () => {
+      const view = bracketOfFour();
+      const [a, b] = thirdPair(view);
+
+      // Round 0 is the marker `createThirdPlaceMatch` uses; nothing else does.
+      const order = finishingPositions(
+        bracketState(view, [{ round: 0, playerAId: a, playerBId: b, holes: wonBy("B"), forfeitedBy: "" }]),
+      );
+      expect(order.find((o) => o.rank === 3)!.playerId).toBe(b);
+      expect(order.find((o) => o.rank === 4)!.playerId).toBe(a);
+
+      // And the other way round, so the fixture cannot be passing on the order
+      // the two already happened to be in.
+      const flipped = finishingPositions(
+        bracketState(view, [{ round: 0, playerAId: a, playerBId: b, holes: wonBy("A"), forfeitedBy: "" }]),
+      );
+      expect(flipped.find((o) => o.rank === 3)!.playerId).toBe(a);
+    });
+
+    it("leaves third shared while the play-off is unfinished", () => {
+      const view = bracketOfFour();
+      const [a, b] = thirdPair(view);
+      const empty = JSON.stringify(new Array(18).fill(null));
+      const order = finishingPositions(
+        bracketState(view, [{ round: 0, playerAId: a, playerBId: b, holes: empty, forfeitedBy: "" }]),
+      );
+      expect(order.map((o) => o.rank)).toEqual([1, 2, 3, 3]);
+    });
+
+    it("leaves third shared when the play-off is halved", () => {
+      // A halved match separates nobody. `resolveMatch` reports "H" here, and
+      // reading anything-not-A as B would have handed third to the wrong player.
+      const view = bracketOfFour();
+      const [a, b] = thirdPair(view);
+      const order = finishingPositions(
+        bracketState(view, [{ round: 0, playerAId: a, playerBId: b, holes: wonBy("H"), forfeitedBy: "" }]),
+      );
+      expect(order.map((o) => o.rank)).toEqual([1, 2, 3, 3]);
+    });
+
+    it("settles it on a concession, which leaves no holes at all", () => {
+      const view = bracketOfFour();
+      const [a, b] = thirdPair(view);
+      const empty = JSON.stringify(new Array(18).fill(null));
+      const order = finishingPositions(
+        bracketState(view, [{ round: 0, playerAId: a, playerBId: b, holes: empty, forfeitedBy: a }]),
+      );
+      // A conceded, so B is third.
+      expect(order.find((o) => o.rank === 3)!.playerId).toBe(b);
+    });
+
+    it("ignores the bracket's own matches, which are never round 0", () => {
+      // A bracket round is 1-based, so a draw's matches must not be mistaken
+      // for the play-off — that would read a semi-final as a third-place result.
+      const view = bracketOfFour();
+      const [a, b] = thirdPair(view);
+      const order = finishingPositions(
+        bracketState(view, [{ round: 1, playerAId: a, playerBId: b, holes: wonBy("B"), forfeitedBy: "" }]),
+      );
+      expect(order.map((o) => o.rank)).toEqual([1, 2, 3, 3]);
+    });
+  });
+
   it("leaves out a stroke player who holds no position", () => {
     const order = finishingPositions(
       strokeState([

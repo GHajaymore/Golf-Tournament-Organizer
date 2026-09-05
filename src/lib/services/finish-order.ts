@@ -1,9 +1,50 @@
 import "server-only";
 import { bracketFinishOrder } from "../domain/bracket";
+import { resolveMatch } from "../domain";
 import type { loadEventState } from "./tournament";
 import type { FinishingPosition } from "../domain/honours";
 
 type EventState = NonNullable<Awaited<ReturnType<typeof loadEventState>>>;
+
+/**
+ * Who won the play-off for third, if one was played and settled.
+ *
+ * `round: 0` is the marker `createThirdPlaceMatch` uses and nothing else does —
+ * a bracket's own rounds are 1-based. The match is stored outside the draw
+ * because it is fed by losers rather than winners, which is exactly why the
+ * bracket could not report its result on its own.
+ *
+ * Null for a match that exists but is not finished. A play-off half played is
+ * not a placing, and the two semi-finalists genuinely share third until it is
+ * settled — the same rule the bracket applies to an unfinished final.
+ */
+function thirdPlaceWinner(state: EventState): string | null {
+  const playoff = state.matches.find((m) => m.round === 0);
+  if (!playoff) return null;
+
+  // A concession settles it as surely as a card does, and leaves no holes.
+  if (playoff.forfeitedBy) {
+    if (playoff.forfeitedBy === playoff.playerAId) return playoff.playerBId;
+    if (playoff.forfeitedBy === playoff.playerBId) return playoff.playerAId;
+    return null;
+  }
+
+  let holes;
+  try {
+    holes = JSON.parse(playoff.holes);
+  } catch {
+    return null;
+  }
+  const result = resolveMatch(holes);
+  if (!result.complete) return null;
+  // "H" is a HALVED play-off, and it separates nobody — the two stay sharing
+  // third, which is where they started. Only A or B is a winner; treating
+  // anything-not-A as B would have handed third to the wrong player on a
+  // match that ended all square.
+  if (result.winner === "A") return playoff.playerAId;
+  if (result.winner === "B") return playoff.playerBId;
+  return null;
+}
 
 /**
  * The order a finished tournament ended in. One answer, for everybody who asks.
@@ -33,7 +74,7 @@ type EventState = NonNullable<Awaited<ReturnType<typeof loadEventState>>>;
  *      `rankPlayers` found, for the reason below.
  */
 export function finishingPositions(state: EventState): FinishingPosition[] {
-  const fromBracket = bracketFinishOrder(state.brackets.winners);
+  const fromBracket = bracketFinishOrder(state.brackets.winners, thirdPlaceWinner(state));
   if (fromBracket.length > 0) return fromBracket;
 
   if (state.isStroke) {

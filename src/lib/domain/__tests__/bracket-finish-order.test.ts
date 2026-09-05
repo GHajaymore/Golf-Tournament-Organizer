@@ -62,6 +62,74 @@ describe("the finishing order of a knockout", () => {
     expect(new Set(order.map((o) => o.playerId)).size).toBe(4);
   });
 
+  /**
+   * The play-off for third, which the app runs and then discarded.
+   *
+   * A knockout's placings are derived from the draw, which is right for every
+   * fixture IN the draw. The play-off for third is not one: it is fed by
+   * losers, so it lives outside the bracket as a `round: 0` match. The app
+   * offers it, tells the organizer to play it, creates the match, takes the
+   * score and audits it — and then placed both semi-finalists third anyway.
+   *
+   * In the season table that pays each of them the average of third and
+   * fourth, so the two players who settled it on the course score identically;
+   * on the honours board it is a permanent record of a placing the club did
+   * decide.
+   */
+  describe("and the play-off for third, when a club plays one", () => {
+    /** The two who share third in a played-out bracket of four. */
+    const sharedThird = (view: ReturnType<typeof buildBracket>) =>
+      bracketFinishOrder(view)
+        .filter((o) => o.rank === 3)
+        .map((o) => o.playerId);
+
+    it("splits the shared third into a third and a fourth", () => {
+      const view = playOut(players(4));
+      const [first, second] = sharedThird(view);
+
+      const order = bracketFinishOrder(view, second);
+      expect(order.map((o) => o.rank)).toEqual([1, 2, 3, 4]);
+      expect(order.find((o) => o.rank === 3)!.playerId).toBe(second);
+      expect(order.find((o) => o.rank === 4)!.playerId).toBe(first);
+
+      // The OTHER winner gives the other answer, so this cannot pass by the
+      // list happening to already be in that order.
+      const flipped = bracketFinishOrder(view, first);
+      expect(flipped.find((o) => o.rank === 3)!.playerId).toBe(first);
+      expect(flipped.find((o) => o.rank === 4)!.playerId).toBe(second);
+    });
+
+    it("leaves them sharing third when no play-off was played", () => {
+      // The default, and the ordinary case: plenty of clubs send everyone to
+      // the bar instead.
+      const view = playOut(players(4));
+      expect(bracketFinishOrder(view, null).map((o) => o.rank)).toEqual([1, 2, 3, 3]);
+      expect(bracketFinishOrder(view).map((o) => o.rank)).toEqual([1, 2, 3, 3]);
+    });
+
+    it("ignores a winner who is not one of the two sharing third", () => {
+      /**
+       * A corrected semi-final changes who plays for third, and the stored
+       * play-off can then name somebody the draw no longer places third. The
+       * draw's own answer is the honest one there — a placing must not be
+       * derived from a fixture that has been overtaken.
+       */
+      const view = playOut(players(4));
+      const champion = view.champion!.playerId;
+      expect(bracketFinishOrder(view, champion).map((o) => o.rank)).toEqual([1, 2, 3, 3]);
+      expect(bracketFinishOrder(view, "nobody").map((o) => o.rank)).toEqual([1, 2, 3, 3]);
+    });
+
+    it("does not disturb the placings above or below it", () => {
+      // A bracket of eight has four beaten quarter-finalists on 5. Splitting
+      // third must not renumber them, and must not move the finalist.
+      const view = playOut(players(8));
+      const [, second] = bracketFinishOrder(view).filter((o) => o.rank === 3).map((o) => o.playerId);
+      const order = bracketFinishOrder(view, second);
+      expect(order.map((o) => o.rank)).toEqual([1, 2, 3, 4, 5, 5, 5, 5]);
+    });
+  });
+
   it("places beaten quarter-finalists fifth in a bracket of eight", () => {
     const order = bracketFinishOrder(playOut(players(8)));
     expect(order.map((o) => o.rank)).toEqual([1, 2, 3, 3, 5, 5, 5, 5]);

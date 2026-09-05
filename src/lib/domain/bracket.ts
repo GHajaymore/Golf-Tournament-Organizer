@@ -209,6 +209,26 @@ export function seedOrder(size: number): number[] {
  */
 export function bracketFinishOrder(
   view: BracketView,
+  /**
+   * Who won the play-off for third, when a club ran one.
+   *
+   * Everything else here is derived from the draw, which is right — a knockout
+   * records its own result — but the play-off for third is the one fixture the
+   * draw cannot describe. It is fed by LOSERS, so it is stored outside the
+   * bracket as a `round: 0` match, and nothing read it back.
+   *
+   * The app offers the fixture in two places, tells the organizer to play it,
+   * creates the match, takes the score and audits it — and then placed both
+   * beaten semi-finalists third anyway. In the season table that pays each of
+   * them the average of third and fourth, so the two players who settled it on
+   * the course score identically. It is worse on the honours board, which is a
+   * permanent record of a placing the club actually decided.
+   *
+   * Omitted or null means no play-off was played, which stays the default:
+   * plenty of clubs send everyone to the bar instead, and two beaten
+   * semi-finalists genuinely share third.
+   */
+  thirdPlaceWinnerId?: string | null,
 ): Array<{ playerId: string; name: string; rank: number }> {
   if (!view.champion?.playerId) return [];
 
@@ -240,6 +260,24 @@ export function bracketFinishOrder(
         seen.add(slot.playerId);
         placed.push({ playerId: slot.playerId, name: slot.name, rank });
       }
+    }
+  }
+
+  /**
+   * The play-off splits the shared third into a third and a fourth.
+   *
+   * Applied here rather than inside the loop because it is a fact about a
+   * fixture OUTSIDE the draw, and the loop's job is to read the draw. Only the
+   * two players who genuinely share third can be moved: a winner id that names
+   * anybody else is a play-off that no longer matches the semi-finals — a
+   * corrected semi-final result will do that — and the honest answer is then
+   * the draw's own, not a placing derived from a fixture that has been
+   * overtaken.
+   */
+  if (thirdPlaceWinnerId) {
+    const third = placed.filter((p) => p.rank === 3);
+    if (third.length === 2 && third.some((p) => p.playerId === thirdPlaceWinnerId)) {
+      for (const p of third) p.rank = p.playerId === thirdPlaceWinnerId ? 3 : 4;
     }
   }
 
