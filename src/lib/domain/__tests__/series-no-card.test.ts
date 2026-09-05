@@ -29,8 +29,16 @@ function strokeState(
   } as unknown as PositionsInput;
 }
 
+/**
+ * `rank` is required, because the real `overall` always carries one.
+ *
+ * It was omitted here while `finishingPositions` numbered by list position and
+ * never read it — so the fixture could not express the case that matters: two
+ * players `rankPlayers` deliberately gave the SAME rank. Leaving it optional
+ * would let that case be written by accident as `undefined === undefined`.
+ */
 function matchState(
-  rows: Array<{ id: string; name: string; played: number }>,
+  rows: Array<{ id: string; name: string; played: number; rank: number }>,
 ): PositionsInput {
   return {
     isStroke: false,
@@ -39,6 +47,7 @@ function matchState(
     overall: rows.map((r) => ({
       player: { id: r.id, name: r.name },
       stats: { played: r.played },
+      rank: r.rank,
     })),
   } as unknown as PositionsInput;
 }
@@ -213,9 +222,9 @@ describe("the finishing order only reports players who returned something", () =
     // position — and rank 0 read as first place off the points table.
     const order = finishingPositions(
       matchState([
-        { id: "a", name: "A", played: 3 },
-        { id: "absent", name: "Never teed off", played: 0 },
-        { id: "b", name: "B", played: 3 },
+        { id: "a", name: "A", played: 3, rank: 1 },
+        { id: "absent", name: "Never teed off", played: 0, rank: 2 },
+        { id: "b", name: "B", played: 3, rank: 3 },
       ]),
     );
     expect(order.map((o) => o.playerId)).toEqual(["a", "b"]);
@@ -229,11 +238,57 @@ describe("the finishing order only reports players who returned something", () =
      */
     const order = finishingPositions(
       matchState([
-        { id: "a", name: "A", played: 3 },
-        { id: "absent", name: "Never teed off", played: 0 },
-        { id: "b", name: "B", played: 3 },
+        { id: "a", name: "A", played: 3, rank: 1 },
+        { id: "absent", name: "Never teed off", played: 0, rank: 2 },
+        { id: "b", name: "B", played: 3, rank: 3 },
       ]),
     );
     expect(order.map((o) => o.rank)).toEqual([1, 2]);
+  });
+
+  /**
+   * A tie that `rankPlayers` found survives the renumbering.
+   *
+   * `rank: i + 1` closed the absentee's gap and broke the tie in the same
+   * expression. `rankPlayers` gives two players one rank only when the points
+   * are level AND every configured tiebreaker returns zero, and it refuses to
+   * consult the seed fallback to split them, because that is "exactly what hid
+   * the tie". Renumbering by list position consulted that fallback anyway —
+   * the sort order for a level field IS the seed.
+   *
+   * So a halved flight produced a champion. `suggestChampion` refuses to name
+   * one when `leaders.length > 1`, and that branch was unreachable for every
+   * non-stroke event, because two shared 1s always arrived as a 1 and a 2 —
+   * onto the honours board and the season table, permanently.
+   */
+  it("keeps a tie the standings found, rather than splitting it by position", () => {
+    const order = finishingPositions(
+      matchState([
+        { id: "a", name: "A", played: 3, rank: 1 },
+        { id: "b", name: "B", played: 3, rank: 1 },
+        { id: "c", name: "C", played: 3, rank: 3 },
+      ]),
+    );
+    expect(order.map((o) => o.rank)).toEqual([1, 1, 3]);
+  });
+
+  it("closes an absentee's gap without merging the players either side of it", () => {
+    /**
+     * Both rules at once, which is where a fix for one breaks the other: the
+     * survivors must renumber down over the absentee, and two players who were
+     * never level must not become level by landing next to each other.
+     */
+    const order = finishingPositions(
+      matchState([
+        { id: "absent", name: "Never teed off", played: 0, rank: 1 },
+        { id: "a", name: "A", played: 3, rank: 2 },
+        { id: "b", name: "B", played: 3, rank: 2 },
+        { id: "c", name: "C", played: 3, rank: 4 },
+      ]),
+    );
+    expect(order.map((o) => o.playerId)).toEqual(["a", "b", "c"]);
+    // a and b were level on 2 and stay level, now at the top; c keeps a
+    // position that reflects the two players ahead, not the four rows.
+    expect(order.map((o) => o.rank)).toEqual([1, 1, 3]);
   });
 });
