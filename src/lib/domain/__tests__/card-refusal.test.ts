@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "@/lib/__tests__/source";
 import { cardRefusal } from "../scorecard-parse";
 import { cardProblems } from "../venue";
 
@@ -114,7 +115,7 @@ describe("every path that stores a card uses it", () => {
    * forgotten — so this at least makes forgetting visible.
    */
   const ACTIONS = join(process.cwd(), "src", "app", "actions");
-  const read = (f: string) => readFileSync(join(ACTIONS, f), "utf8");
+  const read = (f: string) => stripComments(readFileSync(join(ACTIONS, f), "utf8"));
 
   /** Actions that write a hole-by-hole card, and must therefore check one. */
   const WRITERS: Record<string, string[]> = {

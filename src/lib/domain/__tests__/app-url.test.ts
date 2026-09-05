@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "@/lib/__tests__/source";
 import { appUrlFrom, DEV_FALLBACK_URL } from "@/lib/domain/app-url";
 
 /**
@@ -95,8 +94,8 @@ describe("appUrlFrom", () => {
 });
 
 describe("the organizer is told when links are broken", () => {
-  const email = readFileSync(join(process.cwd(), "src", "lib", "email.ts"), "utf8");
-  const auth = readFileSync(join(process.cwd(), "src", "app", "actions", "auth.ts"), "utf8");
+  const email = readSource("src", "lib", "email.ts");
+  const auth = readSource("src", "app", "actions", "auth.ts");
 
   it("surfaces it on the screen that already reports mail problems", () => {
     /**
