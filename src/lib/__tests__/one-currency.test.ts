@@ -34,7 +34,7 @@ describe("no screen writes its own currency", () => {
   it("has no local money() helper with a symbol baked into it", () => {
     const offenders: string[] = [];
     for (const f of files) {
-      const src = readFileSync(join(COMPONENTS, f), "utf8");
+      const src = stripComments(readFileSync(join(COMPONENTS, f), "utf8"));
       // A formatter declared in the file AND a currency symbol on the same
       // line: `const money = (c) => `$${(c / 100).toFixed(2)}``.
       for (const line of src.split("\n")) {
@@ -56,7 +56,7 @@ describe("no screen writes its own currency", () => {
     // how many there are; `/ 100` assumes.
     const offenders: string[] = [];
     for (const f of files) {
-      const src = readFileSync(join(COMPONENTS, f), "utf8");
+      const src = stripComments(readFileSync(join(COMPONENTS, f), "utf8"));
       src.split("\n").forEach((line, i) => {
         if (/\/\s*100\s*\)\s*\.toFixed\(2\)/.test(line)) offenders.push(`${f}:${i + 1}`);
       });
@@ -161,7 +161,7 @@ describe("what somebody types is read in the club's currency", () => {
     // is covered, not just the five that were fixed.
     const offenders: string[] = [];
     for (const f of readdirSync(COMPONENTS).filter((x) => x.endsWith(".tsx") && !ALLOWED.has(x))) {
-      const src = readFileSync(join(COMPONENTS, f), "utf8");
+      const src = stripComments(readFileSync(join(COMPONENTS, f), "utf8"));
       src.split("\n").forEach((line, i) => {
         if (/(parseFloat|Number)\([^)]*\)\s*\*\s*100\b/.test(line)) offenders.push(`${f}:${i + 1}`);
       });

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
+import { stripComments } from "./source";
 
 /**
  * No control may explain itself only in a tooltip.
@@ -183,7 +184,7 @@ describe("no control explains itself only in a tooltip", () => {
   it("finds title attributes at all, including ones with nested braces", () => {
     // Guards the scanner. If titleAttrs silently returned nothing, the sweep
     // below would pass while reading no attributes at all.
-    const found = FILES.flatMap((f) => titleAttrs(readFileSync(f, "utf8")));
+    const found = FILES.flatMap((f) => titleAttrs(stripComments(readFileSync(f, "utf8"))));
     expect(found.length).toBeGreaterThan(5);
     const sample = titleAttrs("<a title={x ? `Checked by ${y}` : undefined} />");
     expect(sample).toHaveLength(1);
@@ -194,7 +195,7 @@ describe("no control explains itself only in a tooltip", () => {
   it("adds no NEW control whose explanation lives only in a title", () => {
     const offenders: string[] = [];
     for (const file of FILES) {
-      for (const attr of titleAttrs(readFileSync(file, "utf8"))) {
+      for (const attr of titleAttrs(stripComments(readFileSync(file, "utf8")))) {
         if (!isExplanation(attr)) continue;
         if (ALLOWED.some((a) => attr.raw.includes(a.fragment))) continue;
         if (KNOWN_DEBT.some((d) => attr.raw.includes(d))) continue;
@@ -250,7 +251,7 @@ describe("no control explains itself only in a tooltip", () => {
     // An entry matching nothing means the tooltip was fixed and the exception
     // outlived it — which would quietly permit a future one using those words,
     // and would let the debt count stop reflecting reality.
-    const all = FILES.map((f) => readFileSync(f, "utf8")).join("\n");
+    const all = FILES.map((f) => stripComments(readFileSync(f, "utf8"))).join("\n");
     for (const a of ALLOWED) {
       expect(all.includes(a.fragment), `stale ALLOWED entry: ${a.fragment}`).toBe(true);
     }

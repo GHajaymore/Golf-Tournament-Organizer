@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource, readVerbatim } from "./source";
 
 /**
  * A pull request must not migrate the production database.
@@ -21,10 +20,11 @@ import { join } from "node:path";
  */
 
 const ROOT = process.cwd();
-const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+// Verbatim: JSON has no comments and parsing it is the point.
+const pkg = JSON.parse(readVerbatim("package.json")) as {
   scripts: Record<string, string>;
 };
-const gate = readFileSync(join(ROOT, "scripts", "deploy-migrations.mjs"), "utf8");
+const gate = readSource("scripts", "deploy-migrations.mjs");
 
 describe("only a production deploy may migrate", () => {
   it("routes the build's migrations through the gate", () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { readSource, stripComments } from "./source";
 
 /**
  * Nobody counts rounds by hand any more.
@@ -66,7 +67,12 @@ const ALLOWED: Record<string, string> = {
 
 describe("round numbers come from one place", () => {
   const offenders = sourceFiles(SRC)
-    .map((f) => ({ file: relative(SRC, f).split(sep).join("/"), src: readFileSync(f, "utf8") }))
+    .map((f) => ({
+      file: relative(SRC, f).split(sep).join("/"),
+      // Stripped, or a comment quoting the banned `Round ${i + 1}` shape to
+      // explain the rule would be reported as a violation of it.
+      src: stripComments(readFileSync(f, "utf8")),
+    }))
     .filter(({ src }) => HAND_COUNTED.test(src))
     .map(({ file }) => file)
     .filter((f) => !(f in ALLOWED));
@@ -85,14 +91,14 @@ describe("round numbers come from one place", () => {
      * which `teams.ts` does inline. If that goes, so does the exemption.
      */
     for (const file of Object.keys(ALLOWED)) {
-      const src = readFileSync(join(SRC, file), "utf8");
+      const src = readSource("src", file);
       const looksItUp = /matchCarrierGroup\(/.test(src) || /group\.findFirst\(\{\s*where:\s*\{[^}]*name/.test(src);
       expect(looksItUp, `${file}: ${ALLOWED[file]}`).toBe(true);
     }
   });
 
   it("the helper is the one place that formats the words", () => {
-    const helper = readFileSync(join(SRC, "lib", "domain", "round-label.ts"), "utf8");
+    const helper = readSource("src", "lib", "domain", "round-label.ts");
     expect(helper).toMatch(/`Round \$\{n\}`/);
   });
 });

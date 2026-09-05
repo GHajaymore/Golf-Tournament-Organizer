@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "./source";
 import { teeRatingFor } from "../services/handicaps";
 import { courseHandicap } from "../domain/handicap";
 
-const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
+const read = (p: string) => readSource(p);
 
 describe("nine-hole rounds don't halve twice", () => {
   it("halves the rating for a nine-hole round", () => {

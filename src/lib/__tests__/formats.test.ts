@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "./source";
 import {
   isManualFormat,
   GOLF_FORMATS,
@@ -145,7 +144,7 @@ describe("the catalog", () => {
     // test read that file. It now lives in `boardKind` — because Reports and
     // /live have to make the same decision and made it differently (D8) — so
     // the ordering is asserted where it is, plus behaviourally below.
-    const formats = readFileSync(join(process.cwd(), "src/lib/formats.ts"), "utf8");
+    const formats = readSource("src/lib/formats.ts");
     const fn = formats.slice(formats.indexOf("export function boardKind"));
     const body = fn.slice(0, fn.indexOf("\n}"));
     const manualAt = body.indexOf("isManualFormat");
@@ -181,7 +180,7 @@ describe("the catalog", () => {
     // while /week happily aggregated the same cards and ranked a Flag day on
     // net strokes. Every surface that produces an ordering needs the check,
     // not just the one named "leaderboard".
-    const week = readFileSync(join(process.cwd(), "src/lib/services/week-view.ts"), "utf8");
+    const week = readSource("src/lib/services/week-view.ts");
     expect(week).toMatch(/isManualFormat\(stage\.format\)/);
     // The cards must not be aggregated at all for such a round.
     expect(week).toMatch(/manual \? \[\] : parseStrokeCards/);

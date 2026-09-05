@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "./source";
 import { parseHoleArray, resolveCourse, hasCourseData } from "../courses";
 
 /**
@@ -45,7 +46,7 @@ describe("resolving a card by id, not by the name beside it", () => {
   it("finds the modules that resolve a card at all", () => {
     // If the detection broke, every assertion below would pass vacuously.
     const resolvers = files.filter((f) =>
-      /resolveCourse\(|courseForRound\(|courseForMatch\(/.test(readFileSync(f, "utf8")),
+      /resolveCourse\(|courseForRound\(|courseForMatch\(/.test(stripComments(readFileSync(f, "utf8"))),
     );
     expect(resolvers.length).toBeGreaterThan(8);
   });
@@ -53,7 +54,7 @@ describe("resolving a card by id, not by the name beside it", () => {
   it("every one of them loads the course, or takes it from tournament state", () => {
     const missing: string[] = [];
     for (const f of files) {
-      const src = readFileSync(f, "utf8");
+      const src = stripComments(readFileSync(f, "utf8"));
       if (!/resolveCourse\(|courseForRound\(|courseForMatch\(/.test(src)) continue;
       const base = f.split(/[\\/]/).pop() ?? f;
       if (EXEMPT[base]) continue;

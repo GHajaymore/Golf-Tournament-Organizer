@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "./source";
 import {
   registrationStatus,
   deadlinePassed,
@@ -235,7 +234,7 @@ describe("the organizer can always reach the switch", () => {
   // registration is not a structural change — it decides whether the door is
   // open — and requiring the tournament to be unlocked took the control away
   // at exactly the moment it was needed.
-  const src = readFileSync(join(process.cwd(), "src/app/actions/tournament.ts"), "utf8");
+  const src = readSource("src/app/actions/tournament.ts");
   const fn = (name: string) => {
     const start = src.indexOf(`export async function ${name}`);
     const next = src.indexOf("\nexport ", start + 1);
@@ -256,7 +255,7 @@ describe("the deadline the picker writes is the deadline the rule reads", () => 
   // functions cannot see a screen that formats before it stores, so this reads
   // the screen.
   it("stores the picker's ISO value, not a display string", () => {
-    const src = readFileSync(join(process.cwd(), "src/components/EventSetupClient.tsx"), "utf8");
+    const src = readSource("src/components/EventSetupClient.tsx");
     const onDeadline = src.slice(src.indexOf("const onDeadlineDate"), src.indexOf("const onSelectCourse"));
     expect(onDeadline).toMatch(/set\("regDeadline", v\)/);
     expect(onDeadline, "fmtDate here is the whole defect").not.toMatch(/set\("regDeadline", fmtDate/);

@@ -1,9 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readSource } from "./source";
 import { limitCheck, planFor, PLANS } from "../plans";
 
-const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
+const read = (p: string) => readSource(p);
 
 describe("plan limits", () => {
   it("never limits the size of a field", () => {
