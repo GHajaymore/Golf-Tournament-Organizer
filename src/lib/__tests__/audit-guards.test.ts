@@ -1371,6 +1371,54 @@ describe("a round's card is narrowed in exactly one place", () => {
   });
 
   /**
+   * NOTHING hands `aggregateStroke` a card that ignores which round it is for.
+   *
+   * `courseFor` takes a stageId precisely so a nine, or a second venue, is
+   * resolved per round. An arrow that takes no argument and closes over one
+   * card satisfies the type and throws that away — and it is invisible to both
+   * guards above, because it slices nothing and the file need never mention
+   * `cardForStage`.
+   *
+   * That is how the weekly league board came to score every week off the
+   * event's whole eighteen. `week-view.ts` did it twice: once for the week on
+   * screen, and once inside `through()`, which totals SEVERAL weeks against a
+   * single card. Handicaps went through `state.strokeHandicapFor` and were
+   * right for the nine actually played, so a back-nine league week allocated
+   * off 18-hole stroke indexes — a player owed 9 drew 5 — and `/week` named a
+   * different winner from the round's own leaderboard, every week, all season.
+   *
+   * Banned by SHAPE rather than by file, so a service written next year cannot
+   * reintroduce it by not being on a list. The state exposes `strokeCourseFor`
+   * for exactly this; pass that, or a function that reads its stageId.
+   */
+  it("no scoring path passes a courseFor that ignores its round", () => {
+    const root = join(process.cwd(), "src");
+    const sources: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, e.name);
+        if (e.isDirectory()) {
+          if (e.name !== "__tests__" && e.name !== "node_modules") walk(full);
+        } else if (/\.tsx?$/.test(e.name)) {
+          sources.push(full);
+        }
+      }
+    };
+    walk(root);
+
+    // A broken read would make the assertion below vacuous, which is the way
+    // a filesystem-swept guard fails silently.
+    expect(sources.length, "no sources scanned").toBeGreaterThan(100);
+
+    const offenders = sources
+      // `courseFor: () =>` and `courseFor: _ =>` both discard the stage.
+      .filter((f) => /courseFor:\s*(\(\s*\)|\(\s*_\w*\s*\)|_\w*)\s*=>/.test(stripComments(readFileSync(f, "utf8"))))
+      .map((f) => f.slice(process.cwd().length + 1).replace(/\\/g, "/"));
+
+    expect(offenders, "these resolve one card for every round").toEqual([]);
+  });
+
+  /**
    * The round-code screen is a scoring surface too.
    *
    * It handed the player the EVENT's card — ignoring the match's venue, the
