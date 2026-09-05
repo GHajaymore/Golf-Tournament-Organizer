@@ -1,6 +1,5 @@
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
-import { roundTeeId } from "@/lib/services/handicaps";
 import { clubCourses } from "@/lib/services/courses";
 import { cardBrand } from "@/lib/services/organization";
 import { loadEventState, effectiveScoreStatus, settingsOf } from "@/lib/services/tournament";
@@ -23,7 +22,6 @@ import { generatesPairings } from "@/lib/stage-types";
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import { aggregateTeamCard, singleBallTeamCard } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
-import { courseHandicapMap, playingHandicapFrom } from "@/lib/domain/handicap";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
@@ -335,26 +333,20 @@ export default async function EntryPage() {
   // player-specific block further down — because the hole-by-hole card shows
   // each player's handicap strokes, and those have to be the same allocation
   // the round is actually scored with rather than a second, simpler one.
-  const entryTees = await prisma.tee.findMany({
-    where: { course: { events: { some: { eventId: session.eventId } } } },
-    orderBy: [{ position: "asc" }],
-  });
-  const entryTeeRatings = new Map(
-    entryTees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
-  );
-
   /**
-   * The tees each player's flight plays from, under the `flight` policy.
+   * The tee query, the ratings map and the flight-tee lookup are all GONE.
    *
-   * The dots printed on this card have to be the strokes the round is actually
-   * scored on, and both allocations below were reading the round's default set
-   * for the whole field. From `state`, so no extra query: the groups and the
-   * players' `groupId` are already here.
+   * They existed to feed a second `courseHandicapMap` on this page — the dots
+   * on the card and the number the mic speaks. Both now read
+   * `state.strokeHandicapFor`, which resolves the tee, the policy, the
+   * allowance, the hole count AND any frozen or overridden round handicap in
+   * one place, so there is nothing left here to keep in step.
+   *
+   * Each of the deleted pieces was a previous fix to this same duplication —
+   * the flight-tee lookup, the round's configured set, the policy argument.
+   * Every one of them made the copy agree with the resolver about one more
+   * thing. Deleting the copy is the version of that fix that stays fixed.
    */
-  const flightTeeOf = new Map(state.groups.map((g) => [g.id, g.teeId]));
-  const withFlightTee = <T extends { groupId: string | null }>(ps: T[]) =>
-    ps.map((p) => ({ ...p, flightTeeId: p.groupId ? flightTeeOf.get(p.groupId) ?? null : null }));
-
   const rounds: EntryRound[] = await Promise.all(
     rrStages.map(async (stage) => {
       const holeCount = stage.holes === 9 ? 9 : 18;
@@ -590,22 +582,30 @@ export default async function EntryPage() {
             // indexes that do not exist on the card being drawn — the same
             // fault as the pars above, in the numbers the scorer counts.
             if (!roundCard) return {};
-            const ch = courseHandicapMap(
-              withFlightTee(state.confirmed),
-              entryTeeRatings,
-              // The round's configured set. Line 538 of this same file already
-              // does it correctly, so the dots printed on the card came off one
-              // tee while the score beside them was computed off another.
-              roundTeeId(entryTees, state.event.defaultTeeId),
-              holeCount,
-              // The dots on the card must come from the same tee the scoring
-              // engine used, so the policy is applied here too.
-              state.event.teePolicy,
-            );
-            const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
+            /**
+             * The resolver, not a rebuild of it.
+             *
+             * This assembled its own `courseHandicapMap` and applied the
+             * allowance by hand, which agrees with the board exactly until a
+             * `RoundHandicap` row exists — a committee override, or the value
+             * `freezeRoundHandicaps` wrote when the first card landed, after
+             * which the roster index is edited. `strokeHandicapResolver` puts
+             * frozen and override ahead of the member figure; this knew
+             * nothing about either.
+             *
+             * So the dots and the net and Stableford totals on the card a
+             * scorer is signing disagreed with the leaderboard, `/me/card` and
+             * the skins pot. Nothing wrong was stored — `saveScorecard` keeps
+             * gross and every board recomputes net — but the card in front of
+             * the person certifying it is the one document that should not
+             * need reconciling afterwards.
+             *
+             * The match path in this same file already reads this resolver,
+             * forty lines above, for exactly the reason stated there.
+             */
             const out: Record<string, number[]> = {};
             for (const p of state.confirmed) {
-              const playing = playingHandicapFrom(ch.get(p.id) ?? 0, allowance);
+              const playing = state.strokeHandicapFor(p.id, stage.id);
               out[p.id] = Array.from({ length: holeCount }, (_, h) =>
                 holeStrokesReceived(playing, roundCard.strokeIndex[h] ?? 18, holeCount),
               );
@@ -636,28 +636,27 @@ export default async function EntryPage() {
   if (myId) {
     const me = state.confirmed.find((p) => p.id === myId);
     if (me) {
-      const tees = await prisma.tee.findMany({
-        where: { course: { events: { some: { eventId: session.eventId } } } },
-        orderBy: [{ position: "asc" }],
-      });
-      const teeRatings = new Map(
-        tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
-      );
+      // No tee query here either: `strokeHandicapFor` has already resolved the
+      // tee, the policy and the allowance, so this block needs nothing but the
+      // round id. That is one fewer database round trip on every load of this
+      // screen, which is incidental but not nothing.
       const handicapByRound: Record<number, number> = {};
       const opponentByRound: Record<number, string> = {};
       rrStages.forEach((stage, i) => {
-        const holeCount = stage.holes === 9 ? 9 : 18;
-        // The competition tee policy, so a single-tee event allocates off the
-        // round tees rather than off whatever a player has on their record.
-        const ch = courseHandicapMap(
-          withFlightTee(state.confirmed),
-          teeRatings,
-          roundTeeId(tees, state.event.defaultTeeId),
-          holeCount,
-          state.event.teePolicy,
-        );
-        const allowance = effectiveAllowance(stage.format, stage.handicapAllowance);
-        handicapByRound[i + 1] = playingHandicapFrom(ch.get(myId) ?? 0, allowance);
+        /**
+         * Same resolver as the card, for the same reason.
+         *
+         * This is the number a player is TOLD when they ask the mic what they
+         * are playing off, and it had the identical omission as the dots
+         * above: a rebuilt course-handicap map with the allowance applied by
+         * hand, blind to a frozen or overridden round handicap.
+         *
+         * The comment further up this file says a spoken handicap that
+         * disagreed with the printed card "would be worse than no answer at
+         * all — it is the number someone plays off without checking". Both now
+         * come from the same place, so they cannot disagree.
+         */
+        handicapByRound[i + 1] = state.strokeHandicapFor(myId, stage.id);
         const m = state.matches.find(
           (x) => x.stageId === stage.id && (x.playerAId === myId || x.playerBId === myId),
         );

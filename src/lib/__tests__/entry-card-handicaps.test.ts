@@ -160,6 +160,42 @@ describe("both entry screens are handed the resolved number", () => {
     expect(entry).not.toMatch(/new Map\(state\.players\.map\(\(p\) => \[p\.id, p\.handicap\]\)\)/);
   });
 
+  it("prices the STROKE dots off the round too, not a rebuilt map", () => {
+    /**
+     * The match path above was fixed and the stroke path beside it was not.
+     *
+     * `shotsByPlayer` — the dots printed against every hole on the card a
+     * scorer signs — assembled its own `courseHandicapMap` and applied the
+     * allowance by hand. That agrees with the board exactly until a
+     * `RoundHandicap` row exists: a committee override, or the value
+     * `freezeRoundHandicaps` writes when the first card lands, after which the
+     * roster index can be edited freely. The resolver puts frozen and override
+     * ahead of the member figure; the rebuild knew about neither.
+     *
+     * So on a round with a frozen or overridden handicap the dots, the net and
+     * the Stableford total on the card being certified disagreed with the
+     * leaderboard, `/me/card` and the skins pot. Nothing wrong is STORED —
+     * gross only — which is why this is a medium and not a high; but the card
+     * somebody signs is the one document that should not need reconciling
+     * afterwards.
+     */
+    const entry = read("src/app/(app)/entry/page.tsx");
+    expect(entry).toMatch(/const playing = state\.strokeHandicapFor\(p\.id, stage\.id\)/);
+    // And the voice block, which speaks the number a player then plays off
+    // without checking it against anything.
+    expect(entry).toMatch(/handicapByRound\[i \+ 1\] = state\.strokeHandicapFor\(myId, stage\.id\)/);
+    /**
+     * No second pipeline survives on this screen.
+     *
+     * Each deleted piece — the flight-tee lookup, the round's configured set,
+     * the policy argument — was itself a previous fix to this duplication,
+     * making the copy agree with the resolver about one more thing. Banning
+     * the copy is the version that stays fixed.
+     */
+    expect(entry).not.toMatch(/courseHandicapMap\(/);
+    expect(entry).not.toMatch(/playingHandicapFrom\(/);
+  });
+
   it("builds the stroke card from the shots it is already drawing", () => {
     // `shotsByPlayer` is what the dots beside each hole are rendered from. The
     // totals reading anything else is the two disagreeing on one screen.
