@@ -170,6 +170,9 @@ impossible. Extend these rather than working around them.
   whatever the caller likes.
 - `round-number-source.test.ts` — no screen derives a round number from a list position.
   `roundLabel` is the only count, and it does not count a cut as a round.
+- `source-guard.test.ts` — **a test that searches source reads it through `readSource`**, from
+  `src/lib/__tests__/source.ts`, which strips comments. Swept per file, so a new test file is
+  covered the day it is added. See below for why.
 
 **Prove a new test can fail: revert the fix, watch it go red, put it back.** Six fixtures in one
 pass could not fail — a card-venue test on gross match play (the card is never read), an
@@ -180,6 +183,28 @@ a passing test of the fix, and each was counted as coverage.
 Mutate the WHOLE before-state, not half of it. Reverting one of two changed lines left the
 headline case still passing: the rows were ordered wrongly but keyed the same, so they shared a
 rank anyway. A mutation that models half the old code proves half as much as it appears to.
+
+**And when the test reads SOURCE, the revert can stay green off your comment.** The prose above a
+guard almost always names the guard, so `expect(src).toMatch(/checkRateLimit\(/)` goes on passing
+after the call it pins has been deleted — the sentence describing the guard satisfies the
+assertion instead. This is the one mutation failure that looks exactly like a mutation success:
+the test is green, and you conclude the mutation was wrong rather than the test.
+
+It happened twice on 2026-09-05, the second time in a test written by somebody who had been bitten
+by the first that same afternoon. Hence `readSource`. Absence assertions are the safe direction
+and need no help — a `not.toMatch` that a comment trips fails loudly.
+
+The scale of it was measured rather than guessed, and the measurement is worth repeating whenever
+this is in doubt: blank every comment in `src` and run the suite. In September 2026 that was 24,578
+lines across 349 files and **4,268 of 4,268 still passed**, so eleven copies of a comment stripper
+and 93 un-stripped reads had produced no live defect at all. Do that before believing a file count
+means damage — the same discipline the course-card rules ask for, and for the same reason.
+
+One trap in doing it: **blank the comments block-aware, and commit first.** A stripper that only
+blanks lines starting with a marker leaves the body of any doc block written as plain indented
+prose behind as dangling text, and three files stop parsing. And `git checkout -- src` afterwards
+restores far more than the experiment — it discards every other uncommitted change in the
+directory, which on 2026-09-05 cost a day's worth of conversions that had to be redone.
 
 ## Money: what may be reported while a round is live
 
