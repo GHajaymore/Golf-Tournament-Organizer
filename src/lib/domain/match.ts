@@ -48,15 +48,35 @@ function closeoutOf(holes: HoleResult[]): { atIndex: number; remaining: number }
   return null;
 }
 
+/**
+ * The holes that COUNT: everything up to and including the closeout.
+ *
+ * Holes played after the match was already won are not part of the result, and
+ * must not be part of the record either — a player beaten 3&2 was being
+ * credited the 17th and 18th, which fed `holes-won-ratio` and
+ * `fewest-holes-lost` in the standings.
+ *
+ * Exported because that fix was applied inside `resolveMatch` and one reader
+ * was missed: `holesDiffOn`, which powers the toughest-N tiebreakers, walked
+ * the raw card. So the same two extra holes were excluded from the record and
+ * counted on the six hardest holes of the course — and a tiebreaker reading a
+ * card differently from the result it is breaking a tie about is a tie decided
+ * on a match that did not happen that way.
+ *
+ * A whole-card match (nobody closed out) returns the card unchanged.
+ */
+export function countedHoles(holes: HoleResult[]): HoleResult[] {
+  const closeout = closeoutOf(holes);
+  return closeout ? holes.slice(0, closeout.atIndex + 1) : holes;
+}
+
 export function resolveMatch(holes: HoleResult[]): MatchResolution {
   const total = holes.length;
 
-  // Holes played after the match was already won are not part of the result,
-  // and must not be part of the record either: they were feeding holesWon into
-  // the standings, which is what `holes-won-ratio` and `fewest-holes-lost`
-  // rank on. A player beaten 3&2 was being credited the 17th and 18th.
+  // `remaining` and `complete` below need the closeout itself, not only the
+  // holes it selects — see the two reads further down.
   const closeout = closeoutOf(holes);
-  const counted = closeout ? holes.slice(0, closeout.atIndex + 1) : holes;
+  const counted = countedHoles(holes);
 
   let holesWonA = 0;
   let holesWonB = 0;
