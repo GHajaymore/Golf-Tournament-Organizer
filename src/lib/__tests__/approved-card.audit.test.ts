@@ -266,6 +266,50 @@ describe("S2 — an approved scorecard is the committee's", () => {
     expect(card.certifiedBy).toBe("");
   });
 
+  /**
+   * The queued replay, which is how a round on patchy signal ordinarily ends.
+   *
+   * The player fills the card, certifies it, and the offline queue sends the
+   * SAME eighteen numbers a moment later. Two separate things had to be right
+   * for the signature to survive that, and only one of them was: the server
+   * stopped de-certifying an unchanged write, while the phone went on assuming
+   * every successful save de-certifies and put "entered" back on the badge.
+   *
+   * So this asserts what the action REPORTS, not only what it stores. The
+   * screen has no other source for the badge now, which is the point — a
+   * status the client works out for itself is a second reader, and the second
+   * reader is what drifted.
+   */
+  it("keeps a signature through a replay of the identical card, and says so", async () => {
+    await resetCard({ status: "entered", certifiedBy: "", approvedBy: "" });
+    await signIn("player");
+    await certifyScorecard(cardStageId, playerAId);
+    expect((await storedCard()).status).toBe("certified");
+
+    // The queue draining after the certify. Same numbers, nothing changed.
+    const replay = await saveScorecard(cardStageId, playerAId, APPROVED_82);
+
+    const card = await storedCard();
+    expect(card.status, "the stored card must stay certified").toBe("certified");
+    expect(card.certifiedBy, "and must keep who signed it").toBe(at("player"));
+    // What the badge is drawn from. Reporting "entered" here is the defect
+    // even when the row is right, because the screen believes this.
+    expect(replay.ok).toBe(true);
+    expect(replay.ok && replay.status, "the action must report what it kept").toBe("certified");
+  });
+
+  it("still reports the retraction when the replay carries different numbers", async () => {
+    // The other half, and the one that makes the assertion above mean
+    // something: a save that DOES change the card must come back as "entered",
+    // or "always report certified" would pass the test above just as well.
+    await resetCard({ status: "certified", certifiedBy: at("player"), approvedBy: "" });
+    await signIn("player");
+    const edit = await saveScorecard(cardStageId, playerAId, IMPROVED_76);
+
+    expect((await storedCard()).status).toBe("entered");
+    expect(edit.ok && edit.status, "the action must report the retraction too").toBe("entered");
+  });
+
   it("does NOT let an edit clear a dispute", async () => {
     // Deliberately unlike the certification above. Disputed means someone says
     // this card is wrong; if editing cleared that, the one person most

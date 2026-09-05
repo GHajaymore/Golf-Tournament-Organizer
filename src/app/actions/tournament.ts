@@ -1870,7 +1870,24 @@ export async function saveCustomCourse(
  * get to decide whose scorecard was right.
  */
 export type SaveCardResult =
-  | { ok: true; revision: string }
+  | {
+      ok: true;
+      revision: string;
+      /**
+       * The status the card now holds — REPORTED, not left to the caller to
+       * work out.
+       *
+       * A save retracts a certification only when the numbers changed, which
+       * is a rule with real subtlety in it (see `changed` below) and used to
+       * have a second, cruder copy on the phone: the player's card assumed
+       * every successful save de-certified. So a queued replay landing after
+       * the player had signed — the ordinary end of a round entered with
+       * patchy signal — turned the badge back to "entered" while the card on
+       * the server stayed certified, and the screen contradicted the record it
+       * was reporting.
+       */
+      status: string;
+    }
   | { ok: false; conflict: { strokes: (number | null)[]; revision: string } };
 
 export async function saveScorecard(
@@ -2001,7 +2018,7 @@ export async function saveScorecard(
   const changed = !existing || cardRevision(clean) !== stored;
   const reset = existing && changed ? statusAfterEdit(existing.status) : null;
 
-  await prisma.scorecard.upsert({
+  const saved = await prisma.scorecard.upsert({
     where: { stageId_playerId: { stageId, playerId } },
     // New strokes retract a certification given for the old ones — the same
     // rule the match path applies, where any score edit drops the result back
@@ -2024,7 +2041,11 @@ export async function saveScorecard(
   // it rather than having to re-read the card to save again.
   // Derived from what was just written, so the caller can keep saving from it
   // without re-reading the card.
-  return { ok: true, revision: cardRevision(clean) };
+  //
+  // The status comes off the ROW the upsert returned, not from re-applying
+  // `reset` here. Re-deriving it would be a third copy of the same rule, and
+  // the second copy is what this is fixing.
+  return { ok: true, revision: cardRevision(clean), status: saved.status };
 }
 
 /**

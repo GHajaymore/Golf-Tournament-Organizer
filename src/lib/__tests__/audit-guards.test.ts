@@ -1360,6 +1360,61 @@ describe("the pending-card queue never clears a card it did not send", () => {
     );
   });
 
+  /**
+   * The badge says what the SERVER holds, not what the screen predicted.
+   *
+   * `saveScorecard` retracts a certification only when the numbers changed —
+   * deliberately, because the console re-saves every unchanged card in a tee
+   * group and this queue can replay one seconds after it was signed. The
+   * player's card kept the older, cruder version of that rule: every
+   * successful save de-certifies.
+   *
+   * So the ordinary end of a round on patchy signal — certify, then the queued
+   * card goes up unchanged a moment later — put "entered" on a card the
+   * committee held as certified. The player who had signed was told they had
+   * not, with nothing to do but sign again.
+   *
+   * The fix removes the copy rather than correcting it: the action reports the
+   * status and the screen displays it. Both halves are pinned, because either
+   * alone restores the drift.
+   */
+  it("reports the status the save produced instead of leaving it to be guessed", () => {
+    const actionsSrc = stripComments(read("tournament.ts"));
+    // Off the row the upsert returned. Re-applying `statusAfterEdit` here
+    // would be a third copy of the rule whose second copy is the bug.
+    expect(actionsSrc).toMatch(/return \{ ok: true, revision: cardRevision\(clean\), status: saved\.status \}/);
+    expect(actionsSrc).toMatch(/const saved = await prisma\.scorecard\.upsert\(/);
+  });
+
+  it("does not let the phone decide what a save did to a signature", () => {
+    const card = stripComments(
+      readFileSync(join(process.cwd(), "src", "components", "PlayerCard.tsx"), "utf8"),
+    );
+    expect(card).toMatch(/setState\(res\.status\)/);
+    // The guess that was there. Its absence is the fix.
+    expect(card, "the screen must not re-derive a de-certification").not.toMatch(
+      /=== "certified" \? "entered"/,
+    );
+  });
+
+  it("empties the queue after certifying, and only for the card it certified", () => {
+    // The replay is what exposed the badge bug: certify saves directly, so the
+    // queue was left holding the identical card and sent it again. Settling
+    // clears the DEVICE copy, so it is guarded on nothing having been typed
+    // since — by identity, because setHole builds a new array every time.
+    const card = stripComments(
+      readFileSync(join(process.cwd(), "src", "components", "PlayerCard.tsx"), "utf8"),
+    );
+    const certify = card.slice(card.indexOf("const certify ="));
+    expect(certify).toMatch(/const sent = latest\.current;/);
+    expect(certify).toMatch(/if \(latest\.current === sent\) card\.settle\(\);/);
+    // After the certify, never before it: settling first would drop the device
+    // copy while the card was still only on this phone.
+    expect(certify.indexOf("card.settle()")).toBeGreaterThan(
+      certify.indexOf("await certifyScorecard("),
+    );
+  });
+
   it("shows the player a card recovered from a previous visit", () => {
     // `recovered` was read from localStorage on mount and then rendered by
     // nobody, so the tab-eviction case the module exists for still lost holes.
