@@ -53,6 +53,7 @@ export function PlayerCard({
   brand,
   initialStrokes,
   initialRevision = "",
+  savePartial = true,
 }: {
   stageId: string;
   playerId: string;
@@ -86,6 +87,16 @@ export function PlayerCard({
    * a caller that has not been given one behaves exactly as before.
    */
   initialRevision?: string;
+  /**
+   * Whether this viewer may send a half-filled card — `mayReportPartialCard`,
+   * resolved on the server, which is the same rule `saveScorecard` enforces.
+   *
+   * Default true so nothing that does not pass it changes behaviour. Under
+   * `scoreEntryWindow: "after"` it is false for a player, and the card is then
+   * kept on the phone until it is finished rather than sent hole by hole into
+   * a refusal the screen reads as a failure.
+   */
+  savePartial?: boolean;
 }) {
   const [strokes, setStrokes] = useState<(number | null)[]>(() =>
     Array.from({ length: holes }, (_, i) => initialStrokes[i] ?? null),
@@ -153,6 +164,10 @@ export function PlayerCard({
     stageId,
     playerId,
     enabled: !locked,
+    // This tournament takes the whole card and this one is not whole yet. The
+    // holes still go to the device on every tap; only the request waits, and
+    // the hole that completes the card releases it.
+    holding: !savePartial && !complete,
     send: async (value) => {
       const res = await saveScorecard(stageId, playerId, value, revision.current);
       if (!res.ok) {

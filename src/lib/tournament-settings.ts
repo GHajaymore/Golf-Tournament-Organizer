@@ -326,6 +326,31 @@ export function canPlayerSavePartial(settings: TournamentSettings): boolean {
 }
 
 /**
+ * Whether THIS person, in this tournament, may send a half-filled card.
+ *
+ * The rule above is only the window. The whole rule is the window plus the
+ * role, and it was written out by hand at every place that needed it —
+ * `session.role === "player" && !canPlayerSavePartial(settings)`, four times in
+ * the actions and nowhere a screen could reach it.
+ *
+ * That is why `/me/card` did not have it. The card auto-saves every hole, which
+ * is right under `during` and is a request the server is certain to refuse
+ * under `after`. The refusal is not a network error, so the screen showed
+ * "This card wouldn't save. Show it to the committee before you sign." — from
+ * the first hole, for the whole round, on the one line this app has taught
+ * players to trust about whether their holes are safe. Then it retried every
+ * fifteen seconds until they finished.
+ *
+ * A screen cannot ask "may I save yet" if the question only exists spelled out
+ * inside four server actions. It exists here now.
+ */
+export function mayReportPartialCard(settings: TournamentSettings, role: Role): boolean {
+  // Staff are never restricted this way — they enter scores as groups come in.
+  if (IS_STAFF[role]) return true;
+  return canPlayerSavePartial(settings);
+}
+
+/**
  * Whether a result may lock without a staff member looking at it.
  *
  * Under `staff` approval nothing auto-confirms: a card sits pending until an
