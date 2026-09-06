@@ -5,6 +5,8 @@ import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
 import { shareOf } from "@/lib/domain/expenses";
 import { money } from "@/lib/domain/money-format";
 import { PLANS, retentionNotice } from "@/lib/plans";
+import { siteStructuredData } from "@/lib/domain/structured-data";
+import { siteOrigin } from "@/lib/site";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
@@ -376,13 +378,18 @@ const LANDING_CSS = `
 .thq .feat { background:var(--ground); padding:30px 28px; display:flex; flex-direction:column; gap:13px; min-height:190px; transition:background .18s ease; }
 .thq .feat:hover { background:var(--ground-2); }
 .thq .feat .ic { width:28px; height:28px; color:var(--brass); }
-.thq .feat h4 { font-family:var(--sans); font-size:17px; font-weight:600; letter-spacing:-0.01em; margin:0; }
+.thq .feat h3 { font-family:var(--sans); font-size:17px; font-weight:600; letter-spacing:-0.01em; margin:0; }
 .thq .feat p { font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.56; }
 
 .thq .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:40px; margin-top:36px; }
 .thq .step { padding-top:22px; border-top:1px solid var(--line-2); }
 .thq .step .n { font-family:var(--mono); font-size:11.5px; color:var(--flag); letter-spacing:0.08em; }
-.thq .step h4 { font-family:var(--sans); font-size:19px; font-weight:600; margin:12px 0 8px; letter-spacing:-0.01em; }
+.thq .step h3 { font-family:var(--sans); font-size:19px; font-weight:600; margin:12px 0 8px; letter-spacing:-0.01em; }
+/* These card headings were h4 and had no rule of their own, so they took the
+   design system's 16px. Promoting them to h3 for document order would have
+   silently resized them to 18px, so the size they already had is stated here
+   rather than left to inherit — a semantic fix should not redesign a page. */
+.thq .scard-in h3 { font-size:16px; }
 .thq .step p { font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.56; }
 
 .thq .chips { display:flex; flex-wrap:wrap; gap:10px; margin-top:36px; }
@@ -679,6 +686,17 @@ export default async function LoginPage() {
   return (
     <div className="thq">
       <style dangerouslySetInnerHTML={{ __html: LANDING_CSS }} />
+      {/* What kind of thing this is, in schema.org terms. The page had a good
+          title and description and nothing a crawler could read as a PRODUCT
+          with a free tier and a paid one. Prices come from PLANS, so they
+          cannot drift from the pricing section below. See structured-data.ts
+          for what is deliberately absent — there are no reviews to cite. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(siteStructuredData({ origin: siteOrigin() })),
+        }}
+      />
       <LandingEffects />
 
       <nav className="nav">
@@ -877,7 +895,7 @@ export default async function LoginPage() {
           <div className="cardgrid reveal">
             <div className="scard" style={stepBorder}>
               <div className="scard-in">
-                <h4 style={paperInk}>Or one set for everyone</h4>
+                <h3 style={paperInk}>Or one set for everyone</h3>
                 <p style={paperSoft}>
                   A medal off the whites is a condition of competition, not a preference. Choose it
                   and a player&rsquo;s own stored tee cannot quietly override the committee.
@@ -886,7 +904,7 @@ export default async function LoginPage() {
             </div>
             <div className="scard" style={stepBorder}>
               <div className="scard-in">
-                <h4 style={paperInk}>Or let them choose</h4>
+                <h3 style={paperInk}>Or let them choose</h3>
                 <p style={paperSoft}>
                   A society that already knows what it plays off can pick for itself, and change it
                   until a card is returned. Same scoring either way.
@@ -895,7 +913,7 @@ export default async function LoginPage() {
             </div>
             <div className="scard" style={stepBorder}>
               <div className="scard-in">
-                <h4 style={paperInk}>Printed on the card</h4>
+                <h3 style={paperInk}>Printed on the card</h3>
                 <p style={paperSoft}>
                   Each player&rsquo;s tees are named beside them on the scorecard the group carries
                   out — the set the round was actually scored from, not a second guess at it.
@@ -933,32 +951,32 @@ export default async function LoginPage() {
           <div className="features reveal">
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 21V4" /><path d="M6 4l11 3-11 3" /></svg>
-              <h4>Every format, one table</h4>
+              <h3>Every format, one table</h3>
               <p>Singles and side formats, each scored by its own rules, then reconciled to a single set of standings.</p>
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.3" /></svg>
-              <h4>Handicaps to the book</h4>
+              <h3>Handicaps to the book</h3>
               <p>Course handicap from the tee&rsquo;s slope and rating, then the format&rsquo;s allowance. Unrated tees say so.</p>
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3v6a3 3 0 003 3h6" /><rect x="3" y="1.5" width="3" height="3" rx=".6" /><rect x="18" y="10.5" width="3" height="3" rx=".6" /><rect x="18" y="4.5" width="3" height="3" rx=".6" /></svg>
-              <h4>Brackets, drawn your way</h4>
+              <h3>Brackets, drawn your way</h3>
               <p>One bracket, two flights, or a main draw with a plate. Seeded from live standings, byes handled.</p>
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 21V4h13l-2.5 3.5L19 11H6" /></svg>
-              <h4>Rounds that follow on</h4>
+              <h3>Rounds that follow on</h3>
               <p>Cuts and carry-forward apply as each round closes. When two rounds don&rsquo;t measure the same thing, it says so first.</p>
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.4" /><path d="M11 18.5h2" /></svg>
-              <h4>Players score from the tee</h4>
+              <h3>Players score from the tee</h3>
               <p>A round code puts a player on their card — no account, no install. Or keep the cards with your staff.</p>
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="2.2" /><path d="M7.5 7.5a6.4 6.4 0 000 9M16.5 7.5a6.4 6.4 0 010 9M4.5 4.5a10.6 10.6 0 000 15M19.5 4.5a10.6 10.6 0 010 15" /></svg>
-              <h4>A link for everyone else</h4>
+              <h3>A link for everyone else</h3>
               <p>A public live leaderboard for the clubhouse screen and the players&rsquo; families — without a login.</p>
             </div>
             {/* Three the page never claimed, and all three are what an
@@ -967,17 +985,17 @@ export default async function LoginPage() {
                 also keeps the three-column grid square. */}
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20.5 12a8.5 8.5 0 01-12.3 7.6L3.5 20.5l.9-4.7A8.5 8.5 0 1120.5 12z" /></svg>
-              <h4>Messages, at the right level</h4>
+              <h3>Messages, at the right level</h3>
               <p>The whole club, one tournament, a flight, a round, a side, your fourball, your match — or one player. Everyone sees only the conversations they&rsquo;re actually in.</p>
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.2" /><path d="M3.5 9.5h17M8 3v4M16 3v4" /><path d="M9 14.5l2 2 4-4" /></svg>
-              <h4>Who&rsquo;s in, week by week</h4>
+              <h3>Who&rsquo;s in, week by week</h3>
               <p>Players opt in or out on their own phone and the tee sheet fills from the answers — instead of a reply-all thread you have to count.</p>
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8.5" r="3.4" /><path d="M2.8 20a6.4 6.4 0 0112.4 0" /><path d="M16.5 6.2a3.4 3.4 0 010 6.6M18.4 20a6.4 6.4 0 00-2.2-4.8" /></svg>
-              <h4>One roster, every event</h4>
+              <h3>One roster, every event</h3>
               <p>Entering somebody in a tournament adds them to the club list. Handicaps, tees and contact details carry to the next one — and a blank box never overwrites what you already had.</p>
             </div>
             {/* Three more the page did not claim, and each is a thing the app
@@ -985,17 +1003,17 @@ export default async function LoginPage() {
                 three-column grid square. */}
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s7-6.1 7-11a7 7 0 10-14 0c0 4.9 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" /></svg>
-              <h4>Your course, not a guess</h4>
+              <h3>Your course, not a guess</h3>
               <p>Look it up and its card and rated tee sets arrive with it. Where the public data can&rsquo;t be trusted we say so and leave the card blank, rather than handing you a par nobody has played.</p>
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 9.5h19M7 9.5V19M12 9.5V19M17 9.5V19" /></svg>
-              <h4>The card, as it is on paper</h4>
+              <h3>The card, as it is on paper</h3>
               <p>Your club&rsquo;s mark at the head of it, the course leading, par and stroke index where you expect them — and the round&rsquo;s format decides what it asks for: every hole, who won each one, or just the margin.</p>
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.8l2.6 5.6 6 .8-4.4 4.2 1.1 6.1L12 16.6 6.7 19.5l1.1-6.1L3.4 9.2l6-.8z" /></svg>
-              <h4>However you&rsquo;re organised</h4>
+              <h3>However you&rsquo;re organised</h3>
               <p>A club with a members&rsquo; roster, a society playing a different course each month, or four of you on a Saturday. Each gets the parts that apply and is never asked about the rest.</p>
             </div>
           </div>
@@ -1011,17 +1029,17 @@ export default async function LoginPage() {
           <div className="steps reveal">
             <div className="step" style={stepBorder}>
               <span className="n" style={{ color: "var(--brass)" }}>STEP 01</span>
-              <h4 style={paperInk}>Set up</h4>
+              <h3 style={paperInk}>Set up</h3>
               <p style={paperSoft}>Field, flights, rounds and format. Running last year&rsquo;s again? Copy it — configuration only, never the old results.</p>
             </div>
             <div className="step" style={stepBorder}>
               <span className="n" style={{ color: "var(--brass)" }}>STEP 02</span>
-              <h4 style={paperInk}>Play</h4>
+              <h3 style={paperInk}>Play</h3>
               <p style={paperSoft}>Scores from any phone at the tee, or entered by your staff. Standings update on every device as cards come in.</p>
             </div>
             <div className="step" style={stepBorder}>
               <span className="n" style={{ color: "var(--brass)" }}>STEP 03</span>
-              <h4 style={paperInk}>Results</h4>
+              <h3 style={paperInk}>Results</h3>
               <p style={paperSoft}>Brackets seeded, ties broken, payouts calculated. Export the lot, or publish a link for the clubhouse.</p>
             </div>
           </div>
@@ -1045,7 +1063,7 @@ export default async function LoginPage() {
           <div className="features reveal">
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M9 9v11" /></svg>
-              <h4>A card that saves itself</h4>
+              <h3>A card that saves itself</h3>
               <p>
                 Hole by hole between shots, or the whole card to check against the paper one. No Save
                 button — a Save button on a golf course is a round lost to a pocket.
@@ -1053,7 +1071,7 @@ export default async function LoginPage() {
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
-              <h4>Where you stand, first</h4>
+              <h3>Where you stand, first</h3>
               <p>
                 Your own line sits above the board, so &ldquo;where am I&rdquo; is answered before a
                 finger touches the screen — and the column says whether it is strokes, points or
@@ -1062,7 +1080,7 @@ export default async function LoginPage() {
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 11h18" /></svg>
-              <h4>Am I in next week?</h4>
+              <h3>Am I in next week?</h3>
               <p>
                 A league season on a calendar, not twelve identical rows. In, out, and — honestly —
                 &ldquo;in because nobody said otherwise&rdquo;, which is a different promise.
@@ -1070,7 +1088,7 @@ export default async function LoginPage() {
             </div>
             <div className="feat">
               <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18" /><path d="M17 7.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.6 5 3 5 1.3 5 3-2.2 3-5 3-5-1.1-5-3" /></svg>
-              <h4>What you owe, in one number</h4>
+              <h3>What you owe, in one number</h3>
               <p>
                 Dinner, the carts, the skins and the closest-to-the-pin — added up into a single
                 figure, with the parts shown so nobody has to take it on trust.
