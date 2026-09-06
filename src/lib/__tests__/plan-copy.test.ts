@@ -81,10 +81,21 @@ describe("what a club gets for its money is actually said", () => {
     }
   });
 
-  it("says how long free keeps anything, in hours a person can act on", () => {
+  it("states free's retention term, without promising a deletion nobody built", () => {
+    /**
+     * This asked for "48 hours" and got it, for a sentence that also said the
+     * data was permanently deleted at that point. Nothing has ever deleted
+     * anything — `dueForPurge` has no caller outside its own test file.
+     *
+     * The hours are the plan's POLICY and stay in `PLANS`; what could not stay
+     * is a public sentence asserting the policy is enforced. The relation
+     * between the two is guarded in retention.test.ts, which relaxes by itself
+     * the day something purges.
+     */
     const notice = retentionNotice("free");
-    expect(notice, "free must state its retention").toBeTruthy();
-    expect(notice).toMatch(/48 hours/);
+    expect(notice, "free must state its retention term").toBeTruthy();
+    expect(notice!).toMatch(/guarantee/i);
+    expect(notice!, "must not claim a deletion that does not happen").not.toMatch(/deleted/i);
     // And the paid tier must not claim a limit it does not have.
     expect(retentionNotice("club")).toBeNull();
   });

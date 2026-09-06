@@ -4,7 +4,7 @@ import { landingScreenFor } from "@/lib/roles";
 import { courseHandicap, playingHandicapFrom } from "@/lib/domain/handicap";
 import { shareOf } from "@/lib/domain/expenses";
 import { money } from "@/lib/domain/money-format";
-import { PLANS } from "@/lib/plans";
+import { PLANS, retentionNotice } from "@/lib/plans";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
@@ -1285,11 +1285,16 @@ export default async function LoginPage() {
                 <li>As many players as turn up</li>
                 <li>Every format, every scoring engine</li>
               </ul>
-              <div className="keepwarn">
-                <b>Results are kept {PLANS.free.retentionHours} hours.</b> After that the scores,
-                the players and the standings are deleted for good. Export what you want to keep —
-                or run it on the paid plan and keep it.
-              </div>
+              {/* The shared notice and nothing else. This block used to read
+                  "Results are kept 48 hours … deleted for good", which was the
+                  boldest statement on the page and was not true — nothing has
+                  ever purged anything. See retentionNotice().
+
+                  No bold lead-in: the first draft kept one saying "Export what
+                  you want to keep", which the notice's own second sentence then
+                  said again three words later. `.keepwarn` already carries the
+                  emphasis. */}
+              <div className="keepwarn">{retentionNotice("free")}</div>
             </div>
 
             <div className="plan paid">

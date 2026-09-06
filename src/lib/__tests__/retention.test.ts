@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { stripComments } from "./source";
 import { retentionDecision, dueForPurge, hoursRemaining, type RetainableEvent } from "../retention";
 import { retentionNotice, keepsDataForever, planFor } from "../plans";
 
@@ -90,17 +93,95 @@ describe("telling the organizer while it still matters", () => {
   });
 });
 
+/**
+ * THE PROMISE MAY NOT OUTRUN THE IMPLEMENTATION.
+ *
+ * These three tests used to pin the opposite. They required the notice to say
+ * "permanently deleted" and to contain the number 48 — a faithful, well-written
+ * guard on a sentence that was not true. `dueForPurge` above is fully tested
+ * and has never had a caller outside this file: no cron in any workflow, none
+ * in vercel.json, no route, no script. Nothing has ever been purged.
+ *
+ * So the tests held the copy to a behaviour nobody had built, which is the
+ * failure mode this repo already knows in another form — a green cell that
+ * proves the fixture, not the feature. A test can pin the wrong thing
+ * perfectly.
+ *
+ * What is asserted now is the RELATION: while nothing purges, no surface may
+ * promise that anything is deleted. Wire `dueForPurge` to something real and
+ * these relax on their own — which is the point, and why the condition is
+ * computed rather than written down as a boolean somebody has to remember to
+ * flip.
+ */
 describe("the notice shown before anyone plays", () => {
-  it("says deleted, in plain words, with the real number", () => {
-    const notice = retentionNotice("free")!;
-    expect(notice).toMatch(/permanently deleted/);
-    expect(notice).toMatch(/48 hours/);
-    expect(notice).toMatch(/Export/);
+  /**
+   * Does anything outside the tests actually purge?
+   *
+   * By IMPORT, not by call shape. The first version searched for
+   * `dueForPurge(` and so matched the `export function dueForPurge(`
+   * declaration in retention.ts itself — it was true from the moment it was
+   * written, the branch below never ran, and the guard could not fail. A
+   * mutation caught it: restoring the old false promise left it green.
+   *
+   * Which is the fault this whole change is about, arriving in the guard
+   * against it. A test that pins the wrong thing perfectly.
+   */
+  const importsPurge = (src: string) =>
+    /import\s*\{[^}]*\bdueForPurge\b[^}]*\}\s*from/.test(stripComments(src));
+
+  const nonTestSources = (() => {
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((e) => {
+        const p = join(dir, e);
+        if (statSync(p).isDirectory()) return e === "__tests__" ? [] : walk(p);
+        return /\.tsx?$/.test(e) ? [p] : [];
+      });
+    return walk(join(process.cwd(), "src"));
+  })();
+
+  const purgeIsWired = nonTestSources.some((f) => importsPurge(readFileSync(f, "utf8")));
+
+  it("can tell a wired purge from an unwired one", () => {
+    /**
+     * The control, in both directions, because the detector decides whether
+     * the real assertion runs at all. A detector stuck on TRUE skips the
+     * check; one stuck on FALSE would fail honest code later.
+     */
+    expect(importsPurge(`import { dueForPurge } from "@/lib/retention";`)).toBe(true);
+    expect(importsPurge(`import { retentionDecision } from "@/lib/retention";`)).toBe(false);
+    // And the declaration itself must not read as a call site — the bug above.
+    expect(importsPurge(`export function dueForPurge(events) { return []; }`)).toBe(false);
+    // The walk found real files, so `purgeIsWired` is an answer and not an
+    // artefact of looking at nothing.
+    expect(nonTestSources.length).toBeGreaterThan(100);
+    expect(typeof dueForPurge).toBe("function");
   });
 
-  it("reads the number from the plan rather than repeating it", () => {
-    // One constant. Changing 48 anywhere changes every surface that says it.
-    expect(retentionNotice("free")).toContain(String(planFor("free").retentionHours));
+  it("does not promise a deletion while nothing deletes", () => {
+    if (purgeIsWired) return; // built since — the blunt wording is honest again
+    const notice = retentionNotice("free")!;
+    expect(notice, "the notice must not claim data is deleted").not.toMatch(
+      /deleted|permanently|erased|destroyed/i,
+    );
+    // And it must not name a window either: "kept 48 hours" is the same promise
+    // wearing different words.
+    expect(notice).not.toMatch(new RegExp(String(planFor("free").retentionHours)));
+  });
+
+  it("still tells the club to export, which is the part that was useful", () => {
+    // The old sentence did one thing right: it made a club act. Dropping the
+    // false half must not drop that.
+    expect(retentionNotice("free")!).toMatch(/export/i);
+  });
+
+  it("does not promise to keep it for good either", () => {
+    /**
+     * The other direction, and the one that is easy to miss. Replacing "we
+     * delete this" with "we keep this" would be equally untrue AND would turn
+     * building the purge into breaking a promise — a stopgap that quietly
+     * becomes permanent. The honest word is that nothing is guaranteed.
+     */
+    expect(retentionNotice("free")!).toMatch(/guarantee/i);
   });
 
   it("says nothing on a plan that keeps data", () => {
