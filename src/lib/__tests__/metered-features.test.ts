@@ -72,7 +72,11 @@ describe("the upgrade pitch", () => {
   it("leads with what a free club actually loses today", () => {
     // Retention first: losing the member-guest results is the concrete harm,
     // where the metered features are things they've never had.
-    expect(upgradeBenefits("free")[0]).toMatch(/permanently|48 hours/i);
+    // Retention still leads, but on what the paid plan GIVES rather than on a
+    // loss that does not happen: the old assertion wanted "permanently" or "48
+    // hours", and the sentence it accepted said a free club loses its results
+    // after two days. Nothing has ever deleted anything.
+    expect(upgradeBenefits("free")[0]).toMatch(/kept for good/i);
   });
 
   it("never offers a paid club something it already has", () => {

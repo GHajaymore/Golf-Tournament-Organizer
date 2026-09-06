@@ -952,12 +952,15 @@ describe("settings screens", () => {
     const html = render(<CreateFirstTournament first plan="free" />);
     expect(html).toContain("How is it played?");
     expect(html).toContain("A single round");
-    expect(html).toContain("permanently deleted");
+    // Was "permanently deleted" — the notice said so and nothing did it.
+    // Matched without the apostrophe: this is rendered HTML, where it arrives
+    // escaped as &#x27; and an assertion on the raw character never fires.
+    expect(html).toContain("guarantee that a finished tournament is kept");
   });
 
   it("omits the retention notice on a plan that keeps data", () => {
     const html = render(<CreateFirstTournament first plan="club" />);
-    expect(html).not.toContain("permanently deleted");
+    expect(html).not.toContain("guarantee that a finished tournament is kept");
   });
 });
 

@@ -178,15 +178,44 @@ export function limitCheck(planKey: string, limit: LimitKey, current: number): L
 /**
  * The retention term in plain words, for wherever a plan is offered.
  *
- * Deliberately one sentence and deliberately blunt. A club losing its
- * member-guest results the morning after is a disaster that a euphemism would
- * have caused, so this says "deleted" rather than "not retained".
+ * THIS USED TO PROMISE A DELETION THAT NEVER HAPPENED. The sentence read
+ * "Scores, players and results are permanently deleted 48 hours after a
+ * tournament finishes", in bold on the public pricing page and again before a
+ * club's first tournament. Nothing deleted anything. `dueForPurge` in
+ * retention.ts decides what is overdue, is fully unit tested, and has never had
+ * a caller outside its own tests — no cron in any workflow, none in
+ * vercel.json, no route, no script. Every free-plan tournament ever run is
+ * still there, players and scores included.
+ *
+ * A promise to destroy somebody's data is not one to make and not keep, and it
+ * is wrong in both directions at once: a club that believed it did not export
+ * what it should have, and a player told their name and score would be gone in
+ * two days was told something untrue on a page anyone can read.
+ *
+ * So this says what is TRUE — the plan does not guarantee a finished
+ * tournament is kept — and deliberately does not promise to keep one either.
+ * That second half matters: "we keep it for good" would be a fresh promise
+ * that turns building the purge into a breach of it, which is how a stopgap
+ * becomes permanent. `plan-copy.test.ts` holds this wording to whichever of
+ * the two is actually implemented, and will allow the blunt version back the
+ * day something calls `dueForPurge`.
  */
 export function retentionNotice(planKey: string): string | null {
   const plan = planFor(planKey);
   if (plan.retentionHours === null) return null;
-  const h = plan.retentionHours;
-  return `Scores, players and results are permanently deleted ${h} hours after a tournament finishes. Export anything you want to keep, or upgrade to hold on to it.`;
+  return "This plan doesn't guarantee that a finished tournament is kept. Export anything you want to hold on to, or upgrade and we'll keep it for you.";
+}
+
+/**
+ * The same term in a few words, for a bullet or a one-line plan summary.
+ *
+ * Here rather than composed at each screen, because it was composed at each
+ * screen: the pricing page and the plan panel each built their own sentence out
+ * of `retentionHours`, so both went on advertising a 48-hour deletion after the
+ * shared notice above had stopped. One reader, like `retentionNotice`.
+ */
+export function retentionSummary(plan: Plan): string {
+  return plan.retentionHours === null ? "results kept for good" : "results not guaranteed to be kept";
 }
 
 /** Whether this plan keeps data indefinitely. */
@@ -264,7 +293,9 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
   const out: string[] = [];
 
   if (plan.retentionHours !== null) {
-    out.push("Keep your results permanently, instead of losing them 48 hours after the event.");
+    // Was "instead of losing them 48 hours after the event" — the same
+    // unimplemented deletion, hard-coded here rather than read from the plan.
+    out.push("Every finished tournament kept for good, guaranteed.");
   }
   if (plan.limits.activeEvents !== null) {
     out.push("Run as many tournaments at once as your season needs.");

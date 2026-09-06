@@ -1,4 +1,4 @@
-import { PLANS, planFor, upgradeBenefits, retentionNotice, type Plan } from "@/lib/plans";
+import { PLANS, planFor, upgradeBenefits, retentionNotice, retentionSummary, type Plan } from "@/lib/plans";
 
 /**
  * What this club is on, what it costs, and what it does not include.
@@ -25,7 +25,7 @@ export function PlanPanel({ planKey }: { planKey: string }) {
   const limitLine = (p: Plan) => {
     const events = p.limits.activeEvents === null ? "Unlimited tournaments" : `${p.limits.activeEvents} tournament at a time`;
     const seats = p.limits.staffSeats === null ? "unlimited organizers" : `${p.limits.staffSeats} organizer${p.limits.staffSeats === 1 ? "" : "s"}`;
-    const keep = p.retentionHours === null ? "results kept for good" : `results kept ${p.retentionHours} hours`;
+    const keep = retentionSummary(p);
     return `${events} · ${seats} · ${keep}`;
   };
 
