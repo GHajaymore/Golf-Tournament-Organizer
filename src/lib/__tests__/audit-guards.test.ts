@@ -1578,46 +1578,133 @@ describe("player screens only show a published tee sheet", () => {
 });
 
 describe("a round's card is narrowed in exactly one place", () => {
-  const SCORING_FILES = [
+  /**
+   * SWEPT, NOT LISTED — and this guard is its own argument for why.
+   *
+   * It used to name five scoring files and check each did not take the first N
+   * holes as a card. A hand list is opt-IN: a file is guarded only once
+   * somebody remembers to add it, and the failures show up in both directions.
+   *
+   * It missed. Its own note records the entry screen going on doing the banned
+   * thing because "the files that settle money or produce a board" did not read
+   * as covering it — the running net a scorer signed against and the result
+   * stored for the same round differed by one to three strokes. The fix was to
+   * hand-add one file.
+   *
+   * And it went stale the other way: it named `src/lib/services/season.ts`, a
+   * module nothing imported and no test called, which is part of why that file
+   * read as shipped for so long. A roll of scoring files was describing a file
+   * rather than protecting the app.
+   *
+   * So the polarity is inverted. NO file may take the first N holes as a card,
+   * and anything that legitimately does says why below. A new scoring screen is
+   * now guarded the day it is written rather than the day somebody remembers
+   * it — the same reason `e2e/layout.spec.ts` sweeps the filesystem, whose
+   * hand-written predecessor covered 14 of 22 routes.
+   */
+  const BANNED = [/strokeIndex\.slice\(\s*0\s*,/, /pars\.slice\(\s*0\s*,\s*hole/];
+
+  const SRC = join(process.cwd(), "src");
+  function sourceFiles(dir: string, out: string[] = []): string[] {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === "__tests__") continue;
+      const p = join(dir, e.name);
+      if (e.isDirectory()) sourceFiles(p, out);
+      else if (/\.tsx?$/.test(e.name)) out.push(p);
+    }
+    return out;
+  }
+
+  /**
+   * Where taking the first N holes is correct, each for a stated reason.
+   *
+   * Short by design, and every entry is a place the app could drift. The test
+   * below does not take these on trust: an exemption that can be shown to
+   * narrow properly first has to keep doing so.
+   */
+  const ALLOWED: Record<string, string> = {
+    "src/app/(player)/me/card/page.tsx":
+      "applyNine has already selected the round's nine; this trims to length",
+    "src/lib/domain/venue.ts":
+      "cardProblems VALIDATES a stored card is complete — it is not choosing a round's holes",
+    "src/components/StrokePlayEntry.tsx":
+      "receives an already-narrowed card as a prop from the entry screen, which uses cardForStage",
+    "src/components/TeeSheetPrint.tsx":
+      "sums an already-narrowed par list for a printed header",
+  };
+
+  const offenders = sourceFiles(SRC)
+    .filter((f) => {
+      const body = stripComments(readFileSync(f, "utf8"));
+      return BANNED.some((re) => re.test(body));
+    })
+    .map((f) => f.slice(process.cwd().length + 1).replace(/\\/g, "/"));
+
+  it("finds files at all, so the sweep cannot pass by looking at nothing", () => {
+    // The control every filesystem guard needs. A broken walk would report no
+    // offenders and read exactly like a clean codebase.
+    expect(sourceFiles(SRC).length).toBeGreaterThan(200);
+    expect(offenders.length).toBeGreaterThan(0);
+  });
+
+  it("no file takes the first N holes as a card", () => {
+    const unlisted = offenders.filter((f) => !(f in ALLOWED));
+    expect(
+      unlisted,
+      `these take the first N holes as a round's card — narrow with cardForStage/applyNine ` +
+        `instead, or justify it in ALLOWED:\n  ${unlisted.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("every exemption is still a real file that still does it", () => {
+    /**
+     * An allowlist nobody re-reads becomes a place to hide things — and this
+     * one has already outlived a file it named. An entry that no longer
+     * matches is either a fixed caller or a deleted module, and either way the
+     * exemption should go rather than sit there granting cover to a path
+     * somebody may recreate.
+     */
+    for (const rel of Object.keys(ALLOWED)) {
+      expect(offenders, `${rel} is exempted but no longer does it`).toContain(rel);
+    }
+  });
+
+  it("the exemption that can be checked mechanically still narrows first", () => {
+    // `/me/card` is exempt because applyNine picked the nine before the slice.
+    // If that call goes, the slice becomes the front nine of an eighteen-hole
+    // card and the exemption is wrong.
+    const card = stripComments(
+      readFileSync(join(process.cwd(), "src/app/(player)/me/card/page.tsx"), "utf8"),
+    );
+    expect(card).toMatch(/applyNine\(/);
+  });
+
+  /**
+   * The files known to resolve a round's card for themselves.
+   *
+   * A LIST here, deliberately, where the ban above is a sweep — the two
+   * directions need different tools. "Nobody may do X" can be swept, because
+   * the offending shape is visible in any file that has it. "These must do Y"
+   * cannot: there is no reliable mark on a file that says it ought to be
+   * resolving a card, and a sweep looking for one would either miss the file
+   * that forgot — which is the whole failure being guarded against — or flag
+   * every screen that merely renders a par.
+   *
+   * So this names them, and the entry above stops a file that is missing from
+   * here doing the dangerous thing regardless. `src/lib/services/season.ts` was
+   * on this list until it was deleted as unreachable.
+   */
+  const CARD_RESOLVERS = [
     "src/app/(app)/leaderboard/page.tsx",
     "src/app/(app)/reports/page.tsx",
     "src/lib/services/live-board.ts",
-    // services/season.ts was here. It was deleted as unreachable — nothing
-    // imported it and no test called it — and this list is the reason that is
-    // worth a comment: a hand-written roll of scoring files kept naming it,
-    // which is part of why it read as a shipped feature for so long.
     "src/lib/services/expenses.ts",
     "src/app/actions/tournament.ts",
-    /**
-     * SCORE ENTRY, which this list did not cover and should have.
-     *
-     * The rule above was written for "the files that settle money or produce a
-     * board", and the entry screen is neither by that reading — so it went on
-     * doing the banned thing in two places. Its team path used the literal
-     * `teamCourse.pars.slice(0, holeCount)`, while `recomputeTeamMatch` — in a
-     * file this list DOES cover — went through `cardForStage`. The running net
-     * a scorer read while signing the card and the result stored for the same
-     * round differed by one to three strokes.
-     *
-     * A screen somebody signs a card against is a scoring file. The narrow
-     * reading of this list is the whole reason the fault survived the guard
-     * built to prevent it.
-     */
     "src/app/(app)/entry/page.tsx",
   ];
 
-  for (const rel of SCORING_FILES) {
-    it(`${rel} does not slice a raw stroke index or par list`, () => {
-      const body = stripComments(readFileSync(join(process.cwd(), rel), "utf8"));
-      // `slice(from, to)` in skins-pot is fine — it re-ranks straight after.
-      // What is banned is taking the first N holes and using them as a card.
-      expect(body).not.toMatch(/strokeIndex\.slice\(\s*0\s*,/);
-      expect(body).not.toMatch(/pars\.slice\(\s*0\s*,\s*hole/);
-    });
-  }
-
   it("routes them through cardForStage instead", () => {
-    for (const rel of SCORING_FILES) {
+    for (const rel of CARD_RESOLVERS) {
       const body = readSource(rel);
       expect(body, `${rel} should resolve its card through cardForStage`).toMatch(/cardForStage\(/);
     }
