@@ -1577,6 +1577,52 @@ describe("player screens only show a published tee sheet", () => {
   }
 });
 
+describe("confirming a match is not painted before the server answers", () => {
+  /**
+   * The entry screen used to do this:
+   *
+   *     setStatus(active.id, "confirmed");
+   *     startTransition(() => void confirmMatch(active.id));
+   *
+   * An optimistic paint over a DISCARDED promise. Every refusal — not your
+   * match, an organizer approves here, you entered this card yourself — left
+   * the row reading "confirmed" on screen and unchanged in the database, which
+   * this file's neighbour records happening to team matches once already.
+   *
+   * Attestation made it worse by adding a success that is not a confirmation:
+   * under "everyone in the match" a valid signature leaves the result pending.
+   *
+   * Asserted as source because the failure is a promise nobody awaited — there
+   * is no rendered state that differs, which is exactly why it went unnoticed.
+   */
+  const client = readSource("src/components/ScoreEntryClient.tsx");
+  const confirmHandler = client.slice(client.indexOf("const doConfirm"), client.indexOf("const doDispute"));
+
+  it("finds the handler, so this cannot pass on an empty slice", () => {
+    expect(confirmHandler).toMatch(/confirmMatch\(/);
+  });
+
+  it("awaits the result rather than discarding the promise", () => {
+    expect(confirmHandler, "the promise must not be thrown away").not.toMatch(
+      /void\s+confirmMatch\(/,
+    );
+    expect(confirmHandler).toMatch(/await confirmMatch\(/);
+  });
+
+  it("takes the status from the server, not from the button", () => {
+    // `setStatus(id, "confirmed")` is the bug: the only honest source for the
+    // row's new state is what the action reports.
+    expect(confirmHandler).toMatch(/setStatus\(\s*id\s*,\s*res\.status\s*\)/);
+    expect(confirmHandler, "must not assert the outcome before asking").not.toMatch(
+      /setStatus\([^)]*"confirmed"\)/,
+    );
+  });
+
+  it("shows the refusal rather than swallowing it", () => {
+    expect(confirmHandler).toMatch(/setSaveNote\(res\.error\)/);
+  });
+});
+
 describe("a round's card is narrowed in exactly one place", () => {
   /**
    * SWEPT, NOT LISTED — and this guard is its own argument for why.
