@@ -1582,7 +1582,10 @@ describe("a round's card is narrowed in exactly one place", () => {
     "src/app/(app)/leaderboard/page.tsx",
     "src/app/(app)/reports/page.tsx",
     "src/lib/services/live-board.ts",
-    "src/lib/services/season.ts",
+    // services/season.ts was here. It was deleted as unreachable — nothing
+    // imported it and no test called it — and this list is the reason that is
+    // worth a comment: a hand-written roll of scoring files kept naming it,
+    // which is part of why it read as a shipped feature for so long.
     "src/lib/services/expenses.ts",
     "src/app/actions/tournament.ts",
     /**

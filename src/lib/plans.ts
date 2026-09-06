@@ -221,9 +221,10 @@ export function retentionSummary(plan: Plan): string {
 /**
  * Shown where the season table is reached on a plan that does not include it.
  *
- * One constant because there are two surfaces for the same paid feature — the
- * per-event table in services/season.ts and the across-events one at /series —
- * and they must not describe the same lock in two different ways.
+ * A constant rather than a string at the call site, so a second surface for
+ * this feature cannot describe the same lock in different words. There was
+ * briefly a second — a per-event table in services/season.ts — which turned
+ * out to be unreachable and was deleted rather than gated twice.
  *
  * The feature was sold and given away: `upgradeBenefits` has pitched "the
  * season table" as a reason to pay since it was written, the nav has carried a

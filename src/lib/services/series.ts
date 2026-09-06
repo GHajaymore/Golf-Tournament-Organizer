@@ -149,12 +149,12 @@ export async function seriesTable(seriesId: string): Promise<SeriesTable | null>
    * `seasonStandings` has been sold by `upgradeBenefits` since it was written
    * and given away by this screen since it shipped: the nav carries a "Season
    * standings" item with no plan check, and the only thing that ever read the
-   * flag was `seasonTableFor`, which nothing calls.
+   * flag was a per-event service nothing called, since deleted.
    *
-   * Here rather than on the page, for the reason services/season.ts already
-   * states about its own copy of this check: an unpaid club must not be able to
-   * read the numbers out of the response either, and a caller trusted to hide
-   * rows is a caller that will one day forget to.
+   * Here rather than on the page, and that deleted service put the reason
+   * best: an unpaid club must not be able to read the numbers out of the
+   * RESPONSE either. A caller trusted to hide rows it was handed is a caller
+   * that will one day forget to.
    */
   if (!hasFeature(await planForOrganization(series.organizationId), "seasonStandings")) {
     const locked = configOf(series);
