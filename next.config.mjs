@@ -28,6 +28,48 @@ const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
 
   /**
+   * EVERY user agent gets its metadata in `<head>`, not streamed into `<body>`.
+   *
+   * Next 15 streams metadata by default: the shell flushes first and the
+   * `<title>`, `<meta>` and `<link>` tags arrive at the END of the body, on the
+   * assumption that anything running JavaScript will cope. It is only turned
+   * off for the user agents matching `htmlLimitedBots`, whose default list is
+   * the unfurlers that cannot run JavaScript — Twitterbot, Slackbot, WhatsApp,
+   * facebookexternalhit. Googlebot is deliberately NOT on that list, because it
+   * renders.
+   *
+   * Measured on production rather than reasoned about, and the assumption does
+   * not hold. `</head>` closed at character 1,303 and the description, the
+   * canonical, `og:image` and the title were all at character ~70,000. They are
+   * not hoisted afterwards either — in the live post-hydration DOM
+   * `document.head` held 5 meta tags and `document.body` held 22, with the
+   * canonical's `parentElement` reading BODY.
+   *
+   * A canonical in the body is not a canonical. Google's documentation is
+   * explicit that the tag is honoured only in the head, so every
+   * `alternates.canonical` on this site was inert for the one crawler it was
+   * written for — while working perfectly for the four unfurlers that were
+   * already being served blocking metadata and never needed it. That is the
+   * shape this codebase keeps finding: one rule, two readers, and the reader
+   * that matters is the one getting it wrong.
+   *
+   * Setting this REPLACES the default list rather than extending it, so a
+   * match-everything regex means "treat every agent as one that needs its
+   * metadata up front". See `shouldServeStreamingMetadata` in next/dist.
+   *
+   * What it costs is the reason streaming exists: metadata now resolves before
+   * the first byte. Two pages in this app export `generateMetadata` — `/live`
+   * and `/register`, both token-gated and neither indexable — and every page a
+   * crawler can reach exports a static `metadata` object, so there is no query
+   * to wait on and the block is a formality.
+   *
+   * One case this canNOT fix: a request with NO user-agent header still gets
+   * streamed metadata, because Next tests `userAgent &&` before the regex.
+   * Nothing in config reaches that branch.
+   */
+  htmlLimitedBots: /.*/,
+
+  /**
    * Two of this app's credentials live in URLs — the leaderboard share token
    * at /live/<token>, and the password-reset token in ?token= — and every page
    * pulls stylesheets from unpkg.com, so every page makes a cross-origin
