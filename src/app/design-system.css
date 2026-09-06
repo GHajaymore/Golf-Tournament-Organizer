@@ -1,5 +1,4 @@
 /* Design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
   --color-bg: #161826;
@@ -58,6 +57,23 @@
   --color-section-glow: #353b80;
   --color-section-ghost: #4c5397;
 
+  /* NOTE: "Inter" here does NOT render, and has not for a long time. The
+     `@import` that used to pull it from Google's CDN was removed with the
+     duplicate Fraunces import, but it was already inert before that — Next's
+     CSS chunker drops a non-first `@import url()`, so the request was never
+     made. Confirmed on production: `document.fonts` carries no Inter face and
+     `getComputedStyle(document.body).fontFamily` resolves to
+     `Inter, system-ui, sans-serif`, which means every visitor reads the app's
+     body text in whatever system-ui resolves to. That is the same fault
+     `layout.tsx` describes having fixed by adopting Geist — it was only ever
+     fixed for the marketing page's own `--sans`.
+
+     Left as it renders rather than quietly repointed at Geist: the app
+     downloads GeistSans and GeistMono on every page and currently renders
+     neither, so this token is one half of a decision (use Geist, or stop
+     shipping it) that changes the body face of every screen and belongs with
+     someone looking at those screens. --font-heading is overridden by
+     globals.css and is the token that actually carries the brand. */
   --font-heading: "Inter", system-ui, sans-serif;
   --font-heading-weight: 500;
   --font-body: "Inter", system-ui, sans-serif;

@@ -1,5 +1,4 @@
 @import "./design-system.css";
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
 
 /* ──────────────────────────────────────────────────────────────────────────
    Brand theme — "Fairway": warm orange + true fairway green on a warm dark
@@ -61,9 +60,25 @@
   --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
 
   /* A distinct display face for headings, tournament names and big scores —
-     a soft-optical serif with real character, paired with Inter for dense
-     tables and UI chrome where plain legibility matters more than voice. */
-  --font-heading: "Fraunces", "Iowan Old Style", ui-serif, serif;
+     a soft-optical serif with real character.
+
+     POINTED AT THE SELF-HOSTED COPY, not at the family name. This used to read
+     `"Fraunces", …`, which resolved only because the line above imported
+     Fraunces a SECOND time from Google's CDN — while `layout.tsx` was already
+     serving it through next/font, same-origin, under the same family name.
+     Production therefore fetched the face twice: once from
+     `_next/static/media`, once as 67KB from fonts.gstatic.com behind a
+     render-blocking stylesheet on two extra origins. Measured, not inferred:
+     `document.fonts` listed both sets, and layout.tsx's own comment claiming
+     "there is no external font host at runtime" was false the whole time.
+
+     `var(--font-display)` also brings next/font's metric-matched
+     "Fraunces Fallback" with it, which the hand-written stack could not, so
+     the swap costs less layout shift than the string it replaces. The literal
+     is kept only as a var() fallback for a context that renders outside the
+     root layout, where --font-display would be undefined and an empty var()
+     would invalidate the whole declaration. */
+  --font-heading: var(--font-display, "Fraunces"), "Iowan Old Style", ui-serif, serif;
   --font-heading-weight: 600;
 }
 
