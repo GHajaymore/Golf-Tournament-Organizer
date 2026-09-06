@@ -48,7 +48,10 @@ export const NAV: NavSection[] = [
       { key: "event", label: "Tournament details", href: "/event", icon: "ph ph-gear-six" },
       { key: "registration", label: "Registration & field", href: "/registration", icon: "ph ph-user-plus" },
       { key: "stages", label: "Rounds & formats", href: "/stages", icon: "ph ph-stack" },
-      { key: "grouping", label: "Flights", href: "/grouping", icon: "ph ph-squares-four" },
+      // Bands across the field, which is what a flight is — and NOT
+      // ph-squares-four, which is the Dashboard's icon. Two entries wearing the
+      // same glyph is the sidebar losing the only thing an icon is for.
+      { key: "grouping", label: "Flights", href: "/grouping", icon: "ph ph-rows" },
       { key: "teams", label: "Teams & pairs", href: "/teams", icon: "ph ph-users-three" },
       { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check" },
     ],
@@ -89,12 +92,17 @@ export const NAV: NavSection[] = [
   {
     label: "Money",
     items: [
-      { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-trophy" },
+      // Coins rather than a trophy: the trophy belongs to Season standings, and
+      // this section is the money. What is being opened here is a payout.
+      { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-coins" },
       // Its own entry, not a section of Prizes, because it is different money
       // with different owners: the field's pot is the club's, a group's pot is
       // four players' own. Two lists of identical-looking cards on one screen
       // is how somebody pays into the wrong one.
-      { key: "group-games", label: "Group games", href: "/group-games", icon: "ph ph-users-three" },
+      // Money among a group, which is exactly what this screen is — and not
+      // ph-users-three, which is "Teams & pairs" in Set up. The two screens are
+      // already easy to confuse by name; wearing one glyph made it worse.
+      { key: "group-games", label: "Group games", href: "/group-games", icon: "ph ph-hand-coins" },
     ],
   },
 ];
