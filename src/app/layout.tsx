@@ -9,16 +9,37 @@ import { siteOrigin } from "@/lib/site";
 /**
  * Geist, self-hosted.
  *
- * The stylesheets below load icons from a CDN, but a FONT cannot: the app's CSP
- * blocks external font hosts, so the previous `"Inter", -apple-system, …` stack
- * never actually rendered Inter — every visitor was seeing whichever system
- * face came next in the list, which is why the type looked different on every
- * machine.
+ * The previous `"Inter", -apple-system, …` stack never actually rendered Inter
+ * — every visitor was seeing whichever system face came next in the list,
+ * which is why the type looked different on every machine.
+ *
+ * THE REASON GIVEN HERE USED TO BE WRONG, and it is worth correcting rather
+ * than deleting, because it is the kind of premise somebody acts on. It said a
+ * font "cannot" be loaded from a CDN because the app's CSP blocks external
+ * font hosts. The CSP does not: the Phosphor icon font below is fetched from
+ * unpkg.com on every page, and until this file's companion change `globals.css`
+ * was pulling Fraunces from fonts.gstatic.com just as successfully. Inter was
+ * never blocked — its `@import` sits inside `design-system.css`, which
+ * `globals.css` imports, and Next's CSS chunker drops a nested `@import url()`
+ * (the same reordering the `:root:root` note in globals.css exists for). The
+ * request was simply never made.
+ *
+ * That distinction matters: believing the CSP is a backstop is how an external
+ * font gets added again on the assumption something downstream will catch it.
+ * Nothing will. `src/lib/__tests__/font-hosts.test.ts` is the actual backstop.
  *
  * next/font emits the files from node_modules at build time and serves them
- * same-origin, so there is no CDN to block and no flash of fallback text. Geist
- * is a variable grotesque with true tabular figures, which is what a page built
- * around a leaderboard needs — columns of numbers have to lock.
+ * same-origin, so there is no CDN in the critical path and no flash of
+ * fallback text. Geist is a variable grotesque with true tabular figures,
+ * which is what a page built around a leaderboard needs — columns of numbers
+ * have to lock.
+ *
+ * NOTE, unresolved: Geist is DOWNLOADED on every page and rendered on almost
+ * none of it. `--font-body` still resolves to `"Inter", system-ui, sans-serif`
+ * (see design-system.css), so body text falls through to the system face, and
+ * only the marketing page's own `--sans` reads `--font-geist-sans`. Either
+ * point `--font-body` at Geist or stop shipping it; doing neither is the
+ * current state and costs the download for nothing.
  *
  * Fraunces joins it for DISPLAY TEXT ONLY — the marketing page's headlines and
  * nothing else. Golf's own typography is engraved and printed: honours boards,
@@ -33,9 +54,18 @@ import { siteOrigin } from "@/lib/site";
  */
 const display = Fraunces({
   subsets: ["latin"],
-  // A narrow range, requested as a variable font: enough for a headline and a
-  // heavier one, without shipping an axis nobody uses.
-  weight: ["600", "700"],
+  /**
+   * A narrow range: enough for a headline and a heavier one, without shipping
+   * an axis nobody uses.
+   *
+   * 500 joins 600 and 700 because it is the weight the app's HEADINGS are set
+   * in — `--font-heading-weight` and a long tail of explicit `fontWeight: 500`
+   * call sites. It used to be supplied by a second copy of Fraunces pulled
+   * from Google's CDN by `globals.css`, and that copy is gone; without 500
+   * here the browser would substitute 600 and every one of those headings
+   * would come back a shade heavier.
+   */
+  weight: ["500", "600", "700"],
   style: ["normal", "italic"],
   variable: "--font-display",
   display: "swap",
