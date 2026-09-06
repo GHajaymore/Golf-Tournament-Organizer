@@ -79,8 +79,17 @@ export const metadata: Metadata = {
     default: "TourneyHQ — Golf tournament management, from the draw to the payout",
     template: "%s · TourneyHQ",
   },
+  /**
+   * Kept under about 155 characters, which is where Google truncates on
+   * desktop. The previous one ran to 192 and lost its last clause — "and
+   * settle-up on their own phone" — to an ellipsis in the result, so the half
+   * that distinguishes this from a scoring app was the half nobody saw.
+   *
+   * The clauses are ordered by what a club searches for, not by what the
+   * product does first.
+   */
   description:
-    "Run a club's whole competition: flights, handicaps, brackets, live standings and season-long order of merit — with every player's card, board, skins and settle-up on their own phone.",
+    "Run a club's whole competition: flights, handicaps, brackets, live standings and season tables — with every player's card and settle-up on their phone.",
   /**
    * The origin every relative URL below is resolved against.
    *
