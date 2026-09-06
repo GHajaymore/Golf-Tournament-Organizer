@@ -110,6 +110,53 @@ for (const path of SCREENS) {
   });
 }
 
+/**
+ * Signing out is reachable without scrolling the sidebar.
+ *
+ * The sidebar was one scrolling column with the footer pushed down by
+ * `margin-top: auto`, which places it at the bottom only while the content
+ * fits. It stopped fitting: measured against the seeded demo club at
+ * scrollTop 0, 1440x900 hid 172px — Sign out at y=1020, "Viewing as" at
+ * y=974 — and 1366x768 hid 304px, taking Messages, Reports & export and the
+ * whole Money section with it. On the commonest laptop screen there was no
+ * visible way to sign out.
+ *
+ * This is asserted end-to-end rather than in a unit test because nothing below
+ * Playwright can see it: the markup was always present and correct, and every
+ * one of those elements would pass `toBeVisible()`. The defect is entirely in
+ * where the box landed relative to the viewport, which needs a real viewport
+ * of a real height.
+ *
+ * Desktop runs 1280x900 here, which is inside the range that used to fail, so
+ * this cell can express the bug. It is skipped on the phone projects, where
+ * the sidebar is replaced by the tab bar and there is nothing to measure.
+ */
+test("sign out is on screen without scrolling the sidebar", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "no sidebar below the desktop breakpoint");
+
+  await page.goto("/dashboard");
+  await page.waitForLoadState("networkidle");
+  expect(new URL(page.url()).pathname, "redirected away — not signed in?").toBe("/dashboard");
+
+  const sidebar = page.locator("aside.app-sidebar");
+  await expect(sidebar).toBeVisible();
+  const signOut = sidebar.locator('button[title="Sign out"]');
+  await expect(signOut).toBeVisible();
+
+  const height = page.viewportSize()?.height ?? 0;
+  const box = await signOut.boundingBox();
+  expect(box, "sign out has no box at all").not.toBeNull();
+  expect(
+    box!.y + box!.height,
+    `sign out ends at ${Math.round(box!.y + box!.height)}px in a ${height}px viewport`,
+  ).toBeLessThanOrEqual(height);
+
+  // And the aside itself must not be what scrolls — if it is, the footer is
+  // riding on the end of the content again and merely happens to fit today.
+  const asideScrolls = await sidebar.evaluate((el) => el.scrollHeight > el.clientHeight + 1);
+  expect(asideScrolls, "the sidebar as a whole scrolls; only its nav band should").toBe(false);
+});
+
 test("the public leaderboard fits a phone too", async ({ page }) => {
   // Outside the app shell and outside the auth guard, so it has its own
   // layout and its own chance to be wrong.
