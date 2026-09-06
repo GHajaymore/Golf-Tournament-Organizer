@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useTransition } from "react";
-import type { NavSection } from "@/lib/nav";
+import { primaryTabs, type NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import { LOGO_SIZE } from "./Logo";
@@ -21,23 +21,24 @@ interface Props {
   brand?: Brand | null;
 }
 
-const TABS = [
-  { href: "/dashboard", label: "Dashboard", icon: "ph ph-squares-four" },
-  { href: "/leaderboard", label: "Board", icon: "ph ph-ranking" },
-  { href: "/entry", label: "Scores", icon: "ph ph-pencil-simple" },
-];
-
 export function MobileTabBar({ sections, name, role, viewRole, initials, brand }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  /**
+   * Derived from the same filtered sections the drawer below renders, rather
+   * than the static list of three that used to sit here. See `primaryTabs`.
+   * A tab the sidebar hides is a tab that bounces straight back to /dashboard.
+   */
+  const tabs = primaryTabs(sections);
+
   return (
     <>
       <nav className="m-tabbar mobile-only">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <Link
-            key={t.href}
+            key={t.key}
             href={t.href}
             className="m-tab"
             aria-current={pathname === t.href ? "page" : undefined}

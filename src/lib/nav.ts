@@ -182,6 +182,53 @@ export function navForRole(
 }
 
 /**
+ * The three console screens the phone's tab bar promotes, in order.
+ *
+ * ONLY THE SHORT LABEL LIVES HERE. The href and the icon come from `NAV`,
+ * because the tab bar used to carry its own copy of all three and a copy is a
+ * second source of truth: change an icon in `NAV` and the bar keeps the old
+ * one, silently, on the surface nobody checks on a desktop.
+ *
+ * The label is the one thing that legitimately differs — "Board" and "Scores"
+ * rather than "Live leaderboard" and "Score entry" — because a tab is about
+ * 80px wide. That is a deliberate exception to the rule `screenName()` states,
+ * and it is confined to this list so it cannot spread.
+ */
+const PRIMARY_TABS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "leaderboard", label: "Board" },
+  { key: "entry", label: "Scores" },
+];
+
+/**
+ * The tab bar's primary tabs, DERIVED from the same filtered sections the
+ * sidebar renders.
+ *
+ * The bar used to render a static list, so the phone offered doors the desktop
+ * sidebar deliberately hides. `navForRole` drops "leaderboard" in a blind
+ * event and "entry" in an organizer-scored one — precisely so nobody is given
+ * a link that bounces — and both screens redirect to /dashboard when opened
+ * anyway (`leaderboard/page.tsx`, `entry/page.tsx`). The sidebar was fixed;
+ * the bar beside it was not.
+ *
+ * It bites hardest on the role preview, which is the one feature whose entire
+ * job is to show an organizer what a PLAYER sees: switch "Viewing as" to
+ * Player on a phone and the bar kept offering Board and Scores after the
+ * sidebar had correctly removed them. A preview that lies is worse than no
+ * preview.
+ *
+ * Taking `sections` rather than a role means this cannot drift from the
+ * sidebar: they are the same list, filtered once.
+ */
+export function primaryTabs(sections: NavSection[]): NavItem[] {
+  const byKey = new Map(sections.flatMap((s) => s.items).map((i) => [i.key, i]));
+  return PRIMARY_TABS.flatMap((tab) => {
+    const item = byKey.get(tab.key);
+    return item ? [{ ...item, label: tab.label }] : [];
+  });
+}
+
+/**
  * A screen's own name, read from the sidebar rather than written out again.
  *
  * Anything that points somebody AT a screen — a checklist row, a "recommended
