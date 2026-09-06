@@ -151,8 +151,20 @@ describe("confirmMatch applies the club's attestation rule", () => {
      */
     await resetMatch("all");
     signIn("bob");
-    await confirmMatch(matchId);
+    const res = await confirmMatch(matchId);
 
+    /**
+     * A SUCCESS that is not a confirmation, which is the case the screen got
+     * wrong. `ok` is true — the signature was accepted and stored — while the
+     * status stays pending. Both halves are asserted because the entry screen
+     * paints the row from `status` and would otherwise call this confirmed.
+     */
+    expect(res.ok).toBe(true);
+    expect(res.ok && res.status).toBe("pending");
+    expect(res.ok && res.outstanding, "two others still to sign").toBe(2);
+    // The screen paints the row from `status`, so this pair is the guard on the
+    // lie: an action that reported "confirmed" here would put a confirmed row
+    // on screen over a pending one in the database.
     expect(await statusOf(), "one of three signatures is not everyone").toBe("pending");
     const row = await prisma.match.findUniqueOrThrow({ where: { id: matchId } });
     expect(JSON.parse(row.attestedBy)).toEqual([player.bob]);
@@ -193,14 +205,20 @@ describe("confirmMatch applies the club's attestation rule", () => {
     // match, which she did, so she could sign her own result off.
     await resetMatch("marker");
     signIn("ann");
-    await expect(confirmMatch(matchId)).rejects.toThrow(/somebody else/i);
+    const res = await confirmMatch(matchId);
+    // Returned, not thrown: the entry screen renders this wording, and a throw
+    // reaches it as an unhandled server-action failure with nothing to show.
+    expect(res.ok).toBe(false);
+    expect(!res.ok && res.error).toMatch(/somebody else/i);
     expect(await statusOf()).toBe("pending");
   });
 
   it("under 'opponent', a partner is refused and an opponent confirms", async () => {
     await resetMatch("opponent");
     signIn("bob"); // Ann's partner — same side as the author
-    await expect(confirmMatch(matchId)).rejects.toThrow(/other side/i);
+    const partner = await confirmMatch(matchId);
+    expect(partner.ok).toBe(false);
+    expect(!partner.ok && partner.error).toMatch(/other side/i);
     expect(await statusOf()).toBe("pending");
 
     signIn("cat"); // the other side

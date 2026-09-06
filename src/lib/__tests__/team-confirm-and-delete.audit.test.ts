@@ -168,7 +168,9 @@ afterAll(async () => {
 describe("confirming a team match you played in", () => {
   it("is allowed, where it used to be impossible", async () => {
     await signIn("ann");
-    await expect(confirmMatch(matchId)).resolves.toBeUndefined();
+    // Reports its outcome now rather than returning nothing — the entry screen
+    // paints the row from it. `ok` alone was the old "did not throw".
+    await expect(confirmMatch(matchId)).resolves.toMatchObject({ ok: true });
   });
 
   it("actually moves the row, not just the screen", async () => {
@@ -190,7 +192,9 @@ describe("confirming a team match you played in", () => {
     });
     await prisma.account.create({ data: { eventId, email: at("owner"), name: "owner", role: "player" } });
     await signIn("owner");
-    await expect(confirmMatch(matchId)).rejects.toThrow(/only confirm a match you played in/i);
+    const refusal = await confirmMatch(matchId);
+    expect(refusal.ok).toBe(false);
+    expect(!refusal.ok && refusal.error).toMatch(/only confirm a match you played in/i);
     const row = await prisma.match.findUniqueOrThrow({ where: { id: matchId } });
     expect(row.scoreStatus).toBe("pending");
     await prisma.player.delete({ where: { id: outsider.id } });
@@ -211,7 +215,7 @@ describe("confirming a team match you played in", () => {
       },
     });
     await signIn("rob");
-    await expect(confirmMatch(solo.id)).resolves.toBeUndefined();
+    await expect(confirmMatch(solo.id)).resolves.toMatchObject({ ok: true });
   });
 });
 

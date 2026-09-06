@@ -2489,7 +2489,29 @@ async function recomputeTeamMatch(
  * confirm any match in the event, including their own. Both the role and the
  * caller's presence in the specific match are now checked.
  */
-export async function confirmMatch(matchId: string) {
+/**
+ * What confirming did, REPORTED rather than thrown.
+ *
+ * This threw for every refusal, and its one caller was
+ * `startTransition(() => void confirmMatch(id))` — a discarded promise behind
+ * an optimistic `setStatus(id, "confirmed")`. So a refusal painted the row
+ * confirmed and vanished, which is the exact failure this function's own
+ * comment records happening to team matches once before.
+ *
+ * Attestation made that far worse, because it added a SUCCESS that is not a
+ * confirmation: under "everyone in the match" a valid signature leaves the
+ * result pending, and the screen would have called that confirmed too.
+ *
+ * `audit-guards` already states the rule for the play surface — actions called
+ * straight from a client component return their wording, because a thrown
+ * error reaches the player as an unhandled server-action failure with nothing
+ * to show. This is that kind of action.
+ */
+export type ConfirmResult =
+  | { ok: true; status: "confirmed" | "pending"; outstanding: number }
+  | { ok: false; error: string };
+
+export async function confirmMatch(matchId: string): Promise<ConfirmResult> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   const eventId = session.eventId;
@@ -2498,14 +2520,16 @@ export async function confirmMatch(matchId: string) {
     prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF }),
     prisma.match.findUnique({ where: { id: matchId } }),
   ]);
-  if (!event || !match || match.eventId !== eventId) return;
+  if (!event || !match || match.eventId !== eventId) {
+    return { ok: false, error: "That match is not in this tournament." };
+  }
 
   const settings = settingsOf(event);
   const isStaff = session.role === "admin" || session.role === "assistant";
 
   if (!isStaff) {
     if (settings.scoreApproval === "staff") {
-      throw new Error("An organizer approves scores for this tournament.");
+      return { ok: false, error: "An organizer approves scores for this tournament." };
     }
     /**
      * Player confirmation is peer review, and only of a match they played.
@@ -2537,7 +2561,7 @@ export async function confirmMatch(matchId: string) {
             where: { playerId: me.id, teamId: { in: sides } },
           })) > 0)
       : false;
-    if (!inMatch) throw new Error("You can only confirm a match you played in.");
+    if (!inMatch) return { ok: false, error: "You can only confirm a match you played in." };
 
     /**
      * THE CLUB'S ATTESTATION RULE, WHICH USED TO BE IGNORED.
@@ -2557,7 +2581,7 @@ export async function confirmMatch(matchId: string) {
       me!.id,
       ruleFrom(settings.attestBy),
     );
-    if (!outcome.ok) throw new Error(outcome.error);
+    if (!outcome.ok) return { ok: false, error: outcome.error };
 
     await prisma.match.updateMany({
       where: { id: matchId, eventId },
@@ -2581,7 +2605,7 @@ export async function confirmMatch(matchId: string) {
         : `Signed by ${session.name}; ${outcome.outstanding.length} still to sign`,
     );
     await refresh();
-    return;
+    return { ok: true, status: outcome.status, outstanding: outcome.outstanding.length };
   }
 
   await prisma.match.updateMany({
@@ -2590,6 +2614,7 @@ export async function confirmMatch(matchId: string) {
   });
   await logAudit(eventId, matchId, "confirm", "Approved by organizer");
   await refresh();
+  return { ok: true, status: "confirmed", outstanding: 0 };
 }
 
 /**

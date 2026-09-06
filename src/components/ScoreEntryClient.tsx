@@ -522,8 +522,40 @@ export function ScoreEntryClient({
   const setStatus = (id: string, s: string) => setStatusById((prev) => ({ ...prev, [id]: s }));
   const doConfirm = () => {
     if (!active) return;
-    setStatus(active.id, "confirmed");
-    startTransition(() => void confirmMatch(active.id));
+    const id = active.id;
+    /**
+     * NOT OPTIMISTIC, for the reason doClear gives below.
+     *
+     * This used to paint the row confirmed and then discard the promise, so a
+     * refusal left the screen saying "confirmed" over a row that was not —
+     * which this file's own history records happening to team matches once
+     * already.
+     *
+     * Attestation added a second way to be wrong: under "everyone in the
+     * match" a VALID signature leaves the result pending, so even the happy
+     * path is not necessarily a confirmation. The server says which it was.
+     */
+    setSaveState("saving");
+    setSaveNote("");
+    startTransition(async () => {
+      try {
+        const res = await confirmMatch(id);
+        if (!res.ok) {
+          setSaveState("failed");
+          setSaveNote(res.error);
+          return;
+        }
+        setStatus(id, res.status);
+        setSaveState("saved");
+        setSaveNote(
+          res.status === "confirmed"
+            ? ""
+            : `Signed. ${res.outstanding} more ${res.outstanding === 1 ? "player" : "players"} to confirm.`,
+        );
+      } catch {
+        setSaveState("failed");
+      }
+    });
   };
   const doDispute = () => {
     if (!active) return;
@@ -945,7 +977,10 @@ export function ScoreEntryClient({
                   }}
                 >
                   {saveState === "saving" && (<><i className="ph ph-circle-notch" /> Saving…</>)}
-                  {saveState === "saved" && (<><i className="ph ph-check" /> Saved</>)}
+                  {/* `saveNote` on success too, not only on failure: a signed
+                      card that still needs other players is a SUCCESS that is
+                      not a confirmation, and "Saved" alone would read as one. */}
+                  {saveState === "saved" && (<><i className="ph ph-check" /> {saveNote || "Saved"}</>)}
                   {saveState === "failed" && (
                     <>
                       <i className="ph ph-warning-circle" />{" "}
