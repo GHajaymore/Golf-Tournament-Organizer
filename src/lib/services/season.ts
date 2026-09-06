@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { hasFeature } from "@/lib/plans";
+import { hasFeature, SEASON_LOCKED } from "@/lib/plans";
 import { planForEvent } from "@/lib/services/entitlements";
 import { boardKind } from "@/lib/formats";
 import { isPlayingRound } from "@/lib/stage-types";
@@ -19,9 +19,8 @@ export interface SeasonTable {
   rounds: number;
 }
 
-const LOCKED =
-  "The season table comes with the paid plan. Each round still has its own " +
-  "board — this is the one that adds them up across the weeks.";
+// Shared with /series, which locks the same paid feature — see plans.ts.
+const LOCKED = SEASON_LOCKED;
 
 const EMPTY: SeasonTable = {
   allowed: true,

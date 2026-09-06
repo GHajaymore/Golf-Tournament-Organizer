@@ -61,6 +61,20 @@ beforeAll(async () => {
   });
   orgId = org.id;
 
+  /**
+   * On the paid plan, because the season table is a paid feature.
+   *
+   * It was sold as one and given away: `seriesTable` never checked, so this
+   * fixture read the standings without a subscription and the season blocks
+   * below passed on a free club. They are about AGGREGATION, not entitlement,
+   * so the fixture buys the feature rather than the gate being loosened to fit
+   * the test. The gate is asserted in both directions in
+   * season-gate.audit.test.ts.
+   */
+  await prisma.subscription.create({
+    data: { organizationId: orgId, plan: "club", status: "active" },
+  });
+
   const event = await prisma.event.create({
     data: {
       organizationId: org.id,

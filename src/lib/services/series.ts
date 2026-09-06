@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "../db";
 import { loadEventState } from "./tournament";
+import { hasFeature, SEASON_LOCKED } from "../plans";
+import { planForOrganization } from "./entitlements";
 import { finishingPositions } from "./finish-order";
 import {
   seriesStandings,
@@ -116,6 +118,10 @@ export async function finishOrderFor(eventId: string): Promise<EventFinish | nul
 }
 
 export interface SeriesTable {
+  /** False when the club's plan does not include the season table. */
+  allowed: boolean;
+  /** Why not, in words a club can act on. Empty when allowed. */
+  reason: string;
   series: SeriesView;
   events: Array<{ id: string; name: string; dates: string; counted: boolean }>;
   standings: SeriesStanding[];
@@ -137,6 +143,43 @@ export async function seriesTable(seriesId: string): Promise<SeriesTable | null>
   });
   if (!series) return null;
 
+  /**
+   * THE PAID FEATURE, GATED WHERE THE NUMBERS ARE BUILT.
+   *
+   * `seasonStandings` has been sold by `upgradeBenefits` since it was written
+   * and given away by this screen since it shipped: the nav carries a "Season
+   * standings" item with no plan check, and the only thing that ever read the
+   * flag was `seasonTableFor`, which nothing calls.
+   *
+   * Here rather than on the page, for the reason services/season.ts already
+   * states about its own copy of this check: an unpaid club must not be able to
+   * read the numbers out of the response either, and a caller trusted to hide
+   * rows is a caller that will one day forget to.
+   */
+  if (!hasFeature(await planForOrganization(series.organizationId), "seasonStandings")) {
+    const locked = configOf(series);
+    return {
+      allowed: false,
+      reason: SEASON_LOCKED,
+      // The season's own identity is not the paid part — a club may see that
+      // it has one and what it is called. The STANDINGS are what is withheld,
+      // and they are withheld from the response rather than from the screen.
+      series: {
+        id: series.id,
+        name: series.name,
+        description: series.description,
+        pointsTable: locked.pointsTable,
+        bestOf: series.bestOf,
+        minEvents: series.minEvents,
+        status: series.status,
+        eventCount: series.events.length,
+      },
+      events: [],
+      standings: [],
+      unlinked: 0,
+    };
+  }
+
   const finished = series.events.filter((e) => e.status === "completed");
   const finishes: EventFinish[] = [];
   let unlinked = 0;
@@ -151,6 +194,8 @@ export async function seriesTable(seriesId: string): Promise<SeriesTable | null>
 
   const config = configOf(series);
   return {
+    allowed: true,
+    reason: "",
     series: {
       id: series.id,
       name: series.name,
