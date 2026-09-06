@@ -18,6 +18,24 @@ import { redirect } from "next/navigation";
 import { regenerateGroupsAndSchedule, generateCutRound, repairPlayerPairings, scoredMatchCount } from "@/lib/services/regroup";
 import { settingsOf, effectiveScoreStatus, loadEventState, playingStages } from "@/lib/services/tournament";
 import { myPlayerIds } from "@/lib/services/me";
+import { attestMatch, matchSidesOf, ruleFrom } from "@/lib/services/attestation";
+
+/**
+ * The acting PLAYER's id, or "" when staff entered the score.
+ *
+ * Empty for staff is correct rather than a gap: an organizer is not in the
+ * scoring group, so they were never a candidate to attest and excluding them
+ * changes nothing. Resolved through `myPlayerIds`, the same reader the card
+ * screen and the score-write guard use, so "which player am I" has one answer.
+ */
+async function authorPlayerId(eventId: string, session: Session | null): Promise<string> {
+  if (!session || session.role !== "player") return "";
+  // A Set, not an array — and normally of one. A person entered twice in the
+  // same tournament is the rare case, and either id identifies the author well
+  // enough for the only question asked of it: "was this you?".
+  const [first] = await myPlayerIds(eventId, session.email);
+  return first ?? "";
+}
 import {
   canEnterScores,
   mayReportPartialCard,
@@ -1668,7 +1686,7 @@ export async function applyMatchResult(
   const holes = marginToHoles(winner, margin, total);
   await prisma.match.update({
     where: { id: matchId },
-    data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: session.name },
+    data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "", enteredBy: session.name, enteredById: await authorPlayerId(eventId, session), attestedBy: "[]" },
   });
   await refresh();
 }
@@ -2212,7 +2230,7 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
 
   await prisma.match.update({
     where: { id: matchId },
-    data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: session.name },
+    data: { holes: JSON.stringify(holes), forfeitedBy: "", scoreStatus: "pending", scoredAt: complete ? new Date() : null, confirmedById: null, confirmedBy: "", enteredBy: session.name, enteredById: await authorPlayerId(eventId, session), attestedBy: "[]" },
   });
   await refresh();
 }
@@ -2520,13 +2538,57 @@ export async function confirmMatch(matchId: string) {
           })) > 0)
       : false;
     if (!inMatch) throw new Error("You can only confirm a match you played in.");
+
+    /**
+     * THE CLUB'S ATTESTATION RULE, WHICH USED TO BE IGNORED.
+     *
+     * `attestBy` offers one playing partner, someone from the other side, or
+     * everyone in the match — and this function confirmed on the first
+     * signature whichever was chosen, because a single `confirmedById` cannot
+     * express the third. An organizer who picked the strictest option, on a
+     * result they expected to be argued about, got the fastest one.
+     *
+     * The decision lives in services/attestation.ts so the round-code surface
+     * and anything written later cannot answer it differently.
+     */
+    const outcome = attestMatch(
+      await matchSidesOf(match),
+      match,
+      me!.id,
+      ruleFrom(settings.attestBy),
+    );
+    if (!outcome.ok) throw new Error(outcome.error);
+
+    await prisma.match.updateMany({
+      where: { id: matchId, eventId },
+      data: {
+        scoreStatus: outcome.status,
+        attestedBy: JSON.stringify(outcome.attestedBy),
+        // Named only once the result is actually confirmed. Recording a
+        // signatory on a card still waiting for two more would put a name
+        // against a result nobody has agreed yet.
+        ...(outcome.status === "confirmed"
+          ? { confirmedById: session.accountId || null, confirmedBy: session.name }
+          : {}),
+      },
+    });
+    await logAudit(
+      eventId,
+      matchId,
+      "confirm",
+      outcome.status === "confirmed"
+        ? `Confirmed by ${session.name}`
+        : `Signed by ${session.name}; ${outcome.outstanding.length} still to sign`,
+    );
+    await refresh();
+    return;
   }
 
   await prisma.match.updateMany({
     where: { id: matchId, eventId },
     data: { scoreStatus: "confirmed", confirmedById: session.accountId || null, confirmedBy: session.name },
   });
-  await logAudit(eventId, matchId, "confirm", isStaff ? "Approved by organizer" : "Confirmed by player");
+  await logAudit(eventId, matchId, "confirm", "Approved by organizer");
   await refresh();
 }
 

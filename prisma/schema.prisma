@@ -1379,6 +1379,25 @@ model Match {
    * ever written as null.
    */
   enteredBy     String    @default("")
+  /**
+   * Who wrote the score down, as a PLAYER id, alongside the display name above.
+   * Needed because attestation has one rule it exists to guarantee: the person
+   * who entered a card is never one of the people who may sign it off. A name
+   * cannot answer that — two members called J. Smith are the case it fails on,
+   * and a name is not what the tee sheet is keyed by. Empty when staff entered
+   * it, which is correct: a staff member is not in the scoring group and could
+   * not have been a candidate anyway.
+   */
+  enteredById   String    @default("")
+  /**
+   * The players who have signed this result off, as a JSON array of player ids.
+   * A single `confirmedById` cannot express "everyone in the match must
+   * confirm", which is one of the three attestBy options a club can choose —
+   * so that setting did nothing at all until this column existed. JSON rather
+   * than a join table for the same reason `holes` above is JSON: it is read
+   * with the match and never queried across.
+   */
+  attestedBy    String    @default("[]")
   confirmedById String?
   /**
    * Who signed it off, as a display name, alongside the id.
