@@ -218,6 +218,22 @@ export function retentionSummary(plan: Plan): string {
   return plan.retentionHours === null ? "results kept for good" : "results not guaranteed to be kept";
 }
 
+/**
+ * Shown where the season table is reached on a plan that does not include it.
+ *
+ * One constant because there are two surfaces for the same paid feature — the
+ * per-event table in services/season.ts and the across-events one at /series —
+ * and they must not describe the same lock in two different ways.
+ *
+ * The feature was sold and given away: `upgradeBenefits` has pitched "the
+ * season table" as a reason to pay since it was written, the nav has carried a
+ * "Season standings" item with no plan check, and the only thing that ever
+ * gated on `seasonStandings` was a service nothing called.
+ */
+export const SEASON_LOCKED =
+  "The season table comes with the paid plan. Every tournament still has its own " +
+  "board — this is the one that adds them up across the season.";
+
 /** Whether this plan keeps data indefinitely. */
 export function keepsDataForever(planKey: string): boolean {
   return planFor(planKey).retentionHours === null;

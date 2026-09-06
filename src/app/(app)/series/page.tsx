@@ -44,16 +44,31 @@ export default async function SeriesPage({
     <>
       <p className="kicker">Club</p>
       <h1 className="page-title">Season standings</h1>
-      <SeriesClient
-        seasons={seasons}
-        activeId={active?.id ?? null}
-        events={table?.events ?? []}
-        standings={table?.standings ?? []}
-        unlinked={table?.unlinked ?? 0}
-        currentEventId={currentEvent?.id ?? ""}
-        currentEventSeriesId={currentEvent?.seriesId ?? null}
-        canEdit={session.viewRole === "admin"}
-      />
+      {table && !table.allowed ? (
+        /* Locked rather than hidden, the same way a metered feature renders:
+           a club that cannot see why a screen is empty cannot decide to pay
+           for it. The standings are already withheld from the response by
+           `seriesTable` — this only says so. */
+        <section className="card elev-sm" style={{ gap: 10 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>
+            Season standings
+          </span>
+          <p className="text-muted" style={{ fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+            {table.reason}
+          </p>
+        </section>
+      ) : (
+        <SeriesClient
+          seasons={seasons}
+          activeId={active?.id ?? null}
+          events={table?.events ?? []}
+          standings={table?.standings ?? []}
+          unlinked={table?.unlinked ?? 0}
+          currentEventId={currentEvent?.id ?? ""}
+          currentEventSeriesId={currentEvent?.seriesId ?? null}
+          canEdit={session.viewRole === "admin"}
+        />
+      )}
       {/* The permanent record, under the season currently being played. Both
           are club history that outlives whichever tournament happens to be
           open, which is why they share a screen. */}
