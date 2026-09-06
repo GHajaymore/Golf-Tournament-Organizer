@@ -223,6 +223,15 @@ export async function savePlayMatchHoles(
       scoreStatus: "pending",
       scoredAt: complete ? new Date() : null,
       confirmedById: null,
+      // Who wrote it down, by name AND by player id. The id is what stops the
+      // author signing their own result off — see services/attestation.ts. The
+      // round-code surface recorded neither, so a result entered from a phone
+      // on the course had no author at all.
+      enteredBy: session.playerName,
+      enteredById: session.playerId,
+      // A new entry supersedes any signatures already collected: they attested
+      // a different scoreline.
+      attestedBy: "[]",
     },
   });
   await prisma.auditLog.create({

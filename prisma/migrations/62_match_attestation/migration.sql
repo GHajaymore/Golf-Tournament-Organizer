@@ -1,0 +1,30 @@
+-- Attestation: who signed a result off, and who may not.
+--
+-- `attestBy` has been a real setting since the settings screen offered it —
+-- one playing partner, someone from the other side, or everyone in the match —
+-- and nothing enforced it. `confirmMatch` marked a result confirmed on the
+-- FIRST signature whichever option a club had chosen, because a single
+-- `confirmedById` column cannot express "everyone in the match".
+--
+-- Two columns, both additive with defaults, so every existing row keeps
+-- exactly the meaning it has now:
+--
+--   enteredById  the author as a PLAYER id. `enteredBy` is a display name, and
+--                the one rule attestation exists to guarantee is that the
+--                person who wrote a card cannot be the one who signs it —
+--                which a name cannot decide between two members of the same
+--                name. Empty for staff entry, which is right: staff are not in
+--                the scoring group.
+--
+--   attestedBy   the player ids that have signed, as a JSON array. Same idiom
+--                as "holes" on this table: read with the match, never queried
+--                across.
+--
+-- Existing rows default to '[]' and '', which reads as "nobody has attested
+-- and we do not know who entered it". That is the honest description of every
+-- result recorded before today, and it is the safe one — an unknown author is
+-- excluded from nobody's candidate list, so no historical result becomes
+-- retroactively unconfirmable. `scoreStatus` is untouched, so nothing already
+-- confirmed reverts.
+ALTER TABLE "Match" ADD COLUMN "enteredById" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Match" ADD COLUMN "attestedBy" TEXT NOT NULL DEFAULT '[]';
