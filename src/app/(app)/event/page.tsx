@@ -13,6 +13,7 @@ import { EventSwitcher } from "@/components/EventSwitcher";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
+import { railSpeaks } from "@/lib/domain/setup-flow";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { entitlementForEvent } from "@/lib/services/entitlements";
@@ -117,7 +118,7 @@ export default async function EventPage({
           items (staff, club branding) that a guide must not put in anybody's
           way. While setup is running the ordered one wins; afterwards the
           checklist is what an organizer comes back to. */}
-      {flow?.complete !== false && (
+      {!railSpeaks(flow) && (
         <div style={{ marginBottom: 16 }}>
           <SetupChecklist items={checklist} />
         </div>

@@ -9,14 +9,64 @@ import { positionOf, canAdvance, type SetupFlow } from "@/lib/domain/setup-flow"
  * a client bundle to render them would put JavaScript between an organizer and
  * the one thing on the screen that tells them where they are.
  *
- * It renders NOTHING once setup is complete. A progress rail reading "4 of 4"
- * across the top of every screen for the rest of the tournament is furniture,
- * and the screens underneath it are worked for months after setup is done.
+ * It renders NOTHING once setup is complete and the tournament has been
+ * launched. A progress rail reading "4 of 4" across the top of every screen
+ * for the rest of the season is furniture, and these screens are worked for
+ * months after setup is done.
+ *
+ * The one thing between those two states is the hand-off below.
  */
 export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: string }) {
   // Null for a match — nothing to set up, so nothing to guide through. Taken
   // here rather than at four call sites, so a screen cannot forget.
-  if (!flow || flow.complete) return null;
+  if (!flow) return null;
+
+  /**
+   * FINISHED, AND STILL INVISIBLE TO EVERYBODY IN IT.
+   *
+   * The gap this closes was in the first version of this rail: it guided an
+   * organizer through four steps and then vanished, at the exact moment the
+   * tournament became real. Nothing said they were finished, and nothing said
+   * the thing that actually matters — until it is launched, nobody in the
+   * field can see their schedule, their card or the leaderboard. The existing
+   * warning about that fires only once a SCORE has been entered, which is the
+   * morning of, and a day too late to be useful.
+   *
+   * One card, on the setup screens only, and it clears itself the moment the
+   * tournament is launched. It offers the launch rather than performing it:
+   * launching locks configuration and hands out player access, which is an
+   * organizer's decision and not a tidy-up this component may do for them.
+   */
+  if (flow.readyToLaunch) {
+    return (
+      <div
+        className="card elev-sm"
+        style={{ marginBottom: 16, gap: 8, borderLeft: "3px solid var(--color-accent-2)" }}
+      >
+        <span className="card-title" style={{ fontSize: 14, display: "flex", alignItems: "center", gap: 7 }}>
+          <Icon name="check-circle" weight="fill" style={{ color: "var(--color-accent-2)" }} /> Setup is
+          done — all {flow.steps.length} parts
+        </span>
+        {/* NAMES THE SCREEN, NOT A BUTTON ON IT.
+            "Launch it from the dashboard" was wrong for the commonest case:
+            a tournament still in draft is offered "Start taking entries"
+            there, not "Launch", so this would have sent an organizer looking
+            for a control that is two lifecycle steps away. Same fault as a
+            refusal telling somebody to press a button that no longer exists —
+            and the dashboard's own status bar already walks the steps. */}
+        <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6, maxWidth: "68ch" }}>
+          Nobody in the field can see any of it yet. The dashboard is where you open entries and take
+          it live — that is what opens their schedule, their card and the leaderboard to them, and it
+          locks the configuration until you unlock it again.
+        </p>
+        <Link href="/dashboard" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
+          <Icon name="rocket-launch" /> Go to the dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  if (flow.complete) return null;
   const { step } = positionOf(flow, href);
 
   return (
@@ -125,6 +175,9 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
  * costs a scroll and a search.
  */
 export function SetupFlowFooter({ flow, href }: { flow: SetupFlow | null; href: string }) {
+  // Nothing at the foot of the page once setup is done — the hand-off in the
+  // rail above says the one remaining thing, and saying it twice on one screen
+  // would make it an instruction rather than an offer.
   if (!flow || flow.complete) return null;
   const { step, back, next } = positionOf(flow, href);
   if (!step) return null;

@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { screenName } from "../nav";
 import { setupFlow, type SetupFlow, type SetupFacts } from "../domain/setup-flow";
 import { isMatch } from "../tournament-shape";
+import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
 
 /**
  * The setup flow for one tournament, read once per screen.
@@ -20,7 +21,7 @@ import { isMatch } from "../tournament-shape";
 export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { name: true, dates: true, course: true, shape: true },
+    select: { name: true, dates: true, course: true, shape: true, status: true },
   });
   if (!event) return null;
   if (isMatch(event.shape)) return null;
@@ -51,6 +52,16 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
     // that rotates venues names none on the event itself and is not therefore
     // venue-less.
     venued: !!event.course.trim() || venues > 0,
+    /**
+     * Launched, read through the same list `lifecycleMismatch` uses rather
+     * than by comparing to "live" here.
+     *
+     * That list is the definition of "the field can see this" — draft,
+     * registration and ready all mean they cannot — and writing a second
+     * version of it is how the guide would come to disagree with the warning
+     * that fires a day later about the very same thing.
+     */
+    launched: !PRE_LAUNCH_STATUSES.includes(event.status),
   };
 
   return setupFlow(facts, screenName);
