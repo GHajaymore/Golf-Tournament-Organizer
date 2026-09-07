@@ -141,7 +141,7 @@ export default async function DashboardPage() {
   const brandingOrg = unstarted
     ? await prisma.organization.findUnique({
         where: { id: event.organizationId },
-        select: { logoUrl: true, themeKey: true, themeHex: true },
+        select: { logoUrl: true, themeSetAt: true },
       })
     : null;
   const checklist = unstarted

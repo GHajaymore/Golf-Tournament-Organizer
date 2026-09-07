@@ -158,6 +158,30 @@ model Organization {
    * the default for new rows only, deliberately not a backfill.
    */
   themeAppearance   String @default("auto")
+  /**
+   * When the club last SAVED its colours — null meaning it never has.
+   *
+   * The setup checklist needs to know whether a club has put its own stamp on
+   * the app, and it used to infer that from `themeKey != DEFAULT_THEME`. That
+   * inference is wrong the moment the default moves, and it did move: the
+   * default went from "sunset" to "verdigris" when the old pair was found to
+   * fail the app's own outdoor bar. Every club created before that still
+   * stores "sunset", so every one of them started reading as HAVING chosen,
+   * and the branding nudge silently stopped appearing for the entire existing
+   * customer base. The inverse is just as wrong — a club that deliberately
+   * picks the current default reads as having chosen nothing, and gets nudged
+   * forever.
+   *
+   * A timestamp cannot rot that way, because it records the ACT rather than
+   * inferring it from the result. `saveOrganizationTheme` is the only writer.
+   *
+   * Nullable with no default, deliberately: "never chosen" has to be
+   * representable, and a default of now() would mark every future row as
+   * chosen at the moment it was created — which is the same bug in a new
+   * costume. Backfilled once, in the migration, for the clubs that can be
+   * shown to have chosen.
+   */
+  themeSetAt        DateTime?
 
   // House defaults for new tournaments. Communities often have several
   // organizers who each run their events differently, so these are only a

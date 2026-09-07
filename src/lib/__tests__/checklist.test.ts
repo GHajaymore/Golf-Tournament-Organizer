@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { setupChecklist, isUnstarted, clubBrandingState, type ChecklistState } from "../services/checklist";
 import { NAV, screenName } from "../nav";
-import { DEFAULT_THEME } from "../themes";
+import { DEFAULT_THEME, DEFAULT_SECONDARY } from "../themes";
+import { readVerbatim } from "./source";
 
 /**
  * The setup checklist, and the question it answers on the dashboard: is this
@@ -132,34 +133,116 @@ describe("the branding nudge", () => {
   });
 });
 
+/**
+ * WHY THIS BLOCK NO LONGER MENTIONS A COLOUR.
+ *
+ * It used to, and the version it replaces recorded the bug in its own comment
+ * without treating it as one: "a club created BEFORE the move has 'sunset'
+ * stored, so it now reads as having chosen colours … the branding row of their
+ * checklist ticks without them doing anything."
+ *
+ * That is the entire defect, written down and shipped. `hasColours` was
+ * `themeKey !== DEFAULT_THEME`, so the answer depended on a constant declared
+ * in another file for another purpose — and when the default moved from
+ * "sunset" to "verdigris" the whole existing customer base flipped to "already
+ * branded" and stopped being offered the nudge. Nothing went red, because the
+ * test had been rewritten to use `DEFAULT_THEME` rather than a literal, which
+ * made it follow the constant instead of checking it.
+ *
+ * `themeSetAt` records the act. There is no colour in these assertions now,
+ * and that absence is the fix — a test that names no preset cannot be
+ * invalidated by a preset changing.
+ */
 describe("clubBrandingState", () => {
-  it("treats a fresh organization (default preset, no hex, no logo) as unbranded", () => {
-    /**
-     * DEFAULT_THEME rather than the literal it used to spell. "Unbranded"
-     * means "still on the default", so the fixture has to be whatever the
-     * default currently is — pinning "sunset" made this a test of one colour's
-     * name, and it started failing the moment the default moved even though
-     * the rule it describes had not changed at all.
-     *
-     * A consequence worth knowing rather than hiding: a club created BEFORE
-     * the move has "sunset" stored, so it now reads as having chosen colours.
-     * That is arguably true — it is on a non-default palette — but it means
-     * the branding row of their checklist ticks without them doing anything.
-     */
-    expect(clubBrandingState({ logoUrl: "", themeKey: DEFAULT_THEME, themeHex: "" })).toEqual({
+  it("treats a fresh organization — never saved, no logo — as unbranded", () => {
+    expect(clubBrandingState({ logoUrl: "", themeSetAt: null })).toEqual({
       hasLogo: false,
       hasColours: false,
     });
   });
 
-  it("counts a logo, a custom hex, or a non-default preset as set", () => {
-    expect(clubBrandingState({ logoUrl: "/x.png", themeKey: "sunset", themeHex: "" }).hasLogo).toBe(true);
-    expect(clubBrandingState({ logoUrl: "", themeKey: "sunset", themeHex: "#0a5" }).hasColours).toBe(true);
-    expect(clubBrandingState({ logoUrl: "", themeKey: "ocean", themeHex: "" }).hasColours).toBe(true);
+  it("counts a saved theme or a logo as set", () => {
+    expect(clubBrandingState({ logoUrl: "/x.png", themeSetAt: null }).hasLogo).toBe(true);
+    expect(clubBrandingState({ logoUrl: "", themeSetAt: new Date() }).hasColours).toBe(true);
+  });
+
+  /**
+   * THE CASE THE OLD RULE COULD NOT EXPRESS, in both directions.
+   *
+   * A club that opens the picker and deliberately keeps the stock colours has
+   * chosen; a club that has never opened it has not. Under `themeKey !==
+   * DEFAULT_THEME` those two are the same row and both answer "not chosen".
+   * Under a timestamp they are different rows, which is the only reason this
+   * assertion can exist at all.
+   *
+   * Note there is no `themeKey` here to set — that is deliberate. If this test
+   * had to name a preset to express the case, the preset would be load-bearing
+   * again.
+   */
+  it("distinguishes choosing the default from never choosing", () => {
+    const chose = clubBrandingState({ logoUrl: "", themeSetAt: new Date("2026-01-01") });
+    const never = clubBrandingState({ logoUrl: "", themeSetAt: null });
+    expect(chose.hasColours).toBe(true);
+    expect(never.hasColours).toBe(false);
   });
 
   it("is unbranded for a missing organization", () => {
     expect(clubBrandingState(null)).toEqual({ hasLogo: false, hasColours: false });
+  });
+});
+
+/**
+ * The backfill in migration 64 is the one place the historical defaults are
+ * still named, and it has to name BOTH — the pair every row created before
+ * 2026-09-06 carries, and the pair every row after it carries. Naming only the
+ * current pair would mark the entire pre-move customer base as "chose their
+ * colours", which is the bug this whole change exists to remove.
+ *
+ * Asserted against the migration SQL because that is where the claim lives.
+ * `readVerbatim` rather than `readSource`: this is .sql, and its `--` lines are
+ * SQL comments that the TypeScript comment stripper does not understand.
+ */
+describe("the themeSetAt backfill knows both historical defaults", () => {
+  const SQL = readVerbatim("prisma/migrations/64_organization_theme_set_at/migration.sql");
+
+  it("adds the column", () => {
+    expect(SQL).toMatch(/ADD COLUMN\s+"themeSetAt"/);
+  });
+
+  it("treats the old pair and the new pair alike as unchosen", () => {
+    // The statement, with its comment prose removed, so a default named only
+    // in the explanation cannot satisfy this.
+    const code = SQL.split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n");
+    for (const preset of ["sunset", "verdigris"]) {
+      expect(code, `the backfill does not know "${preset}" was ever the default accent`).toContain(
+        `'${preset}'`,
+      );
+    }
+    for (const preset of ["fairway", "optic"]) {
+      expect(code, `the backfill does not know "${preset}" was ever the default secondary`).toContain(
+        `'${preset}'`,
+      );
+    }
+    // And it must be marking the ones that DID choose, not the ones that did not.
+    expect(code).toMatch(/SET\s+"themeSetAt"\s*=\s*"updatedAt"/);
+    expect(code).toMatch(/NOT IN \('sunset', 'verdigris'\)/);
+  });
+
+  /**
+   * The current default has to be in that list, or the backfill silently stops
+   * covering rows created from today onward. Read from `themes.ts` rather than
+   * spelled again, so the next default move fails HERE — loudly, at the one
+   * place that still has to know — instead of going quiet in production.
+   */
+  it("covers whatever the default is today", () => {
+    const code = SQL.split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n");
+    expect(code, `the default accent is now "${DEFAULT_THEME}" and the backfill does not list it`).toContain(
+      `'${DEFAULT_THEME}'`,
+    );
+    expect(
+      code,
+      `the default secondary is now "${DEFAULT_SECONDARY}" and the backfill does not list it`,
+    ).toContain(`'${DEFAULT_SECONDARY}'`);
   });
 });
 
