@@ -80,9 +80,21 @@ export default async function PlayCardPage() {
             : `${me.round.name} is match play, so your score is recorded against your opponent rather than as your own card.`}{" "}
           Your organizer enters it, and it appears on the board as soon as it&rsquo;s in.
         </p>
-        <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 14 }}>
-          <Icon name="ranking" /> See the board
-        </Link>
+        {/* A way forward out of what was otherwise a dead end.
+            A player taps "My card" on a match-play round, is told the card is
+            not theirs, and until now the only offer was the whole board. Their
+            own match is one tap away and is what they came for — so it is
+            offered first, and only when there is one to offer. */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+          {me.round.matches.length > 0 && (
+            <Link className="btn btn-primary" href="/me">
+              <Icon name="sword" /> {me.round.matches.length === 1 ? "See my match" : "See my matches"}
+            </Link>
+          )}
+          <Link className="btn btn-secondary" href="/me/board">
+            <Icon name="ranking" /> See the board
+          </Link>
+        </div>
       </div>
     );
   }
