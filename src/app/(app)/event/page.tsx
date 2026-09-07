@@ -11,6 +11,8 @@ import { prisma } from "@/lib/db";
 import { EventSetupClient } from "@/components/EventSetupClient";
 import { EventSwitcher } from "@/components/EventSwitcher";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
+import { setupFlowFor } from "@/lib/services/setup-flow";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { entitlementForEvent } from "@/lib/services/entitlements";
@@ -35,6 +37,8 @@ export default async function EventPage({
   if (!state) redirect("/");
   const e = state.event;
   const locked = isSetupLocked(state.event);
+  // Where this screen sits in setting the tournament up. Null for a match.
+  const flow = await setupFlowFor(session.eventId);
   // The club's own courses. The setup picker used to read a bundled list of
   // four invented layouts, so it offered courses nobody plays and scored
   // against cards that do not exist.
@@ -86,6 +90,12 @@ export default async function EventPage({
 
   return (
     <>
+      {/* Above the page title on all four Set-up screens. A progress rail is
+          wayfinding — it says where you are, the way a breadcrumb does — and
+          wayfinding belongs above the heading it locates. It also has to be in
+          the same place on every screen of the four, or it stops being a
+          landmark and becomes decoration that moves. */}
+      <SetupFlowRail flow={flow} href="/event" />
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
         <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Tournament details</h1>
@@ -98,9 +108,20 @@ export default async function EventPage({
 
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
 
-      <div style={{ marginBottom: 16 }}>
-        <SetupChecklist items={checklist} />
-      </div>
+      {/* The checklist stays, but only once the guided rail above has stopped
+          rendering — which it does the moment setup is complete.
+
+          Two progress lists on one screen is worse than either alone, and
+          these two disagree by design: the rail is ORDERED and says what to do
+          next, the checklist is a flat status board including the optional
+          items (staff, club branding) that a guide must not put in anybody's
+          way. While setup is running the ordered one wins; afterwards the
+          checklist is what an organizer comes back to. */}
+      {flow?.complete !== false && (
+        <div style={{ marginBottom: 16 }}>
+          <SetupChecklist items={checklist} />
+        </div>
+      )}
 
       <EventSetupClient
         key={e.id}
@@ -171,6 +192,7 @@ export default async function EventPage({
           defaultTeeId={e.defaultTeeId}
         />
       </div>
+      <SetupFlowFooter flow={flow} href="/event" />
     </>
   );
 }

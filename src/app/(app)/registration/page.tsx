@@ -7,12 +7,16 @@ import { brandForEvent } from "@/lib/services/organization";
 import { rosterForEvent } from "@/lib/services/roster";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
+import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
+import { setupFlowFor } from "@/lib/services/setup-flow";
 
 export default async function RegistrationPage() {
   const session = await requireScreen("registration");
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const locked = isSetupLocked(state.event);
+  // Where this screen sits in setting the tournament up. Null for a match.
+  const flow = await setupFlowFor(session.eventId);
   const brand = await brandForEvent(session.eventId);
   const roster = await rosterForEvent(session.eventId);
   const plan = await planForEvent(session.eventId);
@@ -27,6 +31,8 @@ export default async function RegistrationPage() {
   const roundTee = roundTeeId(eventTees, state.event.defaultTeeId);
 
   return (
+    <>
+      <SetupFlowRail flow={flow} href="/registration" />
     <RegistrationClient
       // The sets an organizer may put somebody on, and what a blank resolves
       // to, so the column never shows an empty box meaning "the round’s".
@@ -77,5 +83,7 @@ export default async function RegistrationPage() {
       isAdmin={session.viewRole === "admin"}
       roster={roster}
     />
+      <SetupFlowFooter flow={flow} href="/registration" />
+    </>
   );
 }

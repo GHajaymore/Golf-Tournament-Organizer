@@ -18,6 +18,7 @@ import {
 import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices } from "@/lib/formats";
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
+import { SaveState, useSaveStatus } from "./SaveState";
 import { isTeamFormat } from "@/lib/side-style";
 import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-dates";
 import { CoursePicker } from "@/components/CoursePicker";
@@ -619,6 +620,16 @@ function StageCard({
    */
   const [removeCost, setRemoveCost] = useState<{ cards: number; stakes: number } | null>(null);
   const [pending, startTransition] = useTransition();
+  /**
+   * One badge for the whole card, derived from the transition every control
+   * already shares.
+   *
+   * Taken from `pending` rather than wired into each `commit*` handler on
+   * purpose: there are eight of them today and a ninth will be added, and a
+   * confirmation somebody has to remember to add is a confirmation that will
+   * be missing exactly on the control nobody thought about.
+   */
+  const saveStatus = useSaveStatus(pending);
 
   const commitFormat = (v: string) => {
     setFormat(v);
@@ -844,6 +855,11 @@ function StageCard({
             {notGenerated && (
               <span className="tag tag-neutral"><Icon name="clock" /> Not generated yet</span>
             )}
+            {/* Every control on this card saves the moment it changes, and
+                until now not one of them said so. In the header rather than
+                beside each control, because it is one card saving — eight
+                badges would be eight claims about the same request. */}
+            <SaveState status={saveStatus} />
             {/* Pinned to the right edge rather than trailing the last tag.
                 A disclosure chevron is the affordance for the whole row, and
                 sitting wherever the tags happen to end put it in a different
