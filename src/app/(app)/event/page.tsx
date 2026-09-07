@@ -42,7 +42,7 @@ export default async function EventPage({
   const eventTees = await teesForEvent(e.id);
   const org = await prisma.organization.findUnique({
     where: { id: e.organizationId },
-    select: { defaultCourseId: true, logoUrl: true, themeKey: true, themeHex: true },
+    select: { defaultCourseId: true, logoUrl: true, themeSetAt: true },
   });
   const homeCourseId = org?.defaultCourseId ?? null;
 

@@ -1,21 +1,33 @@
 import type { ChecklistItem } from "@/components/SetupChecklist";
-import { DEFAULT_THEME } from "@/lib/themes";
 import { screenName } from "@/lib/nav";
 
 /**
  * Whether a club has put its own stamp on the app yet.
  *
- * "Colours" means a real choice, not the stock default: a fresh organization
- * carries themeKey = DEFAULT_THEME and an empty themeHex, and that must read as
- * "not set" so the branding nudge still appears. A custom hex or any non-default
- * preset counts as set.
+ * "Colours" means a real choice, and the only honest evidence of a choice is
+ * that somebody made one — `themeSetAt`, written by `saveOrganizationTheme`.
+ *
+ * IT USED TO BE INFERRED, as `themeKey !== DEFAULT_THEME`, and that is a guard
+ * with an expiry date on it. When the default moved from "sunset" to
+ * "verdigris" every club created before the move still stored "sunset", so
+ * every one of them began reading as HAVING chosen and the branding nudge
+ * stopped appearing for the entire existing customer base — silently, because
+ * a nudge that fails to appear looks exactly like a nudge that was satisfied.
+ * The inverse broke at the same moment: a club that deliberately picks the
+ * current default reads as having chosen nothing and is nudged forever.
+ *
+ * Neither failure is visible from inside this function, which is the point. A
+ * timestamp records the ACT instead of inferring it from the result, so it
+ * cannot be invalidated by a decision taken somewhere else. `DEFAULT_THEME` is
+ * deliberately no longer read here; the two historical defaults are named once
+ * in the backfill in migration 64 and never again.
  */
 export function clubBrandingState(
-  org: { logoUrl?: string | null; themeKey?: string | null; themeHex?: string | null } | null | undefined,
+  org: { logoUrl?: string | null; themeSetAt?: Date | null } | null | undefined,
 ): { hasLogo: boolean; hasColours: boolean } {
   return {
     hasLogo: !!org?.logoUrl,
-    hasColours: !!org?.themeHex || (!!org?.themeKey && org.themeKey !== DEFAULT_THEME),
+    hasColours: !!org?.themeSetAt,
   };
 }
 

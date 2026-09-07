@@ -275,6 +275,14 @@ export async function saveOrganizationTheme(
       themeSecondaryKey: secondaryKey,
       themeSecondaryHex: secondaryKey === "custom" ? secondaryHex.trim() : "",
       themeAppearance: appearance,
+      // The club has now chosen, whatever it chose — INCLUDING the stock
+      // colours. That is the whole point of recording the act rather than
+      // comparing the result: `themeKey === DEFAULT_THEME` cannot tell a club
+      // that deliberately picked the default from one that has never opened
+      // this screen, and the checklist was reading exactly that comparison.
+      // Set on every save, not only the first, so it also answers "when did
+      // they last touch their branding".
+      themeSetAt: new Date(),
     },
   });
   revalidatePath("/", "layout");
