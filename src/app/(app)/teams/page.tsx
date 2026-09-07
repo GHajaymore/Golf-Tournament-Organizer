@@ -1,4 +1,5 @@
 import { requireScreen } from "@/lib/page-helpers";
+import { screenName } from "@/lib/nav";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { prisma } from "@/lib/db";
 import { TeamsClient } from "@/components/TeamsClient";
@@ -40,7 +41,7 @@ export default async function TeamsPage({
           <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0" }}>
             Sides are drawn per round, so this fills in once a round is set to a team format —
             four-ball, best ball, foursomes, a scramble or a shamble. Set one on{" "}
-            <a href="/stages">Rounds &amp; format</a>.
+            <a href="/stages">{screenName("/stages")}</a>.
           </p>
         </div>
       </>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { screenName } from "@/lib/nav";
 import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
@@ -53,7 +54,7 @@ export default async function QualificationPage() {
             {event.qualifyMode === "overall" ? `Top ${event.qualifyOverall} overall` : `Top ${event.qualifyPerGroup}/flight`}
           </span>
           <Link className="btn btn-secondary" href="/stages">
-            <Icon name="sliders" /> Configure in Rounds &amp; format
+            <Icon name="sliders" /> Configure in {screenName("/stages")}
           </Link>
         </div>
       </div>
