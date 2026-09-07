@@ -4,6 +4,7 @@ import { loadEventState, standingRows, settingsOf } from "@/lib/services/tournam
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { boardKind } from "@/lib/formats";
+import { roundKicker, roundLabel } from "@/lib/domain/round-label";
 
 /**
  * The board, as a player reads it.
@@ -74,7 +75,10 @@ export default async function PlayBoardPage() {
           color: "var(--color-neutral-400)",
         }}
       >
-        {stage?.description?.trim() || stage?.type || "Standings"}
+        {/* A LABEL SLOT, so it takes the description only where that reads as
+            a label. Demo Cup's is a whole sentence and arrived here upper-cased
+            across two lines above a heading saying "Board". See roundKicker. */}
+        {roundKicker(stage?.description, roundLabel(state.stages, stage?.id ?? "") || stage?.type || "Standings")}
       </div>
       {/* "Board", the word on the tab the player just tapped.
           This screen called itself "Board" in both of its refusal states and
