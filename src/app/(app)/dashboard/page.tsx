@@ -25,6 +25,7 @@ import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/c
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
 import { orgSetupState } from "@/lib/domain/org-setup";
+import { Icon } from "@/components/Icon";
 
 /**
  * Shortcuts into the sidebar, with the dashboard's own shorter labels.
@@ -304,12 +305,12 @@ export default async function DashboardPage() {
         <div style={{ display: "flex", gap: 8 }}>
           {showEntry && (
             <Link className="btn btn-secondary" href="/entry">
-              <i className="ph ph-pencil-simple" /> Enter scores
+              <Icon name="pencil-simple" /> Enter scores
             </Link>
           )}
           {showStandings && (
             <Link className="btn btn-primary" href="/leaderboard">
-              <i className="ph ph-ranking" /> Leaderboard
+              <Icon name="ranking" /> Leaderboard
             </Link>
           )}
         </div>
@@ -340,9 +341,9 @@ export default async function DashboardPage() {
               style={{ gap: 4, borderColor: a.pinned ? "var(--color-accent-700)" : undefined }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <i className="ph ph-megaphone" style={{ color: "var(--color-accent-300)" }} />
+                <Icon name="megaphone" style={{ color: "var(--color-accent-300)" }} />
                 {a.pinned && (
-                  <span className="tag tag-accent"><i className="ph ph-push-pin" /> Pinned</span>
+                  <span className="tag tag-accent"><Icon name="push-pin" /> Pinned</span>
                 )}
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{a.title}</span>
               </div>
@@ -389,7 +390,7 @@ export default async function DashboardPage() {
                   textAlign: "center",
                 }}
               >
-                <i className={a.icon} style={{ fontSize: 20, color: "var(--color-accent)" }} />
+                <Icon name={a.icon} style={{ fontSize: 20, color: "var(--color-accent)" }} />
                 {a.label}
               </Link>
             ))}
@@ -434,7 +435,7 @@ export default async function DashboardPage() {
               <>
                 <span className="card-title">Standings</span>
                 <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
-                  <i className="ph ph-eye-slash" /> The organizer is running this as a blind event — standings are
+                  <Icon name="eye-slash" /> The organizer is running this as a blind event — standings are
                   published when the tournament finishes.
                 </p>
               </>
@@ -452,7 +453,7 @@ export default async function DashboardPage() {
                     color: "var(--color-accent-200)",
                   }}
                 >
-                  <i className="ph ph-arrows-clockwise" style={{ fontSize: 20 }} />
+                  <Icon name="arrows-clockwise" style={{ fontSize: 20 }} />
                 </div>
                 <div>
                   <div style={{ fontWeight: 500 }}>{currentRoundLabel}</div>
@@ -476,16 +477,16 @@ export default async function DashboardPage() {
               <div className="text-muted" style={{ fontSize: 12, marginTop: -2 }}>Seeded from live group standings</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
-                  <span><i className="ph ph-trophy" style={{ color: "var(--color-accent)", marginRight: 6 }} />Winners</span>
+                  <span><Icon name="trophy" style={{ color: "var(--color-accent)", marginRight: 6 }} />Winners</span>
                   <span className="text-muted">{brackets.winners.champion?.name ?? `${state.brackets.winners.rounds[0].matches.length} matches`}</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
-                  <span><i className="ph ph-medal" style={{ color: "var(--color-accent)", marginRight: 6 }} />Consolation</span>
+                  <span><Icon name="medal" style={{ color: "var(--color-accent)", marginRight: 6 }} />Consolation</span>
                   <span className="text-muted">{brackets.consolation.champion?.name ?? `${state.brackets.consolation.rounds[0].matches.length} matches`}</span>
                 </div>
               </div>
               <Link className="btn btn-ghost" href="/bracket" style={{ alignSelf: "flex-start", marginTop: 6 }}>
-                Open bracket manager <i className="ph ph-arrow-right" />
+                Open bracket manager <Icon name="arrow-right" />
               </Link>
             </div>
             )}

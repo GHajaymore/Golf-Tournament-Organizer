@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Icon } from "./Icon";
 
 /**
  * Four tabs, and deliberately only four.
@@ -25,13 +26,13 @@ import { usePathname } from "next/navigation";
  * rather than a decision.
  */
 const TABS = [
-  { href: "/me", label: "Today", icon: "ph-flag" },
-  { href: "/me/board", label: "Board", icon: "ph-ranking" },
-  { href: "/me/card", label: "My card", icon: "ph-cards" },
-  { href: "/me/rules", label: "Rules", icon: "ph-book-open" },
+  { href: "/me", label: "Today", icon: "ph ph-flag", iconActive: "ph-fill ph-flag" },
+  { href: "/me/board", label: "Board", icon: "ph ph-ranking", iconActive: "ph-fill ph-ranking" },
+  { href: "/me/card", label: "My card", icon: "ph ph-cards", iconActive: "ph-fill ph-cards" },
+  { href: "/me/rules", label: "Rules", icon: "ph ph-book-open", iconActive: "ph-fill ph-book-open" },
 ];
 
-const MONEY_TAB = { href: "/me/money", label: "Money", icon: "ph-receipt" };
+const MONEY_TAB = { href: "/me/money", label: "Money", icon: "ph ph-receipt", iconActive: "ph-fill ph-receipt" };
 
 export function PlayTabs({ showMoney = false }: { showMoney?: boolean }) {
   const path = usePathname();
@@ -80,7 +81,7 @@ export function PlayTabs({ showMoney = false }: { showMoney?: boolean }) {
               fontWeight: active ? 700 : 500,
             }}
           >
-            <i className={`${active ? "ph-fill" : "ph"} ${t.icon}`} style={{ fontSize: 21 }} />
+            <Icon name={active ? t.iconActive : t.icon} style={{ fontSize: 21 }} />
             {t.label}
           </Link>
         );

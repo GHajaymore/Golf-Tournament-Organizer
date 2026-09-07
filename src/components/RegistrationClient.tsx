@@ -12,6 +12,7 @@ import { PHONE_REQUIRED_FREE } from "@/lib/plans";
 import { csvSizeRefusal } from "@/lib/csv";
 import { contactGaps } from "@/lib/domain/contact-gaps";
 import { setPlayerTee } from "@/app/actions/courses";
+import { Icon } from "./Icon";
 
 interface Signup {
   /** The set this entry plays from. Null means the round’s own. */
@@ -331,7 +332,7 @@ export function RegistrationClient({
           <span className="card-title" style={{ fontSize: 15 }}>{title} ({rows.length})</span>
           {anySelected && (
             <button type="button" className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} disabled={pending || locked} onClick={() => deleteSelected(rows)}>
-              <i className="ph ph-trash" /> Delete {rows.filter((r) => selected.has(r.id)).length} selected
+              <Icon name="trash" /> Delete {rows.filter((r) => selected.has(r.id)).length} selected
             </button>
           )}
         </div>
@@ -459,7 +460,7 @@ export function RegistrationClient({
                   {showFlight && <td className="text-muted">{p.flight || "—"}</td>}
                   <td style={{ textAlign: "right" }}>
                     <button type="button" className="btn btn-icon" disabled={pending || locked} onClick={() => startTransition(() => void removeSignup(p.id))}>
-                      <i className="ph ph-x" />
+                      <Icon name="x" />
                     </button>
                   </td>
                 </tr>
@@ -497,8 +498,8 @@ export function RegistrationClient({
             borderColor: "var(--color-accent)",
           }}
         >
-          <i
-            className="ph ph-warning-circle"
+          <Icon
+            name="warning-circle"
             style={{ color: "var(--color-accent)", fontSize: 18, marginTop: gaps.lines.length > 1 ? 1 : 0 }}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -575,8 +576,7 @@ export function RegistrationClient({
             : "inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 30%, transparent)",
         }}
       >
-        <i
-          className={reg.acceptingEntries ? "ph ph-door-open" : "ph ph-lock-simple"}
+        <Icon name={reg.acceptingEntries ? "ph ph-door-open" : "ph ph-lock-simple"}
           style={{
             fontSize: 16,
             color: reg.acceptingEntries ? "var(--color-accent-400)" : "var(--color-danger)",
@@ -608,7 +608,7 @@ export function RegistrationClient({
             disabled={pending || locked}
             onClick={() => startTransition(() => void setRegistrationOverride(false))}
           >
-            <i className="ph ph-calendar-plus" /> Keep taking entries
+            <Icon name="calendar-plus" /> Keep taking entries
           </button>
         )}
         {reg.state === "open-extended" && (
@@ -618,7 +618,7 @@ export function RegistrationClient({
             disabled={pending || locked}
             onClick={() => startTransition(() => void setRegistrationOverride(null))}
           >
-            <i className="ph ph-arrow-counter-clockwise" /> Follow the deadline again
+            <Icon name="arrow-counter-clockwise" /> Follow the deadline again
           </button>
         )}
         {reg.state === "closed-manual" ? (
@@ -628,7 +628,7 @@ export function RegistrationClient({
             disabled={pending || locked}
             onClick={() => startTransition(() => void setRegistrationOverride(null))}
           >
-            <i className="ph ph-door-open" /> Reopen registration
+            <Icon name="door-open" /> Reopen registration
           </button>
         ) : (
           reg.acceptingEntries && (
@@ -638,7 +638,7 @@ export function RegistrationClient({
               disabled={pending || locked}
               onClick={() => startTransition(() => void setRegistrationOverride(true))}
             >
-              <i className="ph ph-lock-simple" /> Close registration
+              <Icon name="lock-simple" /> Close registration
             </button>
           )
         )}
@@ -670,7 +670,7 @@ export function RegistrationClient({
             disabled={pending || locked}
             onClick={() => startTransition(() => void setRegistrationOpen(!event.registrationOpen))}
           >
-            <i className={event.registrationOpen ? "ph ph-lock-simple" : "ph ph-door-open"} />
+            <Icon name={event.registrationOpen ? "ph ph-lock-simple" : "ph ph-door-open"} />
             {event.registrationOpen ? "Take the link down" : "Publish the link"}
           </button>
         </div>
@@ -682,7 +682,7 @@ export function RegistrationClient({
             "Closed" chip four inches apart and had nothing joining the two. */}
         {event.registrationOpen && !reg.acceptingEntries && (
           <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
-            <i className="ph ph-warning-circle" /> The link is live but this tournament is not taking
+            <Icon name="warning-circle" /> The link is live but this tournament is not taking
             entries — anyone who follows it is turned away. {reg.detail}
           </p>
         )}
@@ -699,7 +699,7 @@ export function RegistrationClient({
                   style={{ flex: 1, minWidth: 220, fontSize: 12.5, fontFamily: "var(--font-mono, monospace)" }}
                 />
                 <button type="button" className="btn btn-secondary" onClick={() => copy(registerUrl, "reg")}>
-                  <i className="ph ph-copy" /> {copied === "reg" ? "Copied" : "Copy link"}
+                  <Icon name="copy" /> {copied === "reg" ? "Copied" : "Copy link"}
                 </button>
                 {/* P3: a secret with no way to change it is a secret you keep
                     until it stops being one. Confirmed, because every copy of
@@ -725,7 +725,7 @@ export function RegistrationClient({
                       });
                     }}
                   >
-                    <i className="ph ph-arrows-clockwise" /> New link
+                    <Icon name="arrows-clockwise" /> New link
                   </button>
                 )}
               </div>
@@ -792,7 +792,7 @@ export function RegistrationClient({
                         className="text-muted"
                         style={{ fontSize: 10.5, letterSpacing: 0.4, textTransform: "uppercase" }}
                       >
-                        <i className="ph ph-lock-simple" /> Always on — free plan
+                        <Icon name="lock-simple" /> Always on — free plan
                       </span>
                     )}
                   </span>
@@ -829,17 +829,17 @@ export function RegistrationClient({
             {/* Names the control by the words now on it. A refusal that tells
                 somebody to press a button that no longer exists is worse than
                 no refusal at all. */}
-            <i className="ph ph-warning-circle" /> Publish the sign-up link first — it doesn&rsquo;t exist
+            <Icon name="warning-circle" /> Publish the sign-up link first — it doesn&rsquo;t exist
             until you do, so there is nothing to invite anyone to yet.
           </p>
         )}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" className="btn btn-primary" onClick={sendWhatsApp} disabled={!registerUrl}><i className="ph-fill ph-whatsapp-logo" /> WhatsApp</button>
-          <button type="button" className="btn btn-secondary" onClick={sendSms} disabled={!registerUrl}><i className="ph ph-chat-text" /> SMS / Text</button>
-          <button type="button" className="btn btn-secondary" onClick={shareNative} disabled={!registerUrl}><i className="ph ph-share-network" /> {copied === "share" ? "Copied" : "Share…"}</button>
-          <button type="button" className="btn btn-secondary" onClick={() => copy(fullMessage, "msg")} disabled={!registerUrl}><i className="ph ph-copy" /> {copied === "msg" ? "Copied" : "Copy message"}</button>
+          <button type="button" className="btn btn-primary" onClick={sendWhatsApp} disabled={!registerUrl}><Icon name="whatsapp-logo" weight="fill" /> WhatsApp</button>
+          <button type="button" className="btn btn-secondary" onClick={sendSms} disabled={!registerUrl}><Icon name="chat-text" /> SMS / Text</button>
+          <button type="button" className="btn btn-secondary" onClick={shareNative} disabled={!registerUrl}><Icon name="share-network" /> {copied === "share" ? "Copied" : "Share…"}</button>
+          <button type="button" className="btn btn-secondary" onClick={() => copy(fullMessage, "msg")} disabled={!registerUrl}><Icon name="copy" /> {copied === "msg" ? "Copied" : "Copy message"}</button>
           {/* Also the sign-up link, not the origin — same bug, second door. */}
-          <button type="button" className="btn btn-secondary" onClick={() => copy(registerUrl, "link")} disabled={!registerUrl}><i className="ph ph-link" /> {copied === "link" ? "Copied" : "Copy link"}</button>
+          <button type="button" className="btn btn-secondary" onClick={() => copy(registerUrl, "link")} disabled={!registerUrl}><Icon name="link" /> {copied === "link" ? "Copied" : "Copy link"}</button>
         </div>
       </div>
 
@@ -884,10 +884,10 @@ export function RegistrationClient({
             </div>
           </div>
           <div className="field"><label>Home club</label><input className="input" value={homeClub} onChange={(e) => setHomeClub(e.target.value)} placeholder="Optional" /></div>
-          <button type="button" className="btn btn-primary btn-block" disabled={pending || !name.trim() || !email.trim()} onClick={submitAdd}><i className="ph ph-plus" /> Add to field</button>
+          <button type="button" className="btn btn-primary btn-block" disabled={pending || !name.trim() || !email.trim()} onClick={submitAdd}><Icon name="plus" /> Add to field</button>
           {addError && (
             <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-              <i className="ph ph-warning-circle" /> {addError}
+              <Icon name="warning-circle" /> {addError}
             </p>
           )}
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
@@ -897,7 +897,7 @@ export function RegistrationClient({
           </p>
           <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 10 }}>
             <label className="btn btn-secondary btn-block" style={{ cursor: "pointer", justifyContent: "center" }}>
-              <i className="ph ph-upload-simple" /> Import CSV
+              <Icon name="upload-simple" /> Import CSV
               <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} style={{ display: "none" }} />
             </label>
             <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
@@ -913,11 +913,11 @@ export function RegistrationClient({
             {importResult && (
               importResult.error ? (
                 <p style={{ fontSize: 12, margin: "8px 0 0", color: "var(--color-danger)" }}>
-                  <i className="ph ph-warning-circle" /> {importResult.error}
+                  <Icon name="warning-circle" /> {importResult.error}
                 </p>
               ) : (
                 <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
-                  <i className="ph ph-check-circle" style={{ color: "var(--color-accent-2-300)" }} /> Imported {importResult.imported}
+                  <Icon name="check-circle" style={{ color: "var(--color-accent-2-300)" }} /> Imported {importResult.imported}
                   {importResult.skippedDuplicates > 0 ? `, skipped ${importResult.skippedDuplicates} duplicate${importResult.skippedDuplicates === 1 ? "" : "s"}` : ""}
                   {importResult.skippedInvalid > 0 ? `, skipped ${importResult.skippedInvalid} invalid row${importResult.skippedInvalid === 1 ? "" : "s"}` : ""}.
                 </p>
@@ -929,13 +929,13 @@ export function RegistrationClient({
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {rowError && (
             <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-              <i className="ph ph-warning-circle" /> {rowError}
+              <Icon name="warning-circle" /> {rowError}
             </p>
           )}
           {pendingEntries.length > 0 && (
             <div className="card elev-sm" style={{ borderColor: "var(--color-accent)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <i className="ph ph-hourglass-medium" style={{ color: "var(--color-accent)" }} />
+                <Icon name="hourglass-medium" style={{ color: "var(--color-accent)" }} />
                 <span className="card-title" style={{ fontSize: 15 }}>Pending approval ({pendingEntries.length})</span>
               </div>
               <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 2px" }}>
@@ -968,7 +968,7 @@ export function RegistrationClient({
                             disabled={pending || locked}
                             onClick={() => startTransition(() => void approveSignup(p.id))}
                           >
-                            <i className="ph ph-check" /> Accept
+                            <Icon name="check" /> Accept
                           </button>
                           <button
                             type="button"

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { resetPassword } from "@/app/actions/auth";
+import { Icon } from "./Icon";
 import {
   MIN_PASSWORD_LENGTH,
   passwordProblem,
@@ -113,7 +114,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
       {error && (
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 
@@ -123,7 +124,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         disabled={!ready}
         onClick={submit}
       >
-        {pending ? "Saving…" : "Set password & sign in"} <i className="ph ph-arrow-right" />
+        {pending ? "Saving…" : "Set password & sign in"} <Icon name="arrow-right" />
       </button>
     </div>
   );

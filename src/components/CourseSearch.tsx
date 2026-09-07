@@ -7,6 +7,7 @@ import {
   type DirectorySearchHit,
 } from "@/app/actions/courses";
 import { DIRECTORY_ATTRIBUTION } from "@/lib/domain/course-directory";
+import { Icon } from "./Icon";
 
 /**
  * Look a course up instead of typing fifty-four numbers.
@@ -206,7 +207,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
 
       {error && (
         <p style={{ fontSize: 11.5, margin: "6px 0 0", color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 
@@ -219,7 +220,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
             color: note.kind === "ok" ? "var(--color-accent-2-300)" : "var(--color-accent)",
           }}
         >
-          <i className={note.kind === "ok" ? "ph ph-check-circle" : "ph ph-warning-circle"} /> {note.text}
+          <Icon name={note.kind === "ok" ? "ph ph-check-circle" : "ph ph-warning-circle"} /> {note.text}
         </p>
       )}
 
@@ -282,7 +283,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
               </span>
               {h.inLibrary ? (
                 <span className="tag tag-neutral" style={{ fontSize: 11.5 }}>
-                  <i className="ph ph-check" /> In your library
+                  <Icon name="check" /> In your library
                 </span>
               ) : (
                 <button
@@ -292,7 +293,7 @@ export function CourseSearch({ onImported }: { onImported?: (courseId: string) =
                   disabled={pending}
                   onClick={() => importOne(h)}
                 >
-                  <i className="ph ph-download-simple" /> {busyId === h.id ? "Adding…" : "Add to library"}
+                  <Icon name="download-simple" /> {busyId === h.id ? "Adding…" : "Add to library"}
                 </button>
               )}
             </div>

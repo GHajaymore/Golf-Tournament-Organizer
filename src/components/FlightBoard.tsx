@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { movePlayerToGroup, renameGroup, setFlightsConfirmed } from "@/app/actions/tournament";
 import { setFlightCaptain } from "@/app/actions/attendance";
 import { setFlightTee } from "@/app/actions/courses";
+import { Icon } from "./Icon";
 
 export interface FlightPlayer {
   id: string;
@@ -102,7 +103,7 @@ export function FlightBoard({
     <>
       {error && (
         <p style={{ fontSize: 13, margin: "0 0 10px", color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 
@@ -167,8 +168,7 @@ export function FlightBoard({
               : "inset 0 0 0 1px color-mix(in srgb, var(--color-text) 10%, transparent)",
           }}
         >
-          <i
-            className={confirmed ? "ph ph-seal-check" : "ph ph-hand-grabbing"}
+          <Icon name={confirmed ? "ph ph-seal-check" : "ph ph-hand-grabbing"}
             style={{ fontSize: 15, color: confirmed ? "var(--color-accent-2-400)" : "var(--color-accent-400)" }}
           />
           <span style={{ fontSize: 12.5, flex: 1, minWidth: 180, lineHeight: 1.45 }}>
@@ -190,7 +190,7 @@ export function FlightBoard({
               });
             }}
           >
-            <i className={confirmed ? "ph ph-pencil-simple" : "ph ph-check"} />
+            <Icon name={confirmed ? "ph ph-pencil-simple" : "ph ph-check"} />
             {confirmed ? "Edit flights" : "Confirm flights"}
           </button>
         </div>
@@ -268,7 +268,7 @@ export function FlightBoard({
                     style={{ width: 22, height: 22, flex: "none" }}
                     onClick={() => { setDraftName(g.label); setRenaming(g.id); }}
                   >
-                    <i className="ph ph-pencil-simple" style={{ fontSize: 11 }} />
+                    <Icon name="pencil-simple" style={{ fontSize: 11 }} />
                   </button>
                 )}
                 <span className="text-muted" style={{ fontSize: 11, flex: "none" }}>
@@ -361,8 +361,7 @@ export function FlightBoard({
                 }}
               >
                 {!disabled && (
-                  <i
-                    className="ph ph-dots-six-vertical"
+                  <Icon name="dots-six-vertical"
                     style={{ fontSize: 13, color: "color-mix(in srgb, var(--color-text) 45%, transparent)" }}
                   />
                 )}

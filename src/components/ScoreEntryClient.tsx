@@ -39,6 +39,7 @@ import {
 } from "@/app/actions/tournament";
 import { setMatchCourse } from "@/app/actions/courses";
 import { VenuePrompt, type VenueCourse } from "./VenuePrompt";
+import { Icon } from "./Icon";
 
 /**
  * The three ways a match gets written down, as the screen offers them.
@@ -817,7 +818,7 @@ export function ScoreEntryClient({
                     onClick={() => setFilter(EMPTY_FILTER)}
                     style={{ cursor: "pointer", border: "none" }}
                   >
-                    <i className="ph ph-x" /> Clear
+                    <Icon name="x" /> Clear
                   </button>
                 )}
               </div>
@@ -836,7 +837,7 @@ export function ScoreEntryClient({
               onClick={approveShown}
               style={{ justifyContent: "center", fontSize: 13 }}
             >
-              <i className="ph ph-check-circle" />{" "}
+              <Icon name="check-circle" />{" "}
               {bulkPending
                 ? "Approving…"
                 : `Approve ${shown.length} shown result${shown.length === 1 ? "" : "s"}`}
@@ -921,14 +922,14 @@ export function ScoreEntryClient({
                   otherwise identical cards apart. */}
               <div className="text-muted" style={{ fontSize: 12, marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
                 {active.courseName && (
-                  <span><i className="ph ph-map-pin" style={{ marginRight: 3 }} />{active.courseName}</span>
+                  <span><Icon name="map-pin" style={{ marginRight: 3 }} />{active.courseName}</span>
                 )}
                 {totalHoles === 9 && nineByMatch[active.id] && (
                   <span>{nineByMatch[active.id] === "back" ? "Back 9 (10–18)" : "Front 9 (1–9)"}</span>
                 )}
                 {(active.aTee || active.bTee) && (
                   <span title="Tees, course rating and slope — what the shots given are calculated from">
-                    <i className="ph ph-flag-pennant" style={{ marginRight: 3 }} />
+                    <Icon name="flag-pennant" style={{ marginRight: 3 }} />
                     {active.aTee === active.bTee
                       ? active.aTee
                       : `${firstName(active.aName)} ${active.aTee ?? "—"} · ${firstName(active.bName)} ${active.bTee ?? "—"}`}
@@ -936,7 +937,7 @@ export function ScoreEntryClient({
                 )}
                 {(active.scoredAt || active.enteredBy) && (
                   <span title="Who last wrote a score for this match, and when the card was completed">
-                    <i className="ph ph-clock-counter-clockwise" style={{ marginRight: 3 }} />
+                    <Icon name="clock-counter-clockwise" style={{ marginRight: 3 }} />
                     {active.enteredBy ? `Entered by ${active.enteredBy}` : "Entered"}
                     {active.scoredAt
                       ? ` · ${new Date(active.scoredAt).toLocaleDateString(undefined, {
@@ -946,7 +947,7 @@ export function ScoreEntryClient({
                   </span>
                 )}
                 {active.confirmedBy && (
-                  <span><i className="ph ph-seal-check" style={{ marginRight: 3 }} />Signed off by {active.confirmedBy}</span>
+                  <span><Icon name="seal-check" style={{ marginRight: 3 }} />Signed off by {active.confirmedBy}</span>
                 )}
               </div>
             </div>
@@ -976,14 +977,14 @@ export function ScoreEntryClient({
                           : "var(--color-neutral-500)",
                   }}
                 >
-                  {saveState === "saving" && (<><i className="ph ph-circle-notch" /> Saving…</>)}
+                  {saveState === "saving" && (<><Icon name="circle-notch" /> Saving…</>)}
                   {/* `saveNote` on success too, not only on failure: a signed
                       card that still needs other players is a SUCCESS that is
                       not a confirmation, and "Saved" alone would read as one. */}
-                  {saveState === "saved" && (<><i className="ph ph-check" /> {saveNote || "Saved"}</>)}
+                  {saveState === "saved" && (<><Icon name="check" /> {saveNote || "Saved"}</>)}
                   {saveState === "failed" && (
                     <>
-                      <i className="ph ph-warning-circle" />{" "}
+                      <Icon name="warning-circle" />{" "}
                       {saveNote || "Not saved — check your connection and re-enter."}
                     </>
                   )}
@@ -1012,7 +1013,7 @@ export function ScoreEntryClient({
                       onClick={() => setMode(m.key)}
                     >
                       <span className="mode-opt-head">
-                        <i className={m.icon} /> {m.label}
+                        <Icon name={m.icon} /> {m.label}
                       </span>
                       <span className="mode-opt-blurb">{m.blurb}</span>
                       {off && (
@@ -1026,14 +1027,14 @@ export function ScoreEntryClient({
               </div>
             ) : (
               <p className="text-muted" style={{ fontSize: 12, margin: 0, maxWidth: "64ch", lineHeight: 1.5 }}>
-                <i className={activeMode?.icon ?? "ph ph-cards"} />{" "}
+                <Icon name={activeMode?.icon ?? "ph ph-cards"} />{" "}
                 <strong style={{ color: "var(--color-text)" }}>{activeMode?.label}</strong> — {format} is scored
                 on strokes, so there is no hole winner to record and no match margin to report.
               </p>
             )}
 
             <span className={`tag ${netMode ? "tag-accent" : "tag-neutral"}`} style={{ fontSize: 11 }}>
-              <i className={netMode ? "ph ph-percent" : "ph ph-flag-checkered"} />{" "}
+              <Icon name={netMode ? "ph ph-percent" : "ph ph-flag-checkered"} />{" "}
               {netMode ? "Net scoring — strokes given by handicap" : "Gross scoring — lowest strokes wins the hole"}
             </span>
 
@@ -1098,7 +1099,7 @@ export function ScoreEntryClient({
                 to look at a select they have not been asked about. */}
             {totalHoles === 9 && !nineByMatch[active.id] && (
               <span style={{ fontSize: 12, color: "var(--color-danger)", fontWeight: 500 }}>
-                <i className="ph ph-warning-circle" /> Say which nine before scoring — front and
+                <Icon name="warning-circle" /> Say which nine before scoring — front and
                 back have different stroke indexes, so this decides where shots fall.
               </span>
             )}
@@ -1125,7 +1126,7 @@ export function ScoreEntryClient({
                   onClick={toggleListenHoles}
                   style={listening === "holes" ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
                 >
-                  <i className={listening === "holes" ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
+                  <Icon name={listening === "holes" ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
                   {listening === "holes" ? "Listening…" : "Voice entry"}
                 </button>
                 <span className="text-muted" style={{ fontSize: 12 }}>{listening === "holes" ? "Listening…" : "Say each hole's winner in order, e.g. “Alex, half, Sam”."}</span>
@@ -1227,13 +1228,13 @@ export function ScoreEntryClient({
                     title="Dictate result"
                     style={listening === "result" ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
                   >
-                    <i className={listening === "result" ? "ph-fill ph-microphone" : "ph ph-microphone"} />
+                    <Icon name={listening === "result" ? "ph-fill ph-microphone" : "ph ph-microphone"} />
                   </button>
                 </div>
                 <div className="text-muted" style={{ fontSize: 12 }}>{listenHint}</div>
               </div>
               <button type="button" className="btn btn-primary btn-block" onClick={doApplyResult}>
-                <i className="ph ph-check" /> Apply result
+                <Icon name="check" /> Apply result
               </button>
             </div>
           )}
@@ -1293,7 +1294,7 @@ export function ScoreEntryClient({
                               title={`Dictate ${firstName(name)}'s scores`}
                               style={{ fontSize: 11, padding: "2px 7px", whiteSpace: "nowrap", ...(listening === `hcp-${slot}` ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : {}) }}
                             >
-                              <i className={listening === `hcp-${slot}` ? "ph-fill ph-microphone" : "ph ph-microphone"} style={{ fontSize: 11 }} />{" "}
+                              <Icon name={listening === `hcp-${slot}` ? "ph-fill ph-microphone" : "ph ph-microphone"} style={{ fontSize: 11 }} />{" "}
                               {listening === `hcp-${slot}` ? "Listening…" : "Voice"}
                             </button>
                           </td>
@@ -1378,7 +1379,7 @@ export function ScoreEntryClient({
               }}
             >
               <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                <i className="ph ph-seal-check" style={{ color: "var(--color-accent)" }} />
+                <Icon name="seal-check" style={{ color: "var(--color-accent)" }} />
                 <span className={`tag ${CONFIRM_META[activeStatus]?.tag ?? "tag-neutral"}`}>
                   {CONFIRM_META[activeStatus]?.label ?? activeStatus}
                 </span>
@@ -1387,10 +1388,10 @@ export function ScoreEntryClient({
                 {activeStatus !== "confirmed" && activeStatus !== "auto-confirmed" && (
                   <>
                     <button type="button" className="btn btn-secondary" onClick={doDispute}>
-                      <i className="ph ph-warning" /> Dispute
+                      <Icon name="warning" /> Dispute
                     </button>
                     <button type="button" className="btn btn-primary" onClick={doConfirm}>
-                      <i className="ph ph-check" /> Confirm result
+                      <Icon name="check" /> Confirm result
                     </button>
                   </>
                 )}
@@ -1399,7 +1400,7 @@ export function ScoreEntryClient({
                     hand them a button that only ever errors. */}
                 {isAdmin && (
                   <button type="button" className="btn btn-secondary" onClick={doReopen}>
-                    <i className="ph ph-lock-key-open" /> Reopen
+                    <Icon name="lock-key-open" /> Reopen
                   </button>
                 )}
               </div>
@@ -1424,7 +1425,7 @@ export function ScoreEntryClient({
                 Clear
               </button>
               <Link className="btn btn-primary" href="/leaderboard">
-                <i className="ph ph-ranking" /> Leaderboard
+                <Icon name="ranking" /> Leaderboard
               </Link>
             </div>
           </div>

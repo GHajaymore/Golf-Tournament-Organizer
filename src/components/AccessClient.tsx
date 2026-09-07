@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { addAccount, setAccountRole, removeAccount } from "@/app/actions/tournament";
 import { ROLE_OPTS, describeRoleChange, type RoleChange } from "@/lib/access-roles";
+import { Icon } from "./Icon";
 
 interface AccountRow {
   id: string;
@@ -35,7 +36,7 @@ export function RoleChangeConfirm({
         Change <b>{change.name}</b> from {change.from} to <b>{change.to}</b>?
         {change.lastAdmin ? (
           <span style={{ display: "block", color: "var(--color-danger)", marginTop: 2 }}>
-            <i className="ph ph-warning" /> This is the only Organizer on the event — promote someone else first,
+            <Icon name="warning" /> This is the only Organizer on the event — promote someone else first,
             or this will be refused.
           </span>
         ) : change.demotion ? (
@@ -60,7 +61,7 @@ export function RoleChangeConfirm({
           disabled={pending}
           onClick={onConfirm}
         >
-          <i className="ph ph-check" /> {pending ? "Saving…" : `Yes — make ${change.name} ${change.to}`}
+          <Icon name="check" /> {pending ? "Saving…" : `Yes — make ${change.name} ${change.to}`}
         </button>
         <button
           type="button"
@@ -136,7 +137,7 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
         </p>
         {error && (
           <p style={{ fontSize: 13, margin: "0 0 4px", color: "var(--color-danger)" }}>
-            <i className="ph ph-warning-circle" /> {error}
+            <Icon name="warning-circle" /> {error}
           </p>
         )}
         <div className="table-scroll">
@@ -188,7 +189,7 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
                         disabled={pending}
                         onClick={() => doRemove(a.id)}
                       >
-                        <i className="ph ph-x" />
+                        <Icon name="x" />
                       </button>
                     </td>
                   </tr>
@@ -231,7 +232,7 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
             });
           }}
         >
-          <i className="ph ph-plus" /> Add account
+          <Icon name="plus" /> Add account
         </button>
       </div>
     </div>

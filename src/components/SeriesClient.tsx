@@ -3,6 +3,7 @@ import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createSeries, updateSeries, deleteSeries, setEventSeries } from "@/app/actions/series";
 import { describeTable, type SeriesStanding } from "@/lib/domain/series";
+import { Icon } from "./Icon";
 
 export interface SeriesSummary {
   id: string;
@@ -103,7 +104,7 @@ export function SeriesClient({
                 setNewName("");
               }}
             >
-              <i className="ph ph-plus" /> Start a season
+              <Icon name="plus" /> Start a season
             </button>
           </div>
         )}
@@ -331,7 +332,7 @@ export function SeriesClient({
                           title="Show every round"
                           onClick={() => setExpanded(expanded === s.memberId ? null : s.memberId)}
                         >
-                          <i className={`ph ph-caret-${expanded === s.memberId ? "up" : "down"}`} />
+                          <Icon name={expanded === s.memberId ? "caret-up" : "caret-down"} />
                         </button>
                       </td>
                     </tr>

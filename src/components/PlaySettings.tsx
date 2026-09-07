@@ -40,6 +40,7 @@ import {
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import { formatAccessCode } from "@/lib/code-format";
+import { Icon } from "./Icon";
 
 export interface RoundCode {
   stageId: string;
@@ -285,7 +286,7 @@ export function PlaySettings({
             <code style={{ fontSize: 12, wordBreak: "break-all" }}>{shareUrl}</code>
           </div>
           <button type="button" className="btn btn-secondary" onClick={() => copy(shareUrl, "share")}>
-            <i className="ph ph-copy" /> {copied === "share" ? "Copied" : "Copy"}
+            <Icon name="copy" /> {copied === "share" ? "Copied" : "Copy"}
           </button>
           {/* P3 of the audit: this token was minted once at creation and
               nothing replaced it, so a link posted somewhere public could only
@@ -310,7 +311,7 @@ export function PlaySettings({
                 void rotatePublicToken("share").finally(() => setRotating(false));
               }}
             >
-              <i className="ph ph-arrows-clockwise" /> New link
+              <Icon name="arrows-clockwise" /> New link
             </button>
           )}
         </div>
@@ -480,7 +481,7 @@ export function PlaySettings({
 
       {error && (
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 
@@ -492,7 +493,7 @@ export function PlaySettings({
           disabled={pending || !dirty}
           onClick={save}
         >
-          <i className="ph ph-check" /> {pending ? "Saving…" : saved && !dirty ? "Saved" : "Save settings"}
+          <Icon name="check" /> {pending ? "Saving…" : saved && !dirty ? "Saved" : "Save settings"}
         </button>
       ) : (
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
@@ -539,7 +540,7 @@ export function PlaySettings({
                             style={{ fontSize: 12, padding: "3px 9px" }}
                             onClick={() => copy(formatAccessCode(r.code), r.stageId)}
                           >
-                            <i className="ph ph-copy" /> {copied === r.stageId ? "Copied" : "Copy"}
+                            <Icon name="copy" /> {copied === r.stageId ? "Copied" : "Copy"}
                           </button>
                         )}
                         {canEdit && (
@@ -555,7 +556,7 @@ export function PlaySettings({
                               })
                             }
                           >
-                            <i className="ph ph-arrows-clockwise" /> Reissue
+                            <Icon name="arrows-clockwise" /> Reissue
                           </button>
                         )}
                       </td>

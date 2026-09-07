@@ -11,6 +11,7 @@ import {
   type FieldPlayer,
 } from "@/lib/domain/score-import";
 import type { HoleResult } from "@/lib/domain";
+import { Icon } from "./Icon";
 
 /**
  * Bulk score import.
@@ -209,7 +210,7 @@ ${active.sampleRow}`}
         />
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
           <label className="btn btn-secondary" style={{ fontSize: 12, padding: "3px 9px", cursor: "pointer" }}>
-            <i className="ph ph-upload-simple" /> Choose a file
+            <Icon name="upload-simple" /> Choose a file
             <input
               type="file"
               accept=".csv,text/csv,text/plain"
@@ -228,7 +229,7 @@ ${active.sampleRow}`}
             disabled={pending}
             onClick={() => setText(templateCsv(active.key, holes))}
           >
-            <i className="ph ph-table" /> Start from the header row
+            <Icon name="table" /> Start from the header row
           </button>
         </div>
       </div>
@@ -270,18 +271,18 @@ ${active.sampleRow}`}
 
       {error && (
         <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
       {result && (
         <div style={{ fontSize: 12.5 }}>
           <p style={{ margin: 0, color: "var(--color-accent-2-400)" }}>
-            <i className="ph ph-check" /> Imported {result.written} row{result.written === 1 ? "" : "s"}. They
+            <Icon name="check" /> Imported {result.written} row{result.written === 1 ? "" : "s"}. They
             sit as pending until approved, the same as a typed card.
           </p>
           {result.problems?.map((p, i) => (
             <p key={i} style={{ margin: "4px 0 0", color: "var(--color-danger)" }}>
-              <i className="ph ph-warning-circle" /> {p}
+              <Icon name="warning-circle" /> {p}
             </p>
           ))}
         </div>
@@ -294,7 +295,7 @@ ${active.sampleRow}`}
           disabled={pending || !parsed || parsed.ready === 0}
           onClick={apply}
         >
-          <i className="ph ph-download-simple" />{" "}
+          <Icon name="download-simple" />{" "}
           {pending ? "Importing…" : parsed ? `Import ${parsed.ready} row${parsed.ready === 1 ? "" : "s"}` : "Import"}
         </button>
         {parsed && parsed.ready < parsed.seen && parsed.ready > 0 && (

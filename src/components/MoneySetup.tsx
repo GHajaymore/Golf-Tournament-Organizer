@@ -9,6 +9,7 @@ import {
   type MoneyMode,
 } from "@/lib/domain/money-mode";
 import { orgProfile } from "@/lib/domain/org-profile";
+import { Icon } from "./Icon";
 
 /**
  * How money is handled — for ONE TOURNAMENT, or for the whole club.
@@ -127,7 +128,7 @@ export function MoneySetup({
 
         {error && (
           <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-            <i className="ph ph-warning-circle" /> {error}
+            <Icon name="warning-circle" /> {error}
           </p>
         )}
 
@@ -140,7 +141,7 @@ export function MoneySetup({
         <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
           {/* Says what it actually does rather than leaving the reader to
               work out what "the default" resolves to. */}
-          <i className="ph ph-info" /> A tournament that has not chosen for itself uses:{" "}
+          <Icon name="info" /> A tournament that has not chosen for itself uses:{" "}
           <strong style={{ color: "var(--color-text)" }}>{MONEY_MODE_LABEL[inherited]}</strong>.
           {" "}Each one can still be set on its own Prizes &amp; payouts screen.
         </p>
@@ -169,7 +170,7 @@ export function MoneySetup({
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 
@@ -179,12 +180,12 @@ export function MoneySetup({
           and left Club settings, where the setup checklist sends people to
           "Decide how money works", with no money control on it at all. */}
       <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-        <i className="ph ph-buildings" /> The default for every tournament at{" "}
+        <Icon name="buildings" /> The default for every tournament at{" "}
         {clubName || "this club"} is on <a href="/organization">Club settings</a>.
       </p>
 
       <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>
-        <i className="ph ph-info" /> In force for this tournament:{" "}
+        <Icon name="info" /> In force for this tournament:{" "}
         <strong style={{ color: "var(--color-text)" }}>{MONEY_MODE_LABEL[active]}</strong>
       </p>
     </section>

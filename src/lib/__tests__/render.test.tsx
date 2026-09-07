@@ -1051,8 +1051,13 @@ describe("roster CSV import", () => {
       <ImportSummary result={result({ error: "Couldn't find a name column in the header row." })} onDismiss={() => {}} />,
     );
     expect(html).toContain("name column");
-    expect(html).toContain("ph-warning-circle");
-    expect(html).not.toContain("ph-check-circle");
+    // The sprite id, not the old font class. Icons stopped being
+    // `<i class="ph …">` and became `<use href="#i-regular-…">`, and BOTH
+    // halves of this had to move: the positive one failed loudly, but the
+    // negative one below would have passed forever on a string that can no
+    // longer appear at all.
+    expect(html).toContain("#i-regular-warning-circle");
+    expect(html).not.toContain("#i-regular-check-circle");
   });
 
   it("does not claim success when every row was already present", () => {
@@ -2604,7 +2609,11 @@ describe("the player's own card opens on what is already there", () => {
         status="entered" initialStrokes={nine()}
       />,
     );
-    expect(html).not.toContain("ph-floppy-disk");
+    // Sprite id rather than the retired font class — see the note on the
+    // import-summary test above. As `ph-floppy-disk` this was vacuous the
+    // moment the icon font was removed: it asserts the absence of a string
+    // that no longer exists anywhere, whatever the component renders.
+    expect(html).not.toContain("#i-regular-floppy-disk");
     expect(html).toContain("Certify my card");
     // And the write state has somewhere to be announced from.
     expect(html).toContain('aria-live="polite"');

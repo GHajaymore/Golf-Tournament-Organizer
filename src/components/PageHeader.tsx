@@ -1,3 +1,4 @@
+import { Icon } from "./Icon";
 export function PageHeader({
   kicker,
   title,
@@ -49,7 +50,7 @@ export function StatCard({
     <div className="card elev-sm" style={{ gap: 4 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span className="card-kicker">{label}</span>
-        {icon && <i className={icon} style={{ color: "var(--color-accent)", fontSize: 16 }} />}
+        {icon && <Icon name={icon} style={{ color: "var(--color-accent)", fontSize: 16 }} />}
       </div>
       <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 26, lineHeight: 1 }}>
         {value}

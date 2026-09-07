@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { WeekView } from "@/lib/services/week-view";
 import { useMoney } from "@/components/CurrencyProvider";
+import { Icon } from "./Icon";
 
 /**
  * One week of a league on one screen.
@@ -59,7 +60,7 @@ function Movement({ change, isNew }: { change: number; isNew: boolean }) {
       }}
       aria-label={`${up ? "up" : "down"} ${Math.abs(change)} place${Math.abs(change) === 1 ? "" : "s"}`}
     >
-      <i className={up ? "ph-fill ph-caret-up" : "ph-fill ph-caret-down"} /> {Math.abs(change)}
+      <Icon name={up ? "ph-fill ph-caret-up" : "ph-fill ph-caret-down"} /> {Math.abs(change)}
     </span>
   );
 }
@@ -170,7 +171,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
            hand-scored round is that the app does not know the result. */
         <div className="card elev-sm" style={{ gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <i className="ph ph-clipboard-text" style={{ fontSize: 19, opacity: 0.7 }} />
+            <Icon name="clipboard-text" style={{ fontSize: 19, opacity: 0.7 }} />
             <span className="card-title" style={{ fontSize: 15.5 }}>
               This week is scored by hand
             </span>

@@ -18,6 +18,7 @@ import { orgProfile } from "@/lib/domain/org-profile";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
 import { orgSetupState } from "@/lib/domain/org-setup";
+import { Icon } from "@/components/Icon";
 
 export default async function ChooseTournamentPage({
   searchParams,
@@ -112,7 +113,7 @@ export default async function ChooseTournamentPage({
           </div>
           <form action={signOutAction}>
             <button type="submit" className="btn btn-secondary" style={{ fontSize: 12 }}>
-              <i className="ph ph-sign-out" /> Sign out
+              <Icon name="sign-out" /> Sign out
             </button>
           </form>
         </div>
@@ -187,11 +188,11 @@ export default async function ChooseTournamentPage({
                   {/* Makes inherited access legible: "why can I see this?" */}
                   {a.source === "organization" && (
                     <span className="tag tag-neutral" title="Access inherited from your organization role">
-                      <i className="ph ph-buildings" /> via club
+                      <Icon name="buildings" /> via club
                     </span>
                   )}
                   <span className={`tag ${a.role === "admin" ? "tag-accent" : "tag-neutral"}`}>{ROLE_LABEL[a.role] ?? a.role}</span>
-                  <i className="ph ph-arrow-right" style={{ color: "var(--color-accent-300)" }} />
+                  <Icon name="arrow-right" style={{ color: "var(--color-accent-300)" }} />
                 </div>
               </button>
             </form>
@@ -228,7 +229,7 @@ export default async function ChooseTournamentPage({
               </div>
             </div>
             <Link href="/play" className="btn btn-secondary" style={{ flex: "none" }}>
-              <i className="ph ph-flag" /> Join with a round code
+              <Icon name="flag" /> Join with a round code
             </Link>
           </div>
         )}

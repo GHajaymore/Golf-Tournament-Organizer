@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setStageCourse } from "@/app/actions/courses";
 import { CoursePicker } from "@/components/CoursePicker";
+import { Icon } from "./Icon";
 
 /**
  * Which course this round is scored against — stated where the scores go in.
@@ -146,7 +147,7 @@ export function RoundVenue({
           }}
         >
           <b>
-            <i className="ph ph-warning" /> This round already has {pendingVenue.cards} card
+            <Icon name="warning" /> This round already has {pendingVenue.cards} card
             {pendingVenue.cards === 1 ? "" : "s"} entered.
           </b>
           <div className="text-muted" style={{ marginTop: 4 }}>
@@ -181,7 +182,7 @@ export function RoundVenue({
       {missingCard ? (
         <>
           <span className="card-title" style={{ fontSize: 14 }}>
-            <i className="ph ph-warning-circle" /> {venue!.name} has no card yet
+            <Icon name="warning-circle" /> {venue!.name} has no card yet
           </span>
           <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
             Par and stroke index are missing, so net scores, Stableford points and every
@@ -189,7 +190,7 @@ export function RoundVenue({
             every round played here uses it.
           </p>
           <Link className="btn btn-primary" href={editHref} style={{ alignSelf: "flex-start" }}>
-            <i className="ph ph-note-pencil" /> Enter this course&rsquo;s card
+            <Icon name="note-pencil" /> Enter this course&rsquo;s card
           </Link>
         </>
       ) : (
@@ -207,7 +208,7 @@ export function RoundVenue({
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
     </div>

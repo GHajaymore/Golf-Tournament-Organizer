@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { STATUS_META } from "@/lib/format";
+import { Icon } from "./Icon";
 
 /**
  * Persistent "which tournament am I in" strip, shown on every authenticated
@@ -36,13 +37,13 @@ export function EventContextBar({
         flexWrap: "wrap",
       }}
     >
-      <i className="ph-fill ph-flag-pennant" style={{ color: "var(--color-accent)", fontSize: 15 }} />
+      <Icon name="flag-pennant" weight="fill" style={{ color: "var(--color-accent)", fontSize: 15 }} />
       <span style={{ fontWeight: 600, fontSize: 13 }}>{name || "Untitled tournament"}</span>
       <span className="text-muted" style={{ fontSize: 12 }}>
         {[dates, location].filter(Boolean).join(" · ")}
       </span>
       <span className={`tag ${meta.tag}`} style={{ fontSize: 10 }}>
-        {status === "live" && <i className="ph-fill ph-circle" style={{ fontSize: 6, marginRight: 4 }} />}
+        {status === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 6, marginRight: 4 }} />}
         {meta.label}
       </span>
       <div style={{ flex: 1 }} />
@@ -56,7 +57,7 @@ export function EventContextBar({
           className="text-muted touch-target"
           style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}
         >
-          <i className="ph ph-arrows-left-right" /> Switch event
+          <Icon name="arrows-left-right" /> Switch event
         </Link>
       )}
     </div>

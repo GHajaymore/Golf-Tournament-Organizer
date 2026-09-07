@@ -10,6 +10,7 @@ import { shareField, initialsOf } from "@/lib/share-field";
 import { unitemisedGames } from "@/lib/domain/money-breakdown";
 import { PersonChip } from "@/components/PersonChip";
 import { useMoney } from "@/components/CurrencyProvider";
+import { Icon } from "./Icon";
 
 /**
  * The outing's money, on a phone.
@@ -341,7 +342,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
           onClick={() => { reset(); setAdding(true); }}
           disabled={!view.playerId}
         >
-          <i className="ph ph-plus" /> Add an expense
+          <Icon name="plus" /> Add an expense
         </button>
       ) : (
         <section className="card elev-sm" style={{ marginTop: 12, gap: 10 }}>
@@ -650,7 +651,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
           </div>
           {error && (
             <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
-              <i className="ph ph-warning-circle" /> {error}
+              <Icon name="warning-circle" /> {error}
             </p>
           )}
         </section>
@@ -959,7 +960,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
               style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 8, borderTop: "1px solid var(--color-divider)" }}
             >
               <span style={{ flex: 1, fontSize: 13.5, minWidth: 0 }}>
-                {t.fromName} <i className="ph ph-arrow-right" aria-label="pays" /> {t.toName}
+                {t.fromName} <Icon name="arrow-right" aria-label="pays" /> {t.toName}
                 {/* WHAT IT IS FOR.
                     A handover says an amount and nothing else, which is the
                     moment somebody asks "for what?" and nobody can answer
@@ -1094,7 +1095,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                   disabled={pending}
                   onClick={() => startEdit(e)}
                 >
-                  <i className="ph ph-pencil-simple" /> Edit
+                  <Icon name="pencil-simple" /> Edit
                 </button>
 
                 {/* Two taps, not one.
@@ -1119,7 +1120,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                         })
                       }
                     >
-                      <i className="ph ph-trash" /> Yes, remove it
+                      <Icon name="trash" /> Yes, remove it
                     </button>
                     <button
                       type="button"
@@ -1138,7 +1139,7 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                     disabled={pending}
                     onClick={() => setConfirmDelete(e.id)}
                   >
-                    <i className="ph ph-trash" /> Remove
+                    <Icon name="trash" /> Remove
                   </button>
                 )}
               </div>

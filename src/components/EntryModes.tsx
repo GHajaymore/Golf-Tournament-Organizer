@@ -11,6 +11,7 @@ import { VoiceAsk } from "./VoiceAsk";
 import { entryModeFor } from "@/lib/formats";
 import type { VoiceContext } from "@/lib/domain/voice-query";
 import type { VenueCourse } from "./VenuePrompt";
+import { Icon } from "./Icon";
 
 export interface EntryRound {
   stageId: string;
@@ -189,7 +190,7 @@ export function EntryModes({
             </div>
             {(courseName || eventDates) && (
               <span className="text-muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                <i className="ph ph-map-pin" style={{ marginRight: 4 }} />
+                <Icon name="map-pin" style={{ marginRight: 4 }} />
                 {/* The round's real format leads, because the control above
                     used to be the only thing on this screen naming a format
                     and it was naming the wrong one. */}
@@ -203,7 +204,7 @@ export function EntryModes({
                 onClick={() => setImporting((v) => !v)}
                 title="Bring in a whole round from a spreadsheet"
               >
-                <i className="ph ph-upload-simple" /> {importing ? "Close import" : "Import scores"}
+                <Icon name="upload-simple" /> {importing ? "Close import" : "Import scores"}
               </button>
             )}
             {isStaff && !clearing && (
@@ -213,7 +214,7 @@ export function EntryModes({
                 onClick={() => setClearing(true)}
                 title="Remove this round's scores without touching the draw"
               >
-                <i className="ph ph-eraser" /> Clear scores
+                <Icon name="eraser" /> Clear scores
               </button>
             )}
           </div>

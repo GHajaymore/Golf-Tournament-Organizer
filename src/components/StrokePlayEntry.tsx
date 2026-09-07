@@ -15,6 +15,7 @@ import { boardKind } from "@/lib/formats";
 import { cardTotals, TOTAL_LABEL } from "@/lib/domain/card-totals";
 import { isCardLocked } from "@/lib/domain/card-approval";
 import { saveScorecard } from "@/app/actions/tournament";
+import { Icon } from "./Icon";
 
 interface StrokePlayer {
   id: string;
@@ -328,7 +329,7 @@ export function StrokePlayEntry({
           onClick={toggleListen}
           style={listening ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
         >
-          <i className={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
+          <Icon name={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
           {listening ? "Listening…" : "Voice entry"}
         </button>
         <span className="text-muted" style={{ fontSize: 12 }}>{listenHint}</span>
@@ -377,7 +378,7 @@ export function StrokePlayEntry({
                 : { fontSize: 12.5 }
             }
           >
-            <i className={v === "hole" ? "ph ph-flag" : "ph ph-table"} />{" "}
+            <Icon name={v === "hole" ? "ph ph-flag" : "ph ph-table"} />{" "}
             {v === "hole" ? "Hole by hole" : "Full card"}
           </button>
         ))}
@@ -454,7 +455,7 @@ export function StrokePlayEntry({
           )}
         </span>
         <button type="button" className="btn btn-primary" disabled={pending} onClick={save}>
-          <i className="ph ph-check" /> Save scorecard
+          <Icon name="check" /> Save scorecard
         </button>
       </div>
     </div>

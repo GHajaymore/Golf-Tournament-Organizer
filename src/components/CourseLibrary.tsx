@@ -17,6 +17,7 @@ import { CoursePicker } from "@/components/CoursePicker";
 import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
 import { isDirectorySource, type CardDifference } from "@/lib/domain/course-directory";
 import type { ClubCourse } from "@/lib/services/courses";
+import { Icon } from "./Icon";
 
 /** The result of asking the directory whether a course has changed. */
 interface SourceCheck {
@@ -286,7 +287,7 @@ export function CourseLibrary({
                             : `${c.name}: unverified card`
                         }
                       >
-                        <i className="ph ph-seal-question" aria-hidden /> Unverified
+                        <Icon name="seal-question" aria-hidden /> Unverified
                       </span>
                     )}
                     {c.verified && c.verifiedBy && (
@@ -302,7 +303,7 @@ export function CourseLibrary({
                         aria-label={`Card checked by ${c.verifiedBy}`}
                         role="img"
                       >
-                        <i className="ph ph-seal-check" aria-hidden />
+                        <Icon name="seal-check" aria-hidden />
                       </span>
                     )}
                   </td>
@@ -515,7 +516,7 @@ export function CourseLibrary({
                   })
                 }
               >
-                <i className="ph ph-download-simple" /> Take the directory&rsquo;s card
+                <Icon name="download-simple" /> Take the directory&rsquo;s card
               </button>
             )}
             <button
@@ -536,14 +537,14 @@ export function CourseLibrary({
           rewrite a card they confirmed. */}
       {canEdit && courses.some((c) => isDirectorySource(c.sourceUrl)) && (
         <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
-          <i className="ph ph-arrows-clockwise" /> <b>Check source</b> asks the directory whether an
+          <Icon name="arrows-clockwise" /> <b>Check source</b> asks the directory whether an
           imported card has changed. It never writes: you see what differs and decide.
         </p>
       )}
 
       {courses.some((c) => !c.verified) && (
         <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.5 }}>
-          <i className="ph ph-seal-question" /> An <b>unverified</b> card was imported and nobody has
+          <Icon name="seal-question" /> An <b>unverified</b> card was imported and nobody has
           checked it against the real one. The part that matters is the stroke index: it is invisible
           in play, so a wrong one quietly sends handicap shots to the wrong holes for as long as the
           course is on this list.
@@ -598,19 +599,19 @@ export function CourseLibrary({
             background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
           }}
         >
-          <i className="ph ph-flag" /> {selectedCount} venues — set the course per round on Rounds &amp;
+          <Icon name="flag" /> {selectedCount} venues — set the course per round on Rounds &amp;
           format, and per match in Score entry where it varies.
         </p>
       )}
 
       {error && (
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
       {notice && (
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-accent)" }}>
-          <i className="ph ph-check-circle" /> {notice}
+          <Icon name="check-circle" /> {notice}
         </p>
       )}
 
@@ -639,17 +640,17 @@ export function CourseLibrary({
               covers US courses only, so the two paths that always work stay
               right beside it rather than behind it. */}
           <button type="button" className="btn" onClick={() => { setCheck(null); setSearching(true); }}>
-            <i className="ph ph-magnifying-glass" /> Look up a course
+            <Icon name="magnifying-glass" /> Look up a course
           </button>
           <button type="button" className="btn btn-secondary" onClick={() => { resetForm(); setAdding(true); }}>
-            <i className="ph ph-plus" /> Add a course
+            <Icon name="plus" /> Add a course
           </button>
           {/* The bundled "presets" that used to sit here were four invented
               courses with invented stroke indexes. Pasting the real card off
               the club website takes about the same number of clicks and is
               the actual course. */}
           <button type="button" className="btn btn-secondary" onClick={() => setPasting(true)}>
-            <i className="ph ph-clipboard-text" /> Paste a card
+            <Icon name="clipboard-text" /> Paste a card
           </button>
         </div>
       )}
@@ -689,12 +690,12 @@ export function CourseLibrary({
             />
             {pasteNote && (
               <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-300)" }}>
-                <i className="ph ph-check-circle" /> {pasteNote}
+                <Icon name="check-circle" /> {pasteNote}
               </p>
             )}
             {pasteProblems.map((m, i) => (
               <p key={i} style={{ fontSize: 11.5, margin: "3px 0 0", color: "var(--color-danger)" }}>
-                <i className="ph ph-warning-circle" /> {m}
+                <Icon name="warning-circle" /> {m}
               </p>
             ))}
           </div>
@@ -731,7 +732,7 @@ export function CourseLibrary({
 
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <button type="button" className="btn btn-primary" disabled={pending || !name.trim()} onClick={save}>
-              <i className="ph ph-check" /> {pending ? "Saving…" : editing ? "Save course" : "Add course"}
+              <Icon name="check" /> {pending ? "Saving…" : editing ? "Save course" : "Add course"}
             </button>
             <button type="button" className="btn" disabled={pending} onClick={resetForm}>
               Cancel

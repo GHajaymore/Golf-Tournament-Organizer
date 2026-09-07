@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveHandicapPolicy, saveScoreReporting } from "@/app/actions/handicap-policy";
 import FieldInfo from "@/components/FieldInfo";
+import { Icon } from "./Icon";
 
 /**
  * Where this club's handicaps come from, and whether rounds go back.
@@ -179,7 +180,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
 
       {error && (
         <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
     </section>

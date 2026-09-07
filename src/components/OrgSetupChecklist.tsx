@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { OrgSetupState } from "@/lib/domain/org-setup";
+import { Icon } from "./Icon";
 
 /**
  * What is left to set up for the ORGANIZATION, and what each undone step costs.
@@ -100,8 +101,7 @@ export function OrgSetupChecklist({
           return (
             <li key={step.key}>
               <Row>
-                <i
-                  className={step.done ? "ph-fill ph-check-circle" : "ph ph-circle-dashed"}
+                <Icon name={step.done ? "ph-fill ph-check-circle" : "ph ph-circle-dashed"}
                   style={{
                     fontSize: 19,
                     marginTop: 1,
@@ -138,7 +138,7 @@ export function OrgSetupChecklist({
                       className="text-muted"
                       style={{ display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}
                     >
-                      <i className="ph ph-warning-circle" aria-hidden="true" /> {step.consequence}
+                      <Icon name="warning-circle" aria-hidden="true" /> {step.consequence}
                     </span>
                   )}
                   {here && (
@@ -150,7 +150,7 @@ export function OrgSetupChecklist({
                       className="text-muted"
                       style={{ display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}
                     >
-                      <i className="ph ph-arrow-elbow-down-right" aria-hidden="true" /> You do this
+                      <Icon name="arrow-elbow-down-right" aria-hidden="true" /> You do this
                       one on this page.
                     </span>
                   )}

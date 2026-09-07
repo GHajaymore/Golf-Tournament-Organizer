@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { toParText } from "@/lib/domain";
+import { Icon } from "./Icon";
 
 /**
  * One hole at a time, for everyone sharing the card.
@@ -307,10 +308,10 @@ export function HoleByHoleCard({
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <button type="button" className="btn btn-secondary" onClick={() => go(hole - 1)} disabled={hole === 0} style={{ flex: 1, minHeight: 46 }}>
-          <i className="ph ph-caret-left" /> Previous
+          <Icon name="caret-left" /> Previous
         </button>
         <button type="button" className="btn btn-secondary" onClick={() => go(hole + 1)} disabled={hole === holes - 1} style={{ flex: 1, minHeight: 46 }}>
-          Next <i className="ph ph-caret-right" />
+          Next <Icon name="caret-right" />
         </button>
       </div>
     </div>

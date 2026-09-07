@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { saveOrganizationCurrency } from "@/app/actions/organization";
 import { CURRENCIES, money, currencySymbol } from "@/lib/domain/money-format";
 import FieldInfo from "@/components/FieldInfo";
+import { Icon } from "./Icon";
 
 /**
  * What this club's money is written in.
@@ -81,7 +82,7 @@ export function CurrencyPicker({ currency }: { currency: string }) {
 
       {error && (
         <p style={{ fontSize: 12.5, margin: "6px 0 0", color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
       {saved && !error && (

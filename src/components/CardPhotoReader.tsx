@@ -4,6 +4,7 @@ import { readScorecardPhoto, readGroupCardPhoto } from "@/app/actions/card-photo
 import FieldInfo from "@/components/FieldInfo";
 import { LockedFeature } from "@/components/LockedFeature";
 import { shrinkPhoto } from "@/lib/photo-upload";
+import { Icon } from "./Icon";
 
 /**
  * Read a paper card from a photograph, then hand the numbers to a person.
@@ -149,7 +150,7 @@ export function CardPhotoReader({
           disabled={pending || players.length === 0}
           onClick={() => fileRef.current?.click()}
         >
-          <i className="ph ph-camera" />{" "}
+          <Icon name="camera" />{" "}
           {pending ? "Reading…" : solo ? "Read from a photo" : "Read the whole card"}
         </button>
         <FieldInfo label="reading a card from a photo">
@@ -203,14 +204,14 @@ export function CardPhotoReader({
       )}
       {orphans.length > 0 && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-warning)", lineHeight: 1.5 }}>
-          <i className="ph ph-warning-circle" /> Read {orphans.length === 1 ? "a row" : "rows"} for{" "}
+          <Icon name="warning-circle" /> Read {orphans.length === 1 ? "a row" : "rows"} for{" "}
           <b>{orphans.join(", ")}</b>, who {orphans.length === 1 ? "is" : "are"} not in this group.
           Those scores were left out — check you photographed the right card.
         </p>
       )}
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)", lineHeight: 1.5 }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
       <p className="text-muted" style={{ fontSize: 11, margin: 0 }}>

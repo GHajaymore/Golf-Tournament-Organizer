@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { setStageDeadlineOverride } from "@/app/actions/tournament";
 import { deadlineState } from "@/lib/deadline";
+import { Icon } from "./Icon";
 
 /**
  * Close a round early, or keep it open past its deadline.
@@ -54,7 +55,7 @@ export function RoundDeadlineControl({
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span className={`tag ${tone}`} style={{ fontSize: 11 }}>
-          <i className={status.open ? "ph ph-lock-open" : "ph ph-lock"} /> {label[status.state]}
+          <Icon name={status.open ? "ph ph-lock-open" : "ph ph-lock"} /> {label[status.state]}
         </span>
         {status.overridden && (
           <span className="text-muted" style={{ fontSize: 11 }}>
@@ -82,7 +83,7 @@ export function RoundDeadlineControl({
           style={{ fontSize: 12, padding: "3px 9px" }}
           onClick={() => set(true)}
         >
-          <i className="ph ph-lock" /> Close {roundLabel} now
+          <Icon name="lock" /> Close {roundLabel} now
         </button>
         <button
           type="button"
@@ -91,7 +92,7 @@ export function RoundDeadlineControl({
           style={{ fontSize: 12, padding: "3px 9px" }}
           onClick={() => set(false)}
         >
-          <i className="ph ph-clock-clockwise" /> Keep it open
+          <Icon name="clock-clockwise" /> Keep it open
         </button>
       </div>
 

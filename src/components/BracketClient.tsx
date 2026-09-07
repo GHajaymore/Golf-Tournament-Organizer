@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { setBracketWinner, setBracketResult } from "@/app/actions/tournament";
 import type { BracketView } from "@/lib/domain";
+import { Icon } from "./Icon";
 
 function BracketBoard({
   view,
@@ -81,7 +82,7 @@ function BracketBoard({
         ))}
         <div style={{ flex: "none", width: 150, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 6, textAlign: "center" }}>
           <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-neutral-500)" }}>Champion</div>
-          <i className="ph-fill ph-trophy" style={{ fontSize: 30, color: "var(--color-accent)" }} />
+          <Icon name="trophy" weight="fill" style={{ fontSize: 30, color: "var(--color-accent)" }} />
           <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>{view.champion?.name ?? "TBD"}</div>
         </div>
       </div>

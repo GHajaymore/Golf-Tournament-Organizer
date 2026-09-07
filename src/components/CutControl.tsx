@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { setStageCut, setStageCutScope } from "@/app/actions/tournament";
 import { cutAdvancesEveryone } from "@/lib/domain/cut";
+import { Icon } from "./Icon";
 
 export function CutControl({
   formId,
@@ -190,7 +191,7 @@ export function CutControl({
             border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
           }}
         >
-          <i className="ph ph-warning" style={{ marginTop: 1 }} />
+          <Icon name="warning" style={{ marginTop: 1 }} />
           <span>
             This cut advances the whole {perFlight ? "flight" : "field"} — everyone gets through, so{" "}
             {roundLabel} plays the same field with or without it. Lower the {m === "percent" ? "percentage" : "number"} to

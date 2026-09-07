@@ -1,4 +1,5 @@
 import { ruleFor, RULE_SOURCE_LABEL } from "@/lib/rules";
+import { Icon } from "./Icon";
 
 /**
  * A quiet reference to the rule a piece of this app implements.
@@ -35,7 +36,7 @@ export function RuleCite({ rule, showWhy = false }: { rule: string; showWhy?: bo
         }}
         title={`${RULE_SOURCE_LABEL[r.source]} ${r.number} — ${r.title}`}
       >
-        <i className="ph ph-book-open" aria-hidden style={{ marginRight: 3 }} />
+        <Icon name="book-open" aria-hidden style={{ marginRight: 3 }} />
         {RULE_SOURCE_LABEL[r.source]} {r.number}
       </a>
       {showWhy && <span style={{ color: "var(--color-neutral-400)" }}>{r.why}</span>}

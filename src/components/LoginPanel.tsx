@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { signInWithPassword, claimPassword, signUp, requestPasswordReset } from "@/app/actions/auth";
 import { MIN_PASSWORD_LENGTH, passwordHint } from "@/lib/domain/password";
 import type { OrgKind } from "@/lib/domain/org-profile";
+import { Icon } from "./Icon";
 
 /**
  * Standard two-tab auth: Log in / Sign up.
@@ -194,7 +195,7 @@ export function LoginPanel({
         boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 32%, transparent)",
       }}
     >
-      <i className="ph ph-warning-circle" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
+      <Icon name="warning-circle" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
       <span>{error}</span>
     </p>
   ) : null;
@@ -215,7 +216,7 @@ export function LoginPanel({
             color: "var(--color-accent-2-300)",
           }}
         >
-          <i className="ph ph-envelope-simple" style={{ fontSize: 18 }} />
+          <Icon name="envelope-simple" style={{ fontSize: 18 }} />
         </div>
         <Title
           title="Check your email"
@@ -542,9 +543,9 @@ export function LoginPanel({
           boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 22%, transparent)",
         }}
       >
-        <i className="ph ph-flag" style={{ fontSize: 15 }} />
+        <Icon name="flag" style={{ fontSize: 15 }} />
         Playing today? Enter your round code
-        <i className="ph ph-arrow-right" style={{ fontSize: 13 }} />
+        <Icon name="arrow-right" style={{ fontSize: 13 }} />
       </a>
     </>,
   );
@@ -642,7 +643,7 @@ function PasswordInput({
           color: "color-mix(in srgb, var(--color-text) 55%, transparent)",
         }}
       >
-        <i className={shown ? "ph ph-eye-slash" : "ph ph-eye"} style={{ fontSize: 15 }} />
+        <Icon name={shown ? "ph ph-eye-slash" : "ph ph-eye"} style={{ fontSize: 15 }} />
       </button>
     </span>
   );
@@ -666,7 +667,7 @@ function BackLink({ onClick, label }: { onClick: () => void; label: string }) {
         alignSelf: "center",
       }}
     >
-      <i className="ph ph-arrow-left" /> {label}
+      <Icon name="arrow-left" /> {label}
     </button>
   );
 }

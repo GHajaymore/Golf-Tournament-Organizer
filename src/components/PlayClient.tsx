@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult } from "@/app/actions/play";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
+import { Icon } from "./Icon";
 
 interface PlayMatch {
   id: string;
@@ -112,7 +113,7 @@ export function PlayClient(props: Props) {
 
           {error && (
             <p style={{ fontSize: 13, color: "var(--color-danger)" }}>
-              <i className="ph ph-warning-circle" /> {error}
+              <Icon name="warning-circle" /> {error}
             </p>
           )}
 
@@ -192,7 +193,7 @@ export function PlayClient(props: Props) {
 
           {error && (
             <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
-              <i className="ph ph-warning-circle" /> {error}
+              <Icon name="warning-circle" /> {error}
             </p>
           )}
 
@@ -343,7 +344,7 @@ export function PlayClient(props: Props) {
           </button>
           {error && (
             <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
-              <i className="ph ph-warning-circle" /> {error}
+              <Icon name="warning-circle" /> {error}
             </p>
           )}
         </div>
@@ -405,7 +406,7 @@ export function PlayClient(props: Props) {
 
         {error && (
           <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
-            <i className="ph ph-warning-circle" /> {error}
+            <Icon name="warning-circle" /> {error}
           </p>
         )}
 

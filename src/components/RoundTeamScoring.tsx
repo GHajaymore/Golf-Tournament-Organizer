@@ -4,6 +4,7 @@ import { TEAM_ENTRY_MODES, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { setStageAllowance, setStageAllowanceWeights, setStageCountBest } from "@/app/actions/teams";
 import { setStageScoreInput } from "@/app/actions/tournament";
 import FieldInfo from "@/components/FieldInfo";
+import { Icon } from "./Icon";
 
 /**
  * How a team round prices its sides: the handicap allowance, the split where
@@ -111,7 +112,7 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
               not in a footnote and not in a title. */}
           {info.entryMode === "side-only" && info.sideOnlyCost && (
             <p style={{ fontSize: 11.5, margin: 0, lineHeight: 1.6, color: "var(--color-accent)" }}>
-              <i className="ph ph-warning-circle" /> {info.sideOnlyCost}
+              <Icon name="warning-circle" /> {info.sideOnlyCost}
             </p>
           )}
         </>
@@ -342,7 +343,7 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
     </div>

@@ -3,6 +3,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { memberHandicapSuggestion, acceptClubHandicap } from "@/app/actions/roster";
 import type { MemberRecord } from "@/lib/services/handicap-record";
+import { Icon } from "./Icon";
 
 /**
  * What this member's own cards say they should play off.
@@ -139,13 +140,13 @@ export function ClubHandicapPanel({
                   disabled={pending}
                   onClick={accept}
                 >
-                  <i className="ph ph-check" /> Set {memberName} to {record.suggestion.handicap}
+                  <Icon name="check" /> Set {memberName} to {record.suggestion.handicap}
                 </button>
               ) : (
                 // Shown, never offered. The association is the authority and the
                 // action refuses this too — hiding a button stops nobody.
                 <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent)", lineHeight: 1.6 }}>
-                  <i className="ph ph-lock-simple" /> Their handicap comes from their association, so
+                  <Icon name="lock-simple" /> Their handicap comes from their association, so
                   TourneyHQ won&rsquo;t replace it. The record is here to read.
                 </p>
               )}
@@ -162,12 +163,12 @@ export function ClubHandicapPanel({
 
       {note && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent-2-300)" }}>
-          <i className="ph ph-check-circle" /> {note}
+          <Icon name="check-circle" /> {note}
         </p>
       )}
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 

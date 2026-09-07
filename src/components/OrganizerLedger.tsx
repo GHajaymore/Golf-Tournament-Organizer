@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { recordSettlement } from "@/app/actions/expenses";
 import type { MoneyView } from "@/lib/services/expenses";
 import { useMoney } from "@/components/CurrencyProvider";
+import { Icon } from "./Icon";
 
 /**
  * The ledger, for whoever is running it.
@@ -116,7 +117,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
                 }}
               >
                 <span style={{ flex: 1, fontSize: 13 }}>
-                  {t.fromName} <i className="ph ph-arrow-right" aria-label="pays" /> {t.toName}
+                  {t.fromName} <Icon name="arrow-right" aria-label="pays" /> {t.toName}
                 </span>
                 <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(t.cents)}</span>
                 <button
@@ -142,7 +143,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 
@@ -154,7 +155,7 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
         onClick={() => setShowLines((v) => !v)}
         style={{ alignSelf: "flex-start", fontSize: 12.5 }}
       >
-        <i className={showLines ? "ph ph-caret-up" : "ph ph-caret-down"} /> The {view.expenses.length} expense
+        <Icon name={showLines ? "ph ph-caret-up" : "ph ph-caret-down"} /> The {view.expenses.length} expense
         {view.expenses.length === 1 ? "" : "s"} behind it
       </button>
       {showLines && (

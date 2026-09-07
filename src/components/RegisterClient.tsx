@@ -4,6 +4,7 @@ import { registerForEvent, type RegisterResult } from "@/app/actions/register";
 import type { ApprovalMode } from "@/lib/domain/registration-intake";
 import type { RegistrationPrefill } from "@/lib/services/registration";
 import { formatDeadline } from "@/lib/deadline";
+import { Icon } from "./Icon";
 
 /**
  * The self-service registration form.
@@ -106,8 +107,7 @@ export function RegisterClient({
     const good = done.already || done.status === "confirmed";
     return (
       <div className="card elev-sm" style={{ alignItems: "center", textAlign: "center", gap: 10, padding: "26px 20px" }}>
-        <i
-          className={good ? "ph-fill ph-check-circle" : "ph ph-clock"}
+        <Icon name={good ? "ph-fill ph-check-circle" : "ph ph-clock"}
           style={{ fontSize: 34, color: good ? "var(--color-accent-2-300, var(--color-accent))" : "var(--color-accent)" }}
         />
         <h2 style={{ fontSize: 20, margin: 0, fontFamily: "var(--font-heading)" }}>{heading}</h2>
@@ -123,8 +123,7 @@ export function RegisterClient({
         className="card elev-sm"
         style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}
       >
-        <i
-          className={waitlistOnly ? "ph ph-hourglass-medium" : "ph ph-door-open"}
+        <Icon name={waitlistOnly ? "ph ph-hourglass-medium" : "ph ph-door-open"}
           style={{ fontSize: 18, color: waitlistOnly ? "var(--color-accent)" : "var(--color-accent-400)" }}
         />
         <span style={{ fontSize: 13, flex: 1, minWidth: 200 }}>
@@ -147,7 +146,7 @@ export function RegisterClient({
 
       {approvalMode === "approve" && (
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-          <i className="ph ph-info" /> Entries for this event are confirmed by the organizer, so yours will be
+          <Icon name="info" /> Entries for this event are confirmed by the organizer, so yours will be
           held for approval.
         </p>
       )}
@@ -221,11 +220,11 @@ export function RegisterClient({
         </div>
 
         <button type="button" className="btn btn-primary btn-block" disabled={pending} onClick={submit}>
-          <i className="ph ph-check" /> {pending ? "Registering…" : waitlistOnly ? "Join the waitlist" : "Register"}
+          <Icon name="check" /> {pending ? "Registering…" : waitlistOnly ? "Join the waitlist" : "Register"}
         </button>
         {error && (
           <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
-            <i className="ph ph-warning-circle" /> {error}
+            <Icon name="warning-circle" /> {error}
           </p>
         )}
       </div>

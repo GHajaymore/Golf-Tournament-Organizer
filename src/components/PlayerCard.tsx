@@ -8,6 +8,7 @@ import { CardConflict } from "@/components/CardConflict";
 import { RuleCite } from "@/components/RuleCite";
 import { toParText } from "@/lib/domain";
 import { cardRevision } from "@/lib/domain/pending-card";
+import { Icon } from "./Icon";
 
 /**
  * A player's own card, on a phone, outdoors, mid-round.
@@ -378,7 +379,7 @@ export function PlayerCard({
                 checked={view === "hole"}
                 onChange={() => setView("hole")}
               />
-              <i className="ph ph-flag" /> Hole by hole
+              <Icon name="flag" /> Hole by hole
             </label>
             <label className="seg-opt">
               <input
@@ -387,7 +388,7 @@ export function PlayerCard({
                 checked={view === "card"}
                 onChange={() => setView("card")}
               />
-              <i className="ph ph-table" /> Full card
+              <Icon name="table" /> Full card
             </label>
           </div>
 
@@ -541,11 +542,11 @@ export function PlayerCard({
               scorer told otherwise stands on a tee hunting for a bar of signal
               instead of playing their shot.
             */}
-            {card.status.tone === "working" && (<><i className="ph ph-circle-notch" /> {card.status.label}</>)}
-            {card.status.tone === "queued" && (<><i className="ph ph-cloud-arrow-up" /> {card.status.label}</>)}
-            {card.status.tone === "warn" && (<><i className="ph ph-warning-circle" /> {card.status.label}</>)}
+            {card.status.tone === "working" && (<><Icon name="circle-notch" /> {card.status.label}</>)}
+            {card.status.tone === "queued" && (<><Icon name="cloud-arrow-up" /> {card.status.label}</>)}
+            {card.status.tone === "warn" && (<><Icon name="warning-circle" /> {card.status.label}</>)}
             {card.status.tone === "idle" && filled > 0 && (
-              <><i className="ph ph-check" /> Saved — {filled} of {holes} holes in</>
+              <><Icon name="check" /> Saved — {filled} of {holes} holes in</>
             )}
           </div>
 
@@ -558,7 +559,7 @@ export function PlayerCard({
             onClick={certify}
             style={{ width: "100%", minHeight: 52, marginTop: 10 }}
           >
-            <i className="ph ph-check" /> {state === "certified" ? "Certified" : "Certify my card"}
+            <Icon name="check" /> {state === "certified" ? "Certified" : "Certify my card"}
           </button>
 
           <p style={{ margin: "10px 0 0", fontSize: 12.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
@@ -571,12 +572,12 @@ export function PlayerCard({
           </p>
           {note && (
             <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-accent-2-300)" }}>
-              <i className="ph ph-check" /> {note}
+              <Icon name="check" /> {note}
             </p>
           )}
           {error && (
             <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--color-danger)" }}>
-              <i className="ph ph-warning-circle" /> {error}
+              <Icon name="warning-circle" /> {error}
             </p>
           )}
         </>

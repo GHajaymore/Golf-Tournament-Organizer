@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { setEventStatus, launchTournament, setConfigUnlocked } from "@/app/actions/tournament";
 import { STATUS_META } from "@/lib/format";
 import { lifecycleMismatch } from "@/lib/domain/lifecycle-state";
+import { Icon } from "./Icon";
 
 export interface LifecycleSummary {
   name: string;
@@ -66,12 +67,12 @@ export function LifecycleBar({
       >
         <span className="card-kicker">Tournament status</span>
         <span className={`tag ${meta.tag}`} style={{ fontSize: 12 }}>
-          {status === "live" && <i className="ph-fill ph-circle" style={{ fontSize: 7, marginRight: 5 }} />}
+          {status === "live" && <Icon name="circle" weight="fill" style={{ fontSize: 7, marginRight: 5 }} />}
           {meta.label}
         </span>
         {locked && (
           <span className="text-muted" style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <i className="ph ph-lock-simple" /> Configuration locked
+            <Icon name="lock-simple" /> Configuration locked
           </span>
         )}
         <div style={{ flex: 1 }} />
@@ -84,7 +85,7 @@ export function LifecycleBar({
               action.run ? startTransition(action.run) : setConfirming(true)
             }
           >
-            {status === "ready" && <i className="ph ph-rocket-launch" />} {action.label}
+            {status === "ready" && <Icon name="rocket-launch" />} {action.label}
           </button>
         )}
         {isAdmin && (status === "live" || status === "completed") && (
@@ -94,7 +95,7 @@ export function LifecycleBar({
             disabled={pending}
             onClick={() => startTransition(() => setConfigUnlocked(!configUnlocked))}
           >
-            <i className={configUnlocked ? "ph ph-lock-simple" : "ph ph-lock-simple-open"} />{" "}
+            <Icon name={configUnlocked ? "ph ph-lock-simple" : "ph ph-lock-simple-open"} />{" "}
             {configUnlocked ? "Lock configuration" : "Unlock configuration"}
           </button>
         )}
@@ -110,7 +111,7 @@ export function LifecycleBar({
           style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 8 }}
         >
           <span className="card-title" style={{ fontSize: 14 }}>
-            <i className="ph ph-warning-circle" /> {mismatch.title}
+            <Icon name="warning-circle" /> {mismatch.title}
           </span>
           <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
             {mismatch.detail}
@@ -123,7 +124,7 @@ export function LifecycleBar({
               onClick={() => setConfirming(true)}
               style={{ alignSelf: "flex-start" }}
             >
-              <i className="ph ph-rocket-launch" /> Launch tournament
+              <Icon name="rocket-launch" /> Launch tournament
             </button>
           )}
         </div>
@@ -166,7 +167,7 @@ export function LifecycleBar({
                   })
                 }
               >
-                <i className="ph ph-rocket-launch" /> Launch tournament
+                <Icon name="rocket-launch" /> Launch tournament
               </button>
             </div>
           </div>

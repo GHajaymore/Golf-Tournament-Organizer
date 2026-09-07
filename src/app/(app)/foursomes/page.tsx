@@ -15,6 +15,7 @@ import { TeeSheetPrint } from "@/components/TeeSheetPrint";
 import { resolveCourse } from "@/lib/courses";
 import { cardForStage, courseForRound } from "@/lib/services/course-resolution";
 import { brandForEvent } from "@/lib/services/organization";
+import { Icon } from "@/components/Icon";
 
 export default async function FoursomesPage({
   searchParams,
@@ -210,7 +211,7 @@ export default async function FoursomesPage({
           style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 6 }}
         >
           <span className="card-title" style={{ fontSize: 14 }}>
-            <i className="ph ph-warning-circle" /> The published sheet no longer matches the field
+            <Icon name="warning-circle" /> The published sheet no longer matches the field
           </span>
           <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
             {drift.departed.length > 0 && (

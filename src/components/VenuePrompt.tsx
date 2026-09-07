@@ -3,6 +3,7 @@ import { useMemo, useState, useTransition } from "react";
 import { nameMatchVenue } from "@/app/actions/courses";
 import { matchCourse, needsNine, cardProblems, teeProblems } from "@/lib/domain/venue";
 import { parseCard } from "@/lib/domain/scorecard-parse";
+import { Icon } from "./Icon";
 
 const BLANK = new Array(18).fill("");
 
@@ -162,7 +163,7 @@ export function VenuePrompt({
       {/* The club already has it: one tap, real card, nothing to type. */}
       {found?.kind === "exact" && (
         <div className="tag tag-accent-2" style={{ alignSelf: "flex-start" }}>
-          <i className="ph ph-check-circle" /> Using the club&rsquo;s saved card for {found.course.name}
+          <Icon name="check-circle" /> Using the club&rsquo;s saved card for {found.course.name}
         </div>
       )}
 
@@ -210,7 +211,7 @@ export function VenuePrompt({
             <input className="input" style={{ marginTop: 6 }} value={pasteSi} onChange={(e) => setPasteSi(e.target.value)} placeholder="S.I.  7 3 11 1 15 5 17 9 13 …" />
             <input className="input" style={{ marginTop: 6 }} value={pasteYards} onChange={(e) => setPasteYards(e.target.value)} placeholder="Yards (optional)" />
             <button type="button" className="btn btn-secondary" style={{ alignSelf: "flex-start", marginTop: 6 }} onClick={applyPaste}>
-              <i className="ph ph-clipboard" /> Read these rows
+              <Icon name="clipboard" /> Read these rows
             </button>
             <span className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
               Out, In and Total columns are ignored, so a row copied straight
@@ -274,7 +275,7 @@ export function VenuePrompt({
 
       {error && (
         <div style={{ fontSize: 13, color: "var(--color-danger)", fontWeight: 500 }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </div>
       )}
 
@@ -285,7 +286,7 @@ export function VenuePrompt({
         disabled={pending || !typed.trim()}
         onClick={submit}
       >
-        {pending ? "Saving…" : "Use this course"} <i className="ph ph-arrow-right" />
+        {pending ? "Saving…" : "Use this course"} <Icon name="arrow-right" />
       </button>
     </div>
   );

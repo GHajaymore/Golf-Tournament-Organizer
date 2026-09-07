@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { saveTee, deleteTee } from "@/app/actions/courses";
 import { courseHandicap, STANDARD_SLOPE } from "@/lib/domain/handicap";
+import { Icon } from "./Icon";
 
 export interface TeeRow {
   id: string;
@@ -114,7 +115,7 @@ export function TeeEditor({
             disabled={pending}
             onClick={() => open()}
           >
-            <i className="ph ph-plus" /> Add tees
+            <Icon name="plus" /> Add tees
           </button>
         )}
       </div>
@@ -171,7 +172,7 @@ export function TeeEditor({
                         disabled={pending}
                         onClick={() => open(t)}
                       >
-                        <i className="ph ph-pencil-simple" />
+                        <Icon name="pencil-simple" />
                       </button>
                       <button
                         type="button"
@@ -180,7 +181,7 @@ export function TeeEditor({
                         disabled={pending}
                         onClick={() => remove(t.id)}
                       >
-                        <i className="ph ph-trash" />
+                        <Icon name="trash" />
                       </button>
                     </td>
                   )}

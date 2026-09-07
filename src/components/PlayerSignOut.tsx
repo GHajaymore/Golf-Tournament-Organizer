@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { signOutAction } from "@/app/actions/auth";
+import { Icon } from "./Icon";
 
 /**
  * Sign out, for the player's app.
@@ -30,7 +31,7 @@ export function PlayerSignOut({ name }: { name: string }) {
         onClick={() => setAsking(true)}
         style={{ fontSize: 12.5, padding: "6px 10px" }}
       >
-        <i className="ph ph-sign-out" style={{ fontSize: 17 }} />
+        <Icon name="sign-out" style={{ fontSize: 17 }} />
       </button>
 
       {asking && (
@@ -51,7 +52,7 @@ export function PlayerSignOut({ name }: { name: string }) {
                 disabled={pending}
                 onClick={() => startTransition(() => signOutAction())}
               >
-                <i className="ph ph-sign-out" /> Sign out
+                <Icon name="sign-out" /> Sign out
               </button>
             </div>
           </div>

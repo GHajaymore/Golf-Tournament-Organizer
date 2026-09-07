@@ -6,6 +6,7 @@ import { fieldRosterSummary } from "@/lib/domain/roster-link";
 import { csvSizeRefusal } from "@/lib/csv";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { rosterSelection } from "@/lib/domain/roster-selection";
+import { Icon } from "./Icon";
 import {
   addMember,
   updateMember,
@@ -297,7 +298,7 @@ export function RosterClient({
           style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 8 }}
         >
           <span className="card-title" style={{ fontSize: 14 }}>
-            <i className="ph ph-users-three" /> {summary.unlinked} in {eventName}{" "}
+            <Icon name="users-three" /> {summary.unlinked} in {eventName}{" "}
             {summary.unlinked === 1 ? "isn’t" : "aren’t"} on the roster
           </span>
           <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
@@ -312,7 +313,7 @@ export function RosterClient({
             onClick={bringFieldOnto}
             style={{ alignSelf: "flex-start" }}
           >
-            <i className="ph ph-user-plus" />{" "}
+            <Icon name="user-plus" />{" "}
             {pending ? "Adding…" : `Add ${summary.unlinked} to the roster`}
           </button>
         </div>
@@ -354,12 +355,12 @@ export function RosterClient({
 
       {error && (
         <p style={{ fontSize: 13, margin: "0 0 12px", color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
       {notice && (
         <p style={{ fontSize: 13, margin: "0 0 12px", color: "var(--color-accent)" }}>
-          <i className="ph ph-check-circle" /> {notice}
+          <Icon name="check-circle" /> {notice}
         </p>
       )}
 
@@ -472,7 +473,7 @@ export function RosterClient({
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button type="button" className="btn btn-primary" disabled={pending} onClick={submitForm}>
-              <i className="ph ph-check" /> {pending ? "Saving…" : editing ? "Save changes" : "Add member"}
+              <Icon name="check" /> {pending ? "Saving…" : editing ? "Save changes" : "Add member"}
             </button>
             <button type="button" className="btn" disabled={pending} onClick={closeForm}>
               Cancel
@@ -531,13 +532,13 @@ export function RosterClient({
                   setForm(BLANK);
                 }}
               >
-                <i className="ph ph-user-plus" /> Add member
+                <Icon name="user-plus" /> Add member
               </button>
               {/* A club with a membership list already has it in a spreadsheet.
                   Typing it in one member at a time is the reason a roster never
                   gets filled in. */}
               <label className="btn btn-secondary" style={{ cursor: "pointer" }}>
-                <i className="ph ph-upload-simple" /> Import CSV
+                <Icon name="upload-simple" /> Import CSV
                 <input
                   ref={fileRef}
                   type="file"
@@ -592,14 +593,14 @@ export function RosterClient({
               disabled={pending || fieldLocked || addable.length === 0}
               onClick={addSelectedToEvent}
             >
-              <i className="ph ph-user-plus" /> Add {addable.length} to {eventName}
+              <Icon name="user-plus" /> Add {addable.length} to {eventName}
             </button>
             {fieldLocked && (
               // Was a `title` only, which never appears on a phone and is not
               // announced to a screen reader — the exact weak pattern called
               // out when the draw button was fixed.
               <span className="text-muted" style={{ fontSize: 12, flexBasis: "100%" }}>
-                <i className="ph ph-lock-simple" /> The tournament is locked — unlock it on Tournament
+                <Icon name="lock-simple" /> The tournament is locked — unlock it on Tournament
                 details to change the field.
               </span>
             )}
@@ -718,7 +719,7 @@ export function RosterClient({
                       disabled={pending}
                       onClick={() => setRecordFor(recordFor === m.id ? null : m.id)}
                     >
-                      <i className="ph ph-list-numbers" />
+                      <Icon name="list-numbers" />
                     </button>
                     <button
                       type="button"
@@ -727,7 +728,7 @@ export function RosterClient({
                       disabled={pending}
                       onClick={() => startEdit(m)}
                     >
-                      <i className="ph ph-pencil-simple" />
+                      <Icon name="pencil-simple" />
                     </button>
                     <button
                       type="button"
@@ -738,7 +739,7 @@ export function RosterClient({
                         run(() => setMemberStatus(m.id, m.status === "active" ? "inactive" : "active"))
                       }
                     >
-                      <i className={m.status === "active" ? "ph ph-archive" : "ph ph-arrow-counter-clockwise"} />
+                      <Icon name={m.status === "active" ? "ph ph-archive" : "ph ph-arrow-counter-clockwise"} />
                     </button>
                     {/* Present and refusing, rather than absent. It used to
                         render only when entryCount was 0, so the control simply
@@ -759,7 +760,7 @@ export function RosterClient({
                       disabled={pending || m.entryCount > 0}
                       onClick={() => run(() => deleteMember(m.id))}
                     >
-                      <i className="ph ph-trash" />
+                      <Icon name="trash" />
                     </button>
                   </td>
                 </tr>
@@ -788,7 +789,7 @@ export function RosterClient({
             it is in the same row. */}
         {visible.some((m) => m.entryCount > 0) && (
           <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", lineHeight: 1.5 }}>
-            <i className="ph ph-info" /> A member who has played cannot be removed — their results
+            <Icon name="info" /> A member who has played cannot be removed — their results
             would lose the person they belong to. Set them inactive instead: they drop out of every
             field and stay in the record.
           </p>
@@ -845,8 +846,7 @@ export function ImportSummary({
         boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${bad ? "var(--color-danger)" : "var(--color-accent-2)"} 30%, transparent)`,
       }}
     >
-      <i
-        className={bad ? "ph ph-warning-circle" : "ph ph-check-circle"}
+      <Icon name={bad ? "ph ph-warning-circle" : "ph ph-check-circle"}
         style={{ fontSize: 15, marginTop: 1, flex: "none" }}
       />
       <div style={{ flex: 1 }}>
@@ -872,7 +872,7 @@ export function ImportSummary({
         aria-label="Dismiss"
         style={{ width: 24, height: 24, flex: "none" }}
       >
-        <i className="ph ph-x" style={{ fontSize: 12 }} />
+        <Icon name="x" style={{ fontSize: 12 }} />
       </button>
     </div>
   );

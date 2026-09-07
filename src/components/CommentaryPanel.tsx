@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { postCommentary, deleteCommentary, suggestCommentary } from "@/app/actions/commentary";
+import { Icon } from "./Icon";
 
 export interface CommentaryItem {
   id: string;
@@ -35,7 +36,7 @@ export function CommentaryPanel({
     <div className="card elev-sm">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span className="card-title" style={{ fontSize: 15 }}>
-          <i className="ph ph-megaphone" style={{ marginRight: 6, color: "var(--color-accent)" }} />
+          <Icon name="megaphone" style={{ marginRight: 6, color: "var(--color-accent)" }} />
           Commentary
         </span>
       </div>
@@ -68,7 +69,7 @@ export function CommentaryPanel({
               disabled={busy || !aiAvailable}
               onClick={draftAi}
             >
-              <i className={aiAvailable ? "ph ph-sparkle" : "ph ph-lock-simple"} />{" "}
+              <Icon name={aiAvailable ? "ph ph-sparkle" : "ph ph-lock-simple"} />{" "}
               {busy ? "Drafting…" : "AjAi draft"}
             </button>
             {!aiAvailable && (
@@ -86,7 +87,7 @@ export function CommentaryPanel({
                 setText("");
               }}
             >
-              <i className="ph ph-paper-plane-tilt" /> Post
+              <Icon name="paper-plane-tilt" /> Post
             </button>
           </div>
         </div>
@@ -112,7 +113,7 @@ export function CommentaryPanel({
             </div>
             {canPost && (
               <button type="button" className="btn btn-icon" disabled={pending} onClick={() => startTransition(() => deleteCommentary(c.id))} style={{ width: 26, height: 26 }}>
-                <i className="ph ph-x" />
+                <Icon name="x" />
               </button>
             )}
           </div>

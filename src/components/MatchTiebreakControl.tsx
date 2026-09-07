@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { setMatchTiebreakers } from "@/app/actions/tournament";
+import { Icon } from "./Icon";
 import {
   OFFERED_MATCH_TIEBREAKS,
   MATCH_TIEBREAK_LABELS,
@@ -83,7 +84,7 @@ export function MatchTiebreakControl({
             disabled={pending || isStandard}
             onClick={() => commit([...standard])}
           >
-            <i className="ph ph-list-numbers" /> Use the standard countback
+            <Icon name="list-numbers" /> Use the standard countback
           </button>
           {seq.length > 0 && (
             <button
@@ -138,7 +139,7 @@ export function MatchTiebreakControl({
                     disabled={pending || i === 0}
                     onClick={() => move(key, -1)}
                   >
-                    <i className="ph ph-caret-up" style={{ fontSize: 11 }} />
+                    <Icon name="caret-up" style={{ fontSize: 11 }} />
                   </button>
                   <button
                     type="button"
@@ -148,7 +149,7 @@ export function MatchTiebreakControl({
                     disabled={pending || i === seq.length - 1}
                     onClick={() => move(key, 1)}
                   >
-                    <i className="ph ph-caret-down" style={{ fontSize: 11 }} />
+                    <Icon name="caret-down" style={{ fontSize: 11 }} />
                   </button>
                   <button
                     type="button"
@@ -158,7 +159,7 @@ export function MatchTiebreakControl({
                     disabled={pending}
                     onClick={() => toggle(key)}
                   >
-                    <i className="ph ph-x" style={{ fontSize: 10 }} />
+                    <Icon name="x" style={{ fontSize: 10 }} />
                   </button>
                 </>
               )}
@@ -188,7 +189,7 @@ export function MatchTiebreakControl({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500 }}>
-                  <i className="ph ph-plus" style={{ fontSize: 11, color: "var(--color-accent-400)" }} />
+                  <Icon name="plus" style={{ fontSize: 11, color: "var(--color-accent-400)" }} />
                   {MATCH_TIEBREAK_LABELS[key]}
                 </div>
                 {/* The blurb was a `title`, so what "countback" actually does

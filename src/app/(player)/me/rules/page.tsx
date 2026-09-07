@@ -4,6 +4,7 @@ import { loadEventState, scoringFrom } from "@/lib/services/tournament";
 import { prisma } from "@/lib/db";
 import { RULES, RULE_SOURCE_LABEL, tournamentTerms, ruleFor } from "@/lib/rules";
 import type { TiebreakerKey } from "@/lib/domain";
+import { Icon } from "@/components/Icon";
 
 /**
  * The rules, for a player standing on the course.
@@ -91,7 +92,7 @@ export default async function PlayRulesPage() {
                           textDecoration: "none",
                         }}
                       >
-                        <i className="ph ph-book-open" aria-hidden style={{ marginRight: 4 }} />
+                        <Icon name="book-open" aria-hidden style={{ marginRight: 4 }} />
                         under {RULE_SOURCE_LABEL[r.source]} {r.number}
                       </a>
                     )}
@@ -148,7 +149,7 @@ export default async function PlayRulesPage() {
                 <span style={{ color: "var(--color-accent-300)", marginRight: 6 }}>{r.number}</span>
                 {r.title}
               </span>
-              <i className="ph ph-arrow-square-out" aria-hidden style={{ color: "var(--color-neutral-400)" }} />
+              <Icon name="arrow-square-out" aria-hidden style={{ color: "var(--color-neutral-400)" }} />
             </a>
           ))}
         </div>

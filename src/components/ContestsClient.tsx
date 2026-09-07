@@ -14,6 +14,7 @@ import { DERIVED_KINDS, DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived
 import { PersonChip } from "@/components/PersonChip";
 import FieldInfo from "@/components/FieldInfo";
 import { useMoney } from "@/components/CurrencyProvider";
+import { Icon } from "./Icon";
 
 /**
  * The derived pots, in the order a club would read them. Nassau is last and
@@ -187,7 +188,7 @@ export function ContestsClient({
         <span className="card-title">Side bets — {roundLabel}</span>
         {!adding && (
           <button type="button" className="btn btn-secondary" onClick={() => setAdding(true)} disabled={pending}>
-            <i className="ph ph-plus" /> Add a bet
+            <Icon name="plus" /> Add a bet
           </button>
         )}
       </div>
@@ -496,7 +497,7 @@ export function ContestsClient({
               disabled={pending}
               onClick={() => run(() => removeContest(c.id))}
             >
-              <i className="ph ph-trash" /> Remove this bet
+              <Icon name="trash" /> Remove this bet
             </button>
           </div>
         );
@@ -505,7 +506,7 @@ export function ContestsClient({
 
       {error && (
         <p style={{ fontSize: 12.5, marginTop: 10, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
     </section>

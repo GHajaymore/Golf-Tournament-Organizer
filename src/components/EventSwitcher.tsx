@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { switchEvent, createEvent, cloneEvent, deleteEvent } from "@/app/actions/tournament";
 import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
+import { Icon } from "./Icon";
 
 /** Marks a "Start from" value as an event id rather than a template key, so the
  *  two namespaces can share one select without ever colliding. */
@@ -86,10 +87,10 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
                         <>
                           <span className="text-muted" style={{ fontSize: 12 }}>Delete?</span>
                           <button type="button" className="btn btn-icon" title="Confirm delete" disabled={pending} style={{ color: "var(--color-accent)" }} onClick={() => startTransition(() => deleteEvent(e.id))}>
-                            <i className="ph ph-check" />
+                            <Icon name="check" />
                           </button>
                           <button type="button" className="btn btn-icon" title="Cancel" onClick={() => setConfirmingId("")}>
-                            <i className="ph ph-x" />
+                            <Icon name="x" />
                           </button>
                         </>
                       ) : (
@@ -105,7 +106,7 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
                           )}
                           {e.isOrganizer && (
                             <button type="button" className="btn btn-icon" title="Delete tournament" disabled={pending} onClick={() => setConfirmingId(e.id)}>
-                              <i className="ph ph-trash" />
+                              <Icon name="trash" />
                             </button>
                           )}
                         </>
@@ -155,7 +156,7 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
             setName("");
           }}
         >
-          <i className="ph ph-plus" /> Create tournament
+          <Icon name="plus" /> Create tournament
         </button>
       </div>
       <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{blurb}</p>

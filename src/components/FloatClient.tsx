@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { addFundLine, removeFundLine } from "@/app/actions/money-setup";
 import { floatSummary, type FundLine } from "@/lib/domain/money-mode";
 import { useMoney } from "@/components/CurrencyProvider";
+import { Icon } from "./Icon";
 
 /**
  * The tournament's kitty.
@@ -120,7 +121,7 @@ export function FloatClient({
                   disabled={pending}
                   onClick={() => run(() => removeFundLine(l.id))}
                 >
-                  <i className="ph ph-trash" />
+                  <Icon name="trash" />
                 </button>
               )}
             </div>
@@ -246,12 +247,12 @@ export function FloatClient({
             onClick={submit}
             style={{ justifyContent: "center" }}
           >
-            <i className="ph ph-plus" /> Record {direction === "in" ? "money in" : "money out"}
+            <Icon name="plus" /> Record {direction === "in" ? "money in" : "money out"}
           </button>
 
           {error && (
             <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-              <i className="ph ph-warning-circle" /> {error}
+              <Icon name="warning-circle" /> {error}
             </p>
           )}
         </div>

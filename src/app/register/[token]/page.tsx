@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { OrgBrand } from "@/components/OrgBrand";
 import { RegisterClient } from "@/components/RegisterClient";
 import { NOINDEX } from "@/lib/site";
+import { Icon } from "@/components/Icon";
 
 /**
  * The public self-service registration page.
@@ -45,7 +46,7 @@ function NotOpen() {
           <OrgBrand brand={null} />
         </div>
         <div className="card elev-sm" style={{ alignItems: "center", gap: 8 }}>
-          <i className="ph ph-lock-simple" style={{ fontSize: 26, color: "var(--color-neutral-500)" }} />
+          <Icon name="lock-simple" style={{ fontSize: 26, color: "var(--color-neutral-500)" }} />
           <h1 style={{ fontSize: 19, margin: 0, fontFamily: "var(--font-heading)" }}>
             This registration link isn&rsquo;t open
           </h1>

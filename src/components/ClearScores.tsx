@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { clearRoundScores } from "@/app/actions/tournament";
+import { Icon } from "./Icon";
 
 /**
  * Clear a round's scores — a selection, or all of them.
@@ -129,12 +130,12 @@ export function ClearScores({
 
       {error && (
         <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
       {done !== null && (
         <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-accent-2-400)" }}>
-          <i className="ph ph-check" /> Cleared {done} card{done === 1 ? "" : "s"}.
+          <Icon name="check" /> Cleared {done} card{done === 1 ? "" : "s"}.
         </p>
       )}
 
@@ -153,7 +154,7 @@ export function ClearScores({
             disabled={pending}
             onClick={run}
           >
-            <i className="ph ph-trash" />{" "}
+            <Icon name="trash" />{" "}
             {pending
               ? "Clearing…"
               : all
@@ -181,7 +182,7 @@ export function ClearScores({
             setConfirming(true);
           }}
         >
-          <i className="ph ph-eraser" /> {all ? "Clear the whole round" : `Clear ${picked.size} selected`}
+          <Icon name="eraser" /> {all ? "Clear the whole round" : `Clear ${picked.size} selected`}
         </button>
       )}
     </div>

@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { addAnnouncement, toggleAnnouncementPin, removeAnnouncement } from "@/app/actions/tournament";
 import { DraftAssistant } from "@/components/DraftAssistant";
+import { Icon } from "./Icon";
 
 export interface AnnouncementRow {
   id: string;
@@ -63,7 +64,7 @@ export function AnnouncementsClient({
             Pin to the top of players&rsquo; dashboards
           </label>
           <button type="button" className="btn btn-primary" disabled={pending} onClick={submit}>
-            <i className="ph ph-megaphone" /> Post
+            <Icon name="megaphone" /> Post
           </button>
         </div>
       </div>
@@ -87,7 +88,7 @@ export function AnnouncementsClient({
         {items.map((a) => (
           <div key={a.id} className="card elev-sm" style={{ gap: 6 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              {a.pinned && <span className="tag tag-accent"><i className="ph ph-push-pin" /> Pinned</span>}
+              {a.pinned && <span className="tag tag-accent"><Icon name="push-pin" /> Pinned</span>}
               <span style={{ fontWeight: 600, fontSize: 15 }}>{a.title}</span>
               <span className="text-muted" style={{ fontSize: 12 }}>· {a.when}</span>
               <div style={{ flex: 1 }} />
@@ -98,7 +99,7 @@ export function AnnouncementsClient({
                 disabled={pending}
                 onClick={() => startTransition(() => toggleAnnouncementPin(a.id, !a.pinned))}
               >
-                <i className={a.pinned ? "ph-fill ph-push-pin" : "ph ph-push-pin"} />
+                <Icon name={a.pinned ? "ph-fill ph-push-pin" : "ph ph-push-pin"} />
               </button>
               <button
                 type="button"
@@ -107,7 +108,7 @@ export function AnnouncementsClient({
                 disabled={pending}
                 onClick={() => startTransition(() => removeAnnouncement(a.id))}
               >
-                <i className="ph ph-trash" />
+                <Icon name="trash" />
               </button>
             </div>
             {a.body && <p className="text-muted" style={{ fontSize: 13, margin: 0, whiteSpace: "pre-wrap" }}>{a.body}</p>}

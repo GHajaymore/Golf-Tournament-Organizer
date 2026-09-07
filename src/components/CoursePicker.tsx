@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { rankCourses, tierOf, Tier } from "@/lib/domain/course-ranking";
+import { Icon } from "./Icon";
 import {
   searchCourseDirectory,
   importCourseFromDirectory,
@@ -376,7 +377,7 @@ export function CoursePicker({
                 setActive(-1);
               }}
             >
-              <i className="ph ph-plus" /> Use &ldquo;{query.trim()}&rdquo;
+              <Icon name="plus" /> Use &ldquo;{query.trim()}&rdquo;
             </button>
           )}
 

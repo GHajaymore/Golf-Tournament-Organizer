@@ -4,6 +4,7 @@ import { NAV } from "@/lib/nav";
 import { ScoreImport } from "@/components/ScoreImport";
 import FieldInfo from "@/components/FieldInfo";
 import { NOINDEX } from "@/lib/site";
+import { Icon } from "@/components/Icon";
 
 // 404s in production already, so this is belt to that brace — and it keeps the
 // rule "every route that is not marketing says noindex" true without an
@@ -137,7 +138,7 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
           <button type="button" className="btn btn-primary">Enter scores</button>
           <button type="button" className="btn btn-secondary">Publish</button>
           <button type="button" className="btn btn-ghost">Cancel</button>
-          <button type="button" className="btn btn-icon"><i className="ph ph-trash" /></button>
+          <button type="button" className="btn btn-icon"><Icon name="trash" /></button>
           <button type="button" className="btn btn-primary" disabled>Disabled</button>
         </div>
       </Section>
@@ -235,7 +236,7 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
             <span className="card-kicker">Round 2</span>
             <span className="card-title">Four-Ball</span>
             <p className="card-body">Sides of two, 90% allowance.</p>
-            <div className="card-meta"><i className="ph ph-users-three" /> 16 sides</div>
+            <div className="card-meta"><Icon name="users-three" /> 16 sides</div>
           </div>
           <div className="card elev-md">
             <span className="card-kicker">Elevated</span>
@@ -249,7 +250,7 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingLeft: 8 }}>
           {NAV[0].items.map((item, i) => (
             <a key={item.key} className="side-link" href="#" aria-current={i === 0 ? "page" : undefined}>
-              <i className={item.icon} />
+              <Icon name={item.icon} />
               {item.label}
             </a>
           ))}
@@ -264,7 +265,7 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
             boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 32%, transparent)",
           }}
         >
-          <i className="ph ph-warning-circle" /> That reset link has expired — request a new one.
+          <Icon name="warning-circle" /> That reset link has expired — request a new one.
         </p>
       </Section>
 
@@ -353,15 +354,15 @@ function Ground({ id, appearance }: { id: string; appearance: Appearance }) {
       <Section title="Entry modes">
         <div className="mode-pick">
           <button type="button" className="mode-opt" aria-pressed>
-            <span className="mode-opt-head"><i className="ph ph-flag" /> Hole-by-hole result</span>
+            <span className="mode-opt-head"><Icon name="flag" /> Hole-by-hole result</span>
             <span className="mode-opt-blurb">Who won each hole. What a player actually tracks while playing match play.</span>
           </button>
           <button type="button" className="mode-opt">
-            <span className="mode-opt-head"><i className="ph ph-cards" /> Full scorecard</span>
+            <span className="mode-opt-head"><Icon name="cards" /> Full scorecard</span>
             <span className="mode-opt-blurb">Both players&rsquo; strokes on every hole. The only one that survives a change from gross to net.</span>
           </button>
           <button type="button" className="mode-opt" disabled>
-            <span className="mode-opt-head"><i className="ph ph-check-circle" /> Final result only</span>
+            <span className="mode-opt-head"><Icon name="check-circle" /> Final result only</span>
             <span className="mode-opt-blurb">Just the margin — &ldquo;3&amp;2&rdquo;.</span>
             <span className="mode-opt-why">Set the course for this match first — strokes need its par and stroke index.</span>
           </button>

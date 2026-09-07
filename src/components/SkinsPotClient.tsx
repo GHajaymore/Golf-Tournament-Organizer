@@ -6,6 +6,7 @@ import { renameBet } from "@/app/actions/bet-name";
 import FieldInfo from "@/components/FieldInfo";
 import { SCOPE_LABEL, type SkinsScope } from "@/lib/domain/skins-pot";
 import { useMoney } from "@/components/CurrencyProvider";
+import { Icon } from "./Icon";
 
 /**
  * The skins pot on one week of a league.
@@ -361,7 +362,7 @@ export function SkinsPotClient({
 
           {r.provisional && (
             <p style={{ fontSize: 12, margin: "0 0 10px", color: "var(--color-accent)" }}>
-              <i className="ph ph-warning-circle" /> Provisional — some holes have no score yet.
+              <Icon name="warning-circle" /> Provisional — some holes have no score yet.
             </p>
           )}
 
@@ -437,7 +438,7 @@ export function SkinsPotClient({
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 

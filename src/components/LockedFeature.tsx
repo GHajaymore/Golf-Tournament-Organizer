@@ -1,4 +1,5 @@
 import { METERED_FEATURES, type FeatureKey } from "@/lib/plans";
+import { Icon } from "./Icon";
 
 /**
  * A feature that exists, is finished, and isn't switched on for this club yet.
@@ -41,8 +42,7 @@ export function LockedFeature({
         background: "transparent",
       }}
     >
-      <i
-        className="ph ph-lock-simple"
+      <Icon name="lock-simple"
         aria-hidden
         style={{ fontSize: 17, color: "var(--color-neutral-400)", marginTop: 1, flex: "none" }}
       />

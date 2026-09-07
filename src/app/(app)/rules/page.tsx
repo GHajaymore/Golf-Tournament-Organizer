@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { loadEventState, scoringFrom } from "@/lib/services/tournament";
 import { RULES, RULE_SOURCE_LABEL, TIER_LABEL, tournamentTerms, ruleFor } from "@/lib/rules";
 import type { TiebreakerKey } from "@/lib/domain";
+import { Icon } from "@/components/Icon";
 
 /**
  * The three tiers a competition is actually played under.
@@ -93,7 +94,7 @@ export default async function RulesPage() {
                   <span style={{ color: "var(--color-accent-300)", marginRight: 7 }}>{r.number}</span>
                   {r.title}
                 </span>
-                <i className="ph ph-arrow-square-out" aria-hidden style={{ color: "var(--color-neutral-400)" }} />
+                <Icon name="arrow-square-out" aria-hidden style={{ color: "var(--color-neutral-400)" }} />
               </div>
               <p style={{ margin: "5px 0 0", fontSize: 12.5, lineHeight: 1.55, color: "var(--color-neutral-400)" }}>
                 <span style={{ color: "var(--color-neutral-500)" }}>{RULE_SOURCE_LABEL[r.source]}</span> · {r.why}
@@ -149,7 +150,7 @@ export default async function RulesPage() {
                           borderBottom: 0,
                         }}
                       >
-                        <i className="ph ph-book-open" aria-hidden style={{ marginRight: 4 }} />
+                        <Icon name="book-open" aria-hidden style={{ marginRight: 4 }} />
                         under {RULE_SOURCE_LABEL[r.source]} {r.number}
                       </a>
                     )}
