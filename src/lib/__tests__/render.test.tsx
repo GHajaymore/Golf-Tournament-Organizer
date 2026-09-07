@@ -2776,7 +2776,12 @@ describe("the board answers 'where am I' first", () => {
     const html = render(
       <PlayerLeaderboard
         isStroke
-        rows={[row({ id: "p9", name: "D. Shaw", thru: 0, toPar: 0 })]}
+        // BOTH, because that is the state the real data produces: on a stroke
+        // round `standingRows` sets `started` from holes returned, so a row
+        // with no card has `thru: 0` AND `started: false`. Setting only `thru`
+        // modelled half of "not started" and would pass against a reader that
+        // ignores the question entirely.
+        rows={[row({ id: "p9", name: "D. Shaw", thru: 0, started: false, toPar: 0 })]}
         holes={18}
         youId="p9"
         unit="strokes"
