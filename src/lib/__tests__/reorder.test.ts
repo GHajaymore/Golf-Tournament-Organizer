@@ -110,18 +110,45 @@ describe("motion stays on data, not on chrome", () => {
     ).not.toMatch(/\.card[^{]*:hover[^}]*transform\s*:\s*translate/);
   });
 
-  it("keeps the row animation on the one list that updates itself", () => {
-    // FlipList is inert without an in-place update, and the public board is the
-    // only page with one (`LiveRefresh`). If it ever appears on the console
-    // leaderboard it will be animating a page load.
+  /**
+   * THE RULE IS "ONLY WHERE THE BOARD UPDATES IN PLACE", NOT "ONLY ON THE
+   * PLAYER BOARD" — and the difference is why this assertion changed.
+   *
+   * It used to require that `LeaderboardTable` did NOT animate, with the
+   * reason: "no live update behind it; animating it would animate a
+   * navigation". That was correct when written. `LiveRefresh` was mounted on
+   * `/live/[token]` and nowhere else, so the console board only ever changed
+   * across a full navigation, where the component remounts and there is no
+   * previous board to have moved from.
+   *
+   * It is no longer correct, because the console leaderboard now polls — see
+   * `(app)/leaderboard/page.tsx`, where a static badge reading "Updating live"
+   * was replaced by the component that actually does it. So the table now
+   * satisfies the same condition the list always did, and the motion belongs
+   * there for exactly the same reason.
+   *
+   * The assertion is therefore about the CONDITION rather than about which
+   * file: a board that animates must have something behind it that updates it
+   * in place. If polling is ever taken off a board, the motion has to come off
+   * with it, and this is what says so.
+   */
+  it("animates only the boards that update in place", () => {
     const players = readSource("src/components/PlayerLeaderboard.tsx");
     expect(players).toMatch(/<FlipList/);
     expect(players).toMatch(/data-flip-key=/);
 
     const table = readSource("src/components/LeaderboardTable.tsx");
-    expect(
-      table,
-      "LeaderboardTable has no live update behind it; animating it would animate a navigation",
-    ).not.toMatch(/FlipList/);
+    expect(table).toMatch(/<FlipTableBody>/);
+    expect(table).toMatch(/data-flip-key=/);
+
+    // And the two pages that render them both mount the poller. Without this
+    // the pair above is satisfied by animation on a board nothing refreshes,
+    // which is the failure the original version of this test was guarding.
+    for (const page of ["src/app/(app)/leaderboard/page.tsx", "src/app/live/[token]/page.tsx"]) {
+      expect(
+        readSource(page),
+        `${page} renders an animated board but nothing updates it in place`,
+      ).toMatch(/<LiveRefresh\b/);
+    }
   });
 });

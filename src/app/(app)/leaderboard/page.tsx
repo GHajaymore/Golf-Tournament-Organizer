@@ -6,6 +6,7 @@ import { entitlementForEvent } from "@/lib/services/entitlements";
 import { prisma } from "@/lib/db";
 import { CommentaryPanel } from "@/components/CommentaryPanel";
 import { LeaderboardBoard } from "@/components/LeaderboardBoard";
+import { LiveRefresh } from "@/components/LiveRefresh";
 import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
@@ -130,9 +131,19 @@ export default async function LeaderboardPage() {
               : "Overall standings across all flights · match points breakdown."}
           </p>
         </div>
-        <span className="tag tag-accent">
-          <i className="ph-fill ph-circle" style={{ fontSize: 8, marginRight: 5 }} /> Updating live
-        </span>
+        {/* This was a STATIC badge reading "Updating live", on a page that did
+            not update. `LiveRefresh` was mounted on the public spectator board
+            and nowhere else, so the console screen actually called "Live
+            leaderboard" changed only when somebody reloaded it — and said
+            otherwise, in the interface, in an accent colour.
+
+            The same component now, so the claim and the polling are the same
+            code: it refreshes every 30s while the tab is visible, wakes on
+            focus and on reconnect, and reports the age of what is on screen
+            from a timestamp the SERVER stamped — so the label ageing IS the
+            failure showing through, rather than a client clock ticking
+            cheerfully over a dead connection. */}
+        <LiveRefresh renderedAt={new Date().toISOString()} compact />
       </div>
 
       {highlights.length > 0 && (
