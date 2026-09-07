@@ -28,6 +28,19 @@ import { reorderShifts } from "@/lib/reorder";
  * again races the next render. `animate()` composites outside that entirely
  * and cleans up after itself.
  */
+/**
+ * `useLayoutEffect` in the browser, `useEffect` on the server.
+ *
+ * A layout effect is what keeps a row from painting once at its new position
+ * before sliding — but React warns about it during server rendering, and this
+ * component IS server-rendered before it hydrates. The alias is the standard
+ * way out and is deliberately named so nobody "simplifies" it back.
+ *
+ * Declared above the component rather than below it because a `const` is not
+ * hoisted the way a function declaration is, and lint is right to say so.
+ */
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 export function FlipList({
   children,
   style,
@@ -73,12 +86,3 @@ export function FlipList({
   );
 }
 
-/**
- * `useLayoutEffect` in the browser, `useEffect` on the server.
- *
- * A layout effect is what keeps the row from painting once at its new position
- * before sliding — but React warns about it during server rendering, and this
- * component IS server-rendered before it hydrates. The alias is the standard
- * way out and is deliberately named so nobody "simplifies" it back.
- */
-const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
