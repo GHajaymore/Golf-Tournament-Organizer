@@ -43,6 +43,24 @@ export interface TournamentTemplate {
    * it is what the tournament started as, not a rule it must obey.
    */
   rounds: TemplateRound[];
+  /**
+   * "Start from scratch" — the entry that applies nothing.
+   *
+   * A PROPERTY OF THE TEMPLATE, not a comparison against a constant. Creating
+   * a tournament used to ask `template.key !== DEFAULT_TEMPLATE_KEY` to decide
+   * whether to apply one, which is only correct while the default and the
+   * blank one happen to be the same entry. They are, today, by naming
+   * coincidence — and that is exactly the shape that produced a real bug
+   * elsewhere in this codebase: `hasColours` inferred that a club had chosen
+   * its colours from `themeKey !== DEFAULT_THEME`, and when the default moved
+   * the whole existing customer base silently flipped to "already branded".
+   * See `themeSetAt` in schema.prisma.
+   *
+   * Nothing is broken here today. The point is that making the default a real
+   * template, or adding a second blank one, would break it silently — a
+   * tournament created from a named template would quietly get none of it.
+   */
+  blank?: boolean;
 }
 
 const ROUND_ROBIN_GROSS = {
@@ -187,6 +205,9 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
     blurb: "The plain defaults. Set everything yourself.",
     settings: DEFAULT_SETTINGS,
     rounds: [ROUND_ROBIN_GROSS],
+    // The one entry that applies nothing, said here rather than inferred from
+    // its key happening to match DEFAULT_TEMPLATE_KEY.
+    blank: true,
   },
 ];
 

@@ -47,7 +47,7 @@ import { organizationForNewEvent, settingsForNewEvent } from "@/lib/services/org
 import { effectiveAccess } from "@/lib/services/access";
 import { refusalFor } from "@/lib/services/limits";
 import { generateShareToken } from "@/lib/codes";
-import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
+import { templateFor } from "@/lib/tournament-templates";
 import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, statusAfterEdit, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
@@ -3019,7 +3019,11 @@ export async function createEvent(
   const shape = shapeOf(shapeKey);
   const shapeStart = shapeOption(shape).openingRound;
   const template = templateKey ? templateFor(templateKey) : null;
-  const templated = template && template.key !== DEFAULT_TEMPLATE_KEY ? template : null;
+  // `blank`, not "is it the default". Those are the same entry today only by
+  // naming coincidence, and inferring what something IS from a comparison
+  // against a movable constant is the shape that silently broke the branding
+  // nudge for every existing club. See tournament-templates.ts.
+  const templated = template && !template.blank ? template : null;
   // Every tournament belongs to a billing tenant; this creates the organizer's
   // organization on their first event, named after their club/society/company
   // when they said who runs it (else after them). An organizer who already owns
