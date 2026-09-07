@@ -4,6 +4,7 @@ import { readCourseCardPhoto } from "@/app/actions/card-photo";
 import FieldInfo from "@/components/FieldInfo";
 import { LockedFeature } from "@/components/LockedFeature";
 import { shrinkPhoto } from "@/lib/photo-upload";
+import { Icon } from "./Icon";
 
 /**
  * Photograph the club's card instead of typing fifty-four numbers.
@@ -109,7 +110,7 @@ export function CourseCardCamera({
           disabled={pending || disabled}
           onClick={() => fileRef.current?.click()}
         >
-          <i className="ph ph-camera" /> {pending ? "Reading…" : "Photograph the card"}
+          <Icon name="camera" /> {pending ? "Reading…" : "Photograph the card"}
         </button>
         <FieldInfo label="photographing a course card">
           <p>
@@ -155,7 +156,7 @@ export function CourseCardCamera({
       )}
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)", lineHeight: 1.5 }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
     </div>

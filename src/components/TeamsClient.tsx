@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { sideDrawReadiness, sideAddBlock } from "@/lib/domain/draw-readiness";
+import { Icon } from "./Icon";
 import {
   createTeam,
   deleteTeam,
@@ -230,10 +231,10 @@ export function TeamsClient({
             setNewName("");
           }}
         >
-          <i className="ph ph-plus" /> Add team
+          <Icon name="plus" /> Add team
         </button>
         <button type="button" className="btn btn-primary" disabled={pending} onClick={() => draw(false)}>
-          <i className="ph ph-shuffle" /> Draw sides automatically
+          <Icon name="shuffle" /> Draw sides automatically
         </button>
         <button
           type="button"
@@ -241,7 +242,7 @@ export function TeamsClient({
           disabled={pending || !!sideBlock}
           onClick={() => makeMatches(false)}
         >
-          <i className="ph ph-arrows-clockwise" /> {matchCount > 0 ? "Regenerate" : "Generate"} matches
+          <Icon name="arrows-clockwise" /> {matchCount > 0 ? "Regenerate" : "Generate"} matches
         </button>
       </div>
 
@@ -266,7 +267,7 @@ export function TeamsClient({
             background: "color-mix(in srgb, var(--color-text) 5%, transparent)",
           }}
         >
-          <i className="ph ph-info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
+          <Icon name="info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
           <span>{sideBlock.problem}</span>
         </p>
       )}
@@ -320,7 +321,7 @@ export function TeamsClient({
                   disabled={pending}
                   onClick={() => run(() => deleteTeam(t.id))}
                 >
-                  <i className="ph ph-trash" />
+                  <Icon name="trash" />
                 </button>
               </div>
 
@@ -341,7 +342,7 @@ export function TeamsClient({
                         disabled={pending}
                         onClick={() => run(() => removeTeamMember(t.id, m.playerId))}
                       >
-                        <i className="ph ph-x" />
+                        <Icon name="x" />
                       </button>
                     </li>
                   ))}
@@ -378,7 +379,7 @@ export function TeamsClient({
                     disabled={pending || !!addBlock}
                     onClick={() => setAddingTo(t.id)}
                   >
-                    <i className="ph ph-user-plus" /> Add player
+                    <Icon name="user-plus" /> Add player
                   </button>
                   {/* The reason, on the card. This button carried three
                       conditions in one `disabled` and explained none of them,

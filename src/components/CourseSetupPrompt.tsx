@@ -4,6 +4,7 @@ import { saveCustomCourse } from "@/app/actions/tournament";
 import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
 import { pasteSummary } from "@/lib/domain/card-paste";
 import { CourseSearch } from "@/components/CourseSearch";
+import { Icon } from "./Icon";
 
 const BLANK_18 = new Array(18).fill("");
 
@@ -175,12 +176,12 @@ export function CourseSetupPrompt({
       </p>
       {pasteSummaryText && (
         <p style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-accent-2-300)" }}>
-          <i className="ph ph-check-circle" /> {pasteSummaryText}
+          <Icon name="check-circle" /> {pasteSummaryText}
         </p>
       )}
       {pasteProblems.map((m, i) => (
         <p key={i} style={{ fontSize: 11.5, margin: "3px 0 0", color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {m}
+          <Icon name="warning-circle" /> {m}
         </p>
       ))}
     </div>
@@ -230,7 +231,7 @@ export function CourseSetupPrompt({
                 onClick={() => applySaved(c)}
                 style={{ fontSize: 12.5 }}
               >
-                <i className="ph ph-flag-pennant" /> {c.name}
+                <Icon name="flag-pennant" /> {c.name}
                 {c.city && <span className="text-muted" style={{ marginLeft: 5 }}>{c.city}</span>}
               </button>
             ))}
@@ -323,11 +324,11 @@ export function CourseSetupPrompt({
 
       {error && (
         <p style={{ fontSize: 13, margin: "10px 0 0", color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
       <button type="button" className="btn btn-primary" disabled={pending} onClick={save} style={{ marginTop: 14 }}>
-        <i className="ph ph-check" /> {pending ? "Saving…" : "Save course & start scoring"}
+        <Icon name="check" /> {pending ? "Saving…" : "Save course & start scoring"}
       </button>
     </div>
   );

@@ -1,3 +1,4 @@
+import { Icon } from "./Icon";
 /**
  * What the leaderboard says about a round the app does not score.
  *
@@ -36,7 +37,7 @@ export function ManualRoundNotice({ format }: { format: string }) {
     <>
       <div className="card elev-sm" style={{ gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <i className="ph ph-clipboard-text" style={{ fontSize: 20, opacity: 0.7 }} />
+          <Icon name="clipboard-text" style={{ fontSize: 20, opacity: 0.7 }} />
           <span className="card-title" style={{ fontSize: 16 }}>
             This round is scored by hand
           </span>

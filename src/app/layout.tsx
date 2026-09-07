@@ -3,21 +3,20 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { Fraunces } from "next/font/google";
 /**
- * The icon font, SELF-HOSTED.
+ * THE ICON FONT IS GONE.
  *
- * These were two `<link>` tags to unpkg.com in the document head, which cost
- * more than it looks: two render-blocking stylesheets on an origin the page
- * otherwise never touches, a DNS lookup and TLS handshake before either can
- * start, and then a 147KB font from that same third party — the largest single
- * asset on the page. A CDN outage or a corporate proxy blocking unpkg took
- * every icon in the product with it.
+ * Its history is the argument for what replaced it. It began as two `<link>`
+ * tags to unpkg.com — render-blocking stylesheets on a third-party origin,
+ * ahead of a 147 KB font, so a CDN outage took every icon in the product with
+ * it. Self-hosting fixed the origin and left the weight: 272.6 KB of woff2
+ * across two weights, for about 120 glyphs out of roughly 1,500, and
+ * `font-display: block`, which means every icon was INVISIBLE until it landed.
  *
- * Imported here instead, so Next emits the font under `_next/static/media`,
- * serves it same-origin with an immutable cache header, and there is no
- * third-party origin in the critical path at all.
+ * `IconSprite` carries the 125 icons this app actually uses, at 54.9 KB raw
+ * and 13.2 KB brotli, in the document. There is no request, so there is
+ * nothing to block on and nothing to fail.
  */
-import "@phosphor-icons/web/regular";
-import "@phosphor-icons/web/fill";
+import { IconSprite } from "@/components/IconSprite";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { siteOrigin } from "@/lib/site";
@@ -208,6 +207,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} ${display.variable}`}>
       <body>
+        {/* First in the body, so every <use href="#i-…"> below it resolves
+            against symbols that are already in the document. */}
+        <IconSprite />
         {children}
         <ServiceWorkerRegister />
       </body>

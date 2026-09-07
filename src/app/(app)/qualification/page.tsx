@@ -4,6 +4,7 @@ import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { pts, shortName } from "@/lib/format";
 import { drawBrackets, isBracketMode, type BracketMode } from "@/lib/domain";
+import { Icon } from "@/components/Icon";
 
 export default async function QualificationPage() {
   const session = await requireScreen("qualification");
@@ -52,7 +53,7 @@ export default async function QualificationPage() {
             {event.qualifyMode === "overall" ? `Top ${event.qualifyOverall} overall` : `Top ${event.qualifyPerGroup}/flight`}
           </span>
           <Link className="btn btn-secondary" href="/stages">
-            <i className="ph ph-sliders" /> Configure in Rounds &amp; format
+            <Icon name="sliders" /> Configure in Rounds &amp; format
           </Link>
         </div>
       </div>

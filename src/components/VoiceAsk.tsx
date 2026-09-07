@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { parseVoiceQuery, answerVoiceQuery, type VoiceContext } from "@/lib/domain/voice-query";
+import { Icon } from "./Icon";
 
 /**
  * Ask the round a question out loud.
@@ -68,7 +69,7 @@ export function VoiceAsk({ context }: { context: VoiceContext }) {
           aria-pressed={listening}
           aria-label="Ask a question about this round"
         >
-          <i className={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />
+          <Icon name={listening ? "ph-fill ph-microphone" : "ph ph-microphone"} />
           {listening ? "Listening…" : "Ask"}
         </button>
         <span className="text-muted" style={{ fontSize: 12 }}>

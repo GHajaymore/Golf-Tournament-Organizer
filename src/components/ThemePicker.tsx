@@ -23,6 +23,25 @@ import {
   type ClubTheme,
   type Ground,
 } from "@/lib/themes";
+import { Icon } from "./Icon";
+
+/**
+ * The appearance icons, as a literal map rather than a composed name.
+ *
+ * This was `` `ph ph-${a.key === "light" ? "sun" : …}` `` — the ONLY icon name
+ * in the app that was built rather than written, and the one thing standing
+ * between the sprite generator and a complete scan of the source. A name that
+ * is composed cannot be found by grep, so these three would have shipped as
+ * blank squares while every literal icon rendered perfectly.
+ *
+ * Written out, so the generator finds them the same way it finds every other
+ * icon. Keep icon names literal for that reason and no other.
+ */
+const APPEARANCE_ICON: Record<string, string> = {
+  light: "ph ph-sun",
+  dark: "ph ph-moon",
+  auto: "ph ph-circle-half",
+};
 
 /**
  * The club's whole look: light or dark, and both accent colours.
@@ -223,7 +242,7 @@ export function ThemePicker({
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600 }}>
-                <i className={`ph ph-${a.key === "light" ? "sun" : a.key === "dark" ? "moon" : "circle-half"}`} />
+                <Icon name={APPEARANCE_ICON[a.key]} />
                 {a.name}
               </div>
               <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>{a.blurb}</div>
@@ -370,7 +389,7 @@ export function ThemePicker({
             border: "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
           }}
         >
-          <i className="ph ph-sun" style={{ fontSize: 15, marginTop: 1 }} />
+          <Icon name="sun" style={{ fontSize: 15, marginTop: 1 }} />
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>{sun.warning}</p>
             {sun.suggestion && (
@@ -396,7 +415,7 @@ export function ThemePicker({
               : "1px solid color-mix(in srgb, var(--color-accent) 35%, transparent)",
           }}
         >
-          <i className="ph ph-palette" style={{ fontSize: 15, marginTop: 1 }} />
+          <Icon name="palette" style={{ fontSize: 15, marginTop: 1 }} />
           <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
             {pair.message}
             {pair.kind === "indistinct" && " Pick a second colour further from the accent to save."}

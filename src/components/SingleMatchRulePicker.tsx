@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { setSingleMatchRule, createSingleMatch } from "@/app/actions/tournament";
 import type { SingleMatchRule } from "@/lib/domain/single-match";
+import { Icon } from "./Icon";
 
 /**
  * Who plays a Single Match Stage.
@@ -241,7 +242,7 @@ export function SingleMatchRulePicker({
         <br />
         {problem ? (
           <span className="text-muted">
-            <i className="ph ph-hourglass" /> {problem}
+            <Icon name="hourglass" /> {problem}
           </span>
         ) : (
           <strong>
@@ -252,7 +253,7 @@ export function SingleMatchRulePicker({
 
       {stale && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)", lineHeight: 1.55 }}>
-          <i className="ph ph-warning-circle" /> The match already created for this round is between different
+          <Icon name="warning-circle" /> The match already created for this round is between different
           players than the rule now gives. Results have changed since it was made — clear the match and create
           it again if the rule is the one you want.
         </p>
@@ -260,7 +261,7 @@ export function SingleMatchRulePicker({
 
       {matchId ? (
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-          <i className="ph ph-check-circle" /> The match is made. Enter its result on Score entry.
+          <Icon name="check-circle" /> The match is made. Enter its result on Score entry.
         </p>
       ) : (
         <button
@@ -276,13 +277,13 @@ export function SingleMatchRulePicker({
           }
           style={{ justifyContent: "center" }}
         >
-          <i className="ph ph-flag-checkered" /> Create this match
+          <Icon name="flag-checkered" /> Create this match
         </button>
       )}
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
     </div>

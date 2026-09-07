@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { Icon } from "./Icon";
 
 /**
  * The way back.
@@ -55,7 +56,7 @@ export function BackLink({
         color: "var(--color-neutral-400)",
       }}
     >
-      <i className="ph ph-caret-left" style={{ fontSize: 18 }} aria-hidden />
+      <Icon name="caret-left" style={{ fontSize: 18 }} aria-hidden />
       {label}
     </Link>
   );

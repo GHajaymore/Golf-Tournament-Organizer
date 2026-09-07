@@ -1,5 +1,6 @@
 "use client";
 import { useMemo } from "react";
+import { Icon } from "./Icon";
 import {
   buildAvailabilityCalendar,
   toneOf,
@@ -58,11 +59,11 @@ const TONE_STYLE: Record<DayTone, React.CSSProperties> = {
 };
 
 const TONE_ICON: Record<DayTone, string> = {
-  in: "ph-check-bold",
-  "in-default": "ph-check",
-  out: "ph-x-bold",
-  "out-default": "ph-minus",
-  locked: "ph-lock-simple",
+  in: "ph-bold ph-check",
+  "in-default": "ph ph-check",
+  out: "ph-bold ph-x",
+  "out-default": "ph ph-minus",
+  locked: "ph ph-lock-simple",
   none: "",
 };
 
@@ -282,7 +283,7 @@ function Square({
         }}
       >
         <span style={{ fontWeight: 600, lineHeight: 1 }}>{day.day}</span>
-        <i className={`ph ${TONE_ICON[tone]}`} style={{ fontSize: 13, lineHeight: 1 }} aria-hidden />
+        <Icon name={TONE_ICON[tone]} style={{ fontSize: 13, lineHeight: 1 }} aria-hidden />
       </button>
     </div>
   );
@@ -307,7 +308,7 @@ function Legend() {
               ...TONE_STYLE[tone],
             }}
           >
-            <i className={`ph ${TONE_ICON[tone]}`} style={{ fontSize: 10 }} />
+            <Icon name={TONE_ICON[tone]} style={{ fontSize: 10 }} />
           </span>
           <span className="text-muted">{TONE_LABEL[tone]}</span>
         </span>

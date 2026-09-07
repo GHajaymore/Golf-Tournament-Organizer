@@ -4,6 +4,7 @@ import { suggestSetup, applySetupProposal } from "@/app/actions/setup-suggest";
 import type { SetupProposal } from "@/lib/domain/setup-proposal";
 import FieldInfo from "@/components/FieldInfo";
 import { LockedFeature } from "@/components/LockedFeature";
+import { Icon } from "./Icon";
 
 /**
  * Describe a tournament in a sentence and get the rounds proposed.
@@ -164,12 +165,12 @@ export function DescribeTournament({ available = true }: { available?: boolean }
 
       {done && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-accent-2)" }}>
-          <i className="ph ph-check-circle" /> {done}
+          <Icon name="check-circle" /> {done}
         </p>
       )}
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
     </div>

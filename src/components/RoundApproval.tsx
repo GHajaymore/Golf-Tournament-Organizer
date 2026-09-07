@@ -8,6 +8,7 @@ import {
   type CardForReview,
 } from "@/lib/domain/card-approval";
 import { RuleCite } from "./RuleCite";
+import { Icon } from "./Icon";
 
 /**
  * The committee's step: accepting a round's cards.
@@ -67,7 +68,7 @@ export function RoundApproval({
           disabled={pending || review.ready.length === 0}
           onClick={approveAll}
         >
-          <i className="ph ph-check-circle" />{" "}
+          <Icon name="check-circle" />{" "}
           {pending ? "Approving…" : `Approve ${review.ready.length} clean ${review.ready.length === 1 ? "card" : "cards"}`}
         </button>
         <span style={{ fontSize: 12.5, color: "var(--color-neutral-400)" }}>{summary}</span>
@@ -75,7 +76,7 @@ export function RoundApproval({
 
       {note && (
         <p style={{ fontSize: 12.5, margin: "10px 0 0", color: "var(--color-accent-2-300)" }}>
-          <i className="ph ph-check" /> {note}
+          <Icon name="check" /> {note}
         </p>
       )}
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { addMembersToEvent } from "@/app/actions/roster";
 import { listNames } from "@/lib/format";
 import type { RosterCandidate } from "@/lib/services/roster";
+import { Icon } from "./Icon";
 
 /**
  * Fill a field from the club roster.
@@ -76,7 +77,7 @@ export function RosterPicker({
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Add from the club roster</span>
         <Link href="/roster" className="text-muted" style={{ fontSize: 12, marginLeft: "auto" }}>
-          Manage members <i className="ph ph-arrow-right" />
+          Manage members <Icon name="arrow-right" />
         </Link>
       </div>
 
@@ -157,7 +158,7 @@ export function RosterPicker({
             disabled={pending || locked || selected.size === 0}
             onClick={add}
           >
-            <i className="ph ph-user-plus" />{" "}
+            <Icon name="user-plus" />{" "}
             {pending
               ? "Adding…"
               : selected.size === 0
@@ -169,12 +170,12 @@ export function RosterPicker({
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
       {result && (
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-          <i className="ph ph-check-circle" style={{ color: "var(--color-accent-2-300)" }} /> {result}
+          <Icon name="check-circle" style={{ color: "var(--color-accent-2-300)" }} /> {result}
         </p>
       )}
     </div>

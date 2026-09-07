@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "./Icon";
 
 /**
  * A person you can tap: in the pot, or the one who won it.
@@ -60,8 +61,7 @@ export function PersonChip({
         opacity: disabled ? 0.55 : 1,
       }}
     >
-      <i
-        className={`ph ${on ? (tone === "won" ? "ph-trophy" : "ph-check-circle") : "ph-circle"}`}
+      <Icon name={on ? (tone === "won" ? "ph ph-trophy" : "ph ph-check-circle") : "ph ph-circle"}
         style={{ fontSize: 14, color: on ? colour : "var(--color-neutral-500)" }}
         aria-hidden
       />

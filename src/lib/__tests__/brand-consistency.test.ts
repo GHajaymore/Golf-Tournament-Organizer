@@ -230,8 +230,15 @@ describe("nothing is set smaller than it can be read", () => {
         // An icon font's `fontSize` is the glyph's diameter, not a reading
         // size — the live-status dot is drawn as a 6px filled circle and is
         // not text at all. Judged by what the size is applied TO.
+        //
+        // `<Icon>` as well as `<i>`: icons stopped being a webfont glyph and
+        // became a sprite reference, but `fontSize` still sizes them — the
+        // component is 1em square by design, precisely so that the hundred
+        // call sites that size their icon in `fontSize` did not have to
+        // change. This exclusion had to follow them, and until it did the
+        // live-status dot read as 6px TEXT in two files.
         const context = src.slice(Math.max(0, m.index - 140), m.index);
-        if (/<i\b[^>]*$/.test(context)) continue;
+        if (/<(i|Icon)\b[^>]*$/.test(context)) continue;
         offenders.push(`${f} (${m[1]}px)`);
       }
     }

@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { setAttendance } from "@/app/actions/attendance";
 import { AvailabilityCalendar } from "@/components/AvailabilityCalendar";
 import type { AvailabilityRound, AvailabilityView, CaptainFlight } from "@/lib/services/availability";
+import { Icon } from "./Icon";
 
 export type { AvailabilityRound, CaptainFlight } from "@/lib/services/availability";
 
@@ -122,7 +123,7 @@ export function RoundAvailability({
                 checked={view === "calendar"}
                 onChange={() => setView("calendar")}
               />
-              <i className="ph ph-calendar-blank" /> Calendar
+              <Icon name="calendar-blank" /> Calendar
             </label>
             <label className="seg-opt">
               <input
@@ -131,7 +132,7 @@ export function RoundAvailability({
                 checked={view === "list"}
                 onChange={() => setView("list")}
               />
-              <i className="ph ph-list" /> List
+              <Icon name="list" /> List
             </label>
           </div>
         )}
@@ -193,7 +194,7 @@ export function RoundAvailability({
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 
@@ -228,8 +229,7 @@ export function RoundAvailability({
                     </td>
                     {r.cells.map((c) => (
                       <td key={c.stageId} style={{ textAlign: "center" }}>
-                        <i
-                          className={c.status === "in" ? "ph ph-check-circle" : "ph ph-x-circle"}
+                        <Icon name={c.status === "in" ? "ph ph-check-circle" : "ph ph-x-circle"}
                           style={{ color: c.status === "in" ? "var(--color-accent-2)" : "var(--color-neutral-500)" }}
                           // The distinction the whole feature turns on: "in"
                           // and "in because nobody said otherwise" are

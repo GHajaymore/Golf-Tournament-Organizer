@@ -1,6 +1,7 @@
 "use client";
 import { useTransition } from "react";
 import { setConfigUnlocked } from "@/app/actions/tournament";
+import { Icon } from "./Icon";
 
 /**
  * Shown on Set-up screens once the tournament is live: setup is frozen to
@@ -23,7 +24,7 @@ export function SetupLockBanner({ locked, isAdmin }: { locked: boolean; isAdmin:
         background: "color-mix(in srgb, var(--color-accent-900) 40%, transparent)",
       }}
     >
-      <i className="ph ph-lock-simple" style={{ fontSize: 18, color: "var(--color-accent-300)" }} />
+      <Icon name="lock-simple" style={{ fontSize: 18, color: "var(--color-accent-300)" }} />
       <div style={{ flex: 1, minWidth: 180 }}>
         <div style={{ fontWeight: 500, fontSize: 14 }}>Setup locked</div>
         <div className="text-muted" style={{ fontSize: 12 }}>
@@ -38,7 +39,7 @@ export function SetupLockBanner({ locked, isAdmin }: { locked: boolean; isAdmin:
           disabled={pending}
           onClick={() => startTransition(() => setConfigUnlocked(true))}
         >
-          <i className="ph ph-lock-simple-open" /> Unlock setup
+          <Icon name="lock-simple-open" /> Unlock setup
         </button>
       )}
     </div>

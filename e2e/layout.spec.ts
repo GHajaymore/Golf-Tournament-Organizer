@@ -119,6 +119,57 @@ for (const path of SCREENS) {
   });
 }
 
+/**
+ * EVERY ICON ON THE PAGE ACTUALLY DRAWS.
+ *
+ * Icons are a generated sprite now, referenced with `<use href="#i-…">`. A
+ * reference to a symbol that is not in the sprite renders NOTHING — no error,
+ * no console warning, no failed request, no layout shift. The element keeps
+ * its 1em box and draws empty space, so the build succeeds, the page renders,
+ * and an icon is simply gone.
+ *
+ * `icon-sprite.test.ts` catches the version of this that is visible in source,
+ * and bans the names that are assembled at runtime. This is the half that only
+ * a rendered page can see: whether the id the component asked for is one the
+ * document actually defines. Converting to the sprite produced four such
+ * blanks, every one of them through a clean typecheck and a green unit suite.
+ *
+ * Hidden is not broken — the mobile tab bar is `display: none` on desktop and
+ * its icons legitimately have no box.
+ */
+for (const path of SCREENS) {
+  test(`${path} draws every icon it references`, async ({ page }) => {
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+    expect(new URL(page.url()).pathname, `${path} redirected away — not signed in?`).toBe(path);
+
+    const broken = await page.evaluate(() => {
+      const out: Array<{ href: string; reason: string }> = [];
+      for (const svg of document.querySelectorAll("svg")) {
+        const use = svg.querySelector("use");
+        if (!use) continue;
+        const cs = getComputedStyle(svg);
+        if (cs.display === "none" || cs.visibility === "hidden" || !svg.getClientRects().length) continue;
+
+        const href = use.getAttribute("href") ?? "";
+        if (!document.getElementById(href.slice(1))) {
+          out.push({ href, reason: "no such symbol in the sprite" });
+          continue;
+        }
+        const box = svg.getBoundingClientRect();
+        if (!box.width || !box.height) out.push({ href, reason: "zero-sized" });
+      }
+      return out;
+    });
+
+    expect(broken, `${path}: ${JSON.stringify(broken)}`).toEqual([]);
+
+    // And nothing is still asking for the webfont that was removed.
+    const legacy = await page.locator("i.ph").count();
+    expect(legacy, `${path} still renders ${legacy} webfont icon(s)`).toBe(0);
+  });
+}
+
 for (const path of SCREENS) {
   test(`${path} does not scroll sideways`, async ({ page }) => {
     await page.goto(path);

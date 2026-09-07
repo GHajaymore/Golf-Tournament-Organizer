@@ -5,6 +5,7 @@ import { SIDE_STYLE_OPTIONS } from "@/lib/side-style";
 import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
 import { CoursePicker } from "@/components/CoursePicker";
 import FieldInfo from "@/components/FieldInfo";
+import { Icon } from "./Icon";
 
 interface EventForm {
   name: string;
@@ -454,7 +455,7 @@ export function EventSetupClient({
                   onClick={useMyLocation}
                   title="Use my current location"
                 >
-                  <i className={locating ? "ph ph-spinner-gap" : "ph ph-navigation-arrow"} />
+                  <Icon name={locating ? "ph ph-spinner-gap" : "ph ph-navigation-arrow"} />
                 </button>
               </div>
             </div>
@@ -548,7 +549,7 @@ export function EventSetupClient({
               >
                 <div style={{ fontSize: 13 }}>
                   <b>
-                    <i className="ph ph-warning" /> This will delete {resizeScored} scored match
+                    <Icon name="warning" /> This will delete {resizeScored} scored match
                     {resizeScored === 1 ? "" : "es"}.
                   </b>
                   <div className="text-muted" style={{ marginTop: 4 }}>
@@ -600,7 +601,7 @@ export function EventSetupClient({
               setSavedSnapshot(f);
             }}
           >
-            <i className="ph ph-check" /> {isDirty ? "Save event" : "Saved"}
+            <Icon name="check" /> {isDirty ? "Save event" : "Saved"}
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { PLANS, planFor, upgradeBenefits, retentionNotice, retentionSummary, type Plan } from "@/lib/plans";
+import { Icon } from "./Icon";
 
 /**
  * What this club is on, what it costs, and what it does not include.
@@ -51,7 +52,7 @@ export function PlanPanel({ planKey }: { planKey: string }) {
           }}
         >
           <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--color-danger)" }}>
-            <i className="ph ph-clock-countdown" /> Results are not kept
+            <Icon name="clock-countdown" /> Results are not kept
           </span>
           <p style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.55 }}>{retention}</p>
         </div>

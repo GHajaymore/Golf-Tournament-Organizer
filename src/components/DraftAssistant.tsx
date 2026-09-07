@@ -4,6 +4,7 @@ import { draftMessage } from "@/app/actions/draft-message";
 import { DRAFT_KIND_LABELS, DRAFT_KIND_TITLES, type DraftKind } from "@/lib/domain/draft-check";
 import FieldInfo from "@/components/FieldInfo";
 import { LockedFeature } from "@/components/LockedFeature";
+import { Icon } from "./Icon";
 
 /**
  * Draft an announcement from the event's own results.
@@ -123,7 +124,7 @@ export function DraftAssistant({
               }}
             >
               <span style={{ fontSize: 12.5, fontWeight: 600 }}>
-                <i className="ph ph-warning" /> Check these names before you post
+                <Icon name="warning" /> Check these names before you post
               </span>
               <p style={{ margin: "6px 0 0", fontSize: 12, lineHeight: 1.6 }}>
                 {unknown.join(", ")} — {unknown.length === 1 ? "this doesn't match" : "these don't match"}{" "}
@@ -142,7 +143,7 @@ export function DraftAssistant({
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <button type="button" className="btn btn-primary" onClick={() => onUse(draft, DRAFT_KIND_TITLES[kind])}>
-              <i className="ph ph-arrow-up" /> Put in the message box
+              <Icon name="arrow-up" /> Put in the message box
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => { setDraft(""); setUnknown([]); }}>
               Discard
@@ -179,7 +180,7 @@ export function DraftAssistant({
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
     </div>

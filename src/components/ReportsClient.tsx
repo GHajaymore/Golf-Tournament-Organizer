@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
 import { toParText } from "@/lib/domain";
 import { toCsv } from "@/lib/domain/csv-export";
+import { Icon } from "./Icon";
 
 function download(filename: string, rows: string[][]) {
   // Player names on this export can come from the public registration form, so
@@ -129,7 +130,7 @@ export function ReportsClient({
         <span className="card-title" style={{ fontSize: 15 }}>Exports</span>
         {exports.map((e) => (
           <div key={e.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--color-divider)" }}>
-            <i className={e.icon} style={{ color: "var(--color-accent)", fontSize: 20, width: 22 }} />
+            <Icon name={e.icon} style={{ color: "var(--color-accent)", fontSize: 20, width: 22 }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{e.label}</div>
               <div className="text-muted" style={{ fontSize: 12 }}>{e.desc}</div>
@@ -168,7 +169,7 @@ export function ReportsClient({
             </div>
           </div>
           <button type="button" className="btn btn-secondary" onClick={() => window.print()}>
-            <i className="ph ph-printer" /> Print
+            <Icon name="printer" /> Print
           </button>
         </div>
         {board ?? <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} />}

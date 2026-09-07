@@ -13,6 +13,7 @@ import {
 } from "@/app/actions/messaging";
 import type { ThreadListItem, ThreadView } from "@/lib/services/messaging";
 import { messageAudience } from "@/lib/domain/message-audience";
+import { Icon } from "./Icon";
 
 /**
  * The messages screen.
@@ -71,7 +72,7 @@ function FirstUseNotice({ onDismiss }: { onDismiss: () => void }) {
       style={{ gap: 8, marginBottom: 12, borderLeft: "3px solid var(--color-accent)" }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <i className="ph ph-info" style={{ color: "var(--color-accent)", fontSize: 18 }} />
+        <Icon name="info" style={{ color: "var(--color-accent)", fontSize: 18 }} />
         <span className="card-title" style={{ fontSize: 14.5 }}>Before you start</span>
       </div>
       <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65 }}>
@@ -210,9 +211,9 @@ export function MessagesClient({
             style={{ padding: "4px 10px" }}
             onClick={() => setOpenId(null)}
           >
-            <i className="ph ph-arrow-left" /> Back
+            <Icon name="arrow-left" /> Back
           </button>
-          <i className={KIND_ICON[view.kind] ?? "ph ph-chat-circle"} style={{ color: "var(--color-accent)" }} />
+          <Icon name={KIND_ICON[view.kind] ?? "ph ph-chat-circle"} style={{ color: "var(--color-accent)" }} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14.5, fontWeight: 600 }}>{view.title}</div>
             {/* The second line says what kind of audience this is — "Flight A"
@@ -308,7 +309,7 @@ export function MessagesClient({
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
         <button type="button" className="btn btn-primary" onClick={() => setComposing((v) => !v)}>
-          <i className="ph ph-plus" /> New message
+          <Icon name="plus" /> New message
         </button>
         <button
           type="button"
@@ -316,7 +317,7 @@ export function MessagesClient({
           onClick={() => setShowPrefs((v) => !v)}
           aria-expanded={showPrefs}
         >
-          <i className="ph ph-sliders-horizontal" /> Message settings
+          <Icon name="sliders-horizontal" /> Message settings
         </button>
       </div>
 
@@ -361,8 +362,7 @@ export function MessagesClient({
               color: "var(--color-text)",
             }}
           >
-            <i
-              className={KIND_ICON[t.kind] ?? "ph ph-chat-circle"}
+            <Icon name={KIND_ICON[t.kind] ?? "ph ph-chat-circle"}
               style={{ fontSize: 20, color: "var(--color-accent)", width: 22, flex: "none" }}
             />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -471,7 +471,7 @@ function OptOutPanel({
         </span>
       </label>
       <p className="text-muted" style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6 }}>
-        <i className="ph ph-info" style={{ marginRight: 5 }} />
+        <Icon name="info" style={{ marginRight: 5 }} />
         Your organizer can still reach you. Tee times, delays and changes of venue go to the whole
         tournament or your flight, and this setting deliberately doesn&rsquo;t touch those — turning
         it on should never cost you your tee time.
@@ -747,7 +747,7 @@ export function ComposePanel({
           the message they were promised. */}
       {isStaff && audience.textNote && (
         <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
-          <i className="ph ph-info" /> {audience.textNote}
+          <Icon name="info" /> {audience.textNote}
         </p>
       )}
 

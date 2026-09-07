@@ -8,6 +8,7 @@ import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { FlightBoard } from "@/components/FlightBoard";
 import { unratedFlightWarning, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import type { FormationRule } from "@/lib/domain";
+import { Icon } from "@/components/Icon";
 
 export default async function GroupingPage() {
   const session = await requireScreen("grouping");
@@ -69,7 +70,7 @@ export default async function GroupingPage() {
             boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 32%, transparent)",
           }}
         >
-          <i className="ph ph-warning" style={{ fontSize: 15, marginTop: 1, flex: "none" }} />
+          <Icon name="warning" style={{ fontSize: 15, marginTop: 1, flex: "none" }} />
           {drawWarning}
         </p>
       )}

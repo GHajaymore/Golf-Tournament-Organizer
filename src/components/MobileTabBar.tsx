@@ -6,6 +6,7 @@ import { primaryTabs, type NavSection } from "@/lib/nav";
 import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import { LOGO_SIZE } from "./Logo";
+import { Icon } from "./Icon";
 
 type Role = "admin" | "assistant" | "player";
 
@@ -43,7 +44,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand }
             className="m-tab"
             aria-current={pathname === t.href ? "page" : undefined}
           >
-            <i className={t.icon} />
+            <Icon name={t.icon} />
             <span>{t.label}</span>
           </Link>
         ))}
@@ -53,7 +54,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand }
           onClick={() => setOpen(true)}
           aria-label="Open menu"
         >
-          <i className="ph ph-list" />
+          <Icon name="list" />
           <span>Menu</span>
         </button>
       </nav>
@@ -74,7 +75,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand }
                 <OrgBrand brand={brand} size={LOGO_SIZE.sm} />
               </span>
               <button type="button" className="btn btn-icon" onClick={() => setOpen(false)} aria-label="Close menu">
-                <i className="ph ph-x" />
+                <Icon name="x" />
               </button>
             </div>
 
@@ -99,7 +100,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand }
                     aria-current={pathname === it.href ? "page" : undefined}
                     onClick={() => setOpen(false)}
                   >
-                    <i className={it.icon} />
+                    <Icon name={it.icon} />
                     <span>{it.label}</span>
                   </Link>
                 ))}
@@ -134,7 +135,7 @@ export function MobileTabBar({ sections, name, role, viewRole, initials, brand }
                   <div className="text-muted" style={{ fontSize: 11 }}>{roleLabel(viewRole)}</div>
                 </div>
                 <button type="button" className="btn btn-icon" title="Sign out" onClick={() => startTransition(() => signOutAction())}>
-                  <i className="ph ph-sign-out" />
+                  <Icon name="sign-out" />
                 </button>
               </div>
             </div>

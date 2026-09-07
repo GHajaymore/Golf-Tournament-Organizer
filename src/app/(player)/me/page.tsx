@@ -7,6 +7,7 @@ import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
 import { toParText } from "@/lib/domain";
+import { Icon } from "@/components/Icon";
 
 /**
  * Today — the player's home.
@@ -187,7 +188,7 @@ export default async function PlayTodayPage() {
                 </p>
                 {card.status !== "approved" && (
                   <Link className="btn btn-primary" href="/me/card">
-                    <i className="ph ph-pencil-simple" /> Finish my card
+                    <Icon name="pencil-simple" /> Finish my card
                   </Link>
                 )}
               </>
@@ -197,7 +198,7 @@ export default async function PlayTodayPage() {
                   Nothing returned yet.
                 </p>
                 <Link className="btn btn-primary" href="/me/card">
-                  <i className="ph ph-pencil-simple" /> Start my card
+                  <Icon name="pencil-simple" /> Start my card
                 </Link>
               </>
             )}

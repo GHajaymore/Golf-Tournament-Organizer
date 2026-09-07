@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Icon } from "./Icon";
 
 export interface PrintGroup {
   name: string;
@@ -65,7 +66,7 @@ export function TeeSheetPrint({
     <>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}>
         <button type="button" className="btn btn-secondary" onClick={() => window.print()}>
-          <i className="ph ph-cards" /> Print scorecards
+          <Icon name="cards" /> Print scorecards
           {all ? " (all groups)" : ` (${selected.size} selected)`}
         </button>
         <span className="text-muted" style={{ fontSize: 12 }}>

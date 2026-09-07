@@ -10,6 +10,7 @@ import {
   BRAND_DISPLAY_HELP,
 } from "@/lib/brand";
 import { orgProfile } from "@/lib/domain/org-profile";
+import { Icon } from "./Icon";
 
 interface Props {
   name: string;
@@ -282,7 +283,7 @@ export function OrganizationClient(props: Props) {
 
           {error && (
             <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
-              <i className="ph ph-warning-circle" /> {error}
+              <Icon name="warning-circle" /> {error}
             </p>
           )}
 
@@ -296,7 +297,7 @@ export function OrganizationClient(props: Props) {
                 background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
               }}
             >
-              <i className="ph ph-warning" /> {warning}
+              <Icon name="warning" /> {warning}
             </p>
           )}
 
@@ -308,7 +309,7 @@ export function OrganizationClient(props: Props) {
               disabled={pending || !dirty}
               onClick={save}
             >
-              <i className="ph ph-check" /> {pending ? "Saving…" : saved && !dirty ? "Saved" : "Save changes"}
+              <Icon name="check" /> {pending ? "Saving…" : saved && !dirty ? "Saved" : "Save changes"}
             </button>
           ) : (
             <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>

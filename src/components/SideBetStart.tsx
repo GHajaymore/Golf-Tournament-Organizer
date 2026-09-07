@@ -7,6 +7,7 @@ import { DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
 import { PersonChip } from "@/components/PersonChip";
 import { useMoney } from "@/components/CurrencyProvider";
 import { nameHold, type NameHold } from "@/lib/domain/bet-name";
+import { Icon } from "./Icon";
 
 /**
  * A bet between whoever wants in, across whatever fourballs they are in.
@@ -199,7 +200,7 @@ export function SideBetStart({
         style={{ marginTop: 16, alignSelf: "flex-start" }}
         onClick={() => setOpen(true)}
       >
-        <i className="ph ph-plus" /> Start a side bet
+        <Icon name="plus" /> Start a side bet
       </button>
     );
   }
@@ -321,7 +322,7 @@ export function SideBetStart({
 
       {error && (
         <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Icon } from "./Icon";
 
 export interface ChecklistItem {
   label: string;
@@ -30,8 +31,7 @@ export function SetupChecklist({ items }: { items: ChecklistItem[] }) {
             borderRadius: "var(--radius-md)",
           }}
         >
-          <i
-            className={it.done ? "ph-fill ph-check-circle" : "ph ph-circle-dashed"}
+          <Icon name={it.done ? "ph-fill ph-check-circle" : "ph ph-circle-dashed"}
             style={{
               fontSize: 20,
               color: it.done ? "var(--color-accent-2)" : "var(--color-neutral-500)",
@@ -45,7 +45,7 @@ export function SetupChecklist({ items }: { items: ChecklistItem[] }) {
             </div>
             <div className="text-muted" style={{ fontSize: 12 }}>{it.detail}</div>
           </div>
-          <i className="ph ph-arrow-right" style={{ color: "var(--color-neutral-500)" }} />
+          <Icon name="arrow-right" style={{ color: "var(--color-neutral-500)" }} />
         </Link>
       ))}
     </div>

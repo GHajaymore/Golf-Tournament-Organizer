@@ -13,6 +13,7 @@ import { meFor } from "@/lib/services/me";
 import { cardBrand } from "@/lib/services/organization";
 import { NO_CARD_REVISION } from "@/lib/domain/pending-card";
 import { PlayerCard } from "@/components/PlayerCard";
+import { Icon } from "@/components/Icon";
 
 /**
  * My card — one player, one round, one hole at a time.
@@ -80,7 +81,7 @@ export default async function PlayCardPage() {
           Your organizer enters it, and it appears on the board as soon as it&rsquo;s in.
         </p>
         <Link className="btn btn-secondary" href="/me/board" style={{ marginTop: 14 }}>
-          <i className="ph ph-ranking" /> See the board
+          <Icon name="ranking" /> See the board
         </Link>
       </div>
     );

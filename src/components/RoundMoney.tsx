@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { RoundMoneyView } from "@/lib/services/expenses";
 import { useMoney } from "@/components/CurrencyProvider";
+import { Icon } from "./Icon";
 
 /**
  * What the pots paid, round by round, with the outing underneath.
@@ -139,7 +140,7 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
                   >
                     {money(r.yourCents)}
                   </span>
-                  <i className={isOpen ? "ph ph-caret-up" : "ph ph-caret-down"} />
+                  <Icon name={isOpen ? "ph ph-caret-up" : "ph ph-caret-down"} />
                 </button>
 
                 {isOpen && (

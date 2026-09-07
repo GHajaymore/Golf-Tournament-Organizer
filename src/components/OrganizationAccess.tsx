@@ -6,6 +6,7 @@ import {
   removeOrganizationMember,
 } from "@/app/actions/organization";
 import type { AccessReport } from "@/lib/services/access";
+import { Icon } from "./Icon";
 
 /**
  * "Commissioner", not "Owner". Ajay's call, 2026-08-21 — a considered choice,
@@ -75,7 +76,7 @@ export function OrganizationAccess({ report, canEdit }: { report: AccessReport; 
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {error && (
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 
@@ -144,7 +145,7 @@ export function OrganizationAccess({ report, canEdit }: { report: AccessReport; 
                         title="Remove from organization"
                         onClick={() => run(() => removeOrganizationMember(p.memberId!))}
                       >
-                        <i className="ph ph-x" />
+                        <Icon name="x" />
                       </button>
                     </td>
                   </tr>
@@ -214,7 +215,7 @@ export function OrganizationAccess({ report, canEdit }: { report: AccessReport; 
               )
             }
           >
-            <i className="ph ph-plus" /> Add staff
+            <Icon name="plus" /> Add staff
           </button>
           {!canEdit && (
             <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>

@@ -7,6 +7,7 @@ import { signOutAction, setPreviewAction } from "@/app/actions/auth";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 import { OrgBrand, type Brand } from "@/components/OrgBrand";
+import { Icon } from "./Icon";
 
 type Role = "admin" | "assistant" | "player";
 
@@ -143,7 +144,7 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand }: Pro
                   className="side-link"
                   aria-current={active ? "page" : undefined}
                 >
-                  <i className={it.icon} />
+                  <Icon name={it.icon} />
                   <span>{it.label}</span>
                 </Link>
               );
@@ -223,7 +224,7 @@ export function Sidebar({ sections, name, role, viewRole, initials, brand }: Pro
             title="Sign out"
             onClick={() => startTransition(() => signOutAction())}
           >
-            <i className="ph ph-sign-out" />
+            <Icon name="sign-out" />
           </button>
         </div>
       </div>

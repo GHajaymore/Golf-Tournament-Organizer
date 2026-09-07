@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { confirmChampion, removeFromHonours } from "@/app/actions/roster";
 import { CHAMPION_REFUSAL, type HonoursEntry } from "@/lib/domain/honours";
 import type { PendingChampion } from "@/lib/services/honours";
+import { Icon } from "./Icon";
 
 /**
  * The club's board — names going back as far as the club has records.
@@ -110,7 +111,7 @@ export function HonoursBoard({
                         disabled={busy}
                         onClick={() => remove(e.id)}
                       >
-                        <i className="ph ph-x" />
+                        <Icon name="x" />
                       </button>
                     )}
                   </span>
@@ -162,7 +163,7 @@ export function HonoursBoard({
                     disabled={busy}
                     onClick={() => confirm(p.eventId)}
                   >
-                    <i className="ph ph-seal-check" /> Put on the board
+                    <Icon name="seal-check" /> Put on the board
                   </button>
                 </div>
               ) : p.suggestion.reason === "tied" ? (
@@ -200,7 +201,7 @@ export function HonoursBoard({
                       style={{ fontSize: 12, alignSelf: "flex-start" }}
                       onClick={() => setPickFor(p.eventId)}
                     >
-                      <i className="ph ph-scales" /> Decide between{" "}
+                      <Icon name="scales" /> Decide between{" "}
                       {p.suggestion.tied.map((t) => t.name).join(" and ")}
                     </button>
                   )}
@@ -217,7 +218,7 @@ export function HonoursBoard({
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
     </div>

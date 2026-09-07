@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { setThirdPlace, createThirdPlaceMatch } from "@/app/actions/tournament";
 import { THIRD_PLACE_HELP } from "@/lib/domain/third-place";
+import { Icon } from "./Icon";
 
 /**
  * Whether this knockout plays off for third, and making the match.
@@ -71,12 +72,12 @@ export function ThirdPlaceControl({
         >
           {made ? (
             <span className="text-muted">
-              <i className="ph ph-check-circle" /> The play-off is made — {aName} v {bName}. Enter its result on
+              <Icon name="check-circle" /> The play-off is made — {aName} v {bName}. Enter its result on
               Score entry.
             </span>
           ) : problem ? (
             <span className="text-muted">
-              <i className="ph ph-hourglass" /> {problem}
+              <Icon name="hourglass" /> {problem}
             </span>
           ) : (
             <>
@@ -89,7 +90,7 @@ export function ThirdPlaceControl({
                 onClick={() => run(() => createThirdPlaceMatch(stageId))}
                 style={{ marginTop: 7 }}
               >
-                <i className="ph ph-flag-checkered" /> Create the play-off
+                <Icon name="flag-checkered" /> Create the play-off
               </button>
             </>
           )}
@@ -98,7 +99,7 @@ export function ThirdPlaceControl({
 
       {error && (
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
     </div>

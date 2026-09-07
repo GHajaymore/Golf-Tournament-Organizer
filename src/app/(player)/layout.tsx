@@ -16,6 +16,7 @@ import { usesExpenses } from "@/lib/services/expenses";
 import { membershipFor, unreadTotal } from "@/lib/services/messaging";
 import { BackLink } from "@/components/BackLink";
 import { PlayerSignOut } from "@/components/PlayerSignOut";
+import { Icon } from "@/components/Icon";
 
 /**
  * The player's app.
@@ -124,7 +125,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
             className="btn btn-secondary"
             style={{ fontSize: 12.5, position: "relative", padding: "6px 10px" }}
           >
-            <i className="ph ph-chat-circle-dots" style={{ fontSize: 17 }} />
+            <Icon name="chat-circle-dots" style={{ fontSize: 17 }} />
             {unread > 0 && (
               <span
                 aria-hidden
@@ -154,7 +155,7 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
               className="btn btn-secondary"
               style={{ fontSize: 12.5, whiteSpace: "nowrap" }}
             >
-              <i className="ph ph-gear" /> Organizer
+              <Icon name="gear" /> Organizer
             </Link>
           )}
           {/* Last, and an icon, because it is the control you want findable and

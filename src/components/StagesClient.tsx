@@ -55,6 +55,7 @@ import { CutControl } from "./CutControl";
 import { RoundDeadlineControl } from "./RoundDeadlineControl";
 import { setStageOptDeadline } from "@/app/actions/attendance";
 import type { TiebreakerKey } from "@/lib/domain";
+import { Icon } from "./Icon";
 
 export interface StageView {
   id: string;
@@ -286,7 +287,7 @@ function NextRoundTransition({
         }}
       >
         <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
-          <i className="ph ph-info" /> No round after this yet. A cut and a carry-forward both need
+          <Icon name="info" /> No round after this yet. A cut and a carry-forward both need
           somewhere to go, so add the next round first and they will appear here.
         </span>
         <div>
@@ -300,7 +301,7 @@ function NextRoundTransition({
               })
             }
           >
-            <i className="ph ph-plus" /> Add the next round
+            <Icon name="plus" /> Add the next round
           </button>
         </div>
       </div>
@@ -428,7 +429,7 @@ function NextRoundTransition({
       <div style={{ borderTop: "1px solid var(--color-divider)", margin: "4px 0", paddingTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
         {nextIsSeeded ? (
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-            <i className="ph ph-tree-structure" /> {roundLabel} is a bracket, so its field is
+            <Icon name="tree-structure" /> {roundLabel} is a bracket, so its field is
             whoever qualifies — set that under Qualification. A cut here would not change the
             draw.
           </p>
@@ -461,7 +462,7 @@ function NextRoundTransition({
               })
             }
           >
-            <i className="ph ph-arrows-clockwise" /> {nextStage?.matchCount ? "Regenerate" : "Generate"} {roundLabel}
+            <Icon name="arrows-clockwise" /> {nextStage?.matchCount ? "Regenerate" : "Generate"} {roundLabel}
             {nextDrawsPairings ? " pairings" : ""}
           </button>
           <span className="text-muted" style={{ fontSize: 12 }}>
@@ -491,14 +492,14 @@ function NextRoundTransition({
             }}
           >
             <b style={{ color: "var(--color-danger)" }}>
-              <i className="ph ph-warning-circle" /> Not generated.
+              <Icon name="warning-circle" /> Not generated.
             </b>{" "}
             {genError}
           </div>
         )}
         {nextDrawsPairings && nextStage && nextStage.matchCount === 0 && (
           <span className="tag tag-neutral" style={{ alignSelf: "flex-start" }}>
-            <i className="ph ph-clock" /> {roundLabel} not generated yet
+            <Icon name="clock" /> {roundLabel} not generated yet
           </span>
         )}
       </div>
@@ -784,7 +785,7 @@ function StageCard({
           }}
         >
           <span style={{ fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-            <i className="ph ph-warning" />
+            <Icon name="warning" />
             {chainWarnings.length === 1 ? "Check this round follows on" : "Check how this round follows on"}
           </span>
           {chainWarnings.map((w, i) => (
@@ -841,10 +842,9 @@ function StageCard({
               {standing === "active" ? "Active" : standing === "played" ? "Played" : "Upcoming"}
             </span>
             {notGenerated && (
-              <span className="tag tag-neutral"><i className="ph ph-clock" /> Not generated yet</span>
+              <span className="tag tag-neutral"><Icon name="clock" /> Not generated yet</span>
             )}
-            <i
-              className={expanded ? "ph ph-caret-up" : "ph ph-caret-down"}
+            <Icon name={expanded ? "ph ph-caret-up" : "ph ph-caret-down"}
               style={{ fontSize: 13, color: "var(--color-neutral-500)" }}
             />
           </div>
@@ -871,7 +871,7 @@ function StageCard({
               title="About this round"
               style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--color-neutral-500)", display: "inline-flex" }}
             >
-              <i className="ph ph-info" style={{ fontSize: 13 }} />
+              <Icon name="info" style={{ fontSize: 13 }} />
             </button>
           </label>
           {/* Grouped, because this is where team golf actually lives and a flat
@@ -910,7 +910,7 @@ function StageCard({
               }}
             >
               <b>
-                <i className="ph ph-warning" /> This round already has {formatCards.cards} card
+                <Icon name="warning" /> This round already has {formatCards.cards} card
                 {formatCards.cards === 1 ? "" : "s"} entered.
               </b>
               <div className="text-muted" style={{ marginTop: 4 }}>
@@ -954,7 +954,7 @@ function StageCard({
               }}
             >
               <b style={{ color: "var(--color-danger)" }}>
-                <i className="ph ph-warning-circle" /> Deleting this round destroys{" "}
+                <Icon name="warning-circle" /> Deleting this round destroys{" "}
                 {removeCost.cards > 0 && (
                   <>
                     {removeCost.cards} entered card{removeCost.cards === 1 ? "" : "s"}
@@ -1097,7 +1097,7 @@ function StageCard({
             })
           }
         >
-          <i className="ph ph-trash" />
+          <Icon name="trash" />
         </button>
         </div>
       </div>
@@ -1242,8 +1242,8 @@ function StageCard({
           }}
         >
           <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 500, flex: "none", color: "var(--color-text)" }}>
-            <i className={customizeOpen ? "ph ph-caret-down" : "ph ph-caret-right"} style={{ color: "var(--color-accent-300)" }} />
-            <i className="ph ph-sliders" style={{ color: "var(--color-accent-300)" }} />
+            <Icon name={customizeOpen ? "ph ph-caret-down" : "ph ph-caret-right"} style={{ color: "var(--color-accent-300)" }} />
+            <Icon name="sliders" style={{ color: "var(--color-accent-300)" }} />
             Customize this round
           </span>
           {!customizeOpen && (
@@ -1629,7 +1629,7 @@ export function StagesClient({
           style={{ gap: 6, borderLeft: "3px solid var(--color-accent)" }}
         >
           <span className="card-title" style={{ fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
-            <i className="ph ph-flag" /> Handicaps are approximate
+            <Icon name="flag" /> Handicaps are approximate
           </span>
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{handicapWarning}</p>
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
@@ -1724,7 +1724,7 @@ export function StagesClient({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <i className={t.icon} style={{ fontSize: 15, color: "var(--color-accent-400)" }} />
+                  <Icon name={t.icon} style={{ fontSize: 15, color: "var(--color-accent-400)" }} />
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</span>
                 </div>
                 <div className="text-muted" style={{ fontSize: 11.5, marginTop: 3, lineHeight: 1.45 }}>
@@ -1758,7 +1758,7 @@ export function StagesClient({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <i className={t.icon} style={{ fontSize: 15, color: "var(--color-accent-400)" }} />
+                  <Icon name={t.icon} style={{ fontSize: 15, color: "var(--color-accent-400)" }} />
                   <span style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</span>
                 </div>
                 <div className="text-muted" style={{ fontSize: 11.5, marginTop: 3, lineHeight: 1.45 }}>
@@ -1879,7 +1879,7 @@ export function StagesClient({
               })
             }
           >
-            <i className="ph ph-plus" />{" "}
+            <Icon name="plus" />{" "}
             {howMany === 1
               ? `Add ${stageTypeInfo(newType).label.toLowerCase()}`
               : `Add ${howMany} ${stageTypeInfo(newType).label.toLowerCase()}s`}

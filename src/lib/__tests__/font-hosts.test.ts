@@ -94,21 +94,46 @@ describe("nothing in the document head loads from another origin", () => {
     expect(offenders, `external <link> in layout.tsx: ${offenders.join(", ")}`).toEqual([]);
   });
 
-  it("actually imports the icon font it stopped linking", () => {
-    // The other half: removing the links without importing the package would
-    // also pass the assertion above, and ship an app with no icons at all.
+  /**
+   * THE OTHER HALF, which used to be "and it still imports the icon font".
+   *
+   * Removing a `<link>` without importing the package would pass the assertion
+   * above and ship an app with no icons at all, so something had to check that
+   * icons still came from somewhere. That somewhere is no longer a font: the
+   * webfont was 272.6 KB of woff2 for about 120 glyphs out of roughly 1,500,
+   * and `font-display: block`, so every icon was invisible until it arrived.
+   *
+   * The sprite carries only what the app uses and is already in the document.
+   * So the rule is the same rule — icons must come from somewhere, and that
+   * somewhere must not be a third party — and only its subject has changed.
+   */
+  it("mounts the icon sprite in the root layout", () => {
     const layout = readSource("src/app/layout.tsx");
-    expect(layout).toMatch(/@phosphor-icons\/web\/regular/);
-    expect(layout).toMatch(/@phosphor-icons\/web\/fill/);
+    expect(layout, "nothing renders IconSprite; every <use href> would dangle").toMatch(
+      /<IconSprite\s*\/>/,
+    );
+    expect(layout).toMatch(/from "@\/components\/IconSprite"/);
   });
 
-  it("depends on the icon package explicitly", () => {
-    // An import that resolves only because something else happened to install
-    // it is a build that breaks on a clean checkout.
+  it("no longer ships the icon webfont it replaced", () => {
+    const layout = readSource("src/app/layout.tsx");
+    expect(layout, "the icon webfont is back alongside the sprite — that is both").not.toMatch(
+      /@phosphor-icons\/web/,
+    );
     const pkg = JSON.parse(readVerbatim("package.json")) as {
       dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
     };
-    expect(pkg.dependencies?.["@phosphor-icons/web"], "not a declared dependency").toBeTruthy();
+    expect(
+      pkg.dependencies?.["@phosphor-icons/web"],
+      "@phosphor-icons/web is a runtime dependency again",
+    ).toBeUndefined();
+    // The SVG source the sprite is generated FROM is a build-time dependency,
+    // and belongs in devDependencies — nothing in it is shipped.
+    expect(
+      pkg.devDependencies?.["@phosphor-icons/core"],
+      "the sprite generator's source is not a declared devDependency",
+    ).toBeTruthy();
   });
 });
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { regenGroups } from "@/app/actions/tournament";
 import { formGroups, flightCountFor, type FormationRule, type Player } from "@/lib/domain";
 import { drawReadiness } from "@/lib/domain/draw-readiness";
+import { Icon } from "./Icon";
 
 const RULES: Array<{ key: FormationRule; label: string; icon: string; desc: string }> = [
   {
@@ -107,7 +108,7 @@ export function GroupingControls({
                   color: on ? "var(--color-accent)" : "var(--color-text)",
                 }}
               >
-                <i className={r.icon} /> {r.label}
+                <Icon name={r.icon} /> {r.label}
               </button>
             );
           })}
@@ -156,7 +157,7 @@ export function GroupingControls({
               })
             }
           >
-            <i className="ph ph-shuffle" /> {pending ? "Generating…" : "Generate flights"}
+            <Icon name="shuffle" /> {pending ? "Generating…" : "Generate flights"}
           </button>
         </div>
       </div>
@@ -180,7 +181,7 @@ export function GroupingControls({
             background: "color-mix(in srgb, var(--color-text) 5%, transparent)",
           }}
         >
-          <i className="ph ph-info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
+          <Icon name="info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
           <span>
             {block.problem}{" "}
             <Link href={block.href} style={{ color: "var(--color-accent-300)" }}>
@@ -192,7 +193,7 @@ export function GroupingControls({
 
       {error && (
         <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
 
@@ -210,7 +211,7 @@ export function GroupingControls({
         >
           <div style={{ fontSize: 13 }}>
             <b>
-              <i className="ph ph-warning" /> This will delete {confirmScored} scored match
+              <Icon name="warning" /> This will delete {confirmScored} scored match
               {confirmScored === 1 ? "" : "es"}.
             </b>
             <div className="text-muted" style={{ marginTop: 4 }}>

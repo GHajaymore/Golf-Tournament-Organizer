@@ -5,6 +5,7 @@ import { pts } from "@/lib/format";
 import { tiebreakerLabel, tiebreakerHelp, FIXED_TIEBREAKER_KEYS, toughestN, MAX_TOUGHEST_N, type TiebreakerKey } from "@/lib/domain";
 import { RuleCite } from "./RuleCite";
 import FieldInfo from "@/components/FieldInfo";
+import { Icon } from "./Icon";
 
 interface Values {
   winPts: number;
@@ -170,10 +171,10 @@ export function ScoringClient({
                 <p>{tiebreakerHelp(t)}</p>
               </FieldInfo>
               <button type="button" className="btn btn-icon" disabled={pending || i === 0} onClick={() => move(i, -1)} title="Move up" style={{ width: 28, height: 28 }}>
-                <i className="ph ph-caret-up" />
+                <Icon name="caret-up" />
               </button>
               <button type="button" className="btn btn-icon" disabled={pending || i === order.length - 1} onClick={() => move(i, 1)} title="Move down" style={{ width: 28, height: 28 }}>
-                <i className="ph ph-caret-down" />
+                <Icon name="caret-down" />
               </button>
             </div>
           ))}
@@ -239,7 +240,7 @@ export function ScoringClient({
                 onClick={() => addToughest(n)}
                 style={{ cursor: usedN.has(n) ? "default" : "pointer", border: "none", opacity: usedN.has(n) ? 0.45 : 1 }}
               >
-                <i className="ph ph-plus" /> Toughest {n}
+                <Icon name="plus" /> Toughest {n}
               </button>
             ))}
             <select

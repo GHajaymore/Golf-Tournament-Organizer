@@ -4,6 +4,7 @@ import { createEvent } from "@/app/actions/tournament";
 import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { TOURNAMENT_SHAPES, DEFAULT_SHAPE, type TournamentShape } from "@/lib/tournament-shape";
 import { retentionNotice, planFor } from "@/lib/plans";
+import { Icon } from "./Icon";
 
 /**
  * Create-a-tournament step on the picker screen. Shown prominently when
@@ -42,7 +43,7 @@ export function CreateFirstTournament({
         className="btn btn-secondary"
         style={{ alignSelf: "flex-start", marginTop: 18 }}
       >
-        <i className="ph ph-plus" /> Create another tournament
+        <Icon name="plus" /> Create another tournament
       </button>
     );
   }
@@ -148,7 +149,7 @@ export function CreateFirstTournament({
             border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
           }}
         >
-          <i className="ph ph-warning-circle" style={{ color: "var(--color-danger)", fontSize: 15, marginTop: 1 }} />
+          <Icon name="warning-circle" style={{ color: "var(--color-danger)", fontSize: 15, marginTop: 1 }} />
           <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
             <b>On the {planName} plan:</b> {retention}
           </p>
@@ -157,7 +158,7 @@ export function CreateFirstTournament({
 
       <div style={{ display: "flex", gap: 8 }}>
         <button type="button" className="btn btn-primary" disabled={pending || !name.trim()} onClick={submit}>
-          {pending ? "Creating…" : "Create tournament"} <i className="ph ph-arrow-right" />
+          {pending ? "Creating…" : "Create tournament"} <Icon name="arrow-right" />
         </button>
         {!first && (
           <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => setOpen(false)}>

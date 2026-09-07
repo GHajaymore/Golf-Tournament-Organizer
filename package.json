@@ -68,7 +68,6 @@
     }
   },
   "dependencies": {
-    "@phosphor-icons/web": "2.1.1",
     "@prisma/client": "^6.3.1",
     "geist": "^1.7.2",
     "next": "15.5.22",
@@ -83,6 +82,7 @@
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
     "@eslint/eslintrc": "^3.3.6",
+    "@phosphor-icons/core": "^2.1.1",
     "@playwright/test": "^1.62.1",
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",

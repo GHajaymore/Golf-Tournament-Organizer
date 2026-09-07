@@ -3,6 +3,7 @@ import { useMemo, useState, useTransition } from "react";
 import { importClubCourseCard } from "@/app/actions/courses";
 import { parseCard, type CardProblem } from "@/lib/domain/scorecard-parse";
 import { CourseCardCamera } from "@/components/CourseCardCamera";
+import { Icon } from "./Icon";
 
 /**
  * Add a course by pasting its card.
@@ -88,7 +89,7 @@ export function CardImport({
         />
         {problems.map((p, i) => (
           <p key={i} style={{ fontSize: 11.5, margin: "4px 0 0", color: "var(--color-danger)", lineHeight: 1.45 }}>
-            <i className="ph ph-warning-circle" /> {p.message}
+            <Icon name="warning-circle" /> {p.message}
             {p.holes.length > 0 && (
               <> Check hole{p.holes.length > 1 ? "s" : ""} {p.holes.join(", ")}.</>
             )}
@@ -216,7 +217,7 @@ export function CardImport({
             boxShadow: "inset 0 0 0 1px color-mix(in srgb, var(--color-accent-2) 30%, transparent)",
           }}
         >
-          <i className="ph ph-check-circle" style={{ fontSize: 15, color: "var(--color-accent-2-400)" }} />
+          <Icon name="check-circle" style={{ fontSize: 15, color: "var(--color-accent-2-400)" }} />
           <span>
             Reads as <strong>par {card.totals.par}</strong>
             {holes === 18 && <> — out {card.totals.outPar}, in {card.totals.inPar}</>}
@@ -227,19 +228,19 @@ export function CardImport({
 
       {error && (
         <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
-          <i className="ph ph-warning-circle" /> {error}
+          <Icon name="warning-circle" /> {error}
         </p>
       )}
       {saved && (
         <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-accent-2-400)" }}>
-          <i className="ph ph-check" /> Added, and marked unverified until someone checks it against the
+          <Icon name="check" /> Added, and marked unverified until someone checks it against the
           real card.
         </p>
       )}
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <button type="button" className="btn btn-primary" disabled={pending || !ready} onClick={submit}>
-          <i className="ph ph-plus" /> {pending ? "Adding…" : "Add course"}
+          <Icon name="plus" /> {pending ? "Adding…" : "Add course"}
         </button>
         {!ready && (pars.trim() || strokeIndex.trim()) && (
           <span className="text-muted" style={{ fontSize: 12 }}>

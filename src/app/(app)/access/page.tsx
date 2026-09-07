@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { AccessClient } from "@/components/AccessClient";
 import { emailConfig } from "@/lib/email";
 import { emailTroubleFor } from "@/lib/services/email-trouble";
+import { Icon } from "@/components/Icon";
 
 export default async function AccessPage() {
   await requireScreen("access");
@@ -38,7 +39,7 @@ export default async function AccessPage() {
           }}
         >
           <span className="card-title" style={{ fontSize: 14 }}>
-            <i className={mail.configured ? "ph ph-warning" : "ph ph-warning-circle"} />{" "}
+            <Icon name={mail.configured ? "ph ph-warning" : "ph ph-warning-circle"} />{" "}
             {mail.configured ? "Reset emails may not reach players" : "Password reset is not working"}
           </span>
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
@@ -63,7 +64,7 @@ export default async function AccessPage() {
           }}
         >
           <span className="card-title" style={{ fontSize: 14 }}>
-            <i className={trouble.severity === "danger" ? "ph ph-warning-circle" : "ph ph-warning"} />{" "}
+            <Icon name={trouble.severity === "danger" ? "ph ph-warning-circle" : "ph ph-warning"} />{" "}
             {trouble.title}
           </span>
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>

@@ -6,6 +6,7 @@ import { listNames } from "@/lib/format";
 import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { useTransition } from "react";
 import { saveTeeSheet, setTeeSheetPublished } from "@/app/actions/tee-sheet";
+import { Icon } from "./Icon";
 import {
   DRAW_ORDERS,
   groupByStandings,
@@ -207,7 +208,7 @@ export function FoursomeMaker({
             wondering why half the options are greyed. */}
         {!hasStandings && (
           <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
-            <i className="ph ph-info" /> No scores posted yet, so the leaderboard options are off. They
+            <Icon name="info" /> No scores posted yet, so the leaderboard options are off. They
             switch on once a round has been played — that&apos;s when re-pairing by position and drawing
             the leaders out last start to mean something.
           </p>
@@ -232,7 +233,7 @@ export function FoursomeMaker({
                     opacity: off ? 0.45 : 1,
                   }}
                 >
-                  <i className={a.icon} /> {a.label}
+                  <Icon name={a.icon} /> {a.label}
                 </button>
               );
             })}
@@ -248,7 +249,7 @@ export function FoursomeMaker({
               so the sentence cannot drift from what is actually disabled. */}
           {standingsBlocked.length > 0 && (
             <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
-              <i className="ph ph-info" /> {listNames(standingsBlocked)}{" "}
+              <Icon name="info" /> {listNames(standingsBlocked)}{" "}
               {standingsBlocked.length === 1 ? "needs" : "need"} the leaderboard, so{" "}
               {standingsBlocked.length === 1 ? "it is" : "they are"} available only once a round has
               been played.
@@ -285,7 +286,7 @@ export function FoursomeMaker({
           </p>
           {orderBlocked.length > 0 && (
             <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
-              <i className="ph ph-info" /> {listNames(orderBlocked)}{" "}
+              <Icon name="info" /> {listNames(orderBlocked)}{" "}
               {orderBlocked.length === 1 ? "needs" : "need"} the leaderboard, so{" "}
               {orderBlocked.length === 1 ? "it is" : "they are"} available only once a round has been
               played.
@@ -362,7 +363,7 @@ export function FoursomeMaker({
           <span className="text-muted" style={{ fontSize: 12 }}>{groups.length} groups · {summary}</span>
           {(algo === "random" || order === "random") && (
             <button type="button" className="btn btn-primary" onClick={() => setSeed((s) => s + 1)}>
-              <i className="ph ph-shuffle" /> Reshuffle
+              <Icon name="shuffle" /> Reshuffle
             </button>
           )}
           {/* Saving turns the draw on screen into the round's sheet of
@@ -379,7 +380,7 @@ export function FoursomeMaker({
                 disabled={savePending || groups.length === 0}
                 onClick={() => { setConfirmPublish(false); persist(false); }}
               >
-                <i className="ph ph-floppy-disk" /> {savePending ? "Saving…" : "Save sheet"}
+                <Icon name="floppy-disk" /> {savePending ? "Saving…" : "Save sheet"}
               </button>
               <button
                 type="button"
@@ -387,7 +388,7 @@ export function FoursomeMaker({
                 disabled={savePending || groups.length === 0}
                 onClick={() => setConfirmPublish(true)}
               >
-                <i className="ph ph-megaphone" /> Save &amp; publish
+                <Icon name="megaphone" /> Save &amp; publish
               </button>
               {saveState.published && (
                 <button
@@ -396,7 +397,7 @@ export function FoursomeMaker({
                   disabled={savePending}
                   onClick={() => { setConfirmPublish(false); unpublish(); }}
                 >
-                  <i className="ph ph-eye-slash" /> Unpublish
+                  <Icon name="eye-slash" /> Unpublish
                 </button>
               )}
             </>
@@ -428,7 +429,7 @@ export function FoursomeMaker({
               background: "color-mix(in srgb, var(--color-text) 5%, transparent)",
             }}
           >
-            <i className="ph ph-info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
+            <Icon name="info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
             <span>
               {saveBlock.problem}{" "}
               <a href={saveBlock.href} style={{ color: "var(--color-accent-300)" }}>
@@ -455,7 +456,7 @@ export function FoursomeMaker({
             }}
           >
             <span style={{ flex: 1, minWidth: 220 }}>
-              <i className="ph ph-megaphone" style={{ marginRight: 6 }} />
+              <Icon name="megaphone" style={{ marginRight: 6 }} />
               This shows the draw to every player. Publish the tee sheet?
             </span>
             <button
@@ -481,10 +482,10 @@ export function FoursomeMaker({
       {(saveState.savedAt || saveError) && (
         <p style={{ fontSize: 12, margin: "0 0 10px", color: saveError ? "var(--color-danger)" : "var(--color-neutral-500)" }}>
           {saveError ? (
-            <><i className="ph ph-warning-circle" /> {saveError}</>
+            <><Icon name="warning-circle" /> {saveError}</>
           ) : (
             <>
-              <i className={saveState.published ? "ph ph-megaphone" : "ph ph-floppy-disk"} />{" "}
+              <Icon name={saveState.published ? "ph ph-megaphone" : "ph ph-floppy-disk"} />{" "}
               {saveState.published ? "Published to players" : "Saved as a draft"} — regenerating here only changes
               the preview until you save again.
             </>
@@ -503,7 +504,7 @@ export function FoursomeMaker({
                 <span className="text-muted" style={{ fontSize: 11 }}>avg {avg(gp.map((p) => p.handicap))}</span>
               </div>
               <div className="tag tag-accent" style={{ alignSelf: "flex-start", fontSize: 11 }}>
-                <i className="ph ph-clock" style={{ marginRight: 4 }} />
+                <Icon name="clock" style={{ marginRight: 4 }} />
                 {`Hole ${slot.startHole}${slot.half ?? ""} · ${slot.time}`}
               </div>
               {gp.map((p) => {
