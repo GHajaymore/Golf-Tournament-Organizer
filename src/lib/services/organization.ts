@@ -4,7 +4,7 @@ import { brandLines, brandMonogram, isBrandDisplay } from "@/lib/brand";
 import { prisma } from "../db";
 import { DEFAULT_PLAN, planFor } from "../plans";
 import {
-  DEFAULT_THEME, DEFAULT_APPEARANCE, FAIRWAY, isAppearance, type ClubTheme,
+  DEFAULT_THEME, DEFAULT_APPEARANCE, DEFAULT_CLUB_THEME, isAppearance, type ClubTheme,
 } from "../themes";
 import { cleanSettings } from "../tournament-settings";
 import { generateShareToken } from "../codes";
@@ -330,7 +330,10 @@ export async function themeForEvent(eventId: string): Promise<ClubTheme> {
   return {
     accentKey: org?.themeKey ?? DEFAULT_THEME,
     accentHex: org?.themeHex ?? "",
-    secondaryKey: org?.themeSecondaryKey ?? FAIRWAY.key,
+    // DEFAULT_CLUB_THEME, not a literal. This is the line that decides what a
+    // club with no stored secondary actually sees, so a second copy of the
+    // default here silently outranks the one everybody reads.
+    secondaryKey: org?.themeSecondaryKey ?? DEFAULT_CLUB_THEME.secondaryKey,
     secondaryHex: org?.themeSecondaryHex ?? "",
     appearance: isAppearance(appearance) ? appearance : DEFAULT_APPEARANCE,
   };

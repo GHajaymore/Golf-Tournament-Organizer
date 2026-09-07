@@ -46,7 +46,16 @@ export interface ThemePreset {
 }
 
 export const THEME_PRESETS: ThemePreset[] = [
-  { key: "sunset", name: "Sunset", blurb: "Warm orange — the default.", hue: 27, saturation: 0.88 },
+  // Hue 182, between Ivy and Links. Aged bronze: the green a trophy goes when
+  // nobody polishes it. Comfortably past MIN_HUE_SEPARATION from Fairway (31),
+  // so a club can run it as the accent and keep green for meaning — which is
+  // exactly why it is now the default.
+  //
+  // FIRST because it is the default, which is the rule this list follows: a
+  // default a club has to scroll to find is a default in name only. It took
+  // this slot from Sunset when the default moved.
+  { key: "verdigris", name: "Verdigris", blurb: "Oxidised bronze — what a trophy does when nobody polishes it.", hue: 182, saturation: 0.68 },
+  { key: "sunset", name: "Sunset", blurb: "Warm orange, and the original.", hue: 27, saturation: 0.88 },
   { key: "claret", name: "Claret", blurb: "Deep red, after the jug.", hue: 352, saturation: 0.62 },
   { key: "links", name: "Links", blurb: "Cool coastal blue.", hue: 205, saturation: 0.7 },
   { key: "heather", name: "Heather", blurb: "Purple, like the rough at Gleneagles.", hue: 280, saturation: 0.45 },
@@ -79,23 +88,74 @@ export const THEME_PRESETS: ThemePreset[] = [
   // and not a sand — the yellow-green of an optic ball, which is the one
   // colour in golf chosen specifically to be impossible to lose.
   { key: "optic", name: "Optic", blurb: "The yellow-green of an optic ball — bred to be impossible to lose.", hue: 78, saturation: 0.92 },
-  // Hue 182, between Ivy and Links. Aged bronze: the green a trophy goes when
-  // nobody polishes it. Comfortably past MIN_HUE_SEPARATION from Fairway (31),
-  // so a club can run it as the accent and keep green for meaning.
-  { key: "verdigris", name: "Verdigris", blurb: "Oxidised bronze — what a trophy does when nobody polishes it.", hue: 182, saturation: 0.68 },
   // Hue 316, in the 72-degree hole between Heather and Claret. The one week a
   // year a golf course is unapologetically pink.
   { key: "azalea", name: "Azalea", blurb: "Hot pink — the week the azaleas are out.", hue: 316, saturation: 0.88 },
 ];
 
-export const DEFAULT_THEME = "sunset";
+/**
+ * THE DEFAULT PAIR IS THE ONLY ONE THAT PASSES ITS OWN OUTDOOR BAR.
+ *
+ * This app sets `SUNLIGHT_RATIO` at 7:1 and warns a club whose colours fall
+ * under it, on the grounds that a score is read on a phone at arm's length in
+ * direct sun. It then shipped a default that failed: `sunlightVerdict` on the
+ * old pair — Sunset accent, Fairway secondary — returned `ok: false`, with the
+ * accent at 6.97:1 and the secondary at 3.91:1.
+ *
+ * It was not close to an edge case either. Asked about every preset in the
+ * list, the grader returned `ok: false` for ALL of them, because the Fairway
+ * secondary is common to each and 3.91 fails on its own. So every club in the
+ * product was being told, correctly, that its colours were dim in sunlight,
+ * and the set of pairings that would have satisfied the warning was empty.
+ *
+ * Verdigris (10.09) with Optic (13.80) clears it on both, 104 degrees apart,
+ * and both were already in the list — this is a change of DEFAULT, not new
+ * colour. Every preset stays selectable and every club that has chosen one
+ * keeps it; `themeForEvent` only falls back here when a club has stored no
+ * key at all.
+ *
+ * WHY NOT A GREEN ACCENT, which reads more like golf: `--color-accent-2` is
+ * the semantic colour, not decoration. It rings a birdie and an eagle on the
+ * hole-by-hole card, marks the live dot, colours money owed TO you, and marks
+ * a confirmed flight. Making the brand green and the secondary amber would
+ * ring birdies in a caution colour. Cyan is chosen precisely because it is far
+ * from the green that already means "good", so the two never compete.
+ *
+ * Sunset remains one click away in the picker for any club that wants it.
+ */
+export const DEFAULT_THEME = "verdigris";
+
+/**
+ * The default SECONDARY, declared here beside the accent rather than only
+ * inside `DEFAULT_CLUB_THEME` further down.
+ *
+ * `secondaryFor` needs it, and `DEFAULT_CLUB_THEME` is declared after that
+ * function — reaching forward for it is a use-before-define that lint refuses,
+ * and hoisting the whole object up here would drag `DEFAULT_APPEARANCE` with
+ * it. One named constant, read by both, keeps a single source without moving
+ * anything else.
+ */
+export const DEFAULT_SECONDARY = "optic";
 
 export function isThemeKey(v: string): boolean {
   return THEME_PRESETS.some((t) => t.key === v);
 }
 
+/**
+ * Falls back to THE DEFAULT, not to whatever happens to be first in the list.
+ *
+ * These were the same preset until the default moved, and the difference was
+ * invisible for exactly that reason. With them apart, `?? THEME_PRESETS[0]`
+ * means an unknown or missing key renders one colour while `DEFAULT_THEME`
+ * says another — so a club whose stored key was retired would silently get a
+ * different theme from a club with no key at all.
+ */
 export function themeFor(key: string | null | undefined): ThemePreset {
-  return THEME_PRESETS.find((t) => t.key === key) ?? THEME_PRESETS[0];
+  return (
+    THEME_PRESETS.find((t) => t.key === key) ??
+    THEME_PRESETS.find((t) => t.key === DEFAULT_THEME) ??
+    THEME_PRESETS[0]
+  );
 }
 
 /** HSL to #rrggbb. Kept here rather than pulled in, so the palette has no
@@ -585,8 +645,18 @@ export function pairFor(accentKey: string, secondaryKey: string): ThemePair | nu
   );
 }
 
+/**
+ * Falls back to the DEFAULT secondary, for the same reason `themeFor` does.
+ * It returned FAIRWAY unconditionally, which was the default until it stopped
+ * being one — leaving an unknown key rendering the 3.91:1 green the default
+ * moved away from.
+ */
 export function secondaryFor(key: string | null | undefined): ThemePreset {
-  return SECONDARY_PRESETS.find((t) => t.key === key) ?? FAIRWAY;
+  return (
+    SECONDARY_PRESETS.find((t) => t.key === key) ??
+    SECONDARY_PRESETS.find((t) => t.key === DEFAULT_SECONDARY) ??
+    FAIRWAY
+  );
 }
 
 export function resolveSecondary(key: string | null | undefined, hex: string): ThemePreset {
@@ -613,10 +683,23 @@ export interface ClubTheme {
   appearance: Appearance;
 }
 
+/**
+ * The secondary moves with the accent, and it is the half that was failing.
+ *
+ * FAIRWAY sits at 3.91:1 on the dark ground — under the 7:1 this app asks of
+ * itself, and common to every preset, which is why no pairing in the product
+ * passed. `--color-accent-2` is not decoration: it rings birdies and eagles,
+ * marks the live dot and colours money owed to you, so it is exactly the token
+ * that has to survive being read outdoors.
+ *
+ * Optic keeps that meaning green-adjacent while clearing the bar at 13.80.
+ * FAIRWAY stays exported and stays in `SECONDARY_PRESETS`, so any club can
+ * pick it back.
+ */
 export const DEFAULT_CLUB_THEME: ClubTheme = {
   accentKey: DEFAULT_THEME,
   accentHex: "",
-  secondaryKey: FAIRWAY.key,
+  secondaryKey: DEFAULT_SECONDARY,
   secondaryHex: "",
   appearance: DEFAULT_APPEARANCE,
 };

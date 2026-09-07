@@ -120,7 +120,18 @@ model Organization {
    * a club pick something the app cannot stay readable against; the presets
    * are contrast-checked by test, so whichever is chosen the text survives.
    */
-  themeKey          String @default("sunset")
+  /**
+   * NEW ROWS ONLY, deliberately not a backfill — the same rule themeAppearance
+   * states below, and for the same reason: a club that has chosen nothing must
+   * not find its colours changed one morning.
+   *
+   * Was "sunset". The pair sunset + fairway failed the app's OWN outdoor bar:
+   * `sunlightVerdict` returned ok:false at 6.97:1 and 3.91:1 against the 7:1
+   * this product asks of itself, so every new club was told its colours were
+   * dim in sunlight before it had picked any. Verdigris + optic clears both
+   * (10.09 and 13.80) and both were already in the picker.
+   */
+  themeKey          String @default("verdigris")
   /**
    * The club's own colour, used when themeKey is "custom". Stored as entered;
    * the ramp built from it fixes lightness, so only hue and saturation are
@@ -133,7 +144,8 @@ model Organization {
    * of any one club and should usually be left alone. A club whose identity is
    * genuinely two colours has nowhere else to put the second one.
    */
-  themeSecondaryKey String @default("fairway")
+  /** New rows only, as above. Was "fairway", the half that failed at 3.91:1. */
+  themeSecondaryKey String @default("optic")
   themeSecondaryHex String @default("")
   /**
    * dark | light | auto. Light is not just taste: a bright screen is far
