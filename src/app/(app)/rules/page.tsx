@@ -138,8 +138,10 @@ export default async function RulesPage() {
                         href={r.url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        className="touch-target"
                         style={{
-                          display: "block",
+                          display: "flex",
+                          alignItems: "center",
                           marginTop: 3,
                           fontSize: 11.5,
                           color: "var(--color-neutral-400)",

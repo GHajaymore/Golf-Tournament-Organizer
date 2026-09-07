@@ -649,6 +649,50 @@ body {
   }
 }
 
+/* THE CONTROLS THE FIRST COARSE-POINTER BLOCK DID NOT REACH.
+   Every rule above targets a design-system class — `.btn`, `.input`, `.seg-opt`,
+   `.m-tab` — so anything built from a bare <button> with inline styles was
+   never covered, and nothing said so: the app's only touch-size test measured
+   /dashboard, which happens to be built entirely from `.btn`.
+
+   `touch.spec` now sweeps every on-course route (see nav.ts for the tier), and
+   the first run found these. They are the controls people actually tap
+   standing on a golf course, which is the whole argument for the rule:
+
+     hole-nav-btn   the 18-hole strip on the hole-by-hole card, at 30px. The
+                    most-tapped control on the most-used on-course screen.
+     bracket-seat   tapping a name is how a match is advanced, at 33px.
+     field-info-btn 26px — and its own comment in design-system.css says "this
+                    control exists for phone users", which it did not fit.
+     a checkbox     the native box is ~13px and always will be; the LABEL is
+                    the target, and at fontSize 13 that row was 19px.
+
+   `min-height` rather than `height`, deliberately: it wins over the smaller
+   inline `height` these components set without those files having to move
+   their layout into CSS, and it cannot shrink anything that is already larger. */
+@media (pointer: coarse) {
+  /* Doubled for the same chunker-ordering reason as the block above. */
+  .hole-nav-btn.hole-nav-btn,
+  .bracket-seat.bracket-seat,
+  .field-info-btn.field-info-btn {
+    min-height: 44px;
+  }
+  /* The info button keeps its 26px circle visually — it sits inline beside a
+     field label and a 44px box would push that row apart. The target grows,
+     the drawing does not. */
+  .field-info-btn.field-info-btn {
+    margin-top: -15px;
+    margin-bottom: -15px;
+  }
+  /* A label wrapping a checkbox or radio IS the target: tapping anywhere in it
+     toggles the control. Sized here rather than on the input, because inflating
+     a native checkbox is how you get a 44px box beside 13px text. */
+  label:has(> input[type="checkbox"]),
+  label:has(> input[type="radio"]) {
+    min-height: 44px;
+  }
+}
+
 /* Two fields side by side, until there isn't room for two.
    `1fr 1fr` is a promise the container cannot keep: at 320px each column is
    about 145px, and a pair of native date inputs will not shrink below their

@@ -81,8 +81,10 @@ export default async function PlayRulesPage() {
                         href={r.url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        className="touch-target"
                         style={{
-                          display: "block",
+                          display: "flex",
+                          alignItems: "center",
                           marginTop: 2,
                           fontSize: 11.5,
                           color: "var(--color-neutral-400)",

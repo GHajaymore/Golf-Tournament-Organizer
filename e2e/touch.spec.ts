@@ -57,24 +57,47 @@ test("controls are thumb-sized on a phone and dense on a desktop", async ({ page
   expect(btn === null || btn.width > 0).toBeTruthy();
 });
 
-/** Every visible target on the page that is under the platform minimum. */
+/**
+ * Every visible target on the page that is under the platform minimum.
+ *
+ * MEASURING THE RIGHT BOX is most of this. Two corrections, both found by
+ * running the sweep and reading what it accused rather than trusting it:
+ *
+ * A native checkbox or radio is about 13px and always will be — but when it
+ * sits inside a `<label>`, tapping anywhere in that label toggles it, so the
+ * label is the target and the input is just the glyph. Measuring the input
+ * reports a failure that no user can experience, and "fixing" it would mean
+ * inflating checkboxes that are already fine.
+ *
+ * An `<a>` whose computed display is `inline` is a word in a sentence, not a
+ * control. The previous version tested `closest("p")`, which only caught prose
+ * inside a paragraph tag and flagged every inline link in a list or a table
+ * cell. Display is the honest test: it is what actually distinguishes a link
+ * you read from a link you aim at, and it does not depend on which element
+ * somebody wrapped the sentence in.
+ */
 async function undersizedTargets(page: Page) {
   return page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("button, a, [role=button], select, input")]
-      .filter((el) => {
-        const cs = getComputedStyle(el);
-        if (cs.display === "none" || cs.visibility === "hidden") return false;
-        const r = el.getBoundingClientRect();
-        if (!r.width || !r.height) return false;
-        // Links inside a sentence are text, not targets — enlarging those
-        // would break the prose they sit in.
-        const inProse = !!el.closest("p");
-        return !inProse && (r.height < 44 || r.width < 24);
+      .map((el) => {
+        // A labelled checkbox or radio is tapped by its label.
+        const label = el.closest("label");
+        const box = label && el.tagName === "INPUT" ? label : el;
+        return { el, box };
       })
-      .map((el) => ({
+      .filter(({ el, box }) => {
+        const cs = getComputedStyle(box);
+        if (cs.display === "none" || cs.visibility === "hidden") return false;
+        const r = box.getBoundingClientRect();
+        if (!r.width || !r.height) return false;
+        // A link set inline is text in a sentence, not a target.
+        if (el.tagName === "A" && getComputedStyle(el).display === "inline") return false;
+        return r.height < 44 || r.width < 24;
+      })
+      .map(({ el, box }) => ({
         tag: el.tagName,
         cls: String(el.className ?? "").slice(0, 30),
-        h: Math.round(el.getBoundingClientRect().height),
+        h: Math.round(box.getBoundingClientRect().height),
         text: (el.textContent ?? el.getAttribute("aria-label") ?? "").trim().slice(0, 24),
       })),
   );
