@@ -83,6 +83,44 @@ const favicon = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" 
 const png = (source, size, out) =>
   sharp(Buffer.from(source)).resize(size, size).png().toFile(out);
 
+/**
+ * A real `favicon.ico`, because browsers ask for one whether or not you link
+ * an SVG.
+ *
+ * `src/app/icon.svg` was already generated and already served, and the page
+ * still logged `GET /favicon.ico 404` on every visit — that lone 404 is what
+ * kept Lighthouse's Best Practices off 100. Chrome requests the well-known
+ * path as a fallback regardless of the `<link rel="icon">` it was given, and
+ * nothing answered it.
+ *
+ * ICO is a container, and since Vista it may hold a PNG verbatim, so this is
+ * a 22-byte header in front of the PNG the same mark rasterizes to — no ICO
+ * encoder, no new dependency:
+ *
+ *   ICONDIR      reserved 0, type 1 (icon), one image
+ *   ICONDIRENTRY 32x32, 0 = "not a palette", 1 colour plane, 32bpp,
+ *                the PNG's length, and its offset (22 = 6 + 16)
+ *
+ * 32px rather than 16: browsers downscale for the tab and reach for the
+ * larger one on high-DPI displays and in bookmark lists.
+ */
+async function ico(source, out) {
+  const body = await sharp(Buffer.from(source)).resize(32, 32).png().toBuffer();
+  const header = Buffer.alloc(22);
+  header.writeUInt16LE(0, 0); // reserved
+  header.writeUInt16LE(1, 2); // type: icon
+  header.writeUInt16LE(1, 4); // one image
+  header.writeUInt8(32, 6); // width
+  header.writeUInt8(32, 7); // height
+  header.writeUInt8(0, 8); // colours in palette: 0 = none
+  header.writeUInt8(0, 9); // reserved
+  header.writeUInt16LE(1, 10); // colour planes
+  header.writeUInt16LE(32, 12); // bits per pixel
+  header.writeUInt32LE(body.length, 14);
+  header.writeUInt32LE(22, 18); // offset to the image data
+  writeFileSync(out, Buffer.concat([header, body]));
+}
+
 // Android launcher densities, as the platform names them.
 const DENSITIES = { mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
 
@@ -95,6 +133,9 @@ async function main() {
   await png(maskable, 512, join(pub, "icon-maskable-512.png"));
   await png(square, 180, join(pub, "apple-touch-icon.png"));
   writeFileSync(join(root, "src/app/icon.svg"), favicon, "utf8");
+  // Next serves anything in src/app named favicon.ico at /favicon.ico, which
+  // is the path the browser asks for on its own.
+  await ico(favicon, join(root, "src/app/favicon.ico"));
 
   // Android — legacy, round and adaptive foreground at every density.
   for (const [density, size] of Object.entries(DENSITIES)) {

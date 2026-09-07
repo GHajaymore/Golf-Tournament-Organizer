@@ -192,7 +192,12 @@ const LANDING_CSS = `
   --ground:#171210; --ground-2:#221A16; --panel:#221A1685;
   --paper:#EDE4CE; --paper-2:#E4DABF; --paper-ink:#1C1712; --paper-soft:#5C5343;
   --paper-accent:#0E6E72;
-  --ink:#EDE6DC; --ink-soft:#ABA091; --ink-faint:#837868;
+  /* --ink-faint was #837868: 4.29:1 on --ground, and it carries the footer's
+     12.5px meta line, so it needed 4.5. Lifted to 4.73, which still reads a
+     clear step below --ink-soft (7.23) — the point of the token is that it is
+     the faintest text, not that it is under the floor. Graded by
+     landing-contrast.test.ts on BOTH grounds. */
+  --ink:#EDE6DC; --ink-soft:#ABA091; --ink-faint:#8A7F6E;
   --line:rgba(237,230,220,0.12); --line-2:rgba(237,230,220,0.24);
   --flag:#6FB894; --flag-soft:#8ACCAB; --under:#6FB894;
   /* Accent text and accent FILL are different steps, the way the app's own
@@ -236,7 +241,12 @@ const LANDING_CSS = `
        of the pair is already doing the work, and a second, deeper teal for the
        button just read as a different colour. */
     --ground:#F4EFE2; --ground-2:#EAE3D2; --panel:#FFFDF7;
-    --ink:#1E1710; --ink-soft:#5C5342; --ink-faint:#7E7460;
+    /* And the same token on cream, which was WORSE than the dark one at
+       4.02:1 and which no audit reported: Lighthouse grades whichever ground
+       the page actually renders in, and it rendered dark. Darkened to 4.80.
+       A palette with two grounds needs both graded, which is why the test
+       exists rather than a second colour pick. */
+    --ink:#1E1710; --ink-soft:#5C5342; --ink-faint:#726851;
     --line:rgba(30,23,16,0.12); --line-2:rgba(30,23,16,0.22);
     --flag:#1F7A50; --flag-soft:#186541; --under:#1F7A50;
     --brass:#0E6E72; --brass-ui:#0E6E72; --brass-hi:#0A5457;
@@ -723,6 +733,19 @@ export default async function LoginPage() {
         </div>
       </nav>
 
+      {/* THE PAGE HAD NO `main`, which Lighthouse reports as
+          `landmark-one-main` and which matters well beyond the audit: a
+          screen-reader user's first move on an unfamiliar page is to jump to
+          the main landmark, and "skip to content" has nothing to skip to
+          without one.
+
+          It opens AFTER the nav and closes BEFORE the footer, so the two
+          things that are not this page's content stay outside it. The hero is
+          inside deliberately — it carries the h1 and the primary calls to
+          action, which is the content. Its `header` element is a banner
+          landmark only at the top level; nested inside `main` it is just a
+          header, so this does not create a second banner. */}
+      <main>
       <header className="hero">
         <div className="wrap hero-in" id="thq-hero">
           <div>
@@ -1415,6 +1438,8 @@ export default async function LoginPage() {
           </div>
         </div>
       </section>
+
+      </main>
 
       <footer>
         <div className="wrap foot-in">
