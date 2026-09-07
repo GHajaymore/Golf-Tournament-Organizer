@@ -57,26 +57,39 @@
   --color-section-glow: #353b80;
   --color-section-ghost: #4c5397;
 
-  /* NOTE: "Inter" here does NOT render, and has not for a long time. The
-     `@import` that used to pull it from Google's CDN was removed with the
-     duplicate Fraunces import, but it was already inert before that — Next's
-     CSS chunker drops a non-first `@import url()`, so the request was never
-     made. Confirmed on production: `document.fonts` carries no Inter face and
-     `getComputedStyle(document.body).fontFamily` resolves to
-     `Inter, system-ui, sans-serif`, which means every visitor reads the app's
-     body text in whatever system-ui resolves to. That is the same fault
-     `layout.tsx` describes having fixed by adopting Geist — it was only ever
-     fixed for the marketing page's own `--sans`.
+  /* GEIST, which the app was already downloading and not rendering.
 
-     Left as it renders rather than quietly repointed at Geist: the app
-     downloads GeistSans and GeistMono on every page and currently renders
-     neither, so this token is one half of a decision (use Geist, or stop
-     shipping it) that changes the body face of every screen and belongs with
-     someone looking at those screens. --font-heading is overridden by
-     globals.css and is the token that actually carries the brand. */
-  --font-heading: "Inter", system-ui, sans-serif;
+     These said "Inter" and rendered no Inter. The `@import` that once pulled
+     it from Google's CDN is gone, but it was inert before that too — Next's
+     CSS chunker drops a non-first `@import url()`, so the request was never
+     made. Measured on production: `document.fonts` carried no Inter face at
+     all, and `getComputedStyle(document.body).fontFamily` resolved to
+     `Inter, system-ui, sans-serif` — every visitor reading the app's body text
+     in whatever system-ui happens to be on their machine. That is the exact
+     fault `layout.tsx` describes having fixed by adopting Geist; it was only
+     ever fixed for the marketing page's own `--sans`.
+
+     Meanwhile GeistSans and GeistMono were fetched on every page — measured at
+     ~70KB and ~71KB — and rendered essentially nothing. So this was a font
+     downloaded and thrown away, and a type stack that looked different on
+     every machine, at the same time.
+
+     Pointing these at the faces already being served costs NO additional
+     bytes and gets what `layout.tsx` chose Geist FOR: true tabular figures, so
+     a column of scores locks instead of shimmering as digits change.
+
+     --font-mono was worse than wrong, it was ABSENT: eight components ask for
+     `var(--font-mono, monospace)` and nothing declared it, so every one fell
+     through to the browser's default monospace while GeistMono sat downloaded
+     and unused. Declared here, so the fallback stops being the thing that
+     renders.
+
+     --font-heading is overridden by globals.css (Fraunces) and is the token
+     that actually carries the brand; this is only its foundation value. */
+  --font-heading: var(--font-geist-sans), system-ui, sans-serif;
   --font-heading-weight: 500;
-  --font-body: "Inter", system-ui, sans-serif;
+  --font-body: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 
   /* A 4px grid. The scale was 2.8/5.6/8.4/11.2 — a 2.8px base, which lands
      every padding and gap on a fractional pixel and is why edges through the

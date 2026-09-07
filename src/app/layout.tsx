@@ -51,12 +51,12 @@ import { siteOrigin } from "@/lib/site";
  * which is what a page built around a leaderboard needs — columns of numbers
  * have to lock.
  *
- * NOTE, unresolved: Geist is DOWNLOADED on every page and rendered on almost
- * none of it. `--font-body` still resolves to `"Inter", system-ui, sans-serif`
- * (see design-system.css), so body text falls through to the system face, and
- * only the marketing page's own `--sans` reads `--font-geist-sans`. Either
- * point `--font-body` at Geist or stop shipping it; doing neither is the
- * current state and costs the download for nothing.
+ * RESOLVED: Geist used to be downloaded on every page and rendered on almost
+ * none of it — `--font-body` resolved to `"Inter", system-ui, sans-serif`, so
+ * body text fell through to the system face while ~141KB of Geist sat fetched
+ * and unused. `design-system.css` now points `--font-body` and `--font-mono`
+ * at it, which costs no additional bytes and is what the tabular figures were
+ * chosen for in the first place.
  *
  * Fraunces joins it for DISPLAY TEXT ONLY — the marketing page's headlines and
  * nothing else. Golf's own typography is engraved and printed: honours boards,

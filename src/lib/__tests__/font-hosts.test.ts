@@ -112,6 +112,45 @@ describe("nothing in the document head loads from another origin", () => {
   });
 });
 
+describe("every font token names a face the app actually serves", () => {
+  /**
+   * `--font-body` said `"Inter", system-ui, sans-serif` and rendered no Inter.
+   * Nothing was broken enough to notice: the stack simply fell through to
+   * system-ui, so the app looked slightly different on every machine and
+   * looked fine on all of them. Meanwhile GeistSans and GeistMono were fetched
+   * on every page — ~141KB together — and rendered essentially nothing.
+   *
+   * A font stack whose FIRST family is never served is the failure mode here,
+   * because the fallback hides it completely. So the rule is: the families
+   * these tokens name must be ones this app loads — a next/font variable, or a
+   * generic/system keyword as a fallback. A bare quoted family name is the
+   * shape that went wrong.
+   */
+  const TOKENS = ["--font-body", "--font-mono", "--font-heading"];
+  const DS = readSource("src/app/design-system.css");
+
+  it.each(TOKENS)("%s leads with a served face, not a bare family name", (token) => {
+    const m = DS.match(new RegExp(`${token}\\s*:\\s*([^;]+);`));
+    expect(m, `${token} is not declared in design-system.css`).toBeTruthy();
+    const first = m![1].split(",")[0].trim();
+    expect(
+      first,
+      `${token} leads with ${first}, a family nothing in this app loads`,
+    ).toMatch(/^var\(--font-/);
+  });
+
+  it("declares --font-mono at all", () => {
+    /**
+     * It was ABSENT, not wrong. Eight components ask for
+     * `var(--font-mono, monospace)`, and an undeclared custom property makes
+     * the fallback the thing that renders — silently, forever, while GeistMono
+     * was downloaded on every page. An assertion that only checked the VALUE
+     * would have passed on the empty string.
+     */
+    expect(DS, "--font-mono is undeclared; the fallback is what renders").toMatch(/--font-mono\s*:/);
+  });
+});
+
 describe("the heading face has one source", () => {
   it("points --font-heading at the self-hosted family, not a bare name", () => {
     /**
