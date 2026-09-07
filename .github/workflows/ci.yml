@@ -221,11 +221,41 @@ jobs:
 
   # ── The slowest one, and the only net that sees a laid-out page ───────────
   e2e:
-    name: End-to-end
+    name: End-to-end (${{ matrix.project }})
     runs-on: ubuntu-latest
     # It installs a browser and builds a bundle of its own before it runs a
     # single test.
     timeout-minutes: 30
+
+    # ── ONE VIEWPORT PER JOB ────────────────────────────────────────────────
+    #
+    # After the four-job split, `e2e` WAS the whole critical path: 386s while
+    # everything else finished in about 140. It ran all three viewports in one
+    # process, one after another, because `playwright.config.ts` pins
+    # `workers: 1` — the three share one seeded fixture and three of the six
+    # spec files write to it, so parallel workers inside one run would race.
+    #
+    # That constraint is real and this does not touch it. Each leg here is a
+    # SEPARATE `playwright test` invocation with its own PostgreSQL service,
+    # its own `globalSetup` seed and its own teardown — so the files inside a
+    # leg still run serially, in the same order, against a fixture nothing else
+    # can reach. The parallelism is between processes that share nothing,
+    # rather than between tests that share a database.
+    #
+    # This was blocked by a belief that a single-project run could not stand on
+    # its own — that `--project=desktop` alone turned CI red. Measured before
+    # relying on it: 78 passed, 12 skipped, nothing failed, so whatever that
+    # was, it is not true now. If a leg ever does go red alone while the other
+    # two pass, the cause is an order dependency BETWEEN viewports, and that is
+    # a bug in the test rather than a reason to put them back in one process.
+    #
+    # `fail-fast: false` because the whole point of three viewports is the
+    # difference between them: a phone failure that cancels the desktop leg
+    # hides half of what the run was for.
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [phone, small-phone, desktop]
 
     services:
       postgres:
@@ -283,13 +313,16 @@ jobs:
         # which is why this job does not run `npm run build` first.
         env:
           AUTH_SECRET: ci-e2e-secret
-        run: npx playwright test
+        run: npx playwright test --project=${{ matrix.project }}
 
       - name: Keep the trace of a failed run
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          # Named per viewport: three legs uploading one name is an upload
+          # collision, and the survivor is whichever finished last rather than
+          # the one that failed.
+          name: playwright-report-${{ matrix.project }}
           path: |
             playwright-report/
             test-results/
