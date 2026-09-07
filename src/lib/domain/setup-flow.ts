@@ -46,6 +46,15 @@ export interface SetupFacts {
   dated: boolean;
   /** Somewhere to play — the event's own course, or a venue attached to it. */
   venued: boolean;
+  /**
+   * Whether the tournament has been launched.
+   *
+   * Not a step, and deliberately not one: launching is not part of setting a
+   * tournament up, it is the act of handing it to the field. It is here so the
+   * guide can say the one thing it otherwise never says — that setup is
+   * finished and the tournament is still invisible to everybody in it.
+   */
+  launched: boolean;
 }
 
 export type SetupStepState = "done" | "current" | "todo";
@@ -71,6 +80,22 @@ export interface SetupFlow {
   current: SetupStep | null;
   doneCount: number;
   complete: boolean;
+  /**
+   * Everything is set up and the field still cannot see any of it.
+   *
+   * The gap this closes: the rail guided an organizer through four steps and
+   * then vanished, silently, at the exact moment the tournament became real.
+   * Nothing said "you are finished", and nothing said the thing that actually
+   * matters — that until it is launched, nobody in the field can see their
+   * schedule, their card or the leaderboard. The only warning about that fires
+   * AFTER a score is entered, which is a day too late.
+   *
+   * Self-clearing, and that is what makes it worth showing: it is true for the
+   * few minutes between finishing setup and launching, and false forever
+   * after. A banner that stays is furniture; this one has an exit and takes
+   * itself through it.
+   */
+  readyToLaunch: boolean;
 }
 
 /** The order, and the test for each step. Labels arrive from the nav. */
@@ -157,12 +182,27 @@ export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string)
     state: done[i] ? "done" : i === currentIndex ? "current" : "todo",
   }));
 
+  const complete = currentIndex === -1;
   return {
     steps,
-    current: currentIndex === -1 ? null : steps[currentIndex],
+    current: complete ? null : steps[currentIndex],
     doneCount: done.filter(Boolean).length,
-    complete: currentIndex === -1,
+    complete,
+    readyToLaunch: complete && !facts.launched,
   };
+}
+
+/**
+ * Whether the rail is saying anything at all.
+ *
+ * Exported so the one screen that carries BOTH the rail and the flat setup
+ * checklist can show the checklist exactly when the rail has gone quiet.
+ * Working that out at the call site meant writing the rail's own render
+ * condition a second time, in a different file, in negative form — which is
+ * how the two would come to disagree and put two progress lists on one screen.
+ */
+export function railSpeaks(flow: SetupFlow | null): boolean {
+  return !!flow && (!flow.complete || flow.readyToLaunch);
 }
 
 export interface SetupPosition {

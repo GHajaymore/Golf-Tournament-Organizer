@@ -5,6 +5,9 @@ import type { StandingRow } from "@/components/LeaderboardTable";
 import { LoginPanel } from "@/components/LoginPanel";
 import { PlayClient } from "@/components/PlayClient";
 import { MIN_PASSWORD_LENGTH } from "@/lib/domain/password";
+import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
+import { setupFlow } from "@/lib/domain/setup-flow";
+import { screenName } from "@/lib/nav";
 
 /**
  * Do these screens actually render?
@@ -4549,3 +4552,94 @@ describe("the round-code card is drawn for the round's own holes", () => {
   });
 });
 
+
+describe("the setup rail", () => {
+  const facts = {
+    confirmed: 0, stages: 0, groups: 0, matches: 0,
+    named: false, dated: false, venued: false, launched: false,
+  };
+  const rail = (over: Partial<typeof facts>) =>
+    renderToStaticMarkup(
+      <SetupFlowRail flow={setupFlow({ ...facts, ...over }, screenName)} href="/stages" />,
+    );
+  const done = { named: true, venued: true, stages: 1, confirmed: 2, groups: 1, matches: 1 };
+
+  it("guides while there is anything left to do", () => {
+    const html = rail({ stages: 1 });
+    expect(html).toContain("Setting up");
+    expect(html).toContain("1 of 4 done");
+    // The screen being looked at is finished, so it says what still is not —
+    // and calls it "still to do" rather than "next", because the outstanding
+    // step is behind this one.
+    expect(html).toContain("Still to do");
+    expect(html).toContain(screenName("/event"));
+  });
+
+  it("hands over rather than vanishing when setup finishes", () => {
+    /**
+     * The gap: the rail used to render nothing at all the moment the last step
+     * went green, at the exact moment the tournament became real. Nothing said
+     * the organizer was finished, and nothing said the thing that matters —
+     * that the field cannot see any of it until it is launched. The existing
+     * warning about that fires only once a score has been entered.
+     */
+    const html = rail({ ...done, launched: false });
+    expect(html).toContain("Setup is done");
+    expect(html).toContain("Nobody in the field can see any of it yet");
+    expect(html).toContain("/dashboard");
+    // It offers the launch; it does not perform one. Launching locks
+    // configuration and hands out player access, which is a decision.
+    expect(html).toContain("Go to the dashboard");
+    /**
+     * And it names the SCREEN, not a button on it.
+     *
+     * A tournament still in draft is offered "Start taking entries" on the
+     * dashboard, not "Launch" — so promising a Launch button would send an
+     * organizer hunting for a control two lifecycle steps away. Same fault as
+     * a refusal naming a button that no longer exists.
+     */
+    expect(html).not.toContain("Launch it from the dashboard");
+  });
+
+  it("goes silent for good once the tournament is launched", () => {
+    // What makes the hand-off worth showing: it has an exit and takes itself
+    // through it. A rail reading "4 of 4" over every setup screen for the rest
+    // of the season is furniture.
+    expect(rail({ ...done, launched: true })).toBe("");
+    // And the guide is gone, not merely quiet about the launch.
+    expect(rail({ ...done, launched: true })).not.toContain("Setting up");
+  });
+
+  it("shows nothing at all for a match", () => {
+    // Two people playing each other have no tournament to set up.
+    expect(renderToStaticMarkup(<SetupFlowRail flow={null} href="/stages" />)).toBe("");
+    expect(renderToStaticMarkup(<SetupFlowFooter flow={null} href="/stages" />)).toBe("");
+  });
+
+  it("waits at the foot of the page, and says why", () => {
+    const html = renderToStaticMarkup(
+      <SetupFlowFooter flow={setupFlow({ ...facts, named: true }, screenName)} href="/event" />,
+    );
+    // The reason, beside the disabled control rather than in a tooltip no
+    // phone can reach.
+    expect(html).toContain("Say where it is played, or what day");
+    expect(html).toContain("disabled");
+    // Nothing to go back to from the first step.
+    expect(html).not.toContain("arrow-left");
+  });
+
+  it("offers back and next once the step is finished", () => {
+    const html = renderToStaticMarkup(
+      <SetupFlowFooter
+        flow={setupFlow({ ...facts, named: true, dated: true, stages: 1 }, screenName)}
+        href="/stages"
+      />,
+    );
+    expect(html).toContain(screenName("/event"));
+    // Escaped, because "Registration & field" reaches the markup as
+    // "Registration &amp; field" — and asserting the raw name would fail on
+    // the ampersand rather than on anything about the button.
+    expect(html).toContain(`Next: ${screenName("/registration").replace(/&/g, "&amp;")}`);
+    expect(html).not.toContain("disabled");
+  });
+});

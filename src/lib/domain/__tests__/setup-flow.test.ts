@@ -11,6 +11,7 @@ const BLANK: SetupFacts = {
   named: false,
   dated: false,
   venued: false,
+  launched: false,
 };
 
 const flowOf = (over: Partial<SetupFacts> = {}) => setupFlow({ ...BLANK, ...over }, screenName);
@@ -144,5 +145,41 @@ describe("moving between steps", () => {
 
   it("advances freely from a screen the flow does not cover", () => {
     expect(canAdvance(null)).toBe(true);
+  });
+});
+
+describe("the hand-off from setting up to running", () => {
+  const finished = { named: true, venued: true, stages: 1, confirmed: 2, groups: 1, matches: 1 };
+
+  it("says setup is done while the field still cannot see any of it", () => {
+    /**
+     * The gap this closes. The rail guided an organizer through four steps and
+     * then vanished at the exact moment the tournament became real — nothing
+     * said they were finished, and nothing said that until it is launched
+     * nobody in the field can see their schedule, their card or the
+     * leaderboard. The existing warning about that fires only once a SCORE has
+     * been entered, which is the morning of.
+     */
+    const ready = flowOf({ ...finished, launched: false });
+    expect(ready.complete).toBe(true);
+    expect(ready.readyToLaunch).toBe(true);
+  });
+
+  it("clears itself the moment the tournament is launched", () => {
+    // What makes it worth showing at all: it is true for the few minutes
+    // between finishing setup and launching, and false forever after. A
+    // banner that stays is furniture.
+    const live = flowOf({ ...finished, launched: true });
+    expect(live.complete).toBe(true);
+    expect(live.readyToLaunch).toBe(false);
+  });
+
+  it("never offers a launch before setup is finished", () => {
+    // Launching hands out player access and locks configuration. Offering it
+    // over a tournament with no field would be offering to publish an empty
+    // one.
+    const halfway = flowOf({ named: true, dated: true, stages: 1, launched: false });
+    expect(halfway.complete).toBe(false);
+    expect(halfway.readyToLaunch).toBe(false);
   });
 });

@@ -35,8 +35,17 @@ export interface LifecycleWarning {
   offerLaunch: boolean;
 }
 
-/** Statuses that have not yet given players access to the tournament. */
-const PRE_LAUNCH = ["draft", "registration", "ready"];
+/**
+ * Statuses that have not yet given players access to the tournament.
+ *
+ * Exported because the setup guide asks the same question at the other end of
+ * the day: it tells an organizer who has just finished setting up that the
+ * field still cannot see any of this, and the warning below tells them again
+ * once a score arrives. Two readers, one definition — a second copy is how the
+ * two would come to disagree about what "launched" means.
+ */
+export const PRE_LAUNCH_STATUSES = ["draft", "registration", "ready"];
+const PRE_LAUNCH = PRE_LAUNCH_STATUSES;
 
 export function lifecycleMismatch(facts: LifecycleFacts): LifecycleWarning | null {
   const { status, matchesScored, playersEntered } = facts;
