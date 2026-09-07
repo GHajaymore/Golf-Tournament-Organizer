@@ -45,6 +45,27 @@ function cardState(r: StandingRow, holes: number): string {
   return r.ranked ? played : `${played} · not ranked`;
 }
 
+/**
+ * Does this row have a score worth printing yet?
+ *
+ * `thru` counts holes on a STROKE CARD. A match-play round returns no stroke
+ * cards at all — the result is hole-by-hole match results — so every row's
+ * `thru` is nought however many matches have been played and won.
+ *
+ * That is the bug this function exists to remove. The "You" summary asked
+ * `thru > 0 || !isStroke` and the rows below it asked only `thru > 0`, so on a
+ * match-play board every player's points rendered as a dash except your own:
+ * a board headed "Ranked by match points", sorted by match points, with no
+ * match points on it. One rule, written twice, differing in the case that
+ * matters — the same shape as `isManualFormat` being remembered on six of
+ * seven paths.
+ *
+ * Asked in one place now, so a third reader cannot get it wrong.
+ */
+function hasScore(r: StandingRow, isStroke: boolean): boolean {
+  return !isStroke || r.thru > 0;
+}
+
 /** Under par earns colour; level and over stay in text. */
 function scoreColour(toPar: number, isStableford: boolean): string {
   if (isStableford) return "var(--color-text)";
@@ -143,7 +164,7 @@ export function PlayerLeaderboard({
               color: scoreColour(you.toPar, isStableford),
             }}
           >
-            {you.thru > 0 || !isStroke ? yourScore : "–"}
+            {hasScore(you, isStroke) ? yourScore : "–"}
           </span>
         </div>
       )}
@@ -168,7 +189,10 @@ export function PlayerLeaderboard({
         // appears; `r.ranked` is "does this row hold a position" and decides
         // the number down the left and who is called the leader.
         const leader = i === 0 && r.ranked;
-        const started = r.thru > 0;
+        // The same question the "You" block above asks, through the same
+        // function — see `hasScore`. It used to ask `r.thru > 0` on its own,
+        // which is nought for every row of a match-play board.
+        const started = hasScore(r, isStroke);
         const isYou = !!youId && r.id === youId;
 
         // The one number the row is built around.
