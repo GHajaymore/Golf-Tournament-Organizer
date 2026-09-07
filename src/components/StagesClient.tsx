@@ -1075,6 +1075,13 @@ function StageCard({
           <div style={{ minWidth: 200 }}>
             <CoursePicker
               label="Course"
+              // Off: this chooses among the venues the TOURNAMENT already has
+              // — "Same as the tournament" is the empty answer — rather than
+              // asking where a round is played in general. Adding a venue is
+              // Tournament details; moving one round to another of them is
+              // this. Stated rather than defaulted, so the narrowness is a
+              // decision somebody made.
+              searchDirectory={false}
               options={venues}
               value={courseId ?? ""}
               disabled={pending}

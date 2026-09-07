@@ -313,6 +313,18 @@ export function ScoreEntryClient({
   const [courseByMatch, setCourseByMatch] = useState<Record<string, string>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.courseId ?? ""])),
   );
+  /**
+   * WHICH match the venue picker has been opened on — not merely whether.
+   *
+   * The tournament's course is the answer for the whole field, so score entry
+   * states it rather than re-asking on every match, and one click reopens the
+   * question. Holding a match id rather than a boolean is what makes that
+   * click apply to one pairing: a bare flag stays true as the organizer moves
+   * down the field, so opening the picker once would leave every subsequent
+   * match presenting its settled venue as an open question — which is the
+   * behaviour this whole change exists to remove.
+   */
+  const [changingCourseFor, setChangingCourseFor] = useState("");
   // Unanswered stays unanswered. This used to fall back to "front", so a
   // 9-hole match — which starts as "full", the schema default — showed
   // "Front" as though somebody had chosen it, and scored against the front
@@ -1045,30 +1057,79 @@ export function ScoreEntryClient({
                 played — the tournament's other venues, or any other course
                 the club has. It used to need two venues on the tournament,
                 so a one-course event could not record that a pairing moved. */}
-            {(venues.length > 1 || courseLibrary.some((c) => !venues.some((v) => v.id === c.id))) && (
-              <CoursePicker
-                label="Played at"
-                options={[
-                  ...venues,
-                  ...courseLibrary.filter((c) => !venues.some((v) => v.id === c.id)),
-                ]}
-                value={courseByMatch[active.id] ?? ""}
-                // Empty means inherit — from the round, then the event. The
-                // label names whatever that resolves to, so "inherit" is a
-                // visible default rather than a blank.
-                noneLabel={active.courseName ? `${active.courseName} (inherited)` : "Not set"}
-                onChange={(id) => {
-                  setCourseByMatch((prev) => ({ ...prev, [active.id]: id }));
-                  startTransition(() =>
-                    void setMatchCourse(
-                      active.id,
-                      id || null,
-                      totalHoles === 9 ? nineByMatch[active.id] ?? "front" : "full",
-                    ),
-                  );
-                }}
-              />
-            )}
+            {(venues.length > 1 || courseLibrary.some((c) => !venues.some((v) => v.id === c.id))) &&
+              /**
+               * THE TOURNAMENT ALREADY DECIDED WHERE THIS IS PLAYED.
+               *
+               * When the match inherits a course — from the round, then the
+               * event — this states it and stops. A full picker sitting open
+               * on the scoring screen presents "which course" as an open
+               * question on every match, when it was settled once during
+               * setup and is the same answer for the whole field. The rare
+               * exception is a pairing that genuinely moved, and that is
+               * worth one click.
+               *
+               * Not disabled, and not hidden: an organizer who needs to
+               * record that a match was played somewhere else must be able
+               * to, without leaving score entry. Discouraged is the right
+               * strength — the default is stated as settled, and changing it
+               * is a deliberate act rather than an ambient one.
+               *
+               * `searchDirectory` is deliberately NOT on here, unlike
+               * `RoundVenue`. Adding a course the club has never played, in
+               * the middle of entering scores, is setup work reached from the
+               * wrong screen; the venue picker on the round is where that
+               * belongs.
+               */
+              (active.courseName && changingCourseFor !== active.id ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12 }}>
+                  <span className="text-muted">Played at</span>
+                  <strong style={{ fontSize: 13 }}>{active.courseName}</strong>
+                  <span className="text-muted">· set for this tournament</span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary touch-target"
+                    style={{ fontSize: 12, padding: "4px 10px" }}
+                    onClick={() => setChangingCourseFor(active.id)}
+                  >
+                    Change for this match
+                  </button>
+                </div>
+              ) : (
+                <CoursePicker
+                  label="Played at"
+                  // Off, deliberately, and stated rather than left to a
+                  // default: adding a course the club has never played, in the
+                  // middle of entering scores, is setup work reached from the
+                  // wrong screen. The round's venue picker is where that
+                  // belongs. See the longer note above.
+                  searchDirectory={false}
+                  options={[
+                    ...venues,
+                    ...courseLibrary.filter((c) => !venues.some((v) => v.id === c.id)),
+                  ]}
+                  value={courseByMatch[active.id] ?? ""}
+                  // Empty means inherit — from the round, then the event. The
+                  // label names whatever that resolves to, so "inherit" is a
+                  // visible default rather than a blank.
+                  noneLabel={active.courseName ? `${active.courseName} (inherited)` : "Not set"}
+                  hint={
+                    active.courseName
+                      ? `This tournament plays at ${active.courseName}. Change it only for a match that was actually played somewhere else.`
+                      : undefined
+                  }
+                  onChange={(id) => {
+                    setCourseByMatch((prev) => ({ ...prev, [active.id]: id }));
+                    startTransition(() =>
+                      void setMatchCourse(
+                        active.id,
+                        id || null,
+                        totalHoles === 9 ? nineByMatch[active.id] ?? "front" : "full",
+                      ),
+                    );
+                  }}
+                />
+              ))}
 
             {/* Which nine, when this round is 9 holes. Front and back carry
                 different pars and stroke indexes, so on a net match this

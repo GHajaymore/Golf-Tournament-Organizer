@@ -105,6 +105,17 @@ export function RoundVenue({
       {(venues.length > 1 || library.length > 0) && (
         <CoursePicker
           label="Played at"
+          /* THIS is where a round's venue is chosen, so it reaches the whole
+             catalogue and not just the four courses the club has entered so
+             far. It was off here and on in Tournament details, which meant
+             the same question — where are we playing — got a different answer
+             depending on which screen asked it. A society that plays
+             somewhere new every month meets that difference immediately.
+
+             Deliberately NOT switched on in score entry: see the note there.
+             Setting a venue and recording where a match happened to be played
+             are different acts, and only one of them should invite a search. */
+          searchDirectory
           /* The tournament's own venues first, then the rest of the club's
              library — same list, in the order a round is most likely to
              want. Deduped, because a venue is in both. */

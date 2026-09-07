@@ -65,8 +65,22 @@ export interface CoursePickerProps {
    * the library cannot satisfy falls through to the catalogue of every
    * course the app knows about, and picking one adds it to the library on
    * the way past.
+   *
+   * REQUIRED, WITH NO DEFAULT, and that is the whole point of it being here.
+   *
+   * It was optional and therefore off unless remembered, and two of the five
+   * call sites had forgotten: the round's venue picker and score entry both
+   * asked "where are we playing" and silently offered less than Tournament
+   * details did. Nothing reported it, because a missing search is not an
+   * error — it is just a shorter list.
+   *
+   * Off is a legitimate answer. Score entry says `false` deliberately, and
+   * says why. What is not legitimate is answering by omission, so the type
+   * makes every caller state one, and a new screen cannot inherit the wrong
+   * answer from a default nobody chose. Same reason `NavItem.tier` carries no
+   * default.
    */
-  searchDirectory?: boolean;
+  searchDirectory: boolean;
   /**
    * Take a name that is in neither list.
    *
