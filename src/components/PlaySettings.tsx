@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
+import { screenName } from "@/lib/nav";
 import {
   saveTournamentSettings,
   saveOrganizationDefaults,
@@ -513,7 +514,7 @@ export function PlaySettings({
 
           {rounds.length === 0 ? (
             <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-              Codes appear here once the tournament has rounds. Add them on Rounds &amp; format.
+              Codes appear here once the tournament has rounds. Add them on {screenName("/stages")}.
             </p>
           ) : (
             <div className="table-scroll">

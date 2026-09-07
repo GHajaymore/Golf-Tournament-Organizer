@@ -1,5 +1,6 @@
 "use client";
 import { CardImport } from "./CardImport";
+import { screenName } from "@/lib/nav";
 import { Fragment, useState, useTransition } from "react";
 import { TeeEditor } from "./TeeEditor";
 import {
@@ -599,8 +600,8 @@ export function CourseLibrary({
             background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
           }}
         >
-          <Icon name="flag" /> {selectedCount} venues — set the course per round on Rounds &amp;
-          format, and per match in Score entry where it varies.
+          <Icon name="flag" /> {selectedCount} venues — set the course per round on
+          {" "}{screenName("/stages")}, and per match in {screenName("/entry")} where it varies.
         </p>
       )}
 
