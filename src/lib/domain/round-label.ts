@@ -85,3 +85,45 @@ export function roundLabelWith(
   if (!base) return tail;
   return tail ? `${base}${separator}${tail}` : base;
 }
+
+/**
+ * The longest a round's own description may be and still work as a KICKER.
+ *
+ * A kicker is the small, upper-cased, letter-spaced line above a heading. It
+ * is a label slot: "ROUND 2 · BLUE ASH". Twenty-four characters is about where
+ * one stops being a label at that size — "Semi-finals", "Match 3 of 5" and
+ * "Final round" all fit comfortably; a sentence does not.
+ */
+const KICKER_MAX = 24;
+
+/**
+ * A round's name for a LABEL SLOT, which is not the same as its name in prose
+ * or its name in a heading.
+ *
+ * The description is the organizer's own words for the round, and where those
+ * words are a name they beat any number the app can generate: "Semi-finals"
+ * tells a player far more than "Round 3". But the same field holds whatever
+ * they typed, and a template writes a whole sentence into it — the seeded
+ * round robin's is "Every player meets every other in their group over 3
+ * rounds."
+ *
+ * Rendered in an 11px upper-cased, letter-spaced kicker, that came out as
+ *
+ *   EVERY PLAYER MEETS EVERY OTHER IN THEIR GROUP OVER 3 ROUNDS.
+ *
+ * across two lines above a heading reading "Board", on both player screens.
+ * The comment beside one of them claimed the kicker "already names the round";
+ * it was reciting the round's blurb.
+ *
+ * Two tests, and the punctuation one is the sharper: a label does not end in a
+ * full stop. The length cap catches the description that rambles without ever
+ * reaching one. Where the description fails both, the caller's own fallback —
+ * "Round 3", the stage type — takes over, which is what the slot was built for.
+ */
+export function roundKicker(description: string | null | undefined, fallback: string): string {
+  const text = (description ?? "").trim();
+  if (!text) return fallback;
+  if (/[.!?]$/.test(text)) return fallback;
+  if (text.length > KICKER_MAX) return fallback;
+  return text;
+}

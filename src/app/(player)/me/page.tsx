@@ -8,6 +8,7 @@ import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
 import { toParText } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
+import { roundKicker } from "@/lib/domain/round-label";
 
 /**
  * Today — the player's home.
@@ -51,7 +52,11 @@ export default async function PlayTodayPage() {
           color: "var(--color-neutral-400)",
         }}
       >
-        {[round?.label ?? "Today", round?.venue].filter(Boolean).join(" · ")}
+        {/* Same label slot, same rule as the Board's — `label` prefers the
+            organizer's description, and a description may be a whole
+            sentence. `name` is the short one ("Round 1"), already resolved by
+            the service for exactly this reason. */}
+        {[round ? roundKicker(round.label, round.name) : "Today", round?.venue].filter(Boolean).join(" · ")}
       </div>
       <h1
         style={{
