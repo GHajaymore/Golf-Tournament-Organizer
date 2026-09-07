@@ -311,3 +311,44 @@ describe("the play shell's door", () => {
     expect(playing).toContain("me");
   });
 });
+
+describe("a match is not offered a field's screens", () => {
+  const keys = (isMatch: boolean) =>
+    navForRole("admin", undefined, { isMatch }).flatMap((s) => s.items.map((i) => i.key));
+
+  it("drops the screens that only make sense against a field", () => {
+    const tournament = keys(false);
+    const match = keys(true);
+    // Each of these is about running a FIELD: dividing one into flights,
+    // drawing it a tee sheet, announcing to it, hiring staff to help. Two
+    // people on the first tee have none of that.
+    for (const gone of ["grouping", "foursomes", "announcements", "access"]) {
+      expect(tournament).toContain(gone);
+      expect(match).not.toContain(gone);
+    }
+  });
+
+  it("keeps the screens a match genuinely has", () => {
+    const match = keys(true);
+    // The field screen stays because it is the only place a mistyped name or
+    // a wrong handicap gets fixed; Rounds stays because changing 18 to 9 is
+    // exactly the second thought two people have on the first tee; the money
+    // screens stay because a match played for a fiver is the oldest bet in
+    // golf.
+    for (const kept of ["registration", "stages", "entry", "leaderboard", "prizes", "group-games"]) {
+      expect(match).toContain(kept);
+    }
+  });
+
+  it("changes nothing for a tournament that did not ask", () => {
+    // The flag defaults to absent, so every existing caller keeps the sidebar
+    // it had. Compared against the no-options call rather than against a
+    // written-out list, which would drift.
+    expect(keys(false)).toEqual(navForRole("admin").flatMap((s) => s.items.map((i) => i.key)));
+  });
+
+  it("stays reachable by URL, so a link into a match never dead-ends", () => {
+    // Hidden from the sidebar is not forbidden — same rule as Qualification.
+    expect(canAccessScreen("admin", "grouping")).toBe(true);
+  });
+});

@@ -26,6 +26,7 @@ import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { WEEKLY_ROUND_TYPES } from "@/lib/stage-types";
 import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { myPlayerIds } from "@/lib/services/me";
+import { isMatch } from "@/lib/tournament-shape";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -68,6 +69,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     isLeague: playingRounds > 1,
     wantsTeams: event ? wantsTeams(cleanSideStyle(event.sideStyle)) : false,
     isPlayerToo: ownEntries > 0,
+    isMatch: isMatch(event?.shape),
   });
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).
