@@ -15,7 +15,7 @@ export function ManualRoundBoard({ format }: { format: string }) {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Live</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Leaderboard</h2>
+        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Leaderboard</h1>
       </div>
       <ManualRoundNotice format={format} />
     </>

@@ -70,7 +70,7 @@ export function OrganizationClient(props: Props) {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Club settings</h2>
+        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Club settings</h1>
         {/* Described the branding card and nothing else, on a page that also
             holds the theme, the house play settings, the money default and
             staff access. An intro naming one of five cards reads as a

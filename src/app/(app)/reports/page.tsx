@@ -168,7 +168,7 @@ export default async function ReportsPage() {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Results</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Reports &amp; export</h2>
+        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Reports &amp; export</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Download standings and results, or print a snapshot.
         </p>
