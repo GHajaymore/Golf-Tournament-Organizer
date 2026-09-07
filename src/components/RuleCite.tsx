@@ -21,7 +21,18 @@ export function RuleCite({ rule, showWhy = false }: { rule: string; showWhy?: bo
         href={r.url}
         target="_blank"
         rel="noopener noreferrer"
-        style={{ color: "var(--color-neutral-400)", textDecoration: "none", borderBottom: "1px dotted currentColor" }}
+        // Quiet to look at, but it is a LINK off to the publisher's site, so it
+        // owes a real target. `touch-target` buys the 44px on a coarse pointer
+        // only; the type stays 11.5px and the colour stays muted, so nothing
+        // about "ignorable by someone who knows the rule" changes.
+        className="touch-target"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          color: "var(--color-neutral-400)",
+          textDecoration: "none",
+          borderBottom: "1px dotted currentColor",
+        }}
         title={`${RULE_SOURCE_LABEL[r.source]} ${r.number} — ${r.title}`}
       >
         <i className="ph ph-book-open" aria-hidden style={{ marginRight: 3 }} />

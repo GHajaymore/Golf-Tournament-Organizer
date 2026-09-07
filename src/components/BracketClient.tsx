@@ -24,6 +24,7 @@ function BracketBoard({
     return (
       <button
         type="button"
+        className="bracket-seat"
         disabled={!clickable || pending}
         onClick={() => clickable && startTransition(() => setBracketWinner(matchKey, slot.playerId!))}
         style={{

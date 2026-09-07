@@ -1,4 +1,5 @@
 import { toParText } from "@/lib/domain";
+import { FlipList } from "./FlipList";
 import type { StandingRow } from "./LeaderboardTable";
 
 /**
@@ -156,7 +157,11 @@ export function PlayerLeaderboard({
         </p>
       )}
 
-      <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
+      {/* A list that slides when rows change places — the one animation in the
+          app, and only because a position change is real information. It is
+          inert unless the board updates in place, which happens on the public
+          spectator board and nowhere else. See FlipList. */}
+      <FlipList style={{ listStyle: "none", margin: 0, padding: 0 }}>
         {rows.map((r, i) => {
         // Two different questions, and a 5&4 card answers them differently.
         // `started` is "is there a card to show" and decides whether a score
@@ -174,7 +179,7 @@ export function PlayerLeaderboard({
           : r.pts;
 
         return (
-          <li key={r.id}>
+          <li key={r.id} data-flip-key={r.id}>
             <div
               style={{
                 display: "flex",
@@ -286,7 +291,7 @@ export function PlayerLeaderboard({
           </li>
         );
         })}
-      </ol>
+      </FlipList>
     </>
   );
 }

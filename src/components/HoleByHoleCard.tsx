@@ -168,6 +168,7 @@ export function HoleByHoleCard({
             <button
               key={i}
               type="button"
+              className="hole-nav-btn"
               onClick={() => go(i)}
               aria-label={`Hole ${i + 1}${done ? ", complete" : part ? ", partly scored" : ", not scored"}`}
               aria-current={here ? "true" : undefined}

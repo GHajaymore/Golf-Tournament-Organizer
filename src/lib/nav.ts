@@ -1,11 +1,43 @@
 import { canAccessScreen, type Role } from "./roles";
 import { canSeeLeaderboard, canEnterScores, type TournamentSettings } from "./tournament-settings";
 
+/**
+ * WHERE a screen is used, which is not the same question as WHO uses it.
+ *
+ * Tiering by audience is the obvious split and the wrong one. It puts every
+ * "player" screen on one side and every "organizer" screen on the other, and
+ * then Score entry and the Tee sheet — which are worked standing on a tee box,
+ * in sun, by an assistant holding a phone — land on the desk side because a
+ * member of staff is holding them. The person is not the constraint. The
+ * pointing device and the daylight are.
+ *
+ * - `on-course`  read or tapped outdoors, one-handed, on a phone. Touch
+ *                minimums are enforced here, and enforced by sweep rather than
+ *                by anyone remembering.
+ * - `at-desk`    worked sitting down, usually on a wide screen, often for an
+ *                hour. Density is the feature; raising every control to 44px
+ *                would be a real cost to the person who lives in it.
+ *
+ * THIS CHANGES WHAT IS ASSERTED, NEVER WHETHER A SCREEN IS SWEPT. `layout.spec`
+ * derives its routes from the filesystem precisely because a hand-written list
+ * covered 14 of 22, and a tier is a hand-written list wearing a type. Every
+ * screen is still measured at every viewport; the tier only decides whether
+ * the 44px minimum is among the things measured.
+ */
+export type NavTier = "on-course" | "at-desk";
+
 export interface NavItem {
   key: string;
   label: string;
   href: string;
   icon: string;
+  /**
+   * Required, with no default, deliberately. A default is a decision nobody
+   * makes — a screen added later would inherit whichever tier happened to be
+   * the fallback and be graded by it silently. Declaring it is one word, and
+   * the type makes forgetting a compile error rather than a wrong assertion.
+   */
+  tier: NavTier;
 }
 
 export interface NavSection {
@@ -21,14 +53,14 @@ export const NAV: NavSection[] = [
   {
     label: "Overview",
     items: [
-      { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: "ph ph-squares-four" },
-      { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking" },
-      { key: "week", label: "This week", href: "/week", icon: "ph ph-calendar-check" },
-      { key: "rules", label: "Rules reference", href: "/rules", icon: "ph ph-book-open" },
+      { key: "dashboard", label: "Dashboard", href: "/dashboard", icon: "ph ph-squares-four", tier: "at-desk" },
+      { key: "leaderboard", label: "Live leaderboard", href: "/leaderboard", icon: "ph ph-ranking", tier: "on-course" },
+      { key: "week", label: "This week", href: "/week", icon: "ph ph-calendar-check", tier: "on-course" },
+      { key: "rules", label: "Rules reference", href: "/rules", icon: "ph ph-book-open", tier: "on-course" },
       // The way into the play shell, for staff who are also in the field.
       // Conditional on actually being entered — an organizer who does not play
       // would only reach a screen telling them so.
-      { key: "me", label: "My round", href: "/me", icon: "ph ph-golf" },
+      { key: "me", label: "My round", href: "/me", icon: "ph ph-golf", tier: "on-course" },
     ],
   },
   {
@@ -36,36 +68,36 @@ export const NAV: NavSection[] = [
     // opposed to "Set up", which only describes the event currently open.
     label: "Club",
     items: [
-      { key: "roster", label: "Members", href: "/roster", icon: "ph ph-address-book" },
-      { key: "series", label: "Season standings", href: "/series", icon: "ph ph-trophy" },
-      { key: "organization", label: "Club settings", href: "/organization", icon: "ph ph-buildings" },
+      { key: "roster", label: "Members", href: "/roster", icon: "ph ph-address-book", tier: "at-desk" },
+      { key: "series", label: "Season standings", href: "/series", icon: "ph ph-trophy", tier: "at-desk" },
+      { key: "organization", label: "Club settings", href: "/organization", icon: "ph ph-buildings", tier: "at-desk" },
     ],
   },
   {
     // Everything that defines the tournament. Locks when the event goes live.
     label: "Set up",
     items: [
-      { key: "event", label: "Tournament details", href: "/event", icon: "ph ph-gear-six" },
-      { key: "registration", label: "Registration & field", href: "/registration", icon: "ph ph-user-plus" },
-      { key: "stages", label: "Rounds & formats", href: "/stages", icon: "ph ph-stack" },
+      { key: "event", label: "Tournament details", href: "/event", icon: "ph ph-gear-six", tier: "at-desk" },
+      { key: "registration", label: "Registration & field", href: "/registration", icon: "ph ph-user-plus", tier: "at-desk" },
+      { key: "stages", label: "Rounds & formats", href: "/stages", icon: "ph ph-stack", tier: "at-desk" },
       // Bands across the field, which is what a flight is — and NOT
       // ph-squares-four, which is the Dashboard's icon. Two entries wearing the
       // same glyph is the sidebar losing the only thing an icon is for.
-      { key: "grouping", label: "Flights", href: "/grouping", icon: "ph ph-rows" },
-      { key: "teams", label: "Teams & pairs", href: "/teams", icon: "ph ph-users-three" },
-      { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check" },
+      { key: "grouping", label: "Flights", href: "/grouping", icon: "ph ph-rows", tier: "at-desk" },
+      { key: "teams", label: "Teams & pairs", href: "/teams", icon: "ph ph-users-three", tier: "at-desk" },
+      { key: "access", label: "Access & staff", href: "/access", icon: "ph ph-shield-check", tier: "at-desk" },
     ],
   },
   {
     // Running the live competition — always available once play begins.
     label: "Manage",
     items: [
-      { key: "foursomes", label: "Tee sheet", href: "/foursomes", icon: "ph ph-users-four" },
-      { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple" },
-      { key: "qualification", label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered" },
-      { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure" },
-      { key: "announcements", label: "Announcements", href: "/announcements", icon: "ph ph-megaphone" },
-      { key: "messages", label: "Messages", href: "/messages", icon: "ph ph-chat-circle-dots" },
+      { key: "foursomes", label: "Tee sheet", href: "/foursomes", icon: "ph ph-users-four", tier: "on-course" },
+      { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple", tier: "on-course" },
+      { key: "qualification", label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered", tier: "at-desk" },
+      { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", tier: "on-course" },
+      { key: "announcements", label: "Announcements", href: "/announcements", icon: "ph ph-megaphone", tier: "on-course" },
+      { key: "messages", label: "Messages", href: "/messages", icon: "ph ph-chat-circle-dots", tier: "on-course" },
     ],
   },
   /**
@@ -86,7 +118,7 @@ export const NAV: NavSection[] = [
   {
     label: "Results",
     items: [
-      { key: "reports", label: "Reports & export", href: "/reports", icon: "ph ph-export" },
+      { key: "reports", label: "Reports & export", href: "/reports", icon: "ph ph-export", tier: "at-desk" },
     ],
   },
   {
@@ -94,7 +126,7 @@ export const NAV: NavSection[] = [
     items: [
       // Coins rather than a trophy: the trophy belongs to Season standings, and
       // this section is the money. What is being opened here is a payout.
-      { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-coins" },
+      { key: "prizes", label: "Prizes & payouts", href: "/prizes", icon: "ph ph-coins", tier: "at-desk" },
       // Its own entry, not a section of Prizes, because it is different money
       // with different owners: the field's pot is the club's, a group's pot is
       // four players' own. Two lists of identical-looking cards on one screen
@@ -102,7 +134,7 @@ export const NAV: NavSection[] = [
       // Money among a group, which is exactly what this screen is — and not
       // ph-users-three, which is "Teams & pairs" in Set up. The two screens are
       // already easy to confuse by name; wearing one glyph made it worse.
-      { key: "group-games", label: "Group games", href: "/group-games", icon: "ph ph-hand-coins" },
+      { key: "group-games", label: "Group games", href: "/group-games", icon: "ph ph-hand-coins", tier: "on-course" },
     ],
   },
 ];
@@ -248,4 +280,31 @@ export function screenName(href: string): string {
     }
   }
   return path;
+}
+
+/** Every nav item, flattened — the sections are for display, not for lookup. */
+export function allNavItems(): NavItem[] {
+  return NAV.flatMap((section) => section.items);
+}
+
+/**
+ * The routes held to touch minimums, read from the nav rather than listed
+ * again.
+ *
+ * A hand-written list is exactly what this replaces, and the reason is on the
+ * record: `layout.spec` used one, it covered 14 of 22 routes, and the eight it
+ * missed had no layout assertion at all — silently, because a list that is
+ * short looks identical to a list that is complete. Deriving from `NAV` means a
+ * screen added to the sidebar is graded the day it is added, and a screen that
+ * is NOT in the sidebar cannot quietly acquire a tier it was never given.
+ *
+ * What this is NOT is a filter on which screens get swept. `layout.spec` still
+ * walks the filesystem and measures every route at every viewport; this only
+ * says where the 44px floor additionally applies.
+ */
+export function routesForTier(tier: NavTier): string[] {
+  return allNavItems()
+    .filter((item) => item.tier === tier)
+    .map((item) => item.href)
+    .sort();
 }
