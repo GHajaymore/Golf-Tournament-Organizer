@@ -117,6 +117,13 @@ export default async function LeaderboardPage() {
           display: "flex",
           alignItems: "flex-end",
           justifyContent: "space-between",
+          // Wraps on a phone. The freshness label replaced a short "Updating
+          // live" tag and is longer than it, so on a 393px screen the pair no
+          // longer fits one line — and a space-between row that cannot wrap
+          // does not shrink, it overflows. `layout.spec` measured 402px in a
+          // 393px viewport.
+          flexWrap: "wrap",
+          gap: 8,
           marginBottom: 20,
         }}
       >
