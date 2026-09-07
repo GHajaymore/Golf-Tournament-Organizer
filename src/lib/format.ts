@@ -16,6 +16,27 @@ export function pts(n: number): string {
   return (Math.round(n * 100) / 100).toString();
 }
 
+/**
+ * A count and its noun, agreeing.
+ *
+ * There are forty-odd hand-written `n === 1 ? "" : "s"` conditionals in this
+ * codebase, which is fine — until one is forgotten, and then a screen says
+ * "1 flights · 1 players" to somebody setting up their first tournament. It
+ * reads as a bug in the thing being counted rather than in the sentence, which
+ * is why it survives: nobody files "the s is wrong" but everybody notices it.
+ *
+ * Irregular plurals are given rather than guessed. English has no rule this
+ * function could implement, so a caller with a "match" or a "party" passes the
+ * plural in; anything else takes an "s".
+ *
+ *   plural(1, "flight")            → "1 flight"
+ *   plural(3, "flight")            → "3 flights"
+ *   plural(2, "match", "matches")  → "2 matches"
+ */
+export function plural(n: number, one: string, many?: string): string {
+  return `${n} ${n === 1 ? one : (many ?? `${one}s`)}`;
+}
+
 export function record(s: PlayerStats): string {
   return `${s.wins}-${s.ties}-${s.losses}`;
 }

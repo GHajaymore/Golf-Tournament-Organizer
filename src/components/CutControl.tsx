@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { setStageCut, setStageCutScope } from "@/app/actions/tournament";
 import { cutAdvancesEveryone } from "@/lib/domain/cut";
 import { Icon } from "./Icon";
+import { plural } from "@/lib/format";
 
 export function CutControl({
   formId,
@@ -165,7 +166,7 @@ export function CutControl({
           </div>
           <span className="text-muted" style={{ fontSize: 12 }}>
             {perFlight
-              ? `${bucketSurvivors} from each of ${flights} flights — ${survivors} of ${confirmedCount} advance into ${roundLabel}.`
+              ? `${bucketSurvivors} from each of ${plural(flights, "flight")} — ${survivors} of ${confirmedCount} advance into ${roundLabel}.`
               : `${survivors} of ${confirmedCount} advance into ${roundLabel}.`}
             {/* Why "Per flight" is dead, in the sentence that is already here
                 rather than in a `title` nobody on a phone can reach. The same

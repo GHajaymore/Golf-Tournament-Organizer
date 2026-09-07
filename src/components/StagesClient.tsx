@@ -1617,6 +1617,26 @@ export function StagesClient({
   const [openRound, setOpenRound] = useState<string | null>(
     stages.length > 0 && stages.length <= 2 ? stages[0].id : null,
   );
+  /**
+   * Whether the round builder is open.
+   *
+   * It is the whole point of this screen while there are no rounds, and the
+   * largest thing on it once there are. With four rounds built, an
+   * always-open builder — two groups of type cards, five fields and a button —
+   * was taller than the list of rounds it sat under, so the screen's answer to
+   * "what is this tournament playing" was mostly a form for adding another
+   * one.
+   *
+   * So: open when there is nothing yet, because the only useful act on an
+   * empty screen is the one it contains; shut afterwards, behind a control
+   * that says what it opens.
+   *
+   * IT STAYS OPEN AFTER AN ADD. Somebody who has just added a round is the
+   * likeliest person in the world to add another, and closing a panel under
+   * the hands of the person who deliberately opened it is the app taking
+   * something away as a reward for using it.
+   */
+  const [addOpen, setAddOpen] = useState(stages.length === 0);
   const [newType, setNewType] = useState<StageTypeKey>(STAGE_TYPES[0]);
   // Resets to 1 after each add: "add 10 weeks" is a deliberate act, and
   // leaving the box on 10 would make the next click a nasty surprise.
@@ -1712,19 +1732,78 @@ export function StagesClient({
         </div>
       )}
 
+      {/* Shut, this is one control rather than a card with a form inside it.
+          A collapsed panel that still looks like a panel is not a saving —
+          the point is that a screen showing four rounds shows four rounds and
+          a way to add a fifth, not four rounds and a fifth being built. */}
+      {!addOpen && (
+        <button
+          type="button"
+          onClick={() => setAddOpen(true)}
+          className="card elev-sm"
+          aria-expanded={false}
+          style={{
+            width: "100%",
+            textAlign: "left",
+            display: "flex",
+            // `.card` sets column, so a bare `display: flex` here stacked the
+            // plus, the label and the caret into three rows — the control read
+            // as a centred heading with a chevron under it rather than as a
+            // row you press.
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+            minHeight: 44,
+            cursor: "pointer",
+            color: "var(--color-text)",
+            border: "1px dashed var(--color-divider)",
+          }}
+        >
+          <Icon name="plus" style={{ fontSize: 16, color: "var(--color-accent)", flex: "none" }} />
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>Add a round</span>
+            {/* Names what is behind it. "Add a round" alone hides the fact
+                that a cut and a bracket live in here too, and a control whose
+                contents are a surprise is a control people do not open. */}
+            <span className="text-muted" style={{ display: "block", fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>
+              Another round the field plays, or a cut or a bracket between them.
+            </span>
+          </span>
+          <Icon name="caret-down" style={{ fontSize: 13, color: "var(--color-neutral-500)", marginLeft: "auto", flex: "none" }} />
+        </button>
+      )}
+
       {/* Was a bare select of four raw enum strings — "Single Match Stage"
           told an organizer nothing about what it would do, and the medal
           round every club plays wasn't on the list at all. Each option now
           says what the app will actually generate, because that is the whole
           difference between the types. */}
+      {addOpen && (
       <div className="card elev-sm" style={{ gap: 12 }}>
-        <div>
-          <span className="card-title" style={{ fontSize: 15 }}>Add a round</span>
-          <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
-            Sequence as many as you like. The <em>type</em> decides what gets drawn — pairings, a
-            cut, or a bracket. How it&apos;s scored is the <em>format</em> on each round, chosen
-            separately, so a Stableford or four-ball round is a round of one of these types.
-          </p>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <span className="card-title" style={{ fontSize: 15 }}>Add a round</span>
+            <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", maxWidth: "72ch", lineHeight: 1.5 }}>
+              Sequence as many as you like. The <em>type</em> decides what gets drawn — pairings, a
+              cut, or a bracket. How it&apos;s scored is the <em>format</em> on each round, chosen
+              separately, so a Stableford or four-ball round is a round of one of these types.
+            </p>
+          </div>
+          {/* No way to shut it while there is nothing to shut it over: on an
+              empty tournament this panel IS the screen, and a close button
+              would offer an organizer a blank page. */}
+          {stages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setAddOpen(false)}
+              aria-expanded
+              aria-label="Close the round builder"
+              className="btn btn-ghost"
+              style={{ marginLeft: "auto", flex: "none", minHeight: 44, minWidth: 44 }}
+            >
+              <Icon name="caret-up" />
+            </button>
+          )}
         </div>
 
         {/* Two groups rather than five equal cards. Nearly every round an
@@ -1972,6 +2051,7 @@ export function StagesClient({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
