@@ -32,6 +32,27 @@ import { readVerbatim } from "./source";
 const CONFIG = readVerbatim("playwright.config.ts");
 const WORKFLOW = readVerbatim(".github/workflows/ci.yml");
 
+/**
+ * A workflow with its comment lines blanked.
+ *
+ * `readSource` strips TypeScript comments and does not know what a `#` means,
+ * so a YAML file arrives here with its prose intact — and this file's prose
+ * quotes the exact settings it asserts, which is the documented way a source
+ * test goes green for the wrong reason.
+ *
+ * It was not hypothetical. Flipping `fail-fast: false` to `true` rewrote the
+ * comment above it as well, so the mutation was caught — but a change that
+ * touched only the setting and left the comment saying `false` would have
+ * sailed through. Blanking comments first is what makes these assertions about
+ * the workflow rather than about the paragraph describing it.
+ */
+function yamlCode(src: string): string {
+  return src
+    .split("\n")
+    .map((line) => (line.trimStart().startsWith("#") ? "" : line))
+    .join("\n");
+}
+
 /** Project names as `playwright.config.ts` declares them, in `projects: [...]`. */
 function declaredProjects(): string[] {
   const block = CONFIG.slice(CONFIG.indexOf("projects: ["), CONFIG.indexOf("webServer:"));
@@ -72,13 +93,13 @@ describe("every viewport CI claims to test is actually tested", () => {
    */
   it("keeps each viewport in its own invocation", () => {
     expect(
-      WORKFLOW,
+      yamlCode(WORKFLOW),
       "the e2e job no longer passes --project, so one leg runs every viewport in one process",
     ).toMatch(/playwright test --project=\$\{\{\s*matrix\.project\s*\}\}/);
     expect(
       CONFIG,
       "workers is no longer 1; parallel workers inside one run share the seeded fixture",
-    ).toMatch(/workers:\s*1\b/);
+    ).toMatch(/^\s*workers:\s*1\s*,/m);
   });
 
   /**
@@ -87,6 +108,6 @@ describe("every viewport CI claims to test is actually tested", () => {
    * DIFFERENCE between viewports.
    */
   it("lets every viewport finish even when one fails", () => {
-    expect(WORKFLOW).toMatch(/fail-fast:\s*false/);
+    expect(yamlCode(WORKFLOW)).toMatch(/^\s*fail-fast:\s*false\s*$/m);
   });
 });
