@@ -1,0 +1,36 @@
+name: Set up the app
+description: Node, dependencies, a generated Prisma client and a migrated database.
+
+# The four steps every job in ci.yml needs before it can do anything useful.
+#
+# They were one copy when `verify` was a single job. Splitting that job into
+# parallel ones would have made them three copies, and three copies of a
+# database setup is how two of them quietly drift from the third — so they live
+# here instead and each job says `uses: ./.github/actions/setup`.
+#
+# `actions/checkout` is deliberately NOT here: a local composite action cannot
+# run until the repository containing it has been checked out, so every job has
+# to do that itself first.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+
+    - name: Install
+      shell: bash
+      run: npm ci
+
+    - name: Generate Prisma client
+      shell: bash
+      run: npx prisma generate
+
+    - name: Apply migrations
+      # Catches a migration that does not apply to an empty database — the
+      # failure mode a local machine never sees, because its database already
+      # has every earlier migration in it.
+      shell: bash
+      run: npx prisma migrate deploy

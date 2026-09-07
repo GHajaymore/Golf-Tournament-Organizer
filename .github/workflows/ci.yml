@@ -9,6 +9,24 @@ name: CI
 # bad "use server" export shape, or a static-generation failure.
 #
 # CI has no dev server, so it can just build. Free on a public repository.
+#
+# ── WHY THIS IS FOUR JOBS AND NOT ONE ──────────────────────────────────────
+#
+# It was one job, and it took about nine and a half minutes, of which the
+# end-to-end run was six. Everything else — typecheck, unit tests, the audit
+# suite, the build, the smoke pass — sat behind it in a queue for no reason
+# other than that they were written in the same list. A typecheck error took
+# nine minutes to report because Playwright had to finish first.
+#
+# The three now run beside each other, so the wall clock is the SLOWEST of
+# them rather than the sum. `verify` survives as a job that does nothing but
+# wait on all three: it is the check name the "main must be green" ruleset
+# requires, and renaming it would silently un-protect the branch. That is a
+# repository setting rather than a file, so this file bends to it.
+#
+# It costs more runner-minutes — three `npm ci` runs rather than one — and
+# those are free on a public repository. Wall clock is the thing anyone is
+# actually waiting for.
 
 on:
   push:
@@ -18,33 +36,50 @@ on:
 
 # A newer push makes an in-flight run pointless — on a FEATURE branch.
 #
-# Never on `main`. Vercel deploys `main` to production from its own Git
-# integration, on push, without waiting for this file. So `main` is the one
-# branch where cancelling costs something real: on 2026-09-02 two PRs merged a
-# minute apart, the second cancelled the first's run, and the merge commit that
-# had just gone to production ended with `verify` reading `cancelled` — no
-# completed check, on the commit users were being served.
+# Never on `main`. Deploys now come from the `deploy` job below rather than
+# Vercel's own Git integration, so a cancelled run on `main` no longer means a
+# deploy with no verdict — but it still means a merge commit whose only record
+# reads `cancelled`, which is unreadable six weeks later when somebody is
+# trying to work out what was verified.
 #
-# Nothing was wrong that time. But "deployed on a commit CI never finished
-# judging" is the same shape as the day main sat red in production, and the
-# whole point of this file is that the build is verified rather than assumed.
-# A duplicate run on main costs a few free minutes; a missing verdict costs the
-# only signal there is.
+# Note this protects a run that has STARTED, not one still queued: GitHub
+# allows one running and one pending run per group, and a third arrival
+# cancels the pending one regardless of this setting. Merging a batch will
+# still leave most of them cancelled. Merge one at a time when the history has
+# to mean something.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+# Every job needs the same database wiring. Hoisted here so the three cannot
+# disagree about which URL means what.
+env:
+  # Local to the runner and destroyed with it — never a real credential.
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+  # schema.prisma reads `url = env("PRISMA_DATABASE_URL")` and only `directUrl`
+  # from DATABASE_URL. The migrate steps use the direct one so they were fine,
+  # but anything that actually QUERIES — the smoke server, the end-to-end run —
+  # needs this one or every page 500s with "Environment variable not found".
+  PRISMA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
+  # A shadow database has to be empty — Prisma replays every migration into it
+  # from scratch. Pointing it at the migrated one silently reports no drift,
+  # whatever the schema says.
+  SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_shadow
+  ADMIN_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+  # Keeps the build from trying to phone home during static generation.
+  NEXT_TELEMETRY_DISABLED: "1"
+
 jobs:
-  verify:
+  # ── Fast feedback: the things that fail most often and cost the least ─────
+  unit:
+    name: Typecheck and unit tests
     runs-on: ubuntu-latest
-    # Raised from 20 when the end-to-end run was added: it installs a browser
-    # and builds a second bundle of its own, which is about eight more minutes.
-    timeout-minutes: 35
+    timeout-minutes: 15
 
     services:
-      # Prisma needs a reachable database to generate against and for the
-      # build to import the client. A throwaway container is cheaper and more
-      # honest than pointing CI at a real one.
+      # Prisma needs a reachable database to generate against, and the audit
+      # suite queries one. A throwaway container is cheaper and more honest
+      # than pointing CI at a real one.
       postgres:
         image: postgres:16-alpine
         env:
@@ -58,46 +93,28 @@ jobs:
         ports:
           - 5432:5432
 
-    env:
-      # Local to the runner and destroyed with it — never a real credential.
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
-      # schema.prisma reads `url = env("PRISMA_DATABASE_URL")` and only
-      # `directUrl` from DATABASE_URL. The migrate steps use the direct one so
-      # they were fine, but anything that actually QUERIES — the smoke server,
-      # and now the end-to-end run — needs this one or every page 500s with
-      # "Environment variable not found".
-      PRISMA_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_ci
-      # A shadow database has to be empty — Prisma replays every migration into
-      # it from scratch. Pointing it at the migrated one silently reports no
-      # drift, whatever the schema says.
-      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/tourneyhq_shadow
-      ADMIN_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      # Keeps the build from trying to phone home during static generation.
-      NEXT_TELEMETRY_DISABLED: "1"
-
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install
-        run: npm ci
-
-      - name: Generate Prisma client
-        run: npx prisma generate
-
+      # Only in this job — the drift check needs its own empty shadow database
+      # and there is no reason to build one three times.
       - name: Create shadow database
         run: |
           echo 'CREATE DATABASE tourneyhq_shadow;' > /tmp/shadow.sql
           npx prisma db execute --url "$ADMIN_DATABASE_URL" --file /tmp/shadow.sql
 
       - name: Check for schema drift
-        # Before the real database is touched. Drift means schema.prisma was
-        # edited without the matching migration, so the next deploy applies a
-        # different database than the one CI tested.
+        # Drift means schema.prisma was edited without the matching migration,
+        # so the next deploy applies a different database than the one CI
+        # tested.
+        #
+        # This used to run BEFORE the migrations were applied, and its comment
+        # said that was the point. It was not: `migrate diff` compares the
+        # migrations FOLDER against schema.prisma, replaying the former into
+        # the empty shadow database. It never reads the real one, so the state
+        # of the real one cannot affect the answer. Running it after `setup`
+        # is what lets the whole job share one install.
         run: >-
           npx prisma migrate diff
           --from-migrations prisma/migrations
@@ -105,14 +122,16 @@ jobs:
           --shadow-database-url "$SHADOW_DATABASE_URL"
           --exit-code
 
-      - name: Apply migrations
-        # Catches a migration that does not apply to an empty database —
-        # the failure mode a local machine never sees, because its database
-        # already has every earlier migration in it.
-        run: npx prisma migrate deploy
-
       - name: Typecheck
         run: npx tsc --noEmit
+
+      - name: Lint
+        # Moved here from nowhere: `next lint` was in the documented local gate
+        # but had never been in CI at all, so a lint error only failed on the
+        # machine of whoever remembered to run it. It caught a real one the day
+        # this job was written — a const used above its own declaration, which
+        # tsc passes and the build refuses.
+        run: npx next lint
 
       - name: Test
         run: npx vitest run
@@ -121,9 +140,33 @@ jobs:
         # The default config EXCLUDES *.audit.test.ts, so authorization,
         # handicap resolution and money were proved only by whoever remembered
         # to run them locally. CI already has a migrated Postgres beside it,
-        # which is the only thing they need - they were left out because the
+        # which is the only thing they need — they were left out because the
         # config split is invisible from here, not because they cannot run.
         run: npx vitest run --config vitest.audit.config.ts
+
+  # ── Does it build, and does every screen actually render? ─────────────────
+  build:
+    name: Build and smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
 
       - name: Build
         run: npm run build
@@ -176,10 +219,56 @@ jobs:
           kill "$SERVER_PID" 2>/dev/null || true
           exit $STATUS
 
+  # ── The slowest one, and the only net that sees a laid-out page ───────────
+  e2e:
+    name: End-to-end
+    runs-on: ubuntu-latest
+    # It installs a browser and builds a bundle of its own before it runs a
+    # single test.
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tourneyhq_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      # The browser download is about a minute of every run and changes only
+      # when Playwright's version does — so it is keyed on the resolved version
+      # in the lockfile rather than on the lockfile itself, which changes for
+      # every unrelated dependency bump.
+      - name: Work out the Playwright version
+        id: pw
+        run: |
+          VERSION=$(node -p "require('./node_modules/@playwright/test/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the browser
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
 
       - name: Install Playwright browsers
         # All three projects are Chromium (Pixel 5 twice and Desktop Chrome),
         # so there is no reason to download Firefox and WebKit as well.
+        #
+        # `--with-deps` installs system libraries OUTSIDE the cached directory,
+        # so it has to run even on a cache hit — but with the browser already
+        # present it is seconds rather than a download.
         run: npx playwright install --with-deps chromium
 
       - name: End-to-end
@@ -190,8 +279,8 @@ jobs:
         # column, a target under the touch minimum, a card that opens blank
         # over a round already played — all of which shipped green once.
         #
-        # It builds its own bundle into .next-e2e, so it cannot disturb the
-        # .next the smoke step above just used.
+        # It builds its own bundle into .next-e2e (see playwright.config.ts),
+        # which is why this job does not run `npm run build` first.
         env:
           AUTH_SECRET: ci-e2e-secret
         run: npx playwright test
@@ -205,6 +294,24 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  # ── The gate ─────────────────────────────────────────────────────────────
+  #
+  # Does nothing. Exists because "verify" is the check name the branch ruleset
+  # requires, and because a single required check is easier to reason about
+  # than three — adding a fourth job later needs a line here rather than a
+  # change to a repository setting somebody has to remember exists.
+  #
+  # `needs` fails this job if ANY of the three fails or is cancelled, which is
+  # the behaviour the old single job had for free.
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    needs: [unit, build, e2e]
+    timeout-minutes: 5
+    steps:
+      - name: Everything passed
+        run: echo "unit, build and e2e are green."
 
   # Production ships from HERE, and only after `verify` has gone green.
   #
@@ -230,7 +337,6 @@ jobs:
       VERCEL_ORG_ID: team_du2Cf2nXyLU3G2Dju8DZUYg8
       VERCEL_PROJECT_ID: prj_wGD4aR7UauZ1NXVWpEMDl27bWgog
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      NEXT_TELEMETRY_DISABLED: "1"
 
     steps:
       - uses: actions/checkout@v4
