@@ -47,6 +47,18 @@ describe("which rows moved", () => {
    * THE FIRST RENDER. There is no previous board, so nothing has moved — and
    * animating here would fly every row in from wherever it was first measured,
    * which reads as the page breaking rather than as news.
+   *
+   * KEPT DELIBERATELY, THOUGH IT CANNOT FAIL ON ITS OWN. `reorder.ts` used to
+   * carry a `before.size === 0` early return for this, and mutation testing
+   * showed that deleting it changed nothing: on a first render every row is
+   * unknown to the previous board, so the new-row rule above already covers
+   * it. The early return is gone; this stayed, because the BEHAVIOUR still has
+   * to hold however it is implemented, and a reader arriving at this file will
+   * ask about the first render whether or not there is a branch for it.
+   *
+   * Its honest status: it is a statement of intent, not an independent guard.
+   * The assertion that actually bites is "does not move a row that was not on
+   * the previous board".
    */
   it("is silent on the first render", () => {
     expect(reorderShifts(board(), board(["a", 0], ["b", 60]))).toEqual([]);

@@ -44,11 +44,6 @@ export function reorderShifts(
   // and a leaderboard that lurches is exactly the kind that does it.
   if (options.reduceMotion) return [];
 
-  // THE FIRST RENDER MUST NOT ANIMATE. There is no previous board to have
-  // moved from, so every row would fly in from wherever it happened to be
-  // measured — which reads as the page breaking, not as news.
-  if (before.size === 0) return [];
-
   const min = options.minShift ?? MIN_SHIFT;
   const shifts: RowShift[] = [];
 
@@ -57,6 +52,14 @@ export function reorderShifts(
     // A row that was not on the previous board is new to it — a player whose
     // first score has just landed. It has not MOVED, it has arrived, and
     // sliding it in from a position it never held would be inventing a story.
+    //
+    // THIS IS ALSO WHAT MAKES THE FIRST RENDER SILENT, and it is worth saying
+    // here because the obvious alternative is a separate `before.size === 0`
+    // early return. That guard was written, and mutation testing found it
+    // could not fail: on a first render every row takes this branch anyway, so
+    // deleting the early return changed no behaviour and no test. A guard that
+    // cannot fail is not protection, it is a comment that costs a branch — so
+    // the rule lives once, here, where it is actually load-bearing.
     if (from === undefined) continue;
     const dy = from - to;
     if (Math.abs(dy) < min) continue;
