@@ -4694,3 +4694,53 @@ describe("the setup rail", () => {
     expect(html).not.toContain("disabled");
   });
 });
+
+describe("jump-to nav on a long settings screen", () => {
+  /**
+   * Club settings is around nine thousand pixels tall — eight independent
+   * areas stacked in one column with nothing between them but a gap. An
+   * organizer who came to change the currency scrolled past a colour picker
+   * taller than most whole screens to find it, and had no way of knowing the
+   * money section existed until they arrived at it.
+   */
+  const sections = [
+    { id: "identity", label: "Club & branding" },
+    { id: "theme", label: "Colour" },
+    { id: "plan", label: "Plan" },
+  ];
+
+  it("offers one link per section, pointing at its anchor", async () => {
+    const { SettingsNav } = await import("@/components/SettingsNav");
+    const html = render(<SettingsNav sections={sections} />);
+    for (const s of sections) {
+      expect(html, `link for ${s.id}`).toContain(`href="#${s.id}"`);
+      // Escaped: "Club & branding" reaches the markup as "Club &amp; branding",
+      // and asserting the raw label fails on the ampersand rather than on
+      // anything about the link.
+      expect(html).toContain(s.label.replace(/&/g, "&amp;"));
+    }
+  });
+
+  it("holds the anchor clear of the sticky bar", async () => {
+    /**
+     * The one thing here that breaks silently. The nav is sticky, so an anchor
+     * that scrolls to the top of the viewport lands UNDERNEATH it and the
+     * reader arrives at a section whose heading is hidden by the thing they
+     * just clicked. Nothing errors; the page simply looks wrong in a way that
+     * reads as a rendering glitch.
+     *
+     * Measured rather than guessed: the bar is 102px when stuck, and the first
+     * attempt at this used 96 and landed six pixels under it.
+     */
+    const { SettingsSectionAnchor } = await import("@/components/SettingsNav");
+    const html = render(
+      <SettingsSectionAnchor id="plan">
+        <p>Plan</p>
+      </SettingsSectionAnchor>,
+    );
+    expect(html).toContain('id="plan"');
+    const margin = /scroll-margin-top:(\d+)px/.exec(html);
+    expect(margin, "an anchor sets a scroll margin at all").not.toBeNull();
+    expect(Number(margin![1])).toBeGreaterThan(102);
+  });
+});
