@@ -1,5 +1,3 @@
-import { Icon } from "./Icon";
-
 /**
  * Jump-to navigation for a long settings screen.
  *
