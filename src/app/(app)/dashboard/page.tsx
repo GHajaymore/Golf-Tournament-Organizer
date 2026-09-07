@@ -22,6 +22,7 @@ import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
+import { isMatch } from "@/lib/tournament-shape";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
 import { orgSetupState } from "@/lib/domain/org-setup";
@@ -53,15 +54,38 @@ export default async function DashboardPage() {
   const { event, groupStandings, advancingCount, overallCutoff, brackets } = state;
   const progress = matchProgress(state);
   const currentStage = state.activeStage ?? state.stages[0];
+  /**
+   * Two people playing each other, rather than a tournament.
+   *
+   * Read from the event's own shape rather than counted off the field, which
+   * is the distinction the shape exists to keep: "two players are entered" is
+   * a fact about today and stops being true the moment a third arrives; "this
+   * was set up as a match" stays true and is what the wording should follow.
+   *
+   * Declared HERE, above the first reader, rather than beside the other
+   * role flags below. Same reason the attendance rows on the Rounds screen
+   * carry that note: a const read before its own line throws on every render
+   * of the page, and tsc does not catch it.
+   */
+  const matchEvent = isMatch(event.shape);
   // Counted over the rounds the field plays, not over the Round Robins: those
   // two lists are the same only in a tournament that is nothing but round
   // robins, and this screen sits beside others that always counted rounds.
-  const currentRoundLabel =
-    state.playRounds.length > 1 && currentStage
+  const currentRoundLabel = matchEvent
+    ? // "Round Robin" is the structure the app stores a match as, not
+      // anything the two people playing it would recognise. The type is a
+      // truthful label for a tournament with several kinds of round in it and
+      // a piece of internal vocabulary here.
+      "The match"
+    : state.playRounds.length > 1 && currentStage
       ? roundLabelWith(state.playRounds, currentStage.id, currentStage.type)
       : currentStage?.type ?? "—";
-  const currentRoundDesc =
-    currentStage?.type === "Round Robin"
+  const currentRoundDesc = matchEvent
+    ? // A round robin of two IS the match, and telling two friends that
+      // "every player meets everyone in their flight" describes the schema
+      // rather than the golf.
+      "One match, decided hole by hole."
+    : currentStage?.type === "Round Robin"
       ? "Every player meets everyone in their flight."
       : currentStage?.description ?? "";
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
@@ -123,6 +147,9 @@ export default async function DashboardPage() {
       hasKnockout,
       isLeague: state.stages.filter((s) => isWeeklyRound(s.type)).length > 1,
       wantsTeams: wantsTeams(cleanSideStyle(state.event.sideStyle)),
+      // Same list the sidebar is filtered by, so the quick actions cannot
+      // offer a match a door to Flights that the sidebar has just closed.
+      isMatch: matchEvent,
     })
       .flatMap((section) => section.items)
       .map((item) => item.href),
@@ -297,9 +324,13 @@ export default async function DashboardPage() {
       >
         <div>
           <div className="page-kicker">{event.name}</div>
-          <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Tournament dashboard</h1>
+          {/* A match is not a tournament, and calling its one screen a
+              "Tournament dashboard" is the app telling two friends they have
+              set up the wrong thing. */}
+          <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>{matchEvent ? "The match" : "Tournament dashboard"}</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            {[event.dates, [event.course, event.city].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || "No dates or venue set yet"}
+            {[event.dates, [event.course, event.city].filter(Boolean).join(", ")].filter(Boolean).join(" · ") ||
+              (matchEvent ? "No date or course set — neither is needed to play it" : "No dates or venue set yet")}
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -316,21 +347,32 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <LifecycleBar
-        status={event.status}
-        isAdmin={isAdmin}
-        configUnlocked={event.configUnlocked}
-        matchesScored={progress.done}
-        summary={{
-          name: event.name,
-          dates: event.dates,
-          course: event.course,
-          format: event.format,
-          players: state.confirmed.length,
-          flights: state.groups.length,
-          rounds: state.stages.length,
-        }}
-      />
+      {/* A MATCH HAS NO LIFECYCLE TO RUN, so it is not offered one.
+          Draft → taking entries → ready → launch → complete is the arc of an
+          event with a field: entries open and close, a draw is published, and
+          launching is the moment the field gets to see any of it. None of
+          those steps exists for two people who agreed to play on Sunday —
+          there is nobody to open entries to, nothing to publish, and the
+          "Launch tournament" dialog would ask them to confirm their flight
+          count. The match is created live and stays unlocked; the only
+          question left, whether it is finished, is answered by the card. */}
+      {!matchEvent && (
+        <LifecycleBar
+          status={event.status}
+          isAdmin={isAdmin}
+          configUnlocked={event.configUnlocked}
+          matchesScored={progress.done}
+          summary={{
+            name: event.name,
+            dates: event.dates,
+            course: event.course,
+            format: event.format,
+            players: state.confirmed.length,
+            flights: state.groups.length,
+            rounds: state.stages.length,
+          }}
+        />
+      )}
 
       {announcements.length > 0 && (
         <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -403,11 +445,32 @@ export default async function DashboardPage() {
       {!unstarted && (
         <>
         <div className="stat-grid" style={{ marginBottom: 16 }}>
-          <StatCard label="Players" value={state.confirmed.length} sub={`${state.groups.length} flights`} icon="ph ph-users-three" />
+          {/* "1 flights" was on this card for every one-flight tournament, and
+              a match is one flight by construction — so the plural is fixed
+              here rather than only hidden for matches. A match says what its
+              two players are actually doing instead of counting the flight
+              that exists only because the schema needs one. */}
+          <StatCard
+            label={matchEvent ? "Playing" : "Players"}
+            value={state.confirmed.length}
+            sub={
+              matchEvent
+                ? "head to head"
+                : `${state.groups.length} flight${state.groups.length === 1 ? "" : "s"}`
+            }
+            icon="ph ph-users-three"
+          />
           {isStroke ? (
             <StatCard label="Cards in" value={`${cardsIn}/${state.confirmed.length}`} sub={`${state.confirmed.length ? Math.round((cardsIn / state.confirmed.length) * 100) : 0}% submitted`} icon="ph ph-cards" />
           ) : (
-            <StatCard label="Matches complete" value={`${progress.done}/${progress.total}`} sub={`${progress.pct}% of round robin`} icon="ph ph-check-circle" />
+            <StatCard
+              label={matchEvent ? "Match" : "Matches complete"}
+              value={matchEvent ? (progress.done > 0 ? "Finished" : "Not finished") : `${progress.done}/${progress.total}`}
+              // "50% of round robin" is a sentence about a schedule. One match
+              // has no schedule to be half way through.
+              sub={matchEvent ? "hole by hole" : `${progress.pct}% of round robin`}
+              icon="ph ph-check-circle"
+            />
           )}
           {/* An organizer's review queue, not a player-facing number. */}
           {isStaff && (
@@ -426,8 +489,12 @@ export default async function DashboardPage() {
             {showStandings ? (
               <>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-                  <span className="card-title">Live leaderboard</span>
-                  <span className="text-muted" style={{ fontSize: 12 }}>Overall · all flights</span>
+                  <span className="card-title">{matchEvent ? "Where the match stands" : "Live leaderboard"}</span>
+                  {/* "Overall · all flights" is a claim about scope, and a
+                      match has no other flights for this one to be all of. */}
+                  <span className="text-muted" style={{ fontSize: 12 }}>
+                    {matchEvent ? "Holes won" : "Overall · all flights"}
+                  </span>
                 </div>
                 <LeaderboardTable isStroke={isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} rows={rows} compact />
               </>
@@ -536,8 +603,12 @@ export default async function DashboardPage() {
 
       {/* Flight standings are standings — same rule as the leaderboard card.
           Not rendered at all rather than hidden with CSS: display:none still
-          ships every name and score in the HTML for anyone reading source. */}
-      {showStandings && !unstarted && (
+          ships every name and score in the HTML for anyone reading source.
+
+          And never for a match: its one flight holds both players, so this
+          card is the leaderboard directly above it printed a second time
+          under a heading about flights. */}
+      {showStandings && !unstarted && !matchEvent && (
       <div className="card elev-sm" style={{ marginTop: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span className="card-title">Flight standings</span>

@@ -199,6 +199,56 @@ export default async function ChooseTournamentPage({
           ))}
         </div>
 
+        {/* OFFERED BEFORE THE TOURNAMENT BUILDER, and above it on the page.
+            Not because it matters more, but because it is the request this
+            screen was worst at: somebody who wants to play one person over
+            eighteen holes had to answer "what shape of tournament is this?"
+            with three options, none of which is a match, and then find their
+            way through entries, flights and a format picker to a fixture whose
+            two players they knew before they started. Walked end to end on
+            2026-09-07, that was six screens; this is one.
+
+            It is a LINK, not a form. Everything the match screen asks — two
+            names, holes, whether shots are given — belongs together on one
+            page, and half of it inline here would be the same decision split
+            across two places again. */}
+        <Link
+          href="/match/new"
+          className="card elev-sm"
+          style={{
+            marginTop: 18,
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            textDecoration: "none",
+            color: "var(--color-text)",
+            border: "1px solid var(--color-divider)",
+          }}
+        >
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              flex: "none",
+              display: "grid",
+              placeItems: "center",
+              borderRadius: 10,
+              background: "color-mix(in srgb, var(--color-accent-2) 16%, transparent)",
+            }}
+          >
+            <Icon name="sword" style={{ color: "var(--color-accent-2)", fontSize: 18 }} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
+              Playing a match?
+            </div>
+            <div className="text-muted" style={{ fontSize: 12, marginTop: 3, lineHeight: 1.5 }}>
+              Two players, one round, hole by hole. Two names and you&rsquo;re on the first tee.
+            </div>
+          </div>
+          <Icon name="arrow-right" style={{ color: "var(--color-accent-300)", marginLeft: "auto", flex: "none" }} />
+        </Link>
+
         {/* Keyed on the count so the form remounts (and collapses) once the
             first tournament exists, instead of staying open from its initial
             "no tournaments yet" state. */}

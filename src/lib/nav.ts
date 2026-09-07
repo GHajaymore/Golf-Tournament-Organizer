@@ -166,10 +166,35 @@ export function navForRole(
      * pointed outwards.
      */
     isPlayerToo?: boolean;
+    /**
+     * This is a match between two people, not a tournament.
+     *
+     * The other flags here hide a screen because the tournament has not grown
+     * into it yet — no team round, so no Teams; no knockout, so no Bracket.
+     * This one hides screens the event will never grow into, because a match
+     * is finished when the two of them shake hands on the 18th.
+     *
+     * What it removes is the apparatus of running a FIELD: dividing one into
+     * flights, drawing it a tee sheet, announcing things to it, and hiring
+     * staff to help. Two people on the first tee have no field, and every one
+     * of those links was a door to a screen about somebody else's problem.
+     *
+     * What it deliberately keeps is anything a match genuinely has. The field
+     * screen stays, because it is where a mistyped name or a wrong handicap
+     * gets fixed and there is nowhere else. Prizes and Group games stay,
+     * because a match played for a fiver is the oldest bet in golf. Rounds &
+     * formats stays, because changing 18 to 9 or gross to net is exactly the
+     * kind of second thought two people have on the first tee.
+     */
+    isMatch?: boolean;
   } = {},
 ): NavSection[] {
+  /** The screens that only make sense against a field. See `isMatch` above. */
+  const FIELD_ONLY = new Set(["grouping", "foursomes", "announcements", "access"]);
+
   const allowed = (key: string): boolean => {
     if (!canAccessScreen(viewRole, key)) return false;
+    if (opts.isMatch && FIELD_ONLY.has(key)) return false;
     // Teams only matter to a tournament that has a team round in it. Most
     // don't, and a permanent link to an empty screen is just clutter — the
     // link appears the moment a round is set to a team format.
