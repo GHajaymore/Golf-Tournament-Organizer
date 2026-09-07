@@ -3,6 +3,7 @@ import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "../tour
 import { cleanSettings, DEFAULT_SETTINGS } from "../tournament-settings";
 import { PLAYABLE_FORMAT_NAMES } from "../formats";
 import { needsCourseData } from "../courses";
+import { readSource } from "./source";
 
 describe("template catalogue", () => {
   it("has unique keys", () => {
@@ -158,5 +159,54 @@ describe("templateFor", () => {
     expect(templateFor(null).key).toBe(DEFAULT_TEMPLATE_KEY);
     expect(templateFor(undefined).key).toBe(DEFAULT_TEMPLATE_KEY);
     expect(templateFor("").key).toBe(DEFAULT_TEMPLATE_KEY);
+  });
+});
+
+/**
+ * WHICH TEMPLATE APPLIES NOTHING IS A PROPERTY, NOT A COMPARISON.
+ *
+ * `createEvent` decides whether to apply a template's settings and rounds. It
+ * used to ask `template.key !== DEFAULT_TEMPLATE_KEY`, which is correct only
+ * while the default entry and the blank entry are the same one. They are
+ * today, by naming coincidence.
+ *
+ * That is the exact shape that produced a real, silent bug elsewhere:
+ * `hasColours` inferred that a club had chosen its colours from
+ * `themeKey !== DEFAULT_THEME`, and when the default moved from "sunset" to
+ * "verdigris" the entire existing customer base flipped to "already branded"
+ * and stopped being offered the branding prompt. Nothing went red, because
+ * nothing was comparing the two ideas.
+ *
+ * So this asserts the two ideas are ALLOWED to differ and that the code reads
+ * the right one. Make the default a real template — a club championship, say —
+ * and the old comparison would silently apply nothing to every tournament
+ * created from a NAMED template while these assertions still passed. Only the
+ * last one here catches that.
+ */
+describe("the blank template is marked, not inferred", () => {
+  it("marks exactly one template as blank", () => {
+    const blank = TOURNAMENT_TEMPLATES.filter((t) => t.blank);
+    expect(blank.map((t) => t.key)).toEqual(["custom"]);
+  });
+
+  it("gives every other template something to apply", () => {
+    for (const t of TOURNAMENT_TEMPLATES.filter((t) => !t.blank)) {
+      expect(t.rounds.length, `${t.key} is not blank but starts no rounds`).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * The one that would have caught the old code. `createEvent` must decide on
+   * `blank`, not on a comparison with the default key — those agree today and
+   * are not the same question.
+   */
+  it("is what createEvent reads", () => {
+    const src = readSource("src/app/actions/tournament.ts");
+    expect(
+      src,
+      "createEvent infers 'applies nothing' from the default key again — " +
+        "that is only correct while the default and the blank entry coincide",
+    ).not.toMatch(/template\.key\s*!==\s*DEFAULT_TEMPLATE_KEY/);
+    expect(src, "createEvent no longer reads template.blank").toMatch(/!template\.blank/);
   });
 });
