@@ -8,6 +8,8 @@ import { canEnterScores } from "@/lib/tournament-settings";
 import { filledHoles } from "@/lib/domain/card-approval";
 import { positionLabel } from "@/lib/domain/shared-position";
 import { roundLabel } from "@/lib/domain/round-label";
+import { myMatchView, type MyMatchView } from "@/lib/domain/my-match";
+import type { HoleResult } from "@/lib/domain/types";
 
 /**
  * Everything the player-facing screens need about *this* person, in one place.
@@ -84,7 +86,30 @@ async function venueNameFor(courseId: string): Promise<string> {
 
 export interface MyRound {
   stageId: string;
+  /**
+   * What to CALL this round in a heading — the organizer's own description
+   * when they wrote one, because "Semi-finals" tells a player more than
+   * "Round 3".
+   */
   label: string;
+  /**
+   * The round's NAME, for use inside a sentence.
+   *
+   * A separate field because `label` prefers the organizer's description, and
+   * a description is prose. Demo Cup's is "Every player meets every other in
+   * their group over 3 rounds." — a whole sentence, full stop and all — and
+   * "My card" interpolated it into "X is match play, so your score is
+   * recorded…", producing:
+   *
+   *   "Every player meets every other in their group over 3 rounds. is match
+   *    play, so your score is recorded against your opponent…"
+   *
+   * on a screen a player reads. Never the description, therefore: a number, or
+   * the type, or a neutral noun. Kept beside `label` rather than sanitised at
+   * the call site, because the next sentence somebody writes will reach for
+   * whichever field is nearest.
+   */
+  name: string;
   holes: number;
   /**
    * Whether this round is scored on a card that is mine alone.
@@ -106,6 +131,23 @@ export interface MyRound {
   venue: string;
   /** The tee group I am in, if a sheet has been drawn. */
   group: { name: string; time: string; startHole: number; partners: string[] } | null;
+  /**
+   * My matches in this round, when it is played as matches.
+   *
+   * SEPARATE FROM `group`, and the distinction is the whole point. A tee group
+   * comes from a sheet the organizer has drawn AND published; a match comes
+   * from the draw, and exists the moment flights are generated. Reading "who
+   * am I playing" off the tee sheet meant a match-play player saw nothing at
+   * all until their organizer got round to publishing one — for the format
+   * this app leads with.
+   *
+   * A list, not one: a round robin puts every player in several matches inside
+   * a single round, and picking one of them to show would be picking arbitrarily
+   * among fixtures that are all equally theirs.
+   *
+   * Empty for a stroke-play round, where there is no opponent to name.
+   */
+  matches: MyMatchView[];
   /** My card for this round: the strokes themselves, how far round I am, and
    *  where it has got to. The strokes are returned, not just the count,
    *  because the entry screen has to open on what is already there — a card
@@ -191,6 +233,41 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       }
     : null;
 
+  /**
+   * Who I am PLAYING, which is a different question from who I am playing with.
+   *
+   * Read from the draw rather than from the tee sheet, so it is there the
+   * moment flights are generated instead of waiting on a sheet the organizer
+   * may never publish. In a round robin one player has several matches inside
+   * one round, so all of theirs are returned.
+   *
+   * Names resolve through `state.confirmed`, the same list the board and the
+   * tee group above read, so a withdrawn opponent falls back to the neutral
+   * wording rather than surfacing a name the field no longer contains.
+   */
+  const nameOf = (id: string) => state.confirmed.find((p) => p.id === id)?.name ?? "";
+  const myMatches = state.matches
+    .filter((m) => m.stageId === stage.id && (m.playerAId === playerId || m.playerBId === playerId))
+    .map((m) => {
+      let holeResults: HoleResult[] = [];
+      try {
+        holeResults = JSON.parse(m.holes) as HoleResult[];
+      } catch {
+        // An unreadable row reads as a match not yet started rather than
+        // throwing a player's whole screen away over one bad JSON blob.
+        holeResults = [];
+      }
+      return myMatchView({
+        meId: playerId,
+        playerAId: m.playerAId,
+        playerBId: m.playerBId,
+        holes: holeResults,
+        forfeitedBy: m.forfeitedBy,
+        nameOf,
+      });
+    })
+    .filter((v): v is MyMatchView => v !== null);
+
   const row = await prisma.scorecard.findFirst({
     where: { eventId: state.event.id, stageId: stage.id, playerId },
     select: { strokes: true, status: true },
@@ -268,6 +345,10 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
       // one. The number is what the play shell and the score-entry picker
       // already call it.
       label: stage.description?.trim() || roundNumberLabel(state, stage.id) || stage.type || "This round",
+      // The same fallbacks WITHOUT the description — see the note on the field.
+      // "This round" last, because a sentence needs a noun and every other
+      // candidate here may legitimately be empty.
+      name: roundNumberLabel(state, stage.id) || stage.type || "This round",
       holes,
       /**
        * A match is scored against an opponent and a team round on the side's
@@ -295,6 +376,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
         canEnterScores(settingsOf(state.event), "player"),
       venue: stage.courseId ? (await venueNameFor(stage.courseId)) : "",
       group,
+      matches: myMatches,
       card,
     },
   };

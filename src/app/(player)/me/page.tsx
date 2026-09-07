@@ -136,6 +136,42 @@ export default async function PlayTodayPage() {
             </div>
           </section>
 
+          {/* WHO I AM PLAYING. Above the tee group, because in a match the
+              opponent is the round — and because this is the one the app
+              already knew and never said.
+
+              Read from the draw, so it is here as soon as flights are
+              generated. The tee group below comes from a sheet an organizer
+              has to publish, and a match-play player used to see nothing at
+              all until they did. */}
+          {round?.matches.map((m, i) => (
+            <section key={i} className="card elev-sm" style={{ marginTop: 12 }}>
+              <span className="card-title" style={{ fontSize: 14 }}>
+                {round.matches.length > 1 ? `Match ${i + 1} — ` : ""}v {m.opponent}
+              </span>
+              <p
+                style={{
+                  margin: "4px 0 0",
+                  fontFamily: "var(--font-heading)",
+                  fontSize: 22,
+                  lineHeight: 1.2,
+                  // Colour only where there is something to colour. A level
+                  // match is not a bad one, and painting "All square" the same
+                  // grey as "Not started" would make the commonest state of a
+                  // match look like an absence.
+                  color: m.ahead === null ? "var(--color-text)" : m.ahead ? "var(--color-accent-2-300)" : "var(--color-text)",
+                }}
+              >
+                {m.state}
+              </p>
+              {m.notStarted && (
+                <p className="text-muted" style={{ margin: "4px 0 0", fontSize: 13, lineHeight: 1.5 }}>
+                  Nothing recorded yet — it appears here hole by hole as it goes in.
+                </p>
+              )}
+            </section>
+          ))}
+
           {/* Who I go off with. The question every player asks first, and the
               one the app was making them find on a printed sheet. */}
           {round?.group && (
