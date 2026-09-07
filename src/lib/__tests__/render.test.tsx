@@ -2736,6 +2736,57 @@ describe("the board answers 'where am I' first", () => {
   });
 
   /**
+   * MATCH POINTS ON A MATCH-PLAY BOARD.
+   *
+   * `thru` counts holes on a STROKE CARD, and a match-play round returns no
+   * stroke cards at all — the result is hole-by-hole match results — so every
+   * row's `thru` is nought however many matches have been played and won.
+   *
+   * The "You" block asked `thru > 0 || !isStroke`; the rows below it asked
+   * only `thru > 0`. So on a match-play board every player's points rendered
+   * as a dash EXCEPT your own: a board headed "Ranked by match points", sorted
+   * by match points, with no match points on it. Found by opening it as a
+   * player — nothing failed, and the ranking was right the whole time.
+   */
+  it("shows match points on a match-play board, for everyone and not just you", async () => {
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const matchField = [
+      row({ id: "p1", rank: 1, name: "H. Voss", pts: "15", thru: 0, record: "3-0-0" }),
+      row({ id: "p2", rank: 2, name: "J. Mercer", pts: "13.5", thru: 0, record: "3-0-0" }),
+      row({ id: "p3", rank: 3, name: "D. Alvarez", pts: "10.5", thru: 0, record: "2-1-0" }),
+    ];
+    const html = render(
+      <PlayerLeaderboard isStroke={false} rows={matchField} holes={18} youId="p3" unit="match points" />,
+    );
+    expect(html).toContain("15");
+    expect(html).toContain("13.5");
+    // Your own row was the only one that ever worked, so asserting it alone
+    // would have passed against the bug.
+    expect(html).toContain("10.5");
+    // And the row for somebody who is NOT you carries a number rather than the
+    // dash that means "nothing returned yet".
+    const voss = html.indexOf("H. Voss");
+    expect(html.slice(voss, voss + 400)).toContain("15");
+  });
+
+  it("still says nothing has started when a STROKE card has not", async () => {
+    // The other side of the same rule: on a stroke round `thru` is the honest
+    // test, and a player with no card must not be shown a score of nought.
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const html = render(
+      <PlayerLeaderboard
+        isStroke
+        rows={[row({ id: "p9", name: "D. Shaw", thru: 0, toPar: 0 })]}
+        holes={18}
+        youId="p9"
+        unit="strokes"
+      />,
+    );
+    expect(html).toContain("not started");
+    expect(html).toContain("–");
+  });
+
+  /**
    * A card that stopped short.
    *
    * Rule 3.2a(3) ends a match when a side leads by more holes than remain, so
