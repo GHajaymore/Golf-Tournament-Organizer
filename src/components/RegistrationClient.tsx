@@ -90,6 +90,16 @@ export function RegistrationClient({
   /** The club's members, for filling the field without retyping anyone. */
   roster: RosterCandidate[];
 }) {
+  /**
+   * Whether the two self-service panels are open.
+   *
+   * Open when the public link is actually published, shut when it is not.
+   * That is a fact about how this tournament takes entries rather than a
+   * guess about who is looking at the screen: a society running public
+   * sign-ups finds the panels already open every time, and a club secretary
+   * who has never published a link never scrolls past them.
+   */
+  const [selfServeOpen, setSelfServeOpen] = useState(event.registrationOpen);
   const [name, setName] = useState("");
   const [handicap, setHandicap] = useState("");
   const [email, setEmail] = useState("");
@@ -644,6 +654,69 @@ export function RegistrationClient({
         )}
       </div>
 
+      {/* THE TWO SELF-SERVICE PANELS, BEHIND ONE DISCLOSURE.
+          ─────────────────────────────────────────────────
+          There are two ways somebody gets into a field: you enter them, or
+          they enter themselves. This screen had both, and put the second
+          first — the sign-up link and the invite panel came to about 700px
+          of screen ahead of the roster picker and the add form, so a club
+          secretary whose next act was "tick forty members" scrolled past two
+          panels about a link they were never going to send.
+
+          Neither is the wrong feature. A society taking public entries wants
+          exactly this, which is why the disclosure OPENS ITSELF when the link
+          is actually published: somebody using it never has to find it, and
+          somebody who is not never has to scroll past it. Derived from a real
+          signal rather than a guess about who is looking.
+
+          Kept in place rather than moved below the field controls. Moving it
+          would put the sign-up link after the table of people who signed up
+          through it, and this section is still the first answer to "how do
+          people get in". */}
+      <button
+        type="button"
+        onClick={() => setSelfServeOpen((v) => !v)}
+        aria-expanded={selfServeOpen}
+        className="card elev-sm"
+        style={{
+          width: "100%",
+          marginBottom: selfServeOpen ? 12 : 16,
+          textAlign: "left",
+          display: "flex",
+          // `.card` is a column; without this the label, the summary and the
+          // caret stack into three centred rows instead of reading as a row.
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          minHeight: 44,
+          cursor: "pointer",
+          color: "var(--color-text)",
+          border: "1px solid var(--color-divider)",
+        }}
+      >
+        <Icon
+          name="link"
+          style={{ fontSize: 16, flex: "none", color: event.registrationOpen ? "var(--color-accent-2)" : "var(--color-neutral-500)" }}
+        />
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>Let players sign themselves up</span>
+          {/* The state, in the summary, so it never has to be opened to be
+              read. "Not published" is the answer most organizers need and the
+              one that used to cost a scroll through both panels to find. */}
+          <span className="text-muted" style={{ display: "block", fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>
+            {event.registrationOpen
+              ? "The public sign-up link is live. Share it, or invite people to it."
+              : "No public link yet — you can publish one, or just add people below."}
+          </span>
+        </span>
+        <Icon
+          name={selfServeOpen ? "caret-up" : "caret-down"}
+          style={{ fontSize: 13, color: "var(--color-neutral-500)", marginLeft: "auto", flex: "none" }}
+        />
+      </button>
+
+      {selfServeOpen && (
+      <>
       {/* Self-service registration: share a link and people register themselves.
           Separate from "Invite players" BELOW — that hands someone this
           console's sign-up; this hands anyone a public, no-account entry form.
@@ -842,6 +915,8 @@ export function RegistrationClient({
           <button type="button" className="btn btn-secondary" onClick={() => copy(registerUrl, "link")} disabled={!registerUrl}><Icon name="link" /> {copied === "link" ? "Copied" : "Copy link"}</button>
         </div>
       </div>
+      </>
+      )}
 
       <div className="page-split" style={{ display: "grid", gridTemplateColumns: "340px minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

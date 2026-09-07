@@ -5,6 +5,7 @@ import { regenGroups } from "@/app/actions/tournament";
 import { formGroups, flightCountFor, type FormationRule, type Player } from "@/lib/domain";
 import { drawReadiness } from "@/lib/domain/draw-readiness";
 import { Icon } from "./Icon";
+import { plural } from "@/lib/format";
 
 const RULES: Array<{ key: FormationRule; label: string; icon: string; desc: string }> = [
   {
@@ -140,7 +141,11 @@ export function GroupingControls({
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <span className="text-muted" style={{ fontSize: 12 }}>
-            {flightCount} flights · {players.length} players
+            {/* Read "1 flights · 1 players" on a two-player tournament. The
+                count beside a Generate button is the one an organizer checks
+                before pressing it, so it is the worst place in the app for a
+                sentence that does not agree with itself. */}
+            {plural(flightCount, "flight")} · {plural(players.length, "player")}
           </span>
           <button
             type="button"

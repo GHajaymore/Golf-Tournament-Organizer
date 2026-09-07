@@ -3690,12 +3690,52 @@ describe("registration and field", () => {
     // say "registration": the card was titled "Open registration" and its
     // button read "Open registration" / "Close sign-ups", inches under a button
     // reading "Close registration".
-    const html = await reg({ registrationOpen: false });
-    expect(html).toContain("Publish the link");
+    /**
+     * Rendered with the link PUBLISHED, because that is now the state in which
+     * these two switches are on screen together.
+     *
+     * The self-service panels sit behind a disclosure that opens itself when a
+     * public link exists and stays shut when none does — so with
+     * `registrationOpen: false` the card's switch is one click away and cannot
+     * be confused with the banner's, and with it true both are visible at once,
+     * which is exactly the case this test was written for. Asserting the open
+     * state is therefore asserting the collision that could actually happen.
+     */
+    const html = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    expect(html).toContain("Take the link down");
     expect(html).not.toContain(">Open registration<");
-    // The refusal in "Invite players" names the button by the words on it — a
-    // refusal pointing at a button that no longer exists is worse than none.
-    expect(html).toContain("Publish the sign-up link first");
+
+    // And with no link, the disclosure carries the state in its own summary
+    // rather than hiding it — an organizer must be able to tell whether people
+    // can sign themselves up without opening anything.
+    const shut = await reg({ registrationOpen: false });
+    expect(shut).toContain("Let players sign themselves up");
+    expect(shut).toContain("No public link yet");
+    // The word this test exists to police. The collapsed header must not
+    // become a third control that says "registration" and means a fourth
+    // thing.
+    expect(shut).not.toContain(">Open registration<");
+  });
+
+  it("keeps the sign-up link and its invites behind one disclosure", async () => {
+    /**
+     * Two panels — the public link and the invite message — came to about
+     * 700px ahead of the roster picker and the add form, so a club secretary
+     * whose next act was "tick forty members" scrolled past two panels about a
+     * link they were never going to send.
+     *
+     * Open when the link is live, shut when it is not. Derived from whether
+     * this tournament actually takes public entries rather than guessed at.
+     */
+    const shut = await reg({ registrationOpen: false });
+    expect(shut).not.toContain("Invite players");
+    // The refusal that lives inside it goes with it — it is advice about a
+    // panel that is not on screen.
+    expect(shut).not.toContain("Publish the sign-up link first");
+
+    const open = await reg({ registrationOpen: true, registrationToken: "zztok" });
+    expect(open).toContain("Invite players");
+    expect(open).toContain("Public sign-up link");
   });
 
   it("says when a published link is turning everybody away", async () => {
