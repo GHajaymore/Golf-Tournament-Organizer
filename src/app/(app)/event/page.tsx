@@ -90,6 +90,12 @@ export default async function EventPage({
 
   return (
     <>
+      {/* Above the page title on all four Set-up screens. A progress rail is
+          wayfinding — it says where you are, the way a breadcrumb does — and
+          wayfinding belongs above the heading it locates. It also has to be in
+          the same place on every screen of the four, or it stops being a
+          landmark and becomes decoration that moves. */}
+      <SetupFlowRail flow={flow} href="/event" />
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
         <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Tournament details</h1>
@@ -100,7 +106,6 @@ export default async function EventPage({
 
       <EventSwitcher events={eventRows} />
 
-      <SetupFlowRail flow={flow} href="/event" />
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
 
       {/* The checklist stays, but only once the guided rail above has stopped

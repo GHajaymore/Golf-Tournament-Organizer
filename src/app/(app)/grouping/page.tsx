@@ -55,6 +55,7 @@ export default async function GroupingPage() {
 
   return (
     <>
+      <SetupFlowRail flow={flow} href="/grouping" />
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
         <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Flights</h1>
@@ -63,7 +64,6 @@ export default async function GroupingPage() {
         </p>
       </div>
 
-      <SetupFlowRail flow={flow} href="/grouping" />
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
 
       {drawWarning && (

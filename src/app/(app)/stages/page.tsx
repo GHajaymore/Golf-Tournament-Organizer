@@ -202,6 +202,7 @@ export default async function StagesPage() {
 
   return (
     <>
+      <SetupFlowRail flow={flow} href="/stages" />
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
         <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Rounds &amp; formats</h1>
@@ -209,7 +210,6 @@ export default async function StagesPage() {
           Sequence the tournament — add as many rounds as you need, each feeding the next.
         </p>
       </div>
-      <SetupFlowRail flow={flow} href="/stages" />
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
       {/* A way IN to the builder rather than an alternative to it — whatever
           it proposes lands as ordinary rounds on the cards below, editable
