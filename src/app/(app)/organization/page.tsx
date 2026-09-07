@@ -76,7 +76,6 @@ export default async function OrganizationPage() {
   const sections: SettingsSection[] = [
     { id: "identity", label: "Club & branding" },
     { id: "theme", label: "Colour" },
-    ...(canEdit ? [{ id: "currency", label: "Currency" }] : []),
     { id: "defaults", label: "House defaults" },
     { id: "handicaps", label: "Handicaps" },
     { id: "money", label: "Money" },
@@ -117,17 +116,6 @@ export default async function OrganizationPage() {
           readOnly={!canEdit}
         />
       </SettingsSectionAnchor>
-      {/* Beside the theme, because it is the same kind of decision: one
-          setting belonging to the club that every screen showing an amount
-          reads. Owners and admins only, like the branding above it. */}
-      {canEdit && (
-        <SettingsSectionAnchor id="currency">
-          <section className="card elev-sm">
-            <span className="card-title" style={{ fontSize: 15 }}>Money</span>
-            <CurrencyPicker currency={org.currency} />
-          </section>
-        </SettingsSectionAnchor>
-      )}
       <SettingsSectionAnchor id="defaults">
         <PlaySettings
           mode="organization"
@@ -157,7 +145,29 @@ export default async function OrganizationPage() {
         <HandicapSetup view={{ ...handicaps, canEdit }} />
       </SettingsSectionAnchor>
 
+      {/* ONE MONEY SECTION, NOT TWO.
+          The currency sat up beside the theme, three sections away, under a
+          card also titled "Money" — so the page had two things by that name
+          with House defaults and Handicaps between them, and the jump-to nav
+          had to invent "Currency" and "Money" to tell them apart.
+
+          The note that put it there said it belongs beside the theme because
+          it is "the same kind of decision: one setting belonging to the club".
+          True, and true of every setting on this page — it does not separate
+          this one from anything. The SUBJECT is money, and subject is what a
+          reader navigates by.
+
+          Both are still their own card, because they are two decisions: what
+          symbol every amount is shown in, and how money works at the club. */}
       <SettingsSectionAnchor id="money">
+        {canEdit && (
+          <section className="card elev-sm" style={{ marginBottom: 16 }}>
+            {/* "Currency", which is what it is. It was "Money", which is also
+                what the card below it is called. */}
+            <span className="card-title" style={{ fontSize: 15 }}>Currency</span>
+            <CurrencyPicker currency={org.currency} />
+          </section>
+        )}
         <MoneySetup
           mode="organization"
           orgMode={org.moneyMode}
