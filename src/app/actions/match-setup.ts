@@ -7,6 +7,7 @@ import { organizationForNewEvent, settingsForNewEvent } from "@/lib/services/org
 import { upsertMember } from "@/lib/services/roster";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { refusalFor } from "@/lib/services/limits";
+import { boardChanged } from "@/lib/services/board-refresh";
 import { planMatch, type MatchSetupInput } from "@/lib/domain/quick-match";
 
 /**
@@ -196,6 +197,17 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
   });
 
   await setActiveEvent(event.id);
+  /**
+   * Both, and they are not the same thing.
+   *
+   * `revalidatePath` clears the router cache. The public board is a separate
+   * `unstable_cache` entry keyed per event, and it does not touch it — so a
+   * match created without `boardChanged` would sit behind that cache until its
+   * sixty-second backstop expired. `board-invalidation.test.ts` swept this
+   * file the day it was added and failed it, which is the guard working: this
+   * action creates players and a match, and both are read by the board.
+   */
   revalidatePath("/", "layout");
+  boardChanged(event.id);
   return { ok: true, eventId: event.id };
 }
