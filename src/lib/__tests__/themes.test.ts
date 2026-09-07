@@ -32,6 +32,7 @@ import {
   FAIRWAY,
   SECONDARY_PRESETS,
   resolveSecondary,
+  secondaryFor,
   themeVarsFor,
   themeCss,
   sunlightVerdict,
@@ -70,16 +71,26 @@ describe("the preset list", () => {
    * landing page changed hue completely.
    *
    * The orange is the colour the product shipped with and the one every club
-   * that has never opened settings is looking at right now. It stays on the
-   * list, it stays the default, and it stays FIRST — a default that a club has
-   * to scroll to find is a default in name only.
+   * created before the default moved still has STORED on its row — the schema
+   * default was a literal "sunset", so those clubs are unaffected by the
+   * constant changing. It stays on the list and stays unchanged.
+   *
+   * What it no longer is, is the default. That rule now attaches to whatever
+   * DEFAULT_THEME names, asserted through the constant rather than by naming a
+   * colour, so it survives the next retune: the default is offered, and it is
+   * FIRST — a default a club has to scroll to find is a default in name only.
    */
-  it("keeps the orange offered, default, and first in the list", () => {
-    expect(DEFAULT_THEME).toBe("sunset");
-
+  it("keeps the orange offered and unchanged, and the default first in the list", () => {
     const sunset = THEME_PRESETS.find((p) => p.key === "sunset");
     expect(sunset, "the original orange has been removed from the picker").toBeDefined();
-    expect(THEME_PRESETS[0].key, "the default is no longer the first choice offered").toBe("sunset");
+
+    expect(
+      THEME_PRESETS.find((p) => p.key === DEFAULT_THEME),
+      "the default is not in the picker at all",
+    ).toBeDefined();
+    expect(THEME_PRESETS[0].key, "the default is no longer the first choice offered").toBe(
+      DEFAULT_THEME,
+    );
 
     // And it is still the ORIGINAL orange, not merely something warm that
     // inherited the name.
@@ -398,10 +409,21 @@ describe("the light ground", () => {
 /* ── The second colour ───────────────────────────────────────────────────── */
 
 describe("the second colour", () => {
-  it("defaults to the fairway green", () => {
-    expect(DEFAULT_CLUB_THEME.secondaryKey).toBe("fairway");
-    expect(resolveSecondary(null, "")).toBe(FAIRWAY);
-    expect(resolveSecondary("nonsense", "")).toBe(FAIRWAY);
+  it("falls back to the default secondary, whatever that currently is", () => {
+    /**
+     * This pinned FAIRWAY three times over, which was true while Fairway was
+     * the default and became wrong the moment it stopped being one — an
+     * unknown key would have gone on rendering the 3.91:1 green the default
+     * had just moved away from, and this test would have called that correct.
+     *
+     * Asserted through the constant instead, so the fallback and the default
+     * cannot drift apart again. Fairway itself is still exported and still
+     * offered; it is simply no longer what an unrecognised key resolves to.
+     */
+    const fallback = secondaryFor(DEFAULT_CLUB_THEME.secondaryKey);
+    expect(resolveSecondary(null, "")).toBe(fallback);
+    expect(resolveSecondary("nonsense", "")).toBe(fallback);
+    expect(fallback.key).toBe(DEFAULT_CLUB_THEME.secondaryKey);
   });
 
   it("offers fairway first, then the same presets as the main colour", () => {
@@ -596,8 +618,21 @@ describe("a club that has chosen nothing sees no change", () => {
     }
   });
 
-  it("emits that green as the default second accent", () => {
-    const vars = themeVarsFor(DEFAULT_CLUB_THEME, DARK_GROUND);
+  it("emits that green for a club whose row still says fairway", () => {
+    /**
+     * READ THE STORED PAIR, not DEFAULT_CLUB_THEME. The invariant this block
+     * protects — a club that has chosen nothing sees no change — is unchanged,
+     * but what protects it moved.
+     *
+     * `Organization.themeKey` and `themeSecondaryKey` are NOT nullable: the
+     * schema writes a literal default on insert, so every club created before
+     * the default moved has "sunset"/"fairway" stored on its own row and is
+     * untouched by the constant. Asserting through DEFAULT_CLUB_THEME would
+     * now be asserting what a NEW club gets, which is a different question and
+     * would have quietly stopped covering the old ones.
+     */
+    const stored = { ...DEFAULT_CLUB_THEME, accentKey: "sunset", secondaryKey: "fairway" };
+    const vars = themeVarsFor(stored, DARK_GROUND);
     expect(vars["--color-accent-2"].toLowerCase()).toBe("#3c8361");
     for (const step of STEPS) {
       expect(vars[`--color-accent-2-${step}`].toLowerCase(), `accent-2-${step}`).toBe(
@@ -731,21 +766,35 @@ describe("two colours have to read as two colours", () => {
     expect(hueDistance(27, 27)).toBe(0);
   });
 
+  // The two cases below name their accent EXPLICITLY rather than leaning on
+  // whatever the default happens to be. They used to spread DEFAULT_CLUB_THEME
+  // and rely on it being Sunset at 27 degrees; when the default moved to
+  // Verdigris at 182 both silently stopped testing adjacency at all — the
+  // pairs became 140 degrees apart and simply passed. A fixture that depends
+  // on an unrelated constant stops meaning what its name says the day that
+  // constant changes.
   it("refuses a second colour indistinguishable from the accent", () => {
     // Sunset (27°) against Bunker (42°): fifteen degrees apart, one colour on
     // a phone in the sun — and "advancing" stops meaning anything.
-    const v = pairVerdict({ ...DEFAULT_CLUB_THEME, secondaryKey: "bunker" });
+    const v = pairVerdict({ ...DEFAULT_CLUB_THEME, accentKey: "sunset", secondaryKey: "bunker" });
     expect(v.kind).toBe("indistinct");
   });
 
   it("warns about an adjacent pair without refusing it", () => {
     // A custom hex 30-odd degrees from sunset: legal, flagged.
-    const v = pairVerdict({ ...DEFAULT_CLUB_THEME, secondaryKey: "custom", secondaryHex: "#f2e422" });
+    const v = pairVerdict({
+      ...DEFAULT_CLUB_THEME,
+      accentKey: "sunset",
+      secondaryKey: "custom",
+      secondaryHex: "#f2e422",
+    });
     expect(v.kind).toBe("close");
   });
 
   it("passes the stock pairing without comment", () => {
-    // Sunset orange and fairway green are the default for a reason.
+    // Whatever the shipped default is, it must not be a pairing the picker
+    // would warn a club about — asserted through the constant rather than by
+    // naming the colours, so it keeps meaning this after the next retune.
     expect(pairVerdict(DEFAULT_CLUB_THEME).kind).toBe("ok");
   });
 

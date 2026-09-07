@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { setupChecklist, isUnstarted, clubBrandingState, type ChecklistState } from "../services/checklist";
 import { NAV, screenName } from "../nav";
+import { DEFAULT_THEME } from "../themes";
 
 /**
  * The setup checklist, and the question it answers on the dashboard: is this
@@ -133,8 +134,19 @@ describe("the branding nudge", () => {
 
 describe("clubBrandingState", () => {
   it("treats a fresh organization (default preset, no hex, no logo) as unbranded", () => {
-    // A new org carries themeKey = the default preset and an empty hex.
-    expect(clubBrandingState({ logoUrl: "", themeKey: "sunset", themeHex: "" })).toEqual({
+    /**
+     * DEFAULT_THEME rather than the literal it used to spell. "Unbranded"
+     * means "still on the default", so the fixture has to be whatever the
+     * default currently is — pinning "sunset" made this a test of one colour's
+     * name, and it started failing the moment the default moved even though
+     * the rule it describes had not changed at all.
+     *
+     * A consequence worth knowing rather than hiding: a club created BEFORE
+     * the move has "sunset" stored, so it now reads as having chosen colours.
+     * That is arguably true — it is on a non-default palette — but it means
+     * the branding row of their checklist ticks without them doing anything.
+     */
+    expect(clubBrandingState({ logoUrl: "", themeKey: DEFAULT_THEME, themeHex: "" })).toEqual({
       hasLogo: false,
       hasColours: false,
     });

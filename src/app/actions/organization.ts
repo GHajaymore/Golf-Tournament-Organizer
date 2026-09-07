@@ -6,7 +6,7 @@ import { sendStaffInviteEmail } from "@/lib/email";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 import { refusalFor } from "@/lib/services/limits";
 import {
-  isThemeKey, hexToHsl, isAppearance, FAIRWAY, SECONDARY_PRESETS, DEFAULT_APPEARANCE, pairVerdict, type Appearance,
+  isThemeKey, hexToHsl, isAppearance, DEFAULT_CLUB_THEME, SECONDARY_PRESETS, DEFAULT_APPEARANCE, pairVerdict, type Appearance,
 } from "@/lib/themes";
 import { checkLogoUrl } from "@/lib/services/logo-check";
 import { organizationAccess } from "@/lib/services/org-access";
@@ -226,7 +226,7 @@ export async function saveOrganizationBranding(
 export async function saveOrganizationTheme(
   themeKey: string,
   themeHex = "",
-  secondaryKey = FAIRWAY.key,
+  secondaryKey = DEFAULT_CLUB_THEME.secondaryKey,
   secondaryHex = "",
   appearance = DEFAULT_APPEARANCE as string,
 ): Promise<OrgResult> {
