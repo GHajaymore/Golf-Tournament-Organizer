@@ -14,6 +14,7 @@ import { PlanPanel } from "@/components/PlanPanel";
 import { MoneySetup } from "@/components/MoneySetup";
 import { cleanSettings } from "@/lib/tournament-settings";
 import { isAppearance, DEFAULT_APPEARANCE } from "@/lib/themes";
+import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/components/SettingsNav";
 
 export default async function OrganizationPage() {
   const session = await requireScreen("organization");
@@ -63,8 +64,30 @@ export default async function OrganizationPage() {
 
   const report = await organizationAccessReport(org.id);
 
+  /**
+   * What this page contains, in the order it contains it.
+   *
+   * Written once and read by the nav; the ids are on the sections themselves.
+   * "Currency" and "Money" are two entries because the page genuinely has two
+   * money sections — the symbol every amount is shown in, and how money works
+   * at the club — and a nav offering the same word twice is worse than the
+   * scroll it replaces.
+   */
+  const sections: SettingsSection[] = [
+    { id: "identity", label: "Club & branding" },
+    { id: "theme", label: "Colour" },
+    ...(canEdit ? [{ id: "currency", label: "Currency" }] : []),
+    { id: "defaults", label: "House defaults" },
+    { id: "handicaps", label: "Handicaps" },
+    { id: "money", label: "Money" },
+    { id: "plan", label: "Plan" },
+    { id: "access", label: "Staff & access" },
+  ];
+
   return (
     <>
+      <SettingsNav sections={sections} />
+      <section id="identity" style={{ scrollMarginTop: 118 }}>
       <OrganizationClient
         name={org.name}
         shortName={org.shortName}
@@ -79,7 +102,8 @@ export default async function OrganizationPage() {
         memberCount={org._count.members}
         canEdit={canEdit}
       />
-      <div style={{ marginTop: 16 }}>
+      </section>
+      <SettingsSectionAnchor id="theme">
         <ThemePicker
           theme={{
             accentKey: org.themeKey,
@@ -92,19 +116,19 @@ export default async function OrganizationPage() {
           }}
           readOnly={!canEdit}
         />
-      </div>
+      </SettingsSectionAnchor>
       {/* Beside the theme, because it is the same kind of decision: one
           setting belonging to the club that every screen showing an amount
           reads. Owners and admins only, like the branding above it. */}
       {canEdit && (
-        <div style={{ marginTop: 16 }}>
+        <SettingsSectionAnchor id="currency">
           <section className="card elev-sm">
             <span className="card-title" style={{ fontSize: 15 }}>Money</span>
             <CurrencyPicker currency={org.currency} />
           </section>
-        </div>
+        </SettingsSectionAnchor>
       )}
-      <div style={{ marginTop: 16 }}>
+      <SettingsSectionAnchor id="defaults">
         <PlaySettings
           mode="organization"
           settings={cleanSettings({
@@ -117,7 +141,7 @@ export default async function OrganizationPage() {
           })}
           canEdit={canEdit}
         />
-      </div>
+      </SettingsSectionAnchor>
 
       {/* The club's money default, on the screen the setup checklist has
           always pointed at. `SETUP_HREF.money` is `/organization`, and until
@@ -129,11 +153,11 @@ export default async function OrganizationPage() {
       {/* Where handicaps come from, beside the club's other house rules.
           It belongs here rather than on the roster: it is a decision about
           the club, not about any one member. */}
-      <div style={{ marginTop: 16 }}>
+      <SettingsSectionAnchor id="handicaps">
         <HandicapSetup view={{ ...handicaps, canEdit }} />
-      </div>
+      </SettingsSectionAnchor>
 
-      <div style={{ marginTop: 16 }}>
+      <SettingsSectionAnchor id="money">
         <MoneySetup
           mode="organization"
           orgMode={org.moneyMode}
@@ -141,19 +165,19 @@ export default async function OrganizationPage() {
           clubName={org.shortName || org.name}
           canEdit={canEdit}
         />
-      </div>
+      </SettingsSectionAnchor>
 
       {/* What the club is on, and what it is losing by being on it.
           Club settings is where an organizer already comes to decide how the
           club runs, so it is where the question of what the club is paying
           for belongs. */}
-      <div style={{ marginTop: 16 }}>
+      <SettingsSectionAnchor id="plan">
         <PlanPanel planKey={org.subscription?.plan ?? "free"} />
-      </div>
+      </SettingsSectionAnchor>
 
-      <div style={{ marginTop: 16 }}>
+      <SettingsSectionAnchor id="access">
         <OrganizationAccess report={report} canEdit={canEdit} />
-      </div>
+      </SettingsSectionAnchor>
     </>
   );
 }
