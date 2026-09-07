@@ -95,6 +95,48 @@ const nextConfig = {
       },
     ];
   },
+
+  /**
+   * STOP EMITTING 7.3 MB OF ICON FONT NOBODY EVER REQUESTS.
+   *
+   * `@phosphor-icons/web` declares each weight with four `src` entries —
+   * woff2, woff, truetype and an SVG font — and webpack resolves every URL in
+   * a stylesheet it processes, so all four are copied into the build. Measured
+   * on this repository, for the two weights actually imported:
+   *
+   *     Phosphor.svg        2926.1 KB      Phosphor.woff2      143.9 KB
+   *     Phosphor-Fill.svg   2702.1 KB      Phosphor-Fill.woff2 128.7 KB
+   *     Phosphor.woff        477.3 KB
+   *     Phosphor.ttf         477.2 KB      ← 272.6 KB is all a browser fetches
+   *     Phosphor-Fill.woff   438.8 KB
+   *     Phosphor-Fill.ttf    438.7 KB
+   *
+   * `static/media` was 7.9 MB, of which 7.3 MB was dead weight in every deploy
+   * and every Docker layer. No browser asks for any of it: `src` is a priority
+   * list, woff2 is first, and every engine this app supports takes it.
+   *
+   * `emit: false` keeps the URL in the stylesheet and skips writing the file.
+   * The alternative — vendoring 156 KB of the package's CSS to delete three
+   * `src` lines — means owning a copy of a file that changes whenever the icon
+   * set does, which is a worse trade than a URL nobody follows.
+   *
+   * WHAT THIS COSTS, stated plainly: a browser with no woff2 support would now
+   * 404 on the fallbacks instead of downloading a 2.9 MB SVG font. woff2 has
+   * been supported everywhere since 2016 and Next 15 does not target anything
+   * older, so the honest reading is that this removes a fallback that could
+   * never have fired. If one ever needs to come back, delete this block —
+   * nothing else depends on it.
+   */
+  webpack(config) {
+    config.module.rules.unshift({
+      // `.woff2` deliberately absent, and the `$` is what keeps it that way:
+      // `\.woff$` does not match `.woff2`.
+      test: /@phosphor-icons[\\/]web[\\/].*\.(woff|ttf|svg)$/,
+      type: "asset/resource",
+      generator: { emit: false },
+    });
+    return config;
+  },
 };
 
 export default nextConfig;
