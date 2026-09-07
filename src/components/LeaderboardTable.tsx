@@ -1,4 +1,5 @@
 import { toParText } from "@/lib/domain";
+import { FlipTableBody } from "./FlipList";
 
 export interface StandingRow {
   id: string;
@@ -117,9 +118,9 @@ export function LeaderboardTable({
               <th style={{ textAlign: "right" }}>{isStableford ? "Pts" : "To par"}</th>
             </tr>
           </thead>
-          <tbody>
+          <FlipTableBody>
             {rows.map((r) => (
-              <tr key={r.id} style={rowStyle(r.advancing)}>
+              <tr key={r.id} data-flip-key={r.id} style={rowStyle(r.advancing)}>
                 {/* No position where none was earned — but the card beside it
                     is still shown. That is the whole of "show, do not rank". */}
                 <td style={{ ...num, color: "var(--color-neutral-400)" }}>{r.ranked ? r.rank : "—"}</td>
@@ -148,7 +149,7 @@ export function LeaderboardTable({
                 </td>
               </tr>
             ))}
-          </tbody>
+          </FlipTableBody>
         </table>
       </div>
     );
@@ -177,9 +178,9 @@ export function LeaderboardTable({
             <th style={{ textAlign: "right" }}>Pts</th>
           </tr>
         </thead>
-        <tbody>
+        <FlipTableBody>
           {rows.map((r) => (
-            <tr key={r.id} style={rowStyle(r.advancing)}>
+            <tr key={r.id} data-flip-key={r.id} style={rowStyle(r.advancing)}>
               <td style={{ ...num, color: "var(--color-neutral-400)" }}>{r.rank}</td>
               <td style={{ fontWeight: 500 }}>{r.name}</td>
               <td className="text-muted">{r.flight}</td>
@@ -197,7 +198,7 @@ export function LeaderboardTable({
               <td style={{ textAlign: "right", fontWeight: 600, color: "var(--color-accent-200)", ...num }}>{r.pts}</td>
             </tr>
           ))}
-        </tbody>
+        </FlipTableBody>
       </table>
     </div>
   );

@@ -29,7 +29,23 @@ import { freshness, POLL_MS } from "@/lib/domain/freshness";
  * It renders the standings' own freshness. It never renders scores, so it
  * cannot disagree with the table above it.
  */
-export function LiveRefresh({ renderedAt }: { renderedAt: string }) {
+export function LiveRefresh({
+  renderedAt,
+  compact = false,
+}: {
+  renderedAt: string;
+  /**
+   * Sits inline in a page header rather than centred under a board.
+   *
+   * A prop rather than a second component, and the reason is the whole point of
+   * this file: the console leaderboard previously rendered a STATIC badge
+   * reading "Updating live" beside a board that never updated. Two places
+   * claiming to report freshness, one of them lying, is exactly what happens
+   * when the polling and the label are allowed to live apart. There is one of
+   * these, it does both, and where it is placed is a layout detail.
+   */
+  compact?: boolean;
+}) {
   const router = useRouter();
   const [now, setNow] = useState<number | null>(null);
 
@@ -83,12 +99,19 @@ export function LiveRefresh({ renderedAt }: { renderedAt: string }) {
     <p
       style={{
         fontSize: 12,
-        marginTop: 24,
-        textAlign: "center",
+        margin: compact ? 0 : "24px 0 0",
+        textAlign: compact ? "left" : "center",
+        // NOT `white-space: nowrap`, which is what the first version of the
+        // compact variant did and what `layout.spec` caught: "Live · updated
+        // just now" beside a 27px heading in a space-between row does not fit
+        // a 393px phone, and refusing to wrap pushed the page to 402px in a
+        // 393px viewport. The label is allowed to wrap; the header it sits in
+        // is allowed to stack, and the `minWidth: 0` below is what lets this
+        // shrink inside a flex parent at all.
         color: stale || offline ? "var(--color-warning, var(--color-neutral-300))" : "var(--color-neutral-400)",
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
+        justifyContent: compact ? "flex-start" : "center",
         gap: 7,
         minWidth: 0,
       }}
