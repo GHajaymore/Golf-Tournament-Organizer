@@ -184,6 +184,18 @@ export default async function StagesPage() {
   );
   const rrMatchesPerPlayer = Math.max(0, (flightSizes.length ? Math.max(...flightSizes) : 0) - 1);
 
+  /**
+   * Built once, placed once.
+   *
+   * The entitlement behind it is a query, so writing the element into both
+   * branches below would run that query twice to render it in one place.
+   */
+  const describeTournament = locked ? null : (
+    <DescribeTournament
+      available={(await entitlementForEvent(session.eventId, "aiAssist")).allowed}
+    />
+  );
+
   return (
     <>
       <div style={{ marginBottom: 20 }}>
@@ -194,14 +206,20 @@ export default async function StagesPage() {
         </p>
       </div>
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
-      {/* Above the builder, because it is a way IN to the builder rather than
-          an alternative to it — whatever it proposes lands as ordinary rounds
-          on the cards below, editable like any other. */}
-      {!locked && (
-        <DescribeTournament
-          available={(await entitlementForEvent(session.eventId, "aiAssist")).allowed}
-        />
-      )}
+      {/* A way IN to the builder rather than an alternative to it — whatever
+          it proposes lands as ordinary rounds on the cards below, editable
+          like any other. That is why it sits above them.
+
+          BUT ONLY WHILE THERE IS NOTHING TO BE ABOVE. A way in belongs where
+          you start; once the tournament has rounds it is no longer an
+          entrance, and leaving it first put a panel about drafting — locked
+          entirely, on the free plan — between the page title and the rounds
+          the page exists to show. On a phone that is most of a screen before
+          Round 1. Below the list it is still offered and still does the same
+          thing, which is the whole of the change: same component, same props,
+          same behaviour, a different place on the page depending on whether
+          the organizer has started. */}
+      {!locked && stages.length === 0 && describeTournament}
       <StagesClient
         stages={stages}
         singleMatches={singleMatches}
@@ -234,6 +252,9 @@ export default async function StagesPage() {
         flightCount={state.groups.length}
         confirmedCount={state.confirmed.length}
       />
+      {/* The other half of the placement decision above: offered after the
+          rounds once there are rounds, so it stays available without leading. */}
+      {!locked && stages.length > 0 && describeTournament}
     </>
   );
 }

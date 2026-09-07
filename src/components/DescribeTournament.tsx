@@ -46,8 +46,13 @@ export function DescribeTournament({ available = true }: { available?: boolean }
         setError(res.error ?? "Couldn't create those rounds.");
         return;
       }
+      // "on the round cards", not "below": this panel leads the screen while
+      // the tournament has no rounds and sits under them once it has, so a
+      // direction that names a position is wrong half the time — and it is
+      // wrong precisely AFTER this message fires, because adding rounds is
+      // what moves the panel.
       setDone(
-        `Added ${proposal.rounds.length} round${proposal.rounds.length === 1 ? "" : "s"}. Everything is editable below.`,
+        `Added ${proposal.rounds.length} round${proposal.rounds.length === 1 ? "" : "s"}. Everything is editable on the round cards.`,
       );
       setProposal(null);
       setText("");
@@ -60,7 +65,11 @@ export function DescribeTournament({ available = true }: { available?: boolean }
     return (
       <div className="card elev-sm" style={{ gap: 10, marginBottom: 16 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Describe it instead</span>
-        <LockedFeature feature="aiAssist" insteadOf="Build the rounds with the controls below." />
+        {/* "on this screen", not "below" — see the note on the success
+            message above. Locked, this panel is the one thing on the page a
+            free club can do nothing with, which is why it no longer leads
+            once there are rounds to lead with. */}
+        <LockedFeature feature="aiAssist" insteadOf="Build the rounds with the controls on this screen." />
       </div>
     );
   }

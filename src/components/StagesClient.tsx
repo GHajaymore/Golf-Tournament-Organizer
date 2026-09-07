@@ -844,8 +844,15 @@ function StageCard({
             {notGenerated && (
               <span className="tag tag-neutral"><Icon name="clock" /> Not generated yet</span>
             )}
+            {/* Pinned to the right edge rather than trailing the last tag.
+                A disclosure chevron is the affordance for the whole row, and
+                sitting wherever the tags happen to end put it in a different
+                place on every round — after "Active" on one, after "Not
+                generated yet" on another, and mid-line once a long round name
+                wrapped. `auto` margin is what makes it the same target on
+                every card whatever the title length. */}
             <Icon name={expanded ? "ph ph-caret-up" : "ph ph-caret-down"}
-              style={{ fontSize: 13, color: "var(--color-neutral-500)" }}
+              style={{ fontSize: 13, color: "var(--color-neutral-500)", marginLeft: "auto" }}
             />
           </div>
           {!expanded && (
@@ -1781,7 +1788,12 @@ export function StagesClient({
             up front is configuring ten cards one at a time, which is the very
             thing "how many" exists to avoid. */}
         <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}>
+          {/* Stacked like every other field in this row. It was the one
+              inline label among four stacked ones, at 13px among 12s, so with
+              the row aligned to `flex-end` its input sat on a different
+              baseline to its neighbours — the row read as two rows that had
+              not quite met. Same fields, same order, same behaviour. */}
+          <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12 }}>
             <span className="text-muted">How many?</span>
             <input
               className="input"
@@ -1891,15 +1903,24 @@ export function StagesClient({
               ? `Add ${stageTypeInfo(newType).label.toLowerCase()}`
               : `Add ${howMany} ${stageTypeInfo(newType).label.toLowerCase()}s`}
           </button>
-          {/* The consequence, stated before the click rather than discovered
-              after it. Pairings are the thing an organizer is most often
-              surprised by, in both directions. */}
-          <span className="text-muted" style={{ fontSize: 12 }}>
-            {generatesPairings(newType)
-              ? "Draws a full set of pairings once flights are generated."
-              : "No pairings are drawn — the field returns cards."}
-          </span>
         </div>
+
+        {/* The consequence, stated before the click rather than discovered
+            after it. Pairings are the thing an organizer is most often
+            surprised by, in both directions.
+
+            OUT of the field row and under it. As a flex sibling of the button
+            this sentence competed with the fields for the same line: on a wide
+            screen it sat to the right of the button reading like a caption
+            belonging to nothing, and as the row filled it wrapped to wherever
+            there happened to be space. It describes what the button will do,
+            so it belongs beneath the row it describes — the same place every
+            other explanation on this screen sits. */}
+        <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", maxWidth: "62ch", lineHeight: 1.5 }}>
+          {generatesPairings(newType)
+            ? "Draws a full set of pairings once flights are generated."
+            : "No pairings are drawn — the field returns cards."}
+        </p>
 
         {/* Said before the click, not discovered after it. Deliberately NOT a
             blocked button: "have you looked at everything" cannot be defined
