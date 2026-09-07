@@ -27,7 +27,7 @@ export default async function AnnouncementsPage() {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Manage</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Announcements</h2>
+        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Announcements</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Post notices to players — schedule changes, weather, results. Pinned posts sit at the top of
           every player&rsquo;s dashboard.

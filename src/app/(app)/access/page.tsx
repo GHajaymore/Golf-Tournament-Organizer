@@ -19,7 +19,7 @@ export default async function AccessPage() {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Access control</h2>
+        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Access control</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Organizers get full admin access. Players get read-only leaderboard/stats plus score entry for their own
           matches.

@@ -42,7 +42,7 @@ export default async function QualificationPage() {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
           <div className="page-kicker">Manage</div>
-          <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Qualification</h2>
+          <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Qualification</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             Advance the top players from each flight, or the top players overall. The preview shows exactly who qualifies.
           </p>

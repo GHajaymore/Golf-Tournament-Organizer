@@ -82,6 +82,43 @@ async function overflowing(page: Page) {
   });
 }
 
+/**
+ * Every console screen has exactly one h1.
+ *
+ * None of them had ANY. The page title was a `<h2 style={{ fontSize: 27 }}>`
+ * — the same lockup copied into twenty-three files — so every console screen
+ * opened its heading outline at level 2 with nothing above it. Measured in a
+ * browser on 2026-09-06: `/dashboard` reported `h1Count: 0`.
+ *
+ * What that costs is not the audit score. A screen reader's first move on an
+ * unfamiliar page is to jump to the heading, and "skip to content" has nothing
+ * to skip to; a document whose outline starts at h2 reads as a fragment of
+ * some larger page that does not exist.
+ *
+ * SWEPT, not spot-checked, and asserted on the RENDERED page rather than in
+ * source. Both halves matter. The title comes from a component on about half
+ * these routes — PointsLeaderboard, TeamLeaderboard, RosterClient and others
+ * each render their own — so a source assertion would have to know which
+ * component each route mounts, and would silently stop covering a route that
+ * changed component. And EXACTLY one is the assertion, not at-least-one:
+ * several of those components can appear on the same route depending on
+ * format, and two h1s is the failure that converting them all invites.
+ */
+for (const path of SCREENS) {
+  test(`${path} has exactly one h1`, async ({ page }) => {
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+    expect(new URL(page.url()).pathname, `${path} redirected away — not signed in?`).toBe(path);
+
+    const h1s = page.locator("h1");
+    const count = await h1s.count();
+    const texts = await h1s.allTextContents();
+    expect(count, `${path} has ${count} h1s: ${JSON.stringify(texts)}`).toBe(1);
+    await expect(h1s.first()).toBeVisible();
+    expect((texts[0] ?? "").trim().length, `${path}'s h1 is empty`).toBeGreaterThan(0);
+  });
+}
+
 for (const path of SCREENS) {
   test(`${path} does not scroll sideways`, async ({ page }) => {
     await page.goto(path);

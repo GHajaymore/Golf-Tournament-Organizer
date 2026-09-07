@@ -185,7 +185,7 @@ export default async function FoursomesPage({
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Manage</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Tee sheet</h2>
+        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Tee sheet</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Decide who plays together, what order they go off, and from which tee. Once a round has been
           played you can re-pair off the leaderboard and send the leaders out last.

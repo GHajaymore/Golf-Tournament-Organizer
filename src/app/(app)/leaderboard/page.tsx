@@ -121,7 +121,7 @@ export default async function LeaderboardPage() {
       >
         <div>
           <div className="page-kicker">Overview</div>
-          <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h2>
+          <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {state.isStroke
               ? state.activeStage?.scoringBasis === "stableford"

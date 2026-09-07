@@ -41,7 +41,7 @@ export default async function MessagesPage() {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Talk</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Messages</h2>
+        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Messages</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           {isStaff
             ? "Reach the whole club, one flight, one round, or one player."

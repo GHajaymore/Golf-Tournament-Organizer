@@ -188,7 +188,7 @@ export default async function StagesPage() {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Rounds &amp; formats</h2>
+        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Rounds &amp; formats</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Sequence the tournament — add as many rounds as you need, each feeding the next.
         </p>

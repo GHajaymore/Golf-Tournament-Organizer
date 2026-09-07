@@ -478,7 +478,7 @@ export function RegistrationClient({
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h2 style={{ fontSize: 27, margin: "5px 0 0" }}>Registration &amp; field</h2>
+        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Registration &amp; field</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Collect the details you need to run the event. Confirmed players fill up to capacity; overflow waitlists.
         </p>
