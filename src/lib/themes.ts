@@ -351,18 +351,49 @@ function lightnessFor(
 ): number {
   const floor = contrastFloors(ground)[step];
   if (!floor) return base;
-  if (contrastRatio(hslToHex(hue, saturation, base), floor.against) >= floor.ratio) return base;
-
   // Which way is "more contrast" depends on the ground: away from a dark page
   // means lighter, away from a light one means darker. Searching the wrong way
   // would drive the colour *into* the background it has to stand out from.
-  const target = ground.key === "light" ? 0 : 1;
+  return solveLightness(
+    hue,
+    saturation,
+    base,
+    floor.against,
+    floor.ratio,
+    ground.key === "light" ? "darker" : "lighter",
+  );
+}
+
+/**
+ * The same solve, for a palette that is not a 100–900 ramp.
+ *
+ * `lightnessFor` reads its floor out of `contrastFloors`, a table about accent
+ * STEPS, so nothing outside the step ramp could ever reach the search. The
+ * marketing page is exactly that case: its own hues, its own token names, and
+ * the same need to have a lightness proved against a background rather than
+ * picked by eye. `landing-palette.ts` drives this directly.
+ *
+ * Returns `base` untouched when it already clears, so a designed weight only
+ * moves when it has to. When even the extreme cannot reach `ratio` it returns
+ * that extreme, which is the best the hue allows rather than a throw — the
+ * same behaviour the ramp has always had, and the caller's own test is what
+ * says whether the result is good enough.
+ */
+export function solveLightness(
+  hue: number,
+  saturation: number,
+  base: number,
+  against: string,
+  ratio: number,
+  away: "lighter" | "darker",
+): number {
+  if (contrastRatio(hslToHex(hue, saturation, base), against) >= ratio) return base;
   let stay = base;
-  let go = target;
+  let go = away === "darker" ? 0 : 1;
   // Binary search. 24 iterations resolves far finer than 8-bit colour.
   for (let i = 0; i < 24; i += 1) {
     const mid = (stay + go) / 2;
-    if (contrastRatio(hslToHex(hue, saturation, mid), floor.against) >= floor.ratio) go = mid;
+    if (contrastRatio(hslToHex(hue, saturation, mid), against) >= ratio) go = mid;
     else stay = mid;
   }
   return go;

@@ -6,6 +6,7 @@ import { shareOf } from "@/lib/domain/expenses";
 import { money } from "@/lib/domain/money-format";
 import { PLANS, retentionNotice } from "@/lib/plans";
 import { siteStructuredData } from "@/lib/domain/structured-data";
+import { landingTokens } from "@/lib/landing-palette";
 import { siteOrigin } from "@/lib/site";
 import { LandingAuth } from "@/components/LandingAuth";
 import { LandingEffects } from "@/components/LandingEffects";
@@ -184,38 +185,35 @@ const LANDING_CSS = `
      One rule holds it together. TEAL is identity — the marks, the headline's
      last word, the rules, the buttons. GREEN is meaning — live, under par,
      money coming your way. Never the reverse: the moment teal says "winning",
-     the page has two words for one idea and neither is legible. The two are
-     174 degrees apart precisely so nobody can confuse them.
+     the page has two words for one idea and neither is legible.
 
      Verdigris is also a preset a club can pick in settings, so a club that
-     wants the site's own look can have it. */
-  --ground:#171210; --ground-2:#221A16; --panel:#221A1685;
-  --paper:#EDE4CE; --paper-2:#E4DABF; --paper-ink:#1C1712; --paper-soft:#5C5343;
-  --paper-accent:#0E6E72;
-  /* --ink-faint was #837868: 4.29:1 on --ground, and it carries the footer's
-     12.5px meta line, so it needed 4.5. Lifted to 4.73, which still reads a
-     clear step below --ink-soft (7.23) — the point of the token is that it is
-     the faintest text, not that it is under the floor. Graded by
-     landing-contrast.test.ts on BOTH grounds. */
-  --ink:#EDE6DC; --ink-soft:#ABA091; --ink-faint:#8A7F6E;
-  --line:rgba(237,230,220,0.12); --line-2:rgba(237,230,220,0.24);
-  --flag:#6FB894; --flag-soft:#8ACCAB; --under:#6FB894;
-  /* Accent text and accent FILL are different steps, the way the app's own
-     ramp separates 400 from 500. Held to one value the button and the body
-     text end up the same colour and the button stops reading as a control. */
-  --brass:#76E1E5; --brass-ui:#45D6DC; --brass-hi:#A6EEF1; --on-accent:#08201F;
-  /* THE MARK DOES NOT MOVE WITH THE PAGE.
-     These are the wordmark's own orange and green, and they are the values the
-     logo has always been drawn in. They are separate tokens precisely because
-     the accent is now a variable: when the page palette was retuned, the mark
-     read --brass and quietly recoloured with it, which is a brand changing
-     because a background did. A logo is a constant. Retune the page all you
-     like; these two lines stay put. */
+     wants the site's own look can have it.
+
+     EVERY COLOUR BELOW IS GENERATED, by landing-palette.ts, and this block is
+     the reason: it used to be about thirty hex values picked by eye and then
+     declared a second time for the light ground, which is a design system the
+     app's own themes.test.ts cannot see. That is not a filing detail — it is
+     why --ink-faint shipped at 4.29:1 here and 4.02:1 on cream, the second of
+     which no audit reported, because Lighthouse grades whichever appearance
+     the page happens to render in and this palette has two.
+
+     So the hues stay hand-chosen and the WEIGHTS are solved, against the
+     background each colour is actually read on, by the same solver the app's
+     accent ramp uses. Retune the page by editing the hue or the designed
+     lightness in that module; a value that then fails its floor is corrected
+     before it can reach this file. */
+  ${landingTokens("dark", "  ")}
+  /* THE MARK DOES NOT MOVE WITH THE PAGE, so it is the one thing here still
+     written by hand. These are the wordmark's own orange and green, and they
+     are the values the logo has always been drawn in. They are separate
+     tokens precisely because the accent is a variable: when the page palette
+     was retuned, the mark read --brass and quietly recoloured with it, which
+     is a brand changing because a background did. A logo is a constant. It is
+     deliberately NOT generated above — a solver that is free to move a colour
+     to clear a floor is exactly what a logo must not be exposed to.
+     brand-consistency.test.ts pins all four values. */
   --brand-amber:#E8A33D; --brand-green:#4FA97C; --brand-green-soft:#63BE90;
-  /* The dim edge where the patina has gone dark. DECORATION ONLY — around
-     3:1 on the lacquer, so it may rule a line or edge a frame and must never
-     carry a word. Text uses --brass, which clears 9:1. */
-  --incised:#2F6F72;
   --sans:var(--font-geist-sans),-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
   --mono:var(--font-geist-mono),ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
   /* Display only. Golf sets its own type in engraved and printed serifs —
@@ -230,34 +228,28 @@ const LANDING_CSS = `
 @media (prefers-color-scheme: light) {
   .thq {
     /* The same page in daylight rather than a different design: card stock
-       instead of lacquer. The patina cannot survive the swap unchanged —
-       #76E1E5 is a highlight on a dark ground and pale nothing on a light one
-       — so it deepens to the teal of oxidised copper in shadow, dark enough
-       to carry a word. Green darkens with it, because a board is only readable
-       if under-par reads instantly and #6FB894 on cream does not.
+       instead of lacquer.
 
-       Fill and text collapse to ONE value here. On the dark ground they are
-       two steps apart because both must clear the ground; on cream the darker
-       of the pair is already doing the work, and a second, deeper teal for the
-       button just read as a different colour. */
-    --ground:#F4EFE2; --ground-2:#EAE3D2; --panel:#FFFDF7;
-    /* And the same token on cream, which was WORSE than the dark one at
-       4.02:1 and which no audit reported: Lighthouse grades whichever ground
-       the page actually renders in, and it rendered dark. Darkened to 4.80.
-       A palette with two grounds needs both graded, which is why the test
-       exists rather than a second colour pick. */
-    --ink:#1E1710; --ink-soft:#5C5342; --ink-faint:#726851;
-    --line:rgba(30,23,16,0.12); --line-2:rgba(30,23,16,0.22);
-    --flag:#1F7A50; --flag-soft:#186541; --under:#1F7A50;
-    --brass:#0E6E72; --brass-ui:#0E6E72; --brass-hi:#0A5457;
-    --on-accent:#F2FEFF; --incised:#7FC5C8;
+       NOT A SECOND SET OF DECISIONS. The page is made of two surfaces and this
+       query swaps which one is the page and which is the inverted band, so
+       these are the same two palettes the other way round — which is what
+       generating them makes true rather than merely intended. The old
+       hand-picked block already agreed without anyone noticing: its dark
+       --paper-accent was character-for-character its light --brass, and its
+       dark --paper-soft was the light --ink-soft to within one unit of blue.
+       Those were one solve against one surface, written out twice, and the
+       second copy is where a value drifts.
+
+       What the swap does to the accent is real and survives it: a bright
+       patina is a highlight on lacquer and pale nothing on cream, so on cream
+       it deepens — and saturates as it deepens, which is what keeps it reading
+       as a colour down there rather than as a grey. Green darkens with it,
+       because a board is only readable if under-par reads instantly. */
+${landingTokens("light", "    ")}
     /* The mark's own daylight pair — the exact values it used on the light
-       ground before any of this, so the logo is unchanged on both grounds. */
+       ground before any of this, so the logo is unchanged on both grounds, and
+       hand-written for the same reason as the dark pair above. */
     --brand-amber:#A8701A; --brand-green:#1F7A50; --brand-green-soft:#186541;
-    --paper:#241A16; --paper-2:#1A120F; --paper-ink:#EFE7D8; --paper-soft:#B3A791;
-    /* Light ground flips the band to lacquer, so the band's accent flips back
-       to bright patina — the mirror of the dark-ground rule above. */
-    --paper-accent:#76E1E5;
   }
 }
 .thq :focus-visible { outline:2px solid var(--flag); outline-offset:3px; border-radius:4px; }
