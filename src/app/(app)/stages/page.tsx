@@ -13,6 +13,8 @@ import { shapeOf, effectiveCapabilities } from "@/lib/tournament-shape";
 import { unratedWarning } from "@/lib/services/handicaps";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { DescribeTournament } from "@/components/DescribeTournament";
+import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
+import { setupFlowFor } from "@/lib/services/setup-flow";
 import { findFormat, needsTeams, sideSizeRange } from "@/lib/formats";
 import { teamEntryChoices, resolveTeamEntry, sideOnlyCost, teamEntryFixedReason } from "@/lib/domain/team-entry";
 import { effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
@@ -67,6 +69,8 @@ export default async function StagesPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const locked = isSetupLocked(state.event);
+  // Where this screen sits in setting the tournament up. Null for a match.
+  const flow = await setupFlowFor(session.eventId);
 
   // League sign-up, resolved per round for the counts on each card. Declared
   // before the map that reads them — they used to sit below it, so every
@@ -205,6 +209,7 @@ export default async function StagesPage() {
           Sequence the tournament — add as many rounds as you need, each feeding the next.
         </p>
       </div>
+      <SetupFlowRail flow={flow} href="/stages" />
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
       {/* A way IN to the builder rather than an alternative to it — whatever
           it proposes lands as ordinary rounds on the cards below, editable
@@ -255,6 +260,7 @@ export default async function StagesPage() {
       {/* The other half of the placement decision above: offered after the
           rounds once there are rounds, so it stays available without leading. */}
       {!locked && stages.length > 0 && describeTournament}
+      <SetupFlowFooter flow={flow} href="/stages" />
     </>
   );
 }

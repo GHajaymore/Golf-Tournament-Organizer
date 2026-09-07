@@ -5,6 +5,8 @@ import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { GroupingControls } from "@/components/GroupingControls";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
+import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
+import { setupFlowFor } from "@/lib/services/setup-flow";
 import { FlightBoard } from "@/components/FlightBoard";
 import { unratedFlightWarning, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import type { FormationRule } from "@/lib/domain";
@@ -15,6 +17,8 @@ export default async function GroupingPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const locked = isSetupLocked(state.event);
+  // Where this screen sits in setting the tournament up. Null for a match.
+  const flow = await setupFlowFor(session.eventId);
   const manual = state.event.formationRule === "manual";
   // A handicap-balanced draw is balanced on Course Handicaps, so unrated tees
   // make it quietly uneven. The scoring warning on Rounds & format is about a
@@ -59,6 +63,7 @@ export default async function GroupingPage() {
         </p>
       </div>
 
+      <SetupFlowRail flow={flow} href="/grouping" />
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
 
       {drawWarning && (
@@ -145,6 +150,7 @@ export default async function GroupingPage() {
           ))}
         </div>
       )}
+      <SetupFlowFooter flow={flow} href="/grouping" />
     </>
   );
 }
