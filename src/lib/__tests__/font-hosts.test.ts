@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
-import { readSource } from "./source";
+import { readSource, readVerbatim } from "./source";
 
 /**
  * No stylesheet in this app fetches a font from somebody else's server.
@@ -26,11 +26,12 @@ import { readSource } from "./source";
  * matters — a stripper that mangled a CSS `url()` would let a real import
  * through unseen. Mutation-checked below rather than assumed.
  *
- * WHAT THIS DOES NOT COVER, said plainly so the green is not read as more than
- * it is: `layout.tsx` still links two Phosphor icon stylesheets from unpkg.com
- * in the document head, and they pull a 148KB icon font from that origin. That
- * is the largest asset on the page. It is an HTML `<link>`, not a CSS import,
- * and it is a separate decision from this one.
+ * The gap this file used to declare is now closed. It said, in this comment:
+ * "layout.tsx still links two Phosphor icon stylesheets from unpkg.com, and
+ * they pull a 148KB icon font from that origin." Those `<link>` tags are gone
+ * — the package is a dependency and the CSS is imported, so Next emits both
+ * fonts under `_next/static/media` and no third-party origin is left in the
+ * critical path. The `<link>` ban below is what keeps them gone.
  */
 
 /** Every stylesheet under src, found rather than named. */
@@ -69,6 +70,45 @@ describe("no stylesheet pulls a font from another origin", () => {
      */
     const offenders = SHEETS.filter((f) => /@import\s+url\(\s*['"]?https?:/i.test(readSource(f)));
     expect(offenders, `remote @import in: ${offenders.join(", ")}`).toEqual([]);
+  });
+});
+
+describe("nothing in the document head loads from another origin", () => {
+  /**
+   * The stylesheets, not just the fonts. Two `<link rel="stylesheet">` tags
+   * pointed at unpkg.com for the Phosphor icon set: render-blocking, on an
+   * origin the page otherwise never touched, each one a DNS lookup and a TLS
+   * handshake before a single icon could be measured — and then a 147KB font
+   * from that same third party, the largest asset on the page. A CDN outage or
+   * a proxy blocking unpkg took every icon in the product with it.
+   *
+   * Banned by SHAPE — any absolute `href` on a `<link>` — rather than by host,
+   * for the same reason the CSS rule above is: naming unpkg is satisfied by
+   * moving to jsdelivr, which is the identical defect somewhere else.
+   */
+  it("has no external <link> in the root layout", () => {
+    const layout = readSource("src/app/layout.tsx");
+    const offenders = [...layout.matchAll(/<link[^>]*href=["'](https?:)?\/\/[^"']+["']/g)].map(
+      (m) => m[0],
+    );
+    expect(offenders, `external <link> in layout.tsx: ${offenders.join(", ")}`).toEqual([]);
+  });
+
+  it("actually imports the icon font it stopped linking", () => {
+    // The other half: removing the links without importing the package would
+    // also pass the assertion above, and ship an app with no icons at all.
+    const layout = readSource("src/app/layout.tsx");
+    expect(layout).toMatch(/@phosphor-icons\/web\/regular/);
+    expect(layout).toMatch(/@phosphor-icons\/web\/fill/);
+  });
+
+  it("depends on the icon package explicitly", () => {
+    // An import that resolves only because something else happened to install
+    // it is a build that breaks on a clean checkout.
+    const pkg = JSON.parse(readVerbatim("package.json")) as {
+      dependencies?: Record<string, string>;
+    };
+    expect(pkg.dependencies?.["@phosphor-icons/web"], "not a declared dependency").toBeTruthy();
   });
 });
 

@@ -2,6 +2,22 @@ import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { Fraunces } from "next/font/google";
+/**
+ * The icon font, SELF-HOSTED.
+ *
+ * These were two `<link>` tags to unpkg.com in the document head, which cost
+ * more than it looks: two render-blocking stylesheets on an origin the page
+ * otherwise never touches, a DNS lookup and TLS handshake before either can
+ * start, and then a 147KB font from that same third party — the largest single
+ * asset on the page. A CDN outage or a corporate proxy blocking unpkg took
+ * every icon in the product with it.
+ *
+ * Imported here instead, so Next emits the font under `_next/static/media`,
+ * serves it same-origin with an immutable cache header, and there is no
+ * third-party origin in the critical path at all.
+ */
+import "@phosphor-icons/web/regular";
+import "@phosphor-icons/web/fill";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { siteOrigin } from "@/lib/site";
@@ -16,13 +32,14 @@ import { siteOrigin } from "@/lib/site";
  * THE REASON GIVEN HERE USED TO BE WRONG, and it is worth correcting rather
  * than deleting, because it is the kind of premise somebody acts on. It said a
  * font "cannot" be loaded from a CDN because the app's CSP blocks external
- * font hosts. The CSP does not: the Phosphor icon font below is fetched from
- * unpkg.com on every page, and until this file's companion change `globals.css`
- * was pulling Fraunces from fonts.gstatic.com just as successfully. Inter was
- * never blocked — its `@import` sits inside `design-system.css`, which
- * `globals.css` imports, and Next's CSS chunker drops a nested `@import url()`
- * (the same reordering the `:root:root` note in globals.css exists for). The
- * request was simply never made.
+ * font hosts. The CSP does not, and both counter-examples were live until
+ * recently: the Phosphor icon font came from unpkg.com on every page, and
+ * `globals.css` pulled Fraunces from fonts.gstatic.com. Both are self-hosted
+ * now — by choice, not because anything stopped them. Inter was never blocked
+ * either: its `@import` sits inside `design-system.css`, which `globals.css`
+ * imports, and Next's CSS chunker drops a nested `@import url()` (the same
+ * reordering the `:root:root` note in globals.css exists for). The request was
+ * simply never made.
  *
  * That distinction matters: believing the CSP is a backstop is how an external
  * font gets added again on the assumption something downstream will catch it.
@@ -190,16 +207,6 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} ${display.variable}`}>
-      <head>
-        <link
-          rel="stylesheet"
-          href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css"
-        />
-        <link
-          rel="stylesheet"
-          href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css"
-        />
-      </head>
       <body>
         {children}
         <ServiceWorkerRegister />
