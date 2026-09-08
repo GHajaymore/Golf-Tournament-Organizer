@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { saveTee, deleteTee } from "@/app/actions/courses";
 import { courseHandicap, STANDARD_SLOPE } from "@/lib/domain/handicap";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 export interface TeeRow {
@@ -174,15 +175,24 @@ export function TeeEditor({
                       >
                         <Icon name="pencil-simple" />
                       </button>
-                      <button
-                        type="button"
-                        className="btn btn-icon"
+                      {/* Beside Edit, as two unlabelled icons. A tee set holds
+                          the course rating and slope, which is what every
+                          course handicap on it is calculated from.
+
+                          The note says what `deleteTee` ACTUALLY does — the
+                          foreign key nulls each player's teeId rather than
+                          removing anyone. It deliberately does not promise
+                          their course handicaps are unchanged: those are
+                          derived from the rating and slope this row carries
+                          away, and a reassurance nobody checked is worse than
+                          none. */}
+                      <ConfirmButton
                         title="Remove these tees"
+                        confirmLabel="Remove them"
+                        note="Nobody who played off them is removed — their tee reference is cleared."
                         disabled={pending}
-                        onClick={() => remove(t.id)}
-                      >
-                        <Icon name="trash" />
-                      </button>
+                        onConfirm={() => remove(t.id)}
+                      />
                     </td>
                   )}
                 </tr>

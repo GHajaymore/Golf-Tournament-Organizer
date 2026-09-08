@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
 import { saveSkinsPot, setSkinsEntrants, removeSkinsPot, confirmSkinsEntry } from "@/app/actions/skins";
 import { renameBet } from "@/app/actions/bet-name";
@@ -437,20 +438,21 @@ export function SkinsPotClient({
         </p>
       )}
 
+      {/* Only offered once somebody has paid in — which is exactly why it
+          takes two presses. `view.scope`, not the picker's `scope`: this
+          removes the pot being SHOWN, and the picker may have been moved
+          without saving. */}
       {view.entrantIds.length > 0 && (
-        <button
-          type="button"
+        <ConfirmButton
           className="btn btn-ghost"
           style={{ alignSelf: "flex-start", fontSize: 12 }}
+          label="Remove this pot"
+          title="Remove this pot"
+          confirmLabel="Remove the pot"
+          note={`${view.entrantIds.length} ${view.entrantIds.length === 1 ? "person has" : "people have"} paid in.`}
           disabled={pending}
-          onClick={() =>
-            // view.scope, not the picker's `scope`: this removes the pot being
-            // SHOWN, and the picker may have been moved without saving.
-            run(() => removeSkinsPot(activeStageId, view.net, view.scope, groupKey))
-          }
-        >
-          Remove this pot
-        </button>
+          onConfirm={() => run(() => removeSkinsPot(activeStageId, view.net, view.scope, groupKey))}
+        />
       )}
     </div>
   );
