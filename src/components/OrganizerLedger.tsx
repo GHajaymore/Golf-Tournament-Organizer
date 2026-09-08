@@ -1,9 +1,10 @@
 "use client";
 import { useState, useTransition } from "react";
-import { recordSettlement } from "@/app/actions/expenses";
+import { recordSettlement, removeSettlement } from "@/app/actions/expenses";
 import type { MoneyView } from "@/lib/services/expenses";
 import { useMoney } from "@/components/CurrencyProvider";
 import { splitLabel } from "@/lib/domain/expense-split-label";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 /**
@@ -146,6 +147,62 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
         <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error}
         </p>
+      )}
+
+      {/* WHAT HAS ALREADY BEEN COLLECTED.
+          A settled handover drops out of the list above, because it has been
+          folded into the standing — so the treasurer marked it and then had no
+          record that they had. "Did I already collect from Priya?" had no
+          answer on the one screen built for collecting. The player's own
+          screen has shown this all along.
+
+          With who recorded it, which is the provenance a treasurer is asked
+          for, and an Undo — `removeSettlement` shipped fully authorized and
+          audit-tested, wired to nothing at all. */}
+      {view.settlements.length > 0 && (
+        <div style={{ marginTop: 6 }}>
+          <span className="card-kicker">Already collected</span>
+          <div style={{ marginTop: 6 }}>
+            {view.settlements.map((s) => (
+              <div
+                key={s.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  fontSize: 12.5,
+                  padding: "5px 0",
+                  borderBottom: "1px solid var(--color-divider)",
+                }}
+              >
+                <span className="text-muted" style={{ flex: 1, minWidth: 0 }}>
+                  {s.fromName} <Icon name="arrow-right" aria-label="paid" /> {s.toName} · {s.settledAt}
+                  {s.recordedBy ? ` · recorded by ${s.recordedBy}` : ""}
+                </span>
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>{money(s.cents)}</span>
+                {s.canRemove && (
+                  <ConfirmButton
+                    className="btn btn-ghost"
+                    style={{ fontSize: 11.5 }}
+                    icon="arrow-counter-clockwise"
+                    label="Undo"
+                    title={`Undo ${s.fromName} to ${s.toName}`}
+                    confirmLabel="Undo it"
+                    note="Says the money did not change hands after all."
+                    disabled={pending}
+                    onConfirm={() =>
+                      startTransition(async () => {
+                        setError("");
+                        const res = await removeSettlement(s.id);
+                        if (!res.ok) setError(res.error ?? "Couldn't undo that.");
+                      })
+                    }
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* The lines behind it, folded away. A treasurer checks these when

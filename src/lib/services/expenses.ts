@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import {
   balances,
   canChangeExpense,
+  canUndoSettlement,
   combinedBalances,
   positionFor,
   shareOf,
@@ -101,6 +102,11 @@ export interface SettlementRow {
   rulesVersion: string;
   /** True/false against `owedCents`; null when the row cannot say. */
   clearedItsDebt: boolean | null;
+  /**
+   * Whether the person looking may undo it — staff, whoever recorded it, or
+   * either party. Answered from the same rule the action enforces.
+   */
+  canRemove: boolean;
 }
 
 export interface MoneyView {
@@ -862,6 +868,19 @@ export async function moneyFor(
        * about to ask a friend for money.
        */
       clearedItsDebt: s.owedCents == null ? null : s.cents >= s.owedCents,
+      /**
+       * Whether the person looking at this may undo it.
+       *
+       * From the same function the action enforces, so the screen never offers
+       * an Undo the server refuses — the same contract as `canEdit` on an
+       * expense row above.
+       */
+      canRemove: canUndoSettlement(s, {
+        name: viewer.name,
+        email,
+        isStaff: viewer.isStaff,
+        playerId: me?.id,
+      }),
     })),
     standing: standingNets
       .filter((n) => nameOf.has(n.playerId) || n.netCents !== 0)
