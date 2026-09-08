@@ -53,6 +53,20 @@ check `preview_list`'s `cwd` before believing a green run — `preview_start` wi
 server already running from the MAIN checkout, and then every route passes against code you did
 not write.
 
+**Reading a change in the browser: bust the URL, or you will read the old page.** Navigating to a
+URL the browser has already visited serves it from cache, so `innerText` shows the render from
+before the edit. On 2026-09-07 that reported a fix as missing three separate times — twice after
+a dev-server restart, once on `/live`, which ALSO has its own server-side board cache and so has
+two independent ways of handing back something stale.
+
+The tell is that a `fetch(url, { cache: "no-store" })` of the same page contains the string the
+rendered DOM does not. That is not a bug in the fix; that is two caches doing their job.
+
+So: append a throwaway query (`?bust=1`) when navigating to check a change, or assert against a
+no-store `fetch`. And note the failure is not symmetrical — a stale read can also show a string
+you have just DELETED, which is the direction that ends with "already fixed" written on something
+that is not.
+
 **`npm run smoke` is NOT the whole of CI's "Smoke-test every route" step.** That step boots the
 server once and then runs FOUR scripts against it, of which `npm run smoke` is the first:
 
