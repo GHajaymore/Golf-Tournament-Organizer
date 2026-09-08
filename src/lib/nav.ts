@@ -1,4 +1,5 @@
 import { canAccessScreen, type Role } from "./roles";
+import { orgProfile, type OrgKind } from "@/lib/domain/org-profile";
 import { canSeeLeaderboard, canEnterScores, type TournamentSettings } from "./tournament-settings";
 
 /**
@@ -186,6 +187,14 @@ export function navForRole(
      * kind of second thought two people have on the first tee.
      */
     isMatch?: boolean;
+    /**
+     * What this organization is — club, society or one person.
+     *
+     * Only the "Club" section and its settings entry read it. Everything else
+     * in the sidebar is about the tournament, which does not change shape
+     * because of who is running it.
+     */
+    orgKind?: OrgKind;
   } = {},
 ): NavSection[] {
   /** The screens that only make sense against a field. See `isMatch` above. */
@@ -230,7 +239,31 @@ export function navForRole(
     return true;
   };
 
-  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => allowed(i.key)) })).filter(
+  /**
+   * The one section whose wording depends on what the outfit IS.
+   *
+   * `NAV` is a constant, and rightly — a sidebar assembled per request is a
+   * sidebar that can differ between two screens of the same app. This is the
+   * single exception, and it is applied to the SECTION and its settings ITEM
+   * together, because they sit one line apart: a "Club" heading over "Outing
+   * settings" would be the same disagreement moved rather than fixed.
+   *
+   * Falls back to the club wording when no kind is passed, which is what every
+   * caller did before and what a club — the commonest case — should see.
+   */
+  const profile = opts.orgKind ? orgProfile(opts.orgKind) : null;
+  const relabel = (s: NavSection): NavSection => {
+    if (!profile || s.label !== "Club") return s;
+    return {
+      ...s,
+      label: profile.groupLabel,
+      items: s.items.map((i) =>
+        i.key === "organization" ? { ...i, label: profile.settingsLabel } : i,
+      ),
+    };
+  };
+
+  return NAV.map((s) => relabel({ ...s, items: s.items.filter((i) => allowed(i.key)) })).filter(
     (s) => s.items.length > 0,
   );
 }

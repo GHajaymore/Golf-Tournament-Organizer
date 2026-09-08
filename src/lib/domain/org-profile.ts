@@ -62,6 +62,29 @@ export interface OrgProfile {
   /** One line an organizer would recognise their own outfit in. */
   blurb: string;
   /**
+   * What the organization-wide settings screen is called — its own heading and
+   * its sidebar entry.
+   *
+   * Hard-coded as "Club settings" in both places, which is how a solo
+   * organizer came to be shown a screen about a club they do not have while
+   * the same page correctly rendered their type as "Personal". The page knew;
+   * every string on it did not.
+   *
+   * Declared here rather than composed from `noun` at each call site so that
+   * the two readers cannot drift — a sidebar saying one thing and a heading
+   * saying another is this codebase's most-repeated defect.
+   */
+  settingsLabel: string;
+  /**
+   * The sidebar section that groups everything belonging to the organization
+   * rather than to the tournament currently open — members, season standings,
+   * the settings screen.
+   *
+   * Sat directly above "Club settings" and said "Club", so changing only one
+   * of them would have left the pair disagreeing in the same eyeful.
+   */
+  groupLabel: string;
+  /**
    * A member list that outlives any one tournament, shared by the staff.
    * A personal organizer keeps their own list of players instead.
    */
@@ -111,6 +134,8 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
   club: {
     label: "Golf club",
     noun: "club",
+    settingsLabel: "Club settings",
+    groupLabel: "Club",
     blurb: "A club, course or resort running competitions for its members and guests.",
     sharedRoster: true,
     ledger: false,
@@ -120,6 +145,8 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
   community: {
     label: "Society or league",
     noun: "society",
+    settingsLabel: "Society settings",
+    groupLabel: "Society",
     blurb: "A society, league or group that plays together and shares the costs.",
     sharedRoster: true,
     ledger: true,
@@ -130,6 +157,8 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
   personal: {
     label: "Personal",
     noun: "outing",
+    settingsLabel: "Outing settings",
+    groupLabel: "Outing",
     blurb: "One organizer running an outing, with their own list of players.",
     sharedRoster: false,
     ledger: true,

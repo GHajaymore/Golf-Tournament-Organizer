@@ -903,7 +903,7 @@ describe("settings screens", () => {
 
   it("renders the theme picker with a preset selected", () => {
     const html = render(<ThemePicker theme={theme({ accentKey: "claret" })} readOnly={false} />);
-    expect(html).toContain("Club colour");
+    expect(html).toContain("Colour &amp; appearance");
     expect(html).toContain("Claret");
     expect(html).toContain("Fairway");
   });
@@ -929,7 +929,7 @@ describe("settings screens", () => {
     const html = render(
       <ThemePicker theme={theme({ accentKey: "custom", accentHex: "not-a-colour" })} readOnly={false} />,
     );
-    expect(html).toContain("Club colour");
+    expect(html).toContain("Colour &amp; appearance");
   });
 
   it("renders a two-colour club, naming the second colour", () => {
@@ -3759,6 +3759,47 @@ describe("club settings", () => {
     );
   };
 
+
+  it("names the screen for what the outfit actually is", async () => {
+    /**
+     * A solo organizer was shown "Club settings" — on a page whose own type
+     * card, three lines below, correctly read "Personal · a single organizer".
+     * The page knew; every string on it did not.
+     *
+     * Asserted per kind rather than only for the broken one, so the club case
+     * cannot be regressed while fixing the others.
+     */
+    for (const [kind, heading] of [
+      ["club", "Club settings"],
+      ["community", "Society settings"],
+      ["personal", "Outing settings"],
+    ] as const) {
+      const html = await club({ kind });
+      expect(html, kind).toContain(heading);
+    }
+  });
+
+  it("says nothing about a club to somebody who has not got one", async () => {
+    /**
+     * The whole complaint in one assertion. "club" must not appear anywhere on
+     * this screen for a personal organizer — not in the heading, not in the
+     * location kicker, not in a placeholder, not in the logo help.
+     *
+     * Case-insensitive and unanchored on purpose: "your club's site" and
+     * "Where the club is" were three separate strings that each read fine in
+     * isolation, which is exactly how all of them survived.
+     */
+    const html = await club({ kind: "personal" });
+    const body = html.replace(/<[^>]*>/g, " ");
+    expect(body, "a personal organizer has no club").not.toMatch(/\bclubs?\b/i);
+  });
+
+  it("still talks about a club to a club — the control", async () => {
+    // Without this, the assertion above passes just as well against a screen
+    // that has had every useful word stripped out of it.
+    const html = await club({ kind: "club" });
+    expect(html).toContain("Club settings");
+  });
   it("keeps every control on club settings", async () => {
     const html = await club();
     for (const control of [
@@ -3769,21 +3810,21 @@ describe("club settings", () => {
       // same way the old one was.
       "Branding", "Organization name", "Short name", "Logo", "Upload an image",
       "PNG, JPG or WebP", "Name beside the logo",
-      "Where the club is", "City", "State or region", "Country",
+      "Where you play", "City", "State or region", "Country",
       "Preview", "Save changes",
     ]) {
       expect(html, `missing control: ${control}`).toContain(control);
     }
   });
 
-  it("does not file the club's address under Branding", async () => {
+  it("does not file the address under Branding", async () => {
     // The comment on that block said "Not branding" while it sat under a
     // heading reading Branding. The address prefills a new course's city; it
     // reaches no scorecard.
     const html = await club();
-    expect(html.indexOf("Branding")).toBeLessThan(html.indexOf("Where the club is"));
+    expect(html.indexOf("Branding")).toBeLessThan(html.indexOf("Where you play"));
     // One control, so the heading is the label — not repeated beneath itself.
-    expect(html.match(/Where the club is/g)?.length ?? 0).toBe(1);
+    expect(html.match(/Where you play/g)?.length ?? 0).toBe(1);
   });
 
   it("previews the header the same way twice", async () => {
@@ -4341,7 +4382,7 @@ describe("the organization roles read as Commissioner", () => {
   const panel = async () => {
     const { OrganizationAccess } = await import("@/components/OrganizationAccess");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return render(<OrganizationAccess report={report as any} canEdit />);
+    return render(<OrganizationAccess report={report as any} canEdit orgKind="club" />);
   };
 
   it("shows Commissioner and never Owner", async () => {
@@ -4839,7 +4880,7 @@ describe("jump-to nav on a long settings screen", () => {
    * money section existed until they arrived at it.
    */
   const sections = [
-    { id: "identity", label: "Club & branding" },
+    { id: "identity", label: "Name & branding" },
     { id: "theme", label: "Colour" },
     { id: "plan", label: "Plan" },
   ];

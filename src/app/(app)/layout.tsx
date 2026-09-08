@@ -27,12 +27,17 @@ import { WEEKLY_ROUND_TYPES } from "@/lib/stage-types";
 import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { myPlayerIds } from "@/lib/services/me";
 import { isMatch } from "@/lib/tournament-shape";
+import { isOrgKind, type OrgKind } from "@/lib/domain/org-profile";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const initials = initialsOf(session.name);
   const event = await prisma.event.findUnique({
     where: { id: session.eventId },
+    // The organization's KIND rides along on a query that already runs, so the
+    // sidebar can call the settings screen what it actually is without costing
+    // a second round trip on every page in the console.
+    include: { organization: { select: { kind: true } } },
   });
   // Teams only appear once a round is actually set to a team format, so the
   // many tournaments that never play one are not shown a link to an empty
@@ -70,6 +75,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     wantsTeams: event ? wantsTeams(cleanSideStyle(event.sideStyle)) : false,
     isPlayerToo: ownEntries > 0,
     isMatch: isMatch(event?.shape),
+    orgKind: isOrgKind(event?.organization.kind ?? "") ? event!.organization.kind as OrgKind : undefined,
   });
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).

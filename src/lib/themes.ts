@@ -959,7 +959,7 @@ export function sunlightVerdict(theme: ClubTheme): {
   // otherwise, so recommending it would be recommending the thing that failed.
   const suggestion =
     !worst.ok && theme.appearance !== "light"
-      ? "A light screen is easier to read at arm's length in direct sun, whatever the accent colour. Switching appearance to Light helps more here than changing the club's colours would."
+      ? "A light screen is easier to read at arm's length in direct sun, whatever the accent colour. Switching appearance to Light helps more here than changing your colours would."
       : null;
 
   return {

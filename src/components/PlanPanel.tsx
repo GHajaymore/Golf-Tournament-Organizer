@@ -35,7 +35,7 @@ export function PlanPanel({ planKey }: { planKey: string }) {
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Your plan</span>
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
-          What this club is on today, and what the other one includes.
+          What you are on today, and what the other one includes.
         </p>
       </div>
 

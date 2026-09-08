@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { orgProfile } from "@/lib/domain/org-profile";
 import {
   addOrganizationMember,
   setOrganizationMemberRole,
@@ -51,7 +52,24 @@ const ORG_ROLE_LABEL: Record<string, string> = {
 };
 const EVENT_ROLE_LABEL: Record<string, string> = { admin: "Organizer", assistant: "Assistant", player: "Player" };
 
-export function OrganizationAccess({ report, canEdit }: { report: AccessReport; canEdit: boolean }) {
+export function OrganizationAccess({
+  report,
+  canEdit,
+  orgKind,
+}: {
+  report: AccessReport;
+  canEdit: boolean;
+  /**
+   * What the organization IS, for the inherited-role marker.
+   *
+   * The marker read "club" while the sentence introducing it says "inherited
+   * from an organization role" — right for a club and wrong for the two kinds
+   * that are not one. The word is the only thing that differs.
+   */
+  orgKind: string;
+}) {
+  /** "club" / "society" / "outing" — the thing a role can be inherited FROM. */
+  const from = orgProfile(orgKind).noun;
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState("member");
@@ -236,7 +254,7 @@ export function OrganizationAccess({ report, canEdit }: { report: AccessReport; 
         </div>
         <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 6px" }}>
           Effective access, including roles inherited from an organization role. A
-          <span className="tag tag-neutral" style={{ margin: "0 4px", fontSize: 10 }}>club</span>
+          <span className="tag tag-neutral" style={{ margin: "0 4px", fontSize: 10 }}>{from}</span>
           marker means the person was never added to that tournament directly.
         </p>
 
@@ -282,7 +300,7 @@ export function OrganizationAccess({ report, canEdit }: { report: AccessReport; 
                               title={a.source === "organization" ? "Inherited from organization role" : "Granted on this tournament"}
                             >
                               {EVENT_ROLE_LABEL[a.role] ?? a.role}
-                              {a.source === "organization" ? " · club" : ""}
+                              {a.source === "organization" ? ` · ${from}` : ""}
                             </span>
                           ) : (
                             <span className="text-muted">·</span>

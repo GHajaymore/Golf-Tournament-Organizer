@@ -127,3 +127,50 @@ describe("when a round's money can be shown", () => {
     expect(roundMoneyIsFinal({ holesReturned: 6, holeCount: 18, roundComplete: false })).toBe(false);
   });
 });
+
+describe("what to call the settings screen", () => {
+  /**
+   * "Club settings" was hard-coded in the sidebar and in the page heading, so
+   * a solo organizer was shown a screen about a club they have not got — on a
+   * page whose own type card, three lines down, correctly read "Personal".
+   *
+   * Declared per kind here rather than composed from `noun` at each call site,
+   * because the heading and the sidebar entry sit one line apart and this
+   * codebase's most-repeated defect is two readers of one rule disagreeing.
+   */
+  it("names it for each kind", () => {
+    expect(orgProfile("club").settingsLabel).toBe("Club settings");
+    expect(orgProfile("community").settingsLabel).toBe("Society settings");
+    expect(orgProfile("personal").settingsLabel).toBe("Outing settings");
+  });
+
+  it("gives every kind a label, and never a blank one", () => {
+    // The point of a Record<OrgKind, ...>: a kind added later cannot compile
+    // without an answer. This catches the emptier failure — an answer that is
+    // present and says nothing.
+    for (const k of ORG_KINDS) {
+      expect(orgProfile(k).settingsLabel.trim(), k).not.toBe("");
+      expect(orgProfile(k).groupLabel.trim(), k).not.toBe("");
+    }
+  });
+
+  it("says 'club' only to a club", () => {
+    // The whole complaint, at the source of it.
+    for (const k of ORG_KINDS.filter((x) => x !== "club")) {
+      expect(orgProfile(k).settingsLabel, k).not.toMatch(/club/i);
+      expect(orgProfile(k).groupLabel, k).not.toMatch(/club/i);
+    }
+  });
+
+  it("keeps the sidebar section and its entry in the same voice", () => {
+    /**
+     * The section heading sits directly above the settings entry. "Club" over
+     * "Outing settings" would be the same disagreement moved rather than
+     * fixed, so the group label must be the first word of the settings one.
+     */
+    for (const k of ORG_KINDS) {
+      const p = orgProfile(k);
+      expect(p.settingsLabel.startsWith(p.groupLabel), k).toBe(true);
+    }
+  });
+});

@@ -80,7 +80,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
           {(
             [
-              { id: "club", label: "Club only" },
+              { id: "club", label: "Entered here only" },
               { id: "hybrid", label: "Both" },
               { id: "ghin", label: view.handicap.label + " only" },
             ] as const
@@ -103,7 +103,7 @@ export function HandicapSetup({ view }: { view: HandicapSetupView }) {
             ? "Every member plays off a GHIN index. Nobody at the club enters a handicap by hand, and a member without a GHIN number can't be entered until they have one."
             : view.policy === "hybrid"
               ? "Members with a GHIN number play off it; everyone else plays off the club's own figure. Most clubs are this — a society has visitors, and a club has members who have never held an index."
-              : "Handicaps are the club's own: entered by an organizer, or suggested from your members' cards."}
+              : "Handicaps are entered here: by an organizer, or suggested from your members' cards."}
         </p>
       </div>
 
