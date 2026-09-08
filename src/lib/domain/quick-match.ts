@@ -141,6 +141,24 @@ export function exactPlayersFor(f: QuickRoundFormatOption): number | null {
 }
 
 /**
+ * How a head-to-head at this side size is described out loud.
+ *
+ * Written out because the arithmetic version is not English. Composing the
+ * sentence from the numbers gave "Match Play is played between two sides of 1
+ * — that is 2 players", which is correct, unreadable, and the first thing on
+ * the screen when it opens. Golf has words for both of these and they are the
+ * words the players use on the tee.
+ *
+ * Falls back to the arithmetic for a size nobody has named, which is the safe
+ * direction: clumsy beats wrong, and the list is five entries long.
+ */
+export function headToHeadPhrase(sideSize: number): string {
+  if (sideSize === 1) return "one against one";
+  if (sideSize === 2) return "two against two";
+  return `${sideSize} a side`;
+}
+
+/**
  * The sides, in the order the names were entered.
  *
  * Entry order and nothing cleverer — no balancing by handicap, no draw. Four
@@ -396,7 +414,7 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
   if (exact !== null && named.length !== exact) {
     return {
       ok: false,
-      error: `${chosen.name} is played between two sides of ${chosen.sideSize} — that is ${exact} players. Pick another round type, or make it ${exact} names.`,
+      error: `${chosen.name} is played ${headToHeadPhrase(chosen.sideSize)}, so it needs exactly ${exact} players — there ${named.length === 1 ? "is" : "are"} ${named.length}.`,
     };
   }
 

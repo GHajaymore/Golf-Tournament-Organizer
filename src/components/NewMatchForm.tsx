@@ -6,6 +6,7 @@ import { CoursePicker, type CourseOption } from "@/components/CoursePicker";
 import {
   planMatch,
   exactPlayersFor,
+  headToHeadPhrase,
   QUICK_ROUND_FORMATS,
   QUICK_ROUND_MAX_PLAYERS,
 } from "@/lib/domain/quick-match";
@@ -287,6 +288,15 @@ export function NewMatchForm({
           </div>
         ))}
 
+        {/* Below the ceiling: a way to add one. At it: a statement of what the
+            game IS, and deliberately not a refusal.
+
+            That line read "Match Play is played between two sides of 1 — that
+            is 2. Pick another round type for a bigger group", and because
+            match play is the default it was on the screen before anybody had
+            done anything. Being told off on arrival for a choice you have not
+            made is the wrong first impression; being told what you have
+            chosen is not. */}
         {players.length < ceiling ? (
           <div>
             <button
@@ -301,7 +311,7 @@ export function NewMatchForm({
         ) : (
           <p className="text-muted" style={{ fontSize: 11.5, margin: 0 }}>
             {exact
-              ? `${chosen.name} is played between two sides of ${chosen.sideSize} — that is ${exact}. Pick another round type for a bigger group.`
+              ? `${chosen.name} is ${headToHeadPhrase(chosen.sideSize)} — ${exact} players. Pick another round type for a bigger group.`
               : `${QUICK_ROUND_MAX_PLAYERS} is the most for a casual round — beyond two fourballs, set up a tournament.`}
           </p>
         )}

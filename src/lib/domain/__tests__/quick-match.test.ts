@@ -292,9 +292,13 @@ describe("a round played in pairs", () => {
     expect(r.ok).toBe(false);
     if (r.ok) return;
     // "Four-Ball needs 4 players" is true and unhelpful the second time you
-    // read it. The reason is the rule: two sides of two.
+    // read it. The reason is the game: two against two.
     expect(r.error).toContain("4");
-    expect(r.error).toMatch(/two sides/i);
+    expect(r.error).toMatch(/two against two/i);
+    // And in words rather than arithmetic. Composing this sentence from
+    // sideSize gave "played between two sides of 1 — that is 2 players",
+    // which is correct and not English.
+    expect(r.error).not.toMatch(/sides of \d/i);
   });
 
   it("derives the required count rather than storing it", () => {
