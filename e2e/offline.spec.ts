@@ -124,7 +124,37 @@ test("it tells the scorer the truth: kept, not failed", async ({ page, context }
   await expect(status).toContainText(/saved on this phone/i);
   await expect(status).not.toContainText(/not saved/i);
 
+  /**
+   * DRAIN BEFORE ENDING — the same reason spelled out on the test above, which
+   * got this treatment and left this one without it.
+   *
+   * `setOffline(false)` starts the replay and does not wait for it, so the
+   * write was still in flight when the NEXT test loaded the card. That test
+   * read the revision as it stood, this one's write landed a moment later, and
+   * the queued card was refused: "This card also changed elsewhere — choose
+   * which to keep."
+   *
+   * Which is correct behaviour. A queued card is written whole and the server
+   * is right to refuse one built on a revision that has moved; the fault was
+   * this test leaving a write in flight across a test boundary.
+   *
+   * It surfaced on 2026-09-08 as a `/saved/i` timeout in the test below, on
+   * the phone leg only — so it read as flake, twice, which is exactly what the
+   * comment above predicted it would read as.
+   */
   await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() =>
+          Object.keys(window.localStorage).filter((k) =>
+            k.startsWith("tourneyhq:pending-card:"),
+          ).length,
+        ),
+      { timeout: 20_000 },
+    )
+    .toBe(0);
 });
 
 test("and sends it by itself when the signal comes back", async ({ page, context }) => {
