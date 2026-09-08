@@ -1,4 +1,5 @@
 import "server-only";
+import { isDataUrl, dataUrlProblem } from "@/lib/domain/logo-upload";
 
 /**
  * Check that a logo URL actually serves an image, from the server.
@@ -80,6 +81,24 @@ export function problemWithUrl(raw: string): string | null {
 export async function checkLogoUrl(raw: string): Promise<LogoCheck> {
   const trimmed = raw.trim();
   if (!trimmed) return { ok: true }; // Clearing the logo is always fine.
+
+  /**
+   * An UPLOADED logo is bytes we already hold, so there is nothing to fetch.
+   *
+   * Everything below this line exists to answer "will a stranger's browser
+   * load that URL", and a data URI carries its own answer: yes, always, with
+   * no host to block us, no cookie to mislead the preview and no hotlink
+   * policy to change next month. Fetching one would be meaningless, and
+   * running it through `problemWithUrl` would reject every upload for not
+   * starting with https://.
+   *
+   * What it does still need is the size and type rules, which is the half
+   * that must not be left to the browser — see logo-upload.ts.
+   */
+  if (isDataUrl(trimmed)) {
+    const problem = dataUrlProblem(trimmed);
+    return problem ? { ok: false, error: problem } : { ok: true };
+  }
 
   const urlProblem = problemWithUrl(trimmed);
   if (urlProblem) return { ok: false, error: urlProblem };

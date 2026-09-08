@@ -1,6 +1,14 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState, useRef, useTransition } from "react";
 import { saveOrganizationBranding } from "@/app/actions/organization";
+import {
+  LOGO_ACCEPT,
+  LOGO_EXT_LIST,
+  LOGO_UPLOAD_TYPES,
+  MAX_LOGO_BYTES,
+  isDataUrl,
+  dataUrlProblem,
+} from "@/lib/domain/logo-upload";
 import {
   brandLines,
   brandMonogram,
@@ -11,6 +19,70 @@ import {
 } from "@/lib/brand";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { Icon } from "./Icon";
+
+/**
+ * Load a picked file far enough to draw it.
+ *
+ * An `<img>` and an object URL rather than `createImageBitmap`, which is the
+ * tidier API and the narrower one: this runs on whatever browser an organizer
+ * happens to have, including older Safari, and a logo upload failing on a
+ * decode call is a worse trade than four extra lines.
+ */
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("That file could not be read as an image."));
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * Ladder of encodings, widest and best first.
+ *
+ * A club logo is inlined into every header, board and printed scorecard, so
+ * the stored string has to stay small — see MAX_LOGO_BYTES. PNG is tried at
+ * three sizes BEFORE any JPEG because a logo is the one image where
+ * transparency matters: dropping to JPEG puts a white box round a mark that
+ * was meant to sit on the club's own colour. Only an unusually detailed image
+ * gets that far, and a flat background beats a refusal.
+ */
+const ENCODINGS: Array<{ edge: number; type: string; quality?: number }> = [
+  { edge: 512, type: "image/png" },
+  { edge: 384, type: "image/png" },
+  { edge: 256, type: "image/png" },
+  { edge: 512, type: "image/jpeg", quality: 0.85 },
+  { edge: 384, type: "image/jpeg", quality: 0.8 },
+];
+
+/** Downscale and encode until it fits the cap, or give up honestly. */
+function shrink(img: HTMLImageElement): string | null {
+  for (const { edge, type, quality } of ENCODINGS) {
+    const scale = Math.min(1, edge / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const encoded = canvas.toDataURL(type, quality);
+    // A browser that cannot encode the type asked for silently returns PNG,
+    // so check what came back rather than what was requested.
+    if (encoded.length <= MAX_LOGO_BYTES) return encoded;
+  }
+  return null;
+}
 
 interface Props {
   name: string;
@@ -36,6 +108,10 @@ export function OrganizationClient(props: Props) {
   const [country, setCountry] = useState(props.country);
   const [brandDisplay, setBrandDisplay] = useState(props.brandDisplay);
   const [error, setError] = useState("");
+  /** Why the picked file was refused. Separate from `error`, which is the SAVE
+   *  failing — a rejected upload has changed nothing and saved nothing. */
+  const [uploadError, setUploadError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
   /** Saved, but the logo couldn't be reached from our server. */
   const [warning, setWarning] = useState("");
   const [saved, setSaved] = useState(false);
@@ -51,6 +127,52 @@ export function OrganizationClient(props: Props) {
     brandDisplay !== props.brandDisplay;
 
   const preview = brandLines(name, shortName, isBrandDisplay(brandDisplay) ? brandDisplay : "short");
+  const uploaded = isDataUrl(logoUrl);
+
+  /**
+   * Take a picked file, shrink it, and put it where the URL used to go.
+   *
+   * The file never leaves the browser as a file — it is resized and encoded
+   * here, and what reaches the server is the same `logoUrl` string the URL
+   * field has always produced. That is what makes this a small change rather
+   * than an upload pipeline: no route, no bucket, no signed URL, and every
+   * reader of the column untouched.
+   *
+   * The checks are duplicated on the server on purpose, not by oversight —
+   * `saveOrganizationBranding` is a public endpoint. These exist to tell the
+   * organizer WHICH file was wrong while they are still looking at the picker.
+   */
+  const pickFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploadError("");
+    setSaved(false);
+
+    if (!LOGO_UPLOAD_TYPES.some((t) => t.mime === file.type)) {
+      setUploadError(`That file is not a ${LOGO_EXT_LIST} image.`);
+      return;
+    }
+
+    try {
+      const img = await loadImage(file);
+      const encoded = shrink(img);
+      if (!encoded) {
+        setUploadError(
+          "That image is too detailed to store inline. Try a simpler or smaller one, or paste an https:// link to it.",
+        );
+        return;
+      }
+      // The same rule the server will apply, run here so a refusal names the
+      // file rather than arriving as a failed save.
+      const problem = dataUrlProblem(encoded);
+      if (problem) {
+        setUploadError(problem);
+        return;
+      }
+      setLogoUrl(encoded);
+    } catch {
+      setUploadError("That file could not be read as an image.");
+    }
+  };
 
   const save = () => {
     setError("");
@@ -141,19 +263,103 @@ export function OrganizationClient(props: Props) {
 
           <div className="field">
             <label>
-              Logo URL <span className="text-muted">· https:// link to an image</span>
+              Logo <span className="text-muted">· upload a file, or link to one</span>
             </label>
-            <input
-              className="input"
-              value={logoUrl}
-              disabled={!props.canEdit || pending}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              placeholder="https://yourclub.com/logo.png"
-            />
-            <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
-              Most clubs already host a logo on their website — right-click it there and copy the image
-              address. A square or wide transparent PNG works best. Direct file upload needs storage that
-              isn&rsquo;t set up yet.
+
+            {/* An UPLOADED logo is held in the same field as a URL, so the box
+                would otherwise show a quarter of a megabyte of base64. Nobody
+                needs to read that, and it cannot be usefully edited — so an
+                upload gets its own row saying what it is, with the way back
+                out beside it. */}
+            {uploaded ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 10px",
+                  border: "1px solid var(--color-divider)",
+                  borderRadius: "var(--radius-md)",
+                }}
+              >
+                {
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logoUrl}
+                    alt=""
+                    style={{ height: 26, width: "auto", maxWidth: 90, objectFit: "contain", flex: "none" }}
+                  />
+                }
+                <span style={{ fontSize: 13, minWidth: 0 }}>
+                  Uploaded image
+                  <span className="text-muted"> · {Math.round(logoUrl.length / 1024)}KB</span>
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ marginLeft: "auto", fontSize: 12 }}
+                  disabled={!props.canEdit || pending}
+                  onClick={() => {
+                    setLogoUrl("");
+                    setUploadError("");
+                  }}
+                >
+                  <Icon name="x" /> Remove
+                </button>
+              </div>
+            ) : (
+              <input
+                className="input"
+                value={logoUrl}
+                disabled={!props.canEdit || pending}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                placeholder="https://yourclub.com/logo.png"
+              />
+            )}
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+              {/* The input itself is hidden because the native control renders
+                  differently on every platform and none of them match the rest
+                  of this form. The button drives it, which keeps the file
+                  picker native where it matters. */}
+              <input
+                ref={fileRef}
+                type="file"
+                accept={LOGO_ACCEPT}
+                hidden
+                onChange={(e) => {
+                  void pickFile(e.target.files?.[0]);
+                  // Cleared so picking the SAME file again still fires a
+                  // change event — otherwise a retry after a failed upload
+                  // does nothing at all.
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={!props.canEdit || pending}
+                onClick={() => fileRef.current?.click()}
+              >
+                <Icon name="upload-simple" /> {uploaded ? "Replace image" : "Upload an image"}
+              </button>
+              <span className="text-muted" style={{ fontSize: 12 }}>
+                {LOGO_EXT_LIST}, up to {Math.round(MAX_LOGO_BYTES / 1024)}KB
+              </span>
+            </div>
+
+            {uploadError && (
+              <p style={{ fontSize: 12, margin: "8px 0 0", color: "var(--color-danger)" }}>
+                <Icon name="warning-circle" /> {uploadError}
+              </p>
+            )}
+
+            <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+              Upload a {LOGO_EXT_LIST} file and it is resized and stored with your club, so it works for
+              players and on printed scorecards without depending on another website. Or, if your logo is
+              already on your club&rsquo;s site, right-click it there and paste the image address above —
+              an SVG works that way too. A square or wide transparent PNG looks best.
             </p>
           </div>
 
