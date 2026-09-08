@@ -8,6 +8,7 @@ import { requestSkinsEntry } from "@/app/actions/skins";
 import type { MoneyView, ExpenseRow } from "@/lib/services/expenses";
 import { shareField, initialsOf } from "@/lib/share-field";
 import { unitemisedGames } from "@/lib/domain/money-breakdown";
+import { splitLabel } from "@/lib/domain/expense-split-label";
 import { PersonChip } from "@/components/PersonChip";
 import { useMoney } from "@/components/CurrencyProvider";
 import { ConfirmButton } from "./ConfirmButton";
@@ -1046,15 +1047,13 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                     : e.unknownPayer
                       ? "Paid by someone no longer in the field"
                       : `Paid by ${e.paidByName}`}
-                  {" · "}
-                  {/* THE DIVISION, NOT THE COUNT.
-                      This said "6 shares". A count is not checkable; a
-                      division is — "$1,986.00 ÷ 6" is the arithmetic somebody
-                      can do in their head and then trust. It only says ÷ when
-                      the split really is even: an exact-amount or weighted
-                      line says "across", because printing ÷ over a 2:2:2:1
-                      room-night split would be a tidy lie. */}
-                  {splitLabel(e, money)}
+                  {/* One separator. `splitLabel` used to return its own as
+                      well, so every row on this screen read "Paid by Priya
+                      Nair · · $30.00 ÷ 2". The rule it encodes — ÷ only when
+                      the split really is even — now lives in
+                      domain/expense-split-label.ts, where it can be asserted
+                      without seeding a ledger. */}
+                  {` · ${splitLabel(e.amountCents, e.shares, money)}`}
                   {e.category && e.category !== "other" && ` · ${expenseCategoryLabel(e.category)}`}
                   {e.spentOn && ` · ${e.spentOn}`}
                 </span>
@@ -1155,14 +1154,6 @@ export function MoneyClient({ view }: { view: MoneyView }) {
  * says "across", because a ÷ over an uneven split is a tidy lie and this
  * screen's whole job is being trusted.
  */
-function splitLabel(e: ExpenseRow, money: (cents: number) => string): string {
-  const on = e.shares.filter((s) => s.weight > 0 || (s.exactCents ?? 0) !== 0);
-  if (on.length === 0) return " · no shares";
-  const exact = on.some((s) => s.exactCents !== null && s.exactCents !== 0);
-  const even = !exact && on.every((s) => s.weight === on[0].weight);
-  return ` · ${money(e.amountCents)} ${even ? "÷" : "across"} ${on.length}`;
-}
-
 /**
  * The people a bill touches, on one line, as initials.
  *
