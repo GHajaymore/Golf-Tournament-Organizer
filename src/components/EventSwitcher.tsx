@@ -216,10 +216,15 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>
-            Just playing a match?
+            Just playing a round?
           </div>
+          {/* Said "two players, one round, hole by hole", which described the
+              screen exactly until it learned about medals and fourballs. A
+              door that undersells what is behind it is not a small error: it
+              is read INSTEAD of the screen by everybody who decides here. */}
           <div className="text-muted" style={{ fontSize: 12, marginTop: 2, lineHeight: 1.5 }}>
-            Two players, one round, hole by hole. You don&rsquo;t need a tournament for this.
+            A match, a medal or a fourball. Up to eight players, one round, no tournament
+            needed.
           </div>
         </div>
         <Icon

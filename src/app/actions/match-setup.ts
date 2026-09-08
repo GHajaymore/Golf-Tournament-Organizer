@@ -11,23 +11,32 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { planMatch, type MatchSetupInput } from "@/lib/domain/quick-match";
 
 /**
- * Create a match between two people, whole, in one call.
+ * Create ONE casual round, whole, in one call.
  *
  * The tournament path asks the same questions across six screens because a
- * tournament genuinely has six screens' worth of decisions in it. A match has
- * about four, and every one of the others has an answer that is right every
- * time: one flight, one round, match play, the field is the two of them.
+ * tournament genuinely has six screens' worth of decisions in it. A casual
+ * round has about four, and every one of the others has an answer that is
+ * right every time: one flight, one round, the field is whoever is playing.
  *
  * So this makes none of those decisions itself — `planMatch` does, and it is a
  * pure function with a test. What lives here is the writing, in the order the
  * schema requires it: organization, event, roster members, entries, the one
- * flight, the round, and the match itself.
+ * flight, the round, and — only for a head-to-head — the match itself.
+ *
+ * ONE round, and no way to ask for a second. Not a limitation: a sequence of
+ * rounds carrying a standing between them is a competition, and a competition
+ * is what the tournament builder is for. This screen ends when the round does.
  *
  * WHY THE MATCH ROW IS WRITTEN HERE rather than left to the flight generator:
  * generating flights is what draws a round-robin schedule, and sending someone
  * to a second screen to press "Generate" for a fixture whose two players were
  * known before the event existed is exactly the step this screen removes. The
  * pairing is not a draw. It is the thing they asked for.
+ *
+ * And it is written ONLY when there is one to write. A four-person medal has
+ * no head-to-head in it, and a `Match` row on such a round is a fixture nobody
+ * played — sitting in the schedule, counted as a result, and halved on arrival
+ * because nobody will ever put a hole on it.
  */
 export interface CreateMatchResult {
   ok: boolean;
@@ -77,6 +86,19 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
       status: "live",
       configUnlocked: true,
       shape: "match",
+      /**
+       * SET, not left to the column default — which is "match".
+       *
+       * `isStroke` is `event.format === "stroke"` and nothing else: the
+       * STAGE's format does not set it, however plainly the stage says Stroke
+       * Play. So a medal round created without this line has no ranked
+       * standings at all — an empty leaderboard and an honours board reporting
+       * "no ranked results" for a round three people have just finished. That
+       * trap was walked into once while seeding a fixture on 2026-09-07, and
+       * the only reason it was caught is that the fixture was being read
+       * rather than assumed.
+       */
+      format: plan.eventFormat,
       // The club's house defaults still apply — a club that scores everything
       // itself should not find its own match set to player entry — but two
       // people playing each other are the only two who can score it, so the
@@ -88,7 +110,19 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
       // Nobody else is watching, and there is no committee to approve a card
       // that both players just agreed on standing on the 18th green.
       scoreApproval: "players",
-      attestBy: "opponent",
+      /**
+       * Who signs the card, and it is not the same question in the two games.
+       *
+       * In match play your opponent is standing next to you for every shot,
+       * so "opponent" is both the strictest available answer and a free one.
+       * In stroke play there IS no opponent — Rule 3.3b gives the job to a
+       * MARKER, somebody else in the group who keeps your card — and asking a
+       * four-person medal for an opponent's signature names a person the round
+       * does not contain. `ruleFrom` would fall back to "marker" anyway, which
+       * is the correct answer arrived at by accident; this is it arrived at on
+       * purpose, so the stored setting says what the screen will do.
+       */
+      attestBy: plan.drawsMatch ? "opponent" : "marker",
       attendanceMode: "everyone",
     },
   });
@@ -108,7 +142,15 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
     data: {
       eventId: event.id,
       position: 0,
-      type: "Round Robin",
+      /**
+       * The type the plan chose, not "Round Robin, always".
+       *
+       * `stage-types.ts` is explicit about what the hard-coded version costs:
+       * a round robin set to Stroke Play "generated a full set of pairings for
+       * a round in which nobody plays anybody". A medal is a "Stroke Play
+       * Round", which draws none.
+       */
+      type: plan.stageType,
       description: "",
       format: plan.format,
       holes: plan.holes,
@@ -170,31 +212,80 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
   }
 
   /**
-   * One null per hole — NOT the column's `"[]"` default.
+   * The sides, for a pairs round.
    *
-   * `resolveMatch` reads an empty array as nought holes played out of nought
-   * remaining, which is a finished match that was halved. So a match created
-   * with the default arrived on the dashboard already "Halved", already
-   * "Awaiting review", and already counted as a result in — before either
-   * player had left the first tee. Every other path that creates a match
-   * writes the null array for exactly this reason; this one relied on a schema
-   * default that means something else.
+   * Written from the plan's own grouping rather than paired up again here —
+   * `sidesFrom` decided it, the setup screen displayed that decision above the
+   * name fields, and this writes the thing the players were shown.
+   *
+   * `position` is not cosmetic and is why the seeds are stored in order:
+   * foursomes alternate who tees off on odd and even holes, so a side is a
+   * sequence. The schema says so where it declares the column.
    */
-  const emptyHoles = JSON.stringify(new Array(plan.holes).fill(null));
+  const teamIds: string[] = [];
+  for (const [i, side] of plan.sides.entries()) {
+    const team = await prisma.team.create({
+      data: { eventId: event.id, stageId: stage.id, name: side.name, seed: i + 1 },
+    });
+    teamIds.push(team.id);
+    await prisma.teamMember.createMany({
+      data: side.seeds.map((seed, position) => ({
+        teamId: team.id,
+        playerId: playerIds[seed - 1],
+        position,
+      })),
+    });
+  }
 
-  await prisma.match.create({
-    data: {
-      eventId: event.id,
-      stageId: stage.id,
-      groupId: group.id,
-      round: 1,
-      playerAId: playerIds[0],
-      playerBId: playerIds[1],
-      holes: emptyHoles,
-      nine: plan.nine,
-      courseId: plan.courseId,
-    },
-  });
+  /**
+   * The fixture, for the round types that have one.
+   *
+   * A medal falls straight past this: the cards ARE the round, and every
+   * result comes off `Scorecard`. See the note at the top of the file for what
+   * a `Match` row on a stroke round does instead of nothing.
+   */
+  if (plan.drawsMatch) {
+    /**
+     * One null per hole — NOT the column's `"[]"` default.
+     *
+     * `resolveMatch` reads an empty array as nought holes played out of nought
+     * remaining, which is a finished match that was halved. So a match created
+     * with the default arrived on the dashboard already "Halved", already
+     * "Awaiting review", and already counted as a result in — before either
+     * player had left the first tee. Every other path that creates a match
+     * writes the null array for exactly this reason; this one relied on a
+     * schema default that means something else.
+     */
+    const emptyHoles = JSON.stringify(new Array(plan.holes).fill(null));
+
+    await prisma.match.create({
+      data: {
+        eventId: event.id,
+        stageId: stage.id,
+        groupId: group.id,
+        round: 1,
+        /**
+         * ONE pair of columns, never both.
+         *
+         * The schema is explicit: in a team format the team columns hold the
+         * sides and the player columns are empty, "deliberately not repurposed
+         * to hold a team id, because a column whose meaning depends on the
+         * round's format is the kind of thing that silently mis-joins a year
+         * later". A four-ball match filling BOTH would name two of its four
+         * players as the individual sides, and every reader that checks the
+         * player columns first — `matchSidesOf` among them — would score a
+         * pairs match as a singles between whoever was typed in first.
+         */
+        playerAId: plan.sides.length ? "" : playerIds[0],
+        playerBId: plan.sides.length ? "" : playerIds[1],
+        teamAId: plan.sides.length ? teamIds[0] : "",
+        teamBId: plan.sides.length ? teamIds[1] : "",
+        holes: emptyHoles,
+        nine: plan.nine,
+        courseId: plan.courseId,
+      },
+    });
+  }
 
   await setActiveEvent(event.id);
   /**

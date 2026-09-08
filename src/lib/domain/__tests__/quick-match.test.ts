@@ -4,9 +4,13 @@ import {
   parseHandicap,
   matchNeedsCard,
   matchTitle,
+  exactPlayersFor,
+  sidesFrom,
+  QUICK_ROUND_FORMATS,
   HANDICAP_MIN,
   HANDICAP_MAX,
 } from "../quick-match";
+import { GOLF_FORMATS } from "@/lib/formats";
 import { resolveMatch } from "../match";
 import { isMatch, capabilitiesOf, shapeOption, isTournamentShape } from "@/lib/tournament-shape";
 
@@ -42,7 +46,7 @@ describe("planning a match", () => {
     expect(r.error).toMatch(/two players/i);
   });
 
-  it("refuses two players with the same name", () => {
+  it("refuses two players with the same name, and says which name", () => {
     // Not pedantry: the match is stored as A against B and read back as a name
     // on each side of a card, so two identical names produce a scorecard on
     // which no hole can be attributed. Case-insensitive, because "sam" and
@@ -50,12 +54,49 @@ describe("planning a match", () => {
     const r = planMatch({ players: [{ name: "Sam" }, { name: "sam" }] });
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.error).toMatch(/same name/i);
+    // NAMED, which matters more the longer the list gets: "two players have
+    // the same name" sends somebody hunting through eight rows for the pair.
+    // As FIRST entered — "both called sam" is the spelling they did not type.
+    expect(r.error).toContain("Sam");
   });
 
-  it("refuses a third player rather than dropping them silently", () => {
-    const r = planMatch({ players: [{ name: "A" }, { name: "B" }, { name: "C" }] });
+  it("catches a duplicate anywhere in the list, not just in the first two", () => {
+    // The check was written for a pair and read only the pair. A fourball with
+    // two Daves has exactly the same unattributable card, and the third and
+    // fourth rows were where it went unnoticed.
+    const r = planMatch({
+      players: [{ name: "A" }, { name: "B" }, { name: "Dave" }, { name: "dave" }],
+      format: "Stroke Play",
+    });
     expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toContain("Dave");
+  });
+
+  it("refuses a third player at MATCH play, and takes them at stroke play", () => {
+    /**
+     * The pair of assertions is the test — either alone is satisfied by a
+     * wrong rule.
+     *
+     * "Three is refused" alone passes the old code, which refused a third
+     * player at every format. "Three is accepted" alone passes a rule that
+     * dropped the two-player limit entirely, and match play between three
+     * people is not a game — it is a fixture with a spare player standing on
+     * the tee.
+     */
+    const asMatch = planMatch({
+      players: [{ name: "A" }, { name: "B" }, { name: "C" }],
+      format: "Match Play",
+    });
+    expect(asMatch.ok).toBe(false);
+    if (!asMatch.ok) expect(asMatch.error).toContain("Match Play");
+
+    const asStroke = planMatch({
+      players: [{ name: "A" }, { name: "B" }, { name: "C" }],
+      format: "Stroke Play",
+    });
+    expect(asStroke.ok).toBe(true);
+    if (asStroke.ok) expect(asStroke.plan.players).toHaveLength(3);
   });
 
   it("gives shots only when asked, and calls that net", () => {
@@ -98,6 +139,221 @@ describe("planning a match", () => {
     const r = planMatch({ players: [{ name: "Zed" }, { name: "Abe" }] });
     expect(r.ok && r.plan.players.map((p) => p.seed)).toEqual([1, 2]);
     expect(r.ok && r.plan.players[0].name).toBe("Zed");
+  });
+});
+
+/**
+ * The three structural answers, which are invisible on the screen that sets
+ * the round up and decide whether it can be scored at all.
+ *
+ * Every one of these has a wrong answer that looks completely normal until
+ * somebody finishes a round: a stroke round left at the event's default format
+ * has an EMPTY leaderboard, a stroke round typed as a round robin draws
+ * pairings for a game nobody is playing, and a stroke round carrying a `Match`
+ * row shows a fixture that was halved before anyone teed off. None of the
+ * three is visible in the plan's name, holes or format.
+ */
+describe("what a round type actually builds", () => {
+  const plan = (format: string, players = 3) => {
+    const r = planMatch({
+      players: Array.from({ length: players }, (_, i) => ({ name: `P${i + 1}` })),
+      format,
+    });
+    if (!r.ok) throw new Error(`expected a plan for ${format}: ${r.error}`);
+    return r.plan;
+  };
+
+  it("builds match play as a head-to-head", () => {
+    const p = plan("Match Play", 2);
+    expect(p.stageType).toBe("Round Robin");
+    expect(p.eventFormat).toBe("match");
+    expect(p.drawsMatch).toBe(true);
+  });
+
+  it("builds a medal as cards, with no fixture and no match-format event", () => {
+    for (const name of ["Stroke Play", "Modified Stableford"]) {
+      const p = plan(name);
+      // "Stroke Play Round" and not "Round Robin": `stage-types.ts` records
+      // what the confused version did — a full set of pairings for a round in
+      // which nobody plays anybody.
+      expect(p.stageType, name).toBe("Stroke Play Round");
+      // `isStroke` is `event.format === "stroke"` and nothing else. The stage
+      // saying Stroke Play does not set it, and a round that misses this has
+      // no ranked standings at all.
+      expect(p.eventFormat, name).toBe("stroke");
+      expect(p.drawsMatch, name).toBe(false);
+    }
+  });
+
+  it("answers differently for the two, or the assertions above prove nothing", () => {
+    // Both blocks pass a constant. This is the one that cannot.
+    const m = plan("Match Play", 2);
+    const s = plan("Stroke Play");
+    expect(m.stageType).not.toBe(s.stageType);
+    expect(m.eventFormat).not.toBe(s.eventFormat);
+    expect(m.drawsMatch).not.toBe(s.drawsMatch);
+  });
+
+  it("takes up to eight, and sends a ninth to the tournament builder", () => {
+    // Two fourballs is the most that goes out together. Past it somebody is
+    // running a competition and wants a field, flights and a tee sheet.
+    const eight = planMatch({
+      players: Array.from({ length: 8 }, (_, i) => ({ name: `P${i + 1}` })),
+      format: "Stroke Play",
+    });
+    expect(eight.ok).toBe(true);
+
+    const nine = planMatch({
+      players: Array.from({ length: 9 }, (_, i) => ({ name: `P${i + 1}` })),
+      format: "Stroke Play",
+    });
+    expect(nine.ok).toBe(false);
+    if (!nine.ok) expect(nine.error).toMatch(/tournament/i);
+  });
+
+  it("refuses a format it does not offer rather than quietly playing match play", () => {
+    // The list is the offer. Falling back to the default here would create a
+    // Match Play round for somebody who asked for a scramble, and say nothing.
+    const r = planMatch({ players: [{ name: "A" }, { name: "B" }], format: "Scramble" });
+    expect(r.ok).toBe(false);
+  });
+
+  it("names a multi-player round without pretending it is a match", () => {
+    // "A v B v C" would be a match between three, which is not a thing.
+    const p = plan("Stroke Play", 3);
+    expect(p.name).not.toContain(" v ");
+    expect(p.name).toContain("P1");
+  });
+});
+
+/**
+ * Pairs, which is the half of this screen that can write the wrong COLUMN.
+ *
+ * The schema is explicit that a team round leaves the player columns empty and
+ * an individual round leaves the team columns empty, "deliberately not
+ * repurposed … because a column whose meaning depends on the round's format is
+ * the kind of thing that silently mis-joins a year later". Everything below is
+ * about the plan being unambiguous enough that the action cannot get that
+ * wrong.
+ */
+describe("a round played in pairs", () => {
+  const four = (format: string, n = 4) =>
+    planMatch({
+      players: Array.from({ length: n }, (_, i) => ({ name: `P${i + 1}` })),
+      format,
+    });
+
+  it("draws two sides from the names in the order they were entered", () => {
+    const r = four("Four-Ball");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.sideSize).toBe(2);
+    // Named as a pair would name itself, and NOT with a "v" — `Team.name`
+    // appears on the card, the board and the entry screen, so "P1 v P2" would
+    // read as a match inside a match everywhere it is shown.
+    expect(r.plan.sides.map((s) => s.name)).toEqual(["P1 & P2", "P3 & P4"]);
+    // Order within a side is not cosmetic: foursomes alternate who tees off.
+    expect(r.plan.sides.map((s) => s.seeds)).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
+    // And every player knows which side they are on, so nothing has to pair
+    // them up a second time.
+    expect(r.plan.players.map((p) => p.side)).toEqual([0, 0, 1, 1]);
+    expect(r.plan.name).toBe("P1 & P2 v P3 & P4");
+  });
+
+  it("leaves an individual round with no sides at all", () => {
+    const r = planMatch({ players: [{ name: "A" }, { name: "B" }], format: "Match Play" });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // NOT "one side per player". The action asks `sides.length` to decide
+    // whether to write teams, so a singles round carrying two one-person teams
+    // would fill the fixture's TEAM columns instead of its player columns.
+    expect(r.plan.sides).toEqual([]);
+    expect(r.plan.sideSize).toBe(1);
+    // -1, not 0. Zero is a real side, and "everybody on side 0" is a fixture
+    // with four players on one team that looks plausible in the database.
+    expect(r.plan.players.every((p) => p.side === -1)).toBe(true);
+  });
+
+  it("needs four for a pairs match — not two, and not three", () => {
+    // A match is two sides, so a pairs match is four people. Asserting all
+    // three counts, because "refuses two" alone is satisfied by a rule that
+    // refuses everything.
+    expect(four("Four-Ball", 2).ok).toBe(false);
+    expect(four("Four-Ball", 3).ok).toBe(false);
+    expect(four("Four-Ball", 4).ok).toBe(true);
+    expect(four("Four-Ball", 5).ok).toBe(false);
+  });
+
+  it("says how many, and how the number was arrived at", () => {
+    const r = four("Four-Ball", 3);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    // "Four-Ball needs 4 players" is true and unhelpful the second time you
+    // read it. The reason is the game: two against two.
+    expect(r.error).toContain("4");
+    expect(r.error).toMatch(/two against two/i);
+    // And in words rather than arithmetic. Composing this sentence from
+    // sideSize gave "played between two sides of 1 — that is 2 players",
+    // which is correct and not English.
+    expect(r.error).not.toMatch(/sides of \d/i);
+  });
+
+  it("derives the required count rather than storing it", () => {
+    // The regression this replaces: `exactPlayers: 2` written by hand next to
+    // match play. A second head-to-head entry needing a different number is
+    // where a hand-kept figure and the rule come apart.
+    for (const f of QUICK_ROUND_FORMATS) {
+      expect(exactPlayersFor(f), f.name).toBe(f.headToHead ? f.sideSize * 2 : null);
+    }
+    expect(exactPlayersFor(QUICK_ROUND_FORMATS.find((f) => f.name === "Match Play")!)).toBe(2);
+    expect(exactPlayersFor(QUICK_ROUND_FORMATS.find((f) => f.name === "Four-Ball")!)).toBe(4);
+  });
+
+  it("groups by side size and drops nobody", () => {
+    expect(sidesFrom([1, 2, 3, 4], 2)).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
+    // An individual round has no sides — see the plan test above.
+    expect(sidesFrom([1, 2], 1)).toEqual([]);
+    // A leftover player is never quietly folded into an existing side, which
+    // would put three people in a pair. `planMatch` refuses the count before
+    // this is ever reached; this asserts the function does not paper over it.
+    expect(sidesFrom([1, 2, 3], 2)).toEqual([[1, 2]]);
+  });
+});
+
+/**
+ * The offer matches the catalogue.
+ *
+ * `Stage.format` is read back through `lookupFormat`, so a name in this list
+ * that the catalogue does not carry produces a round with no engine — set up,
+ * played, and with nowhere to enter a card. The catalogue is the authority;
+ * this asserts the short list defers to it rather than restating it.
+ */
+describe("every round type on offer is a real, playable format", () => {
+  it("names a playable entry in the catalogue", () => {
+    for (const f of QUICK_ROUND_FORMATS) {
+      const entry = GOLF_FORMATS.find((c) => c.name === f.name);
+      expect(entry, `${f.name} is not in formats.ts`).toBeDefined();
+      // `scored` is not enough and the catalogue says why: the two were once
+      // one flag, and a picker reading "an engine exists" as "you can run
+      // this" hands somebody a format with nowhere to enter a card.
+      expect(entry!.playable, f.name).toBe(true);
+      // The side size has to agree, or the screen takes four names for a
+      // format the engine scores as singles.
+      expect(entry!.sideSize, f.name).toBe(f.sideSize);
+    }
+  });
+
+  it("offers both an individual and a pairs round type", () => {
+    // Otherwise the grouping on the screen renders an empty heading, and the
+    // assertions above are satisfied by a list with one entry in it.
+    expect(QUICK_ROUND_FORMATS.some((f) => f.sideSize === 1)).toBe(true);
+    expect(QUICK_ROUND_FORMATS.some((f) => f.sideSize === 2)).toBe(true);
   });
 });
 

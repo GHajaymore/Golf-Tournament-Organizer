@@ -8,7 +8,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { Icon } from "@/components/Icon";
 import { NOINDEX } from "@/lib/site";
 
-export const metadata = { title: "Set up a match", robots: NOINDEX };
+export const metadata = { title: "Set up a round", robots: NOINDEX };
 
 /**
  * Two people, one round, one screen.
@@ -71,10 +71,19 @@ export default async function NewMatchPage() {
           <BrandMark />
         </div>
 
-        <div className="page-kicker">Just the two of you</div>
-        <h1 style={{ fontSize: 30, margin: "8px 0 4px" }}>Set up a match</h1>
+        {/* The heading and the form have to describe the same screen.
+
+            Both of these said "match play, two people" — which was the whole
+            of this page, and stopped being true the moment the form learned
+            about round types and pairs. A stale heading is not cosmetic here:
+            it is the first thing read, so a fourball arriving to be told the
+            screen is for two people leaves before scrolling to the list that
+            offers exactly what they came for. */}
+        <div className="page-kicker">One round, no apparatus</div>
+        <h1 style={{ fontSize: 30, margin: "8px 0 4px" }}>Set up a round</h1>
         <p className="text-muted" style={{ fontSize: 14, margin: "0 0 24px", lineHeight: 1.6 }}>
-          Match play, hole by hole. Two names is all it takes — everything else has an answer
+          A match, a medal or a fourball — scored properly, with nothing to configure.
+          Pick what you&rsquo;re playing and who&rsquo;s in it; everything else has an answer
           already, and every one of them can be changed afterwards.
         </p>
 

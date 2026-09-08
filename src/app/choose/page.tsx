@@ -251,10 +251,15 @@ export default async function ChooseTournamentPage({
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 16 }}>
-              Playing a match?
+              Just playing a round?
             </div>
+            {/* Kept in step with the same door on the tournament switcher and
+                with the screen itself — three places describing one screen is
+                three places to drift, and all three said "two players" the day
+                that stopped being true. */}
             <div className="text-muted" style={{ fontSize: 12, marginTop: 3, lineHeight: 1.5 }}>
-              Two players, one round, hole by hole. Two names and you&rsquo;re on the first tee.
+              A match, a medal or a fourball. Up to eight players, one round, no tournament
+              needed.
             </div>
           </div>
           <Icon name="arrow-right" style={{ color: "var(--color-accent-300)", marginLeft: "auto", flex: "none" }} />
