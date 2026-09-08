@@ -2059,22 +2059,43 @@ describe("the tee sheet is drawn for the selected round", () => {
  * against the real `drawBrackets`, which is the thing the screen was inventing
  * its own version of.
  */
-describe("the qualification screen counts the draw the tournament will make", () => {
-  const page = readSource("src", "app", "(app)", "qualification", "page.tsx");
+describe("the qualification numbers count the draw the tournament will make", () => {
+  /**
+   * FOLLOWED TO WHERE THE CODE WENT.
+   *
+   * This read `qualification/page.tsx`, which is now a redirect: the audit
+   * lives under the draw it seeds, on /bracket, with its markup in
+   * QualificationPanel. The rule it pins is unchanged and still worth pinning —
+   * the screen once hardcoded a half-and-half split and never read
+   * `bracketMode`, so it described a draw the tournament was not going to make.
+   *
+   * Moved rather than deleted, and split across the two files the code now
+   * occupies: the page works the numbers out, the panel prints them.
+   */
+  const page = readSource("src", "app", "(app)", "bracket", "page.tsx");
+  const panel = readSource("src", "components", "QualificationPanel.tsx");
 
   it("asks drawBrackets rather than halving the field", () => {
     // It hardcoded `ceil(n/2)` and `floor(n/2)` and never read bracketMode.
-    expect(page).toMatch(/drawBrackets\(qualifiers, mode\)/);
-    expect(stripComments(page)).not.toMatch(/Math\.ceil\(qualifiers\.length \/ 2\)/);
-    expect(stripComments(page)).not.toMatch(/Math\.floor\(qualifiers\.length \/ 2\)/);
+    expect(page).toMatch(/drawBrackets\(state\.qualifiers, mode\)/);
+    expect(stripComments(page)).not.toMatch(/Math\.ceil\([^)]*qualifiers[^)]*\/ 2\)/);
+    expect(stripComments(page)).not.toMatch(/Math\.floor\([^)]*qualifiers[^)]*\/ 2\)/);
   });
 
   it("reads the organizer's bracket mode", () => {
-    expect(page).toMatch(/isBracketMode\(event\.bracketMode\)/);
+    expect(page).toMatch(/isBracketMode\(state\.event\.bracketMode\)/);
   });
 
   it("names the second bracket whatever the draw calls it", () => {
-    expect(page).toMatch(/To \{secondLabel\}/);
+    expect(panel).toMatch(/To \{secondLabel\}/);
+  });
+
+  it("leaves a redirect behind rather than a dead link", () => {
+    // An organizer's bookmark and this app's own screenshots still point at
+    // /qualification. Same treatment /scoring got when Match Points moved into
+    // the round builder.
+    const old = readSource("src", "app", "(app)", "qualification", "page.tsx");
+    expect(old).toMatch(/redirect\("\/bracket"\)/);
   });
 });
 

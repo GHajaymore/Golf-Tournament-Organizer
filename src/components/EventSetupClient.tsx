@@ -629,7 +629,12 @@ export function EventSetupClient({
             <li>Rounds &amp; formats — the rounds, and how each is scored</li>
             <li>Launch → setup locks</li>
             <li>Tee sheet → Score entry</li>
-            <li>Qualification → Bracket</li>
+            {/* One step, not two. Qualification was a screen of its own and is
+                now the audit under the draw it seeds — so naming both here
+                would send somebody looking for a sidebar entry that is not
+                there, which is the exact fault this list has already had
+                twice. */}
+            <li>Bracket — who qualified, and who plays whom</li>
             <li>Prizes &amp; payouts → Reports &amp; export</li>
           </ol>
         </div>

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { ROLES, SCREEN_ACCESS, canAccessScreen, landingScreenFor, type Role } from "../roles";
 import { NAV, navForRole } from "../nav";
 import { DEFAULT_SETTINGS, type TournamentSettings } from "../tournament-settings";
+import { readSource } from "./source";
 
 const ALL_NAV_KEYS = NAV.flatMap((s) => s.items.map((i) => i.key));
 
@@ -134,7 +135,7 @@ describe("sidebar matches the guards", () => {
     // ...and "My round" only for someone who is actually in the field, which
     // is a fact about the person rather than about the tournament — an
     // organizer who does not play would only reach a screen saying so.
-    const CONDITIONAL = ["teams", "qualification", "bracket", "week", "me"];
+    const CONDITIONAL = ["teams", "bracket", "week", "me"];
     for (const role of ROLES) {
       const shown = navForRole(role, undefined, { hasTeamRound: true, hasKnockout: true }).flatMap((s) =>
         s.items.map((i) => i.key),
@@ -234,29 +235,45 @@ describe("landing screens", () => {
   });
 });
 
-describe("qualification only appears when it has an answer", () => {
-  it("is hidden when the tournament has no knockout", () => {
-    // Its configuration moved into the round builder, so the screen's whole
-    // remaining job is previewing who advances. With nothing to advance to it
-    // reports "0 players qualify" on every tournament that simply ends at the
-    // last round.
-    const shown = navForRole("admin", undefined, { hasKnockout: false })
-      .flatMap((s) => s.items)
-      .map((i) => i.key);
-    expect(shown).not.toContain("qualification");
+describe("qualification is not a screen of its own", () => {
+  /**
+   * It was, and it was gated on `hasKnockout` — exactly the condition Bracket
+   * is gated on, so the two appeared and vanished together. That is what gave
+   * the merge away: two sidebar entries that are never separately available,
+   * showing the same players, one as "who goes through" and the other as "who
+   * they play". `/bracket`'s own subtitle already read "Seeded from
+   * qualification".
+   *
+   * The audit now sits under the draw it seeds.
+   */
+  it("has no entry in the sidebar, with or without a knockout", () => {
+    for (const hasKnockout of [true, false]) {
+      const shown = navForRole("admin", undefined, { hasKnockout })
+        .flatMap((s) => s.items)
+        .map((i) => i.key);
+      expect(shown, `hasKnockout: ${hasKnockout}`).not.toContain("qualification");
+    }
   });
 
-  it("appears once there is a knockout to qualify for", () => {
-    const shown = navForRole("admin", undefined, { hasKnockout: true })
-      .flatMap((s) => s.items)
-      .map((i) => i.key);
-    expect(shown).toContain("qualification");
+  it("has no access rule left behind", () => {
+    // Same as `scoring` and `scorecard`, which are also redirects and also
+    // absent from the map. A rule for a screen that no longer exists is a rule
+    // nobody maintains.
+    expect(canAccessScreen("admin", "qualification")).toBe(false);
   });
 
-  it("stays reachable by URL, so an existing link never dead-ends", () => {
-    // Hidden from the sidebar is not the same as forbidden — the guard is
-    // still the role check, and a bookmarked link must still open.
-    expect(canAccessScreen("admin", "qualification")).toBe(true);
+  it("did not hand its audience to somebody it was closed to", () => {
+    /**
+     * The rule it used to carry was admin and assistant only, while Bracket is
+     * open to players. Merging a staff screen into a player-visible one is
+     * exactly where an access rule gets lost, so this pins the half that
+     * matters: a player still reaches the draw, and the panel that renders the
+     * audit is guarded on `isStaff` at the call site.
+     */
+    expect(canAccessScreen("player", "bracket")).toBe(true);
+    const page = readSource("src", "app", "(app)", "bracket", "page.tsx");
+    expect(page).toMatch(/isStaff\s*$|isStaff\n/m);
+    expect(page).toMatch(/qualification && <QualificationPanel/);
   });
 });
 
@@ -269,15 +286,17 @@ describe("the sidebar only offers screens with something on them", () => {
       .flatMap((s) => s.items)
       .map((i) => i.key);
     expect(shown).not.toContain("bracket");
-    expect(shown).not.toContain("qualification");
   });
 
-  it("shows both once a knockout exists", () => {
+  it("shows it once a knockout exists", () => {
+    // One entry, not two. Qualification used to have its own beside this and
+    // was gated on the very same condition — see "qualification is not a
+    // screen of its own" above.
     const shown = navForRole("admin", undefined, { hasKnockout: true })
       .flatMap((s) => s.items)
       .map((i) => i.key);
     expect(shown).toContain("bracket");
-    expect(shown).toContain("qualification");
+    expect(shown).not.toContain("qualification");
   });
 
   it("no longer offers Scorecards, which the tee sheet absorbed", () => {
