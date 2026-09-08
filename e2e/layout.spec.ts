@@ -51,6 +51,32 @@ const SCREENS = readdirSync(join(process.cwd(), "src", "app", "(app)"), { withFi
   .map((e) => `/${e.name}`)
   .sort();
 
+/**
+ * The PLAYER's screens, read off the filesystem the same way.
+ *
+ * `SCREENS` above reads `(app)` and only `(app)`, so the heading sweep it
+ * feeds covered the console and nothing else — and `/me/money` was found on
+ * 2026-09-07 with no heading at ANY level, opening straight into "The pots".
+ *
+ * That is the failure the comment above SCREENS describes, one level up: the
+ * list was derived rather than curated, and the DIRECTORY it was derived from
+ * was still a choice somebody made once. A rule worth sweeping is worth
+ * sweeping over both shells.
+ *
+ * `/me` is the index page, which has no directory of its own.
+ */
+const PLAYER_SCREENS = [
+  "/me",
+  ...readdirSync(join(process.cwd(), "src", "app", "(player)", "me"), { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .filter((e) => !e.name.startsWith("[") && !e.name.startsWith("_") && !e.name.startsWith("("))
+    .filter((e) =>
+      existsSync(join(process.cwd(), "src", "app", "(player)", "me", e.name, "page.tsx")),
+    )
+    .map((e) => `/me/${e.name}`)
+    .sort(),
+];
+
 /** Elements sticking out past the viewport with nothing able to scroll them. */
 async function overflowing(page: Page) {
   return page.evaluate(() => {
@@ -104,20 +130,42 @@ async function overflowing(page: Page) {
  * several of those components can appear on the same route depending on
  * format, and two h1s is the failure that converting them all invites.
  */
+async function hasExactlyOneH1(page: Page, path: string) {
+  await page.goto(path);
+  await page.waitForLoadState("networkidle");
+  expect(new URL(page.url()).pathname, `${path} redirected away — not signed in?`).toBe(path);
+
+  const h1s = page.locator("h1");
+  const count = await h1s.count();
+  const texts = await h1s.allTextContents();
+  expect(count, `${path} has ${count} h1s: ${JSON.stringify(texts)}`).toBe(1);
+  await expect(h1s.first()).toBeVisible();
+  expect((texts[0] ?? "").trim().length, `${path}'s h1 is empty`).toBeGreaterThan(0);
+}
+
 for (const path of SCREENS) {
   test(`${path} has exactly one h1`, async ({ page }) => {
-    await page.goto(path);
-    await page.waitForLoadState("networkidle");
-    expect(new URL(page.url()).pathname, `${path} redirected away — not signed in?`).toBe(path);
-
-    const h1s = page.locator("h1");
-    const count = await h1s.count();
-    const texts = await h1s.allTextContents();
-    expect(count, `${path} has ${count} h1s: ${JSON.stringify(texts)}`).toBe(1);
-    await expect(h1s.first()).toBeVisible();
-    expect((texts[0] ?? "").trim().length, `${path}'s h1 is empty`).toBeGreaterThan(0);
+    await hasExactlyOneH1(page, path);
   });
 }
+
+/**
+ * And the player's screens, as a PLAYER.
+ *
+ * Its own context because the rest of this file is signed in as the organizer,
+ * and an organizer opening /me is not the reader this rule is about — a staff
+ * account is bounced off some of these, which would assert nothing while
+ * looking green.
+ */
+test.describe("the player shell", () => {
+  test.use({ storageState: join(process.cwd(), ".e2e", "player.json") });
+
+  for (const path of PLAYER_SCREENS) {
+    test(`${path} has exactly one h1`, async ({ page }) => {
+      await hasExactlyOneH1(page, path);
+    });
+  }
+});
 
 /**
  * EVERY ICON ON THE PAGE ACTUALLY DRAWS.
