@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { switchEvent, createEvent, cloneEvent, deleteEvent } from "@/app/actions/tournament";
 import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { Icon } from "./Icon";
@@ -161,6 +162,71 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
       </div>
       <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{blurb}</p>
       {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
+
+      {/* THE OTHER THING SOMEBODY COMES HERE TO MAKE, and until now the only
+          screen offering it was one they could no longer reach.
+
+          `/match/new` is "two people, one round, one screen", and it was
+          linked from exactly one place: `/choose`. But `page.tsx` sends anyone
+          with an active event straight to their landing screen, so once the
+          first tournament exists that door only reopens through the ORG
+          onboarding checklist — which disappears at 3 of 3. This screen is
+          where a returning organizer goes to create anything, and every one of
+          its six templates is a tournament.
+
+          The cost of the gap is on the record: two abandoned draft events in
+          the development database, five minutes apart, both with zero players
+          and both with their round left on the default Round Robin. Somebody
+          wanting one match against one person built a tournament twice and
+          gave up. The option they wanted already existed.
+
+          A LINK, not another form. The same argument as on /choose: what the
+          match screen asks — two names, holes, whether shots are given —
+          belongs together on one page, and half of it inline here would split
+          the decision across two places again. */}
+      <Link
+        href="/match/new"
+        className="card elev-sm"
+        style={{
+          marginTop: 4,
+          display: "flex",
+          // `.card` is `display: flex; flex-direction: column`, so setting
+          // `display: flex` inline changes nothing and the row comes out as a
+          // centred stack. Both cards on /choose had exactly this.
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          textDecoration: "none",
+          color: "var(--color-text)",
+          border: "1px solid var(--color-divider)",
+        }}
+      >
+        <div
+          style={{
+            width: 34,
+            height: 34,
+            flex: "none",
+            display: "grid",
+            placeItems: "center",
+            borderRadius: 9,
+            background: "color-mix(in srgb, var(--color-accent-2) 16%, transparent)",
+          }}
+        >
+          <Icon name="sword" style={{ color: "var(--color-accent-2)", fontSize: 16 }} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: "var(--font-heading)", fontWeight: 500, fontSize: 15 }}>
+            Just playing a match?
+          </div>
+          <div className="text-muted" style={{ fontSize: 12, marginTop: 2, lineHeight: 1.5 }}>
+            Two players, one round, hole by hole. You don&rsquo;t need a tournament for this.
+          </div>
+        </div>
+        <Icon
+          name="arrow-right"
+          style={{ color: "var(--color-accent-300)", marginLeft: "auto", flex: "none" }}
+        />
+      </Link>
     </div>
   );
 }
