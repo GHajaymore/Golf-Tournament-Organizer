@@ -198,15 +198,48 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
 /**
  * Remove a course from the library.
  *
- * Rounds and matches played on it keep their results and fall back to the
- * event's course — the foreign keys are SET NULL precisely so deleting a
- * venue can never delete a tournament's history.
+ * Rounds and matches played on it keep their results — and now actually do.
+ *
+ * `Event.courseId` is SET NULL, which preserves the ROWS and used to lose the
+ * CARD. An event that picked a stored course has no card of its own, so after
+ * the delete `resolveCourse` fell all the way through to `UNKNOWN_COURSE`:
+ * pars `[]`, stroke index `[]`. Measured — 18 pars before, 0 after.
+ *
+ * Everything derived from the card goes with it. To-par is computed against
+ * nothing, so a 70 on a par 72 reads "+70" on the public board; handicap
+ * allocation has no stroke index to allocate down. The strokes survive and
+ * every number made from them is wrong, which is worse than a visible loss.
+ *
+ * So the card is SNAPSHOT onto the event first, which is what this comment
+ * claimed all along and the same rule `Player.handicap` already follows:
+ * correcting a member's index today must not rewrite a tournament played last
+ * season. A venue is a live record; the card a round was scored against is
+ * history.
+ *
+ * Only events with no card of their own are touched — a deliberate custom
+ * card outranks the club's, and overwriting it would be this function
+ * deciding it knows better.
  */
 export async function deleteClubCourse(courseId: string): Promise<CourseResult> {
   const { organizationId } = await requireOrganizerOrg();
   const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
   if (!course) return { ok: false, error: "Course not found." };
-  await prisma.course.delete({ where: { id: courseId } });
+
+  // One transaction: an event that kept the reference but lost the snapshot,
+  // or a snapshot written against a course that then failed to delete, are
+  // both worse than either outcome alone.
+  await prisma.$transaction([
+    prisma.event.updateMany({
+      where: { courseId, customPars: "" },
+      data: {
+        customPars: course.pars,
+        customYards: course.yards,
+        customStrokeIndex: course.strokeIndex,
+      },
+    }),
+    prisma.course.delete({ where: { id: courseId } }),
+  ]);
+
   await refresh();
   return { ok: true };
 }
