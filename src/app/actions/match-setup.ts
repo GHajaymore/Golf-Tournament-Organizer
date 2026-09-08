@@ -9,6 +9,7 @@ import { syncPlayerAccount } from "@/lib/services/player-access";
 import { refusalFor } from "@/lib/services/limits";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { planMatch, type MatchSetupInput } from "@/lib/domain/quick-match";
+import { expiryFrom } from "@/lib/domain/round-expiry";
 
 /**
  * Create ONE casual round, whole, in one call.
@@ -99,6 +100,19 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
        * rather than assumed.
        */
       format: plan.eventFormat,
+      /**
+       * A casual round keeps itself for a day and then deletes itself.
+       *
+       * THE ONLY PLACE THIS COLUMN IS EVER WRITTEN, which is the whole safety
+       * argument for the sweep: a tournament has no expiry, has never had one,
+       * and there is no code path that could give it one. See
+       * `domain/round-expiry.ts`.
+       *
+       * The player is told, on this round's own screen, with a button that
+       * clears it. A default that destroys something needs an exit before it
+       * ships, and `keepRound` is it.
+       */
+      expiresAt: expiryFrom(new Date()),
       // The club's house defaults still apply — a club that scores everything
       // itself should not find its own match set to player entry — but two
       // people playing each other are the only two who can score it, so the

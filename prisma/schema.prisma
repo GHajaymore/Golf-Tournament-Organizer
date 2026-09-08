@@ -784,6 +784,26 @@ model Event {
    */
   shape            String  @default("series") // single | series | knockout
   /**
+   * When this event deletes itself, or null for one that never does.
+   *
+   * Set ONLY by `createMatch`, on a casual round, to 24 hours after it was set
+   * up. A tournament never carries one, and that is the whole design of this
+   * column: the sweep's condition is `expiresAt < now` and nothing else, so it
+   * is structurally incapable of reaching a tournament however wrong the rest
+   * of the query gets. The alternative considered was deriving it — delete
+   * anything with `shape = "match"` older than a day — and it is the shape of
+   * rule that quietly widens: `shape` is a description of a game, this is a
+   * decision about a row's lifetime, and the day something else legitimately
+   * sets `shape` to "match" that rule starts deleting it.
+   *
+   * NULLABLE and clearable, which is the recoverable half. A player who wants
+   * to keep a round presses "Keep this round" and this goes back to null,
+   * turning an irreversible default into a decision. Deleting a round somebody
+   * played and cannot get back is the one failure here that cannot be undone
+   * from anywhere, so the escape has to exist before the sweep does.
+   */
+  expiresAt        DateTime?
+  /**
    * Whether people play as individuals or as a side — asked once, at setup.
    * A DEFAULT, NEVER A CONSTRAINT. Nothing that scores a round may read this.
    * Team-ness is a property of each round's format, because it genuinely

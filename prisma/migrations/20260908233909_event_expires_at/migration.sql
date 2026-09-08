@@ -1,0 +1,15 @@
+-- When an event deletes itself, or NULL for one that never does.
+--
+-- Every existing row gets NULL, which is the point: a tournament has no expiry
+-- and never gets one, so the sweep's condition — `expiresAt < now()` — cannot
+-- reach a single row that existed before this migration ran. Additive,
+-- nullable, no default, no backfill.
+--
+-- Only `createMatch` ever writes it, and only on a casual round. The rule this
+-- replaces was "delete anything with shape = 'match' older than a day", which
+-- infers a row's LIFETIME from a description of the GAME — two different
+-- facts, and the day something else legitimately sets shape to "match" that
+-- rule starts deleting it.
+--
+-- AlterTable
+ALTER TABLE "Event" ADD COLUMN     "expiresAt" TIMESTAMP(3);
