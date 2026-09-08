@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SETUP_ORDER, bySetupOrder } from "@/lib/domain/setup-flow";
+import { allNavItems } from "@/lib/nav";
 import { setupChecklist, type ChecklistState } from "@/lib/services/checklist";
 import { readSource } from "./source";
 
@@ -144,5 +145,47 @@ describe("the step the dashboard never had", () => {
       .map((i) => i.href)
       .filter((h) => SETUP_ORDER.includes(h));
     expect(hrefs).toEqual([...SETUP_ORDER]);
+  });
+});
+
+describe("a screen has one name", () => {
+  /**
+   * `nav.ts` states the rule and grants exactly one exception — the phone's
+   * tab bar, where "Board" and "Scores" exist because a tab is 80px wide — and
+   * says of it: "confined to this list so it cannot spread."
+   *
+   * It had spread. The dashboard's Quick actions carried their own labels:
+   * "Players", "Rounds", "Prizes", "Reports", for screens the sidebar calls
+   * Registration & field, Rounds & formats, Prizes & payouts and Reports &
+   * export. Both names appear on the dashboard AT THE SAME TIME — the setup
+   * checklist says one, a tile below says the other, and they are the same
+   * link.
+   *
+   * Read from source rather than rendered, because the point is that the list
+   * carries no labels at all any more: a tile cannot disagree with the sidebar
+   * if it has nothing of its own to disagree with.
+   */
+  it("gives the dashboard's quick actions no labels of their own", () => {
+    const src = readSource("src", "app", "(app)", "dashboard", "page.tsx");
+    const list = src.slice(src.indexOf("const QUICK_ACTIONS"), src.indexOf("];", src.indexOf("const QUICK_ACTIONS")));
+    expect(list, "QUICK_ACTIONS is not where a screen gets named").not.toMatch(/label:/);
+    // And the tiles ask the sidebar for the name instead.
+    expect(src).toMatch(/screenName\(a\.href\)/);
+  });
+
+  it("points every quick action at a screen the sidebar still has", () => {
+    /**
+     * `/qualification` sat here after that screen was merged into `/bracket`.
+     * It rendered for nobody — `navHrefs.has()` filtered it — so nothing was
+     * visibly wrong, and a dead row in a list of live ones is exactly what
+     * nobody notices until they copy it.
+     */
+    const src = readSource("src", "app", "(app)", "dashboard", "page.tsx");
+    const list = src.slice(src.indexOf("const QUICK_ACTIONS"), src.indexOf("];", src.indexOf("const QUICK_ACTIONS")));
+    const hrefs = [...list.matchAll(/href: "([^"]+)"/g)].map((m) => m[1]);
+    expect(hrefs.length).toBeGreaterThan(4);
+
+    const known = new Set(allNavItems().map((i) => i.href));
+    expect(hrefs.filter((h) => !known.has(h)), "these are not screens any more").toEqual([]);
   });
 });
