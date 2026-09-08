@@ -1,17 +1,43 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import { nameMatchVenue } from "@/app/actions/courses";
-import { matchCourse, needsNine, cardProblems, teeProblems } from "@/lib/domain/venue";
+import { matchCourse, needsNine, cardProblems, teeProblems, exactCardClaim } from "@/lib/domain/venue";
 import { parseCard } from "@/lib/domain/scorecard-parse";
 import { Icon } from "./Icon";
 
 const BLANK = new Array(18).fill("");
+
+/**
+ * How many of the club's courses to offer before asking somebody to narrow it.
+ *
+ * Six is about a league's rotation, which is the case this screen exists for.
+ * A club that has imported a catalogue has hundreds, and a wall of them is a
+ * worse answer than a text box — so the rest stay behind the filter, and the
+ * count of them is shown rather than hidden.
+ */
+const SHORTLIST = 6;
 
 export interface VenueCourse {
   id: string;
   name: string;
   city?: string;
   address?: string;
+  /**
+   * Whether the club's stored row actually HAS a card — pars and a stroke
+   * index — or is a name somebody added and never filled in.
+   *
+   * The distinction is invisible without it, and this screen used to state
+   * the opposite: `matchCourse` finding a stored row makes the screen say
+   * "Using the club's saved card", which for one of these is a claim about a
+   * card that does not exist. A round then scores against no pars and no
+   * stroke index — to-par computed against nothing, handicap strokes with
+   * nowhere to fall — which is the failure #195 was about, arrived at from
+   * the other end.
+   *
+   * Optional so a caller that genuinely does not know says nothing rather
+   * than asserting a card is there.
+   */
+  hasCard?: boolean;
 }
 
 /**
@@ -67,6 +93,45 @@ export function VenuePrompt({
   // they start filling in a card by hand.
   const found = useMemo(() => (typed.trim() ? matchCourse(typed, library) : null), [typed, library]);
   const isNew = found?.kind === "new";
+  /** Whether the screen may claim a saved card. See `exactCardClaim`. */
+  const claim = exactCardClaim(found);
+
+  /**
+   * The club's own courses, BROWSABLE rather than guessable.
+   *
+   * The note at the top of this file has always said the club's courses are
+   * "offered first" and that picking one is "a single tap". They were not, and
+   * it was not: `library` reached exactly one expression — `matchCourse(typed,
+   * library)` — which needs something typed before it can match anything. On
+   * an empty field `found` is null, so the screen was a bare text box reading
+   * "Start typing — e.g. Maketewah" and nothing else. A scorer had to remember
+   * and correctly spell a course the club had already stored, or type a card
+   * for it by hand a second time.
+   *
+   * Its sibling had this right all along: the round's venue picker uses
+   * `CoursePicker`, which lists the library in a select. Two screens asking
+   * the same question, one of which could answer it.
+   *
+   * Filtered by what has been typed so the field still narrows, and capped so
+   * a club with a large catalogue gets a shortlist rather than a wall — the
+   * count of the rest is shown so nobody assumes the list is everything.
+   */
+  const shortlist = useMemo(() => {
+    const q = typed.trim().toLowerCase();
+    const rows = q
+      ? library.filter((c) => `${c.name} ${c.city ?? ""}`.toLowerCase().includes(q))
+      : library;
+    return { rows: rows.slice(0, SHORTLIST), more: Math.max(0, rows.length - SHORTLIST) };
+  }, [typed, library]);
+
+  /**
+   * Not shown once the question is answered.
+   *
+   * `exact` already says "using the club's saved card"; `suggest` already
+   * lists its own candidates and asks which one is meant. Repeating the
+   * library under either would be a second list disagreeing with the first.
+   */
+  const browsing = !chosen && found?.kind !== "exact" && found?.kind !== "suggest";
 
   const nums = (xs: string[]) => xs.map((v) => parseInt(v, 10)).map((n) => (Number.isFinite(n) ? n : 0));
 
@@ -160,10 +225,63 @@ export function VenuePrompt({
         />
       </div>
 
+      {/* The club's own courses, there to be tapped. See `shortlist`: this is
+          the "offered first" the note at the top of this file has always
+          claimed and never did. */}
+      {browsing && shortlist.rows.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span className="text-muted" style={{ fontSize: 12 }}>
+            {typed.trim() ? "Courses matching that" : "Courses this club has played"} — one tap uses
+            its saved card.
+          </span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {shortlist.rows.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className="btn btn-secondary touch-target"
+                style={{ fontSize: 12.5 }}
+                // Sets BOTH: `chosen` is what `submit` reads for the id, and
+                // the text field follows so the screen does not go on saying
+                // "start typing" under a course that has been picked.
+                onClick={() => {
+                  setChosen(c);
+                  setTyped(c.name);
+                }}
+              >
+                {c.name}
+                {c.city ? <span className="text-muted"> · {c.city}</span> : null}
+                {/* Said plainly, because "one tap uses its saved card" is not
+                    true of a row somebody added and never filled in. */}
+                {c.hasCard === false ? (
+                  <span className="text-muted"> · needs its card</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+          {shortlist.more > 0 && (
+            <span className="text-muted" style={{ fontSize: 11.5 }}>
+              {shortlist.more} more — type to narrow the list.
+            </span>
+          )}
+        </div>
+      )}
+
       {/* The club already has it: one tap, real card, nothing to type. */}
-      {found?.kind === "exact" && (
+      {claim === "has-card" && found?.kind === "exact" && (
         <div className="tag tag-accent-2" style={{ alignSelf: "flex-start" }}>
           <Icon name="check-circle" /> Using the club&rsquo;s saved card for {found.course.name}
+        </div>
+      )}
+
+      {/* The row exists; the card does not. Claiming a saved card here is the
+          one thing this screen must not do — the round would score against no
+          pars and no stroke index, and every total would look ordinary. */}
+      {claim === "no-card" && found?.kind === "exact" && (
+        <div className="tag tag-neutral" style={{ alignSelf: "flex-start" }}>
+          <Icon name="warning-circle" /> {found.course.name} is in the library with no card yet — add
+          it on the course, under {" "}
+          <a href="/organization">its settings</a>, so every later round here has it.
         </div>
       )}
 
