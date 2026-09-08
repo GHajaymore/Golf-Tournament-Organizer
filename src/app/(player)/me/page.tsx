@@ -6,7 +6,6 @@ import { meFor } from "@/lib/services/me";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
-import { toParText } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
 import { roundKicker } from "@/lib/domain/round-label";
 
@@ -114,15 +113,26 @@ export default async function PlayTodayPage() {
               >
                 {me.standing?.position || "–"}
               </div>
+              {/* Won–halved–lost, the same line the Board carries beside your
+                  own position. A match player's record is the thing their
+                  points are made of. */}
+              {me.standing?.record && (
+                <div style={{ fontSize: 12.5, color: "var(--color-neutral-400)", marginTop: 3 }}>
+                  {me.standing.record}
+                </div>
+              )}
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 11.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>
-                {/* Against what this player's own cards cover, not the
-                    round's hole count. A round robin puts three matches in one
-                    round, so eighteen holes returned is a third of it. */}
-                {me.standing && me.standing.holesOwed > 0 && me.standing.thru >= me.standing.holesOwed
-                  ? "Final"
-                  : `Thru ${me.standing?.thru ?? 0}`}
+                {/* What the number below actually is.
+                    "Thru 4" is a fact about a stroke card, and this screen
+                    printed it over a match-play round where the player's three
+                    matches sit immediately underneath. The service now says
+                    which — measured against what this player's own cards
+                    cover, not the round's hole count, because a round robin
+                    puts three matches in one round and eighteen holes returned
+                    is a third of it. */}
+                {me.standing?.scoreLabel ?? "Not started"}
               </div>
               <div
                 style={{
@@ -136,7 +146,11 @@ export default async function PlayTodayPage() {
                       : "var(--color-text)",
                 }}
               >
-                {me.standing && me.standing.thru > 0 ? toParText(me.standing.toPar) : "–"}
+                {/* The number this player is RANKED on — match points in a
+                    match round, to-par in a stroke one. It printed a to-par
+                    either way, so the same player's Board said "4" for four
+                    match points while this said "+4" for a to-par. */}
+                {me.standing?.scoreText || "–"}
               </div>
             </div>
           </section>
