@@ -133,6 +133,17 @@ export function VenuePrompt({
    */
   const browsing = !chosen && found?.kind !== "exact" && found?.kind !== "suggest";
 
+  /**
+   * A course the club HAS, without a card.
+   *
+   * The card grid used to be gated on `isNew` alone, so this row could be
+   * settled on and never asked for one — and the action would then pin the
+   * match to a course with no pars and no stroke index. Asked for here, and
+   * stored on the row the club already has rather than a duplicate.
+   */
+  const settled = chosen ?? (found?.kind === "exact" ? found.course : null);
+  const needsCard = settled?.hasCard === false;
+
   const nums = (xs: string[]) => xs.map((v) => parseInt(v, 10)).map((n) => (Number.isFinite(n) ? n : 0));
 
   const applyPaste = () => {
@@ -161,7 +172,10 @@ export function VenuePrompt({
       const t = teeProblems(tee);
       if (t.length) return setError(t[0]);
     }
-    if (isNew || (!chosen && found?.kind !== "exact")) {
+    // `needsCard` too: a course the club already has, without one, is settled
+    // on without ever being new — and the action refuses it rather than
+    // pinning the match to a course that cannot score.
+    if (isNew || needsCard || (!chosen && found?.kind !== "exact")) {
       const problems = cardProblems({ pars: nums(pars), strokeIndex: nums(si) }, 18);
       if (problems.length) return setError(problems[0]);
     }
@@ -169,9 +183,14 @@ export function VenuePrompt({
     startTransition(async () => {
       const r = await nameMatchVenue(matchId, {
         courseId,
-        newCourse: courseId
-          ? undefined
-          : { name: typed, city, address, pars: nums(pars), yards: nums(yards), strokeIndex: nums(si) },
+        // Sent alongside a courseId when that course has no card, which is the
+        // one case where both are meaningful: the row exists and only its card
+        // is missing, so the action fills it in rather than creating a second
+        // course under the same name.
+        newCourse:
+          courseId && !needsCard
+            ? undefined
+            : { name: typed, city, address, pars: nums(pars), yards: nums(yards), strokeIndex: nums(si) },
         tee,
         nine,
       });
@@ -305,10 +324,12 @@ export function VenuePrompt({
         </div>
       )}
 
-      {isNew && (
+      {(isNew || needsCard) && (
         <>
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-            New to this club — add its card once and every later round here has it.
+            {needsCard
+              ? `${settled?.name} is in the club's library with no card yet — add it once and every later round there has it.`
+              : "New to this club — add its card once and every later round here has it."}
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div className="field">

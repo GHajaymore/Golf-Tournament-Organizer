@@ -1134,6 +1134,55 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
     }
   }
 
+  /**
+   * WHATEVER PATH RESOLVED IT, THE COURSE MUST ACTUALLY HAVE A CARD.
+   *
+   * A club's library can hold a row that is a name and nothing else — added
+   * once and never filled in. `hasCard` on `clubCourses` exists for exactly
+   * that. Until now this action never asked: a NEW course had its card refused
+   * or stored, and an EXISTING one was only checked for ownership. So a match
+   * could be pinned to a course with no pars and no stroke index, and the
+   * round then scored against nothing — to-par against no par, handicap
+   * strokes with nowhere to fall. Every total looks perfectly ordinary, which
+   * is the whole danger.
+   *
+   * Both ways in were reachable, and the second is the worse one:
+   *
+   *   - tapping the course in the venue prompt sent a `courseId`
+   *   - TYPING its name sent a `newCourse` carrying a full, valid card, which
+   *     `matchCourse` then resolved to the existing row — and the card the
+   *     scorer had just typed was DISCARDED
+   *
+   * So fill it in rather than refuse. The card is validated to the same
+   * standard as a new course's, and stored on the row the club already has —
+   * no duplicate, and every later round there has it. CLAUDE.md's rule for
+   * card guards is that refusing a real golf course is worse than no guard;
+   * this refuses only when there is no card to be had, and says what to do.
+   */
+  const resolved = await prisma.course.findUnique({
+    where: { id: courseId },
+    select: { name: true, pars: true, strokeIndex: true },
+  });
+  if (resolved && (parseHoleArray(resolved.pars) === null || parseHoleArray(resolved.strokeIndex) === null)) {
+    const c = input.newCourse;
+    if (!c || !c.pars?.length || !c.strokeIndex?.length) {
+      return {
+        ok: false,
+        error: `${resolved.name} is in this club's library with no card yet. Add its pars and stroke index here, and every later round played there will have them.`,
+      };
+    }
+    const refusal = cardRefusal(c.pars, c.yards ?? [], c.strokeIndex, 18);
+    if (refusal) return { ok: false, error: refusal };
+    await prisma.course.update({
+      where: { id: courseId },
+      data: {
+        pars: holeArray(c.pars, 4),
+        yards: holeArray(c.yards, 0),
+        strokeIndex: holeArray(c.strokeIndex, 1),
+      },
+    });
+  }
+
   // The tees, and with them the rating and slope a course handicap needs.
   if (input.tee) {
     const problems = teeProblems(input.tee);
