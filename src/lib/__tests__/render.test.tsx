@@ -3164,7 +3164,10 @@ describe("locked metered features", () => {
 
     const draft = render(<DraftAssistant onUse={() => {}} available={false} />);
     expect(draft).toContain("AjAi drafting");
-    expect(draft).toContain("Write it yourself below");
+    // "above" — the composer sits above this panel, and "below" pointed a
+    // locked-out organizer at the bottom of the page.
+    expect(draft).toContain("Write it yourself in the composer above");
+    expect(draft).not.toContain("yourself below");
     expect(draft).not.toContain("Write a draft");
 
     const describe = render(<DescribeTournament available={false} />);

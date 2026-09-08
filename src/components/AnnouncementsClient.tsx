@@ -1,7 +1,9 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { addAnnouncement, toggleAnnouncementPin, removeAnnouncement } from "@/app/actions/tournament";
 import { DraftAssistant } from "@/components/DraftAssistant";
+import { postRefusal } from "@/lib/domain/announcement-post";
+import { SaveState, useSaveStatus } from "./SaveState";
 import { Icon } from "./Icon";
 
 export interface AnnouncementRow {
@@ -23,10 +25,25 @@ export function AnnouncementsClient({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [pinned, setPinned] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  // Which post is one tap from being destroyed. Null when none is.
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const saveStatus = useSaveStatus(pending);
+  const titleRef = useRef<HTMLInputElement>(null);
 
   const submit = () => {
-    if (!title.trim()) return;
+    // The reason, not silence. The button stays ENABLED so that pressing it
+    // produces the explanation — a disabled button on a phone gives no
+    // feedback at all, which is the fault this replaces rather than a fix
+    // for it.
+    const why = postRefusal(title, body);
+    if (why) {
+      setRefusal(why);
+      titleRef.current?.focus();
+      return;
+    }
+    setRefusal(null);
     startTransition(async () => {
       await addAnnouncement(title, body, pinned);
       setTitle("");
@@ -42,11 +59,28 @@ export function AnnouncementsClient({
         <div className="field">
           <label>Title</label>
           <input
+            ref={titleRef}
             className="input"
             placeholder="e.g. Round 2 tee times posted"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            aria-invalid={refusal ? true : undefined}
+            aria-describedby={refusal ? "announcement-refusal" : undefined}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              // Clears as soon as they act on it, rather than sitting there
+              // still accusing a field that now has a title in it.
+              if (refusal) setRefusal(null);
+            }}
           />
+          {refusal && (
+            <span
+              id="announcement-refusal"
+              role="alert"
+              style={{ fontSize: 12.5, color: "var(--color-danger)", marginTop: 4 }}
+            >
+              {refusal}
+            </span>
+          )}
         </div>
         <div className="field">
           <label>Message (optional)</label>
@@ -63,9 +97,12 @@ export function AnnouncementsClient({
             <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
             Pin to the top of players&rsquo; dashboards
           </label>
-          <button type="button" className="btn btn-primary" disabled={pending} onClick={submit}>
-            <Icon name="megaphone" /> Post
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <SaveState status={saveStatus} label="Posted" />
+            <button type="button" className="btn btn-primary" disabled={pending} onClick={submit}>
+              <Icon name="megaphone" /> Post
+            </button>
+          </div>
         </div>
       </div>
 
@@ -101,15 +138,49 @@ export function AnnouncementsClient({
               >
                 <Icon name={a.pinned ? "ph-fill ph-push-pin" : "ph ph-push-pin"} />
               </button>
-              <button
-                type="button"
-                className="btn btn-icon"
-                title="Delete"
-                disabled={pending}
-                onClick={() => startTransition(() => removeAnnouncement(a.id))}
-              >
-                <Icon name="trash" />
-              </button>
+              {/* Two taps, not one.
+                  Pin and Delete were two unlabelled 34px icons eight pixels
+                  apart on a phone — one of them harmless, the other a hard
+                  `deleteMany` with no undo and nothing to reconstruct the post
+                  from. Missing Pin by a thumb's width destroyed the notice.
+                  Same shape as the money ledger's Remove, and for the same
+                  reason. */}
+              {confirmDelete === a.id ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn touch-target"
+                    style={{ fontSize: 12, color: "var(--color-danger)" }}
+                    disabled={pending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        await removeAnnouncement(a.id);
+                        setConfirmDelete(null);
+                      })
+                    }
+                  >
+                    <Icon name="trash" /> Delete it
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary touch-target"
+                    style={{ fontSize: 12 }}
+                    onClick={() => setConfirmDelete(null)}
+                  >
+                    Keep
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-icon"
+                  title="Delete"
+                  disabled={pending}
+                  onClick={() => setConfirmDelete(a.id)}
+                >
+                  <Icon name="trash" />
+                </button>
+              )}
             </div>
             {a.body && <p className="text-muted" style={{ fontSize: 13, margin: 0, whiteSpace: "pre-wrap" }}>{a.body}</p>}
           </div>

@@ -136,3 +136,71 @@ test("the public board says how fresh it is, and it is fresh", async ({ page }) 
   await page.waitForLoadState("networkidle");
   await expect(page.locator("body")).toContainText(/updated|updates on its own/i);
 });
+
+/**
+ * DESTROYING A NOTICE TAKES TWO TAPS.
+ *
+ * Pin and Delete were two unlabelled 34px icons eight pixels apart at 375px.
+ * One is harmless; the other is a hard delete with no undo and nothing to
+ * reconstruct the post from. Missing Pin by a thumb's width destroyed it.
+ *
+ * This runs at every viewport the suite carries, because the adjacency that
+ * makes it dangerous is a phone's, and a desktop-only assertion would have
+ * said nothing about the case that prompted it.
+ *
+ * The row this needs did not exist until the fixture seeded one: with no
+ * announcements the screen renders an empty state, so every previous sweep of
+ * this route — the touch-minimum sweep included — measured a page with no
+ * pin or delete control on it at all.
+ */
+test("deleting an announcement takes two taps, not one", async ({ page }) => {
+  await page.goto("/announcements");
+  await page.waitForLoadState("networkidle");
+
+  const posts = page.locator(".card", { hasText: "Round 2 tee times are up" });
+  await expect(posts.first()).toBeVisible();
+
+  const del = posts.first().locator('button[title="Delete"]');
+  await expect(del).toBeVisible();
+  await del.click();
+
+  // The first tap ARMS. It must not have deleted anything.
+  await expect(page.locator("body")).toContainText("Round 2 tee times are up");
+  const confirm = page.getByRole("button", { name: /delete it/i });
+  await expect(confirm).toBeVisible();
+
+  // And backing out must leave the post alone — a confirmation that cannot be
+  // declined is a slower way of deleting, not a safer one.
+  await page.getByRole("button", { name: /^keep$/i }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(page.locator("body")).toContainText("Round 2 tee times are up");
+});
+
+/**
+ * Post refuses out loud.
+ *
+ * `addAnnouncement` returned on an untitled post without a word and the button
+ * stayed enabled, so an organizer who typed their notice into the box labelled
+ * "Message" pressed Post and was ignored — no message, no focus, not one
+ * character of the page changed.
+ */
+test("posting without a title says why, rather than doing nothing", async ({ page }) => {
+  await page.goto("/announcements");
+  await page.waitForLoadState("networkidle");
+
+  const before = await page.locator(".card").count();
+  await page.locator("textarea.input").fill("First tee 9:30 after the frost delay.");
+  await page.getByRole("button", { name: /^post$/i }).click();
+
+  // The message names what a title is FOR. An organizer who put the notice in
+  // the message field has not forgotten a box; they need telling why the app
+  // wants the other one.
+  // By id, not by role: Next renders its own always-present route announcer
+  // with role="alert", so `getByRole("alert")` matches two elements on every
+  // page in the app.
+  await expect(page.locator("#announcement-refusal")).toContainText(/players see on their dashboard/i);
+  await expect(page.locator("#announcement-refusal")).toHaveAttribute("role", "alert");
+  // And nothing was posted. Counted rather than searched for the text, since
+  // the words are still sitting in the textarea either way.
+  expect(await page.locator(".card").count()).toBe(before);
+});
