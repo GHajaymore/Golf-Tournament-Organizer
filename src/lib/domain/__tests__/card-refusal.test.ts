@@ -161,6 +161,8 @@ describe("every path that stores a card uses it", () => {
       "CLEARS the event’s card when the venue changes, never writes one — blank hole arrays are the absence of a card, and refusing to blank one would keep the previous course’s stroke index on a tournament that has moved",
     "tournament.ts:cloneEvent":
       "copies a card already stored on the event it is cloning, which was checked when it was first written; re-refusing it would make an old tournament un-copyable",
+    "courses.ts:deleteClubCourse":
+      "snapshots the card off the COURSE being deleted onto the events scored against it, so their to-par and stroke index survive the venue — same shape as cloneEvent: the card passed cardRefusal in saveClubCourse when it was stored, and re-refusing it here would make a course whose card predates a later rule impossible to remove",
   };
 
   it("has not grown a card writer this sweep does not know about", () => {
