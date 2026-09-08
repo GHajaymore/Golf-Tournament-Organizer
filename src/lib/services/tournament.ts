@@ -1347,6 +1347,21 @@ export interface Highlight {
   icon: string;
   title: string;
   text: string;
+  /**
+   * What this highlight is ABOUT, for callers that want one of them rather
+   * than the panel.
+   *
+   * Only `"cut"` so far, and it exists because the boards that players and
+   * spectators read draw a CUT LINE with nothing explaining it. On a match
+   * board separated by a tiebreaker, the two people on either side of that
+   * line have the same points — and the one who was cut, who most needs the
+   * sentence, was the one person who could not see it: `computeHighlights` is
+   * rendered on the organizer's console and nowhere else.
+   *
+   * Tagged rather than selected by title, so the words can be reworded without
+   * silently unhooking the boards from them.
+   */
+  kind?: "cut";
 }
 
 /** Data-driven "Tournament Highlights" for the live leaderboard. */
@@ -1418,6 +1433,7 @@ export function computeHighlights(state: EventState): Highlight[] {
       out.push({
         icon: "⚖️",
         title: "Tied for the last place",
+        kind: "cut" as const,
         text: `${names.join(" and ")} are level on ${tiedAtLine[0].rank}${
           tiedAtLine.length > 1 ? `, and ${tiedAtLine.length - 1} more flight(s) are tied too` : ""
         }. A play-off or your published countback decides who goes through — the app has not.`,
@@ -1446,11 +1462,13 @@ export function computeHighlights(state: EventState): Highlight[] {
           ? {
               icon: "⚖️",
               title: "Level at the cut",
+        kind: "cut" as const,
               text: `${outName} is level with ${inName} on ${bubble.firstOut.score} ${unit}. Your countback put ${inName} through.`,
             }
           : {
               icon: "🚨",
               title: "Bubble watch",
+        kind: "cut" as const,
               text: `${outName} is ${bubble.gap} ${unit} outside qualification.`,
             },
       );
@@ -1565,19 +1583,45 @@ export function computeHighlights(state: EventState): Highlight[] {
         ? {
             icon: "⚖️",
             title: "Tied for the last place",
+        kind: "cut" as const,
             text: `${outName} and ${inName} are level on ${fmt(bubble.firstOut.score)} pts and nothing separates them. A play-off or your published countback decides who goes through — the app has not.`,
           }
         : shape === "level-on-score"
           ? {
               icon: "⚖️",
               title: "Level on points at the cut",
+        kind: "cut" as const,
               text: `${outName} is level with ${inName} on ${fmt(bubble.firstOut.score)} pts. Your tiebreakers put ${inName} through.`,
             }
-          : { icon: "🚨", title: "Bubble watch", text: `${outName} is ${fmt(bubble.gap)} pts outside qualification.` },
+          : { icon: "🚨", title: "Bubble watch", kind: "cut" as const, text: `${outName} is ${fmt(bubble.gap)} pts outside qualification.` },
     );
   }
 
   return out;
+}
+
+/**
+ * The one sentence that explains the CUT LINE, for the boards that draw one.
+ *
+ * `PlayerLeaderboard` draws a cut line and says nothing about it, and it is the
+ * board on the player's dashboard, the player's own Board tab, and the public
+ * share link — every screen a player or a spectator actually looks at. The
+ * explanation existed only inside `computeHighlights`, which is rendered on the
+ * organizer's console and nowhere else.
+ *
+ * On Demo Cup that means four players level on 10.5 points with the line
+ * through the middle of them: the console says "Grace Okafor is level with Tom
+ * Halloran on 10.5 pts. Your tiebreakers put Tom Halloran through", and Grace,
+ * looking at her own board, was shown a line and no reason.
+ *
+ * Derived from `computeHighlights` rather than reimplemented, so the two can
+ * never come to disagree about who is on the bubble — the failure this
+ * codebase keeps finding, and the reason `cutLineShape` is shared in the first
+ * place.
+ */
+export function cutLineNote(state: EventState): string | null {
+  const cut = computeHighlights(state).find((h) => h.kind === "cut");
+  return cut ? cut.text : null;
 }
 
 export function expectedRrTotal(state: EventState): number {

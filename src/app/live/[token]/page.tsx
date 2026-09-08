@@ -195,6 +195,7 @@ export default async function PublicLeaderboardPage({ params }: { params: Promis
             isStableford={board.isStableford}
             rows={board.rows}
             holes={board.holeCount}
+            cutNote={board.cutNote}
           />
         )}
 

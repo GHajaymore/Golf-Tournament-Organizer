@@ -2,7 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { prisma } from "../db";
 import { COURSE_REF, cardForStage } from "./course-resolution";
-import { loadEventState, matchSettled, standingRows } from "./tournament";
+import { loadEventState, matchSettled, standingRows, cutLineNote } from "./tournament";
 import { boardKind } from "../formats";
 import { teamStandings } from "./teams";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "./points-standings";
@@ -57,6 +57,8 @@ export interface LiveBoardView {
   isStroke: boolean;
   isStableford: boolean;
   holeCount: number;
+  /** One sentence explaining where the cut line falls, or "" for none. */
+  cutNote: string;
   manualFormat: boolean;
   allIn: boolean;
   roundLabel: string;
@@ -144,6 +146,10 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
     isStroke: state.isStroke,
     isStableford: activeStage?.scoringBasis === "stableford",
     holeCount,
+    // Cached WITH the rows, deliberately: it describes this exact standing,
+    // and a note cached apart from the board it explains would eventually be
+    // describing a different one.
+    cutNote: cutLineNote(state) ?? "",
     manualFormat: kind === "manual",
     allIn,
     roundLabel: activeStage?.description?.trim() || activeStage?.type || "",

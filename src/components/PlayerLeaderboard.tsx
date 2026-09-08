@@ -59,10 +59,21 @@ export function PlayerLeaderboard({
   holes,
   youId = "",
   unit = "",
+  cutNote = "",
 }: {
   isStroke: boolean;
   isStableford?: boolean;
   rows: StandingRow[];
+  /**
+   * One sentence explaining where the cut line falls, from `cutLineNote`.
+   *
+   * Empty means say nothing — a board with no cut, or one whose bubble the
+   * service could not describe. Never assembled here: the words are per-format
+   * (a stroke board is separated by a countback, a match board by the
+   * tiebreaker chain) and they are already written once, next to the decision
+   * that produces them.
+   */
+  cutNote?: string;
   /** Round length, so "thru 18" can become "F". */
   holes: number;
   /**
@@ -294,6 +305,20 @@ export function PlayerLeaderboard({
                 </span>
                 <span style={{ flex: 1, height: 1, background: "var(--color-accent)" }} />
               </div>
+            )}
+            {/* WHY the line falls here.
+                On a board separated by a tiebreaker the two players either
+                side of it have the SAME score, and a line drawn through a tie
+                with no explanation is how a player concludes the app is
+                wrong. The sentence existed on the organizer's console and on
+                none of the three boards a player or spectator reads. */}
+            {showCut && cutNote && i === lastAdvancing && (
+              <p
+                className="text-muted"
+                style={{ fontSize: 11.5, lineHeight: 1.5, margin: "-4px 2px 10px", textAlign: "center" }}
+              >
+                {cutNote}
+              </p>
             )}
           </li>
         );

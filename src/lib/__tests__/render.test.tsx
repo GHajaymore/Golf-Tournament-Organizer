@@ -2770,6 +2770,65 @@ describe("the board answers 'where am I' first", () => {
     expect(html).toContain("Ranked by Stableford points");
   });
 
+  /**
+   * THE CUT LINE SAYS WHY IT FALLS WHERE IT DOES.
+   *
+   * On a board separated by a tiebreaker the two players either side of the
+   * line hold the SAME score, and a line drawn through a tie with nothing
+   * explaining it is how a player concludes the app got it wrong. The sentence
+   * lived in `computeHighlights`, which renders on the organizer's console and
+   * on none of the three boards this component is — the player's dashboard,
+   * the player's Board tab, and the public share link.
+   */
+  const cutField = [
+    row({ id: "p1", rank: 1, name: "A. Moore", advancing: true }),
+    row({ id: "p2", rank: 2, name: "B. Ellis", advancing: true }),
+    row({ id: "p3", rank: 3, name: "C. Reid", advancing: false }),
+  ];
+  const NOTE = "C. Reid is level with B. Ellis on 10.5 pts. Your tiebreakers put B. Ellis through.";
+
+  it("prints the reason beside the cut line", async () => {
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const html = render(
+      <PlayerLeaderboard isStroke={false} rows={cutField} holes={18} cutNote={NOTE} />,
+    );
+    expect(html, "the cut line still draws").toContain("Cut line");
+    expect(html, "and now says why").toContain("tiebreakers put B. Ellis through");
+    /**
+     * Beside the line, not adrift at the end of the board.
+     *
+     * `lastIndexOf` for the row, not `indexOf`: the note NAMES C. Reid, so the
+     * first occurrence of that string is inside the note itself and comparing
+     * against it compares the note with itself. The row is the later one,
+     * because the note renders inside the last advancing player's item and
+     * C. Reid's item follows it.
+     */
+    const note = html.indexOf("is level with B. Ellis");
+    expect(note, "the note comes after the line").toBeGreaterThan(html.indexOf("Cut line"));
+    expect(note, "and before the first player below it").toBeLessThan(html.lastIndexOf("C. Reid"));
+  });
+
+  it("says nothing when there is no note to give", async () => {
+    // A board whose bubble the service could not describe must not render an
+    // empty paragraph under the line.
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const html = render(<PlayerLeaderboard isStroke={false} rows={cutField} holes={18} />);
+    expect(html).toContain("Cut line");
+    expect(html).not.toContain("tiebreakers");
+  });
+
+  it("does not print a note where there is no cut at all", async () => {
+    // Every row advancing means no line — and a sentence about a cut that is
+    // not drawn would be describing nothing.
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    const allIn = cutField.map((r) => ({ ...r, advancing: true }));
+    const html = render(
+      <PlayerLeaderboard isStroke={false} rows={allIn} holes={18} cutNote={NOTE} />,
+    );
+    expect(html).not.toContain("Cut line");
+    expect(html).not.toContain("tiebreakers");
+  });
+
   it("renders the same board for a spectator, with nothing marked", async () => {
     // The public share link renders this component with no signed-in player.
     const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
