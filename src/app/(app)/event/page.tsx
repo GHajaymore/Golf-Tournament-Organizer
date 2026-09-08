@@ -87,7 +87,14 @@ export default async function EventPage({
     isOrganizer: accessible.get(ev.id) === "admin",
   }));
 
-  const checklist = setupChecklist({ ...state, branding: clubBrandingState(org) });
+  // The details step comes from the FLOW this page already loaded for its
+  // rail, so the two cannot disagree about whether step one is finished.
+  const detailStep = flow?.steps.find((s) => s.href === "/event");
+  const checklist = setupChecklist({
+    ...state,
+    branding: clubBrandingState(org),
+    details: detailStep ? { done: detailStep.done, missing: detailStep.missing } : undefined,
+  });
 
   return (
     <>
@@ -120,7 +127,7 @@ export default async function EventPage({
           checklist is what an organizer comes back to. */}
       {!railSpeaks(flow) && (
         <div style={{ marginBottom: 16 }}>
-          <SetupChecklist items={checklist} />
+          <SetupChecklist items={checklist} currentPath="/event" />
         </div>
       )}
 
