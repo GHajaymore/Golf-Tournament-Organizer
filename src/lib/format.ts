@@ -58,6 +58,43 @@ export function shortName(name: string): string {
 }
 
 /**
+ * Labels for names shown BESIDE each other, guaranteed to differ.
+ *
+ * `firstName` is the right label almost always, and useless in the one case
+ * that matters most: two players in the same match called Dave. The match
+ * screen's legend read "Dave 0 · Dave 0" with two colours the scorer had no
+ * way to attach to a person, and the result line said "Dave 3 up" about a
+ * match between two Daves.
+ *
+ * Widen only as far as it takes, and only for the names that actually clash —
+ * a Dave playing a Sam still reads "Dave" and "Sam". "Dave S." is enough for
+ * two; two people with the SAME full name get the full name twice, because at
+ * that point nothing short is honest and the caller should be showing
+ * something else entirely.
+ *
+ * Decided here rather than at each call site: this is the shape CLAUDE.md
+ * asks for, since a rule applied where the labels are built cannot be
+ * forgotten by the next screen that renders a pair of names.
+ */
+export function distinctLabels(names: string[]): string[] {
+  const clashes = (labels: string[]) => {
+    const seen = new Map<string, number>();
+    for (const l of labels) seen.set(l.toLowerCase(), (seen.get(l.toLowerCase()) ?? 0) + 1);
+    return seen;
+  };
+
+  const first = names.map(firstName);
+  const firstCounts = clashes(first);
+  // Only the clashing ones widen. Everyone else keeps the short label.
+  const widened = names.map((n, i) => ((firstCounts.get(first[i].toLowerCase()) ?? 0) > 1 ? shortName(n) : first[i]));
+
+  const widerCounts = clashes(widened);
+  return names.map((n, i) =>
+    (widerCounts.get(widened[i].toLowerCase()) ?? 0) > 1 ? n.trim() : widened[i],
+  );
+}
+
+/**
  * A readable list of names for a one-line notice.
  *
  * Capped, because the case that produces one of these is a bulk action: an
