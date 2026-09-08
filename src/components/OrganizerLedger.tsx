@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { recordSettlement } from "@/app/actions/expenses";
 import type { MoneyView } from "@/lib/services/expenses";
 import { useMoney } from "@/components/CurrencyProvider";
+import { splitLabel } from "@/lib/domain/expense-split-label";
 import { Icon } from "./Icon";
 
 /**
@@ -175,9 +176,39 @@ export function OrganizerLedger({ view }: { view: MoneyView }) {
               <span style={{ minWidth: 0 }}>
                 <span style={{ display: "block" }}>{e.description}</span>
                 <span className="text-muted" style={{ fontSize: 11.5 }}>
-                  Paid by {e.paidByName || "somebody no longer in the field"} · {e.shares.length} share
-                  {e.shares.length === 1 ? "" : "s"}
+                  {/* THE DIVISION, NOT THE COUNT — the same rule the player's
+                      screen has had, from the same function.
+
+                      This said "7 shares". A count is not checkable; a
+                      division is, and "$287.00 ÷ 7" is arithmetic a treasurer
+                      can do in their head while somebody is querying it on the
+                      phone. The player's ledger was fixed and this one, its
+                      sibling, was not. */}
+                  Paid by {e.paidByName || "somebody no longer in the field"}
+                  {` · ${splitLabel(e.amountCents, e.shares, money)}`}
                   {e.spentOn ? ` · ${e.spentOn}` : ""}
+                </span>
+                {/* WHO OWES WHAT ON THIS LINE.
+                    These lines are folded away because a treasurer opens them
+                    when somebody queries a number — and the query is nearly
+                    always "why do I owe that", which the total alone cannot
+                    answer. The player's own screen shows this; the person
+                    actually collecting the money could not see it. */}
+                <span style={{ display: "block", marginTop: 4 }}>
+                  {e.shares
+                    .filter((s) => s.weight > 0 || (s.exactCents ?? 0) !== 0)
+                    .map((s) => (
+                      <span
+                        key={s.playerId}
+                        className="text-muted"
+                        style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11.5, padding: "1px 0" }}
+                      >
+                        <span style={{ minWidth: 0 }}>{s.name}</span>
+                        <span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                          {money(s.cents)}
+                        </span>
+                      </span>
+                    ))}
                 </span>
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums" }}>{money(e.amountCents)}</span>
