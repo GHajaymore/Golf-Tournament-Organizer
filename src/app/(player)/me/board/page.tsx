@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
-import { loadEventState, standingRows, settingsOf } from "@/lib/services/tournament";
+import { loadEventState, standingRows, settingsOf, cutLineNote } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { boardKind } from "@/lib/formats";
@@ -100,6 +100,10 @@ export default async function PlayBoardPage() {
         // What the column actually measures, from the same place the board
         // totals it — the state now says, rather than the screen assuming.
         unit={state.isStroke ? state.strokeUnit : "match points"}
+        // Why the cut line falls where it does. The player on the wrong side
+        // of it is the one person who most needs that sentence, and it was
+        // rendered only on the organizer's console.
+        cutNote={cutLineNote(state) ?? ""}
       />
     </div>
   );
