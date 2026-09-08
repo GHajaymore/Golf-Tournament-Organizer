@@ -4,6 +4,7 @@ import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePl
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
 import { Icon } from "./Icon";
+import { filterNames, showsNameFilter } from "@/lib/domain/name-filter";
 
 interface PlayMatch {
   id: string;
@@ -69,6 +70,7 @@ function Shell({ brand, children }: { brand?: Brand | null; children: React.Reac
 export function PlayClient(props: Props) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [nameFilter, setNameFilter] = useState("");
   const [players, setPlayers] = useState<Array<{ id: string; name: string }> | null>(null);
   const [context, setContext] = useState<{ eventName: string; roundLabel: string } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -98,6 +100,10 @@ export function PlayClient(props: Props) {
       });
     };
 
+    // Filtered, never reordered — see name-filter.ts for why, and for the
+    // threshold below.
+    const shownPlayers = filterNames(players ?? [], nameFilter);
+
     if (players && context) {
       return (
         <Shell brand={props.brand}>
@@ -117,8 +123,52 @@ export function PlayClient(props: Props) {
             </p>
           )}
 
+          {/* A WAY TO FIND YOURSELF, once the list is long enough to need one.
+              ──────────────────────────────────────────────────────────────
+              This is the screen a player uses standing on the first tee, one
+              handed, in daylight, having just been read a code out. The field
+              arrives alphabetically and nothing else — on a thirty-three
+              player event that is four screens of scrolling to tap your own
+              name, and an open day is worse.
+
+              The organizer's score-entry list got a search box at a comparable
+              length, and it is used by one person sitting down. This one is
+              used by everybody in the field, outdoors.
+
+              SHOWN ONLY WHERE IT HELPS. A society four-ball does not want a
+              search box over four names — it would be a control that costs a
+              tap and saves nothing. The threshold is about the list, not about
+              any particular event.
+
+              It filters and never reorders: a player scanning alphabetically
+              for their name must not have it move while they type. */}
+          {showsNameFilter(players.length) && (
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label htmlFor="play-name-filter">Find your name</label>
+              <input
+                id="play-name-filter"
+                className="input"
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+                placeholder="Start typing…"
+                autoComplete="off"
+                // Not `type="search"`: the clear affordance a search input
+                // draws is smaller than the touch minimum this screen is held
+                // to, and there is a full-width list underneath doing the
+                // same job.
+                inputMode="text"
+              />
+            </div>
+          )}
+
           <div className="card elev-sm" style={{ padding: 0, overflow: "hidden" }}>
-            {players.map((p) => (
+            {shownPlayers.length === 0 && (
+              <p className="text-muted" style={{ fontSize: 13, margin: 0, padding: "13px 14px", lineHeight: 1.5 }}>
+                No name matches “{nameFilter.trim()}”. Check the spelling, or clear the box to see
+                everyone in the round.
+              </p>
+            )}
+            {shownPlayers.map((p) => (
               <button
                 key={p.id}
                 type="button"
