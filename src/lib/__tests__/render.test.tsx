@@ -1300,6 +1300,46 @@ describe("tee sheet", () => {
     expect(html).toContain("Order off the tee");
   });
 
+  /**
+   * TWO JOBS ON ONE SCREEN, told apart by whether a sheet exists.
+   *
+   * With no sheet the job is drawing one and the controls ARE the screen. Once
+   * one is saved the job is reading it — on the morning, on a phone, to find
+   * out who is off when — and the draw controls stand between the organizer
+   * and the thing they came for.
+   *
+   * Asserted on the SAVED STATE, not on how many groups the preview holds. A
+   * field of eight has the same problem as a field of eighty, and a rule read
+   * off the size of the demo's field would be a rule about the demo.
+   */
+  it("leads with the draw controls while the round has no sheet", () => {
+    const html = render(<FoursomeMaker players={field} stageId="s1" />);
+    expect(html).toContain("Who plays together");
+    // Nothing to collapse over, so nothing offers to.
+    expect(html).not.toContain("Re-draw this sheet");
+  });
+
+  it("stands aside once a sheet has been saved", () => {
+    const html = render(
+      <FoursomeMaker players={field} stageId="s1" savedAt="2026-05-14T08:00:00.000Z" />,
+    );
+    expect(html).toContain("Re-draw this sheet");
+    // The controls themselves are gone until asked for — the groups are what
+    // the screen is now for.
+    expect(html).not.toContain("Who plays together");
+    expect(html).not.toContain("Order off the tee");
+  });
+
+  it("says the same for a published sheet as for a saved draft", () => {
+    // Publishing is about who can SEE the sheet, not about whether one exists.
+    // Both states are "this round has been drawn".
+    const html = render(
+      <FoursomeMaker players={field} stageId="s1" savedAt="2026-05-14T08:00:00.000Z" published />,
+    );
+    expect(html).toContain("Re-draw this sheet");
+    expect(html).not.toContain("Who plays together");
+  });
+
   it("offers them once there are standings", () => {
     const standings = field.map((p, i) => ({ playerId: p.id, position: i + 1 }));
     const html = render(<FoursomeMaker players={field} standings={standings} />);
