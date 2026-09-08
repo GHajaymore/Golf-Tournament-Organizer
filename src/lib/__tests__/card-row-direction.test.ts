@@ -72,7 +72,10 @@ describe("a card laid out as a row declares its direction", () => {
      * that no longer exists, and this test should be reconsidered rather than
      * left standing as decoration.
      */
-    const css = readFileSync(join(root, "src", "app", "design-system.css"), "utf8");
+    // Comments stripped, like every other assertion here: the prose above the
+    // rule describes the rule, so a raw read would go on passing after the
+    // declaration it pins had gone. `.card` has exactly such a comment in it.
+    const css = read("src/app/design-system.css");
     const rule = css.slice(css.indexOf("\n.card {"), css.indexOf("\n.card-kicker"));
     expect(rule).toMatch(/display:\s*flex/);
     expect(rule).toMatch(/flex-direction:\s*column/);
