@@ -94,7 +94,6 @@ export const NAV: NavSection[] = [
     items: [
       { key: "foursomes", label: "Tee sheet", href: "/foursomes", icon: "ph ph-users-four", tier: "on-course" },
       { key: "entry", label: "Score entry", href: "/entry", icon: "ph ph-pencil-simple", tier: "on-course" },
-      { key: "qualification", label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered", tier: "at-desk" },
       { key: "bracket", label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", tier: "on-course" },
       { key: "announcements", label: "Announcements", href: "/announcements", icon: "ph ph-megaphone", tier: "on-course" },
       { key: "messages", label: "Messages", href: "/messages", icon: "ph ph-chat-circle-dots", tier: "on-course" },
@@ -204,12 +203,10 @@ export function navForRole(
     // empty state is what explains how to set a round to a team format, and it
     // was unreachable until you had already done the thing it explains.
     if (key === "teams" && !opts.hasTeamRound && !opts.wantsTeams) return false;
-    // Qualification answers one question — who goes through to the knockout —
-    // so it only earns a slot when there is a knockout to go through to. Its
-    // configuration moved into the round builder, and a tournament that ends
-    // at the last round already has the cut line and the leaderboard saying
-    // the same thing in the place the decision is made.
-    if (key === "qualification" && !opts.hasKnockout) return false;
+    // Qualification has no entry of its own any more: it is the audit of a
+    // draw, and it now sits under that draw on /bracket. The two were gated on
+    // the same condition and showed the same players, one as "who goes
+    // through" and the other as "who they play". See QualificationPanel.
     // "My round" is the play shell. It belongs to whoever is entered, not to a
     // role — an organizer who plays needs it, and one who does not would find
     // nothing there.

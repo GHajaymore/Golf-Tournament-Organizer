@@ -3911,7 +3911,7 @@ describe("tournament details", () => {
     // Every screen the flow names has to be one the sidebar actually offers.
     // The list used to say "Rounds & format" (it is Rounds & formats) and
     // "Prizes & Reports" (two screens, neither called that).
-    for (const label of ["Rounds &amp; formats", "Tee sheet", "Score entry", "Qualification", "Bracket", "Prizes &amp; payouts", "Reports &amp; export", "Flights"]) {
+    for (const label of ["Rounds &amp; formats", "Tee sheet", "Score entry", "Bracket", "Prizes &amp; payouts", "Reports &amp; export", "Flights"]) {
       const plain = label.replace(/&amp;/g, "&");
       expect(labels, `not a real screen: ${plain}`).toContain(plain);
       expect(html, `not named in the flow: ${plain}`).toContain(label);

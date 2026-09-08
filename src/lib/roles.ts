@@ -70,7 +70,12 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   // Manage — running the live competition.
   foursomes: ["admin", "assistant"],
   entry: ["admin", "assistant", "player"],
-  qualification: ["admin", "assistant"],
+  // No `qualification` key: it is not a screen any more. The audit moved under
+  // the draw it seeds, on /bracket, and its old route is a redirect — the same
+  // treatment `scoring` and `scorecard` got, neither of which has a rule here
+  // either. What its rule USED to say is preserved where it now matters: the
+  // panel renders for staff only, so merging it into a player-visible screen
+  // did not hand a player the preview.
   bracket: ["admin", "assistant", "player"],
   announcements: ["admin", "assistant"],
   // Everyone. A conversation nobody but staff can reach is the Announcements
