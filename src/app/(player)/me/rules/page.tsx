@@ -137,6 +137,11 @@ export default async function PlayRulesPage() {
               className="card elev-sm"
               style={{
                 display: "flex",
+                // `.card` is a COLUMN. Setting `display: flex` inline sets the
+                // display it already had and leaves the direction alone, so
+                // this rule link stacked its title above its arrow instead of
+                // pushing the arrow to the end of the row.
+                flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: 10,

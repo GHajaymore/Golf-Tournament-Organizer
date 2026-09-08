@@ -161,6 +161,13 @@ export default async function ChooseTournamentPage({
                   width: "100%",
                   textAlign: "left",
                   display: "flex",
+                  // `.card` is `display: flex; flex-direction: column`, so an
+                  // inline `display: flex` sets the display it already had and
+                  // leaves the COLUMN in place. This row rendered as a centred
+                  // stack — name, meta, then the tag and arrow underneath —
+                  // with `space-between` distributing it vertically and
+                  // `textAlign: left` overruled by `alignItems: center`.
+                  flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "space-between",
                   gap: 16,
@@ -218,6 +225,10 @@ export default async function ChooseTournamentPage({
           style={{
             marginTop: 18,
             display: "flex",
+            // See the tournament button above: `.card` is a COLUMN, and an
+            // inline `display: flex` does not undo that. Without this the
+            // icon, the wording and the arrow stacked vertically, centred.
+            flexDirection: "row",
             alignItems: "center",
             gap: 14,
             textDecoration: "none",
