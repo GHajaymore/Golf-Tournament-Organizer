@@ -1,8 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { sideDrawReadiness, sideAddBlock } from "@/lib/domain/draw-readiness";
 import { ConfirmButton } from "./ConfirmButton";
+import { RoundPicker } from "./RoundPicker";
 import { Icon } from "./Icon";
 import {
   createTeam,
@@ -83,7 +83,6 @@ export function TeamsClient({
   /** Matches already generated for this round. */
   matchCount: number;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [newName, setNewName] = useState("");
   const [error, setError] = useState("");
@@ -142,18 +141,15 @@ export function TeamsClient({
           <span className="tag tag-neutral">
             {format.sharesOneCard ? "One ball per side" : "Everyone plays their own ball"}
           </span>
-          {rounds.length > 1 && (
-            <select
-              className="input"
-              style={{ marginLeft: "auto", maxWidth: 280 }}
-              value={activeRoundId}
-              onChange={(e) => router.push(`/teams?round=${e.target.value}`)}
-            >
-              {rounds.map((r) => (
-                <option key={r.id} value={r.id}>{r.label}</option>
-              ))}
-            </select>
-          )}
+          {/* Correct as a literal today, because this component is only
+              rendered on /teams — and wrong the day it is rendered anywhere
+              else, which is exactly how the pot card came to send a fourball's
+              organizer to the club's money screen. */}
+          <RoundPicker
+            rounds={rounds.map((r) => ({ stageId: r.id, label: r.label }))}
+            activeStageId={activeRoundId}
+            style={{ marginLeft: "auto", maxWidth: 280 }}
+          />
         </div>
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>{format.desc}</p>
 

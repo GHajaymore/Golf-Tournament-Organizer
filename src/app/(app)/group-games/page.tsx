@@ -7,6 +7,7 @@ import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { SideBetStart } from "@/components/SideBetStart";
+import { RoundPicker } from "@/components/RoundPicker";
 
 /**
  * Each fourball's own money, kept apart from the field's.
@@ -126,13 +127,10 @@ export default async function GroupGamesPage({
         <div className="card elev-sm" style={{ marginTop: 12 }}>
           <div className="field" style={{ maxWidth: 260 }}>
             <label>Round</label>
-            <select className="input" defaultValue={week.id} name="round" disabled>
-              {rounds.map((r) => (
-                <option key={r.stageId} value={r.stageId}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
+            {/* Was `disabled`: it listed every round of the event, showed the
+                current one, and could not be changed — on a page that reads
+                `?round=` and renders whichever round it is given. */}
+            <RoundPicker rounds={rounds} activeStageId={week.id} />
           </div>
         </div>
       )}

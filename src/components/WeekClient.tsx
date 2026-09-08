@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import type { WeekView } from "@/lib/services/week-view";
 import { useMoney } from "@/components/CurrencyProvider";
 import { Icon } from "./Icon";
@@ -94,6 +94,7 @@ function Section({
 export function WeekClient({ view, canManageMoney }: { view: WeekView; canManageMoney: boolean }) {
   const { money } = useMoney();
   const router = useRouter();
+  const pathname = usePathname();
 
   const th: React.CSSProperties = {
     textAlign: "left",
@@ -126,13 +127,17 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
           WebkitOverflowScrolling: "touch",
         }}
       >
+        {/* Not a RoundPicker: this strip shows each week's DATE and whether it
+            has been scored, which a select cannot. Same rule though — it
+            returns to the screen it is ON rather than naming one, so it stays
+            right if this strip is ever rendered somewhere else. */}
         {view.weeks.map((w) => {
           const active = w.stageId === view.stageId;
           return (
             <button
               key={w.stageId}
               type="button"
-              onClick={() => router.push(`/week?round=${w.stageId}`)}
+              onClick={() => router.push(`${pathname}?round=${w.stageId}`)}
               className={active ? "btn btn-primary" : "btn btn-ghost"}
               style={{ whiteSpace: "nowrap", flexShrink: 0, fontSize: 12.5 }}
               aria-current={active ? "true" : undefined}

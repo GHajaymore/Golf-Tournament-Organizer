@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { RoundPicker } from "./RoundPicker";
 import { saveSkinsPot, setSkinsEntrants, removeSkinsPot, confirmSkinsEntry } from "@/app/actions/skins";
 import { renameBet } from "@/app/actions/bet-name";
 import FieldInfo from "@/components/FieldInfo";
@@ -88,7 +88,6 @@ export function SkinsPotClient({
   groupLabel?: string;
 }) {
   const { plain: money, parse: parseBuyIn } = useMoney();
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [buyIn, setBuyIn] = useState(money(view.buyInCents));
@@ -164,18 +163,14 @@ export function SkinsPotClient({
             money.
           </p>
         </FieldInfo>
-        {rounds.length > 1 && (
-          <select
-            className="input"
-            style={{ marginLeft: "auto", maxWidth: 260 }}
-            value={activeStageId}
-            onChange={(e) => router.push(`/prizes?round=${e.target.value}`)}
-          >
-            {rounds.map((x) => (
-              <option key={x.stageId} value={x.stageId}>{x.label}</option>
-            ))}
-          </select>
-        )}
+        {/* Returns to the screen it is ON. This card is rendered on Prizes and
+            on Group games, and the hard-coded `/prizes?round=` it used to
+            carry threw a fourball's organizer onto the club's money screen. */}
+        <RoundPicker
+          rounds={rounds}
+          activeStageId={activeStageId}
+          style={{ marginLeft: "auto", maxWidth: 260 }}
+        />
       </div>
 
       {renaming && (
