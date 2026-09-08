@@ -134,6 +134,23 @@ RED, on an end-to-end test, and had been for twenty minutes. Running five of six
 It seeds a real fixture through `e2e/fixture.mjs` and tears it down afterwards, so it needs a
 database it may write to. Never point it at anything but the development one.
 
+**One recurring CI failure is a Chromium crash, not a test.** `organizer.spec.ts:54` — "the
+leaderboard shows the whole field" — periodically fails on the desktop project with:
+
+```
+[pid=####][err] Received signal 11 SEGV_MAPERR 0000000001b0
+Error: browser.newContext: Target page, context or browser has been closed
+```
+
+Three times on 2026-09-08 alone, across unrelated branches, and twice before that. The browser
+process dies; the assertion never runs. **Read the log every time rather than assuming** — a real
+failure on that spec looks completely different, with an expected and a received value — and
+confirm by re-running the SAME commit, which has gone green every time so far. What is not
+acceptable is merging past a red e2e without opening the log, which is how a real regression gets
+filed as this.
+
+Worth someone's attention as its own piece of work: it is always the same spec.
+
 ## What gates a merge, and what gates a deploy
 
 `ci.yml` is the only workflow that runs on its own — every push and every PR. It does the
@@ -168,6 +185,24 @@ workflow because they are identifiers, not credentials. If the deploy fails, che
 token FIRST and check it directly — `vercel whoami`. An invalid token reports
 "Could not retrieve Project Settings", which reads like a permissions or id problem and
 is not one. That error cost two wrong fixes before anyone ran `whoami`.
+
+**The other way `deploy` fails is the production DATABASE, and it is not the token.** Because
+`vercel-build` runs `prisma migrate deploy`, an unreachable production database fails the build:
+
+```
+Invalid `prisma.$queryRawUnsafe()` invocation:
+Can't reach database server at `db.prisma.io:5432`
+Error: Command "npm run vercel-build" exited with 1
+```
+
+That happened on 2026-09-08 to `8c1d75b`, a documentation-only commit — `verify` passed in full
+and only `Deploy to production` went red, which is the shape that tells you it is not the code.
+The next merge deployed normally and carried it, because git history is cumulative.
+
+So read WHICH JOB failed before reading anything else. `verify` red is your change; `deploy` red
+on a green `verify` is the token or the database, and this message names which. Nothing shipped
+unverified either way — `deploy` has `needs: verify` — but a commit CAN sit undeployed until the
+next merge, so do not read "merged" as "live" without checking the run.
 
 Related: `main` is exempt from `cancel-in-progress`. Two merges a minute apart used to leave
 the first one's `verify` reading `cancelled` on a commit already in production — a deploy
