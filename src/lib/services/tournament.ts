@@ -1229,15 +1229,36 @@ export function standingRows(state: EventState): StandingRow[] {
    * says two players are level. It is the same fault this file keeps finding:
    * one rule, one reader.
    */
-  const tied = new Set(
-    cutLineTies(
-      state.strokeStandings.map((s) => ({
+  /**
+   * FROM THE RANKING THIS EVENT IS ACTUALLY DECIDED ON.
+   *
+   * This read `strokeStandings` unconditionally, which is the wrong list for
+   * a match-play event: the ranking there is match points, held in
+   * `state.overall`, and the stroke rows are whatever cards happen to exist —
+   * usually none at all. So `tiedAtCut` was never set on a match-play board,
+   * and the "Tied for the last place — play-off to decide" note that
+   * LeaderboardTable and Reports already render could not fire on the format
+   * where two players level on points is the ordinary case.
+   */
+  const rankedForCut = state.isStroke
+    ? state.strokeStandings.map((s) => ({
         id: s.player.id,
         rank: s.rank,
         ranked: s.ranked,
         advancing: state.advancingIds.has(s.player.id),
         groupId: s.player.groupId,
-      })),
+      }))
+    : state.overall.map((r) => ({
+        id: r.player.id,
+        rank: r.rank,
+        // A match-play row always holds a position — see the branch below.
+        ranked: true,
+        advancing: state.advancingIds.has(r.player.id),
+        groupId: r.player.groupId,
+      }));
+  const tied = new Set(
+    cutLineTies(
+      rankedForCut,
       state.event.qualifyMode === "overall" ? "overall" : "perFlight",
     ).flatMap((t) => t.playerIds),
   );
@@ -1301,6 +1322,9 @@ export function standingRows(state: EventState): StandingRow[] {
       name: r.player.name,
       flight: flight(r.player.id),
       advancing: state.advancingIds.has(r.player.id),
+      // Same flag the stroke rows carry, now that it is computed from the
+      // ranking a match-play event is decided on.
+      tiedAtCut: tied.has(r.player.id),
       record: fmtRecord(r.stats),
       diff: fmtDiff(r.stats),
       pts: fmtPts(r.stats.totalPoints),
@@ -1458,7 +1482,71 @@ export function computeHighlights(state: EventState): Highlight[] {
   );
   if (bubble) {
     const outName = state.overall.find((rp) => rp.player.id === bubble.firstOut.id)!.player.name;
-    out.push({ icon: "🚨", title: "Bubble watch", text: `${outName} is ${fmt(bubble.gap)} pts outside qualification.` });
+    /**
+     * The player "Qualification watch" just named, not `bubble.lastIn`.
+     *
+     * `qualificationBubble` picks the advancing player with the worst SCORE,
+     * and when two of them are level on it — which is the whole case this
+     * branch exists for — it keeps whichever it happened to see first. The
+     * card directly above uses rank order and named the other one, so the two
+     * sentences contradicted each other about who holds the final spot while
+     * both were describing the same tie.
+     */
+    const inName = lastIn?.player.name ?? "the last qualifier";
+    /**
+     * A GAP OF NOTHING IS NOT A GAP.
+     *
+     * "Grace Okafor is 0 pts outside qualification" was on the demo board, and
+     * it is not a sentence about anything: she is not outside by a margin, she
+     * is LEVEL with the player who got in, and a tiebreaker decided between
+     * them. The stroke branch has said so since the day somebody noticed —
+     * this one still printed the zero, because that fix sits inside
+     * `if (state.isStroke)` and match play never reached it.
+     *
+     * Two shapes, and the difference matters to an organizer:
+     *
+     *   - the ranking SHARED a place, so nothing separated them at all and the
+     *     committee has a decision to make. `tiedAtCut` says so, and the
+     *     leaderboard and Reports already carry it.
+     *   - the ranking separated them, but on points they are level — the
+     *     tiebreakers this club configured did the work. Nothing to decide,
+     *     but "0 pts outside" tells them none of it.
+     */
+    const level = bubble.gap === 0;
+    /**
+     * Computed here from the same reader `standingRows` uses, rather than
+     * threaded in: both answer "does the cut line run through a shared place",
+     * and two implementations of that is how a board and an insight card come
+     * to disagree about one tournament.
+     */
+    const sharedAtLine = new Set(
+      cutLineTies(
+        state.overall.map((rp) => ({
+          id: rp.player.id,
+          rank: rp.rank,
+          ranked: true,
+          advancing: state.advancingIds.has(rp.player.id),
+          groupId: rp.player.groupId,
+        })),
+        state.event.qualifyMode === "overall" ? "overall" : "perFlight",
+      ).flatMap((t) => t.playerIds),
+    );
+    const sharedPlace = sharedAtLine.has(bubble.firstOut.id) && sharedAtLine.has(bubble.lastIn.id);
+    out.push(
+      level && sharedPlace
+        ? {
+            icon: "⚖️",
+            title: "Tied for the last place",
+            text: `${outName} and ${inName} are level on ${fmt(bubble.firstOut.score)} pts and nothing separates them. A play-off or your published countback decides who goes through — the app has not.`,
+          }
+        : level
+          ? {
+              icon: "⚖️",
+              title: "Level on points at the cut",
+              text: `${outName} is level with ${inName} on ${fmt(bubble.firstOut.score)} pts. Your tiebreakers put ${inName} through.`,
+            }
+          : { icon: "🚨", title: "Bubble watch", text: `${outName} is ${fmt(bubble.gap)} pts outside qualification.` },
+    );
   }
 
   return out;
