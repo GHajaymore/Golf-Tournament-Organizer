@@ -133,6 +133,29 @@ export type VenueMatch =
   | { kind: "new"; name: string };
 
 /**
+ * What the venue screen may CLAIM about a course it has matched.
+ *
+ * A decision rather than a condition in JSX, and the reason is that it could
+ * not otherwise be tested: the branch only renders once something has been
+ * typed, and `renderToStaticMarkup` cannot type. Reverting the card check
+ * inside the markup left every render test green — so the rule lives here,
+ * where a test can ask it directly.
+ *
+ *   has-card   the club has this course AND a card for it: say so
+ *   no-card    the club has the NAME and nothing else. Saying "using the
+ *              club's saved card" here promises pars and a stroke index that
+ *              do not exist, and the round then scores against nothing
+ *   null       nothing matched exactly; the screen is still asking
+ *
+ * `hasCard` undefined means NOT KNOWN, which is treated as having one — a
+ * caller that has not been updated should not put a warning on every course.
+ */
+export function exactCardClaim(found: VenueMatch | null): "has-card" | "no-card" | null {
+  if (found?.kind !== "exact") return null;
+  return found.course.hasCard === false ? "no-card" : "has-card";
+}
+
+/**
  * Resolve a typed course name against the club's saved courses.
  *
  * Never picks silently when it is unsure: an ambiguous name comes back as

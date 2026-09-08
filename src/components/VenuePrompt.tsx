@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState, useTransition } from "react";
 import { nameMatchVenue } from "@/app/actions/courses";
-import { matchCourse, needsNine, cardProblems, teeProblems } from "@/lib/domain/venue";
+import { matchCourse, needsNine, cardProblems, teeProblems, exactCardClaim } from "@/lib/domain/venue";
 import { parseCard } from "@/lib/domain/scorecard-parse";
 import { Icon } from "./Icon";
 
@@ -93,6 +93,8 @@ export function VenuePrompt({
   // they start filling in a card by hand.
   const found = useMemo(() => (typed.trim() ? matchCourse(typed, library) : null), [typed, library]);
   const isNew = found?.kind === "new";
+  /** Whether the screen may claim a saved card. See `exactCardClaim`. */
+  const claim = exactCardClaim(found);
 
   /**
    * The club's own courses, BROWSABLE rather than guessable.
@@ -266,7 +268,7 @@ export function VenuePrompt({
       )}
 
       {/* The club already has it: one tap, real card, nothing to type. */}
-      {found?.kind === "exact" && found.course.hasCard !== false && (
+      {claim === "has-card" && found?.kind === "exact" && (
         <div className="tag tag-accent-2" style={{ alignSelf: "flex-start" }}>
           <Icon name="check-circle" /> Using the club&rsquo;s saved card for {found.course.name}
         </div>
@@ -275,7 +277,7 @@ export function VenuePrompt({
       {/* The row exists; the card does not. Claiming a saved card here is the
           one thing this screen must not do — the round would score against no
           pars and no stroke index, and every total would look ordinary. */}
-      {found?.kind === "exact" && found.course.hasCard === false && (
+      {claim === "no-card" && found?.kind === "exact" && (
         <div className="tag tag-neutral" style={{ alignSelf: "flex-start" }}>
           <Icon name="warning-circle" /> {found.course.name} is in the library with no card yet — add
           it on the course, under {" "}
