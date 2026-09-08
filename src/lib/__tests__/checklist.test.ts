@@ -54,16 +54,16 @@ describe("what the checklist says", () => {
   it("marks nothing done on a fresh tournament, and says what to do", () => {
     const items = setupChecklist(empty);
     expect(items.map((i) => i.done)).toEqual([false, false, false, false]);
-    expect(items[0].detail).toContain("No players yet");
-    expect(items[1].detail).toContain("No rounds yet");
+    expect(items[1].detail).toContain("No players yet");
+    expect(items[0].detail).toContain("No rounds yet");
     expect(items[2].detail).toContain("No flights yet");
   });
 
   it("marks the work done once it is", () => {
     const items = setupChecklist(ready);
-    expect(items[0].done).toBe(true);
-    expect(items[0].detail).toContain("24 confirmed");
-    expect(items[1].detail).toContain("2 rounds");
+    expect(items[1].done).toBe(true);
+    expect(items[1].detail).toContain("24 confirmed");
+    expect(items[0].detail).toContain("2 rounds");
     expect(items[2].done).toBe(true);
     expect(items[2].detail).toContain("schedule generated");
   });
@@ -77,8 +77,8 @@ describe("what the checklist says", () => {
   });
 
   it("mentions the waitlist only when someone is on it", () => {
-    expect(setupChecklist(ready)[0].detail).not.toContain("waitlisted");
-    expect(setupChecklist({ ...ready, waitlist: [{}, {}] })[0].detail).toContain("2 waitlisted");
+    expect(setupChecklist(ready)[1].detail).not.toContain("waitlisted");
+    expect(setupChecklist({ ...ready, waitlist: [{}, {}] })[1].detail).toContain("2 waitlisted");
   });
 
   it("keeps staff optional — one person can run a tournament", () => {
@@ -89,8 +89,11 @@ describe("what the checklist says", () => {
 
   it("points every step at the screen that completes it", () => {
     expect(setupChecklist(empty).map((i) => i.href)).toEqual([
-      "/registration",
+      // Rounds before the field, which is `SETUP_ORDER` — the same sequence
+      // the rail and the "Recommended flow" card state. This list used to run
+      // field first and disagree with both.
       "/stages",
+      "/registration",
       "/grouping",
       "/access",
     ]);
@@ -125,8 +128,11 @@ describe("the branding nudge", () => {
     // The four setup steps still lead; the nudge is appended after them.
     expect(items[items.length - 1].href).toBe("/organization");
     expect(items.slice(0, 4).map((i) => i.href)).toEqual([
-      "/registration",
+      // Rounds before the field, which is `SETUP_ORDER` — the same sequence
+      // the rail and the "Recommended flow" card state. This list used to run
+      // field first and disagree with both.
       "/stages",
+      "/registration",
       "/grouping",
       "/access",
     ]);

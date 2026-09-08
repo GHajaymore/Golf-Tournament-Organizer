@@ -1,5 +1,6 @@
 import type { ChecklistItem } from "@/components/SetupChecklist";
 import { screenName } from "@/lib/nav";
+import { bySetupOrder } from "@/lib/domain/setup-flow";
 
 /**
  * Whether a club has put its own stamp on the app yet.
@@ -116,7 +117,25 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
     });
   }
 
-  return items;
+  /**
+   * ONE ORDER, from `setup-flow.ts`, rather than a second opinion about it.
+   *
+   * This list used to run field → rounds → flights, and the note above still
+   * explains why: you cannot flight a field you have not entered. That is true
+   * and it is not the whole question — `setup-flow.ts` argues the other half,
+   * that deciding WHO is playing before deciding WHAT is played is the way
+   * round that "had somebody adding players before discovering the format was
+   * not the one they wanted". Both were right about their own half and the app
+   * shipped both, so an organizer on `/event` met the rail saying rounds first
+   * and this list saying field first, one above the other.
+   *
+   * Sorting rather than rewriting the array keeps every `detail` string and
+   * every `done` test exactly as it was: the only thing that changes is the
+   * sequence, which is the thing that was disagreeing. The optional tail —
+   * staff, and the branding nudge — is not in `SETUP_ORDER` and so stays at
+   * the end, which is where an optional step belongs.
+   */
+  return bySetupOrder(items);
 }
 
 /**
