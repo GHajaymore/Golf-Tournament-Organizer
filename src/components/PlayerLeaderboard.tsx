@@ -1,4 +1,4 @@
-import { toParText } from "@/lib/domain";
+import { rankedScore } from "@/lib/domain/ranked-score";
 import { FlipList } from "./FlipList";
 import type { StandingRow } from "./LeaderboardTable";
 
@@ -102,13 +102,7 @@ export function PlayerLeaderboard({
   const showCut = lastAdvancing >= 0 && lastAdvancing < rows.length - 1;
 
   const you = youId ? rows.find((r) => r.id === youId) : undefined;
-  const yourScore = you
-    ? isStroke
-      ? isStableford
-        ? String(you.points)
-        : toParText(you.toPar)
-      : you.pts
-    : "";
+  const yourScore = you ? rankedScore(you, { isStroke, isStableford }).text : "";
 
   return (
     <>
@@ -186,12 +180,10 @@ export function PlayerLeaderboard({
         const started = r.started;
         const isYou = !!youId && r.id === youId;
 
-        // The one number the row is built around.
-        const score = isStroke
-          ? isStableford
-            ? String(r.points)
-            : toParText(r.toPar)
-          : r.pts;
+        // The one number the row is built around, through the one reader —
+        // the two copies of this branch in this file are what let a
+        // match-play board render a dash for everybody but you.
+        const score = rankedScore(r, { isStroke, isStableford }).text;
 
         return (
           <li key={r.id} data-flip-key={r.id}>

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { rankedScore } from "@/lib/domain/ranked-score";
 import { cardRevision } from "@/lib/domain/pending-card";
 import { needsTeams, ranksIndividuals } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
@@ -183,6 +184,24 @@ export interface Me {
     /** Holes the counted cards cover. `thru` against this is "50 of 54". */
     holesOwed: number;
     points: number;
+    /**
+     * The number this player is actually RANKED on, ready to print.
+     *
+     * A match-play round ranks on match points, and Today was showing a to-par
+     * beside them — a stroke-play statistic, taken from whatever cards happen
+     * to exist, which for a hole-by-hole match round is nothing to do with the
+     * result. The same player's own Board reads "4" for four match points while
+     * Today read "+4" for a to-par: two different numbers that look alike, on
+     * one tournament, on two screens.
+     *
+     * Taken from the same row the board renders rather than recomputed, so the
+     * two cannot disagree again.
+     */
+    scoreText: string;
+    /** "1-0-1" in a match round, empty in a stroke one. */
+    record: string;
+    /** What the number means, for the label above it: "Match points", "Thru 4". */
+    scoreLabel: string;
   } | null;
   round: MyRound | null;
 }
@@ -334,6 +353,17 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
           // "eighteen holes returned" is not the end of their round.
           holesOwed: standing.holesOwed,
           points: standing.points,
+          // Through the one reader, so this screen and the board cannot
+          // disagree about what number a player is ranked on.
+          scoreText: rankedScore(standing, {
+            isStroke: state.isStroke,
+            isStableford: stage.scoringBasis === "stableford",
+          }).text,
+          record: state.isStroke ? "" : standing.record,
+          scoreLabel: rankedScore(standing, {
+            isStroke: state.isStroke,
+            isStableford: stage.scoringBasis === "stableford",
+          }).label,
         }
       : null,
     round: {
