@@ -195,7 +195,11 @@ test("posting without a title says why, rather than doing nothing", async ({ pag
   // The message names what a title is FOR. An organizer who put the notice in
   // the message field has not forgotten a box; they need telling why the app
   // wants the other one.
-  await expect(page.getByRole("alert")).toContainText(/players see on their dashboard/i);
+  // By id, not by role: Next renders its own always-present route announcer
+  // with role="alert", so `getByRole("alert")` matches two elements on every
+  // page in the app.
+  await expect(page.locator("#announcement-refusal")).toContainText(/players see on their dashboard/i);
+  await expect(page.locator("#announcement-refusal")).toHaveAttribute("role", "alert");
   // And nothing was posted. Counted rather than searched for the text, since
   // the words are still sitting in the textarea either way.
   expect(await page.locator(".card").count()).toBe(before);
