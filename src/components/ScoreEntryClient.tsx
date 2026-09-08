@@ -8,10 +8,11 @@ import {
   parseStrokesTranscript,
   deriveNetHoles,
   matchStrokesGiven,
+  namesAreDistinct,
   type HoleResult,
 } from "@/lib/domain";
 import { CoursePicker } from "@/components/CoursePicker";
-import { firstName } from "@/lib/format";
+import { firstName, distinctLabels } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { declaredInput, inputOverrideApplies, resolveScoreInput } from "@/lib/formats";
 import {
@@ -487,6 +488,34 @@ export function ScoreEntryClient({
   };
 
   const active = matches.find((m) => m.id === selectedId);
+
+  /**
+   * What to CALL the two players on this screen.
+   *
+   * First names, until the two players share one — which in a society is
+   * ordinary rather than exotic. This screen labelled both sides by first
+   * name alone, so a match between two Daves drew a legend reading "Dave" and
+   * "Dave" against two colours, and a result line saying "Dave 3 up".
+   *
+   * `distinctLabels` widens only the names that clash, and only as far as it
+   * takes, so every ordinary match is untouched.
+   */
+  const [aLabel, bLabel] = useMemo(
+    () => (active ? distinctLabels([active.aName, active.bName]) : ["", ""]),
+    [active],
+  );
+  /**
+   * Whether a spoken name can identify anybody here. See namesAreDistinct.
+   *
+   * On the FIRST names, which is what a scorer actually says and what the
+   * parsers are given — never on the labels above. `distinctLabels` exists
+   * precisely to make those two differ, so asking it here would answer yes
+   * every time and quietly switch this guard off.
+   */
+  const canHearNames = active
+    ? namesAreDistinct(firstName(active.aName), firstName(active.bName))
+    : true;
+
   // The selected match's own card wins over the round-level one: in a league
   // with no fixed venue every pairing may be somewhere different.
   const pars = active?.pars?.length ? active.pars : parsProp;
@@ -738,11 +767,11 @@ export function ScoreEntryClient({
   const statusBig = resolution.complete
     ? resolution.winner === "H"
       ? "Halved"
-      : `${resolution.winner === "A" ? firstName(active.aName) : firstName(active.bName)} ${resolution.resultText}`
+      : `${resolution.winner === "A" ? aLabel : bLabel} ${resolution.resultText}`
     : holes.some((h) => h !== null)
       ? resolution.lead === 0
         ? "All square"
-        : `${resolution.lead > 0 ? firstName(active.aName) : firstName(active.bName)} ${Math.abs(resolution.lead)} up`
+        : `${resolution.lead > 0 ? aLabel : bLabel} ${Math.abs(resolution.lead)} up`
       : "Not started";
 
   const hasCourseData = pars.length > 0;
@@ -964,7 +993,7 @@ export function ScoreEntryClient({
                     <Icon name="flag-pennant" style={{ marginRight: 3 }} />
                     {active.aTee === active.bTee
                       ? active.aTee
-                      : `${firstName(active.aName)} ${active.aTee ?? "—"} · ${firstName(active.bName)} ${active.bTee ?? "—"}`}
+                      : `${aLabel} ${active.aTee ?? "—"} · ${bLabel} ${active.bTee ?? "—"}`}
                   </span>
                 )}
                 {(active.scoredAt || active.enteredBy) && (
@@ -1211,7 +1240,7 @@ export function ScoreEntryClient({
               <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "12px 0", fontSize: 13, flexWrap: "wrap" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span className="sc-key-dot" style={{ background: "var(--color-accent)" }} />
-                  {firstName(active.aName)}
+                  {aLabel}
                 </span>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span className="sc-key-dot" style={{ background: "var(--color-text)" }} />
@@ -1219,18 +1248,33 @@ export function ScoreEntryClient({
                 </span>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span className="sc-key-dot" style={{ background: "var(--color-accent-2)" }} />
-                  {firstName(active.bName)}
+                  {bLabel}
                 </span>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={toggleListenHoles}
-                  style={listening === "holes" ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
-                >
-                  <Icon name={listening === "holes" ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
-                  {listening === "holes" ? "Listening…" : "Voice entry"}
-                </button>
-                <span className="text-muted" style={{ fontSize: 12 }}>{listening === "holes" ? "Listening…" : "Say each hole's winner in order, e.g. “Alex, half, Sam”."}</span>
+                {/* Offered only when a spoken name could identify anybody.
+                    With two players called Dave there is nothing to say that
+                    tells them apart, and the parser now declines rather than
+                    crediting whichever side it checked first — so the button
+                    would listen carefully and record nothing. Saying why beats
+                    a control that appears to work. */}
+                {canHearNames ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={toggleListenHoles}
+                      style={listening === "holes" ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : undefined}
+                    >
+                      <Icon name={listening === "holes" ? "ph-fill ph-microphone" : "ph ph-microphone"} />{" "}
+                      {listening === "holes" ? "Listening…" : "Voice entry"}
+                    </button>
+                    <span className="text-muted" style={{ fontSize: 12 }}>{listening === "holes" ? "Listening…" : `Say each hole's winner in order, e.g. “${aLabel}, half, ${bLabel}”.`}</span>
+                  </>
+                ) : (
+                  <span className="text-muted" style={{ fontSize: 12 }}>
+                    <Icon name="microphone-slash" /> Both players are called {firstName(active.aName)}, so
+                    voice entry can&rsquo;t tell them apart. Tap the results below.
+                  </span>
+                )}
               </div>
 
               <div className="sc-wrap">
@@ -1332,7 +1376,16 @@ export function ScoreEntryClient({
                     <Icon name={listening === "result" ? "ph-fill ph-microphone" : "ph ph-microphone"} />
                   </button>
                 </div>
-                <div className="text-muted" style={{ fontSize: 12 }}>{listenHint}</div>
+                {/* The margin is still worth dictating — "3 and 2" means the
+                    same thing whoever said it — so unlike the hole-by-hole
+                    mic this one stays. Only the winner cannot be heard, and
+                    the scorer is told to pick it rather than left wondering
+                    why the name was ignored. */}
+                <div className="text-muted" style={{ fontSize: 12 }}>
+                  {canHearNames
+                    ? listenHint
+                    : `Both players are called ${firstName(active.aName)}, so the margin is heard but the winner isn't — pick it above.`}
+                </div>
               </div>
               <button type="button" className="btn btn-primary btn-block" onClick={doApplyResult}>
                 <Icon name="check" /> Apply result
@@ -1383,16 +1436,21 @@ export function ScoreEntryClient({
                       const strokes = slot === "A" ? aStrokes : bStrokes;
                       const given = slot === "A" ? strokesGiven.toA : strokesGiven.toB;
                       const name = slot === "A" ? active.aName : active.bName;
+                      // The same two players as the legend above, so the same
+                      // labels: this table is where the strokes are typed, and
+                      // two rows both headed "Dave" is the one place a
+                      // collision puts a score on the wrong card.
+                      const label = slot === "A" ? aLabel : bLabel;
                       const gross = sum(strokes.filter((s): s is number => s != null), 0, strokes.length);
                       return (
                         <tr key={slot}>
                           <td style={{ fontWeight: 500, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-                            {firstName(name)}
+                            {label}
                             <button
                               type="button"
                               className="btn btn-secondary"
                               onClick={() => toggleListenStrokes(slot)}
-                              title={`Dictate ${firstName(name)}'s scores`}
+                              title={`Dictate ${label}'s scores`}
                               style={{ fontSize: 11, padding: "2px 7px", whiteSpace: "nowrap", ...(listening === `hcp-${slot}` ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : {}) }}
                             >
                               <Icon name={listening === `hcp-${slot}` ? "ph-fill ph-microphone" : "ph ph-microphone"} style={{ fontSize: 11 }} />{" "}
@@ -1410,7 +1468,7 @@ export function ScoreEntryClient({
                               />
                               {given[i] > 0 && (
                                 <span
-                                  title={`${firstName(name)} receives a shot here`}
+                                  title={`${label} receives a shot here`}
                                   style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1 }}
                                 >
                                   •
@@ -1430,7 +1488,7 @@ export function ScoreEntryClient({
                               />
                               {given[i] > 0 && (
                                 <span
-                                  title={`${firstName(name)} receives a shot here`}
+                                  title={`${label} receives a shot here`}
                                   style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1 }}
                                 >
                                   •
@@ -1519,7 +1577,7 @@ export function ScoreEntryClient({
             }}
           >
             <span className="text-muted" style={{ fontSize: 12 }}>
-              Holes won — {firstName(active.aName)} {holesWonA} · {firstName(active.bName)} {holesWonB}
+              Holes won — {aLabel} {holesWonA} · {bLabel} {holesWonB}
             </span>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" className="btn btn-secondary" onClick={doClear}>

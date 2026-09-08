@@ -58,6 +58,59 @@ export function shortName(name: string): string {
 }
 
 /**
+ * Labels for names shown BESIDE each other, guaranteed to differ.
+ *
+ * `firstName` is the right label almost always, and useless in the one case
+ * that matters most: two players in the same match called Dave. The match
+ * screen's legend read "Dave 0 · Dave 0" with two colours the scorer had no
+ * way to attach to a person, and the result line said "Dave 3 up" about a
+ * match between two Daves.
+ *
+ * Widen only as far as it takes, and only for the names that actually clash —
+ * a Dave playing a Sam still reads "Dave" and "Sam". "Dave S." is enough for
+ * two; two people with the SAME full name get the full name twice, because at
+ * that point nothing short is honest and the caller should be showing
+ * something else entirely.
+ *
+ * Decided here rather than at each call site: this is the shape CLAUDE.md
+ * asks for, since a rule applied where the labels are built cannot be
+ * forgotten by the next screen that renders a pair of names.
+ */
+export function distinctLabels(
+  names: string[],
+  /**
+   * How a name is written when nothing forces it wider. THE CALLER'S NORMAL
+   * FORMAT, and it must be passed as such: a screen that shows "First L."
+   * wants "Dave S." for everybody and something longer only where two of them
+   * collide.
+   *
+   * Defaulting this to `firstName` and using it on a `shortName` screen
+   * shortens every name on that screen — which is a change to all the rows to
+   * fix a collision in two of them. `render.test.tsx` caught exactly that: a
+   * qualification table that had always read "A. J." started reading "A.".
+   */
+  base: (name: string) => string = firstName,
+): string[] {
+  const counts = (labels: string[]) => {
+    const seen = new Map<string, number>();
+    for (const l of labels) seen.set(l.toLowerCase(), (seen.get(l.toLowerCase()) ?? 0) + 1);
+    return seen;
+  };
+
+  // Widest last. Each step is tried only by the names still colliding at the
+  // step before, so one clash never reformats the rest of the list.
+  const ladder = [base, shortName, (n: string) => n.trim()];
+
+  let labels = names.map((n) => base(n));
+  for (const step of ladder.slice(1)) {
+    const seen = counts(labels);
+    if (![...seen.values()].some((c) => c > 1)) break;
+    labels = names.map((n, i) => ((seen.get(labels[i].toLowerCase()) ?? 0) > 1 ? step(n) : labels[i]));
+  }
+  return labels;
+}
+
+/**
  * A readable list of names for a one-line notice.
  *
  * Capped, because the case that produces one of these is a bulk action: an
