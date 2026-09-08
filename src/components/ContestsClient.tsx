@@ -14,6 +14,7 @@ import { DERIVED_KINDS, DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived
 import { PersonChip } from "@/components/PersonChip";
 import FieldInfo from "@/components/FieldInfo";
 import { useMoney } from "@/components/CurrencyProvider";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 /**
@@ -490,15 +491,16 @@ export function ContestsClient({
               </p>
             </div>
 
-            <button
-              type="button"
+            {/* A bet with a pot against it. */}
+            <ConfirmButton
               className="btn btn-secondary touch-target"
               style={{ fontSize: 12, marginTop: 10 }}
+              label="Remove this bet"
+              title="Remove this bet"
+              confirmLabel="Remove the bet"
               disabled={pending}
-              onClick={() => run(() => removeContest(c.id))}
-            >
-              <Icon name="trash" /> Remove this bet
-            </button>
+              onConfirm={() => run(() => removeContest(c.id))}
+            />
           </div>
         );
       })}

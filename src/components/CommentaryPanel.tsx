@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { postCommentary, deleteCommentary, suggestCommentary } from "@/app/actions/commentary";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 export interface CommentaryItem {
@@ -111,10 +112,17 @@ export function CommentaryPanel({
                 {c.author} · {c.when}
               </div>
             </div>
+            {/* Was a 26x26 unlabelled × — well under the platform touch
+                minimum, and wired straight to a delete. The confirm pair that
+                replaces it carries its own 44px targets. */}
             {canPost && (
-              <button type="button" className="btn btn-icon" disabled={pending} onClick={() => startTransition(() => deleteCommentary(c.id))} style={{ width: 26, height: 26 }}>
-                <Icon name="x" />
-              </button>
+              <ConfirmButton
+                icon="x"
+                title="Delete this line"
+                confirmLabel="Delete it"
+                disabled={pending}
+                onConfirm={() => startTransition(() => deleteCommentary(c.id))}
+              />
             )}
           </div>
         ))}

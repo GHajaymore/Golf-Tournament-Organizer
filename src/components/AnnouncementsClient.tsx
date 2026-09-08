@@ -3,6 +3,7 @@ import { useRef, useState, useTransition } from "react";
 import { addAnnouncement, toggleAnnouncementPin, removeAnnouncement } from "@/app/actions/tournament";
 import { DraftAssistant } from "@/components/DraftAssistant";
 import { postRefusal } from "@/lib/domain/announcement-post";
+import { ConfirmButton } from "./ConfirmButton";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { Icon } from "./Icon";
 
@@ -26,8 +27,6 @@ export function AnnouncementsClient({
   const [body, setBody] = useState("");
   const [pinned, setPinned] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
-  // Which post is one tap from being destroyed. Null when none is.
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const saveStatus = useSaveStatus(pending);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -145,42 +144,12 @@ export function AnnouncementsClient({
                   from. Missing Pin by a thumb's width destroyed the notice.
                   Same shape as the money ledger's Remove, and for the same
                   reason. */}
-              {confirmDelete === a.id ? (
-                <>
-                  <button
-                    type="button"
-                    className="btn touch-target"
-                    style={{ fontSize: 12, color: "var(--color-danger)" }}
-                    disabled={pending}
-                    onClick={() =>
-                      startTransition(async () => {
-                        await removeAnnouncement(a.id);
-                        setConfirmDelete(null);
-                      })
-                    }
-                  >
-                    <Icon name="trash" /> Delete it
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary touch-target"
-                    style={{ fontSize: 12 }}
-                    onClick={() => setConfirmDelete(null)}
-                  >
-                    Keep
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-icon"
-                  title="Delete"
-                  disabled={pending}
-                  onClick={() => setConfirmDelete(a.id)}
-                >
-                  <Icon name="trash" />
-                </button>
-              )}
+              <ConfirmButton
+                title="Delete"
+                confirmLabel="Delete it"
+                disabled={pending}
+                onConfirm={() => startTransition(() => removeAnnouncement(a.id))}
+              />
             </div>
             {a.body && <p className="text-muted" style={{ fontSize: 13, margin: 0, whiteSpace: "pre-wrap" }}>{a.body}</p>}
           </div>

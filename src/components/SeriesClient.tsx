@@ -3,6 +3,7 @@ import { Fragment, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createSeries, updateSeries, deleteSeries, setEventSeries } from "@/app/actions/series";
 import { describeTable, type SeriesStanding } from "@/lib/domain/series";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 export interface SeriesSummary {
@@ -275,15 +276,21 @@ export function SeriesClient({
               >
                 {active.status === "complete" ? "Reopen season" : "Mark season finished"}
               </button>
-              <button
-                type="button"
+              {/* A whole season, on one press of a plain secondary button
+                  sitting beside "Mark season finished" — the two things an
+                  organizer reaches for at the same moment, one of which is
+                  routine and the other of which cannot be undone. */}
+              <ConfirmButton
                 className="btn btn-secondary"
+                icon="trash"
+                label="Delete season"
+                title="Delete season"
+                confirmLabel="Delete the season"
+                keepLabel="Keep it"
+                note="Rounds played in this season keep their results."
                 disabled={pending}
-                title="Rounds played in this season keep their results"
-                onClick={() => run(() => deleteSeries(active.id))}
-              >
-                Delete season
-              </button>
+                onConfirm={() => run(() => deleteSeries(active.id))}
+              />
             </div>
           </div>
         )}

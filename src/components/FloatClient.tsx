@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { addFundLine, removeFundLine } from "@/app/actions/money-setup";
 import { floatSummary, type FundLine } from "@/lib/domain/money-mode";
 import { useMoney } from "@/components/CurrencyProvider";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 /**
@@ -113,16 +114,15 @@ export function FloatClient({
                 </span>
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums" }}>{money(l.amountCents)}</span>
+              {/* A money line. The expense ledger's Remove already took two
+                  taps; this is its sibling and took one. */}
               {canEdit && (
-                <button
-                  type="button"
-                  className="btn btn-icon"
+                <ConfirmButton
                   title="Remove this line"
+                  confirmLabel="Remove it"
                   disabled={pending}
-                  onClick={() => run(() => removeFundLine(l.id))}
-                >
-                  <Icon name="trash" />
-                </button>
+                  onConfirm={() => run(() => removeFundLine(l.id))}
+                />
               )}
             </div>
           ))}
