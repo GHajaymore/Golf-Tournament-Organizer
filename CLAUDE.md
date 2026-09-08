@@ -100,6 +100,22 @@ npx vitest run --config vitest.audit.config.ts
 Use `NEXT_DIST_DIR=.next-ci` for builds while a dev server is running; sharing `.next` between
 them corrupts it.
 
+**A build can still take the dev server down with it, and the smoke scripts then blame your
+change.** Separate dist directories stop the two corrupting each other's output; they do not stop
+the machine being busy enough that the dev server dies mid-run. On 2026-09-08 that happened four
+times, always in the same shape: `next build` finishes, the smoke pass starts, and the first one
+or two scripts report a route as `FAIL 0` or `[TypeError: fetch failed]` while a later one passes.
+
+Read those two symptoms as "no server", not "broken route". A real 5xx has a status; `FAIL 0`
+means nothing answered. `curl -s -o /dev/null -w "%{http_code}" http://localhost:3100/` settles
+it in a second — and note that an UNAUTHENTICATED curl of a console route correctly returns 307,
+so a redirect there is the server working, not failing.
+
+So run the smoke pass against a server you have just confirmed is up, and if a script reports a
+transport failure, restart the preview and run the whole set again before believing any of it.
+A green run after a restart on the same commit is the answer; half a red run is not evidence
+about the code.
+
 **The command at the top is FIVE SIXTHS of the gate. Playwright is the sixth**, and nothing
 above it can see what it sees — a scorecard wider than its column, a target under the touch
 minimum, a card that opens blank over a round already played, a date rendered in the wrong
