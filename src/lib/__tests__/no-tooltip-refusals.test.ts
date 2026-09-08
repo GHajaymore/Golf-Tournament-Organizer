@@ -164,8 +164,12 @@ const ALLOWED: Array<{ fragment: string; because: string }> = [
  * are ones where it is.
  */
 const KNOWN_DEBT: string[] = [
-  "Rounds and matches played here keep their results",
-  "Rounds played in this season keep their results",
+  // Two entries left here on 2026-09-07, PAID rather than reworded. Both sat
+  // on a Remove button whose tooltip carried the reassurance that decides the
+  // answer. Both are now `ConfirmButton` notes — visible text beside the armed
+  // confirm, which is the moment somebody is deciding, and readable on the
+  // phone the button is being tapped on.
+
   "Hasn't set a password yet",
   "Hasn't played enough rounds to be ranked",
   "Tees, course rating and slope — what the shots given are calculated from",

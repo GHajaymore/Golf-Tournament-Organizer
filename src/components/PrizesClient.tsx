@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { addPrize, updatePrize, setPrizeWinner, removePrize } from "@/app/actions/tournament";
 import { useMoney } from "@/components/CurrencyProvider";
 import { money as formatMoney, minorUnitDigits } from "@/lib/domain/money-format";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 export interface PrizeRow {
@@ -167,15 +168,12 @@ export function PrizesClient({
                     </select>
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn btn-icon"
+                    <ConfirmButton
                       title="Remove prize"
+                      confirmLabel="Remove it"
                       disabled={pending}
-                      onClick={() => startTransition(() => removePrize(p.id))}
-                    >
-                      <Icon name="trash" />
-                    </button>
+                      onConfirm={() => startTransition(() => removePrize(p.id))}
+                    />
                   </td>
                 </tr>
               ))}

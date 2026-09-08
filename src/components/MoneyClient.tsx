@@ -10,6 +10,7 @@ import { shareField, initialsOf } from "@/lib/share-field";
 import { unitemisedGames } from "@/lib/domain/money-breakdown";
 import { PersonChip } from "@/components/PersonChip";
 import { useMoney } from "@/components/CurrencyProvider";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 /**
@@ -56,8 +57,6 @@ export function MoneyClient({ view }: { view: MoneyView }) {
   const [adding, setAdding] = useState(false);
   /** The expense being changed, or null when this is a new one. */
   const [editing, setEditing] = useState<string | null>(null);
-  /** Which line is one tap from being deleted. Money does not vanish on one tap. */
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [showAllTransfers, setShowAllTransfers] = useState(false);
 
   const [description, setDescription] = useState("");
@@ -1105,43 +1104,24 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                     exists, Remove only ever means "this never happened" — and
                     a money record that disappears without a confirmation is
                     one nobody can reconstruct. */}
-                {confirmDelete === e.id ? (
-                  <>
-                    <button
-                      type="button"
-                      className="btn btn-danger touch-target"
-                      style={{ fontSize: 12 }}
-                      disabled={pending}
-                      onClick={() =>
-                        startTransition(async () => {
-                          const res = await removeExpense(e.id);
-                          if (!res.ok) setError(res.error ?? "Couldn't remove that.");
-                          setConfirmDelete(null);
-                        })
-                      }
-                    >
-                      <Icon name="trash" /> Yes, remove it
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary touch-target"
-                      style={{ fontSize: 12 }}
-                      onClick={() => setConfirmDelete(null)}
-                    >
-                      Keep it
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn-secondary touch-target"
-                    style={{ fontSize: 12 }}
-                    disabled={pending}
-                    onClick={() => setConfirmDelete(e.id)}
-                  >
-                    <Icon name="trash" /> Remove
-                  </button>
-                )}
+                {/* This screen had the pattern first, hand-rolled. It is the
+                    shared control now, so the nine screens that grew the same
+                    fault cannot answer it slightly differently. */}
+                <ConfirmButton
+                  className="btn btn-secondary touch-target"
+                  style={{ fontSize: 12 }}
+                  label="Remove"
+                  title="Remove this line"
+                  confirmLabel="Yes, remove it"
+                  keepLabel="Keep it"
+                  disabled={pending}
+                  onConfirm={() =>
+                    startTransition(async () => {
+                      const res = await removeExpense(e.id);
+                      if (!res.ok) setError(res.error ?? "Couldn't remove that.");
+                    })
+                  }
+                />
               </div>
               )}
             </div>

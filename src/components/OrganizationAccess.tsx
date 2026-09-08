@@ -6,6 +6,7 @@ import {
   removeOrganizationMember,
 } from "@/app/actions/organization";
 import type { AccessReport } from "@/lib/services/access";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 /**
@@ -138,15 +139,15 @@ export function OrganizationAccess({ report, canEdit }: { report: AccessReport; 
                       {Object.keys(p.access).length}
                     </td>
                     <td style={{ textAlign: "right" }}>
-                      <button
-                        type="button"
-                        className="btn btn-icon"
-                        disabled={!canEdit || pending}
+                      {/* Revoking a colleague's access to every event the club
+                          runs, from an unlabelled × in a table row. */}
+                      <ConfirmButton
+                        icon="x"
                         title="Remove from organization"
-                        onClick={() => run(() => removeOrganizationMember(p.memberId!))}
-                      >
-                        <Icon name="x" />
-                      </button>
+                        confirmLabel="Remove them"
+                        disabled={!canEdit || pending}
+                        onConfirm={() => run(() => removeOrganizationMember(p.memberId!))}
+                      />
                     </td>
                   </tr>
                 ))}

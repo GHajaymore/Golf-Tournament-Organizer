@@ -18,6 +18,7 @@ import { CoursePicker } from "@/components/CoursePicker";
 import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
 import { isDirectorySource, type CardDifference } from "@/lib/domain/course-directory";
 import type { ClubCourse } from "@/lib/services/courses";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 /** The result of asking the directory whether a course has changed. */
@@ -391,21 +392,24 @@ export function CourseLibrary({
                         >
                           Edit
                         </button>
-                        <button
-                          type="button"
+                        {/* A stored course card. Re-fetching one costs API
+                            quota that is capped at 500 requests a day, so a
+                            card removed by a mis-tap is not simply re-added. */}
+                        <ConfirmButton
                           className="btn btn-secondary"
                           style={{ fontSize: 12, padding: "3px 9px", marginLeft: 6 }}
+                          label="Remove"
+                          title="Remove this course"
+                          confirmLabel="Remove the course"
+                          note="Rounds and matches played here keep their results."
                           disabled={pending}
-                          onClick={() =>
+                          onConfirm={() =>
                             startTransition(async () => {
                               const res = await deleteClubCourse(c.id);
                               if (!res.ok) setError(res.error ?? "Couldn't remove the course.");
                             })
                           }
-                          title="Rounds and matches played here keep their results"
-                        >
-                          Remove
-                        </button>
+                        />
                       </>
                     )}
                   </td>

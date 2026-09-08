@@ -12,6 +12,7 @@ import { PHONE_REQUIRED_FREE } from "@/lib/plans";
 import { csvSizeRefusal } from "@/lib/csv";
 import { contactGaps } from "@/lib/domain/contact-gaps";
 import { setPlayerTee } from "@/app/actions/courses";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 interface Signup {
@@ -469,9 +470,18 @@ export function RegistrationClient({
                   <td className="text-muted" style={{ fontSize: 12 }}>{p.phone || "—"}</td>
                   {showFlight && <td className="text-muted">{p.flight || "—"}</td>}
                   <td style={{ textAlign: "right" }}>
-                    <button type="button" className="btn btn-icon" disabled={pending || locked} onClick={() => startTransition(() => void removeSignup(p.id))}>
-                      <Icon name="x" />
-                    </button>
+                    {/* An unlabelled × at the end of a row of EDITABLE fields:
+                        a thumb aiming at the phone cell lands on it. The bulk
+                        Remove above already asks in a dialog, because it has a
+                        sentence to say about withdrawals; this per-row one had
+                        nothing at all. */}
+                    <ConfirmButton
+                      icon="x"
+                      title={`Remove ${p.name} from the field`}
+                      confirmLabel="Remove"
+                      disabled={pending || locked}
+                      onConfirm={() => startTransition(() => void removeSignup(p.id))}
+                    />
                   </td>
                 </tr>
               ))}

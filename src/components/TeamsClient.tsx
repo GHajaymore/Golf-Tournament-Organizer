@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { sideDrawReadiness, sideAddBlock } from "@/lib/domain/draw-readiness";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 import {
   createTeam,
@@ -314,15 +315,15 @@ export function TeamsClient({
                     with no label, on a screen whose whole subject is handicaps,
                     explained only to a mouse. */}
                 <span className="tag tag-neutral">Plays off {t.playingHandicap}</span>
-                <button
-                  type="button"
-                  className="btn btn-icon"
+                {/* The side and its whole membership. Removing one PLAYER from
+                    a side, below, is left on one tap — that is re-added in a
+                    tap too, and a confirmation on it would be noise. */}
+                <ConfirmButton
                   title="Remove team"
+                  confirmLabel="Remove the team"
                   disabled={pending}
-                  onClick={() => run(() => deleteTeam(t.id))}
-                >
-                  <Icon name="trash" />
-                </button>
+                  onConfirm={() => run(() => deleteTeam(t.id))}
+                />
               </div>
 
               {t.members.length === 0 ? (
