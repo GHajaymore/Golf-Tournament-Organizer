@@ -179,3 +179,46 @@ describe("checkLogoUrl", () => {
     expect(res.error).toMatch(/redirects too many times/);
   });
 });
+
+describe("an uploaded logo, which is bytes rather than a URL", () => {
+  /**
+   * Everything else in this file answers "will a stranger's browser load that
+   * URL". A data URI carries its own answer, so `checkLogoUrl` must not fetch
+   * it — and must not run it through `problemWithUrl`, which would refuse
+   * every upload for not starting with https://.
+   *
+   * The size and type rules still apply, and applying them HERE is the point:
+   * the browser resizes as a convenience, and this is the endpoint.
+   */
+  const PNG =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+  it("accepts one without going near the network", async () => {
+    // The guard on the whole idea: a fetch here would be meaningless, and on
+    // a 256KB string, slow.
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await expect(checkLogoUrl(PNG)).resolves.toEqual({ ok: true });
+    expect(fetchSpy, "a data URI has nothing to fetch").not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("is not judged as a URL", async () => {
+    // The regression this pins: `problemWithUrl` refuses anything that is not
+    // https://, so reaching it would make every upload impossible.
+    const res = await checkLogoUrl(PNG);
+    expect(res.ok).toBe(true);
+    expect(res.error).toBeUndefined();
+  });
+
+  it("still refuses a type that is not an allowed image", async () => {
+    const res = await checkLogoUrl("data:text/html;base64,PHNjcmlwdD4=");
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/PNG/);
+  });
+
+  it("still refuses one over the cap", async () => {
+    const res = await checkLogoUrl(`data:image/png;base64,${"A".repeat(300 * 1024)}`);
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/too large/i);
+  });
+});

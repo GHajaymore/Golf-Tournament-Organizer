@@ -3763,7 +3763,12 @@ describe("club settings", () => {
     const html = await club();
     for (const control of [
       "Type", "Plan", "Tournaments", "Staff",
-      "Branding", "Organization name", "Short name", "Logo URL", "Name beside the logo",
+      // "Logo" rather than "Logo URL": the field takes an uploaded file as
+      // well now, so the label no longer names one of the two ways to fill it.
+      // The upload button is listed here so the new control is guarded the
+      // same way the old one was.
+      "Branding", "Organization name", "Short name", "Logo", "Upload an image",
+      "PNG, JPG or WebP", "Name beside the logo",
       "Where the club is", "City", "State or region", "Country",
       "Preview", "Save changes",
     ]) {

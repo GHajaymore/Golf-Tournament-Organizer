@@ -84,10 +84,20 @@ model Organization {
   // tournament this organization owns.
 
   /**
-   * Absolute https:// URL to a logo image. A URL rather than an upload
-   * because file uploads need blob storage; this works with the club's
-   * existing website assets and can be swapped for an upload later without
-   * changing anything that reads it.
+   * The club's logo, as EITHER an absolute https:// URL or an uploaded image
+   * held inline as a `data:` URI.
+   *
+   * This said "a URL rather than an upload, because file uploads need blob
+   * storage" and predicted it "can be swapped for an upload later without
+   * changing anything that reads it". Both halves turned out right, and the
+   * swap needed no storage: a club logo is tens of kilobytes and every reader
+   * is a plain `<img src>`, so the image lives in this column. No bucket, no
+   * signed URL to expire, and no host that can start blocking hotlinks —
+   * which is the failure `logo-check.ts` exists to catch for the URL case.
+   *
+   * The rules that keep it small enough to inline on every header, board and
+   * printed scorecard are in `domain/logo-upload.ts`, and are enforced in
+   * `saveOrganizationBranding` rather than in the browser that resized it.
    */
   logoUrl      String @default("")
   /**
