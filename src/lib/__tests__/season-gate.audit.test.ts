@@ -37,7 +37,30 @@ async function setPlan(plan: string | null) {
   }
 }
 
+/**
+ * BY THE MARK, not by the id this run happens to hold.
+ *
+ * `Series` and `Subscription` both cascade from `Organization`, so removing
+ * the club by its tag removes everything this file makes.
+ *
+ * The id-only version could clean up only what the CURRENT run created, and
+ * ran nowhere but `afterAll` — so a run killed between the create and the
+ * teardown left a club behind that nothing would ever collect, and the next
+ * run created a second one beside it rather than clearing it. One orphan of
+ * exactly that shape was found in the development database on 2026-09-08,
+ * from `attestation.audit.test.ts`, empty and indistinguishable at a glance
+ * from a real club.
+ *
+ * Running it in `beforeAll` as well is what makes it SELF-HEALING: the fix
+ * collects the previous failure instead of only declining to add to it.
+ */
+async function scrub() {
+  await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
+}
+
 beforeAll(async () => {
+  await scrub();
+
   const org = await prisma.organization.create({ data: { name: `${TAG} Society` } });
   organizationId = org.id;
 
@@ -49,9 +72,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try {
-    await prisma.subscription.deleteMany({ where: { organizationId } });
-    await prisma.series.deleteMany({ where: { organizationId } });
-    await prisma.organization.deleteMany({ where: { id: organizationId } });
+    await scrub();
   } finally {
     await prisma.$disconnect();
   }

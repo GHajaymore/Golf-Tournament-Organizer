@@ -2326,3 +2326,59 @@ describe("the privacy policy's contact address", () => {
     expect(page).toMatch(/ask your club to raise it with us/);
   });
 });
+
+describe("an audit fixture can always be collected by its mark", () => {
+  /**
+   * CLAUDE.md: a fixture left in the database is a fixture somebody will later
+   * mistake for real. These files write to the DEVELOPMENT database, so the
+   * teardown is the only thing standing between a test run and a permanent
+   * row — and a teardown only runs when the process lives long enough to
+   * reach it.
+   *
+   * `attestation.audit.test.ts` read the event in order to find its
+   * organization and deleted the org only `if (ev)`, so any run where the
+   * event was already gone kept the club for good. One was found orphaned on
+   * 2026-09-08 — empty, named like a society, and indistinguishable at a
+   * glance from a real one.
+   *
+   * The mark is on every row precisely so that no row needs another to be
+   * findable. So the rule is structural rather than a matter of care: a file
+   * that CREATES an organization must also be able to delete organizations
+   * BY THE MARK. Walking from a child row is what fails, because the child is
+   * exactly what may be missing.
+   *
+   * Deleting by id as WELL is fine and sometimes necessary —
+   * `org-takeover.audit.test.ts` renames a club as its whole subject, so by
+   * the time it tears down, the prefix it created under no longer matches.
+   * This asks only that the tag-based sweep is there too.
+   */
+  const DIR = join(process.cwd(), "src", "lib", "__tests__");
+
+  /**
+   * Either shape counts: deleting organizations matched by a prefix, or
+   * finding them by prefix and deleting those ids. Both start from the mark,
+   * which is the property that matters.
+   */
+  const BY_MARK = /organization\.(?:deleteMany|findMany)\(\s*\{\s*where:\s*\{\s*name:\s*\{\s*startsWith/;
+
+  const files = readdirSync(DIR).filter((f) => f.endsWith(".audit.test.ts"));
+
+  it("finds the audit files at all", () => {
+    // Without this, a wrong directory makes every case below vacuously pass —
+    // an empty sweep is the failure mode of every filesystem-driven test.
+    expect(files.length).toBeGreaterThan(50);
+  });
+
+  for (const f of files) {
+    const src = stripComments(readFileSync(join(DIR, f), "utf8"));
+    if (!/prisma\.organization\.create\(/.test(src)) continue;
+
+    it(`${f} deletes its organizations by the mark`, () => {
+      expect(
+        BY_MARK.test(src),
+        `${f} creates an organization but can only remove one by an id held in a variable — ` +
+          `a run that dies before its teardown leaves a club in the development database forever`,
+      ).toBe(true);
+    });
+  }
+});
