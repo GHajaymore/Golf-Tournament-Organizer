@@ -85,8 +85,20 @@ export function NewMatchForm({
     <div className="card elev-sm" style={{ gap: 16 }}>
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Who&rsquo;s playing?</span>
+        {/* The second sentence is a DISCLOSURE, not a nicety. Both players are
+            written to the club roster by `upsertMember`, and a player entered
+            without an email is matched there BY NAME — so a second, different
+            Dave entered later lands on the first Dave's row and overwrites his
+            index. Measured; see docs/session-2026-09-08.md.
+
+            Somebody told their opponent becomes a club member types the email,
+            which is exactly what makes the match precise. The registration
+            screen has said this all along ("Anyone added here joins the club
+            roster too"); the screen that tells you no account is needed was
+            the one that did not. */}
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
-          Just the two names. Nobody needs an account to be played against.
+          Just the two names. Nobody needs an account to be played against — though both
+          join your club roster, so an email keeps two players of the same name apart.
         </p>
       </div>
 
