@@ -27,6 +27,31 @@ import { canSeeLeaderboard, canEnterScores, type TournamentSettings } from "./to
  */
 export type NavTier = "on-course" | "at-desk";
 
+/**
+ * The screens that only make sense against a FIELD.
+ *
+ * Dividing one into flights, drawing it a tee sheet, announcing things to it,
+ * and hiring staff to help. Two people on the first tee have none of that, and
+ * every one of these links is a door to a screen about somebody else's
+ * problem — so `navForRole` closes them for a match.
+ *
+ * EXPORTED because the sidebar was not the only thing offering them. The setup
+ * checklist on `/event` went on listing "Flights" and "Access & staff" for a
+ * match, which is the same doors reopened one card lower down: the nav had
+ * shut them and the checklist had never been told. One set, two readers.
+ */
+export const FIELD_ONLY_SCREENS: ReadonlySet<string> = new Set([
+  "grouping",
+  "foursomes",
+  "announcements",
+  "access",
+]);
+
+/** Whether a screen is worth offering on an event of this shape. */
+export function screenAppliesToMatch(key: string): boolean {
+  return !FIELD_ONLY_SCREENS.has(key);
+}
+
 export interface NavItem {
   key: string;
   label: string;
@@ -197,8 +222,7 @@ export function navForRole(
     orgKind?: OrgKind;
   } = {},
 ): NavSection[] {
-  /** The screens that only make sense against a field. See `isMatch` above. */
-  const FIELD_ONLY = new Set(["grouping", "foursomes", "announcements", "access"]);
+  const FIELD_ONLY = FIELD_ONLY_SCREENS;
 
   const allowed = (key: string): boolean => {
     if (!canAccessScreen(viewRole, key)) return false;

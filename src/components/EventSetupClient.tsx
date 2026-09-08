@@ -62,10 +62,21 @@ export function EventSetupClient({
   initial,
   playersCount,
   courses,
+  isMatch = false,
 }: {
   initial: EventForm;
   playersCount: number;
   courses: CourseOption[];
+  /**
+   * Two people playing each other, rather than a tournament.
+   *
+   * Only the "Recommended flow" card reads it, and only to not render: that
+   * card is a route through setting a TOURNAMENT up, ending in "Launch →
+   * setup locks". A match is created live and never locks — the event action
+   * says so in as many words — so every line of it is about somebody else's
+   * problem, on the screen a casual round is most likely to be opened from.
+   */
+  isMatch?: boolean;
 }) {
   const [f, setF] = useState<EventForm>(initial);
   const [manualTarget, setManualTarget] = useState(initial.manualPlayerCount);
@@ -615,6 +626,7 @@ export function EventSetupClient({
             </div>
           ))}
         </div>
+        {!isMatch && (
         <div className="card elev-sm">
           <span className="card-title" style={{ fontSize: 15 }}>Recommended flow</span>
           {/* Every name here is a screen, so every name has to be the one in
@@ -650,6 +662,7 @@ export function EventSetupClient({
             <li>Prizes &amp; payouts → Reports &amp; export</li>
           </ol>
         </div>
+        )}
       </div>
     </div>
   );
