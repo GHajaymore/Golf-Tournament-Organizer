@@ -708,3 +708,30 @@ body {
 .pair-grid > * {
   min-width: 0;
 }
+
+/* THE DISCLOSURE MARKER A FLEX SUMMARY TAKES AWAY.
+
+   `<summary>` only draws its triangle while it is `display: list-item`.
+   The expense rows on the money screen are `display: flex` — they have to be,
+   to lay a description, a share field and an amount across one line — so they
+   generated no marker at all and read as plain text. Measured: a default
+   summary indents its content 15px for the triangle; these indented 0.
+
+   Those rows open by default now, because who owes what on a bill is the
+   thing that screen is for. The caret is what lets somebody who collapsed one
+   find it again. */
+.expense-row {
+  list-style: none;
+}
+.expense-row::-webkit-details-marker {
+  display: none;
+}
+.expense-caret {
+  flex: none;
+  font-size: 14px;
+  opacity: 0.55;
+  transition: transform 140ms ease;
+}
+details[open] > .expense-row .expense-caret {
+  transform: rotate(180deg);
+}

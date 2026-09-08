@@ -165,6 +165,16 @@ export default async function MoneyPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* The heading this screen never had.
+          Every other player screen opens with one — Board, My card, Rules,
+          Messages — and this opened straight into "The pots" with no heading
+          at ANY level, so a screen reader landing here had nothing to jump to
+          and no way to tell which screen it was on. #143 gave every CONSOLE
+          screen an h1 and swept `(app)` to keep it that way; the player group
+          was never in that sweep, which is why this one survived it.
+
+          "Money", the same word as the tab that reaches it. */}
+      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: 24, margin: "0 0 4px" }}>Money</h1>
       <RoundMoney view={rounds} />
       {ledger && <MoneyClient view={ledger} />}
       {bettable && field.length > 1 && (

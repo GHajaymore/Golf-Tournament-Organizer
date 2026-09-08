@@ -679,3 +679,72 @@ describe("planting a debt through the payers", () => {
     expect(res.ok, res.error ?? "").toBe(true);
   });
 });
+
+/**
+ * EVERY SHARED COST IS VISIBLE TO EVERYONE IN THE TOURNAMENT.
+ *
+ * A settle-up is only trusted if it can be checked, and it cannot be checked
+ * from the half of the ledger you happen to be on. Somebody looking at "you
+ * owe $228.50" has to be able to see the bills that produced it — including
+ * the ones between two other people, because those move the transfers they are
+ * asked to make.
+ *
+ * True today because `moneyFor` reads `where: { eventId }` and filters
+ * nothing. That is a property nobody wrote down, and the obvious "optimisation"
+ * — only load the rows this player is a share of — would take it away while
+ * every screen still rendered and every total for the viewer stayed correct.
+ * So it is asserted rather than left to be inferred from an absent filter.
+ *
+ * The second half is the boundary: transparent WITHIN a tournament, never
+ * across two. The stranger belongs to a different event.
+ */
+describe("shared costs are transparent to the whole field", () => {
+  it("shows a player a bill they are not on, in full", async () => {
+    await signIn("ann");
+    const res = await addExpense({
+      description: "ZZ caddie for two",
+      amountCents: 8_000,
+      paidBy: player.ann,
+      // Ann and Rob only. Dave and Sam are deliberately not on it.
+      shares: [player.ann, player.rob].map((playerId) => ({ playerId, weight: 1 })),
+    });
+    expect(res.ok, res.error ?? "").toBe(true);
+
+    // Dave, who is not on the bill and did not pay it.
+    const view = await moneyFor(eventId, at("dave"));
+    const row = view.expenses.find((e) => e.description === "ZZ caddie for two");
+    expect(row, "a bill between two other players was hidden from the rest of the field").toBeTruthy();
+
+    // Not merely listed — itemised. The amount, who paid, and what each of
+    // them owes, which is what makes it checkable rather than just visible.
+    expect(row!.amountCents).toBe(8_000);
+    expect(row!.paidBy).toBe(player.ann);
+    expect(row!.shares.filter((s) => s.weight > 0)).toHaveLength(2);
+    expect(row!.shares.filter((s) => s.weight > 0).map((s) => s.cents).sort()).toEqual([4_000, 4_000]);
+
+    // And Dave owes nothing on it — visible is not the same as chargeable.
+    expect(row!.shares.find((s) => s.playerId === player.dave)?.cents ?? 0).toBe(0);
+  });
+
+  it("shows the same ledger to everyone, whoever is asking", async () => {
+    /**
+     * The assertion that a per-viewer filter could not satisfy. Four people
+     * ask for the ledger and get the same set of bills — the SHARES differ by
+     * viewer, the BILLS do not.
+     */
+    const views = await Promise.all(
+      ["dave", "ann", "rob", "sam"].map((who) => moneyFor(eventId, at(who))),
+    );
+    const idsFor = (v: (typeof views)[number]) => v.expenses.map((e) => e.id).sort().join(",");
+    for (const v of views.slice(1)) {
+      expect(idsFor(v), "two players in one tournament saw different bills").toBe(idsFor(views[0]));
+    }
+    expect(views[0].expenses.length).toBeGreaterThan(1);
+  });
+
+  it("does not leak the ledger to a player in another tournament", async () => {
+    // Transparency is inside a tournament, not across the club's whole estate.
+    const outside = await moneyFor(otherEventId, at("dave"));
+    expect(outside.expenses.some((e) => e.description === "ZZ caddie for two")).toBe(false);
+  });
+});
