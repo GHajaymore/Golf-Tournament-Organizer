@@ -54,6 +54,25 @@ export interface ChecklistState {
    *  the optional "add your logo & colours" nudge. Absent means "don't ask" —
    *  so existing callers that pass none simply never show the item. */
   branding?: { hasLogo: boolean; hasColours: boolean };
+  /**
+   * The "Tournament details" step, taken from the SETUP FLOW rather than
+   * decided again here.
+   *
+   * This list had no such step at all, so the dashboard — the screen a new
+   * organizer lands on straight after creating a tournament — never once said
+   * that the thing needed a name, a date or a venue. The rail on the Set-up
+   * screens said it first and loudest; the dashboard did not say it.
+   *
+   * Passed in as the flow's own answer, not recomputed. `setup-flow.ts` has a
+   * careful test for it — a name AND either a date OR a venue, because a
+   * rotating league has no venue and a club awaiting a committee has no date —
+   * and a second copy of that reasoning here is how the two would come to
+   * disagree about whether step one is finished.
+   *
+   * Absent means "don't ask", exactly like `branding`, so a caller that has
+   * not loaded the flow shows the list it always showed.
+   */
+  details?: { done: boolean; missing: string };
 }
 
 export function setupChecklist(state: ChecklistState): ChecklistItem[] {
@@ -63,6 +82,18 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
   // half-remembered name found the same day in the "Recommended flow" card on
   // Tournament details. A name typed twice drifts once.
   const items: ChecklistItem[] = [
+    ...(state.details
+      ? [
+          {
+            label: screenName("/event"),
+            detail: state.details.done
+              ? "Named, and it has a date or a venue."
+              : state.details.missing,
+            done: state.details.done,
+            href: "/event",
+          },
+        ]
+      : []),
     {
       label: screenName("/registration"),
       detail:

@@ -98,3 +98,51 @@ describe("the setup sequence is stated once", () => {
     expect(at("Registration &amp; field")).toBeLessThan(at("Launch"));
   });
 });
+
+describe("the step the dashboard never had", () => {
+  /**
+   * The dashboard is where a new organizer lands straight after creating a
+   * tournament, and its checklist carried four steps: field, rounds, flights,
+   * staff. Not one of them said the tournament needed a NAME, a date or a
+   * venue — the very first thing the rail asks for, and the thing a freshly
+   * created tournament has none of.
+   *
+   * So the two screens disagreed about how many steps there even are, which is
+   * the same disagreement `SETUP_ORDER` fixed for their sequence.
+   */
+  const withDetails = (done: boolean) =>
+    setupChecklist({ ...empty, details: { done, missing: "It still needs a name." } });
+
+  it("leads with tournament details when the caller supplies them", () => {
+    expect(withDetails(false)[0].href).toBe("/event");
+  });
+
+  it("carries the flow's own words for what is missing", () => {
+    // Not recomputed here: `setup-flow.ts` decides whether step one is
+    // finished — a name AND either a date or a venue — and a second copy of
+    // that reasoning is how the two would come to disagree.
+    expect(withDetails(false)[0].detail).toBe("It still needs a name.");
+    expect(withDetails(false)[0].done).toBe(false);
+  });
+
+  it("says something useful once it is done, rather than nothing", () => {
+    expect(withDetails(true)[0].done).toBe(true);
+    expect(withDetails(true)[0].detail).toMatch(/date|venue/i);
+  });
+
+  it("is absent when the caller does not supply it — existing callers unchanged", () => {
+    /**
+     * The same contract as `branding`: absent means "don't ask". A caller that
+     * has not loaded the flow shows the list it always showed rather than a
+     * step it cannot answer.
+     */
+    expect(setupChecklist(empty).some((i) => i.href === "/event")).toBe(false);
+  });
+
+  it("still follows SETUP_ORDER with the step present", () => {
+    const hrefs = withDetails(false)
+      .map((i) => i.href)
+      .filter((h) => SETUP_ORDER.includes(h));
+    expect(hrefs).toEqual([...SETUP_ORDER]);
+  });
+});

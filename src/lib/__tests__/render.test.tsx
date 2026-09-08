@@ -5145,3 +5145,49 @@ describe("a stored course that has no card", () => {
     expect(html).not.toContain("needs its card");
   });
 });
+
+describe("a checklist row for the page you are already on", () => {
+  /**
+   * `OrgSetupChecklist` learned this once: a step whose href IS the current
+   * page must not be a link. On `/choose` the "Create your first tournament"
+   * row pointed at `/choose?stay=1` — the page it was on, directly above the
+   * form that does it.
+   *
+   * The setup checklist gained the same problem the moment it carried a
+   * "Tournament details" step, because it renders on `/event`. Same rule, and
+   * asserted here rather than assumed to have been copied across.
+   */
+  const items = [
+    { label: "Tournament details", detail: "It still needs a name.", done: false, href: "/event" },
+    { label: "Rounds & formats", detail: "1 round configured", done: true, href: "/stages" },
+  ];
+
+  const checklist = async (currentPath?: string) => {
+    const { SetupChecklist } = await import("@/components/SetupChecklist");
+    return render(<SetupChecklist items={items} currentPath={currentPath} />);
+  };
+
+  it("links every row when it is not on any of them", async () => {
+    const html = await checklist(undefined);
+    expect(html).toContain('href="/event"');
+    expect(html).toContain('href="/stages"');
+  });
+
+  it("does not link the row for the current page", async () => {
+    const html = await checklist("/event");
+    expect(html, "a link to the page you are on goes nowhere").not.toContain('href="/event"');
+    // The other rows are unaffected — only the one you are standing on.
+    expect(html).toContain('href="/stages"');
+  });
+
+  it("still shows the row, because it is still a step", async () => {
+    /**
+     * Dropping it would understate the work and make the two screens disagree
+     * about what the list contains — which is exactly what SETUP_ORDER was
+     * introduced to stop. Only the link is wrong, so only the link goes.
+     */
+    const html = await checklist("/event");
+    expect(html).toContain("Tournament details");
+    expect(html).toContain("It still needs a name.");
+  });
+});

@@ -22,6 +22,7 @@ import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
+import { setupFlowFor } from "@/lib/services/setup-flow";
 import { isMatch } from "@/lib/tournament-shape";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
@@ -187,8 +188,27 @@ export default async function DashboardPage() {
         select: { logoUrl: true, themeSetAt: true },
       })
     : null;
+  /**
+   * The setup flow, for the one step this list never had.
+   *
+   * The dashboard is where a new organizer lands straight after creating a
+   * tournament, and it never once said the thing needed a name, a date or a
+   * venue — the rail on the Set-up screens said it first, and this list did
+   * not carry the step at all.
+   *
+   * Loaded only while the tournament is UNSTARTED, which is the only time the
+   * checklist renders, so a running tournament pays nothing for it. Returns
+   * null for a match, which is correct: two people on the first tee have no
+   * tournament to set up.
+   */
+  const flow = unstarted ? await setupFlowFor(session.eventId) : null;
+  const detailStep = flow?.steps.find((s) => s.href === "/event");
   const checklist = unstarted
-    ? setupChecklist({ ...state, branding: clubBrandingState(brandingOrg) })
+    ? setupChecklist({
+        ...state,
+        branding: clubBrandingState(brandingOrg),
+        details: detailStep ? { done: detailStep.done, missing: detailStep.missing } : undefined,
+      })
     : [];
 
   // Empty for a round the ordinary board does not cover (D8) — a team round
