@@ -311,7 +311,8 @@ export function PlayerLeaderboard({
                 side of it have the SAME score, and a line drawn through a tie
                 with no explanation is how a player concludes the app is
                 wrong. The sentence existed on the organizer's console and on
-                none of the three boards a player or spectator reads. */}
+                neither of the two boards this component is — the player's own
+                Board tab and the public share link. */}
             {showCut && cutNote && i === lastAdvancing && (
               <p
                 className="text-muted"

@@ -2777,8 +2777,13 @@ describe("the board answers 'where am I' first", () => {
    * line hold the SAME score, and a line drawn through a tie with nothing
    * explaining it is how a player concludes the app got it wrong. The sentence
    * lived in `computeHighlights`, which renders on the organizer's console and
-   * on none of the three boards this component is — the player's dashboard,
-   * the player's Board tab, and the public share link.
+   * on neither of the two boards this component is — the player's own Board
+   * tab and the public share link.
+   *
+   * (The organizer's dashboard shows `LeaderboardTable`, not this: it has
+   * carried `tiedAtCut` all along. An earlier version of this comment said
+   * "three boards" and named the dashboard, which was a grep matching either
+   * component name and not checking which.)
    */
   const cutField = [
     row({ id: "p1", rank: 1, name: "A. Moore", advancing: true }),

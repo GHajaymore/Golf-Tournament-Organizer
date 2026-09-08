@@ -1603,10 +1603,10 @@ export function computeHighlights(state: EventState): Highlight[] {
 /**
  * The one sentence that explains the CUT LINE, for the boards that draw one.
  *
- * `PlayerLeaderboard` draws a cut line and says nothing about it, and it is the
- * board on the player's dashboard, the player's own Board tab, and the public
- * share link — every screen a player or a spectator actually looks at. The
- * explanation existed only inside `computeHighlights`, which is rendered on the
+ * `PlayerLeaderboard` draws a cut line and said nothing about it, and it is the
+ * board on the player's own Board tab AND the public share link — both of the
+ * screens a player or a spectator reads a standing from. The explanation
+ * existed only inside `computeHighlights`, which is rendered on the
  * organizer's console and nowhere else.
  *
  * On Demo Cup that means four players level on 10.5 points with the line
