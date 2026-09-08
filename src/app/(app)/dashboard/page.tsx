@@ -16,7 +16,7 @@ import { todayIso } from "@/lib/deadline";
 import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { currentRoundCut } from "@/lib/domain/cut";
-import { navForRole } from "@/lib/nav";
+import { navForRole, screenName } from "@/lib/nav";
 import { isWeeklyRound } from "@/lib/stage-types";
 import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
@@ -38,16 +38,35 @@ import { Icon } from "@/components/Icon";
  * kept offering Qualification and Bracket to tournaments with no knockout to
  * qualify for — the exact doors-to-empty-rooms the sidebar had already closed.
  */
+/**
+ * NO LABELS HERE. The name of a screen comes from the sidebar, once.
+ *
+ * These carried their own: "Players", "Rounds", "Prizes", "Reports" — for
+ * screens the sidebar calls Registration & field, Rounds & formats, Prizes &
+ * payouts and Reports & export. Four screens with two names each, and both
+ * names appear on THIS page at the same time: the setup checklist above says
+ * "Registration & field" and a tile a few inches below says "Players", and
+ * they are the same link.
+ *
+ * `nav.ts` already states the rule and grants exactly one exception — the
+ * phone's tab bar, whose "Board" and "Scores" exist because a tab is 80px
+ * wide — and says of it: "confined to this list so it cannot spread". This is
+ * where it had spread to.
+ *
+ * `/qualification` is gone with them. It is a redirect to `/bracket` now, not
+ * a screen, so it is not in the sidebar — which meant `navHrefs.has()` had
+ * already filtered this tile out, and it had rendered for nobody since the
+ * two screens were merged.
+ */
 const QUICK_ACTIONS = [
-  { label: "Players", href: "/registration", icon: "ph ph-user-plus", staff: true },
-  { label: "Flights", href: "/grouping", icon: "ph ph-squares-four", staff: true },
-  { label: "Rounds", href: "/stages", icon: "ph ph-stack", staff: true },
-  { label: "Qualification", href: "/qualification", icon: "ph ph-flag-checkered", staff: true },
-  { label: "Tee sheet", href: "/foursomes", icon: "ph ph-users-four", staff: true },
-  { label: "Bracket", href: "/bracket", icon: "ph ph-tree-structure", staff: true },
-  { label: "Announcements", href: "/announcements", icon: "ph ph-megaphone", staff: true },
-  { label: "Prizes", href: "/prizes", icon: "ph ph-trophy", staff: true },
-  { label: "Reports", href: "/reports", icon: "ph ph-export", staff: true },
+  { href: "/registration", icon: "ph ph-user-plus", staff: true },
+  { href: "/grouping", icon: "ph ph-squares-four", staff: true },
+  { href: "/stages", icon: "ph ph-stack", staff: true },
+  { href: "/foursomes", icon: "ph ph-users-four", staff: true },
+  { href: "/bracket", icon: "ph ph-tree-structure", staff: true },
+  { href: "/announcements", icon: "ph ph-megaphone", staff: true },
+  { href: "/prizes", icon: "ph ph-trophy", staff: true },
+  { href: "/reports", icon: "ph ph-export", staff: true },
 ];
 
 export default async function DashboardPage() {
@@ -449,7 +468,12 @@ export default async function DashboardPage() {
       {isStaff && (
         <div className="card elev-sm" style={{ marginBottom: 16 }}>
           <span className="card-kicker">Quick actions</span>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginTop: 6 }}>
+          {/* `auto-fit` rather than a fixed five, because the labels are the
+              sidebar's now and some of them are three words. Five hard columns
+              put "Registration & field" into a 64px tile on a 320px phone. The
+              same fix, for the same reason, as the flights grid in
+              QualificationPanel. */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: 8, marginTop: 6 }}>
             {quickActions.map((a) => (
               <Link
                 key={a.href}
@@ -468,7 +492,7 @@ export default async function DashboardPage() {
                 }}
               >
                 <Icon name={a.icon} style={{ fontSize: 20, color: "var(--color-accent)" }} />
-                {a.label}
+                {screenName(a.href)}
               </Link>
             ))}
           </div>
