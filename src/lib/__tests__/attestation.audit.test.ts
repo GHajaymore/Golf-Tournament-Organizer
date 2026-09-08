@@ -131,9 +131,20 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try {
-    const ev = await prisma.event.findUnique({ where: { id: eventId }, select: { organizationId: true } });
-    await prisma.event.deleteMany({ where: { id: eventId } });
-    if (ev) await prisma.organization.deleteMany({ where: { id: ev.organizationId } });
+    /**
+     * BY THE MARK, not by walking from the event.
+     *
+     * This read the event to find its organization and deleted the org only
+     * `if (ev)` — so any run where the event was already gone left the
+     * organization behind for good. One was found orphaned in the development
+     * database on 2026-09-08, empty and indistinguishable at a glance from a
+     * real club.
+     *
+     * The mark is on both rows precisely so neither needs the other to be
+     * findable, which is how every other audit file here tears down.
+     */
+    await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
+    await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
   } finally {
     await prisma.$disconnect();
   }
