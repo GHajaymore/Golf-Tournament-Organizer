@@ -22,6 +22,22 @@ export interface VenueCourse {
   name: string;
   city?: string;
   address?: string;
+  /**
+   * Whether the club's stored row actually HAS a card — pars and a stroke
+   * index — or is a name somebody added and never filled in.
+   *
+   * The distinction is invisible without it, and this screen used to state
+   * the opposite: `matchCourse` finding a stored row makes the screen say
+   * "Using the club's saved card", which for one of these is a claim about a
+   * card that does not exist. A round then scores against no pars and no
+   * stroke index — to-par computed against nothing, handicap strokes with
+   * nowhere to fall — which is the failure #195 was about, arrived at from
+   * the other end.
+   *
+   * Optional so a caller that genuinely does not know says nothing rather
+   * than asserting a card is there.
+   */
+  hasCard?: boolean;
 }
 
 /**
@@ -233,6 +249,11 @@ export function VenuePrompt({
               >
                 {c.name}
                 {c.city ? <span className="text-muted"> · {c.city}</span> : null}
+                {/* Said plainly, because "one tap uses its saved card" is not
+                    true of a row somebody added and never filled in. */}
+                {c.hasCard === false ? (
+                  <span className="text-muted"> · needs its card</span>
+                ) : null}
               </button>
             ))}
           </div>
@@ -245,9 +266,20 @@ export function VenuePrompt({
       )}
 
       {/* The club already has it: one tap, real card, nothing to type. */}
-      {found?.kind === "exact" && (
+      {found?.kind === "exact" && found.course.hasCard !== false && (
         <div className="tag tag-accent-2" style={{ alignSelf: "flex-start" }}>
           <Icon name="check-circle" /> Using the club&rsquo;s saved card for {found.course.name}
+        </div>
+      )}
+
+      {/* The row exists; the card does not. Claiming a saved card here is the
+          one thing this screen must not do — the round would score against no
+          pars and no stroke index, and every total would look ordinary. */}
+      {found?.kind === "exact" && found.course.hasCard === false && (
+        <div className="tag tag-neutral" style={{ alignSelf: "flex-start" }}>
+          <Icon name="warning-circle" /> {found.course.name} is in the library with no card yet — add
+          it on the course, under {" "}
+          <a href="/organization">its settings</a>, so every later round here has it.
         </div>
       )}
 

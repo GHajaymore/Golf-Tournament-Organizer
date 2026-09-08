@@ -5096,3 +5096,52 @@ describe("naming the venue while entering scores", () => {
     expect(html).toContain("14 more");
   });
 });
+
+describe("a stored course that has no card", () => {
+  /**
+   * Finding a row is not the same as finding a CARD.
+   *
+   * `clubCourses` returns every course the club has, and one of them can be a
+   * name somebody added and never filled in — `hasCard` is false. The venue
+   * prompt matched on the name and said "Using the club's saved card", which
+   * promises pars and a stroke index that do not exist. The round then scores
+   * against nothing: to-par computed against no pars, handicap strokes with
+   * nowhere to fall. That is #195's failure reached from the other end, and
+   * the totals all look perfectly ordinary.
+   *
+   * Made sharper by offering the library as one-tap buttons, so it is fixed
+   * with it rather than after it.
+   */
+  const CARDLESS = [{ id: "c9", name: "Green Crest Golf Course", city: "Middletown", hasCard: false }];
+
+  const prompt = async (library: Array<Record<string, unknown>>) => {
+    const { VenuePrompt } = await import("@/components/VenuePrompt");
+    return render(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      <VenuePrompt matchId="m1" holes={18} library={library as any} aName="Ann" bName="Bob" />,
+    );
+  };
+
+  it("marks it in the list rather than offering it as a saved card", async () => {
+    const html = await prompt(CARDLESS);
+    expect(html).toContain("Green Crest Golf Course");
+    expect(html).toContain("needs its card");
+  });
+
+  it("does not mark a course that has one", async () => {
+    // The control: the marker must mean something, so it must not appear on
+    // every row.
+    const html = await prompt([{ id: "c1", name: "Blue Ash Golf Course", city: "Blue Ash", hasCard: true }]);
+    expect(html).not.toContain("needs its card");
+  });
+
+  it("says nothing either way when the caller did not say", async () => {
+    /**
+     * `hasCard` is optional, and undefined is "not known" rather than "no
+     * card". Treating a missing flag as a missing card would put the warning
+     * on every course of every caller that has not been updated.
+     */
+    const html = await prompt([{ id: "c1", name: "Blue Ash Golf Course", city: "Blue Ash" }]);
+    expect(html).not.toContain("needs its card");
+  });
+});

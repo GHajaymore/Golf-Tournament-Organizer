@@ -115,6 +115,16 @@ export interface CourseLike {
   id: string;
   name: string;
   city?: string;
+  /**
+   * Whether the stored row has a card, or is a name nobody has filled in.
+   *
+   * Carried through the match so a screen can tell the two apart: finding a
+   * row is not the same as finding a CARD, and a screen that says "using the
+   * club's saved card" for one of these has promised pars and a stroke index
+   * that do not exist. Optional — matching does not depend on it, and a
+   * caller that does not know says nothing rather than asserting a card.
+   */
+  hasCard?: boolean;
 }
 
 export type VenueMatch =

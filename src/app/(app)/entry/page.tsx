@@ -687,7 +687,7 @@ export default async function EntryPage() {
       rounds={rounds}
       voice={voice}
       openCourse={courseMode === "open"}
-      courseLibrary={clubLibrary.map((c) => ({ id: c.id, name: c.name, city: c.city }))}
+      courseLibrary={clubLibrary.map((c) => ({ id: c.id, name: c.name, city: c.city, hasCard: c.hasCard }))}
       activeIndex={activeIndex}
       players={state.confirmed
         .filter((p) => !ownIds || ownIds.has(p.id))
