@@ -373,3 +373,79 @@ describe("a tie for the last qualifying place on a MATCH-PLAY board", () => {
     expect(text).not.toMatch(/level with/i);
   });
 });
+
+/**
+ * ONE SHAPE OF ROW, WHICHEVER WAY THE EVENT IS SCORED.
+ *
+ * `standingRows` has two branches — stroke and match — and every screen that
+ * renders a row reads it without knowing which produced it. When a field is
+ * added to one branch and not the other it does not fail: it arrives
+ * `undefined`, reads as falsy, and the screen quietly renders the "nothing
+ * here" case forever.
+ *
+ * That is not hypothetical. It is the same fault three times over in one week:
+ *
+ *   tiedAtCut   set on the stroke branch only, so "Tied for the last place —
+ *               play-off to decide" could never fire on a match-play board and
+ *               the export printed a decision where a tie stood
+ *   started     the field existed for exactly this, and PlayerLeaderboard read
+ *               `thru > 0` instead, so a match board showed a dash for every
+ *               player's points but your own
+ *   the score   Today printed a to-par over a match round while the same
+ *               player's board printed match points
+ *
+ * A key-set comparison would have caught the first outright. It is cheap, it
+ * needs no knowledge of what any field means, and it fails the moment somebody
+ * extends one branch and forgets the other — which is the whole of the bug.
+ *
+ * Both fixtures already exist above, so this costs one more seed apiece.
+ */
+describe("both kinds of event produce the same shape of standings row", () => {
+  it("sets every field on both branches", async () => {
+    const stroke = await seedTiedStrokeEvent();
+    const match = await seedTiedMatchEvent({ tiebreakers: JSON.stringify(["head-to-head"]) });
+
+    const strokeRows = standingRows((await loadEventState(stroke.eventId))!);
+    const matchRows = standingRows((await loadEventState(match.eventId))!);
+
+    // The fixtures have to actually produce rows, or the comparison below is
+    // between two empty lists and proves nothing.
+    expect(strokeRows.length).toBeGreaterThan(0);
+    expect(matchRows.length).toBeGreaterThan(0);
+
+    const keysOf = (r: object) => Object.keys(r).sort();
+    const missingFromMatch = keysOf(strokeRows[0]).filter((k) => !keysOf(matchRows[0]).includes(k));
+    const missingFromStroke = keysOf(matchRows[0]).filter((k) => !keysOf(strokeRows[0]).includes(k));
+
+    expect(
+      missingFromMatch,
+      "these are set on a stroke row and absent from a match one — every screen reading them will render the empty case on match play",
+    ).toEqual([]);
+    expect(
+      missingFromStroke,
+      "these are set on a match row and absent from a stroke one",
+    ).toEqual([]);
+  });
+
+  it("gives a match row a real value for the fields a match is decided on", () => {
+    /**
+     * Key parity alone is satisfied by setting a field to `undefined`
+     * explicitly, or to a zero that means "not applicable". These are the
+     * fields a match-play screen actually ranks and prints on, so they have to
+     * carry something rather than merely exist.
+     */
+    return (async () => {
+      const match = await seedTiedMatchEvent({ tiebreakers: JSON.stringify(["head-to-head"]) });
+      const rows = standingRows((await loadEventState(match.eventId))!);
+      const winner = rows.find((r) => r.name.includes("WIN-A"))!;
+
+      expect(winner.pts, "match points").toBeTruthy();
+      expect(winner.record, "won-halved-lost").toMatch(/\d+-\d+-\d+/);
+      // `started` is the one PlayerLeaderboard reads to decide whether to print
+      // a score at all, and `thru` is nought here — which is exactly why it
+      // must not be read as "has this player started".
+      expect(winner.started, "has a result").toBe(true);
+      expect(winner.thru, "no stroke card in a hole-by-hole match").toBe(0);
+    })();
+  });
+});
