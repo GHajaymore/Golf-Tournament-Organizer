@@ -24,6 +24,8 @@ import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, isUnstarted, clubBrandingState } from "@/lib/services/checklist";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { isMatch } from "@/lib/tournament-shape";
+import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
+import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
 import { orgSetupState } from "@/lib/domain/org-setup";
@@ -124,6 +126,17 @@ export default async function DashboardPage() {
       ? "Every player meets everyone in their flight."
       : currentStage?.description ?? "";
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+
+  /**
+   * A casual round says, on its own screen, that it is temporary.
+   *
+   * `hoursLeft` returns null for anything with no expiry — which is every
+   * tournament that has ever existed — so `expiryNotice` renders nothing here
+   * and the banner does not mount. The check is the ABSENCE of an expiry
+   * rather than "is this a match", because the sweep keys on the same column:
+   * the screen and the deletion agree by reading one fact, not two.
+   */
+  const expiry = expiryNotice(hoursLeft(event));
   // Null for anybody who runs no organization of their own.
   const orgFacts = isStaff ? await orgSetupFactsFor(session.email, session.name) : null;
   const orgSetup = orgFacts ? orgSetupState(orgFacts) : null;
@@ -294,6 +307,12 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {/* FIRST, above everything, because it is the only thing on this screen
+          with a deadline on it. A warning that something will be deleted is
+          not useful below the fold, and the round it is about is short enough
+          that there is nothing here it should be yielding to. */}
+      <RoundExpiryBanner notice={expiry} canKeep={isStaff} />
+
       {/* The ORGANIZATION checklist, above the per-tournament one below it.
           Two different things and deliberately two components: this one is
           about the club or society that OWNS the tournaments — its name, its

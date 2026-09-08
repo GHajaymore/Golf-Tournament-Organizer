@@ -22,7 +22,9 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 const TAG = "ZZ-AUDIT-ROUND-SWEEP";
 
-const { sweepExpiredRounds } = await import("@/lib/services/round-sweep");
+const { sweepExpiredRounds, dueRounds, deleteIfStillDue } = await import(
+  "@/lib/services/round-sweep"
+);
 
 let organizationId = "";
 
@@ -157,23 +159,65 @@ describe("sweeping expired casual rounds", () => {
     expect(await prisma.player.findUnique({ where: { id: player.id } })).toBeNull();
   });
 
-  it("spares a round whose expiry was cleared while the sweep was deciding", async () => {
+  it("spares a round whose expiry is cleared BETWEEN the select and the delete", async () => {
     /**
      * `keepRound` and the sweep race, and the person pressing Keep is exactly
      * the person whose data must not be destroyed.
      *
-     * The read and the delete are separate statements, so the condition is
-     * repeated inside the DELETE. This models the race by clearing the column
-     * after the row exists and before the sweep runs — the same end state as
-     * a Keep landing mid-pass.
+     * THIS TEST USED TO BE A LIE. It cleared `expiresAt` and then ran the
+     * whole sweep, which never reproduces anything — the select simply does
+     * not return the row, so the delete's re-check is never reached. It passed
+     * with the re-check deleted, and passed again with the select widened to
+     * every event in the database. It looked exactly like coverage of the
+     * interleaving and could not observe it at all.
+     *
+     * So the sweep's two steps are separately callable now, and this sits in
+     * the gap: select while the round is still due, clear the expiry as a
+     * player would, then attempt the delete. That is the real ordering, and
+     * the only thing that saves the round is the condition repeated inside the
+     * DELETE.
      */
     const saved = await makeEvent("kept mid-sweep", LONG_AGO, "match");
+
+    // 1. The sweep decides. The round IS due at this moment.
+    const due = await dueRounds();
+    expect(due).toContain(saved.id);
+
+    // 2. The player presses Keep, in the gap.
     await prisma.event.update({ where: { id: saved.id }, data: { expiresAt: null } });
 
-    const result = await sweepExpiredRounds();
-
-    expect(result.ids).not.toContain(saved.id);
+    // 3. The sweep, already holding the id, tries to delete it — and must not.
+    expect(await deleteIfStillDue(saved.id)).toBe(false);
     expect(await prisma.event.findUnique({ where: { id: saved.id } })).not.toBeNull();
+  });
+
+  it("refuses to delete a tournament even when handed its id directly", async () => {
+    /**
+     * The last line of defence, asserted on its own.
+     *
+     * `deleteIfStillDue` is what actually removes rows, and the two tests
+     * above pass whether or not it re-checks — the select protects them. This
+     * one hands it a tournament's id, which is the state the system would be
+     * in if the select were ever widened, mis-ordered, or fed from somewhere
+     * else entirely. Nothing but the condition inside the DELETE stands
+     * between that id and a deleted tournament.
+     */
+    const tournament = await makeEvent("handed to the delete", null, "series");
+
+    expect(await deleteIfStillDue(tournament.id)).toBe(false);
+    expect(await prisma.event.findUnique({ where: { id: tournament.id } })).not.toBeNull();
+
+    // And a round that is not due YET, which is the other row a wrong select
+    // would hand over.
+    const fresh = await makeEvent("not due yet", FAR_OFF, "match");
+    expect(await deleteIfStillDue(fresh.id)).toBe(false);
+    expect(await prisma.event.findUnique({ where: { id: fresh.id } })).not.toBeNull();
+
+    // A genuinely due round still goes, or the three refusals above are
+    // satisfied by a function that deletes nothing at all.
+    const due = await makeEvent("genuinely due", LONG_AGO, "match");
+    expect(await deleteIfStillDue(due.id)).toBe(true);
+    expect(await prisma.event.findUnique({ where: { id: due.id } })).toBeNull();
   });
 
   it("reports ids and never names", async () => {

@@ -391,6 +391,19 @@ export function NewMatchForm({
           {planned.ok ? `Opens the card for ${planned.plan.name}.` : "Two names, and you're away."}
         </span>
       </div>
+
+      {/* SAID BEFORE, not discovered after.
+
+          A casual round deletes itself about a day after it is set up, and the
+          only thing that makes that acceptable is that nobody finds out
+          afterwards. The round's own screen carries the same sentence with the
+          button attached; this is the version that reaches somebody while they
+          are still deciding whether to type four names in here. */}
+      <p className="text-muted" style={{ fontSize: 11.5, margin: 0, lineHeight: 1.55 }}>
+        <Icon name="clock" /> A quick round is temporary — it&rsquo;s deleted about a day after
+        you set it up, unless you keep it. Anything you want to hold on to belongs in a
+        tournament.
+      </p>
     </div>
   );
 }
