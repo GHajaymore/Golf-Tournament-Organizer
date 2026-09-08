@@ -159,6 +159,33 @@ const STEPS: ReadonlyArray<{
   },
 ];
 
+/**
+ * THE ORDER, once, for everything that states one.
+ *
+ * The note at the top of this file argues for this sequence and says outright
+ * that `setupChecklist` uses a different one. That was left as a disagreement
+ * rather than resolved, and an organizer met all of it at once: on
+ * `/event` the rail across the top read details → rounds → field → flights
+ * while the "Recommended flow" card below it read field → flights → rounds,
+ * and the dashboard they had just come from listed field → rounds → flights.
+ *
+ * Three orders, two of them on one screen, for the same four screens. Whichever
+ * is right, an app that states three cannot be teaching any of them — so they
+ * read this now, and a test asserts they agree.
+ */
+export const SETUP_ORDER: readonly string[] = ["/event", "/stages", "/registration", "/grouping"];
+
+/** Sort anything carrying an `href` into `SETUP_ORDER`, unknown hrefs last. */
+export function bySetupOrder<T extends { href: string }>(items: readonly T[]): T[] {
+  const rank = (href: string) => {
+    const i = SETUP_ORDER.indexOf(href);
+    return i === -1 ? SETUP_ORDER.length : i;
+  };
+  // Stable within a rank, so anything this order does not mention keeps the
+  // sequence its caller chose — the optional tail stays a tail.
+  return items.map((item, i) => ({ item, i })).sort((a, b) => rank(a.item.href) - rank(b.item.href) || a.i - b.i).map((x) => x.item);
+}
+
 export function setupFlow(facts: SetupFacts, labelFor: (href: string) => string): SetupFlow {
   const done = STEPS.map((s) => s.done(facts));
   /**

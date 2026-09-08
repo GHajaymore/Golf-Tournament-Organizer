@@ -624,9 +624,21 @@ export function EventSetupClient({
               Rounds & formats together with the Qualification SCREEN, in one
               parenthesis. A guide that half-remembers the names sends people
               hunting for a screen that is not in the list. */}
+          {/* THE SAME ORDER AS THE RAIL AT THE TOP OF THIS PAGE.
+
+              It ran "Registration & field → Flights" and then "Rounds &
+              formats", directly underneath a rail reading details → rounds →
+              field → flights. Two orders, one screen, for the same four
+              screens — and the dashboard the organizer had just come from
+              stated a third. `SETUP_ORDER` is the one answer now, and a test
+              asserts this list and the checklist both follow it.
+
+              The steps AFTER setup are this card's own and stay: the rail
+              stops at flights because launching is not setting up. */}
           <ol style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.9, color: "var(--color-text)" }}>
-            <li>Registration &amp; field → Flights</li>
+            <li>Tournament details — the name, and where or when</li>
             <li>Rounds &amp; formats — the rounds, and how each is scored</li>
+            <li>Registration &amp; field → Flights</li>
             <li>Launch → setup locks</li>
             <li>Tee sheet → Score entry</li>
             {/* One step, not two. Qualification was a screen of its own and is
