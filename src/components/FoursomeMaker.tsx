@@ -77,6 +77,24 @@ export function FoursomeMaker({
   const [seed, setSeed] = useState(1);
   const [startType, setStartType] = useState<StartStyle>("tee");
   const [saveState, setSaveState] = useState<{ savedAt: string; published: boolean }>({ savedAt, published });
+  /**
+   * Whether this round has a sheet of record yet.
+   *
+   * The screen has two jobs and this is what tells them apart. With no sheet
+   * the job is drawing one; with a sheet the job is reading it, on the morning,
+   * on a phone. Read from the saved state rather than from how many groups the
+   * preview happens to hold, so a field of eight behaves the same as a field of
+   * eighty.
+   */
+  const savedDraw = !!saveState.savedAt;
+  /**
+   * Open while there is no sheet, because then the builder IS the screen.
+   *
+   * Initialised from the saved state and then owned by the organizer: pressing
+   * "Re-draw this sheet" keeps the controls up for as long as they are
+   * iterating, rather than snapping shut after each change.
+   */
+  const [showDrawControls, setShowDrawControls] = useState(!savedAt);
   const [saveError, setSaveError] = useState("");
   const [savePending, startSaveTransition] = useTransition();
   // Publishing shows the draw to every player, so it is a two-step, deliberate
@@ -202,7 +220,69 @@ export function FoursomeMaker({
         </div>
       )}
 
+      {/* Shut once this round HAS a sheet, and open while it does not.
+          ────────────────────────────────────────────────────────────
+          Two different jobs share this screen. Before a sheet exists the job
+          is building one, and the controls are the whole point. Once one has
+          been saved the job is reading it — on the morning, on a phone, to
+          find out who is off when — and the draw controls stand between the
+          organizer and the thing they came for.
+
+          The rule is "does a sheet exist", not "are there many groups". A
+          field of eight has the same problem as a field of eighty: whatever
+          the size, the builder is either the task or in the way of it, and
+          which one it is depends on whether the round has been drawn. */}
+      {savedDraw && !showDrawControls && (
+        <button
+          type="button"
+          onClick={() => setShowDrawControls(true)}
+          className="card elev-sm"
+          aria-expanded={false}
+          style={{
+            width: "100%",
+            marginBottom: 16,
+            textAlign: "left",
+            display: "flex",
+            // `.card` is a column, so without this the icon, the label and the
+            // caret stack into three centred rows.
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+            minHeight: 44,
+            cursor: "pointer",
+            color: "var(--color-text)",
+            border: "1px dashed var(--color-divider)",
+          }}
+        >
+          <Icon name="shuffle" style={{ fontSize: 16, color: "var(--color-accent)", flex: "none" }} />
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 14, fontWeight: 600 }}>Re-draw this sheet</span>
+            <span className="text-muted" style={{ display: "block", fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>
+              Change who plays together, the order off the tee, group size or start times.
+            </span>
+          </span>
+          <Icon name="caret-down" style={{ fontSize: 13, color: "var(--color-neutral-500)", marginLeft: "auto", flex: "none" }} />
+        </button>
+      )}
+
+      {showDrawControls && (
       <div className="card elev-sm" style={{ marginBottom: 16, gap: 16 }}>
+        {/* No way to shut it while the round has no sheet: there would be
+            nothing underneath to shut it over. */}
+        {savedDraw && (
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={() => setShowDrawControls(false)}
+              aria-expanded
+              aria-label="Close the draw controls"
+              className="btn btn-ghost"
+              style={{ minHeight: 44, minWidth: 44 }}
+            >
+              <Icon name="caret-up" />
+            </button>
+          </div>
+        )}
         {/* Nothing here works off a leaderboard until one exists, and an
             organizer setting up round one should be told that rather than
             wondering why half the options are greyed. */}
@@ -478,6 +558,7 @@ export function FoursomeMaker({
           </div>
         )}
       </div>
+      )}
 
       {(saveState.savedAt || saveError) && (
         <p style={{ fontSize: 12, margin: "0 0 10px", color: saveError ? "var(--color-danger)" : "var(--color-neutral-500)" }}>
