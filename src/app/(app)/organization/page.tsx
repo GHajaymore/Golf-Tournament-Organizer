@@ -74,7 +74,7 @@ export default async function OrganizationPage() {
    * scroll it replaces.
    */
   const sections: SettingsSection[] = [
-    { id: "identity", label: "Club & branding" },
+    { id: "identity", label: "Name & branding" },
     { id: "theme", label: "Colour" },
     { id: "defaults", label: "House defaults" },
     { id: "handicaps", label: "Handicaps" },
@@ -186,7 +186,7 @@ export default async function OrganizationPage() {
       </SettingsSectionAnchor>
 
       <SettingsSectionAnchor id="access">
-        <OrganizationAccess report={report} canEdit={canEdit} />
+        <OrganizationAccess report={report} canEdit={canEdit} orgKind={org.kind} />
       </SettingsSectionAnchor>
     </>
   );

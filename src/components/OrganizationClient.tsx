@@ -17,7 +17,7 @@ import {
   BRAND_DISPLAY_LABEL,
   BRAND_DISPLAY_HELP,
 } from "@/lib/brand";
-import { orgProfile } from "@/lib/domain/org-profile";
+import { orgProfile, type OrgKind } from "@/lib/domain/org-profile";
 import { Icon } from "./Icon";
 
 /**
@@ -83,6 +83,18 @@ function shrink(img: HTMLImageElement): string | null {
   }
   return null;
 }
+
+/**
+ * A name of the right SHAPE for each kind, for the placeholder.
+ *
+ * Keyed off `OrgKind` so the compiler asks for one when a kind is added —
+ * the same reason the profile table itself is a `Record<OrgKind, ...>`.
+ */
+const NAME_EXAMPLE: Record<OrgKind, string> = {
+  club: "Ridgeline National Golf Club",
+  community: "Thursday Society",
+  personal: "Sunday Golf",
+};
 
 interface Props {
   name: string;
@@ -193,7 +205,11 @@ export function OrganizationClient(props: Props) {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Club settings</h1>
+        {/* Named for what this outfit ACTUALLY IS. The card immediately below
+            already reads "Personal · a single organizer" off the same profile,
+            so a heading hard-coded to "Club settings" made the page disagree
+            with itself in one eyeful. */}
+        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>{orgProfile(props.kind).settingsLabel}</h1>
         {/* Described the branding card and nothing else, on a page that also
             holds the theme, the house play settings, the money default and
             staff access. An intro naming one of five cards reads as a
@@ -244,7 +260,10 @@ export function OrganizationClient(props: Props) {
               value={name}
               disabled={!props.canEdit || pending}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Ridgeline National Golf Club"
+              // An example of the kind of outfit this actually is. "e.g.
+              // Ridgeline National Golf Club" is the one thing on the field a
+              // solo organizer knows they are not.
+              placeholder={`e.g. ${NAME_EXAMPLE[orgProfile(props.kind).kind]}`}
             />
           </div>
 
@@ -314,7 +333,7 @@ export function OrganizationClient(props: Props) {
                 value={logoUrl}
                 disabled={!props.canEdit || pending}
                 onChange={(e) => setLogoUrl(e.target.value)}
-                placeholder="https://yourclub.com/logo.png"
+                placeholder="https://example.com/logo.png"
               />
             )}
 
@@ -356,10 +375,10 @@ export function OrganizationClient(props: Props) {
             )}
 
             <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
-              Upload a {LOGO_EXT_LIST} file and it is resized and stored with your club, so it works for
-              players and on printed scorecards without depending on another website. Or, if your logo is
-              already on your club&rsquo;s site, right-click it there and paste the image address above —
-              an SVG works that way too. A square or wide transparent PNG looks best.
+              Upload a {LOGO_EXT_LIST} file and it is resized and kept here, so it works for players and
+              on printed scorecards without depending on another website. Or, if your logo is already
+              online, right-click it there and paste the image address above — an SVG works that way too.
+              A square or wide transparent PNG looks best.
             </p>
           </div>
 
@@ -429,7 +448,9 @@ export function OrganizationClient(props: Props) {
               )}
               <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15, minWidth: 0 }}>
                 <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}>
-                  {preview.primary || <span className="text-muted">Your club</span>}
+                  {preview.primary || (
+                    <span className="text-muted">Your {orgProfile(props.kind).noun}</span>
+                  )}
                 </span>
                 {preview.secondary && (
                   <span style={{ fontSize: 10.5, color: "var(--color-neutral-500)" }}>{preview.secondary}</span>
@@ -453,7 +474,11 @@ export function OrganizationClient(props: Props) {
             className="card-kicker"
             style={{ marginTop: 8, borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}
           >
-            Where the club is <span className="text-muted">· optional</span>
+            {/* NOT "where the club is". A society has no address and a solo
+                organizer certainly does not, and the help below says what this
+                is actually for: prefilling the city when a course is added.
+                Phrased for what it does, which is true of all three kinds. */}
+            Where you play <span className="text-muted">· optional</span>
           </span>
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>

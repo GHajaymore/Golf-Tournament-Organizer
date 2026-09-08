@@ -321,7 +321,7 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
     out.push("Bring your committee in — up to ten organizers and assistants.");
   }
   if (!plan.features.whiteLabel) {
-    out.push("Your club's branding on every screen, with ours removed.");
+    out.push("Your own branding on every screen, with ours removed.");
   }
   if (!plan.features.seasonStandings) {
     out.push(

@@ -214,7 +214,7 @@ export function ThemePicker({
   return (
     <div className="card elev-sm" style={{ gap: 16 }}>
       <div>
-        <span className="card-title" style={{ fontSize: 15 }}>Club colour &amp; appearance</span>
+        <span className="card-title" style={{ fontSize: 15 }}>Colour &amp; appearance</span>
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
           Applies to every tournament this organization runs, on every device anyone opens it on.
         </p>
@@ -326,7 +326,7 @@ export function ThemePicker({
         {/* Only hue and saturation are used — the lightness is rebuilt, which is
             what stops a pale crest colour producing text nobody can read. */}
         <HexField
-          label="Club colour hex"
+          label="Main colour hex"
           value={accentHexDraft}
           onChange={setAccentHexDraft}
           onUse={() => set({ accentKey: "custom", accentHex: accentHexDraft })}
@@ -341,8 +341,8 @@ export function ThemePicker({
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <span className="card-kicker">Second colour</span>
         <p className="text-muted" style={{ fontSize: 11, margin: 0 }}>
-          Marks players advancing, scores under par and matches won. Most clubs should leave this on
-          Fairway — it reads as the colour of the game rather than of any one club.
+          Marks players advancing, scores under par and matches won. Most should leave this on
+          Fairway — it reads as the colour of the game rather than of any one outfit.
         </p>
         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
           {SECONDARY_PRESETS.map((p) => {

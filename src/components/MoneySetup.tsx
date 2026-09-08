@@ -120,7 +120,7 @@ export function MoneySetup({
         {option(
           "",
           `Follow what we are — a ${profile.noun} means ${MONEY_MODE_LABEL[resolveMoneyMode({ eventMode: "", orgMode: "", orgKind })].toLowerCase()}`,
-          "No club-wide answer. Each tournament falls back to what suits this kind of organization.",
+          "No single answer set here. Each tournament falls back to what suits this kind of organization.",
           orgMode === "",
         )}
 
