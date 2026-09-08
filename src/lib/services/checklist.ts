@@ -1,5 +1,5 @@
 import type { ChecklistItem } from "@/components/SetupChecklist";
-import { screenName } from "@/lib/nav";
+import { screenName, screenAppliesToMatch } from "@/lib/nav";
 import { bySetupOrder } from "@/lib/domain/setup-flow";
 
 /**
@@ -73,6 +73,21 @@ export interface ChecklistState {
    * not loaded the flow shows the list it always showed.
    */
   details?: { done: boolean; missing: string };
+  /**
+   * This event is a MATCH — two people playing each other, not a tournament.
+   *
+   * The sidebar has closed the field-only screens for these since it learned
+   * about `isMatch`: no flights to divide, no tee sheet to draw, nothing to
+   * announce, nobody to hire. This list had never been told, so `/event` went
+   * on offering "Flights" and "Access & staff" one card below a sidebar that
+   * had shut both — the same doors reopened, on the screen a casual round is
+   * most likely to be looked at from.
+   *
+   * Read through `screenAppliesToMatch` rather than a second list here, for
+   * the reason this codebase keeps relearning: two copies of one rule is how
+   * one of them ends up wrong.
+   */
+  isMatch?: boolean;
 }
 
 export function setupChecklist(state: ChecklistState): ChecklistItem[] {
@@ -166,7 +181,18 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
    * staff, and the branding nudge — is not in `SETUP_ORDER` and so stays at
    * the end, which is where an optional step belongs.
    */
-  return bySetupOrder(items);
+  /**
+   * A match keeps only the steps a match actually has.
+   *
+   * The same set the sidebar uses, asked rather than restated. Keyed off the
+   * href's last segment, which is the nav's own key for every screen in this
+   * list — `/grouping` is "grouping" and so on.
+   */
+  const applicable = state.isMatch
+    ? items.filter((i) => screenAppliesToMatch(i.href.replace(/^\//, "")))
+    : items;
+
+  return bySetupOrder(applicable);
 }
 
 /**

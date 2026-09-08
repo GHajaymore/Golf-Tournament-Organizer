@@ -16,6 +16,7 @@ import { setupFlowFor } from "@/lib/services/setup-flow";
 import { railSpeaks } from "@/lib/domain/setup-flow";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
+import { isMatch } from "@/lib/tournament-shape";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 
 
@@ -90,7 +91,16 @@ export default async function EventPage({
   // The details step comes from the FLOW this page already loaded for its
   // rail, so the two cannot disagree about whether step one is finished.
   const detailStep = flow?.steps.find((s) => s.href === "/event");
+  /**
+   * A match keeps the checklist honest about what it actually has.
+   *
+   * `setupFlowFor` already returns null for one — two people on the first tee
+   * have no tournament to set up — but the checklist below it went on offering
+   * Flights and Access & staff, which the sidebar closed for a match long ago.
+   */
+  const matchEvent = isMatch(e.shape);
   const checklist = setupChecklist({
+    isMatch: matchEvent,
     ...state,
     branding: clubBrandingState(org),
     details: detailStep ? { done: detailStep.done, missing: detailStep.missing } : undefined,
@@ -133,6 +143,7 @@ export default async function EventPage({
 
       <EventSetupClient
         key={e.id}
+        isMatch={matchEvent}
         initial={{
           name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,
           address: e.address, regDeadline: e.regDeadline, capacity: e.capacity,

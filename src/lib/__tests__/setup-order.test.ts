@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SETUP_ORDER, bySetupOrder } from "@/lib/domain/setup-flow";
-import { allNavItems } from "@/lib/nav";
+import { allNavItems, FIELD_ONLY_SCREENS, screenAppliesToMatch } from "@/lib/nav";
 import { setupChecklist, type ChecklistState } from "@/lib/services/checklist";
 import { readSource } from "./source";
 
@@ -187,5 +187,60 @@ describe("a screen has one name", () => {
 
     const known = new Set(allNavItems().map((i) => i.href));
     expect(hrefs.filter((h) => !known.has(h)), "these are not screens any more").toEqual([]);
+  });
+});
+
+describe("a match is not offered the apparatus of running a field", () => {
+  /**
+   * The sidebar has closed these for a match since it learned about
+   * `isMatch`: no flights to divide, no tee sheet to draw, nothing to
+   * announce, nobody to hire. The setup checklist had never been told, so
+   * `/event` went on offering "Flights" and "Access & staff" one card below a
+   * sidebar that had shut both — the same doors reopened, on the screen a
+   * casual round is most likely to be opened from.
+   *
+   * Read through the nav's own set rather than a second list, so the two
+   * cannot drift.
+   */
+  const asMatch = (over: Partial<ChecklistState> = {}) =>
+    setupChecklist({ ...empty, isMatch: true, ...over }).map((i) => i.href);
+
+  it("drops the field-only steps", () => {
+    const hrefs = asMatch();
+    expect(hrefs).not.toContain("/grouping");
+    expect(hrefs).not.toContain("/access");
+  });
+
+  it("keeps the steps a match genuinely has", () => {
+    /**
+     * The field screen stays: it is where a mistyped name or a wrong handicap
+     * gets fixed and there is nowhere else. Rounds stays because changing 18
+     * to 9, or gross to net, is exactly the second thought two people have on
+     * the first tee.
+     */
+    const hrefs = asMatch();
+    expect(hrefs).toContain("/registration");
+    expect(hrefs).toContain("/stages");
+  });
+
+  it("leaves a tournament with all of them — the control", () => {
+    // Without this the two above pass against a checklist that has dropped
+    // those steps for everybody.
+    const hrefs = setupChecklist(empty).map((i) => i.href);
+    expect(hrefs).toContain("/grouping");
+    expect(hrefs).toContain("/access");
+  });
+
+  it("agrees with the sidebar about which screens those are", () => {
+    /**
+     * The point of exporting the set: if somebody decides a match should have
+     * a tee sheet after all, they change one line and both readers follow.
+     */
+    for (const key of FIELD_ONLY_SCREENS) {
+      expect(screenAppliesToMatch(key), key).toBe(false);
+      expect(asMatch(), key).not.toContain(`/${key}`);
+    }
+    expect(screenAppliesToMatch("stages")).toBe(true);
+    expect(screenAppliesToMatch("registration")).toBe(true);
   });
 });
