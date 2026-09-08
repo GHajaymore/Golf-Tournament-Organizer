@@ -4767,3 +4767,101 @@ describe("jump-to nav on a long settings screen", () => {
     expect(Number(margin![1])).toBeGreaterThan(102);
   });
 });
+
+describe("the qualification audit under the draw", () => {
+  /**
+   * A TOURNAMENT CAN DRAW ITS KNOCKOUT THREE WAYS, and this panel reports all
+   * three: one bracket, two flights (a Consolation), or a main plus a plate.
+   *
+   * The screen this replaced got exactly that wrong — it hardcoded a
+   * half-and-half split and never read `bracketMode`, so it told an organizer
+   * four of eight qualifiers were going into a Consolation that does not exist
+   * under "One bracket", and claimed four to a plate before anybody had lost.
+   * The numbers now come from `drawBrackets`, the function the real draw uses,
+   * and these cases pin what the panel does with each answer.
+   */
+  const base = {
+    rule: "Top 4 overall",
+    advancingCount: 4,
+    fieldSize: 33,
+    cutoff: 10.5,
+    qualifiers: [
+      { id: "p1", name: "H. Voss", points: 15, advancing: true, flight: 1 },
+      { id: "p2", name: "J. Mercer", points: 13.5, advancing: true, flight: 7 },
+    ],
+    flights: [
+      {
+        id: "g1",
+        number: 1,
+        rows: [
+          { id: "p1", rank: 1, name: "H. Voss", points: 15, advancing: true },
+          { id: "p9", rank: 2, name: "A. Jones", points: 4, advancing: false },
+        ],
+      },
+    ],
+  };
+
+  const panel = async (over: Record<string, unknown>) => {
+    const { QualificationPanel } = await import("@/components/QualificationPanel");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return render(<QualificationPanel {...({ ...base, ...over } as any)} />);
+  };
+
+  /** How many "To …" stat cards the panel drew. */
+  const secondCards = (html: string) => (html.match(/>To /g) ?? []).length;
+
+  it("draws no second-bracket card at all under one bracket", async () => {
+    /**
+     * COUNTED, not name-checked.
+     *
+     * This first asserted only that "To Consolation" and "To Plate" were
+     * absent — and that passed against a mutation which rendered the card
+     * unconditionally, because with no label it says "To " and neither name
+     * appears. A card reading "To" with a nought under it is exactly the thing
+     * the guard was for.
+     */
+    const html = await panel({ toWinners: 4, secondLabel: "", toSecond: 0 });
+    expect(html).toContain("To Winners bracket");
+    expect(secondCards(html)).toBe(1);
+  });
+
+  it("names the Consolation under two flights", async () => {
+    const html = await panel({ toWinners: 2, secondLabel: "Consolation", toSecond: 2 });
+    expect(html).toContain("To Consolation");
+    // Both halves reported, not one — the split is the whole point of the mode.
+    expect(html).toContain("To Winners bracket");
+    expect(secondCards(html)).toBe(2);
+  });
+
+  it("names the Plate, and reports it empty until somebody has lost", async () => {
+    /**
+     * A plate is filled from the FIRST ROUND'S LOSERS, so it is empty at the
+     * moment the draw is made. Saying otherwise is what the old screen did.
+     */
+    const html = await panel({ toWinners: 4, secondLabel: "Plate", toSecond: 0 });
+    expect(html).toContain("To Plate");
+    expect(html).not.toContain("To Consolation");
+  });
+
+  it("shows every player, so somebody can see who missed out", async () => {
+    // The qualifiers list answers "who is in"; the per-flight tables answer
+    // "who is out and by how much", which is the question an organizer is
+    // actually asked in the bar afterwards.
+    const html = await panel({ toWinners: 4, secondLabel: "", toSecond: 0 });
+    expect(html).toContain("Advancing");
+    expect(html).toContain("Eliminated");
+    // Shortened by `shortName` in the flight tables — "A. Jones" renders as
+    // "A. J.". Asserted as it appears rather than as it was passed in: this
+    // test's job is that the player who missed out is on the page, not to
+    // re-specify how names are abbreviated.
+    expect(html).toContain("A. J.");
+  });
+
+  it("says how it is configured, and where that is changed", async () => {
+    const html = await panel({ toWinners: 4, secondLabel: "", toSecond: 0 });
+    expect(html).toContain("Top 4 overall");
+    // Named by the sidebar's own word, and pointing at the screen that owns
+    // the setting rather than pretending to own it here.
+    expect(html).toContain('href="/stages"');
+  });
+});
