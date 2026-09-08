@@ -645,6 +645,36 @@ export interface Bubble {
  * negative. Overall, the whole field is one flight and the behaviour is
  * unchanged.
  */
+/**
+ * What is actually happening at the cut line — the shape, not the words.
+ *
+ * There are three, and telling them apart is the whole of the problem:
+ *
+ *   shared-place    the ranking could not separate them at all, so neither
+ *                   player is through and the committee has a decision
+ *   level-on-score  they are level on the number the event is ranked by, and
+ *                   a tiebreaker the club configured did the separating.
+ *                   Nothing to decide — but not a gap either
+ *   clear-gap       one of them is genuinely behind
+ *
+ * "A gap of nothing is not a gap" was written about the middle case and fixed
+ * for the SHARED-PLACE one only, so both branches went on printing "0 shots
+ * outside qualification" whenever a countback did its job. That sentence is
+ * not about anything: the player is not outside by a margin.
+ *
+ * The DECISION lives here and the WORDS stay with the caller, deliberately.
+ * Stroke play is level on shots and separated by a countback; match play is
+ * level on points and separated by the tiebreaker chain. Those are different
+ * sentences about the same situation, and forcing one wording on both would
+ * have a stroke board talking about tiebreakers it does not use.
+ */
+export type CutLineShape = "shared-place" | "level-on-score" | "clear-gap";
+
+export function cutLineShape(gap: number, sharedPlace: boolean): CutLineShape {
+  if (gap !== 0) return "clear-gap";
+  return sharedPlace ? "shared-place" : "level-on-score";
+}
+
 export function qualificationBubble(
   players: BubblePlayer[],
   scope: "overall" | "perFlight",
