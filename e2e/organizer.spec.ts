@@ -204,3 +204,39 @@ test("posting without a title says why, rather than doing nothing", async ({ pag
   // the words are still sitting in the textarea either way.
   expect(await page.locator(".card").count()).toBe(before);
 });
+
+/**
+ * THE PUBLIC BOARD SAYS WHAT ITS NUMBERS ARE.
+ *
+ * `PlayerLeaderboard` takes a `unit` — "strokes", "Stableford points", "match
+ * points" — because the same board legitimately shows three different things
+ * depending on the round, and a column of bare numbers is one the reader has
+ * to infer.
+ *
+ * It has two call sites. The player's own Board tab passed it; the public
+ * share link did not, which is backwards: a spectator following a link is the
+ * reader least able to tell from the shape of the digits whether 10.5 is a
+ * score, a points total or a handicap.
+ *
+ * Asserted on BOTH, and asserted EQUAL. One component labelling the same
+ * column two different ways is the failure that matters, and either screen
+ * alone cannot see it.
+ */
+test("the public board and the player's board label the column the same way", async ({ page, context }) => {
+  await page.goto("/me/board");
+  await page.waitForLoadState("networkidle");
+  const player = await page.locator("body").innerText();
+
+  const spectator = await context.newPage();
+  await spectator.goto(`/live/${data.shareToken}`);
+  await spectator.waitForLoadState("networkidle");
+  const board = await spectator.locator("body").innerText();
+  await spectator.close();
+
+  // `text-transform: uppercase` means innerText comes back shouted.
+  const unitOf = (t: string) => (t.match(/RANKED BY ([^\n]+)/i) ?? [])[1]?.trim() ?? "";
+
+  expect(unitOf(player), "the player's board says what it ranks by").toBeTruthy();
+  expect(unitOf(board), "and so does the public one").toBeTruthy();
+  expect(unitOf(board), "and they agree").toBe(unitOf(player));
+});

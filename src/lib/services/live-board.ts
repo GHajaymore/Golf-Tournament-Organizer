@@ -59,6 +59,17 @@ export interface LiveBoardView {
   holeCount: number;
   /** One sentence explaining where the cut line falls, or "" for none. */
   cutNote: string;
+  /**
+   * What the score column MEASURES: "strokes", "Stableford points", "match
+   * points".
+   *
+   * The player's own Board tab has said so all along and the public link did
+   * not, which is backwards — a spectator following a share link is the reader
+   * least able to infer from the shape of the digits whether 10.5 is a score,
+   * a points total or a handicap. Same component, same prop, passed on one of
+   * its two call sites.
+   */
+  unit: string;
   manualFormat: boolean;
   allIn: boolean;
   roundLabel: string;
@@ -150,6 +161,9 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
     // and a note cached apart from the board it explains would eventually be
     // describing a different one.
     cutNote: cutLineNote(state) ?? "",
+    // The same expression `(player)/me/board` uses, so the two boards built
+    // from one component cannot label the same column differently.
+    unit: state.isStroke ? state.strokeUnit : "match points",
     manualFormat: kind === "manual",
     allIn,
     roundLabel: activeStage?.description?.trim() || activeStage?.type || "",
