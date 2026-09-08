@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { screenName } from "@/lib/nav";
-import { pts, shortName } from "@/lib/format";
+import { pts, shortName, distinctLabels } from "@/lib/format";
 import { Icon } from "./Icon";
 
 /**
@@ -66,6 +66,21 @@ export function QualificationPanel({
   qualifiers: QualificationRow[];
   flights: QualificationFlight[];
 }) {
+  /**
+   * Shortened names, across ALL the flights rather than within each one.
+   *
+   * `shortName` alone gives "Dave S." to both Dave Sherman and Dave Salt, and
+   * this is the table that says who advances — two identical rows, one tagged
+   * Advancing and one Eliminated, with nothing on screen to say which Dave
+   * went through. The flights are columns on one screen, so a name repeated
+   * in the next column is just as unreadable as one repeated in this column;
+   * the scope is the panel.
+   */
+  const allRows = flights.flatMap((f) => f.rows);
+  const flightLabels = new Map(
+    distinctLabels(allRows.map((r) => r.name), shortName).map((label, i) => [allRows[i].id, label] as const),
+  );
+
   return (
     <section style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--color-divider)" }}>
       <div
@@ -170,7 +185,7 @@ export function QualificationPanel({
                 {f.rows.map((r) => (
                   <tr key={r.id} style={r.advancing ? { background: "var(--color-accent-900)" } : undefined}>
                     <td style={{ width: 26, color: "var(--color-neutral-500)" }}>{r.rank}</td>
-                    <td style={{ fontWeight: 500 }}>{shortName(r.name)}</td>
+                    <td style={{ fontWeight: 500 }}>{flightLabels.get(r.id) ?? shortName(r.name)}</td>
                     <td>
                       <span className={`tag ${r.advancing ? "tag-accent" : "tag-neutral"}`}>
                         {r.advancing ? "Advancing" : "Eliminated"}

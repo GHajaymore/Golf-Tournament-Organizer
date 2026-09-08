@@ -10,7 +10,7 @@ import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
 import { showBracket, bracketBadge, feederFraction } from "@/lib/bracket-visibility";
 import { matchProgress, standingRows } from "@/lib/services/tournament";
 import { usesStandardBoard } from "@/lib/formats";
-import { pts, shortName } from "@/lib/format";
+import { pts, shortName, distinctLabels } from "@/lib/format";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
 import { availabilityFor } from "@/lib/services/availability";
@@ -52,6 +52,21 @@ const QUICK_ACTIONS = [
 export default async function DashboardPage() {
   const { session, state } = await requireState();
   const { event, groupStandings, advancingCount, overallCutoff, brackets } = state;
+
+  /**
+   * Flight-standings labels, decided across the whole card.
+   *
+   * `shortName` gives "Dave S." to Dave Sherman and Dave Salt alike, and this
+   * card highlights the rows that are advancing — so two identical names, one
+   * highlighted and one not, say nothing about which Dave is through.
+   */
+  const rankedAll = groupStandings.flatMap((gs) => gs.ranked);
+  const standingLabels = new Map(
+    distinctLabels(rankedAll.map((r) => r.player.name), shortName).map(
+      (label, i) => [rankedAll[i].player.id, label] as const,
+    ),
+  );
+
   const progress = matchProgress(state);
   const currentStage = state.activeStage ?? state.stages[0];
   /**
@@ -619,6 +634,10 @@ export default async function DashboardPage() {
             <div key={gs.group.id}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Flight {gi + 1}</div>
               {gs.ranked.map((r) => {
+                /* Labelled across every flight, not within one — the flights
+                   are four columns of one card, so a "Dave S." repeated in the
+                   next column reads exactly as badly as one repeated here, and
+                   advancing rows are highlighted. See standingLabels. */
                 const advancing = advancingIds.has(r.player.id);
                 return (
                   <div
@@ -632,7 +651,7 @@ export default async function DashboardPage() {
                   >
                     <span style={{ width: 14, color: "var(--color-neutral-500)" }}>{r.rank}</span>
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {shortName(r.player.name)}
+                      {standingLabels.get(r.player.id) ?? shortName(r.player.name)}
                     </span>
                     <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{pts(r.stats.totalPoints)}</span>
                   </div>

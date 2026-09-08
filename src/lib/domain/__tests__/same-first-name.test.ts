@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseResultTranscript, parseHolesTranscript, namesAreDistinct } from "../match";
-import { distinctLabels } from "@/lib/format";
+import { distinctLabels, shortName } from "@/lib/format";
 import { stripComments } from "@/lib/__tests__/source";
 
 /**
@@ -133,6 +133,27 @@ describe("labelling two names shown side by side", () => {
     expect(distinctLabels(["Dave Sherman", "Dave Sherman"])).toEqual([
       "Dave Sherman",
       "Dave Sherman",
+    ]);
+  });
+
+  it("keeps the caller's own format when nothing clashes", () => {
+    /**
+     * The base format is the CALLER'S normal one, not always `firstName`. A
+     * screen that writes "First L." wants that on every row, and something
+     * wider only where two of them collide.
+     *
+     * Defaulting it shortened every name on the two screens that use
+     * `shortName`, and `render.test.tsx` caught it: a qualification table
+     * that had always read "A. J." started reading "A.". Fixing a collision
+     * in two rows must not reformat the other thirty-one.
+     */
+    expect(distinctLabels(["A. Jones", "H. Voss"], shortName)).toEqual(["A. J.", "H. V."]);
+  });
+
+  it("still widens past the caller's format when that clashes too", () => {
+    expect(distinctLabels(["Dave Sherman", "Dave Salt"], shortName)).toEqual([
+      "Dave Sherman",
+      "Dave Salt",
     ]);
   });
 

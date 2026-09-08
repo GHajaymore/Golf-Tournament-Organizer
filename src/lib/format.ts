@@ -76,22 +76,38 @@ export function shortName(name: string): string {
  * asks for, since a rule applied where the labels are built cannot be
  * forgotten by the next screen that renders a pair of names.
  */
-export function distinctLabels(names: string[]): string[] {
-  const clashes = (labels: string[]) => {
+export function distinctLabels(
+  names: string[],
+  /**
+   * How a name is written when nothing forces it wider. THE CALLER'S NORMAL
+   * FORMAT, and it must be passed as such: a screen that shows "First L."
+   * wants "Dave S." for everybody and something longer only where two of them
+   * collide.
+   *
+   * Defaulting this to `firstName` and using it on a `shortName` screen
+   * shortens every name on that screen — which is a change to all the rows to
+   * fix a collision in two of them. `render.test.tsx` caught exactly that: a
+   * qualification table that had always read "A. J." started reading "A.".
+   */
+  base: (name: string) => string = firstName,
+): string[] {
+  const counts = (labels: string[]) => {
     const seen = new Map<string, number>();
     for (const l of labels) seen.set(l.toLowerCase(), (seen.get(l.toLowerCase()) ?? 0) + 1);
     return seen;
   };
 
-  const first = names.map(firstName);
-  const firstCounts = clashes(first);
-  // Only the clashing ones widen. Everyone else keeps the short label.
-  const widened = names.map((n, i) => ((firstCounts.get(first[i].toLowerCase()) ?? 0) > 1 ? shortName(n) : first[i]));
+  // Widest last. Each step is tried only by the names still colliding at the
+  // step before, so one clash never reformats the rest of the list.
+  const ladder = [base, shortName, (n: string) => n.trim()];
 
-  const widerCounts = clashes(widened);
-  return names.map((n, i) =>
-    (widerCounts.get(widened[i].toLowerCase()) ?? 0) > 1 ? n.trim() : widened[i],
-  );
+  let labels = names.map((n) => base(n));
+  for (const step of ladder.slice(1)) {
+    const seen = counts(labels);
+    if (![...seen.values()].some((c) => c > 1)) break;
+    labels = names.map((n, i) => ((seen.get(labels[i].toLowerCase()) ?? 0) > 1 ? step(n) : labels[i]));
+  }
+  return labels;
 }
 
 /**
