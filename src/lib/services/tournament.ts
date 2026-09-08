@@ -24,6 +24,7 @@ import {
   groupCutoff,
   qualificationBubble,
   cutLineTies,
+  cutLineShape,
   buildBracket,
   drawBrackets,
   firstRoundLosers,
@@ -1423,13 +1424,36 @@ export function computeHighlights(state: EventState): Highlight[] {
       });
     } else if (bubble) {
       const outName = scored.find((s) => s.player.id === bubble.firstOut.id)!.player.name;
-      out.push({
-        icon: "🚨",
-        title: "Bubble watch",
-        text: stableford
-          ? `${outName} is ${bubble.gap} points outside qualification.`
-          : `${outName} is ${bubble.gap} shots outside qualification.`,
-      });
+      const inName = scored.find((s) => s.player.id === bubble.lastIn.id)?.player.name ?? "the last qualifier";
+      const unit = stableford ? "points" : "shots";
+      /**
+       * THE SAME THREE SHAPES THE MATCH BRANCH USES.
+       *
+       * `tiedAtLine` above catches a SHARED place. It does not catch the other
+       * way of being level: two players on the same score, separated by the
+       * countback the club published. That fell through to here and printed
+       * "0 shots outside qualification" — the exact sentence the note above
+       * `tiedAtLine` calls "not a sentence about anything".
+       *
+       * I fixed this on the match branch and left the mirror hole here, which
+       * is precisely the fault `standingRows`' shape guard was written for.
+       * The decision is shared now; the words stay per-format, because a
+       * stroke board is separated by a countback and a match board by the
+       * tiebreaker chain.
+       */
+      out.push(
+        cutLineShape(bubble.gap, false) === "level-on-score"
+          ? {
+              icon: "⚖️",
+              title: "Level at the cut",
+              text: `${outName} is level with ${inName} on ${bubble.firstOut.score} ${unit}. Your countback put ${inName} through.`,
+            }
+          : {
+              icon: "🚨",
+              title: "Bubble watch",
+              text: `${outName} is ${bubble.gap} ${unit} outside qualification.`,
+            },
+      );
     }
     return out;
   }
@@ -1512,7 +1536,6 @@ export function computeHighlights(state: EventState): Highlight[] {
      *     tiebreakers this club configured did the work. Nothing to decide,
      *     but "0 pts outside" tells them none of it.
      */
-    const level = bubble.gap === 0;
     /**
      * Computed here from the same reader `standingRows` uses, rather than
      * threaded in: both answer "does the cut line run through a shared place",
@@ -1532,14 +1555,19 @@ export function computeHighlights(state: EventState): Highlight[] {
       ).flatMap((t) => t.playerIds),
     );
     const sharedPlace = sharedAtLine.has(bubble.firstOut.id) && sharedAtLine.has(bubble.lastIn.id);
+    // Through the shared decision, so this branch and the stroke one cannot
+    // come to disagree about what "level at the cut" means. The words stay
+    // here: a match board is separated by the tiebreaker chain, a stroke board
+    // by a countback.
+    const shape = cutLineShape(bubble.gap, sharedPlace);
     out.push(
-      level && sharedPlace
+      shape === "shared-place"
         ? {
             icon: "⚖️",
             title: "Tied for the last place",
             text: `${outName} and ${inName} are level on ${fmt(bubble.firstOut.score)} pts and nothing separates them. A play-off or your published countback decides who goes through — the app has not.`,
           }
-        : level
+        : shape === "level-on-score"
           ? {
               icon: "⚖️",
               title: "Level on points at the cut",

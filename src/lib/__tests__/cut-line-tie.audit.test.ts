@@ -449,3 +449,107 @@ describe("both kinds of event produce the same shape of standings row", () => {
     })();
   });
 });
+
+/**
+ * THE MIRROR HOLE, on the branch I had already been in.
+ *
+ * `tiedAtLine` catches a SHARED place — nothing separated the two players at
+ * all. It does not catch the other way of being level: two players on the same
+ * total, separated by the countback the club published. That falls through to
+ * the bubble card, which printed
+ *
+ *   "X is 0 shots outside qualification"
+ *
+ * — the exact sentence the note above `tiedAtLine` calls "not a sentence about
+ * anything". I fixed this on the match branch and left it here, which is
+ * precisely the fault the shape guard above was written for, committed by the
+ * person who wrote the guard.
+ *
+ * The fixture has to earn it: two cards adding to the same total by a
+ * DIFFERENT route, so the countback can separate them and the ranks come out
+ * distinct. Identical cards would share a rank and take the other branch.
+ */
+async function seedLevelButSeparatedStrokeEvent() {
+  const event = await prisma.event.create({
+    data: {
+      organizationId: orgId,
+      name: `${TAG}-LEVEL ${Date.now()}`,
+      dates: "", course: "", city: "", address: "", regDeadline: "",
+      capacity: 0,
+      status: "active",
+      shape: "series",
+      format: "stroke",
+      formationRule: "balanced",
+      shareToken: `audit-level-${Date.now()}-${Math.random()}`,
+      customPars: JSON.stringify(PARS),
+      customStrokeIndex: JSON.stringify(SI),
+      qualifyMode: "overall",
+      qualifyOverall: 1,
+    },
+  });
+  const eventId = event.id;
+  const stage = await prisma.stage.create({
+    data: { eventId, position: 0, type: "Round Robin", format: "Stroke Play", holes: 18, scoringBasis: "gross" },
+  });
+  await prisma.stage.create({
+    data: { eventId, position: 1, type: "Bracket Stage", format: "Match Play", holes: 18 },
+  });
+  const flight = (await prisma.group.create({ data: { eventId, name: "A", position: 0 } })).id;
+
+  // 72 apiece. The first plays every hole in four; the second gives a shot
+  // back early and takes it back late, which is exactly what a countback is
+  // there to read.
+  const flat = new Array(18).fill(4);
+  const swung = [...flat];
+  swung[0] = 5;
+  swung[17] = 3;
+
+  const ids: Record<string, string> = {};
+  for (const [label, strokes, seed] of [["FLAT", flat, 1], ["SWUNG", swung, 2]] as const) {
+    const p = await prisma.player.create({
+      data: {
+        eventId,
+        name: `${TAG}-LEVEL ${label}`,
+        email: `${TAG.toLowerCase()}-level-${label}-${Date.now()}-${Math.random()}@example.invalid`,
+        handicap: 9,
+        seed,
+        status: "confirmed",
+        groupId: flight,
+      },
+    });
+    ids[label] = p.id;
+    await prisma.scorecard.create({
+      data: { eventId, stageId: stage.id, playerId: p.id, strokes: JSON.stringify(strokes) },
+    });
+  }
+  return { eventId, ids };
+}
+
+describe("level at the cut on a STROKE board", () => {
+  it("does not say somebody is nought shots outside", async () => {
+    const { eventId } = await seedLevelButSeparatedStrokeEvent();
+    const { computeHighlights } = await import("../services/tournament");
+    const state = (await loadEventState(eventId))!;
+    const text = computeHighlights(state).map((h) => `${h.title}: ${h.text}`).join(" | ");
+
+    expect(text).not.toMatch(/\b0 shots outside\b/);
+    expect(text).toMatch(/level with/i);
+    // Stroke play is separated by a countback, not by the tiebreaker chain a
+    // match board uses — the decision is shared, the words are not.
+    expect(text).toMatch(/countback/i);
+    expect(text).not.toMatch(/tiebreakers/i);
+  });
+
+  it("still reports a real gap as a gap", async () => {
+    // The guard against the guard, on this branch too.
+    const { eventId } = await seedTiedStrokeEvent();
+    const { computeHighlights } = await import("../services/tournament");
+    const text = computeHighlights((await loadEventState(eventId))!)
+      .map((h) => `${h.title}: ${h.text}`)
+      .join(" | ");
+    // That fixture's tie IS shared, so it takes the play-off branch and never
+    // claims a gap.
+    expect(text).toMatch(/Tied for the last place|level with/i);
+    expect(text).not.toMatch(/\b0 shots outside\b/);
+  });
+});
