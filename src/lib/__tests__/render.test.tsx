@@ -1389,15 +1389,33 @@ describe("score entry lands on the right card without asking", () => {
     expect(player).toContain("check back once flights are set");
   });
 
-  it("shows every shape match play can be recorded as", () => {
-    // Visible, not hidden. The format decides which exist and the round
-    // decides which is preselected — but the choice between what remains is
-    // the organizer's, and it belongs in front of them.
+  it("shows the shape in use, and says match play has others", () => {
+    /**
+     * This asserted all three were on screen at once, and the note above it
+     * said the choice "belongs in front of them". The choice still does; the
+     * two shapes the organizer is NOT using no longer do.
+     *
+     * The three cards came to 369px of a 1,020px match card — a third of it,
+     * repeated down a list of forty-eight. And the screen already made the
+     * opposite call one block below, in the venue control: "THE TOURNAMENT
+     * ALREADY DECIDED WHERE THIS IS PLAYED... this states it and stops. A full
+     * picker sitting open..." — same decision, same reasoning, other answer.
+     * This block was the odd one out on its own screen.
+     *
+     * So what is asserted now is the contract that replaced it: the shape in
+     * use is named and explained, and a control says in words that a match can
+     * be written down another way. A silent default would fail this.
+     */
     const html = render(<ScoreEntryClient matches={[match]} format="Match Play" isStaff />);
     expect(html).toContain("mode-pick");
+    // The one being used, with its own description — not a bare label.
     expect(html).toContain("Hole-by-hole result");
-    expect(html).toContain("Full scorecard");
-    expect(html).toContain("Final result only");
+    expect(html).toContain("Who won each hole");
+    // The choice, named as a choice.
+    expect(html).toContain("Enter it a different way");
+    // And the two shapes not in use are not printed on every card.
+    expect(html).not.toContain("Full scorecard");
+    expect(html).not.toContain("Final result only");
   });
 
   it("does not offer a change when the format allows only one shape", () => {

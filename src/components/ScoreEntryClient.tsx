@@ -341,6 +341,26 @@ export function ScoreEntryClient({
   const [mode, setMode] = useState<"holes" | "result" | "handicap">(() =>
     defaultEntryMode(format, netMode, courseKnown, scoreInput),
   );
+  /**
+   * Whether the OTHER ways of writing this match down are on screen.
+   *
+   * The three options came to 369px of a 1,020px match card — a third of it,
+   * on every match, and this event has forty-eight. Two of the three describe
+   * a shape the organizer is not using.
+   *
+   * The screen already argues this, one block down. The venue control says
+   * "THE TOURNAMENT ALREADY DECIDED WHERE THIS IS PLAYED... this states it and
+   * stops. A full picker sitting open..." — the same decision, made the other
+   * way, for the same reason. This block was the odd one out on its own
+   * screen.
+   *
+   * What stays visible is the mode ACTUALLY IN USE, with its own description
+   * and a control that says it can be changed. The note above the picker asked
+   * that the choice be "in front of them" rather than hidden behind a link,
+   * and it still is: what has gone is the two rejected alternatives, not the
+   * fact that there is a choice.
+   */
+  const [showModes, setShowModes] = useState(false);
 
   /**
    * Which shapes this round's format can actually be written down as.
@@ -1006,14 +1026,21 @@ export function ScoreEntryClient({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "12px 0", flexWrap: "wrap" }}>
-            {/* Shown, not hidden behind a link. The format decides which of
-                these exist at all; the round decides which one is already
-                selected. Both of those are the app's job — but the choice
-                between the shapes that remain is the organizer's, and it
-                belongs in front of them. */}
+            {/* The format decides which of these exist at all; the round
+                decides which one is already selected. Both are the app's job —
+                but the choice between the shapes that remain is the
+                organizer's, and it belongs in front of them.
+
+                It still does. This used to print all three, and that note read
+                "shown, not hidden behind a link" — which was the right
+                instinct and the wrong control. What is in front of them now is
+                the shape being used, described, next to a sentence saying a
+                match can be entered another way. What has gone is the two
+                shapes they are not using, repeated down a list of forty-eight
+                matches at a third of each card. See `showModes`. */}
             {availableModes.length > 1 ? (
               <div className="mode-pick">
-                {availableModes.map((m) => {
+                {(showModes ? availableModes : availableModes.filter((m) => m.key === effectiveMode)).map((m) => {
                   const off = m.key === "handicap" && !courseKnown;
                   return (
                     <button
@@ -1036,6 +1063,19 @@ export function ScoreEntryClient({
                     </button>
                   );
                 })}
+                {/* Says what it opens. "Change" alone would hide the fact that
+                    a match can be written down three different ways, which is
+                    exactly what the note above asked not to hide. */}
+                {!showModes && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ alignSelf: "start", fontSize: 12, minHeight: 44 }}
+                    onClick={() => setShowModes(true)}
+                  >
+                    <Icon name="pencil-simple" /> Enter it a different way
+                  </button>
+                )}
               </div>
             ) : (
               <p className="text-muted" style={{ fontSize: 12, margin: 0, maxWidth: "64ch", lineHeight: 1.5 }}>
