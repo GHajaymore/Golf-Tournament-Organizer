@@ -136,10 +136,26 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
    */
   const started = rows.filter((r) => r.thru > 0);
   const roundMatches = activeStage ? state.matches.filter((m) => m.stageId === activeStage.id) : [];
+  /**
+   * AND THE COMMITTEE'S OWN WORD, which outranks both readings.
+   *
+   * A club that marks a tournament Completed has said the result is final —
+   * the console shows "Completed", locks the configuration, and starts the
+   * retention clock on it. The public board went on saying LIVE, because it
+   * only ever asked whether every card was in, and a card can legitimately
+   * stop short: a withdrawal, a match won 5&4, somebody who walked in at the
+   * turn.
+   *
+   * So the one screen the club actually SENDS to members contradicted the
+   * committee that sent it. Two readers of one fact, and the authoritative one
+   * was not being asked.
+   */
+  const declaredFinal = event.status === "completed";
   const allIn =
-    roundMatches.length > 0
+    declaredFinal ||
+    (roundMatches.length > 0
       ? roundMatches.every((m) => matchSettled(m))
-      : started.length > 0 && started.every((r) => r.thru >= holeCount);
+      : started.length > 0 && started.every((r) => r.thru >= holeCount));
 
   return {
     name: event.name,
