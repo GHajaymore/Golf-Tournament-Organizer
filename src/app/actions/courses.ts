@@ -225,6 +225,49 @@ export async function deleteClubCourse(courseId: string): Promise<CourseResult> 
   const course = await prisma.course.findFirst({ where: { id: courseId, organizationId } });
   if (!course) return { ok: false, error: "Course not found." };
 
+  /**
+   * A ROUND played here is refused, because there is nowhere to put its card.
+   *
+   * The snapshot below saves events, which carry their own card fields. A
+   * Stage does not: `courseForRound` falls back to the EVENT's course, so
+   * deleting the venue of one round in a rotating league re-scores that round
+   * against a different course. Measured on a two-course league — par 5 and
+   * stroke index 10 before, par 4 and stroke index 1 after.
+   *
+   * That is worse than #195's missing card. A missing card is visibly wrong;
+   * a DIFFERENT course's card is plausible and silent. Handicap totals survive
+   * — `RoundHandicap.frozen` holds them — but the stroke index decides which
+   * holes those shots fall on, and skins recompute from that. It moves money.
+   *
+   * Refused only where the round HAS BEEN PLAYED. A round with no cards has no
+   * history to protect and loses its venue harmlessly, so ordinary tidying up
+   * still works; this guards what has happened, not what is scheduled.
+   */
+  const playedHere = await prisma.stage.findMany({
+    where: { courseId, event: { organizationId } },
+    select: { id: true, description: true, type: true, event: { select: { name: true } } },
+  });
+  if (playedHere.length > 0) {
+    const withCards = await prisma.scorecard.findMany({
+      where: { stageId: { in: playedHere.map((s) => s.id) } },
+      select: { stageId: true },
+      distinct: ["stageId"],
+    });
+    const played = new Set(withCards.map((c) => c.stageId));
+    const blocked = playedHere.filter((s) => played.has(s.id));
+    if (blocked.length > 0) {
+      const first = blocked[0];
+      const round = first.description?.trim() || first.type;
+      return {
+        ok: false,
+        error:
+          blocked.length === 1
+            ? `${round} of ${first.event.name} was played here, and its scores are worked out from this card. Point that round at another course first.`
+            : `${blocked.length} rounds were played here, and their scores are worked out from this card. Point them at another course first.`,
+      };
+    }
+  }
+
   // One transaction: an event that kept the reference but lost the snapshot,
   // or a snapshot written against a course that then failed to delete, are
   // both worse than either outcome alone.

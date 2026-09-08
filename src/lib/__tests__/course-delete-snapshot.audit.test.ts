@@ -161,3 +161,100 @@ describe("removing a venue from the library", () => {
     expect(own.pars[0], "the event's own par was replaced by the club's").toBe(3);
   });
 });
+
+/**
+ * A ROUND PLAYED HERE IS REFUSED, BECAUSE THERE IS NOWHERE TO PUT ITS CARD.
+ *
+ * The snapshot above saves EVENTS, which carry card fields. A Stage does not:
+ * `courseForRound` falls back to the event's course, so deleting the venue of
+ * one round in a rotating league re-scores that round against a DIFFERENT
+ * course. Measured on a two-course league — par 5 / stroke index 10 before,
+ * par 4 / stroke index 1 after.
+ *
+ * Worse than a missing card, which is visibly wrong. A different course's card
+ * is plausible and silent, and since the stroke index decides which holes a
+ * player's frozen shots fall on, skins recompute against it. It moves money.
+ */
+describe("a course a round was played on", () => {
+  let otherCourseId = "";
+  let playedStageId = "";
+  let emptyStageId = "";
+  let evId = "";
+
+  beforeAll(async () => {
+    const course = await prisma.course.create({
+      data: {
+        organizationId: orgId,
+        name: `${TAG}-Away`,
+        city: "",
+        pars: JSON.stringify(new Array(18).fill(5)),
+        yards: JSON.stringify(new Array(18).fill(500)),
+        strokeIndex: JSON.stringify(SI),
+      },
+    });
+    otherCourseId = course.id;
+
+    const ev = await prisma.event.create({ data: newEvent("league", {}) });
+    evId = ev.id;
+
+    // One round played there, one merely scheduled there.
+    const played = await prisma.stage.create({
+      data: {
+        eventId: evId, position: 0, description: "Week 2",
+        type: "Stroke Play Round", format: "Individual Stroke Play",
+        holes: 18, courseId: otherCourseId,
+      },
+    });
+    playedStageId = played.id;
+    const empty = await prisma.stage.create({
+      data: {
+        eventId: evId, position: 1, description: "Week 3",
+        type: "Stroke Play Round", format: "Individual Stroke Play",
+        holes: 18, courseId: otherCourseId,
+      },
+    });
+    emptyStageId = empty.id;
+
+    const player = await prisma.player.create({
+      data: {
+        eventId: evId, name: `${TAG} Ann`,
+        email: `${TAG}-league-ann@example.invalid`.toLowerCase(),
+        seed: 1, status: "confirmed", handicap: 10,
+      },
+    });
+    await prisma.scorecard.create({
+      data: {
+        eventId: evId, stageId: playedStageId, playerId: player.id,
+        strokes: JSON.stringify(new Array(18).fill(4)),
+      },
+    });
+  });
+
+  it("is refused, and says which round", async () => {
+    const res = await deleteClubCourse(otherCourseId);
+    expect(res.ok, "a played round's venue was deleted out from under it").toBe(false);
+    expect(res.error, "the refusal must name the round, or it cannot be acted on").toMatch(/Week 2/);
+  });
+
+  it("still exists afterwards", async () => {
+    // A refusal that deleted anyway would be the worst of both.
+    expect(await prisma.course.findUnique({ where: { id: otherCourseId } })).not.toBeNull();
+  });
+
+  it("allows it once no round played there still points at it", async () => {
+    /**
+     * The other half, and the reason this is not simply "never delete a course
+     * in use". A round with no cards has no history to protect, and ordinary
+     * tidying up has to keep working — a guard that refuses a real case gets
+     * deleted, and takes the real protection with it.
+     */
+    await prisma.stage.update({ where: { id: playedStageId }, data: { courseId: null } });
+
+    const res = await deleteClubCourse(otherCourseId);
+    expect(res.ok, res.error ?? "").toBe(true);
+    expect(await prisma.course.findUnique({ where: { id: otherCourseId } })).toBeNull();
+    // And the round that only had it scheduled is unharmed by the SET NULL.
+    const still = await prisma.stage.findUnique({ where: { id: emptyStageId } });
+    expect(still!.courseId).toBeNull();
+  });
+});
