@@ -102,7 +102,10 @@ async function main() {
       // A locked feature has to say what to do instead, or it reads as broken.
       check("names the feature", html, "AjAi drafting");
       check("says it is a paid feature", html, "On the paid plan");
-      check("says what to do instead", html, "Write it yourself below and send as usual.");
+      // "above", because that is where the composer is. This panel sits below
+      // it by design, so the old "below" sent a locked-out organizer to the
+      // end of the page.
+      check("says what to do instead", html, "Write it yourself in the composer above and post as usual.");
       // And it must not dangle the choices it cannot honour.
       check("offers no options it cannot deliver", html, "Newsletter recap", false);
     } else {

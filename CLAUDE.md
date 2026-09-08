@@ -53,6 +53,27 @@ check `preview_list`'s `cwd` before believing a green run — `preview_start` wi
 server already running from the MAIN checkout, and then every route passes against code you did
 not write.
 
+**`npm run smoke` is NOT the whole of CI's "Smoke-test every route" step.** That step boots the
+server once and then runs FOUR scripts against it, of which `npm run smoke` is the first:
+
+```
+node scripts/smoke-routes.mjs        # what `npm run smoke` runs, and all it runs
+node scripts/verify-round-controls.mjs
+node scripts/verify-drafting.mjs
+node scripts/verify-week-view.mjs
+```
+
+The last three assert CONTENT — that a control is on the screens that need it and off the ones
+that do not, that the locked drafting panel still says what to do instead, that the movement
+column says somebody climbed exactly when they did. They pin user-facing STRINGS verbatim, so
+rewording a sentence turns one of them red while all 39 routes still return 200. On 2026-09-07 a
+four-word copy fix — "below" to "above" on the locked drafting panel — passed tsc, 4558 unit
+tests, lint, build, `npm run smoke` and Playwright, and went red in CI on `verify-drafting.mjs`.
+
+So a green `npm run smoke` says every route renders, and says nothing about the other three.
+Run them too — against the same server, in that order — whenever you change copy or move a
+control.
+
 The command above runs the DEFAULT config, which excludes `*.audit.test.ts` — those need a real
 database and live in `vitest.audit.config.ts`. Anything whose behaviour is only provable against
 real rows (handicap resolution, authorization, money) is asserted there, so a change to one of
