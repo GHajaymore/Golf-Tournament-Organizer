@@ -67,8 +67,23 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
       )}
 
       {!view.playerId ? (
+        /**
+         * SCOPED TO THE POTS, because the page carries on underneath it.
+         *
+         * This said "there is nothing here for you", sitting directly below
+         * the page's Money heading — and then the screen showed the contest
+         * results, the skins pot, the settle-up handovers, six itemised
+         * expenses, and an "Add an expense" button aimed at this very reader.
+         * The one sentence a non-entrant reads first was the one thing on the
+         * page that was not true.
+         *
+         * What is actually absent is a STAKE: they are not in the field, so
+         * none of the pots can pay them. The shared money is deliberately
+         * visible to everyone in the group and stays visible.
+         */
         <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-          You aren&rsquo;t in this tournament&rsquo;s field, so there is nothing here for you.
+          You aren&rsquo;t in this tournament&rsquo;s field, so you have no stake in its pots. The
+          group&rsquo;s shared costs are below.
         </p>
       ) : !view.anyFinal ? (
         <p className="text-muted" style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>
