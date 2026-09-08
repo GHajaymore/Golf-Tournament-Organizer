@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  logoSrc,
+  logoVersion,
   isDataUrl,
   dataUrlProblem,
   LOGO_ACCEPT,
@@ -120,5 +122,62 @@ describe("what the organizer is told", () => {
     for (const ext of ["PNG", "JPG", "WebP"]) {
       expect(dataUrlProblem("data:image/gif;base64,AAAA")).toContain(ext);
     }
+  });
+});
+
+describe("where an uploaded logo is served from", () => {
+  /**
+   * MEASURED, not assumed. The public board polls every 30 seconds and
+   * `router.refresh()` re-fetches the rendered payload, so an inlined image is
+   * re-sent every time. On the console leaderboard with a 40KB logo that was
+   * **81KB added per render** — the string lands in both the HTML and the RSC
+   * flight data — or roughly 10MB an hour per spectator, on a phone on a golf
+   * course. A URL is a short string whose image the browser caches once.
+   */
+  const ORG = "org_abc123";
+
+  it("leaves a linked logo exactly as it is", () => {
+    // The club's own URL is already cacheable and already theirs. Rewriting it
+    // would put our server in front of their CDN for no reason.
+    const url = "https://ridgeline.example/logo.png";
+    expect(logoSrc(ORG, url)).toBe(url);
+  });
+
+  it("leaves an empty logo empty", () => {
+    // `OrgBrand` renders a monogram when this is falsy; a URL here would make
+    // it render a broken image instead.
+    expect(logoSrc(ORG, "")).toBe("");
+    expect(logoSrc(ORG, "   ")).toBe("");
+  });
+
+  it("routes an uploaded one, under the prefix middleware skips", () => {
+    const src = logoSrc(ORG, PNG_1PX);
+    expect(src).toMatch(/^\/api\/logo\/org_abc123\?v=/);
+  });
+
+  it("changes the URL when the image changes, and only then", () => {
+    /**
+     * This is what makes `immutable` safe on the route. Without a version the
+     * club swaps its logo and every spectator keeps the old one for a year;
+     * with a version that changes on every render, nothing caches at all.
+     */
+    const a = logoSrc(ORG, PNG_1PX);
+    expect(logoSrc(ORG, PNG_1PX), "same image, same URL").toBe(a);
+    expect(logoSrc(ORG, "data:image/png;base64,AAAA"), "different image").not.toBe(a);
+  });
+
+  it("gives different organizations different URLs for the same image", () => {
+    // Two clubs uploading the same file must not share a cache entry keyed
+    // only on content — the path is what says whose logo it is.
+    expect(logoSrc("org_one", PNG_1PX)).not.toBe(logoSrc("org_two", PNG_1PX));
+  });
+
+  it("fingerprints without collapsing similar images", () => {
+    // A hash that returned a constant would pass every test above except this
+    // one, and would pin every club to the first logo it ever uploaded.
+    const seen = new Set(
+      ["AAAA", "AAAB", "BAAA", "ABCD"].map((p) => logoVersion(`data:image/png;base64,${p}`)),
+    );
+    expect(seen.size).toBe(4);
   });
 });

@@ -11,6 +11,7 @@ import { generateShareToken } from "../codes";
 import { newOrganizationName, organizationWasNamed } from "../org-naming";
 import type { OrgKind } from "../domain/org-profile";
 import type { OrgSetupFacts } from "../domain/org-setup";
+import { logoSrc } from "../domain/logo-upload";
 
 /**
  * Resolve the organization a new tournament should belong to for this person,
@@ -222,6 +223,8 @@ export async function brandForEvent(eventId: string): Promise<EventBrand | null>
     select: {
       organization: {
         select: {
+          // `id` is here only to build the logo's own URL — see logoSrc.
+          id: true,
           name: true,
           shortName: true,
           brandDisplay: true,
@@ -239,7 +242,17 @@ export async function brandForEvent(eventId: string): Promise<EventBrand | null>
     name: lines.primary,
     secondary: lines.secondary,
     monogram: brandMonogram(org.name, org.shortName),
-    logoUrl: org.logoUrl,
+    /**
+     * Converted HERE, where the brand is built, so no screen has to remember.
+     *
+     * A linked logo passes through unchanged; an uploaded one becomes a URL
+     * pointing at `/api/logo/...` instead of the image itself, which keeps a
+     * measured 81KB per render out of a board that reloads every 30 seconds.
+     * Every consumer — the sidebar, the public board, the printed scorecard —
+     * reads this one field, so doing it at the source is the difference
+     * between one decision and six.
+     */
+    logoUrl: logoSrc(org.id, org.logoUrl),
     showAttribution: !planFor(org.subscription?.plan).features.whiteLabel,
   };
 }
