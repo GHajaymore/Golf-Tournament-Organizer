@@ -288,6 +288,36 @@ export async function seed() {
         amount: 50,
       },
     });
+    /**
+     * Two announcements, one pinned.
+     *
+     * The fixture had NONE, so every sweep of /announcements — including the
+     * on-course touch-minimum sweep, which grades that route — only ever
+     * measured the empty state. The pin and delete controls on a posted
+     * notice, which is the whole screen once anybody has used it, had never
+     * been measured by anything at any viewport.
+     *
+     * Both rows, because pinned and unpinned draw different controls: the
+     * pinned one carries a tag that the unpinned one does not, and a row that
+     * fits without it is not evidence the other fits.
+     */
+    await prisma.announcement.create({
+      data: {
+        eventId: event.id,
+        title: `${MARK} Round 2 tee times are up`,
+        body: "First tee at 8:10. Groups 5 to 8 start on the back nine.",
+        pinned: true,
+      },
+    });
+    await prisma.announcement.create({
+      data: {
+        eventId: event.id,
+        title: `${MARK} Halfway house is open`,
+        body: "",
+        pinned: false,
+      },
+    });
+
     // Two accounts: the organizer, and a player who is players[0] — matched by
     // email, which is how the app resolves "me".
     const organizer = await prisma.user.create({

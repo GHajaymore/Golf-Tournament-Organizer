@@ -60,7 +60,11 @@ export function DraftAssistant({
     return (
       <div className="card elev-sm" style={{ gap: 10, marginBottom: 16 }}>
         <span className="card-title" style={{ fontSize: 15 }}>Draft it from the results</span>
-        <LockedFeature feature="aiAssist" insteadOf="Write it yourself below and send as usual." />
+        {/* "above", because that is where the composer is. This panel sits
+            BELOW it by design — writing the announcement yourself stays the
+            obvious path — so telling a locked-out organizer to look below sent
+            them to the end of the page, where there is nothing to write in. */}
+        <LockedFeature feature="aiAssist" insteadOf="Write it yourself in the composer above and post as usual." />
       </div>
     );
   }
