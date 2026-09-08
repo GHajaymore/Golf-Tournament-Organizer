@@ -5018,3 +5018,81 @@ describe("the qualification audit under the draw", () => {
     expect(html).toContain('href="/stages"');
   });
 });
+
+describe("naming the venue while entering scores", () => {
+  /**
+   * The club's own courses, offered rather than guessed.
+   *
+   * `VenuePrompt`'s own note has always said the club's courses are "offered
+   * first" and that picking one is "a single tap". They were not: `library`
+   * reached exactly one expression — `matchCourse(typed, library)` — which
+   * needs something typed before it matches anything. With an empty field the
+   * screen was a bare text box reading "Start typing", so a scorer had to
+   * remember and spell a course the club had already stored, or enter its card
+   * by hand a second time.
+   *
+   * It had no test of any kind, which is how the note and the code came to
+   * disagree without anyone noticing. Its sibling had it right all along — the
+   * round's venue picker uses `CoursePicker`, which lists the library.
+   */
+  const LIBRARY = [
+    { id: "c1", name: "Maketewah Country Club", city: "Cincinnati" },
+    { id: "c2", name: "Blue Ash Golf Course", city: "Blue Ash" },
+    { id: "c3", name: "Four Bridges Country Club", city: "Liberty Township" },
+  ];
+
+  const prompt = async (library = LIBRARY) => {
+    const { VenuePrompt } = await import("@/components/VenuePrompt");
+    return render(
+      <VenuePrompt matchId="m1" holes={18} library={library} aName="Ann Doyle" bName="Bob Ellery" />,
+    );
+  };
+
+  it("lists the club's courses before anything is typed", async () => {
+    const html = await prompt();
+    // THE DEFECT: none of these appeared until their name was guessed.
+    for (const c of LIBRARY) expect(html, c.name).toContain(c.name);
+    expect(html).toContain("Courses this club has played");
+  });
+
+  it("shows the town, because two clubs share a name often enough", async () => {
+    const html = await prompt();
+    expect(html).toContain("Cincinnati");
+  });
+
+  it("still offers to add a course the club has not got", async () => {
+    /**
+     * The control on the whole change. A list of the club's courses must not
+     * become the only way through — a league's whole point is that it plays
+     * somewhere new sometimes, and that path was the one thing this screen
+     * always did do.
+     */
+    const html = await prompt();
+    expect(html).toContain("Start typing");
+  });
+
+  it("says nothing about a library that is empty", async () => {
+    // A club with no stored courses gets the text box it always had, not an
+    // empty heading promising courses it has not got.
+    const html = await prompt([]);
+    expect(html).not.toContain("Courses this club has played");
+    expect(html).toContain("Start typing");
+  });
+
+  it("caps the list and says how many it is holding back", async () => {
+    /**
+     * A club that has imported a catalogue has hundreds. A wall of them is a
+     * worse answer than a text box — but silently showing six of two hundred
+     * would tell a scorer their course is not stored when it is.
+     */
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      id: `x${i}`,
+      name: `Course ${i}`,
+      city: "Ohio",
+    }));
+    const html = await prompt(many);
+    expect(html).toContain("Course 0");
+    expect(html, "should not print all twenty").not.toContain("Course 19");
+    expect(html).toContain("14 more");
+  });
+});
