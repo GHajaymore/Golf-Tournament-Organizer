@@ -11,6 +11,7 @@ import {
   parseStrokeCards,
   chainRoundStandings,
   parseMatchTiebreakers,
+  matchSettled,
 } from "./tournament";
 import { movementBetween, type WeekRow } from "../domain/week-movement";
 import { isManualFormat, stablefordTableFor } from "../formats";
@@ -74,6 +75,13 @@ export interface WeekView {
   skins: SkinsGame[];
   /** True when no score has been entered for this week yet. */
   empty: boolean;
+  /**
+   * Whether the night's gross/net results table has rows.
+   *
+   * A played MATCH week has none — its result is match points, which the
+   * season table carries — so this is not the same question as `empty`.
+   */
+  hasScoreTable: boolean;
   /**
    * This week's round is scored by hand, so there is no ranking to show.
    *
@@ -149,6 +157,31 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     ),
     allocationHoles,
   });
+
+  /**
+   * WHETHER A NIGHT HAS BEEN PLAYED, ASKED THE WAY THAT NIGHT IS SCORED.
+   *
+   * `results` below is built from CARDS, and a match-play week keeps its
+   * results on the matches — so on a weekly match-play league every player's
+   * `thru` is nought, `results` is empty, and the screen declared the night
+   * unplayed. Demo Cup showed "No scores are in for week 1 yet" over
+   * forty-seven completed matches.
+   *
+   * That blanked the whole screen, including the season table underneath it,
+   * which HAS a match branch (`chainRoundStandings`) and had the points all
+   * along. The one section that could answer the question was hidden by the
+   * one that could not.
+   *
+   * The same fault as `PlayerLeaderboard` reading `thru > 0` for a match
+   * board, fixed earlier in this file's history and never carried across.
+   *
+   * `matchSettled` is one hole or a forfeit — deliberately loose. This decides
+   * whether to SHOW a screen, not whether to release money, and the round card
+   * uses the same looseness for "which round are we on".
+   */
+  const played = state.isStroke
+    ? cards.some((c) => c.stageId === stage.id)
+    : state.matches.some((m) => m.stageId === stage.id && matchSettled(m));
 
   const stableford = stage.scoringBasis === "stableford";
   const scored = state.confirmed
@@ -227,7 +260,12 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
       date: shortDate(cleanIsoDate(s.playedOn)),
       format: s.format,
       holes: s.holes,
-      played: cards.some((c) => c.stageId === s.id),
+      // Asked the way that week is scored, same as `played` below — the strip's
+      // "no scores yet" dot read cards too, so every night of a match-play
+      // league wore it however many matches had been decided.
+      played: state.isStroke
+        ? cards.some((c) => c.stageId === s.id)
+        : state.matches.some((m) => m.stageId === s.id && matchSettled(m)),
     })),
     stageId: stage.id,
     label: `Week ${idx + 1}`,
@@ -240,7 +278,16 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     skins,
     // A manual week is not "empty" — it has a result, just not one this app
     // knows. The screen says which, and they read differently.
-    empty: !manual && results.length === 0,
+    empty: !manual && !played,
+    /**
+     * Whether the night's own RESULTS table has anything to put in it.
+     *
+     * Separate from `empty` on purpose. That table is gross and net, which a
+     * match night does not have — its result is the points already in the
+     * table below. So a played match week is not empty AND has no scores
+     * table, and the screen needs to tell those apart rather than blanking.
+     */
+    hasScoreTable: results.length > 0,
     manual,
   };
 }

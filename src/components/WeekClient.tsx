@@ -195,6 +195,13 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
         </div>
       ) : (
         <>
+          {/* The night's SCORES, when the night has any.
+              A match week's result is who beat whom, and its points are in the
+              table below — there is no gross and net to rank. This section
+              used to be the only thing deciding whether the screen rendered at
+              all, so a played match night was blanked entirely, season table
+              and skins with it. */}
+          {view.hasScoreTable && (
           <Section
             kicker="The night"
             title="Results"
@@ -240,6 +247,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
               </table>
             </div>
           </Section>
+          )}
 
           <Section
             kicker="The table"
