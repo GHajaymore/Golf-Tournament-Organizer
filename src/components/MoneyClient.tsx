@@ -1031,9 +1031,20 @@ export function MoneyClient({ view }: { view: MoneyView }) {
             group, dinner with everyone.
           </p>
         )}
+        {/* OPEN, not collapsed.
+            Who owes what on a bill is the thing this screen exists to answer,
+            and it was behind a tap on a row that gave no sign it could be
+            tapped: a `display: flex` summary generates no disclosure marker at
+            all, so the six expense rows read as plain text. Measured — a
+            default <summary> indents its content 15px to make room for that
+            triangle; these indented 0.
+
+            So the shares are on the page from the start, and the row still
+            collapses for anyone who wants it shorter, with a caret that says
+            so — which is what was actually missing. */}
         {view.expenses.map((e) => (
-          <details key={e.id} style={{ paddingTop: 8, borderTop: "1px solid var(--color-divider)" }}>
-            <summary className="touch-target" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+          <details key={e.id} open style={{ paddingTop: 8, borderTop: "1px solid var(--color-divider)" }}>
+            <summary className="touch-target expense-row" style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 14, fontWeight: 550 }}>{e.description}</span>
                 <span className="text-muted" style={{ fontSize: 11.5 }}>
@@ -1066,6 +1077,9 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                 <ShareField expense={e} field={view.field} />
               </span>
               <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{money(e.amountCents)}</span>
+              {/* The affordance the flex summary took away. Rotates with the
+                  row's state, so a collapsed line still says it opens. */}
+              <Icon name="caret-down" className="expense-caret" aria-hidden />
             </summary>
             <div style={{ padding: "8px 0 4px" }}>
               {e.shares.map((s) => (
