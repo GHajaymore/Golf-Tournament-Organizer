@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { toParText } from "@/lib/domain";
+import { distinctLabels } from "@/lib/format";
 import { Icon } from "./Icon";
 
 /**
@@ -66,9 +67,16 @@ function nameFor(rel: number, par: number | undefined): string {
   }
 }
 
-function firstName(n: string): string {
-  return n.split(" ")[0] ?? n;
-}
+/**
+ * There was a second, private copy of `firstName` here, and with it the same
+ * blind spot as the one in format.ts: two players in the same tee group
+ * called Dave got two rows both headed "Dave".
+ *
+ * On this screen that is not merely confusing. One person keeps the card for
+ * the whole group, the two rows are adjacent, and the score goes onto the
+ * wrong card. `distinctLabels` widens only the names that clash, so a
+ * fourball of four different first names looks exactly as it did.
+ */
 
 export function HoleByHoleCard({
   players,
@@ -98,6 +106,9 @@ export function HoleByHoleCard({
     }
     return Math.max(0, holes - 1);
   });
+
+  /** One label per player, in the same order, guaranteed to differ. */
+  const labels = distinctLabels(players.map((p) => p.name));
 
   const par = pars[hole];
   const solo = players.length === 1;
@@ -229,7 +240,7 @@ export function HoleByHoleCard({
           />
         ) : (
           <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-            {players.map((p) => {
+            {players.map((p, idx) => {
               const value = strokesOf(p.id)[hole] ?? null;
               const shots = p.shotsOn?.(hole) ?? 0;
               const { toPar, played } = toParOf(p.id);
@@ -246,7 +257,7 @@ export function HoleByHoleCard({
                 >
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: "block", fontSize: 15, fontWeight: 550, overflowWrap: "anywhere" }}>
-                      {firstName(p.name)}
+                      {labels[idx]}
                       {shots > 0 && (
                         <span
                           title={`${shots} handicap ${shots === 1 ? "stroke" : "strokes"} on this hole`}

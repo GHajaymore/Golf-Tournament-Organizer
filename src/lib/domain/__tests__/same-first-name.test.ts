@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { parseResultTranscript, parseHolesTranscript, namesAreDistinct } from "../match";
 import { distinctLabels } from "@/lib/format";
+import { stripComments } from "@/lib/__tests__/source";
 
 /**
  * Two players in one match with the same first name.
@@ -145,5 +148,42 @@ describe("labelling two names shown side by side", () => {
      * takes" is the actual rule, and this is the case that pins it.
      */
     expect(distinctLabels(["Dave", "Dave Mackay"])).toEqual(["Dave", "Dave M."]);
+  });
+});
+
+describe("there is one firstName, and it lives in format.ts", () => {
+  /**
+   * `HoleByHoleCard` had its own private copy — `n.split(" ")[0]` — and with
+   * it the same blind spot, on the screen where one person keeps the card for
+   * a whole fourball. Two adjacent rows headed "Dave" is where a score goes
+   * onto the wrong card.
+   *
+   * A second copy is how a rule fixed in one place stays broken in another,
+   * which is the reason `brand-consistency.test.ts` exists for the logo. Same
+   * shape, same reason.
+   */
+  const root = process.cwd();
+
+  function allSource(dir: string, out: string[] = []): string[] {
+    for (const e of readdirSync(join(root, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${e.name}`;
+      if (e.name === "__tests__") continue;
+      if (e.isDirectory()) allSource(rel, out);
+      else if (e.name.endsWith(".ts") || e.name.endsWith(".tsx")) out.push(rel);
+    }
+    return out;
+  }
+
+  it("defines it exactly once", () => {
+    const files = allSource("src");
+    expect(files.length, "an empty sweep would pass this vacuously").toBeGreaterThan(100);
+
+    const definers = files.filter((f) =>
+      /(?:function|const)\s+firstName\b/.test(stripComments(readFileSync(join(root, f), "utf8"))),
+    );
+    expect(
+      definers,
+      "a private copy of firstName is a private copy of its blind spot — import it instead",
+    ).toEqual(["src/lib/format.ts"]);
   });
 });

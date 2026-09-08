@@ -1436,16 +1436,21 @@ export function ScoreEntryClient({
                       const strokes = slot === "A" ? aStrokes : bStrokes;
                       const given = slot === "A" ? strokesGiven.toA : strokesGiven.toB;
                       const name = slot === "A" ? active.aName : active.bName;
+                      // The same two players as the legend above, so the same
+                      // labels: this table is where the strokes are typed, and
+                      // two rows both headed "Dave" is the one place a
+                      // collision puts a score on the wrong card.
+                      const label = slot === "A" ? aLabel : bLabel;
                       const gross = sum(strokes.filter((s): s is number => s != null), 0, strokes.length);
                       return (
                         <tr key={slot}>
                           <td style={{ fontWeight: 500, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
-                            {firstName(name)}
+                            {label}
                             <button
                               type="button"
                               className="btn btn-secondary"
                               onClick={() => toggleListenStrokes(slot)}
-                              title={`Dictate ${firstName(name)}'s scores`}
+                              title={`Dictate ${label}'s scores`}
                               style={{ fontSize: 11, padding: "2px 7px", whiteSpace: "nowrap", ...(listening === `hcp-${slot}` ? { color: "var(--color-accent)", borderColor: "var(--color-accent)" } : {}) }}
                             >
                               <Icon name={listening === `hcp-${slot}` ? "ph-fill ph-microphone" : "ph ph-microphone"} style={{ fontSize: 11 }} />{" "}
@@ -1463,7 +1468,7 @@ export function ScoreEntryClient({
                               />
                               {given[i] > 0 && (
                                 <span
-                                  title={`${firstName(name)} receives a shot here`}
+                                  title={`${label} receives a shot here`}
                                   style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1 }}
                                 >
                                   •
@@ -1483,7 +1488,7 @@ export function ScoreEntryClient({
                               />
                               {given[i] > 0 && (
                                 <span
-                                  title={`${firstName(name)} receives a shot here`}
+                                  title={`${label} receives a shot here`}
                                   style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1 }}
                                 >
                                   •
