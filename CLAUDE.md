@@ -149,7 +149,25 @@ confirm by re-running the SAME commit, which has gone green every time so far. W
 acceptable is merging past a red e2e without opening the log, which is how a real regression gets
 filed as this.
 
-Worth someone's attention as its own piece of work: it is always the same spec.
+**What is known about it, measured rather than assumed** (2026-09-08):
+
+- It is ONE test, and the browser RECOVERS. Read straight off attempt 1 of a failed run:
+  test 84 (the last `offline.spec`) passes, 85 (`organizer.spec.ts:26`) passes, **86 crashes**,
+  and 87 onwards all pass. So it is not `offline.spec` poisoning the browser for everything
+  after it — a plausible theory that the log disproves.
+- **Desktop only.** The `phone` and `small-phone` projects run the same spec and have never
+  crashed on it. The difference is a 1280x900 viewport, not the assertions.
+- **It does not reproduce locally.** A full `--project=desktop` run on the Windows dev machine:
+  106 passed, 12 skipped, no crash.
+- `SEGV_MAPERR` at `0x1b0` is a null dereference at a small struct offset, which is a renderer
+  BUG rather than memory exhaustion — an out-of-memory kill is signal 9, not 11. So "the runner
+  ran out of room" is the wrong tree, and so is `--disable-dev-shm-usage`: these jobs run
+  directly on `ubuntu-latest`, not in a container, where `/dev/shm` is half of RAM.
+
+So it wants a reproduction or a Chromium report, NOT a speculative change to this config. In
+particular **do not add `retries`** to make it go away: the `retries: 0` above is deliberate and
+its reasoning still holds — a retry that hides this would hide a real regression on the same
+spec just as effectively.
 
 ## What gates a merge, and what gates a deploy
 
