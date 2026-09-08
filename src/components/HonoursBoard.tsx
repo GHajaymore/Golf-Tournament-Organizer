@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { confirmChampion, removeFromHonours } from "@/app/actions/roster";
 import { CHAMPION_REFUSAL, type HonoursEntry } from "@/lib/domain/honours";
 import type { PendingChampion } from "@/lib/services/honours";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 /**
@@ -103,16 +104,17 @@ export function HonoursBoard({
                         confirmed by {e.confirmedBy}
                       </span>
                     )}
+                    {/* Taking a name off the honours board on one tap. The
+                        aria-label was already good; what it lacked was a
+                        second press. */}
                     {canEdit && (
-                      <button
-                        type="button"
-                        className="btn btn-icon"
-                        aria-label={`Take ${e.championName} off the board for ${e.eventName}`}
+                      <ConfirmButton
+                        icon="x"
+                        title={`Take ${e.championName} off the board for ${e.eventName}`}
+                        confirmLabel="Take them off"
                         disabled={busy}
-                        onClick={() => remove(e.id)}
-                      >
-                        <Icon name="x" />
-                      </button>
+                        onConfirm={() => remove(e.id)}
+                      />
                     )}
                   </span>
                 </div>

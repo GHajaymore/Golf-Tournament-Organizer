@@ -6,15 +6,23 @@ import { readSource } from "./source";
  * NOTHING IRREVERSIBLE HAPPENS ON ONE TAP.
  *
  * The money ledger's Remove asked twice and nothing else did, so the same
- * fault was sitting on nine other screens at once: an unlabelled trash or ×,
- * often a thumb's width from a harmless control, wired straight to an action
- * that destroys a record with no undo. "Delete season" was a plain secondary
- * button beside "Mark season finished" — the two things an organizer reaches
- * for at the same moment — and it ended a season on one press.
+ * fault was sitting on ten screens at once: an unlabelled trash or ×, often a
+ * thumb's width from a harmless control, wired straight to an action that
+ * destroys a record with no undo.
  *
- * Every one of them was individually reasonable-looking, which is why this is
- * a sweep rather than nine fixes. A rule that must be remembered at each new
- * delete button is a rule that will be forgotten at the tenth.
+ * THIS FILE'S FIRST VERSION MISSED FOUR OF THEM, both ways it could:
+ *
+ *   - It carried a HAND LIST of destructive actions. The app exports 24 and
+ *     the list named 14, so `removeSkinsPot` — a pot people have paid into —
+ *     was never looked for. The list is now read from `src/app/actions`, so a
+ *     new `deleteWhatever` is covered the day it is written.
+ *   - It only matched an action called INSIDE the `onClick`. `TeeEditor` calls
+ *     `deleteTee` from a local `remove()` helper and the sweep walked straight
+ *     past it, as it did for the honours board and for staff access. One level
+ *     of local indirection is resolved now.
+ *
+ * That is the failure mode worth naming: a guard that reports green over four
+ * live instances is worse than no guard, because it is evidence.
  *
  * WHAT THIS CANNOT DO is prove the confirmation is any good. It proves the
  * action is not reachable from a bare `onClick`. The two-tap behaviour itself
@@ -22,54 +30,48 @@ import { readSource } from "./source";
  */
 
 const COMPONENTS = "src/components";
+const ACTIONS = "src/app/actions";
+
+/** The verbs that mean a row stops existing. */
+const DESTRUCTIVE_VERB = /^(?:delete|remove|purge|wipe|discard|clear)[A-Z]/;
 
 /**
- * Destroys a record. Named rather than pattern-matched on the verb, because
- * "remove" covers both `removeFundLine` — a money line, gone — and
- * `removeTeamMember`, which is re-added in a tap. Only the first kind belongs
- * here, and deciding which is which is a judgement about the DATA that no
- * regular expression holds.
+ * Every destroying action the app exports, read from the actions directory.
  *
- * Adding an action here is how you opt a new destructive verb into the rule.
+ * Derived rather than listed, because a list is a thing to remember and this
+ * one was already forgotten once — see the note above. A new destructive
+ * action joins the rule by existing.
  */
-const DESTRUCTIVE = [
-  "deleteCommentary",
-  "deleteClubCourse",
-  "deleteEvent",
-  "deleteMember",
-  "deleteSeries",
-  "deleteTeam",
-  "removeAnnouncement",
-  "removeContest",
-  "removeExpense",
-  "removeFundLine",
-  "removeOrganizationMember",
-  "removePrize",
-  "removeSignup",
-  "removeStage",
-];
+function destructiveActions(): Set<string> {
+  const names = new Set<string>();
+  for (const file of readdirSync(ACTIONS).filter((f) => f.endsWith(".ts"))) {
+    const src = readSource(ACTIONS, file);
+    for (const m of src.matchAll(/export async function (\w+)/g)) {
+      if (DESTRUCTIVE_VERB.test(m[1])) names.add(m[1]);
+    }
+  }
+  return names;
+}
 
 /**
- * Sites that call one of the above from an `onClick` and are RIGHT to.
+ * Call sites that are RIGHT to fire without a second press.
  *
- * This list is the reason the sweep is safe to have. A guard that refuses a
- * legitimate case is worse than no guard — it gets weakened or deleted, and
- * takes the real cases with it — so every entry below names WHY, and a new
- * entry should have to argue for itself in review.
+ * This list is why the sweep is safe to have. A guard that refuses a
+ * legitimate case gets weakened or deleted and takes the real cases with it,
+ * so every entry names WHY, and a new one should have to argue in review.
+ *
+ * Judged by opening each, not by the verb in its name: "remove" covers both
+ * `removeFundLine`, which is a money line gone for good, and
+ * `removeTeamMember`, which is re-added in a tap.
  */
 const EXEMPT: Record<string, string> = {
-  // Already a second step: the row expands into a cost warning naming what
-  // goes with the stage, and this button is that warning's confirm.
-  "StagesClient.tsx": "removeStage is itself the confirm on an expanded cost warning",
-  // The icon this sits on IS the confirm — the row arms first, and the button
-  // is titled "Confirm delete".
-  "EventSwitcher.tsx": "deleteEvent is the armed half of an existing two-tap row",
-  // Disabled outright for any member who has played, and a plain re-add for
-  // one who has not. The aria-label explains the refusal.
-  "RosterClient.tsx": "deleteMember is disabled for anyone with entries; the rest is a re-add",
-  // "Decline" on a pending signup, beside "Accept". A labelled decision, not a
-  // control anybody hits by accident, and they can register again.
-  "RegistrationClient.tsx": "the second site is Decline, a labelled choice beside Accept",
+  StagesClient: "removeStage IS the confirm on an expanded cost warning naming what goes with it",
+  EventSwitcher: "deleteEvent is the armed half of an existing two-tap row",
+  RosterClient: "deleteMember is disabled for anyone with entries; the rest is a plain re-add",
+  RegistrationClient: "bulk Remove asks in a dialog about withdrawals; the other site is Decline, beside Accept",
+  TeamsClient: "removeTeamMember is re-added in a tap — a confirmation there would be noise",
+  ClearScores: "the whole component IS the confirmation, with the cards named",
+  ScoreEntryClient: "clearMatch sits behind its own explicit are-you-sure step",
 };
 
 function componentFiles(): string[] {
@@ -89,26 +91,47 @@ function importedActions(src: string): Set<string> {
 }
 
 /**
- * Lines where an `onClick` reaches a destructive action.
+ * Local helpers that call one of these actions, so `onClick={() => remove(id)}`
+ * counts as reaching it.
  *
- * Read through `readSource`, so the comments that DESCRIBE these controls —
- * several of which now name the very actions being searched for — cannot
- * satisfy the search on their own. That is the failure mode that looks
- * identical to success, and it is why this does not use readFileSync.
+ * A brace-depth walk rather than a parser: it only has to find
+ * `const name = (…) => { … destructiveCall() … }`, which is how every one of
+ * these is written. Over-reporting is the safe direction here — the cost is an
+ * EXEMPT entry with a reason, not a destroyed row.
  */
-function unguardedSites(file: string): string[] {
-  const src = readSource(COMPONENTS, file);
-  const actions = importedActions(src);
-  const wanted = DESTRUCTIVE.filter((a) => actions.has(a));
-  if (wanted.length === 0) return [];
+function localHelpersReaching(src: string, actions: string[]): Set<string> {
+  const found = new Set<string>();
+  let current: string | null = null;
+  let depth = 0;
+  for (const line of src.split("\n")) {
+    const decl = line.match(/^\s*const (\w+) = (?:\(|async \()/);
+    if (decl && current === null) {
+      current = decl[1];
+      depth = 0;
+    }
+    if (current === null) continue;
+    depth += (line.match(/\{/g) ?? []).length - (line.match(/\}/g) ?? []).length;
+    if (actions.some((a) => new RegExp(`\\b${a}\\s*\\(`).test(line))) found.add(current);
+    if (depth <= 0 && /\};?\s*$/.test(line)) current = null;
+  }
+  return found;
+}
 
+/** `file:line action` for every onClick that reaches a destroying action. */
+function unguardedSites(file: string, destructive: Set<string>): string[] {
+  const src = readSource(COMPONENTS, file);
+  const imported = importedActions(src);
+  const direct = [...destructive].filter((a) => imported.has(a));
+  if (direct.length === 0) return [];
+
+  const reachable = [...direct, ...localHelpersReaching(src, direct)];
   const lines = src.split("\n");
   const hits: string[] = [];
   lines.forEach((line, i) => {
     // An onClick can open on an earlier line than the call it wraps.
     const window = lines.slice(Math.max(0, i - 3), i + 1).join("\n");
     if (!/onClick\s*=/.test(window)) return;
-    for (const a of wanted) {
+    for (const a of reachable) {
       if (new RegExp(`\\b${a}\\s*\\(`).test(line)) hits.push(`${file}:${i + 1} ${a}`);
     }
   });
@@ -116,46 +139,61 @@ function unguardedSites(file: string): string[] {
 }
 
 describe("a destructive control never fires on one tap", () => {
+  it("reads its list of destroying actions from the actions themselves", () => {
+    // The hand list missed ten of these, so the derivation is the fix and is
+    // worth pinning: an empty or tiny set would make the sweep below vacuous.
+    const actions = destructiveActions();
+    expect(actions.size).toBeGreaterThan(15);
+    // Named because each was missed by the hand list and is genuinely destructive.
+    expect(actions.has("removeSkinsPot")).toBe(true);
+    expect(actions.has("deleteTee")).toBe(true);
+    expect(actions.has("removeAccount")).toBe(true);
+    expect(actions.has("removeFromHonours")).toBe(true);
+  });
+
   it("routes every destroying action through a confirmation", () => {
+    const destructive = destructiveActions();
     const offenders: string[] = [];
     for (const file of componentFiles()) {
-      if (EXEMPT[file]) continue;
-      offenders.push(...unguardedSites(file));
+      if (EXEMPT[file.replace(/\.tsx$/, "")]) continue;
+      offenders.push(...unguardedSites(file, destructive));
     }
 
     expect(
       offenders,
       `these destroy a record straight from an onClick, with no undo:\n  ${offenders.join(
         "\n  ",
-      )}\nUse <ConfirmButton>, or add the file to EXEMPT with a reason.`,
+      )}\nUse <ConfirmButton>, or add the component to EXEMPT with a reason.`,
     ).toEqual([]);
   });
 
-  it("has an exemption list that still describes real files", () => {
-    // An exemption for a file that no longer exists is a hole nobody can see:
-    // rename the component and the rule silently stops applying to it.
-    const files = new Set(componentFiles());
-    for (const f of Object.keys(EXEMPT)) {
-      expect(files.has(f), `EXEMPT names ${f}, which is not a component`).toBe(true);
+  it("has an exemption list that still describes real components", () => {
+    // An exemption for a component that no longer exists is a hole nobody can
+    // see: rename the file and the rule silently stops applying to it.
+    const files = new Set(componentFiles().map((f) => f.replace(/\.tsx$/, "")));
+    for (const name of Object.keys(EXEMPT)) {
+      expect(files.has(name), `EXEMPT names ${name}, which is not a component`).toBe(true);
     }
   });
 
-  it("would catch a one-tap delete if one were added", () => {
+  it("sees through one level of local indirection", () => {
     /**
-     * The sweep proving it can fail — without mutating a real screen.
-     *
-     * A guard whose green nobody has seen turn red is a guard nobody knows the
-     * shape of. Four of the fixtures in `matrix.test.ts` passed a materially
-     * wrong answer for exactly this reason.
+     * The miss that mattered. `TeeEditor` reaches `deleteTee` through a local
+     * `remove()`, and the first version of this sweep — which only matched a
+     * call inside the onClick itself — reported green over it, over the
+     * honours board and over staff access.
      */
-    const src = `
-      import { deleteSeries } from "@/app/actions/series";
-      <button onClick={() => run(() => deleteSeries(active.id))}>Delete season</button>
-    `;
-    const actions = importedActions(src);
-    expect(actions.has("deleteSeries")).toBe(true);
+    const src = [
+      'import { deleteTee } from "@/app/actions/courses";',
+      "  const remove = (id: string) => {",
+      "    startTransition(async () => {",
+      "      const res = await deleteTee(id);",
+      "    });",
+      "  };",
+      "  <button onClick={() => remove(t.id)} />",
+    ].join("\n");
 
-    const line = src.split("\n").find((l) => /deleteSeries\s*\(/.test(l) && /onClick/.test(l));
-    expect(line, "the shape the sweep looks for stopped matching").toBeTruthy();
+    const helpers = localHelpersReaching(src, ["deleteTee"]);
+    expect(helpers.has("remove"), "a helper wrapping a destroying action was not recognised").toBe(true);
   });
 });

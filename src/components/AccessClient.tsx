@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { addAccount, setAccountRole, removeAccount } from "@/app/actions/tournament";
 import { ROLE_OPTS, describeRoleChange, type RoleChange } from "@/lib/access-roles";
+import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
 
 interface AccountRow {
@@ -183,14 +184,17 @@ export function AccessClient({ accounts }: { accounts: AccountRow[] }) {
                       )}
                     </td>
                     <td style={{ textAlign: "right" }}>
-                      <button
-                        type="button"
-                        className="btn btn-icon"
+                      {/* This screen asked before a role CHANGE and not before
+                          a removal, which is backwards: demoting somebody is
+                          undone by promoting them again, and revoking their
+                          access is not. */}
+                      <ConfirmButton
+                        icon="x"
+                        title={`Remove ${a.name || "this person"}'s access`}
+                        confirmLabel="Remove access"
                         disabled={pending}
-                        onClick={() => doRemove(a.id)}
-                      >
-                        <Icon name="x" />
-                      </button>
+                        onConfirm={() => doRemove(a.id)}
+                      />
                     </td>
                   </tr>
                 );
