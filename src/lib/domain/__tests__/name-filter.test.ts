@@ -46,12 +46,20 @@ describe("finding your own name", () => {
      * fuzzy-match library. A player is scanning an alphabetical list; if their
      * name moves while they type, the ordering they were relying on is gone —
      * and a ranked "best match first" would do exactly that.
+     *
+     * THE QUERY IS CHOSEN SO A WRONG ANSWER LOOKS DIFFERENT. The first version
+     * of this used "a", and every survivor of "a" happens to already sit in
+     * match-position order — so ranking them changed nothing and the test
+     * passed against a mutation that reordered. "s" separates them: Sang-woo
+     * matches at position 0 and would jump to the front of an alphabetical
+     * list it currently sits fourth in.
      */
-    const many = filterNames(DEMO, "a");
-    // Every survivor keeps its position relative to the others.
-    const originalOrder = DEMO.filter((p) => many.includes(p)).map((p) => p.name);
-    expect(many.map((p) => p.name)).toEqual(originalOrder);
-    expect(many.length).toBeGreaterThan(1);
+    const shown = filterNames(DEMO, "s").map((p) => p.name);
+    expect(shown).toEqual(["Aisha Rahman", "Andre Costa", "Hannah Voss", "Sang-woo Kim", "Zoe Sullivan"]);
+    // Said explicitly, so the intent survives someone editing the fixture:
+    // the best match must NOT be first.
+    expect(shown[0]).not.toBe("Sang-woo Kim");
+    expect(shown.indexOf("Sang-woo Kim")).toBeGreaterThan(0);
   });
 
   it("shows everybody when nothing has been typed", () => {
