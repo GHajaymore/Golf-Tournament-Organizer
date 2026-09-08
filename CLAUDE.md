@@ -372,6 +372,25 @@ PowerShell's own console rendering shows `â€` for a correct em-dash too, so t
 evidence either way — check a file with that command, or `git show HEAD:<file>`, before
 believing there is a problem or that there isn't.
 
+**A `node -e` string replace on a checked-out file usually does nothing, and says so quietly.**
+Files land here with CRLF — git converts on checkout — so a replacement written with `\n` in the
+search string matches nothing, `writeFileSync` writes the file back unchanged, and the command
+exits 0.
+
+That is a nuisance when editing and a LIE when mutating. The mutation-testing loop this file asks
+for on every change is "break it, watch the test go red, put it back", and a replace that silently
+did not apply produces a GREEN run that reads exactly like "the test cannot catch this" — the one
+outcome that makes you weaken a good test. It happened three times on 2026-09-07, once on a
+freshly written guard that was in fact perfectly capable of failing.
+
+So when a script edits a file:
+
+  - **print whether it changed** — `console.log(before !== after)` — and read it;
+  - **verify with `grep -c` before AND after**, not just the exit code;
+  - or, better, use the Edit tool, which fails loudly when its target is not found.
+
+A mutation you did not confirm applied is not evidence about anything.
+
 ## Testing: the combination sweep
 
 The 2026-08-12 audit found ~80 defects against a suite of 1400 passing tests.
