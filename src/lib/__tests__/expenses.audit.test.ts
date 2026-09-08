@@ -748,3 +748,65 @@ describe("shared costs are transparent to the whole field", () => {
     expect(outside.expenses.some((e) => e.description === "ZZ caddie for two")).toBe(false);
   });
 });
+
+/**
+ * THE UNDO BUTTON IS OFFERED TO EXACTLY WHO MAY USE IT.
+ *
+ * `removeSettlement` shipped fully authorized, audit-tested — and wired to no
+ * screen at all, so a handover marked settled by mistake could not be taken
+ * back by anybody. The rule lived only inside the action, where a screen had
+ * no way to ask it.
+ *
+ * It is `canUndoSettlement` in the domain now, read by both. The rule itself
+ * is unit-tested; what this pins is the WIRING, which is the half that fails
+ * silently: pass the wrong player id into the view and `canRemove` is false
+ * for everyone (the button never appears) or true for everyone (it appears and
+ * the server refuses it). Both look fine in a screenshot.
+ */
+describe("who is offered the undo", () => {
+  let settlementId = "";
+
+  beforeAll(async () => {
+    await signIn("dave");
+    const res = await recordSettlement(player.ann, player.dave, 2_500);
+    expect(res.ok, res.error ?? "").toBe(true);
+    const view = await moneyFor(eventId, at("dave"));
+    settlementId = view.settlements[0].id;
+  });
+
+  const rowFor = async (who: string) => {
+    const view = await moneyFor(eventId, at(who));
+    return view.settlements.find((s) => s.id === settlementId);
+  };
+
+  it("offers it to the person who recorded it", async () => {
+    expect((await rowFor("dave"))?.canRemove).toBe(true);
+  });
+
+  it("offers it to the OTHER party, who did not record it", async () => {
+    // Ann paid; Dave recorded it. She knows whether the money left her hand.
+    expect((await rowFor("ann"))?.canRemove).toBe(true);
+  });
+
+  it("does not offer it to a player who is neither", async () => {
+    // Rob is in the tournament and can SEE the settlement — transparency —
+    // but undoing somebody else's handover is not his to do.
+    const row = await rowFor("rob");
+    expect(row, "a settlement between two others was hidden from Rob").toBeTruthy();
+    expect(row!.canRemove).toBe(false);
+  });
+
+  it("agrees with what the action actually does", async () => {
+    /**
+     * The contract that matters: the screen never offers a button the server
+     * refuses, and never hides one it would allow. Asserted by asking both.
+     */
+    await signIn("rob");
+    expect((await rowFor("rob"))!.canRemove, "offered to Rob").toBe(false);
+    expect((await removeSettlement(settlementId)).ok, "and refused for Rob").toBe(false);
+
+    await signIn("ann");
+    expect((await rowFor("ann"))!.canRemove, "offered to Ann").toBe(true);
+    expect((await removeSettlement(settlementId)).ok, "and allowed for Ann").toBe(true);
+  });
+});

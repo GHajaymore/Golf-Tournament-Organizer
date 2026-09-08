@@ -4,7 +4,12 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { isIsoDate } from "@/lib/deadline";
-import { isValidAmount, MAX_EXPENSE_CENTS, canChangeExpense } from "@/lib/domain/expenses";
+import {
+  isValidAmount,
+  MAX_EXPENSE_CENTS,
+  canChangeExpense,
+  canUndoSettlement,
+} from "@/lib/domain/expenses";
 import { money as fmtMoney } from "@/lib/domain/money-format";
 import { currencyForEvent } from "@/lib/services/organization";
 import { moneyFor } from "@/lib/services/expenses";
@@ -591,13 +596,18 @@ export async function removeSettlement(settlementId: string): Promise<ExpenseRes
    * A wrong entry nobody named in it can remove is worse than one anybody can
    * make.
    */
-  const mine = existing.recordedBy === (session.name || session.email);
-  let party = false;
-  if (!isStaff && !mine) {
-    const me = await callerPlayer(eventId, session.email);
-    party = !!me && (me.id === existing.fromPlayerId || me.id === existing.toPlayerId);
-  }
-  if (!isStaff && !mine && !party) {
+  // One rule, from the domain — the same function the row that offers the
+  // Undo button reads, so the screen can never show a button the server
+  // refuses. It shipped enforced here and askable nowhere, which is why
+  // nothing offered it at all.
+  const me = isStaff ? null : await callerPlayer(eventId, session.email);
+  const allowed = canUndoSettlement(existing, {
+    name: session.name,
+    email: session.email,
+    isStaff,
+    playerId: me?.id,
+  });
+  if (!allowed) {
     return {
       ok: false,
       error: "Only the two people involved, whoever recorded it, or an organizer, can undo it.",

@@ -1,7 +1,7 @@
 "use client";
 import { EXPENSE_CATEGORIES, expenseCategoryLabel } from "@/lib/domain/expense-categories";
 import { useMemo, useState, useTransition } from "react";
-import { addExpense, updateExpense, removeExpense, recordSettlement } from "@/app/actions/expenses";
+import { addExpense, updateExpense, removeExpense, recordSettlement, removeSettlement } from "@/app/actions/expenses";
 import { requestContestEntry } from "@/app/actions/contests";
 import { requestSideGameEntry } from "@/app/actions/side-games";
 import { requestSkinsEntry } from "@/app/actions/skins";
@@ -1145,10 +1145,36 @@ export function MoneyClient({ view }: { view: MoneyView }) {
       {view.settlements.length > 0 && (
         <section className="card elev-sm" style={{ marginTop: 12 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Already settled</span>
+          {/* UNDO, which nothing offered.
+              `removeSettlement` shipped fully authorized and audit-tested and
+              was wired to no screen at all, so a handover marked settled by
+              mistake could not be taken back by anybody — including the two
+              people who know whether the money actually changed hands. */}
           {view.settlements.map((s) => (
-            <div key={s.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, paddingTop: 6 }}>
-              <span className="text-muted">{s.fromName} → {s.toName} · {s.settledAt}</span>
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, paddingTop: 6 }}>
+              <span className="text-muted" style={{ flex: 1, minWidth: 0 }}>
+                {s.fromName} → {s.toName} · {s.settledAt}
+                {s.recordedBy ? ` · recorded by ${s.recordedBy}` : ""}
+              </span>
               <span style={{ fontVariantNumeric: "tabular-nums" }}>{money(s.cents)}</span>
+              {s.canRemove && (
+                <ConfirmButton
+                  className="btn btn-ghost"
+                  style={{ fontSize: 11.5 }}
+                  icon="arrow-counter-clockwise"
+                  label="Undo"
+                  title={`Undo ${s.fromName} → ${s.toName}`}
+                  confirmLabel="Undo it"
+                  note="Says the money did not change hands after all."
+                  disabled={pending}
+                  onConfirm={() =>
+                    startTransition(async () => {
+                      const res = await removeSettlement(s.id);
+                      if (!res.ok) setError(res.error ?? "Couldn't undo that.");
+                    })
+                  }
+                />
+              )}
             </div>
           ))}
         </section>

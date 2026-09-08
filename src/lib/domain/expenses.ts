@@ -319,6 +319,38 @@ export function canChangeExpense(
   return (!!name && who === name) || (!!email && who.toLowerCase() === email.toLowerCase());
 }
 
+/**
+ * Who may undo a recorded handover.
+ *
+ * Staff, whoever recorded it, or EITHER PARTY TO IT. The two people are the
+ * ones who know whether the money actually changed hands, and a settlement
+ * recorded between two other people that neither of them can remove is worse
+ * than one anybody can make.
+ *
+ * The rule was written once, inside `removeSettlement`, and the screen had no
+ * way to ask it — so `removeSettlement` shipped fully authorized, audit-tested
+ * and wired to NOTHING. A treasurer who marked the wrong handover settled had
+ * no way back. Here so both the action and the row that offers the button read
+ * one function, the same shape as `canChangeExpense` above.
+ */
+export function canUndoSettlement(
+  settlement: { recordedBy: string; fromPlayerId: string; toPlayerId: string },
+  viewer: { name?: string; email?: string; isStaff?: boolean; playerId?: string },
+): boolean {
+  if (viewer.isStaff) return true;
+
+  const who = (settlement.recordedBy ?? "").trim();
+  const name = (viewer.name ?? "").trim();
+  const email = (viewer.email ?? "").trim();
+  // `recordedBy` stores `session.name || session.email`, so it can match either.
+  const recorded =
+    !!who && ((!!name && who === name) || (!!email && who.toLowerCase() === email.toLowerCase()));
+  if (recorded) return true;
+
+  const me = (viewer.playerId ?? "").trim();
+  return !!me && (me === settlement.fromPlayerId || me === settlement.toPlayerId);
+}
+
 /** Even weights for the common case: everyone in, split down the middle. */
 export function evenShares(playerIds: string[]): ExpenseShare[] {
   return [...new Set(playerIds.filter(Boolean))].map((playerId) => ({ playerId, weight: 1 }));
