@@ -4,6 +4,7 @@ import { join } from "node:path";
 // Relative, not the `@/` alias: Playwright compiles this file with its own
 // tsconfig and does not resolve the app's path aliases.
 import { readSource } from "../src/lib/__tests__/source";
+import { standaloneScreens, entryUrl } from "./routes";
 
 const data = JSON.parse(readFileSync(join(process.cwd(), ".e2e", "data.json"), "utf8"));
 
@@ -76,69 +77,6 @@ const PLAYER_SCREENS = [
     .map((e) => `/me/${e.name}`)
     .sort(),
 ];
-
-/**
- * THE SCREENS THAT ARE IN NEITHER SHELL, which is a third choice nobody made.
- *
- * `SCREENS` reads `(app)`, `PLAYER_SCREENS` reads `(player)/me`, and the note
- * above the second one already says why that was not enough: "the DIRECTORY it
- * was derived from was still a choice somebody made once. A rule worth
- * sweeping is worth sweeping over both shells."
- *
- * It stopped at two shells. There is a third, and it is not a backwater: it
- * holds `/choose`, which is where every new organizer lands, and `/match/new`,
- * which is the whole of the casual-round product — a screen that by
- * 2026-09-08 had a member-search dropdown, side headings, five round types, a
- * money picker and a dozen 44px targets, and had never been measured at any
- * viewport. These pages sit outside both groups precisely BECAUSE they run
- * before a tournament exists, which is what put them outside the sweep too.
- *
- * Derived the same way, so a route added out here is swept the day it appears.
- * Dynamic segments are skipped — `/live/[token]` and `/register/[token]` need
- * a param, and both already have their own tests.
- */
-const STANDALONE_SCREENS = readdirSync(join(process.cwd(), "src", "app"), { withFileTypes: true })
-  .filter((e) => e.isDirectory())
-  .filter((e) => !e.name.startsWith("[") && !e.name.startsWith("_") && !e.name.startsWith("("))
-  // `api` holds route handlers, which have no layout to measure.
-  .filter((e) => e.name !== "api")
-  .flatMap((e) => {
-    const here = join(process.cwd(), "src", "app", e.name);
-    // A route may be the directory itself (`/choose`) or one level down
-    // (`/match/new`), so both are looked for rather than assumed.
-    const paths: string[] = [];
-    if (existsSync(join(here, "page.tsx"))) paths.push(`/${e.name}`);
-    for (const child of readdirSync(here, { withFileTypes: true })) {
-      if (!child.isDirectory()) continue;
-      if (child.name.startsWith("[") || child.name.startsWith("_") || child.name.startsWith("(")) {
-        continue;
-      }
-      if (existsSync(join(here, child.name, "page.tsx"))) paths.push(`/${e.name}/${child.name}`);
-    }
-    return paths;
-  })
-  .sort();
-
-/**
- * What a standalone route needs in the URL to actually render.
- *
- * NOT an exclusion list, which is the thing this file argues against
- * throughout — every route above stays in the sweep and stays asserted. This
- * says how to REACH one, and the answer comes from the app's own links rather
- * than from anything invented here.
- *
- * `/choose` sends anyone with a single active event straight to their landing
- * screen, so the organizer session the rest of this file uses never sees it.
- * `?stay=1` is what suppresses that, and it is what the "create another
- * tournament" link and the event switcher both point at — so this measures
- * the screen in the state it is genuinely used in, not a contrived one.
- *
- * A route that starts redirecting and has no such door will fail loudly here,
- * which is the right outcome: an unreachable screen is a finding.
- */
-const ENTRY_QUERY: Record<string, string> = {
-  "/choose": "?stay=1",
-};
 
 /** Elements sticking out past the viewport with nothing able to scroll them. */
 async function overflowing(page: Page) {
@@ -323,8 +261,8 @@ for (const path of SCREENS) {
  * there would be asserting against the page's reason to exist. That is a real
  * exception rather than a curated list, and it wants deciding on its own.
  */
-for (const path of STANDALONE_SCREENS) {
-  const url = `${path}${ENTRY_QUERY[path] ?? ""}`;
+for (const path of standaloneScreens()) {
+  const url = entryUrl(path);
 
   test(`${path} does not scroll sideways`, async ({ page }) => {
     await page.goto(url);

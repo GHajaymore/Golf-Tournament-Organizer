@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { join } from "node:path";
 import { routesForTier } from "../src/lib/nav";
+import { standaloneScreens, entryUrl } from "./routes";
 
 test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
 
@@ -163,3 +164,47 @@ test("even an at-desk screen stays tappable on a phone", async ({ page }) => {
   const small = await undersizedTargets(page);
   expect(small, `sub-44px targets: ${JSON.stringify(small)}`).toEqual([]);
 });
+
+/**
+ * AND THE SCREENS THAT ARE IN NO SIDEBAR AT ALL.
+ *
+ * The sweep above reads `routesForTier("on-course")`, which reads the tier off
+ * the NAV ITEM — so a screen that is not in the sidebar is graded by nothing.
+ * `/match/new` is exactly that: it is reached from `/choose` and from the
+ * event switcher, never from the nav, and by 2026-09-08 it had a member-search
+ * dropdown, five round-type cards, a money picker, add and remove buttons and
+ * a dozen `minHeight: 44` declarations that nothing had ever measured.
+ *
+ * It is also, by this file's own definition, the most on-course screen in the
+ * app: "read or tapped outdoors, one-handed, on a phone" describes somebody
+ * standing on the first tee setting up the round they are about to play.
+ *
+ * The floor applies to ALL of them rather than to a chosen few, which is the
+ * same reasoning as the at-desk counter-example below: the tier decides where
+ * the floor is enforced ADDITIONALLY, never where it is waived. `/privacy` and
+ * `/styleguide` are not on-course screens and are held to it anyway, because
+ * "nobody taps this outdoors" is a guess and a 44px control costs nothing.
+ *
+ * One list, shared with `layout.spec` — two copies of a filesystem walk is how
+ * one of them quietly stops covering a route somebody added.
+ */
+for (const path of standaloneScreens()) {
+  test(`nothing tappable on ${path} is smaller than the platform minimum`, async ({ page }) => {
+    const coarse = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+    test.skip(!coarse, "a touch-size rule only applies to touch");
+
+    const res = await page.goto(entryUrl(path));
+    expect(res?.status(), `${path} did not render`).toBeLessThan(500);
+    await page.waitForLoadState("networkidle");
+
+    // Prove we are ON the screen. These run before a tournament exists, so a
+    // redirect means something different here from inside the console — but it
+    // means the same thing for the assertion: whatever was measured was not
+    // this screen, and measuring the landing page instead is how a sweep goes
+    // green having checked nothing.
+    expect(new URL(page.url()).pathname, `${path} redirected away`).toBe(path);
+
+    const small = await undersizedTargets(page);
+    expect(small, `${path} has sub-44px targets: ${JSON.stringify(small)}`).toEqual([]);
+  });
+}
