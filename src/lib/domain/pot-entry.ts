@@ -173,6 +173,18 @@ export const POT_MODE_LABEL: Record<PotEntryMode, string> = {
 export const POT_MODE_HELP: Record<PotEntryMode, string> = {
   "opt-in":
     "Nobody is in until you tick them, or they put their own name down from the app and hand you the stake. Right for a one-off sweep.",
+  /**
+   * The example no longer names a CONTEST.
+   *
+   * It read "the way a weekly league or a closest-to-the-pin usually works",
+   * and this string is shown on the casual round's money screen too — where
+   * closest-to-the-pin is deliberately not offered at all, because it is a
+   * thing a club puts on for a field rather than a bet four friends agree on
+   * the first tee. The sentence was naming a game the reader could not find.
+   *
+   * "A whole-field pot" says the same thing about the MODE, which is what this
+   * help is about, and is true of both audiences.
+   */
   "opt-out":
-    "Everyone playing is in and counted as paid — the way a weekly league or a closest-to-the-pin usually works. Take out anyone who isn't playing for it, or mark them unpaid if you haven't collected. Anyone entered later joins automatically.",
+    "Everyone playing is in and counted as paid — the way a weekly league or a whole-field pot usually works. Take out anyone who isn't playing for it, or mark them unpaid if you haven't collected. Anyone entered later joins automatically.",
 };

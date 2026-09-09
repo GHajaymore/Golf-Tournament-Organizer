@@ -10,6 +10,7 @@ import { SideBetStart } from "@/components/SideBetStart";
 import { RoundPicker } from "@/components/RoundPicker";
 import { isMatch } from "@/lib/tournament-shape";
 import { ContestsClient } from "@/components/ContestsClient";
+import { isHeadToHead } from "@/lib/stage-types";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 
 /**
@@ -303,6 +304,13 @@ export default async function GroupGamesPage({
             };
           })}
           field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
+          /* The intent this screen has always had, now honoured by the
+             component: a closest-to-the-pin is a thing a club puts on for a
+             field, and this screen belongs to the people playing. Passing an
+             empty list was not enough — the adder and the whole block
+             rendered anyway. */
+          contestsApply={false}
+          headToHead={isHeadToHead(week.type)}
         />
       )}
 

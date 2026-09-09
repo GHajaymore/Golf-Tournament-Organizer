@@ -653,17 +653,28 @@ export function NewMatchForm({
         )}
       </div>
 
-      {/* Level by default, and the wording says which is which rather than
-          "gross" and "net" — friends deciding whether shots are being given do
-          not reach for the scoring vocabulary to do it. */}
+      {/* THE SCORING BASIS, ASKED IN PLAIN WORDS AND NAMED IN GOLF'S.
+
+          This is the gross/net choice — `useHandicaps` is what becomes
+          `scoringBasis` — and it was worded only as "Are shots being given?"
+          on the reasoning that friends settling that on the first tee do not
+          reach for the scoring vocabulary to do it. That reasoning still holds
+          for the QUESTION, and it turned out to hide the answer: somebody
+          looking for where a casual round picks gross or net could not find
+          it, because neither word was on the screen.
+
+          So both, and in the order they are thought in: the plain question
+          leads, the term follows it in brackets. A player who does not know
+          what "net" means still reads a sentence they understand; one who came
+          looking for it now finds it. */}
       <div className="field">
         <label>Are shots being given?</label>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
           <button type="button" style={pill(!useHandicaps)} onClick={() => setUseHandicaps(false)}>
-            No — play level
+            No — play level (gross)
           </button>
           <button type="button" style={pill(useHandicaps)} onClick={() => setUseHandicaps(true)}>
-            Yes — off handicaps
+            Yes — off handicaps (net)
           </button>
         </div>
         {useHandicaps && (
