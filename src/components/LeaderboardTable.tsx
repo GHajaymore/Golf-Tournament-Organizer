@@ -103,6 +103,27 @@ export function LeaderboardTable({
   const rowStyle = (advancing: boolean) =>
     advancing && !compact ? { background: "var(--color-accent-900)" } : undefined;
 
+  /**
+   * The flight column, only where there is more than one flight.
+   *
+   * A column repeating "Flight 1" on every row answers a question nobody
+   * asked and costs width on the screen this table is read on — a phone, in
+   * sun, on a tee box. It is the second-widest column in the compact table
+   * and, in a single-flight event, the only one carrying no information.
+   *
+   * DERIVED FROM THE ROWS rather than from the event's shape, which is the
+   * version that fixes more than the case that prompted it. A casual round
+   * has one flight called "A" and showed "Flight 1" against both names —
+   * flights being exactly the apparatus that path removes, reappearing in a
+   * table. But so does a club medal run as one flight, which is the
+   * commonest tournament there is, and keying on `isMatch` would have left
+   * that one alone.
+   *
+   * Blank flights are ignored rather than counted as a value: a row with no
+   * flight and a row in "Flight 1" is still one flight, not two.
+   */
+  const showFlight = new Set(rows.map((r) => r.flight).filter(Boolean)).size > 1;
+
   if (isStroke) {
     return (
       <div className="table-scroll">
@@ -111,7 +132,7 @@ export function LeaderboardTable({
             <tr>
               <th style={{ width: 40 }}>#</th>
               <th>Player</th>
-              <th>Flight</th>
+              {showFlight && <th>Flight</th>}
               {!compact && <th style={{ textAlign: "center" }}>Thru</th>}
               {!compact && <th style={{ textAlign: "right" }}>Gross</th>}
               {!isStableford && <th style={{ textAlign: "right" }}>Net</th>}
@@ -140,7 +161,7 @@ export function LeaderboardTable({
                     </div>
                   )}
                 </td>
-                <td className="text-muted">{r.flight}</td>
+                {showFlight && <td className="text-muted">{r.flight}</td>}
                 {!compact && <td style={{ textAlign: "center", ...num }}>{r.thru > 0 ? r.thru : "—"}</td>}
                 {!compact && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.gross : "—"}</td>}
                 {!isStableford && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.net : "—"}</td>}
@@ -163,7 +184,7 @@ export function LeaderboardTable({
           <tr>
             <th style={{ width: 40 }}>#</th>
             <th>Player</th>
-            <th>{compact ? "Fl" : "Flight"}</th>
+            {showFlight && <th>{compact ? "Fl" : "Flight"}</th>}
             {compact ? (
               <th>Rec</th>
             ) : (
@@ -183,7 +204,7 @@ export function LeaderboardTable({
             <tr key={r.id} data-flip-key={r.id} style={rowStyle(r.advancing)}>
               <td style={{ ...num, color: "var(--color-neutral-400)" }}>{r.rank}</td>
               <td style={{ fontWeight: 500 }}>{r.name}</td>
-              <td className="text-muted">{r.flight}</td>
+              {showFlight && <td className="text-muted">{r.flight}</td>}
               {compact ? (
                 <td className="text-muted" style={num}>{r.record}</td>
               ) : (
