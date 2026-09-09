@@ -223,6 +223,58 @@ export async function skinsPotFor(
     }
   };
   const strokesBy = new Map(cards.map((c) => [c.playerId, parse(c.strokes)]));
+
+  /**
+   * AND THE CARDS A MATCH-PLAY ROUND KEEPS SOMEWHERE ELSE.
+   *
+   * Skins on a match-play round could never settle, and the reason is that the
+   * two are different tables. A stroke round writes `Scorecard`, one row per
+   * player; a match round writes `MatchScorecard`, one row per SIDE of the
+   * fixture, keyed by slot "A" or "B". This function read the first and only
+   * the first, so a pot on a match round found no cards at all and reported
+   * "0 skins · provisional" for ever.
+   *
+   * Measured on 2026-09-08: a £5 skins pot on a match that went Final at 5&4,
+   * then a second one scored as full gross cards that still read zero. Ten
+   * pounds in a game that could not be decided. Nothing was ever paid wrongly
+   * — the pot refuses to settle rather than guessing — but it could not be
+   * paid at all, and nothing said why.
+   *
+   * ONLY WHERE THERE IS NOTHING ALREADY, which is the property that makes this
+   * safe to add to money code. A pot that settles today reads exactly the same
+   * cards tomorrow: this fills a gap and can never overwrite. A stroke round
+   * has no `MatchScorecard` rows at all, so it is untouched by construction.
+   *
+   * Individual matches only. A team round keeps its cards per player on
+   * `TeamScorecard` and its fixture names TEAMS rather than players, so slot
+   * "A" is a side of two and not somebody's card — mapping it here would
+   * attribute one player's strokes to the pair. That case is still unsettled
+   * and is deliberately left alone rather than guessed at.
+   */
+  const matchCards = await prisma.matchScorecard.findMany({
+    where: { eventId, match: { stageId } },
+    select: { slot: true, strokes: true, match: { select: { playerAId: true, playerBId: true } } },
+  });
+  for (const row of matchCards) {
+    const playerId = row.slot === "A" ? row.match.playerAId : row.match.playerBId;
+    /**
+     * `!playerId` is DEFENSIVE, and measured as such rather than assumed.
+     *
+     * A team fixture leaves the player columns empty, so this reads "". That
+     * id matches nobody, and dropping the check leaves the audit green — the
+     * team case is safe because the fixture names no players, not because of
+     * this line. It stays because an empty key in a strokes map is a thing a
+     * later reader has to reason about, and not putting it there is cheaper
+     * than explaining it.
+     *
+     * `strokesBy.has` is the load-bearing half: removing it turns the
+     * safety test red, which is the whole argument for making this change to
+     * money code at all.
+     */
+    if (!playerId || strokesBy.has(playerId)) continue;
+    strokesBy.set(playerId, parse(row.strokes));
+  }
+
   const returned = (id: string) => (strokesBy.get(id) ?? []).some((s) => s != null);
 
   /**
