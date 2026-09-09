@@ -98,7 +98,21 @@ function positionsFrom(state: NonNullable<Awaited<ReturnType<typeof loadEventSta
  */
 export async function championSuggestions(organizationId: string): Promise<PendingChampion[]> {
   const events = await prisma.event.findMany({
-    where: { organizationId, status: "completed" },
+    /**
+     * TOURNAMENTS ONLY. An honours board is the club's permanent record.
+     *
+     * A casual round can be marked completed — `setEventStatus` asks nothing
+     * about shape — so a Sunday fourball was offered to the committee as a
+     * club champion, under its own auto-generated title ("Ada & Bo v Cal &
+     * Dee"). Confirming it writes a `HonoursEntry`, and that row carries
+     * `eventId` with NO foreign key, deliberately, so the board line survives
+     * the event: the 24-hour sweep then deletes the round and leaves a
+     * permanent club record pointing at nothing.
+     *
+     * A casual round has no field, no flights and no committee. There is no
+     * championship in it to win.
+     */
+    where: { organizationId, status: "completed", shape: { not: "match" } },
     select: { id: true, name: true, dates: true, completedAt: true },
     orderBy: { completedAt: "desc" },
   });
@@ -142,7 +156,10 @@ export async function championFor(
   eventId: string,
 ): Promise<{ event: { name: string; dates: string; year: number }; suggestion: ChampionSuggestion } | null> {
   const event = await prisma.event.findFirst({
-    where: { id: eventId, organizationId },
+    // The same exclusion as the suggestion list, because this is the path that
+    // actually WRITES the board — recomputed at the moment of confirming, and
+    // reachable with an id that never appeared in that list.
+    where: { id: eventId, organizationId, shape: { not: "match" } },
     select: { id: true, name: true, dates: true, status: true, completedAt: true },
   });
   if (!event) return null;

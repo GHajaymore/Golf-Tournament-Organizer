@@ -106,7 +106,11 @@ export interface AccessReport {
 export async function organizationAccessReport(organizationId: string): Promise<AccessReport> {
   const [events, members, accounts] = await Promise.all([
     prisma.event.findMany({
-      where: { organizationId },
+      // The club's tournaments. This report answers "who can see what across
+      // the club", and a casual round is not the club's — it is four people's
+      // own game, and listing every Sunday fourball buries the events the
+      // report exists for.
+      where: { organizationId, shape: { not: "match" } },
       select: { id: true, name: true, dates: true },
       orderBy: { createdAt: "desc" },
     }),

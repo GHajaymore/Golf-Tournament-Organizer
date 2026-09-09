@@ -50,6 +50,20 @@ export async function loadRoster(organizationId: string): Promise<RosterMember[]
     where: { organizationId },
     include: {
       entries: {
+        /**
+         * TOURNAMENT entries only.
+         *
+         * This feeds `entryCount` and `lastEvent` on the roster — "how many
+         * of the club's events has this member played, and which was the last
+         * one". A casual round is not one of the club's events: it has no
+         * field, no flights and no committee, and it deletes itself in a day.
+         *
+         * Both columns read wrong without this. A member's history was
+         * inflated by every Sunday fourball they had been picked into, and
+         * "last event" showed a game that would not exist tomorrow — under an
+         * auto-generated title like "Ada & Bo v Cal & Dee".
+         */
+        where: { event: { shape: { not: "match" } } },
         select: { event: { select: { name: true, createdAt: true } } },
         orderBy: { event: { createdAt: "desc" } },
       },
