@@ -77,6 +77,69 @@ const PLAYER_SCREENS = [
     .sort(),
 ];
 
+/**
+ * THE SCREENS THAT ARE IN NEITHER SHELL, which is a third choice nobody made.
+ *
+ * `SCREENS` reads `(app)`, `PLAYER_SCREENS` reads `(player)/me`, and the note
+ * above the second one already says why that was not enough: "the DIRECTORY it
+ * was derived from was still a choice somebody made once. A rule worth
+ * sweeping is worth sweeping over both shells."
+ *
+ * It stopped at two shells. There is a third, and it is not a backwater: it
+ * holds `/choose`, which is where every new organizer lands, and `/match/new`,
+ * which is the whole of the casual-round product — a screen that by
+ * 2026-09-08 had a member-search dropdown, side headings, five round types, a
+ * money picker and a dozen 44px targets, and had never been measured at any
+ * viewport. These pages sit outside both groups precisely BECAUSE they run
+ * before a tournament exists, which is what put them outside the sweep too.
+ *
+ * Derived the same way, so a route added out here is swept the day it appears.
+ * Dynamic segments are skipped — `/live/[token]` and `/register/[token]` need
+ * a param, and both already have their own tests.
+ */
+const STANDALONE_SCREENS = readdirSync(join(process.cwd(), "src", "app"), { withFileTypes: true })
+  .filter((e) => e.isDirectory())
+  .filter((e) => !e.name.startsWith("[") && !e.name.startsWith("_") && !e.name.startsWith("("))
+  // `api` holds route handlers, which have no layout to measure.
+  .filter((e) => e.name !== "api")
+  .flatMap((e) => {
+    const here = join(process.cwd(), "src", "app", e.name);
+    // A route may be the directory itself (`/choose`) or one level down
+    // (`/match/new`), so both are looked for rather than assumed.
+    const paths: string[] = [];
+    if (existsSync(join(here, "page.tsx"))) paths.push(`/${e.name}`);
+    for (const child of readdirSync(here, { withFileTypes: true })) {
+      if (!child.isDirectory()) continue;
+      if (child.name.startsWith("[") || child.name.startsWith("_") || child.name.startsWith("(")) {
+        continue;
+      }
+      if (existsSync(join(here, child.name, "page.tsx"))) paths.push(`/${e.name}/${child.name}`);
+    }
+    return paths;
+  })
+  .sort();
+
+/**
+ * What a standalone route needs in the URL to actually render.
+ *
+ * NOT an exclusion list, which is the thing this file argues against
+ * throughout — every route above stays in the sweep and stays asserted. This
+ * says how to REACH one, and the answer comes from the app's own links rather
+ * than from anything invented here.
+ *
+ * `/choose` sends anyone with a single active event straight to their landing
+ * screen, so the organizer session the rest of this file uses never sees it.
+ * `?stay=1` is what suppresses that, and it is what the "create another
+ * tournament" link and the event switcher both point at — so this measures
+ * the screen in the state it is genuinely used in, not a contrived one.
+ *
+ * A route that starts redirecting and has no such door will fail loudly here,
+ * which is the right outcome: an unreachable screen is a finding.
+ */
+const ENTRY_QUERY: Record<string, string> = {
+  "/choose": "?stay=1",
+};
+
 /** Elements sticking out past the viewport with nothing able to scroll them. */
 async function overflowing(page: Page) {
   return page.evaluate(() => {
@@ -243,6 +306,77 @@ for (const path of SCREENS) {
     expect(scrollWidth, `${path}: body is ${scrollWidth}px in a ${width}px viewport`).toBeLessThanOrEqual(
       width + 1,
     );
+  });
+}
+
+/**
+ * And the screens in neither shell, measured the same way.
+ *
+ * Sideways scroll and blank icons are the two rules with no legitimate
+ * exception anywhere — a page that scrolls sideways is never intended, and an
+ * icon that draws nothing is never intended — so they apply out here without
+ * qualification.
+ *
+ * The h1 sweep deliberately does NOT run over these. Not because they should
+ * have no heading, but because `/styleguide` is a specimen page whose whole
+ * purpose is showing every heading level at once, and asserting "exactly one"
+ * there would be asserting against the page's reason to exist. That is a real
+ * exception rather than a curated list, and it wants deciding on its own.
+ */
+for (const path of STANDALONE_SCREENS) {
+  const url = `${path}${ENTRY_QUERY[path] ?? ""}`;
+
+  test(`${path} does not scroll sideways`, async ({ page }) => {
+    await page.goto(url);
+    await page.waitForLoadState("networkidle");
+
+    // These sit outside both shells because they run BEFORE a tournament
+    // exists, so a redirect here means something different from a redirect
+    // inside the console — but it means the same thing for the assertion:
+    // whatever was measured was not this screen.
+    expect(new URL(page.url()).pathname, `${path} redirected away`).toBe(path);
+    await expect(page.locator("#__next_error__")).toHaveCount(0);
+
+    const width = page.viewportSize()?.width ?? 0;
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    const offenders = await overflowing(page);
+
+    expect(
+      offenders,
+      `${path}: ${offenders.length} element(s) past the right edge — ${JSON.stringify(offenders.slice(0, 3))}`,
+    ).toEqual([]);
+    expect(scrollWidth, `${path}: body is ${scrollWidth}px in a ${width}px viewport`).toBeLessThanOrEqual(
+      width + 1,
+    );
+  });
+
+  test(`${path} draws every icon it references`, async ({ page }) => {
+    await page.goto(url);
+    await page.waitForLoadState("networkidle");
+    expect(new URL(page.url()).pathname, `${path} redirected away`).toBe(path);
+
+    const broken = await page.evaluate(() => {
+      const out: Array<{ href: string; reason: string }> = [];
+      for (const svg of document.querySelectorAll("svg")) {
+        const use = svg.querySelector("use");
+        if (!use) continue;
+        const cs = getComputedStyle(svg);
+        if (cs.display === "none" || cs.visibility === "hidden" || !svg.getClientRects().length) continue;
+
+        const href = use.getAttribute("href") ?? "";
+        if (!document.getElementById(href.slice(1))) {
+          out.push({ href, reason: "no such symbol in the sprite" });
+          continue;
+        }
+        const box = svg.getBoundingClientRect();
+        if (!box.width || !box.height) out.push({ href, reason: "zero-sized" });
+      }
+      return out;
+    });
+
+    expect(broken, `${path}: ${JSON.stringify(broken)}`).toEqual([]);
+    const legacy = await page.locator("i.ph").count();
+    expect(legacy, `${path} still renders ${legacy} webfont icon(s)`).toBe(0);
   });
 }
 
