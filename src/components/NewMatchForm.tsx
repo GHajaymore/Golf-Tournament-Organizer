@@ -12,8 +12,6 @@ import {
   QUICK_MONEY_GAMES,
 } from "@/lib/domain/quick-match";
 import { entryModesFor } from "@/lib/domain/match-entry";
-import { needsCourseData } from "@/lib/courses";
-import { listNames } from "@/lib/format";
 import { Icon } from "./Icon";
 
 /**
@@ -59,8 +57,15 @@ export function NewMatchForm({
   members = [],
   me = null,
 }: {
-  /** The club's own courses. Empty for somebody who has never set one up,
-   *  which is the common case here and why the picker is conditional. */
+  /**
+    * The club's own courses.
+    *
+    * Empty for somebody who has never set one up, which is the common case
+    * here — the picker used to be hidden when it was, and is not any more:
+    * the course is required, so hiding it would be a wall rather than a
+    * question. The directory search behind it is what makes an empty library
+    * workable.
+    */
   courses: CourseOption[];
   /** Prefilled as the first player: whoever is setting this up is almost
    *  always in it, and correcting a name is quicker than typing one. */
@@ -180,35 +185,6 @@ export function NewMatchForm({
    */
   const moneyGames = QUICK_MONEY_GAMES.filter((g) => !g.matchOnly || chosen?.headToHead);
 
-  /**
-   * Why this round will need a course card, in the reader's words. Empty when
-   * it will not. See the note beside the venue picker.
-   *
-   * The format's half goes through `needsCourseData`, which is the app's one
-   * answer to that question and the same function score entry blocks on — so
-   * this cannot come to promise a round the next screen then refuses.
-   */
-  const pickedGame = moneyGames.find((g) => g.key === moneyGame);
-  const cardReasons = [
-    /**
-     * Asked at GROSS, always, even when shots are being given.
-     *
-     * Passing the live basis in here read `needsCourseData("Match Play",
-     * "net")` — true, because net match play allocates by stroke index — and
-     * then phrased that as "Match Play is scored against par", which it is
-     * not. It was the SHOTS reason wearing the format's name, and the shots
-     * reason was sitting right below it saying the same thing correctly.
-     * Caught on the screen, one edit after writing it.
-     *
-     * So this clause answers only "does the format itself need a card", and
-     * the handicap clause answers the handicap.
-     */
-    chosen && needsCourseData([{ format: chosen.name, scoringBasis: "gross" }])
-      ? `${chosen.name} is scored against par`
-      : "",
-    useHandicaps ? "shots are allocated by stroke index" : "",
-    pickedGame?.needsPars ? `a ${pickedGame.label.toLowerCase()} counts birdies against par` : "",
-  ].filter(Boolean);
 
   /**
    * Whether a full card is what this round type would ask for anyway.
@@ -764,44 +740,33 @@ export function NewMatchForm({
           find the club it belongs to, and on this screen the tournament does
           not exist yet. The round's own venue picker has the full search the
           moment it is created. */}
-      {courses.length > 0 && (
-        <CoursePicker
-          options={courses}
-          value={courseId}
-          onChange={setCourseId}
-          label="Where are you playing?"
-          noneLabel="Decide later"
-          searchDirectory={false}
-        />
-      )}
+      {/* WHERE, AND IT IS NOT OPTIONAL.
 
-      {/* THE WALL AT THE FIRST TEE, MOVED TO THE FIRST SCREEN.
+          This offered "Decide later", and that was the wrong shape for this
+          screen: a casual round is impromptu, and whoever is setting one up is
+          standing somewhere. Nobody arranges a Sunday fourball without knowing
+          the course.
 
-          "Decide later" is a real answer — plenty of games are arranged before
-          anybody has settled on where — so this is a note and not a refusal.
-          What it must not do is stay silent, because score entry REFUSES a
-          round whose scoring needs a card: `needsCourseData` sends you to a
-          "Set up this course" page instead of the scorecard, and the round
-          that promised "nothing to configure" opens on a configuration form.
+          What "Decide later" actually bought was a round that could not be
+          scored. Score entry REFUSES a round whose scoring needs a card — a
+          four-ball, any net round, any birdie pot — and sends you to a "Set up
+          this course" form instead of the scorecard. So the screen whose
+          promise is "nothing to configure" handed over a configuration form at
+          the first tee. Measured on 2026-09-09.
 
-          Read off a real one on 2026-09-09: a four-ball with a £5 birdie pot
-          and "Decide later" was created happily, and score entry then refused
-          to open at all.
-
-          THREE REASONS, and they are separate. The format may aggregate real
-          scores (a four-ball counts a better ball, so it needs par); shots
-          given are allocated by stroke index; and a birdie is one under par,
-          which is a thing `needsCourseData` cannot see because it reads
-          formats and knows nothing about side games. Only the reasons that
-          actually apply are named — a warning that lists things the reader did
-          not choose reads as boilerplate. */}
-      {courseId === "" && cardReasons.length > 0 && (
-        <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0", lineHeight: 1.5 }}>
-          <Icon name="warning-circle" style={{ color: "var(--color-accent-300)" }} /> You can decide
-          on the way, but {listNames(cardReasons)} — so the course card has to be filled in before
-          any score goes down.
-        </p>
-      )}
+          THE DIRECTORY IS ON HERE NOW, and it has to be. The club's library is
+          read from the organizations this person belongs to, and somebody who
+          has just signed up to play their mate on Sunday belongs to none — so
+          requiring a course while offering only a list that is empty for a new
+          user would be a wall rather than a question. */}
+      <CoursePicker
+        options={courses}
+        value={courseId}
+        onChange={setCourseId}
+        label="Where are you playing?"
+        searchDirectory
+        hint="Needed before any score can go down — the card decides pars, stroke index and every shot given."
+      />
 
       {(error || blocker) && (
         <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
@@ -810,7 +775,7 @@ export function NewMatchForm({
       )}
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <button type="button" className="btn btn-primary" disabled={pending || !planned.ok} onClick={submit}>
+        <button type="button" className="btn btn-primary" disabled={pending || !planned.ok || !courseId} onClick={submit}>
           {pending
             ? "Setting it up…"
             : planned.ok && !planned.plan.drawsMatch
@@ -834,13 +799,19 @@ export function NewMatchForm({
 
               A hint that names the wrong remaining step is worse than none:
               it sends somebody back to the names they have already typed. */}
-          {planned.ok
+          {/* The course is asked LAST in this list and first in the form,
+              because it is the one thing somebody arranging a round already
+              knows — so naming it before the names would be pedantry, and
+              naming it after them is the one step actually left. */}
+          {planned.ok && courseId
             ? `Opens the card for ${planned.plan.name}.`
             : !format
               ? "Pick what you're playing, then who's in it."
-              : exact
-                ? `${exact} names, and you're away.`
-                : "Two names is enough to start."}
+              : !planned.ok
+                ? exact
+                  ? `${exact} names, and you're away.`
+                  : "Two names is enough to start."
+                : "Say where you're playing."}
         </span>
       </div>
 

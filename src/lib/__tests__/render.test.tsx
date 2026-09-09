@@ -5447,11 +5447,31 @@ describe("setting up a casual round", () => {
     expect(html).not.toContain("Stake per player");
   });
 
-  it("hides the course picker when there is nothing to pick", () => {
-    // An empty picker offering one choice called "Decide later" is a question
-    // pretending to be a control.
+  it("asks where, with an empty library as much as a full one", () => {
+    /**
+     * REPLACES "hides the course picker when there is nothing to pick", and
+     * the reversal is the point rather than a tidy-up.
+     *
+     * The picker used to be hidden when the club had no courses, on the
+     * reasoning that "an empty picker offering one choice called 'Decide
+     * later' is a question pretending to be a control". That was true of the
+     * picker it described — and the fix was to delete "Decide later", not the
+     * question.
+     *
+     * A casual round is impromptu: whoever is arranging one is standing
+     * somewhere. And "Decide later" bought a round that could not be scored —
+     * score entry refuses a round whose scoring needs a card and renders "Set
+     * up this course" instead of the scorecard.
+     *
+     * The empty-library case is exactly the one that must still work, and it
+     * is the COMMON one here: the library is read from the organizations this
+     * person belongs to, and somebody who has just signed up to play their
+     * mate on Sunday belongs to none. The directory search behind the field is
+     * what makes that workable.
+     */
     const html = render(<NewMatchForm {...noClub} />);
-    expect(html).not.toContain("Where are you playing?");
+    expect(html, "asked even with nothing in the library").toContain("Where are you playing?");
+    expect(html, "and never offers to skip it").not.toContain("Decide later");
 
     const withCourse = render(
       <NewMatchForm
@@ -5460,6 +5480,8 @@ describe("setting up a casual round", () => {
       />,
     );
     expect(withCourse).toContain("Where are you playing?");
+    // (The option list itself is a dropdown, closed until typed into, so it
+    // is not in the static markup — only the question is.)
   });
 });
 
