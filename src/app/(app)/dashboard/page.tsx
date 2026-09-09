@@ -160,6 +160,9 @@ export default async function DashboardPage() {
         })),
       }));
 
+  /** Whether the round being played is scored by SIDES rather than players. */
+  const teamRound = TEAM_FORMAT_NAMES.includes(state.activeStage?.format ?? "");
+
   const progress = matchProgress(state);
   const currentStage = state.activeStage ?? state.stages[0];
   /**
@@ -655,7 +658,21 @@ export default async function DashboardPage() {
                     {matchEvent ? "Holes won" : "Overall · all flights"}
                   </span>
                 </div>
-                <LeaderboardTable isStroke={isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} rows={rows} compact />
+                <LeaderboardTable
+                  isStroke={isStroke}
+                  isStableford={state.activeStage?.scoringBasis === "stableford"}
+                  rows={rows}
+                  compact
+                  /* `standingRows` is per PLAYER, and a team round's result
+                     belongs to the SIDE — so this card had five column names
+                     and no rows under them on a four-ball that had finished.
+                     Name where the answer actually is. */
+                  emptyNote={
+                    teamRound
+                      ? "This round is played in sides, so the standings are by side — they're on Reports & export."
+                      : "Nothing to rank here yet — the board fills in as scores come back."
+                  }
+                />
               </>
             ) : (
               <>

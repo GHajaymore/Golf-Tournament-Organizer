@@ -12,6 +12,8 @@ import {
   QUICK_MONEY_GAMES,
 } from "@/lib/domain/quick-match";
 import { entryModesFor } from "@/lib/domain/match-entry";
+import { needsCourseData } from "@/lib/courses";
+import { listNames } from "@/lib/format";
 import { Icon } from "./Icon";
 
 /**
@@ -177,6 +179,36 @@ export function NewMatchForm({
    * screen never offers a wager the round cannot hold.
    */
   const moneyGames = QUICK_MONEY_GAMES.filter((g) => !g.matchOnly || chosen?.headToHead);
+
+  /**
+   * Why this round will need a course card, in the reader's words. Empty when
+   * it will not. See the note beside the venue picker.
+   *
+   * The format's half goes through `needsCourseData`, which is the app's one
+   * answer to that question and the same function score entry blocks on — so
+   * this cannot come to promise a round the next screen then refuses.
+   */
+  const pickedGame = moneyGames.find((g) => g.key === moneyGame);
+  const cardReasons = [
+    /**
+     * Asked at GROSS, always, even when shots are being given.
+     *
+     * Passing the live basis in here read `needsCourseData("Match Play",
+     * "net")` — true, because net match play allocates by stroke index — and
+     * then phrased that as "Match Play is scored against par", which it is
+     * not. It was the SHOTS reason wearing the format's name, and the shots
+     * reason was sitting right below it saying the same thing correctly.
+     * Caught on the screen, one edit after writing it.
+     *
+     * So this clause answers only "does the format itself need a card", and
+     * the handicap clause answers the handicap.
+     */
+    chosen && needsCourseData([{ format: chosen.name, scoringBasis: "gross" }])
+      ? `${chosen.name} is scored against par`
+      : "",
+    useHandicaps ? "shots are allocated by stroke index" : "",
+    pickedGame?.needsPars ? `a ${pickedGame.label.toLowerCase()} counts birdies against par` : "",
+  ].filter(Boolean);
 
   /**
    * Whether a full card is what this round type would ask for anyway.
@@ -732,6 +764,34 @@ export function NewMatchForm({
         />
       )}
 
+      {/* THE WALL AT THE FIRST TEE, MOVED TO THE FIRST SCREEN.
+
+          "Decide later" is a real answer — plenty of games are arranged before
+          anybody has settled on where — so this is a note and not a refusal.
+          What it must not do is stay silent, because score entry REFUSES a
+          round whose scoring needs a card: `needsCourseData` sends you to a
+          "Set up this course" page instead of the scorecard, and the round
+          that promised "nothing to configure" opens on a configuration form.
+
+          Read off a real one on 2026-09-09: a four-ball with a £5 birdie pot
+          and "Decide later" was created happily, and score entry then refused
+          to open at all.
+
+          THREE REASONS, and they are separate. The format may aggregate real
+          scores (a four-ball counts a better ball, so it needs par); shots
+          given are allocated by stroke index; and a birdie is one under par,
+          which is a thing `needsCourseData` cannot see because it reads
+          formats and knows nothing about side games. Only the reasons that
+          actually apply are named — a warning that lists things the reader did
+          not choose reads as boilerplate. */}
+      {courseId === "" && cardReasons.length > 0 && (
+        <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0", lineHeight: 1.5 }}>
+          <Icon name="warning-circle" style={{ color: "var(--color-accent-300)" }} /> You can decide
+          on the way, but {listNames(cardReasons)} — so the course card has to be filled in before
+          any score goes down.
+        </p>
+      )}
+
       {(error || blocker) && (
         <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
           <Icon name="warning-circle" /> {error || blocker}
@@ -748,15 +808,28 @@ export function NewMatchForm({
           <Icon name="arrow-right" />
         </button>
         <span className="text-muted" style={{ fontSize: 11.5 }}>
-          {/* "Two names, and you're away" stopped being true the moment the
-              round type stopped being preselected. A hint that names the wrong
-              remaining step is worse than none: it sends somebody back to the
-              names they have already typed. */}
+          {/* NAMES THE NUMBER THIS FORMAT ACTUALLY WANTS.
+
+              "Two names, and you're away" was written when Match Play was
+              preselected and two was always the answer. It stopped being true
+              twice over: once when the round type stopped being preselected,
+              and once for every format that is not a singles match. Picking
+              Four-Ball — four players, and the screen says so two inches
+              above — still produced "Two names, and you're away", which is
+              the app disagreeing with itself about how many people are
+              needed, in the sentence whose whole job is to say what is left.
+
+              Read off the screen on 2026-09-09.
+
+              A hint that names the wrong remaining step is worse than none:
+              it sends somebody back to the names they have already typed. */}
           {planned.ok
             ? `Opens the card for ${planned.plan.name}.`
             : !format
               ? "Pick what you're playing, then who's in it."
-              : "Two names, and you're away."}
+              : exact
+                ? `${exact} names, and you're away.`
+                : "Two names is enough to start."}
         </span>
       </div>
 

@@ -115,12 +115,47 @@ export function LeaderboardTable({
   isStableford = false,
   rows,
   compact = false,
+  emptyNote = "Nothing to rank here yet.",
 }: {
   isStroke: boolean;
   isStableford?: boolean;
   rows: StandingRow[];
   compact?: boolean;
+  /**
+   * What to say instead of a table when there are no rows.
+   *
+   * A HEADER ROW OVER NOTHING IS NOT AN EMPTY STATE. It is a set of column
+   * names — #, PLAYER, REC, HOLES ±, PTS — with nothing underneath, which
+   * reads as a board that has broken rather than one with nothing on it, and
+   * it says nothing at all about why.
+   *
+   * Found on a FINISHED four-ball on 2026-09-09: the dashboard card headed
+   * "Where the match stands" printed five column names and no rows, on a
+   * match that had been played out and settled. `standingRows` is per PLAYER
+   * and a team round's result belongs to the SIDE, so there was never going
+   * to be a row — the side standings were on Reports & export the whole time,
+   * and nothing on the dashboard said so.
+   *
+   * The default is deliberately vague, because this component cannot know
+   * which of the several reasons applies. Callers that DO know pass a better
+   * sentence, and the one that prompted this does.
+   */
+  emptyNote?: string;
 }) {
+  /**
+   * Nothing to show, said once for both layouts.
+   *
+   * Before the `isStroke` branch, because the two tables have different
+   * columns and neither of them has anything to put under them.
+   */
+  if (rows.length === 0) {
+    return (
+      <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0", lineHeight: 1.5 }}>
+        {emptyNote}
+      </p>
+    );
+  }
+
   const num = { fontVariantNumeric: "tabular-nums" as const };
   const rowStyle = (advancing: boolean) =>
     advancing && !compact ? { background: "var(--color-accent-900)" } : undefined;
