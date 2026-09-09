@@ -159,6 +159,34 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
        */
       attestBy: plan.drawsMatch ? "opponent" : "marker",
       attendanceMode: "everyone",
+      /**
+       * THE GOLF BET, NEVER THE TRAVEL EXPENSES.
+       *
+       * These are two different kinds of money and only one of them belongs
+       * to a casual round. The skins pot is what four friends agreed on the
+       * first tee; the split LEDGER is "the minibus, the green fees, dinner"
+       * — somebody fronted a cost and everybody owes a share of it, which is
+       * a society trip, not a Sunday fourball.
+       *
+       * Left to resolve, a casual round inherited the ledger from whatever
+       * kind of outfit its organization happened to be — and
+       * `organizationForNewEvent` creates a PERSONAL organization, which
+       * defaults to `ledger: true`. So every quick round set up by somebody
+       * with no club at all — the free-tier case this whole path exists for —
+       * arrived in "split shared costs" mode, offering to work out who owes
+       * whom for a minibus nobody hired.
+       *
+       * "none" is precisely the right mode rather than a way of switching
+       * money off, and `MONEY_MODE_LABEL` says so where it is declared: what
+       * it turns off is the app handling FEES AND SHARED COSTS. "Skins, 2s
+       * and side bets are still worked out and shown to the players." That is
+       * the whole of a casual round's money and all of it still works.
+       *
+       * Set explicitly here rather than resolved, because a resolution reads
+       * three levels of setting that all belong to a club, and this round
+       * belongs to nobody's club.
+       */
+      moneyMode: "none",
     },
   });
 
