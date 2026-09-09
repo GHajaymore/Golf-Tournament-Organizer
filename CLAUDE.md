@@ -169,6 +169,25 @@ particular **do not add `retries`** to make it go away: the `retries: 0` above i
 its reasoning still holds — a retry that hides this would hide a real regression on the same
 spec just as effectively.
 
+**There is a SECOND intermittent e2e failure, and it is not that one.** On 2026-09-09
+`3f5fa43` went red on `small-phone` with a real assertion — `/grouping has 0 h1s: []`,
+expected 1, received 0 — which reads exactly like a screen that lost its heading. It had not.
+Three lines above it in the same log:
+
+```
+[WebServer] ⨯ Error: Could not find the module ".../GroupingControls.tsx#GroupingControls"
+in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+```
+
+The dev server failed to serve one client component, so the page rendered empty and the
+heading assertion reported what it saw. The commit touched nothing near `/grouping`, and
+every later run on `main` passed the same test.
+
+This one is the more dangerous of the two, because the SEGV announces itself as a crash and
+this announces itself as YOUR BUG. So when a layout or heading assertion fails on a screen
+your change did not touch, **search the log for `Client Manifest` before believing it** — and
+confirm the same way as the SEGV, by re-running the commit rather than editing the page.
+
 ## What gates a merge, and what gates a deploy
 
 `ci.yml` is the only workflow that runs on its own — every push and every PR. It does the
@@ -217,10 +236,36 @@ That happened on 2026-09-08 to `8c1d75b`, a documentation-only commit — `verif
 and only `Deploy to production` went red, which is the shape that tells you it is not the code.
 The next merge deployed normally and carried it, because git history is cumulative.
 
+**And the third way `deploy` fails is the DEPLOYMENT ALLOWANCE, which is neither.** On
+2026-09-09 it went red on `17db490` with `verify` fully green:
+
+```
+Error: Resource is limited - try again in 24 hours
+(more than 100, code: "api-deployments-free-per-day")
+```
+
+A hundred deployments a day on the free plan, and **every push counts**, not every merge.
+A branch pushed four times is four preview deploys; a merge is one more. Fourteen PRs in an
+evening, each amended and force-pushed a couple of times, is comfortably a hundred — which is
+how a working night ends with production quietly not updating.
+
+It is SELF-CLEARING and it is intermittent, so do not read one red deploy as an outage. The
+counter is rolling: `17db490` failed, `8a67263` deployed twenty minutes later, and because git
+history is cumulative that one carried the failed commit's changes with it. Production was
+never more than one merge behind.
+
+What it should change is BEHAVIOUR, not configuration. Batch the work into fewer, larger PRs
+and push each branch once. Opening a PR per small improvement is the habit that spends the
+allowance, and the allowance is shared with the previews a human needs to review anything.
+
 So read WHICH JOB failed before reading anything else. `verify` red is your change; `deploy` red
-on a green `verify` is the token or the database, and this message names which. Nothing shipped
-unverified either way — `deploy` has `needs: verify` — but a commit CAN sit undeployed until the
-next merge, so do not read "merged" as "live" without checking the run.
+on a green `verify` is the token, the database, or the allowance, and the message names which.
+Nothing shipped unverified either way — `deploy` has `needs: verify` — but a commit CAN sit
+undeployed until the next merge, so do not read "merged" as "live" without checking the run:
+
+```bash
+gh run view <run-id> --json jobs -q '.jobs[] | select(.name=="Deploy to production") | .conclusion'
+```
 
 Related: `main` is exempt from `cancel-in-progress`. Two merges a minute apart used to leave
 the first one's `verify` reading `cancelled` on a commit already in production — a deploy

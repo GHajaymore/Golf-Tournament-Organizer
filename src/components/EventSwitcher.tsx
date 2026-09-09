@@ -20,6 +20,23 @@ export interface EventRow {
   hasAccess: boolean;
   /** Organizer on this event — the bar for copying and deleting it. */
   isOrganizer: boolean;
+  /**
+   * A casual round rather than a tournament — and temporary with it.
+   *
+   * This list is headed "Your tournaments" and counts what is in it, so a
+   * Sunday fourball sat in it as one: same columns, same weight, nothing
+   * saying it deletes itself in a day. A club with one championship and three
+   * quick rounds was told it had four tournaments.
+   *
+   * It also appeared in "Start from" as something to copy a new tournament
+   * OUT of, which is offering a round of golf as a template for a
+   * competition.
+   *
+   * Optional so the two callers that do not know yet behave exactly as they
+   * did — absent means "a tournament", which is what everything in this list
+   * used to be.
+   */
+  isCasual?: boolean;
 }
 
 const STATUS: Record<string, { label: string; tag: string }> = {
@@ -44,7 +61,27 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
   // tournament's organization, so anything less than organizer would let a
   // player create events in a club they merely play in — cloneEvent rejects it
   // regardless, but the list shouldn't offer what the action refuses.
-  const copyable = events.filter((e) => e.isOrganizer);
+  /**
+   * A casual round is not a template for a tournament.
+   *
+   * `copyable` gated on being the organizer, which a quick round's creator
+   * always is — so every Sunday fourball appeared in "Start from" as something
+   * to build a club championship out of. A copy of one carries no field, no
+   * rounds and no flights; what it carries is a two-player match's settings,
+   * which is not a starting point anybody wants.
+   */
+  const copyable = events.filter((e) => e.isOrganizer && !e.isCasual);
+
+  /**
+   * The two lists this screen was showing as one.
+   *
+   * Split rather than filtered, because a quick round still has to be
+   * reachable from here — it is where you go to switch back to the round you
+   * set up an hour ago. What it must not do is be counted, headed and columned
+   * as a tournament.
+   */
+  const tournaments = events.filter((e) => !e.isCasual);
+  const casual = events.filter((e) => e.isCasual);
   const copyFrom = source.startsWith(COPY_PREFIX)
     ? copyable.find((e) => e.id === source.slice(COPY_PREFIX.length))
     : undefined;
@@ -56,7 +93,10 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
     <div className="card elev-sm" style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span className="card-title" style={{ fontSize: 15 }}>Your tournaments</span>
-        <span className="text-muted" style={{ fontSize: 12 }}>{events.length} total</span>
+        {/* Counts TOURNAMENTS. It counted `events.length`, so a club with one
+            championship and three Sunday fourballs was told it had four
+            tournaments — under a heading that says exactly what it means. */}
+        <span className="text-muted" style={{ fontSize: 12 }}>{tournaments.length} total</span>
       </div>
 
       <div className="table-scroll">
@@ -71,7 +111,7 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
             </tr>
           </thead>
           <tbody>
-            {events.map((e) => {
+            {tournaments.map((e) => {
               const s = STATUS[e.status] ?? STATUS.draft;
               return (
                 <tr key={e.id} style={e.isActive ? { background: "var(--color-accent-900)" } : undefined}>
@@ -120,6 +160,96 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
           </tbody>
         </table>
       </div>
+
+      {/* THE QUICK ROUNDS, on their own and saying what they are.
+
+          They were in the table above: same columns, same weight, counted in
+          the same total, and nothing anywhere saying they delete themselves
+          after a day. Somebody with a championship and three Sunday fourballs
+          read "4 tournaments" and had no way to tell which was which.
+
+          Still listed, because this is where you come to switch back to the
+          round you set up an hour ago. Just not listed as a tournament. */}
+      {casual.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span className="card-kicker">Quick rounds</span>
+            <span className="text-muted" style={{ fontSize: 11.5 }}>
+              Temporary — deleted about a day after they&rsquo;re set up
+            </span>
+          </div>
+          <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+            {casual.map((e) => (
+              <div
+                key={e.id}
+                className="mini-row"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  padding: "6px 8px",
+                  borderRadius: 6,
+                  background: e.isActive ? "var(--color-accent-900)" : "transparent",
+                }}
+              >
+                <Icon name="clock" style={{ flex: "none" }} />
+                <span style={{ fontWeight: 500, minWidth: 0 }}>{e.name || "Untitled round"}</span>
+                <span className="text-muted" style={{ fontSize: 12 }}>
+                  {e.players} player{e.players === 1 ? "" : "s"}
+                </span>
+                <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+                  {e.isActive ? (
+                    <span className="tag tag-outline">Open</span>
+                  ) : e.hasAccess ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={pending}
+                      onClick={() => startTransition(() => switchEvent(e.id))}
+                    >
+                      Open
+                    </button>
+                  ) : (
+                    <span className="text-muted" style={{ fontSize: 12 }}>No access</span>
+                  )}
+                  {e.isOrganizer && (
+                    <button
+                      type="button"
+                      className="btn btn-icon"
+                      title="Delete this round"
+                      disabled={pending}
+                      onClick={() => setConfirmingId(e.id)}
+                    >
+                      <Icon name="trash" />
+                    </button>
+                  )}
+                </div>
+                {/* The same confirm the table above uses, because deleting a
+                    round somebody is mid-way through is just as permanent. */}
+                {confirmingId === e.id && (
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", width: "100%" }}>
+                    <span className="text-muted" style={{ fontSize: 12 }}>Delete this round?</span>
+                    <button
+                      type="button"
+                      className="btn btn-icon"
+                      title="Confirm delete"
+                      disabled={pending}
+                      style={{ color: "var(--color-accent)" }}
+                      onClick={() => startTransition(() => deleteEvent(e.id))}
+                    >
+                      <Icon name="check" />
+                    </button>
+                    <button type="button" className="btn btn-icon" title="Cancel" onClick={() => setConfirmingId("")}>
+                      <Icon name="x" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", borderTop: "1px solid var(--color-divider)", paddingTop: 12, marginTop: 4 }}>
         <div className="field" style={{ flex: 1, minWidth: 220 }}>
