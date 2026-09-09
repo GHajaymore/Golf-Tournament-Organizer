@@ -83,7 +83,14 @@ export function NewMatchForm({
   me?: RosterMember | null;
 }) {
   const router = useRouter();
-  const [format, setFormat] = useState(QUICK_ROUND_FORMATS[0].name);
+  /**
+   * NOTHING PRESELECTED. The round type is a question, not a default.
+   *
+   * Match Play was preselected, so the commonest path through this screen
+   * never asked what people were playing — and the round type decides the
+   * stage type, the event format and whether a fixture is drawn at all.
+   */
+  const [format, setFormat] = useState("");
   const [players, setPlayers] = useState<Entrant[]>([
     // Row one is whoever is setting this up, as a member where the club knows
     // them — name, index and all — and as a plain name where it does not.
@@ -137,7 +144,17 @@ export function NewMatchForm({
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
-  const chosen = QUICK_ROUND_FORMATS.find((f) => f.name === format) ?? QUICK_ROUND_FORMATS[0];
+  /**
+   * The round type, or NOTHING until one is picked.
+   *
+   * It fell back to the first entry, which meant the screen quietly behaved as
+   * a Match Play round — two-player ceiling and all — before anybody had
+   * chosen. Undefined here is the honest state, and every reader below says
+   * what it does without one.
+   */
+  const chosen = QUICK_ROUND_FORMATS.find((f) => f.name === format);
+  /** Players per side, and one until a pairs format says otherwise. */
+  const sideSize = chosen?.sideSize ?? 1;
 
   /**
    * The stake in minor units, from what was typed.
@@ -159,7 +176,7 @@ export function NewMatchForm({
    * Filtering it out here rather than showing it and refusing later means the
    * screen never offers a wager the round cannot hold.
    */
-  const moneyGames = QUICK_MONEY_GAMES.filter((g) => !g.matchOnly || chosen.headToHead);
+  const moneyGames = QUICK_MONEY_GAMES.filter((g) => !g.matchOnly || chosen?.headToHead);
 
   /**
    * Whether a full card is what this round type would ask for anyway.
@@ -172,8 +189,8 @@ export function NewMatchForm({
    * already drifted once over exactly this, which is why the list lives on
    * the format.
    */
-  const cardIsNatural = entryModesFor(chosen.name)[0] === "gross-cards";
-  const exact = exactPlayersFor(chosen);
+  const cardIsNatural = chosen ? entryModesFor(chosen.name)[0] === "gross-cards" : false;
+  const exact = chosen ? exactPlayersFor(chosen) : null;
   const ceiling = exact ?? QUICK_ROUND_MAX_PLAYERS;
   const named = players.filter((p) => p.name.trim().length > 0);
 
@@ -233,7 +250,8 @@ export function NewMatchForm({
    */
   const chooseFormat = (name: string) => {
     setFormat(name);
-    const want = exactPlayersFor(QUICK_ROUND_FORMATS.find((f) => f.name === name) ?? chosen);
+    const picked = QUICK_ROUND_FORMATS.find((f) => f.name === name);
+    const want = picked ? exactPlayersFor(picked) : null;
     if (want !== null) {
       setPlayers((prev) =>
         prev.length >= want
@@ -393,10 +411,10 @@ export function NewMatchForm({
             typing, because it is the only thing that decides who they are
             partnering. A screen that pairs people silently and shows the
             result at the end has asked them to guess. */}
-        {chosen.sideSize > 1 && (
+        {sideSize > 1 && (
           <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
             <Icon name="users" /> Partners are taken in the order below — the first{" "}
-            {chosen.sideSize} against the next {chosen.sideSize}.
+            {sideSize} against the next {sideSize}.
           </p>
         )}
       </div>
@@ -408,9 +426,9 @@ export function NewMatchForm({
                 pairing rule made concrete: it appears above player 1 and
                 player 3, so "the first two against the next two" is something
                 the screen SHOWS rather than something it claims. */}
-            {chosen.sideSize > 1 && i % chosen.sideSize === 0 && (
+            {sideSize > 1 && i % sideSize === 0 && (
               <span className="card-kicker" style={{ marginTop: i === 0 ? 0 : 6 }}>
-                Side {Math.floor(i / chosen.sideSize) + 1}
+                Side {Math.floor(i / sideSize) + 1}
               </span>
             )}
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
@@ -583,7 +601,7 @@ export function NewMatchForm({
         ) : (
           <p className="text-muted" style={{ fontSize: 11.5, margin: 0 }}>
             {exact
-              ? `${chosen.name} is ${headToHeadPhrase(chosen.sideSize)} — ${exact} players. Pick another round type for a bigger group.`
+              ? `${chosen?.name} is ${headToHeadPhrase(sideSize)} — ${exact} players. Pick another round type for a bigger group.`
               : `${QUICK_ROUND_MAX_PLAYERS} is the most for a casual round — beyond two fourballs, set up a tournament.`}
           </p>
         )}
@@ -730,7 +748,15 @@ export function NewMatchForm({
           <Icon name="arrow-right" />
         </button>
         <span className="text-muted" style={{ fontSize: 11.5 }}>
-          {planned.ok ? `Opens the card for ${planned.plan.name}.` : "Two names, and you're away."}
+          {/* "Two names, and you're away" stopped being true the moment the
+              round type stopped being preselected. A hint that names the wrong
+              remaining step is worse than none: it sends somebody back to the
+              names they have already typed. */}
+          {planned.ok
+            ? `Opens the card for ${planned.plan.name}.`
+            : !format
+              ? "Pick what you're playing, then who's in it."
+              : "Two names, and you're away."}
         </span>
       </div>
 

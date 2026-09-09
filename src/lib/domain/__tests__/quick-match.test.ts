@@ -27,7 +27,7 @@ import { isMatch, capabilitiesOf, shapeOption, isTournamentShape } from "@/lib/t
  */
 describe("planning a match", () => {
   it("takes two names and nothing else", () => {
-    const r = planMatch({ players: [{ name: "Alex" }, { name: "Sam" }] });
+    const r = planMatch({ players: [{ name: "Alex" }, { name: "Sam" }], format: "Match Play" });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.plan.players.map((p) => p.name)).toEqual(["Alex", "Sam"]);
@@ -41,8 +41,35 @@ describe("planning a match", () => {
     expect(r.plan.courseId).toBeNull();
   });
 
+  it("refuses to guess what is being played", () => {
+    /**
+     * NO DEFAULT ROUND TYPE.
+     *
+     * This fell back to the first entry, so a caller that said nothing got
+     * Match Play — and the screen preselected it, so the commonest path
+     * through the whole feature never asked. That is a format AND a stage type
+     * decided by the app: the round type is what sets the stage type, the
+     * event's format, and whether a fixture is drawn at all.
+     *
+     * Both a missing choice and an unrecognised one are refused, with the same
+     * sentence, because "pick one of these" is the answer to both.
+     */
+    const missing = planMatch({ players: [{ name: "Alex" }, { name: "Sam" }] });
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.error).toMatch(/pick what/i);
+
+    const nonsense = planMatch({
+      players: [{ name: "Alex" }, { name: "Sam" }],
+      format: "Wolf",
+    });
+    expect(nonsense.ok).toBe(false);
+
+    // And a real one is still taken, or this is just "refuse everything".
+    expect(planMatch({ players: [{ name: "Alex" }, { name: "Sam" }], format: "Match Play" }).ok).toBe(true);
+  });
+
   it("refuses one player, and says what is missing", () => {
-    const r = planMatch({ players: [{ name: "Alex" }, { name: "  " }] });
+    const r = planMatch({ players: [{ name: "Alex" }, { name: "  " }], format: "Match Play" });
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.error).toMatch(/two players/i);
@@ -53,7 +80,7 @@ describe("planning a match", () => {
     // on each side of a card, so two identical names produce a scorecard on
     // which no hole can be attributed. Case-insensitive, because "sam" and
     // "Sam" are one person typing quickly.
-    const r = planMatch({ players: [{ name: "Sam" }, { name: "sam" }] });
+    const r = planMatch({ players: [{ name: "Sam" }, { name: "sam" }], format: "Match Play" });
     expect(r.ok).toBe(false);
     if (r.ok) return;
     // NAMED, which matters more the longer the list gets: "two players have
@@ -102,8 +129,8 @@ describe("planning a match", () => {
   });
 
   it("gives shots only when asked, and calls that net", () => {
-    const level = planMatch({ players: [{ name: "A" }, { name: "B" }], useHandicaps: false });
-    const net = planMatch({ players: [{ name: "A" }, { name: "B" }], useHandicaps: true });
+    const level = planMatch({ players: [{ name: "A" }, { name: "B" }], format: "Match Play", useHandicaps: false });
+    const net = planMatch({ players: [{ name: "A" }, { name: "B" }], format: "Match Play", useHandicaps: true });
     expect(level.ok && level.plan.scoringBasis).toBe("gross");
     expect(net.ok && net.plan.scoringBasis).toBe("net");
     // The two answers must differ, or a passing test proves nothing about
@@ -122,15 +149,15 @@ describe("planning a match", () => {
     // A stored "back" on an eighteen-hole round is not a preference; it is a
     // contradiction that reaches the scorecard as holes scored against the
     // wrong stroke indexes.
-    const eighteen = planMatch({ players: [{ name: "A" }, { name: "B" }], holes: 18, nine: "back" });
+    const eighteen = planMatch({ players: [{ name: "A" }, { name: "B" }], format: "Match Play", holes: 18, nine: "back" });
     expect(eighteen.ok && eighteen.plan.nine).toBe("full");
-    const nine = planMatch({ players: [{ name: "A" }, { name: "B" }], holes: 9, nine: "back" });
+    const nine = planMatch({ players: [{ name: "A" }, { name: "B" }], format: "Match Play", holes: 9, nine: "back" });
     expect(nine.ok && nine.plan.holes).toBe(9);
     expect(nine.ok && nine.plan.nine).toBe("back");
   });
 
   it("takes a title when given one, and names the match after the players when not", () => {
-    const given = planMatch({ players: [{ name: "A" }, { name: "B" }], name: "  The Ryder Mug " });
+    const given = planMatch({ players: [{ name: "A" }, { name: "B" }], format: "Match Play", name: "  The Ryder Mug " });
     expect(given.ok && given.plan.name).toBe("The Ryder Mug");
     expect(matchTitle("A", "B")).toBe("A v B");
   });
@@ -138,7 +165,7 @@ describe("planning a match", () => {
   it("seeds the two players in the order they were entered", () => {
     // Seed decides which side of the card each name appears on, so it must not
     // depend on anything but the order they were typed.
-    const r = planMatch({ players: [{ name: "Zed" }, { name: "Abe" }] });
+    const r = planMatch({ players: [{ name: "Zed" }, { name: "Abe" }], format: "Match Play" });
     expect(r.ok && r.plan.players.map((p) => p.seed)).toEqual([1, 2]);
     expect(r.ok && r.plan.players[0].name).toBe("Zed");
   });
@@ -377,6 +404,7 @@ describe("picking a member, or bringing a guest", () => {
         { name: "Ines", memberId: "mem_1", handicap: "8.2" },
         { name: "Tobias", memberId: "mem_2", handicap: "14" },
       ],
+      format: "Match Play",
     });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -386,7 +414,7 @@ describe("picking a member, or bringing a guest", () => {
   it("marks a guest as a guest rather than inventing a member for them", () => {
     // "" and not null/undefined, so the action's check is a plain lookup with
     // nothing to null-juggle — and a guest is never accidentally truthy.
-    const r = planMatch({ players: [{ name: "Ines", memberId: "mem_1" }, { name: "A mate" }] });
+    const r = planMatch({ players: [{ name: "Ines", memberId: "mem_1" }, { name: "A mate" }], format: "Match Play" });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.plan.players[1].memberId).toBe("");
@@ -399,7 +427,7 @@ describe("picking a member, or bringing a guest", () => {
     // The guest is somebody's mate off 18, and a net round they are in has to
     // give them their shots. Refusing to hold a handicap for a non-member
     // would make "guest" mean "cannot play net", which is not what it means.
-    const r = planMatch({ players: [{ name: "Ines", memberId: "m" }, { name: "A mate", handicap: "18.1" }] });
+    const r = planMatch({ players: [{ name: "Ines", memberId: "m" }, { name: "A mate", handicap: "18.1" }], format: "Match Play" });
     expect(r.ok && r.plan.players[1].handicap).toBe(18.1);
     expect(r.ok && r.plan.players[1].memberId).toBe("");
   });

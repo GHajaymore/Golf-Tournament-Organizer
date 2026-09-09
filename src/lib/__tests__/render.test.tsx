@@ -5287,9 +5287,15 @@ describe("setting up a casual round", () => {
     expect(html).toContain("Playing for anything?");
     expect(html).toContain("No — just the golf");
     expect(html).toContain("Skins");
-    // A Nassau is three bets on one match, and match play is the default —
-    // so it is offered here and gone the moment a medal is picked.
-    expect(html).toContain("Nassau");
+    /**
+     * NO NASSAU UNTIL A ROUND TYPE IS PICKED.
+     *
+     * It is three bets on one MATCH, so it needs a head-to-head to be
+     * between — and nothing is preselected any more, so an untouched screen
+     * has no head-to-head yet. It appeared here because Match Play was the
+     * default, which is exactly the defaulting this screen no longer does.
+     */
+    expect(html).not.toContain("Nassau");
     // And the stake field is NOT there until a game is chosen: a setup screen
     // that shows a "how much?" box by default has made a bet look compulsory.
     expect(html).not.toContain("Stake per player");

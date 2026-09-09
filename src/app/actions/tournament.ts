@@ -63,7 +63,7 @@ import {
   roundHandicapOf,
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
-import { shapeOf, shapeOption } from "@/lib/tournament-shape";
+import { shapeOf } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
 import { drainWaitlist } from "@/lib/services/waitlist";
@@ -3017,7 +3017,6 @@ export async function createEvent(
   // The shape decides what the rest of setup is even about, so it is asked
   // alongside the name rather than buried in a settings screen later.
   const shape = shapeOf(shapeKey);
-  const shapeStart = shapeOption(shape).openingRound;
   const template = templateKey ? templateFor(templateKey) : null;
   // `blank`, not "is it the default". Those are the same entry today only by
   // naming coincidence, and inferring what something IS from a comparison
@@ -3066,28 +3065,44 @@ export async function createEvent(
   // a member-guest IS five nine-hole matches, and leaving four of them to be
   // built by hand is the assembly work that keeps clubs on what they know.
   // Without a template, the shape still decides the single opening round.
-  const plannedRounds = templated?.rounds.length
-    ? templated.rounds
-    : [
-        {
-          type: shapeStart.type,
-          format: shapeStart.format,
-          holes: shapeStart.holes,
-          scoringBasis: shapeStart.scoringBasis,
-          description: "",
-        },
-      ];
-  await prisma.stage.createMany({
-    data: plannedRounds.map((r, position) => ({
-      eventId: event.id,
-      position,
-      description: r.description ?? "",
-      type: r.type,
-      format: r.format,
-      holes: r.holes,
-      scoringBasis: r.scoringBasis,
-    })),
-  });
+  /**
+   * NOTHING IS CREATED WHEN NOBODY CHOSE A FORMAT.
+   *
+   * A template names its rounds, and picking one IS choosing them — the blurb
+   * says what a member-guest is, and building its five nine-hole matches by
+   * hand is the assembly work that keeps clubs on what they know.
+   *
+   * "Start from scratch" names nothing, and this used to fall through to the
+   * SHAPE's opening round: every such tournament arrived holding a Round Robin
+   * it had not been asked about. That is a defaulted format and a defaulted
+   * stage type, decided by the app, on the one path whose whole promise is
+   * "set everything yourself".
+   *
+   * It is not a harmless placeholder either. A round's type and format decide
+   * what is scored and how — `stage-types.ts` records a round robin set to
+   * stroke play "generating a full set of pairings for a round in which nobody
+   * plays anybody" — so a default here is a scoring decision made on the
+   * organizer's behalf and never mentioned again.
+   *
+   * Zero rounds is an ALREADY-SUPPORTED state, not a new one: the setup
+   * checklist has said "No rounds yet — sequence the tournament" since it was
+   * written, and Rounds & formats is step two of the guided flow. The
+   * organizer now arrives there and picks, which is what that screen is for.
+   */
+  const plannedRounds = templated?.rounds ?? [];
+  if (plannedRounds.length > 0) {
+    await prisma.stage.createMany({
+      data: plannedRounds.map((r, position) => ({
+        eventId: event.id,
+        position,
+        description: r.description ?? "",
+        type: r.type,
+        format: r.format,
+        holes: r.holes,
+        scoringBasis: r.scoringBasis,
+      })),
+    });
+  }
   await prisma.account.create({
     data: { eventId: event.id, name: session.name, email: session.email, role: "admin" },
   });

@@ -73,6 +73,7 @@ afterAll(async () => {
 async function orgOnPublicDefault() {
   const first = await createMatch({
     players: [{ name: `${TAG} seed one` }, { name: `${TAG} seed two` }],
+    format: "Match Play",
   });
   expect(first.ok, first.error).toBe(true);
   const ev = await prisma.event.findUnique({
@@ -100,6 +101,7 @@ describe("a casual round created inside a club that publishes everything", () =>
 
     const made = await createMatch({
       players: [{ name: `${TAG} guest one` }, { name: `${TAG} guest two` }],
+      format: "Match Play",
     });
     expect(made.ok, made.error).toBe(true);
 
@@ -132,6 +134,7 @@ describe("a casual round created inside a club that publishes everything", () =>
 
     const made = await createMatch({
       players: [{ name: `${TAG} v one` }, { name: `${TAG} v two` }],
+      format: "Match Play",
     });
     const round = await prisma.event.findUnique({
       where: { id: made.eventId! },

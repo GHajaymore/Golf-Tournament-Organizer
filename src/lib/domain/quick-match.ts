@@ -566,11 +566,27 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
     };
   }
 
-  const format = QUICK_ROUND_FORMATS.find((f) => f.name === (input.format ?? "").trim());
-  if (input.format && !format) {
-    return { ok: false, error: "Pick one of the round types offered." };
+  /**
+   * NO DEFAULT ROUND TYPE. It has to be chosen.
+   *
+   * This fell back to the first entry, so a caller that said nothing got Match
+   * Play — and the screen preselected it, so the commonest path through the
+   * whole feature never asked what people were playing. That is a format and a
+   * stage type decided by the app.
+   *
+   * It matters more here than it looks, because the round type decides three
+   * things nobody sees: the stage type, the event's format, and whether a
+   * fixture is drawn at all. A defaulted format is a defaulted `Round Robin`
+   * with a defaulted match in it, arrived at without a question being asked.
+   *
+   * Refused rather than guessed, and refused with the same sentence whether
+   * the choice is missing or unrecognised — "pick one of these" is the answer
+   * to both, and the screen shows the list right above it.
+   */
+  const chosen = QUICK_ROUND_FORMATS.find((f) => f.name === (input.format ?? "").trim());
+  if (!chosen) {
+    return { ok: false, error: "Pick what you're playing." };
   }
-  const chosen = format ?? QUICK_ROUND_FORMATS[0];
 
   /**
    * A match is between two sides, so the number of players is not a choice.
