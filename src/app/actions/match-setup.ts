@@ -360,6 +360,74 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
     });
   }
 
+  /**
+   * The money game, if they said they were playing for something.
+   *
+   * Created HERE rather than left to the money screen, because "we're in for a
+   * fiver" is agreed on the first tee at the same moment as everything else,
+   * and a second screen to go and say so afterwards is the step this whole
+   * path exists to remove.
+   *
+   * `groupKey: ""` — the FIELD's game. On a casual round the whole field is
+   * the group, which is the same coincidence `/group-games` relies on:
+   * `potAudience` returns the field for the empty key, so everyone playing is
+   * in it with no tee sheet and nobody ticking names.
+   *
+   * TourneyHQ works out who owes whom. It never moves the money.
+   */
+  if (plan.money) {
+    if (plan.money.game.pot === "skins") {
+      const pot = await prisma.skinsPot.create({
+        data: {
+          eventId: event.id,
+          stageId: stage.id,
+          buyInCents: plan.money.stakeCents,
+          // Net follows the round: a level round's skins are gross, and a
+          // net pot on a round played off scratch would allocate shots the
+          // players agreed not to give.
+          net: plan.scoringBasis === "net",
+          scope: plan.nine,
+          groupKey: "",
+        },
+      });
+
+      /**
+       * Everybody in, because everybody said so.
+       *
+       * A skins pot is opt-in and has no "everyone" mode, so the rows have to
+       * be written. `confirmed` is true, and the schema is careful that this
+       * means somebody HAS the cash rather than intends to — which is exactly
+       * what it means here: this is not an organizer ticking forty names, it
+       * is the person who set the round up recording what the group just
+       * agreed standing on the tee.
+       */
+      await prisma.skinsEntry.createMany({
+        data: playerIds.map((playerId) => ({ potId: pot.id, playerId })),
+      });
+    } else {
+      await prisma.sideGame.create({
+        data: {
+          eventId: event.id,
+          stageId: stage.id,
+          kind: plan.money.game.kind ?? "",
+          buyInCents: plan.money.stakeCents,
+          /**
+           * OPT-OUT, which skins cannot be and this can.
+           *
+           * Everyone in the round is in unless they say otherwise — the mode
+           * `pot-entry.ts` describes as how a weekly league actually runs, and
+           * a casual round is the purest case of it. No rows to write and none
+           * to forget: a player is in because they are playing.
+           */
+          entryMode: "opt-out",
+          groupKey: "",
+          createdBy: session.name,
+        },
+      });
+
+    }
+  }
+
   await setActiveEvent(event.id);
   /**
    * Both, and they are not the same thing.

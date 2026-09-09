@@ -7,6 +7,8 @@ import {
   exactPlayersFor,
   sidesFrom,
   QUICK_ROUND_FORMATS,
+  QUICK_MONEY_GAMES,
+  MAX_QUICK_STAKE,
   HANDICAP_MIN,
   HANDICAP_MAX,
 } from "../quick-match";
@@ -400,6 +402,107 @@ describe("picking a member, or bringing a guest", () => {
     const r = planMatch({ players: [{ name: "Ines", memberId: "m" }, { name: "A mate", handicap: "18.1" }] });
     expect(r.ok && r.plan.players[1].handicap).toBe(18.1);
     expect(r.ok && r.plan.players[1].memberId).toBe("");
+  });
+});
+
+/**
+ * The money agreed on the first tee.
+ *
+ * Every case here is about a wrong answer that SETTLES — a stake nobody typed,
+ * a bet with no opponent, a slipped decimal — because this app records what
+ * people owe each other and a wrong number here becomes a demand.
+ */
+describe("setting up a round with money on it", () => {
+  const round = (money: { game: string; stakeCents: number } | null, format = "Match Play") =>
+    planMatch({ players: [{ name: "A" }, { name: "B" }], format, money });
+
+  it("plays for nothing unless somebody says otherwise", () => {
+    // The default, and it stays the default. A setup screen that asks "how
+    // much?" before anything else has made a bet the condition of playing.
+    const none = round(null);
+    expect(none.ok).toBe(true);
+    if (none.ok) expect(none.plan.money).toBeNull();
+    // An empty choice from an untouched form is the same thing, not an error.
+    const untouched = round({ game: "", stakeCents: 0 });
+    expect(untouched.ok).toBe(true);
+    if (untouched.ok) expect(untouched.plan.money).toBeNull();
+  });
+
+  it("carries the game and the stake through in minor units", () => {
+    const r = round({ game: "skins", stakeCents: 500 });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.money?.game.key).toBe("skins");
+    expect(r.plan.money?.stakeCents).toBe(500);
+    // Skins is its own model; the others are side games. The action branches
+    // on this, so a wrong value writes the bet into the wrong table.
+    expect(r.plan.money?.game.pot).toBe("skins");
+  });
+
+  it("refuses a game with no stake rather than creating a bet for nothing", () => {
+    // The one combination that looks deliberate and settles to zero for
+    // everybody — a pot somebody believes they are in, worth nothing.
+    const r = round({ game: "skins", stakeCents: 0 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/stake/i);
+  });
+
+  it("refuses a slipped decimal", () => {
+    // Not a moral position about stakes — a Sunday game can be whatever the
+    // players agree. But a typo of 50000 for 500 becomes a settle-up demanding
+    // a hundred times what anybody said, recorded as fact.
+    expect(round({ game: "skins", stakeCents: MAX_QUICK_STAKE }).ok).toBe(true);
+    expect(round({ game: "skins", stakeCents: MAX_QUICK_STAKE + 1 }).ok).toBe(false);
+  });
+
+  it("refuses a game nobody offered", () => {
+    const r = round({ game: "spread-betting", stakeCents: 500 });
+    expect(r.ok).toBe(false);
+  });
+
+  it("allows a Nassau on a match and refuses one on a medal", () => {
+    /**
+     * A Nassau is three bets on ONE match — front nine, back nine, overall —
+     * so it needs two sides to be between. On a four-person medal it names a
+     * wager with no opponent in it.
+     *
+     * Both directions asserted: "refuses on a medal" alone passes a rule that
+     * refuses Nassau everywhere, which would be removing the game rather than
+     * placing it.
+     */
+    expect(round({ game: "nassau", stakeCents: 500 }, "Match Play").ok).toBe(true);
+
+    const medal = planMatch({
+      players: [{ name: "A" }, { name: "B" }, { name: "C" }],
+      format: "Stroke Play",
+      money: { game: "nassau", stakeCents: 500 },
+    });
+    expect(medal.ok).toBe(false);
+    if (!medal.ok) expect(medal.error).toMatch(/two sides|match/i);
+
+    // And a game that is not match-only is fine on that same medal, so the
+    // refusal above is about the Nassau rather than about money on a medal.
+    expect(
+      planMatch({
+        players: [{ name: "A" }, { name: "B" }, { name: "C" }],
+        format: "Stroke Play",
+        money: { game: "skins", stakeCents: 500 },
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("only offers games the rest of the app can actually settle", () => {
+    // Skins is a `SkinsPot`; the others are `SideGame` rows whose `kind` has
+    // to be one the settle-up knows. A kind invented here would create a bet
+    // that no engine ever resolves — money recorded and never paid out.
+    const SIDE_KINDS = ["low-gross", "low-net", "birdies", "eagles", "nassau"];
+    for (const g of QUICK_MONEY_GAMES) {
+      if (g.pot === "side") {
+        expect(SIDE_KINDS, g.key).toContain(g.kind);
+      } else {
+        expect(g.pot, g.key).toBe("skins");
+      }
+    }
   });
 });
 

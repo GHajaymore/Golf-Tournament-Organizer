@@ -9,6 +9,7 @@ import {
   headToHeadPhrase,
   QUICK_ROUND_FORMATS,
   QUICK_ROUND_MAX_PLAYERS,
+  QUICK_MONEY_GAMES,
 } from "@/lib/domain/quick-match";
 import { Icon } from "./Icon";
 
@@ -113,10 +114,36 @@ export function NewMatchForm({
   const [nine, setNine] = useState("front");
   const [useHandicaps, setUseHandicaps] = useState(false);
   const [courseId, setCourseId] = useState("");
+  /** "" means playing for nothing, which is the default and stays the default. */
+  const [moneyGame, setMoneyGame] = useState("");
+  /** The stake as typed, in whole currency units — "5", "2.50". */
+  const [stake, setStake] = useState("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
   const chosen = QUICK_ROUND_FORMATS.find((f) => f.name === format) ?? QUICK_ROUND_FORMATS[0];
+
+  /**
+   * The stake in minor units, from what was typed.
+   *
+   * Built here rather than in the domain because the domain takes minor units
+   * — an integer number of pennies is unambiguous, and "5.00" is not. Anything
+   * unparseable becomes 0, which `planMatch` then refuses by name if a game
+   * was chosen; that is better than guessing at a number that is money.
+   */
+  const stakeCents = (() => {
+    const n = Number(stake.replace(/[^0-9.]/g, ""));
+    return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
+  })();
+
+  /**
+   * Games this round type can actually run.
+   *
+   * A Nassau is three bets on ONE match, so it needs two sides to be between.
+   * Filtering it out here rather than showing it and refusing later means the
+   * screen never offers a wager the round cannot hold.
+   */
+  const moneyGames = QUICK_MONEY_GAMES.filter((g) => !g.matchOnly || chosen.headToHead);
   const exact = exactPlayersFor(chosen);
   const ceiling = exact ?? QUICK_ROUND_MAX_PLAYERS;
   const named = players.filter((p) => p.name.trim().length > 0);
@@ -209,6 +236,7 @@ export function NewMatchForm({
     nine: holes === 9 ? nine : "full",
     useHandicaps,
     courseId,
+    money: { game: moneyGame, stakeCents },
   });
 
   /**
@@ -231,6 +259,7 @@ export function NewMatchForm({
         nine: holes === 9 ? nine : "full",
         useHandicaps,
         courseId,
+        money: { game: moneyGame, stakeCents },
       });
       if (!res.ok) {
         setError(res.error ?? "Couldn't set that round up.");
@@ -557,6 +586,62 @@ export function NewMatchForm({
             Strokes are given by stroke index, so a course with its card filled in is needed before
             this can be scored. Playing level needs nothing.
           </p>
+        )}
+      </div>
+
+      {/* PLAYING FOR SOMETHING, asked here rather than on a screen afterwards.
+
+          "We're in for a fiver" is agreed on the first tee at the same moment
+          as everything else on this page, and sending somebody to a separate
+          money screen to say so is exactly the extra step this whole path
+          exists to remove.
+
+          Off by default, and it stays off by default: a setup screen that
+          asks "how much?" before it asks anything else has made a bet the
+          condition of playing. */}
+      <div className="field">
+        <label>Playing for anything?</label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+          <button type="button" style={pill(moneyGame === "")} onClick={() => setMoneyGame("")}>
+            No — just the golf
+          </button>
+          {moneyGames.map((g) => (
+            <button
+              key={g.key}
+              type="button"
+              style={pill(moneyGame === g.key)}
+              onClick={() => setMoneyGame(g.key)}
+            >
+              {g.label}
+            </button>
+          ))}
+        </div>
+        {moneyGame !== "" && (
+          <>
+            <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.5 }}>
+              {moneyGames.find((g) => g.key === moneyGame)?.blurb}
+            </p>
+            <div className="field" style={{ maxWidth: 180, marginTop: 10 }}>
+              <label>Stake each</label>
+              <input
+                className="input"
+                inputMode="decimal"
+                value={stake}
+                onChange={(e) => setStake(e.target.value)}
+                placeholder="5"
+                aria-label="Stake per player"
+              />
+            </div>
+            {/* THE SENTENCE THIS APP HAS TO KEEP SAYING. It works out who owes
+                whom and writes it down; it never moves a penny. Said here
+                because this is the moment somebody first agrees to money in
+                it, and an app that took a stake without saying so would be
+                claiming to be something it is not. */}
+            <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.5 }}>
+              Everyone playing is in. The app works out who won what and who owes whom — it never
+              takes or moves any money.
+            </p>
+          </>
         )}
       </div>
 
