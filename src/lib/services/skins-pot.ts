@@ -275,6 +275,44 @@ export async function skinsPotFor(
     strokesBy.set(playerId, parse(row.strokes));
   }
 
+  /**
+   * AND THE CARDS A TEAM ROUND KEEPS, WHICH ARE ALREADY PER PLAYER.
+   *
+   * A four-ball was left alone when the match-play source was added, on the
+   * reasoning that a team fixture names TEAMS and slot "A" is a side of two
+   * rather than somebody's card. That is true of `MatchScorecard` and simply
+   * not how a team round stores anything: it writes `TeamScorecard`, and that
+   * table carries its own `playerId`.
+   *
+   * Read off a real four-ball on 2026-09-08 — four rows, four different
+   * player ids, four different cards. The assumption was wrong and the note
+   * saying "deliberately unsettled" was wrong with it, so £20 sat in a pot
+   * reading "0 skins · provisional" for no reason at all.
+   *
+   * FOURSOMES IS THE CASE THAT STAYS OUT, and now for a reason about golf
+   * rather than about storage. Partners play ONE ball, so the side returns one
+   * card with no player against it — `playerId` is empty — and an individual
+   * skin is not a thing that happened.
+   *
+   * The `!row.playerId` half of the guard is DEFENSIVE, measured rather than
+   * assumed: deleting it leaves the audit green, because an empty key matches
+   * no player either way. What actually keeps foursomes out is that its card
+   * carries nobody's id. The check stays so the strokes map never holds a junk
+   * key, not because it is what makes the answer right. (It was claimed as
+   * load-bearing here on first writing and was not; the mutation said so.)
+   *
+   * Gap-filling, like the source above it: a player who already has a card
+   * keeps it, so nothing that settles today changes.
+   */
+  const teamCards = await prisma.teamScorecard.findMany({
+    where: { eventId, stageId },
+    select: { playerId: true, strokes: true },
+  });
+  for (const row of teamCards) {
+    if (!row.playerId || strokesBy.has(row.playerId)) continue;
+    strokesBy.set(row.playerId, parse(row.strokes));
+  }
+
   const returned = (id: string) => (strokesBy.get(id) ?? []).some((s) => s != null);
 
   /**

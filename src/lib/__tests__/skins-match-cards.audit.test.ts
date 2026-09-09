@@ -259,15 +259,19 @@ describe("and changes nothing for a round that already settled", () => {
     ).toBe(2);
   });
 
-  it("leaves a team fixture alone rather than guessing whose card a side is", async () => {
+  it("credits nobody off a match fixture that names teams rather than players", async () => {
     /**
      * A team round names TEAMS on the fixture and leaves the player columns
      * empty — the schema is explicit about it — so slot "A" is a side of two
      * and not somebody's card. Attributing it to a player would credit one
      * partner with the pair's strokes.
      *
-     * Still unsettled for team rounds, deliberately, and asserted so that
-     * "unsettled" cannot quietly become "settled wrongly".
+     * This is about the MATCH fixture only, and the claim that once sat here
+     * — "team rounds are deliberately still unsettled" — was WRONG and has
+     * been removed. A team round keeps its own per-player cards on
+     * `TeamScorecard`, which carries a `playerId`; the four-ball case below is
+     * the one that reads them. Only foursomes stays out, and for a reason
+     * about golf rather than storage.
      *
      * WHAT THIS TEST DOES AND DOES NOT PIN, measured rather than claimed:
      * deleting the reader's `!playerId` check leaves this green, because an
@@ -304,5 +308,137 @@ describe("and changes nothing for a round that already settled", () => {
     // Nobody is credited with a skin off a side's card.
     expect(view!.result!.claimedSkins).toBe(0);
     expect(view!.result!.shares.every((s) => s.skins === 0)).toBe(true);
+  });
+});
+
+/**
+ * A four-ball settles per player; foursomes cannot, and the difference is golf
+ * rather than storage.
+ *
+ * In a four-ball everyone plays their OWN ball, so `TeamScorecard` holds one
+ * row per player with that player's id on it — read off a real round on
+ * 2026-09-08: four rows, four ids, four cards. An individual skin is a thing
+ * that happened and can be paid.
+ *
+ * In foursomes the partners play ONE ball. The side returns a single card with
+ * no player against it, and "who won this hole outright" has no individual
+ * answer at all. Leaving that pot unsettled is the correct outcome, not a gap.
+ */
+describe("a skins pot on a team round", () => {
+  it("settles a four-ball off each player's own card", async () => {
+    const round = await makeRound("four-ball", "Four-Ball", "Round Robin");
+    // Two more players, because a four-ball is four.
+    const extra = [];
+    for (const [i, who] of [`${TAG} Ravi`, `${TAG} Suki`].entries()) {
+      extra.push(
+        await prisma.player.create({
+          data: {
+            eventId: round.eventId,
+            groupId: round.groupId,
+            name: who,
+            handicap: 0,
+            seed: i + 3,
+            status: "confirmed",
+          },
+          select: { id: true, name: true },
+        }),
+      );
+    }
+    const all = [...round.players, ...extra];
+    await makePot(round.eventId, round.stageId, all.map((p) => p.id));
+
+    const teamA = await prisma.team.create({
+      data: { eventId: round.eventId, stageId: round.stageId, name: "A", seed: 1 },
+      select: { id: true },
+    });
+    const teamB = await prisma.team.create({
+      data: { eventId: round.eventId, stageId: round.stageId, name: "B", seed: 2 },
+      select: { id: true },
+    });
+    const match = await prisma.match.create({
+      data: {
+        eventId: round.eventId,
+        stageId: round.stageId,
+        groupId: round.groupId,
+        round: 1,
+        playerAId: "",
+        playerBId: "",
+        teamAId: teamA.id,
+        teamBId: teamB.id,
+        holes: JSON.stringify(new Array(18).fill(null)),
+      },
+      select: { id: true },
+    });
+
+    // One card per PLAYER, which is what a four-ball stores. Only the first
+    // player wins anything outright; the other three par everything.
+    await prisma.teamScorecard.createMany({
+      data: all.map((p, i) => ({
+        eventId: round.eventId,
+        stageId: round.stageId,
+        teamId: i < 2 ? teamA.id : teamB.id,
+        matchId: match.id,
+        playerId: p.id,
+        strokes: JSON.stringify(i === 0 ? CARD_A : CARD_B),
+      })),
+    });
+
+    const view = await skinsPotFor(round.eventId, round.stageId, false, "full", "");
+    expect(view!.result!.claimedSkins, "two holes won outright").toBe(2);
+    expect(view!.result!.unclaimedSkins, "sixteen tied").toBe(16);
+
+    const shareOf = (name: string) =>
+      view!.result!.shares.find((s) => view!.nameById[s.playerId]?.endsWith(name));
+    expect(shareOf("Ines")?.skins).toBe(2);
+    // The whole pot — four stakes of 500 — goes to the only player who won a
+    // skin, so she is up three stakes and everybody else is down one.
+    expect(shareOf("Ines")?.netCents).toBe(1500);
+    for (const loser of ["Otto", "Ravi", "Suki"]) {
+      expect(shareOf(loser)?.skins, loser).toBe(0);
+      expect(shareOf(loser)?.netCents, loser).toBe(-500);
+    }
+    expect(view!.result!.shares.reduce((t, s) => t + s.netCents, 0)).toBe(0);
+  });
+
+  it("leaves foursomes unsettled, because one ball has no individual winner", async () => {
+    /**
+     * Partners play a single ball, so the side returns one card with no player
+     * against it. There is no individual skin to pay, and inventing one would
+     * credit a hole to whichever partner the row happened to name.
+     *
+     * What this test pins is the OUTCOME, and measurement says so: deleting
+     * the reader's `!playerId` check leaves this green, exactly as it does on
+     * the match source. An empty key matches no player either way, so what
+     * keeps foursomes out is that its card carries nobody's id — not the line
+     * that looks like it does.
+     *
+     * Worth stating because the opposite was written here first, and the
+     * mutation contradicted it. A guard is defensive until a red test says
+     * otherwise.
+     */
+    const round = await makeRound("foursomes", "Foursomes", "Round Robin");
+    await makePot(round.eventId, round.stageId, round.players.map((p) => p.id));
+
+    const team = await prisma.team.create({
+      data: { eventId: round.eventId, stageId: round.stageId, name: "A", seed: 1 },
+      select: { id: true },
+    });
+    // ONE card for the side, with no player on it — the shape a shared ball
+    // produces.
+    await prisma.teamScorecard.create({
+      data: {
+        eventId: round.eventId,
+        stageId: round.stageId,
+        teamId: team.id,
+        matchId: "",
+        playerId: "",
+        strokes: JSON.stringify(CARD_A),
+      },
+    });
+
+    const view = await skinsPotFor(round.eventId, round.stageId, false, "full", "");
+    expect(view!.result!.claimedSkins).toBe(0);
+    expect(view!.result!.shares.every((s) => s.skins === 0)).toBe(true);
+    expect(view!.result!.shares.every((s) => s.netCents === 0)).toBe(true);
   });
 });
