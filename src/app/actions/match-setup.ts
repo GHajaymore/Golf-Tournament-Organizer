@@ -140,6 +140,35 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
       // settings that exist to police a field are set to the answer a field of
       // two makes true anyway.
       ...(await settingsForNewEvent(organizationId)),
+      /**
+       * NOT PUBLIC, whatever the club's default is.
+       *
+       * This was the one setting in this group left inherited, and it is the
+       * one with a person on the other end of it. `leaderboardVisibility:
+       * "public"` means, in the app's own words where it is declared, "a
+       * read-only link anyone can open, no sign-in. Shows player names and
+       * scores."
+       *
+       * A club choosing that for its tournaments is making a reasonable
+       * decision about ITS competitions, where entrants signed up knowing
+       * there is a leaderboard. A casual round's players did not sign up for
+       * anything: a guest is somebody's mate, entered by a third party, who
+       * needs no account and is deliberately not in the roster. Publishing
+       * their name is a decision nobody made about them, taken by inheritance
+       * from a setting they have never seen.
+       *
+       * Demonstrated rather than assumed on 2026-09-09: a casual round given
+       * that visibility served both guests' names to an unauthenticated
+       * request, with the round's title — built from those names — as the page
+       * title. `noindex` keeps it out of search results and does nothing about
+       * the link itself.
+       *
+       * "participants" rather than "staff": a member picked off the roster can
+       * sign in and should see the round they are playing. What changes is
+       * that sharing it becomes a DECISION — the round stays `configUnlocked`,
+       * so anyone who does want a public link can turn one on.
+       */
+      leaderboardVisibility: "participants",
       scoreEntryBy: "players",
       scoreEntryWindow: "during",
       // Nobody else is watching, and there is no committee to approve a card
