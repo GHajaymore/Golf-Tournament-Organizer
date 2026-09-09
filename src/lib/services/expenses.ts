@@ -647,6 +647,35 @@ async function gameNets(
   };
 }
 
+/**
+ * The entry belonging to a signed-in address, or none at all.
+ *
+ * AN EMPTY ADDRESS IDENTIFIES NOBODY, and matching one is the whole point of
+ * this function existing rather than an inline `find`. Both readers below
+ * compared `p.email === email` directly, so an empty argument matched the
+ * FIRST player who also had no email — and reported that player's money as the
+ * caller's own.
+
+ * Measured on 2026-09-08 on a three-player casual round: asked for each player
+ * in turn, it answered with the first one's id and the first one's £3.75 all
+ * three times. The pot itself was right to the penny — +375, -75, -300, summing
+ * to zero — and the "yours" figure on top of it named the wrong person twice.
+ *
+ * It matters now because casual rounds create emailless players ON PURPOSE: a
+ * guest is somebody's mate playing once, who needs no account and is not put in
+ * the club's roster. A database that used to hold a few blank addresses now
+ * fills with them by design.
+ *
+ * The rule was already here and already applied — six lines above the first
+ * caller, `byEmail` filters `(p) => p.email` before keying a map on it. One
+ * lookup had the rule and the lookup beneath it did not.
+ */
+function entryFor<T extends { email: string | null }>(players: T[], email: string): T | undefined {
+  const wanted = (email ?? "").trim().toLowerCase();
+  if (!wanted) return undefined;
+  return players.find((p) => (p.email ?? "").trim().toLowerCase() === wanted);
+}
+
 export async function moneyFor(
   eventId: string,
   email: string,
@@ -743,7 +772,7 @@ export async function moneyFor(
     players.filter((p) => p.email).map((p) => [p.email.toLowerCase(), p.name]),
   );
   const enteredBy = (who: string) => byEmail.get((who ?? "").toLowerCase()) ?? who;
-  const me = players.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
+  const me = entryFor(players, email);
 
   const domain: DomainExpense[] = rows.map((r) => ({
     id: r.id,
@@ -1283,7 +1312,7 @@ async function stakeFor(
  */
 export async function roundMoneyFor(eventId: string, email: string): Promise<RoundMoneyView> {
   const state = await loadEventState(eventId);
-  const me = state?.confirmed.find((p) => p.email?.toLowerCase() === email.trim().toLowerCase());
+  const me = entryFor(state?.confirmed ?? [], email);
   const nameOf = new Map((state?.confirmed ?? []).map((p) => [p.id, p.name]));
 
   const stages = (state?.stages ?? []).filter((s) => isPlayingRound(s.type));
