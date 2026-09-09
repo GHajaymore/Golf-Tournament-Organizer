@@ -137,6 +137,91 @@ export const QUICK_ROUND_FORMATS: readonly QuickRoundFormatOption[] = [
 export const SIDES_IN_A_MATCH = 2;
 
 /**
+ * The money games a casual round may be set up with.
+ *
+ * ONE game, chosen on the first tee, and the shortness is the design again.
+ * Every one of these is an existing, settled game in this app — the same pots
+ * and the same engines a club's league runs on — so this adds a door, not a
+ * second money system.
+ *
+ * `kind` is what gets written. Skins is its own model (`SkinsPot`) and the
+ * others are `SideGame` rows, which is why it carries a `pot` discriminator
+ * rather than everything being one enum: the storage genuinely differs, and
+ * pretending otherwise here would push the difference into the action as an
+ * if-statement nobody maintains.
+ *
+ * Anything else — a second game, a different stake, gross instead of net — is
+ * on the round's own money screen the moment it exists. This is the starting
+ * point, not the whole menu.
+ *
+ * TourneyHQ works out who owes whom. It never moves the money.
+ */
+export interface QuickMoneyGame {
+  key: string;
+  label: string;
+  blurb: string;
+  /** Which store this game lives in — they are different models. */
+  pot: "skins" | "side";
+  /** The `SideGame.kind` written for a "side" game. Unused for skins. */
+  kind?: string;
+  /**
+   * Only offered on a head-to-head.
+   *
+   * A Nassau is three bets on ONE match — the front nine, the back nine and
+   * the whole thing — so it needs two sides to be between. Offering it on a
+   * four-person medal names a wager with no opponent in it.
+   */
+  matchOnly?: boolean;
+}
+
+export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
+  {
+    key: "skins",
+    label: "Skins",
+    blurb: "A pot on every hole. Win one outright and you take it; tie it and it carries over.",
+    pot: "skins",
+  },
+  {
+    key: "birdies",
+    label: "Birdie pot",
+    blurb: "Everyone puts in the same, and every birdie made takes a share of it.",
+    pot: "side",
+    kind: "birdies",
+  },
+  {
+    key: "nassau",
+    label: "Nassau",
+    blurb: "Three bets in one: the front nine, the back nine, and the match overall.",
+    pot: "side",
+    kind: "nassau",
+    matchOnly: true,
+  },
+];
+
+/**
+ * The most a casual round's stake may be, in minor units.
+ *
+ * £1,000 a head. Not a moral position — a Sunday game can be whatever the
+ * players agree — but a typo of 50000 for 500 is a settle-up demanding a
+ * hundred times what anybody said, and the app records that as fact. High
+ * enough never to refuse a real game, low enough to catch a slipped decimal.
+ */
+export const MAX_QUICK_STAKE = 100_000;
+
+export interface QuickMoneyChoice {
+  /** One of `QUICK_MONEY_GAMES`. */
+  game: string;
+  /** Stake per player, in minor units. */
+  stakeCents: number;
+}
+
+/** What the plan says to create, or null for a round played for nothing. */
+export interface PlannedMoney {
+  game: QuickMoneyGame;
+  stakeCents: number;
+}
+
+/**
  * How many players this round type needs, when it needs an exact number.
  *
  * DERIVED rather than stored, which is the whole of the improvement. It was an
@@ -224,6 +309,8 @@ export interface MatchSetupInput {
   courseId?: string | null;
   /** What to call it. Blank names the match after the two players. */
   name?: string | null;
+  /** Playing for something. Absent, or a zero stake, means playing for nothing. */
+  money?: QuickMoneyChoice | null;
 }
 
 export interface PlannedMatchPlayer {
@@ -338,6 +425,14 @@ export interface MatchPlan {
   sides: PlannedSide[];
   scoringBasis: "gross" | "net";
   courseId: string | null;
+  /**
+   * The money game to create alongside the round, or null for none.
+   *
+   * Null for a round played for nothing, which is the default and stays the
+   * default: a screen that asks "how much?" before it asks anything else has
+   * made a bet the condition of playing.
+   */
+  money: PlannedMoney | null;
 }
 
 export type MatchPlanResult = { ok: true; plan: MatchPlan } | { ok: false; error: string };
@@ -517,6 +612,42 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
    * Empty for an individual round — see the note on `MatchPlan.sides` for why
    * that is not "one side each".
    */
+  /**
+   * The money, judged before anything is created.
+   *
+   * Refused rather than silently dropped at every step. A round that quietly
+   * came out with no bet on it, or with a stake nobody typed, is money — and
+   * this app's rule about money is that it records what people agreed, so a
+   * disagreement has to be visible at the point somebody can still fix it.
+   */
+  const money = ((): PlannedMoney | null | { error: string } => {
+    const wanted = input.money;
+    if (!wanted) return null;
+
+    const stake = Math.round(Number(wanted.stakeCents));
+    const game = QUICK_MONEY_GAMES.find((g) => g.key === (wanted.game ?? "").trim());
+
+    // No game and no stake is "playing for nothing", which is not an error.
+    if (!game && !stake) return null;
+    if (!game) return { error: "Pick one of the money games offered." };
+    // A game chosen with no stake is a bet for nothing, which is the one
+    // combination that looks deliberate and settles to zero for everybody.
+    if (!Number.isFinite(stake) || stake <= 0) {
+      return { error: `How much is the ${game.label.toLowerCase()} for? Put a stake in, or play for nothing.` };
+    }
+    if (stake > MAX_QUICK_STAKE) {
+      return { error: "That stake looks like a slipped decimal. Check it before starting the round." };
+    }
+    if (game.matchOnly && !headToHead) {
+      return {
+        error: `A ${game.label} is three bets on one match, so it needs two sides. Pick another game, or play match play.`,
+      };
+    }
+    return { game, stakeCents: stake };
+  })();
+
+  if (money && "error" in money) return { ok: false, error: money.error };
+
   const grouped = sidesFrom(named, chosen.sideSize);
   const sideOf = new Map<string, number>();
   grouped.forEach((side, i) => side.forEach((p) => sideOf.set(p.name.toLowerCase(), i)));
@@ -564,6 +695,7 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
       // else.
       scoringBasis: input.useHandicaps ? "net" : "gross",
       courseId: (input.courseId ?? "").trim() || null,
+      money,
     },
   };
 }

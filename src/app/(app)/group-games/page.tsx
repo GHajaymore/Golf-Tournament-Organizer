@@ -9,6 +9,8 @@ import { prisma } from "@/lib/db";
 import { SideBetStart } from "@/components/SideBetStart";
 import { RoundPicker } from "@/components/RoundPicker";
 import { isMatch } from "@/lib/tournament-shape";
+import { ContestsClient } from "@/components/ContestsClient";
+import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 
 /**
  * Each fourball's own money, kept apart from the field's.
@@ -127,11 +129,62 @@ export default async function GroupGamesPage({
   /**
    * The round's own pot, for a casual round only.
    *
-   * Net and full-round, the same defaults the per-group pots use, because that
-   * is the game people actually agree on the first tee. The scope and basis
-   * are changeable from the pot's own controls once it exists.
+   * MATCHED TO THE ROUND, not to a pair of defaults. A `SkinsPot` is keyed on
+   * (round, net, scope, group), so asking for the net full-round pot returns a
+   * DIFFERENT ROW from a gross one or a front-nine one — an empty one, which
+   * renders as "no pot yet" beside a round that has a real pot on it with real
+   * money in it.
+   *
+   * That is exactly what happened: a level round set up with a £5 skins pot
+   * created a GROSS pot, this screen asked for the NET one, and the money
+   * screen showed an empty net pot while the game the players had agreed was
+   * invisible. Found by reading the row back after setting one up rather than
+   * by looking at the screen, which looked plausible.
+   *
+   * So both facts come from the round. A level round's skins are gross —
+   * allocating shots the players agreed not to give would be inventing a
+   * different game — and a nine-hole round's pot is over that nine.
    */
-  const roundPot = casual && week ? await skinsPotFor(session.eventId, week.id, true, "full", "") : null;
+  const roundPot =
+    casual && week
+      ? await skinsPotFor(
+          session.eventId,
+          week.id,
+          week.scoringBasis === "net",
+          week.nine === "front" || week.nine === "back" ? week.nine : "full",
+          "",
+        )
+      : null;
+
+  /**
+   * The round's own SIDE games — a birdie pot, a Nassau — for a casual round.
+   *
+   * These are the field's games (`groupKey: ""`), and the field's games have
+   * only ever rendered on Prizes & payouts. A casual round no longer has that
+   * screen, so a birdie pot set up with the round existed, held real money,
+   * and appeared NOWHERE: the money screen showed an empty skins card beside
+   * it and never mentioned it.
+   *
+   * Found the same way as the skins mismatch just above — by reading the row
+   * back after setting one up, rather than by looking at a screen that seemed
+   * fine. Both are the same shape of defect: money created against one key and
+   * displayed from another.
+   */
+  const roundSideGames =
+    casual && week
+      ? await prisma.sideGame.findMany({
+          where: { eventId: session.eventId, stageId: week.id, groupKey: "" },
+          include: { entrants: true },
+        })
+      : [];
+
+  // Confirmed entries only: an opt-out pot means "everyone PLAYING", and a
+  // waitlisted player is not playing. The same rule Prizes uses, asked the
+  // same way, so the two screens cannot disagree about who is in a pot.
+  const potFieldIds = state.confirmed.map((p) => p.id);
+  const potStakeholderIds = state.players.map((p) => p.id);
+  const potNameOf = (id: string) => state.players.find((p) => p.id === id)?.name ?? "Unknown";
+  const potModeOf = (v: string) => (isPotEntryMode(v) ? v : "opt-in");
 
   const fieldForBets = [...state.confirmed]
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -222,6 +275,35 @@ export default async function GroupGamesPage({
             groupLabel={group.name}
           />
         ) : null,
+      )}
+
+      {/* The round's own side games, for a casual round. Contests are empty on
+          purpose: a closest-to-the-pin is a thing a club puts on for a field,
+          and this screen belongs to the people playing. */}
+      {casual && week && roundSideGames.length > 0 && (
+        <ContestsClient
+          roundLabel="this round"
+          stageId={week.id}
+          contests={[]}
+          sideGames={roundSideGames.map((g) => {
+            const m = potMembership(
+              potModeOf(g.entryMode),
+              potFieldIds,
+              g.entrants,
+              potStakeholderIds,
+            );
+            return {
+              id: g.id,
+              kind: g.kind,
+              buyInCents: g.buyInCents,
+              entryMode: potModeOf(g.entryMode),
+              entrantIds: m.entrants,
+              pending: m.pending.map((playerId) => ({ playerId, name: potNameOf(playerId) })),
+              excluded: m.excluded.map((playerId) => ({ playerId, name: potNameOf(playerId) })),
+            };
+          })}
+          field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
+        />
       )}
 
       {/* The bets that cross fourballs, after the fourballs' own. */}
