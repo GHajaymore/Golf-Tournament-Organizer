@@ -8,6 +8,9 @@ const BLANK: SetupFacts = {
   stages: 0,
   groups: 0,
   matches: 0,
+  // A round robin, so the fixtures test applies — the case every
+  // assertion below was written against.
+  drawsPairings: true,
   named: false,
   dated: false,
   venued: false,
@@ -181,5 +184,77 @@ describe("the hand-off from setting up to running", () => {
     const halfway = flowOf({ named: true, dated: true, stages: 1, launched: false });
     expect(halfway.complete).toBe(false);
     expect(halfway.readyToLaunch).toBe(false);
+  });
+});
+
+describe("a tournament that draws no pairings", () => {
+  /**
+   * A medal, and the case the guide could not finish.
+   *
+   * The last step tests for FIXTURES as well as flights, and the reason is
+   * sound where it applies: on a round robin, generating produces both, and a
+   * flight built and then left is a tournament with groups and nothing to
+   * score. A Stroke Play Round draws no pairings at all — nobody is playing
+   * anybody — so that test was waiting for something that never happens.
+   *
+   * Read off a real one on 2026-09-09: four players entered, two flights
+   * generated, and the screen itself printing "Flights are made, but no
+   * pairings are drawn" while the rail above it stayed on "4 TO DO".
+   */
+  const medal = {
+    named: true,
+    venued: true,
+    stages: 1,
+    confirmed: 4,
+    groups: 2,
+    // The whole point: none, and none are coming.
+    matches: 0,
+    drawsPairings: false,
+    launched: false,
+  };
+
+  it("finishes setup on flights alone", () => {
+    const flow = flowOf(medal);
+    const grouping = flow.steps.find((s) => s.href === "/grouping")!;
+    expect(grouping.done, "flights are all this tournament has to divide").toBe(true);
+    expect(flow.complete).toBe(true);
+    expect(flow.doneCount).toBe(4);
+  });
+
+  it("and is then told the field still cannot see it", () => {
+    /**
+     * THE PART THAT MATTERS, and the reason this is not a cosmetic counter.
+     *
+     * `readyToLaunch` requires `complete`, so while the last step could never
+     * finish, the one banner that says setup is done and the tournament is
+     * still invisible never appeared on a medal at all — and the other
+     * warning about an unlaunched tournament does not fire until somebody
+     * enters a score, which is a day too late.
+     */
+    expect(flowOf(medal).readyToLaunch).toBe(true);
+    expect(flowOf({ ...medal, launched: true }).readyToLaunch).toBe(false);
+  });
+
+  it("still asks for the flights themselves", () => {
+    // Not "skip the step" — the field must still be divided. Only the fixture
+    // half is dropped, and only where there are no fixtures.
+    const noFlights = flowOf({ ...medal, groups: 0 });
+    expect(noFlights.steps.find((s) => s.href === "/grouping")!.done).toBe(false);
+    expect(noFlights.complete).toBe(false);
+  });
+
+  it("and a round robin is unchanged", () => {
+    /**
+     * THE ASSERTION THAT STOPS THIS BECOMING "NEVER ASK FOR FIXTURES".
+     *
+     * Same facts, one flag flipped. A change that dropped the fixture test
+     * for everybody would pass all three tests above and quietly let a round
+     * robin with no schedule read as a finished tournament.
+     */
+    const rr = flowOf({ ...medal, drawsPairings: true });
+    expect(rr.steps.find((s) => s.href === "/grouping")!.done).toBe(false);
+    expect(rr.complete).toBe(false);
+    expect(rr.readyToLaunch).toBe(false);
+    expect(flowOf({ ...medal, drawsPairings: true, matches: 6 }).complete).toBe(true);
   });
 });

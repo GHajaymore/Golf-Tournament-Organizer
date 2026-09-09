@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { requireState } from "@/lib/page-helpers";
+import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
+import { isHeadToHead, isPlayingRound } from "@/lib/stage-types";
 import { computeHighlights, standingRows, settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { redirect } from "next/navigation";
@@ -95,6 +98,19 @@ export default async function LeaderboardPage() {
   }
 
   const rows = standingRows(state);
+  /**
+   * Whether the event's Scoring can rank what its rounds produce.
+   *
+   * Only the rounds the field PLAYS — a Qualification Stage is a cut, not a
+   * round, and counting it would report a mismatch on a tournament that has
+   * nothing wrong with it.
+   */
+  const mismatch = scoringMismatch(
+    state.event.format,
+    state.stages
+      .filter((s) => isPlayingRound(s.type))
+      .map((s) => ({ type: s.type, headToHead: isHeadToHead(s.type) })),
+  );
   const highlights = computeHighlights(state);
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
   const commentary = await prisma.commentary.findMany({
@@ -167,6 +183,38 @@ export default async function LeaderboardPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* WHY THE BOARD IS EMPTY, on the screen where somebody is looking at it
+          being empty.
+
+          Staff only, and deliberately: the remedy is a setting on Tournament
+          details, so telling a player about it is telling them about a screen
+          they cannot open. What a player sees is unchanged — which is still
+          wrong, and the fix for them is the organizer acting on this.
+
+          See `scoringMismatch` for the tournament this was measured on: four
+          cards returned, and a match-points table of zeroes above them. */}
+      {isStaff && mismatch && (
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-start",
+            padding: "10px 12px",
+            borderRadius: 10,
+            marginBottom: 12,
+            background: "var(--color-danger-bg)",
+            border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
+          }}
+        >
+          <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+            <b>Nothing here can be ranked.</b> {mismatch.message}{" "}
+            <Link href="/event" style={{ color: "var(--color-accent)" }}>
+              Tournament details
+            </Link>
+          </p>
         </div>
       )}
 

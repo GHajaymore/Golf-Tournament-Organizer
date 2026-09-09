@@ -19,19 +19,29 @@ describe("the shapes on offer", () => {
     }
   });
 
-  it("opens every shape on a format that can actually be run", () => {
-    // A shape that started you on an unrunnable round would be the format
-    // trap all over again, one level up.
+  it("opens no shape on a round the organizer did not choose", () => {
+    /**
+     * REPLACES two tests that asserted the opposite, and the swap is the
+     * point rather than a tidy-up.
+     *
+     * A `ShapeOption` used to carry an `openingRound` — "what this shape
+     * starts with, so nobody begins on an empty screen" — and `createEvent`
+     * read it, so every from-scratch tournament arrived holding a Round Robin
+     * nobody had been asked about. The two tests here checked that the round
+     * it defaulted to was a playable one, which is a real property of a thing
+     * that should not exist: they made the default look considered.
+     *
+     * The field is gone, so this asserts its ABSENCE — the safe direction,
+     * and the one a comment cannot satisfy. A shape describes how a
+     * tournament is played; it does not decide a single round of it.
+     */
     for (const s of TOURNAMENT_SHAPES) {
-      expect(PLAYABLE_FORMAT_NAMES, `${s.key} opens on an unplayable format`).toContain(
-        s.openingRound.format,
-      );
+      expect(s, `${s.key} must not carry a round`).not.toHaveProperty("openingRound");
     }
-  });
-
-  it("starts a knockout in a bracket and a league in a round robin", () => {
-    expect(shapeOption("knockout").openingRound.type).toBe("Bracket Stage");
-    expect(shapeOption("series").openingRound.type).toBe("Round Robin");
+    expect(shapeOption("knockout")).not.toHaveProperty("openingRound");
+    // The formats list is still what a round is checked against — just not
+    // here, because there is no round here to check.
+    expect(PLAYABLE_FORMAT_NAMES.length).toBeGreaterThan(0);
   });
 });
 

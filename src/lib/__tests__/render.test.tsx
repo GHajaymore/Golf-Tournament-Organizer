@@ -2973,6 +2973,39 @@ describe("the board answers 'where am I' first", () => {
     expect(html).not.toContain("thru 54");
   });
 
+  it("shows no to-par at all when the round had no card behind it", async () => {
+    /**
+     * To-par is `gross - parThru`, and `parThru` sums `pars[i] ?? 0` — so a
+     * round with no course card returns the GROSS score, and the board printed
+     * "+71" for a 71 under a column headed TO PAR, in the accent colour.
+     *
+     * Read off a real tournament on 2026-09-09, whose venue had been set by
+     * ticking it in the club's course library — which attaches the course for
+     * the venue picker and leaves the ids everything actually scores against
+     * null. Setup called that tournament finished.
+     *
+     * A missing figure is a smaller failure than a wrong one.
+     */
+    const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+    const noCard = render(
+      <LeaderboardTable isStroke rows={[row({ name: "A. Moore", gross: 71, toPar: 71, parKnown: false })]} />,
+    );
+    expect(noCard).toContain("71");
+    expect(noCard, "the gross wearing a plus sign").not.toContain("+71");
+
+    /**
+     * THE CONTROL, and the one that makes this more than "hide the column".
+     *
+     * LEVEL PAR IS A REAL ANSWER and renders as "E" — a rule written as
+     * "suppress it when it is falsy" would swallow it, and the round that
+     * looks most like nothing is the one somebody shot exactly to par.
+     */
+    const level = render(
+      <LeaderboardTable isStroke rows={[row({ name: "A. Moore", gross: 72, toPar: 0, parKnown: true })]} />,
+    );
+    expect(level, "level par is a score, not a blank").toContain("E");
+  });
+
   it("captions the organizer's board with how much of the card came back", async () => {
     const { LeaderboardTable } = await import("@/components/LeaderboardTable");
     const html = render(
@@ -4785,7 +4818,7 @@ describe("the round-code card is drawn for the round's own holes", () => {
 
 describe("the setup rail", () => {
   const facts = {
-    confirmed: 0, stages: 0, groups: 0, matches: 0,
+    confirmed: 0, stages: 0, groups: 0, matches: 0, drawsPairings: true,
     named: false, dated: false, venued: false, launched: false,
   };
   const rail = (over: Partial<typeof facts>) =>

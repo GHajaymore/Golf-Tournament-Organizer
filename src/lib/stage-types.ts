@@ -72,6 +72,24 @@ export interface StageTypeInfo {
    * `holesOwed` for a round that is not scored that way at all.
    */
   seededFromQualifiers: boolean;
+  /**
+   * Whether somebody in this round is playing SOMEBODY, as opposed to playing
+   * the course.
+   *
+   * Not the same question as `generatesPairings`, which is about whether the
+   * SCHEDULER draws the fixtures. A bracket and a play-in draw no pairings —
+   * their fixtures come from the seeding and from results — and both are
+   * head-to-head all the same. Reading one for the other is what put Match
+   * Play on a medal round: "Add stroke play round" produced "Round 1 · Stroke
+   * Play Round — Match Play", a round with no opponents scored by a format
+   * that needs one, and score entry then opened it in match mode with nothing
+   * to enter.
+   *
+   * This is a fact about golf, so it is declared beside each type rather than
+   * worked out at the call site. The rule it enforces is one line: a format
+   * that needs an opponent is never chosen for a round that has none.
+   */
+  headToHead: boolean;
 }
 
 export const STAGE_TYPE_INFO: StageTypeInfo[] = [
@@ -85,6 +103,7 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     isPlayingRound: true,
     chainsMatchPoints: true,
     seededFromQualifiers: false,
+    headToHead: true,
   },
   {
     key: "Stroke Play Round",
@@ -99,6 +118,7 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     isPlayingRound: true,
     chainsMatchPoints: false,
     seededFromQualifiers: false,
+    headToHead: false,
   },
   {
     key: "Qualification Stage",
@@ -110,6 +130,7 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     isPlayingRound: false,
     chainsMatchPoints: false,
     seededFromQualifiers: false,
+    headToHead: false,
   },
   {
     key: "Single Match Stage",
@@ -125,6 +146,7 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     // bracket, and changing how a single match is generated is a separate
     // question that wants its own look.
     seededFromQualifiers: false,
+    headToHead: true,
   },
   {
     key: "Bracket Stage",
@@ -136,6 +158,7 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     isPlayingRound: true,
     chainsMatchPoints: false,
     seededFromQualifiers: true,
+    headToHead: true,
   },
 ];
 
@@ -189,6 +212,16 @@ export function lookupStageType(key: string): StageTypeInfo | undefined {
  */
 export function generatesPairings(type: string): boolean {
   return lookupStageType(type)?.generatesPairings ?? false;
+}
+
+/**
+ * Whether this round pits somebody against somebody.
+ *
+ * False for an unknown type, which is the safe direction: a type nobody has
+ * taught the app about must not be handed a format that needs an opponent.
+ */
+export function isHeadToHead(type: string): boolean {
+  return lookupStageType(type)?.headToHead ?? false;
 }
 
 /** Rounds the field actually plays, in play order. */

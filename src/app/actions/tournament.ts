@@ -63,7 +63,7 @@ import {
   roundHandicapOf,
   FROZEN_HANDICAP_REFUSAL,
 } from "@/lib/domain/round-handicap";
-import { shapeOf } from "@/lib/tournament-shape";
+import { isTournamentShape } from "@/lib/tournament-shape";
 import { syncPlayerAccount, revokePlayerAccount } from "@/lib/services/player-access";
 import { notifyFieldChange } from "@/lib/services/field-notify";
 import { drainWaitlist } from "@/lib/services/waitlist";
@@ -74,7 +74,7 @@ import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
-import { STAGE_DESCRIPTIONS, isStageType, generatesPairings, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { isCutScope } from "@/lib/domain/cut";
 import { isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
@@ -1534,21 +1534,35 @@ export async function addStage(
       description: STAGE_DESCRIPTIONS[stageType] ?? "",
       deadline: "",
       scoringBasis: "gross",
-      // The schema's default is Match Play, which is a contradiction on a
-      // round the scheduler draws no opponents for: "Add stroke play round"
-      // produced a medal round labelled Match Play, and score entry opened it
-      // in match mode with nothing to enter. The format is still the
-      // organizer's to change — this is only a default that isn't nonsense.
-      //
-      // A round that draws pairings keeps the scoring the event chose; one
-      // that does not takes whatever "how do people play" implies, which is
-      // how a society day now opens on Scramble instead of on a medal the
-      // organizer would have had to notice and change.
-      format: generatesPairings(stageType)
+      /**
+       * A BACKSTOP, not a choice. Both screens that add a round now require a
+       * format, so in practice `opts.format` below always wins; this is what a
+       * programmatic caller gets, and it must not be nonsense.
+       *
+       * The schema's default is Match Play, which is a contradiction on a
+       * round with no opponents: "Add stroke play round" produced "Round 1 ·
+       * Stroke Play Round — Match Play", and score entry opened it in match
+       * mode with nothing to enter.
+       *
+       * That was fixed once, against `generatesPairings`, and the fix did not
+       * hold — because that asks whether the SCHEDULER draws the fixtures,
+       * which is a different question. A medal round draws none and needs no
+       * opponent; a BRACKET also draws none and is nothing but opponents. So
+       * an ordinary individual event still produced the same contradiction
+       * (`defaultFormatFor("individual", "match")` is Match Play), and it was
+       * still there on 2026-09-09, read off the screen after adding one.
+       *
+       * `isHeadToHead` is the question that was meant, declared per type in
+       * stage-types.ts. A round with opponents keeps the scoring the event
+       * chose; one without takes what "how do people play" implies — which is
+       * how a society day opens on Scramble rather than on a medal somebody
+       * would have had to notice and change.
+       */
+      format: isHeadToHead(stageType)
         ? scoring === "stroke"
           ? "Stroke Play"
           : "Match Play"
-        : defaultFormatFor(style, scoring),
+        : defaultFormatFor(style, "stroke"),
   };
 
   // A format chosen in the create step applies to every round in the run —
@@ -3014,9 +3028,30 @@ export async function createEvent(
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
   const clean = name.trim() || "New Tournament";
-  // The shape decides what the rest of setup is even about, so it is asked
-  // alongside the name rather than buried in a settings screen later.
-  const shape = shapeOf(shapeKey);
+  /**
+   * THE SHAPE IS ASKED, NEVER ASSUMED.
+   *
+   * It decides what the rest of setup is even about — a single round has no
+   * next round to carry into, a knockout has a bracket where a league has
+   * none — so it is asked alongside the name rather than buried in a settings
+   * screen later. And then this line read `shapeOf`, which falls back to a
+   * series, so it was not asked at all: the event switcher never passed one,
+   * and every tournament created from inside the app was silently made a
+   * league. The picker on `/choose` preselected the same answer, so the two
+   * agreed and neither was a choice anybody made.
+   *
+   * `shapeOf`'s fallback is right where it is used — reading a STORED value,
+   * where an unknown shape must never stop a tournament from opening. It is
+   * wrong at creation, which is the one moment there is a person to ask.
+   *
+   * "match" is refused with the rest: a casual round is created by
+   * `createMatch`, which pins five settings a tournament does not want. Coming
+   * through here would make one without them.
+   */
+  if (!shapeKey || !isTournamentShape(shapeKey) || shapeKey === "match") {
+    return { ok: false, error: "Choose how it's played first." };
+  }
+  const shape = shapeKey;
   const template = templateKey ? templateFor(templateKey) : null;
   // `blank`, not "is it the default". Those are the same entry today only by
   // naming coincidence, and inferring what something IS from a comparison
@@ -3061,10 +3096,6 @@ export async function createEvent(
     });
   }
 
-  // A template can describe a whole sequence, not just an opening round —
-  // a member-guest IS five nine-hole matches, and leaving four of them to be
-  // built by hand is the assembly work that keeps clubs on what they know.
-  // Without a template, the shape still decides the single opening round.
   /**
    * NOTHING IS CREATED WHEN NOBODY CHOSE A FORMAT.
    *

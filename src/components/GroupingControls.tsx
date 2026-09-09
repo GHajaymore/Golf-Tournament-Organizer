@@ -58,6 +58,7 @@ export function GroupingControls({
   currentMode,
   currentValue,
   locked = false,
+  drawsPairings = true,
 }: {
   players: Player[];
   currentRule: FormationRule;
@@ -66,6 +67,22 @@ export function GroupingControls({
   /** Setup is frozen (live/completed and not unlocked). The action refuses
    *  anyway; disabling here stops that refusal reaching the user as a crash. */
   locked?: boolean;
+  /**
+   * Whether ANY round in this tournament has pairings drawn for it.
+   *
+   * The warning at the foot of this card said "Generating rebuilds the
+   * round-robin schedule and clears any entered round-robin scores" to
+   * everybody. On a medal — a Stroke Play Round, which draws no pairings —
+   * there is no schedule and there are no round-robin scores, so it described
+   * a loss that cannot happen and made a safe, reversible action read as a
+   * destructive one. Read off a single-round tournament on 2026-09-09, on the
+   * screen the setup checklist sends you to.
+   *
+   * Optional, defaulting to the old sentence: a caller that has not been
+   * taught to answer this keeps the cautious wording, which is the safe
+   * direction for a warning.
+   */
+  drawsPairings?: boolean;
 }) {
   const [rule, setRule] = useState<FormationRule>(currentRule);
   const [mode, setMode] = useState<"auto" | "count" | "perFlight">(currentMode);
@@ -273,7 +290,9 @@ export function GroupingControls({
       </div>
 
       <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-        Generating rebuilds the round-robin schedule and clears any entered round-robin scores.
+        {drawsPairings
+          ? "Generating rebuilds the round-robin schedule and clears any entered round-robin scores."
+          : "Generating re-divides the field. No pairings are drawn for these rounds, so nothing scored is lost."}
       </p>
     </div>
   );

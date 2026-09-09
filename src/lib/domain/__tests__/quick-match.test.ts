@@ -637,8 +637,20 @@ describe("a match is not a tournament", () => {
   it("describes itself rather than falling through to a series", () => {
     const opt = shapeOption("match");
     expect(opt.key).toBe("match");
-    expect(opt.openingRound.format).toBe("Match Play");
-    expect(opt.openingRound.type).not.toBe("Bracket Stage");
+    expect(opt.label).toBe("A match");
+    /**
+     * The fall-through this is really about: `shapeOption` ends in
+     * `?? TOURNAMENT_SHAPES[1]`, which IS the series, so a missing case for
+     * "match" would return it and every screen would describe two friends'
+     * round as a season.
+     *
+     * Compared whole. This used to prove it through `openingRound.format`,
+     * and that field has been deleted — a shape no longer carries a round,
+     * because carrying one is how the app came to create a Round Robin
+     * nobody chose. Comparing the objects needs no such field and cannot go
+     * stale when another is added.
+     */
+    expect(opt).not.toEqual(shapeOption("series"));
   });
 });
 
