@@ -86,6 +86,16 @@ export default async function EventPage({
     // tournament's organization, so offering either to a player would show
     // controls the actions reject anyway.
     isOrganizer: accessible.get(ev.id) === "admin",
+    /**
+     * A quick round rather than a tournament.
+     *
+     * Read through `isMatch` rather than compared here, for the reason this
+     * codebase keeps relearning: two copies of one rule is how one of them
+     * ends up wrong. The switcher listed these as tournaments, counted them in
+     * "N total", and offered them in "Start from" as something to build a
+     * championship out of.
+     */
+    isCasual: isMatch(ev.shape),
   }));
 
   // The details step comes from the FLOW this page already loaded for its

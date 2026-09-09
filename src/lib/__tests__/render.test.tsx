@@ -64,6 +64,7 @@ import { SeriesClient } from "@/components/SeriesClient";
 import { TeeEditor } from "@/components/TeeEditor";
 import { NewMatchForm } from "@/components/NewMatchForm";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
+import { type EventRow } from "@/components/EventSwitcher";
 import { TeamsClient } from "@/components/TeamsClient";
 import { TeamEntryClient } from "@/components/TeamEntryClient";
 import { teamEntryNote, teamEntryFixedReason } from "@/lib/domain/team-entry";
@@ -5389,5 +5390,75 @@ describe("the flight column", () => {
         expect(cells, `${isStroke ? "stroke" : "match"} · ${rows.length} rows`).toBe(headers);
       }
     }
+  });
+});
+
+/**
+ * A quick round is not a tournament, and the list that says so.
+ *
+ * The switcher is headed "Your tournaments" and counts what is in it, so a
+ * Sunday fourball sat in that table as one: same columns, same weight, counted
+ * in the total, and nothing anywhere saying it deletes itself after a day.
+ * Walked on 2026-09-09 with one championship and one quick round, the screen
+ * read "2 total" and offered the fourball in "Start from" as something to
+ * build a championship out of.
+ */
+describe("the event switcher, with a quick round in the list", () => {
+  const row = (over: Partial<EventRow> = {}): EventRow => ({
+    id: "e1",
+    name: "Club Championship",
+    status: "draft",
+    dates: "May 14–16",
+    course: "Blue Ash",
+    players: 33,
+    isActive: false,
+    hasAccess: true,
+    isOrganizer: true,
+    ...over,
+  });
+
+  const both = [
+    row(),
+    row({ id: "e2", name: "Ada v Bo", players: 2, status: "live", isCasual: true }),
+  ];
+
+  it("counts tournaments, not everything in the list", () => {
+    const html = render(<EventSwitcher events={both} />);
+    // One tournament and one quick round is ONE tournament.
+    expect(html).toContain("1 total");
+    expect(html).not.toContain("2 total");
+  });
+
+  it("lists the quick round separately, and says it is temporary", () => {
+    const html = render(<EventSwitcher events={both} />);
+    expect(html).toContain("Quick rounds");
+    expect(html).toMatch(/deleted about a day/i);
+    // Still reachable — this is where somebody comes back to the round they
+    // set up an hour ago.
+    expect(html).toContain("Ada v Bo");
+  });
+
+  it("does not offer a quick round as a template for a tournament", () => {
+    /**
+     * A copy carries settings, rounds and courses — a two-player match has
+     * none worth starting a championship from. `copyable` gated only on being
+     * the organizer, which a quick round's creator always is.
+     */
+    const html = render(<EventSwitcher events={both} />);
+    const startFrom = html.slice(html.indexOf("Start from"));
+    expect(startFrom).toContain("Club Championship");
+    expect(startFrom).not.toContain("Ada v Bo");
+  });
+
+  it("changes nothing for a club that has only tournaments", () => {
+    /**
+     * The assertion that keeps the three above from being satisfied by a
+     * screen that hides things. `isCasual` is optional and absent means "a
+     * tournament", which is what every row in this list used to be.
+     */
+    const html = render(<EventSwitcher events={[row(), row({ id: "e3", name: "Spring Medal" })]} />);
+    expect(html).toContain("2 total");
+    expect(html).toContain("Spring Medal");
+    expect(html).not.toContain("Quick rounds");
   });
 });
