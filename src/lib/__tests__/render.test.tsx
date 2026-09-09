@@ -62,6 +62,7 @@ vi.mock("@/app/actions/messaging", actionModule);
 
 import { SeriesClient } from "@/components/SeriesClient";
 import { TeeEditor } from "@/components/TeeEditor";
+import { NewMatchForm } from "@/components/NewMatchForm";
 import { TeamsClient } from "@/components/TeamsClient";
 import { TeamEntryClient } from "@/components/TeamEntryClient";
 import { teamEntryNote, teamEntryFixedReason } from "@/lib/domain/team-entry";
@@ -5189,5 +5190,121 @@ describe("a checklist row for the page you are already on", () => {
     const html = await checklist("/event");
     expect(html).toContain("Tournament details");
     expect(html).toContain("It still needs a name.");
+  });
+});
+
+/**
+ * The casual-round setup screen, which had no render coverage at all.
+ *
+ * It has grown from two name fields into the whole of a free-tier product —
+ * five round types, sides, a roster picker, a money game and an expiry
+ * warning — and every one of those reads a list that can be empty. The person
+ * this screen is FOR is somebody with no club: no courses, no roster, no
+ * member row of their own. That is the degenerate input here, and it is also
+ * the commonest one.
+ */
+describe("setting up a casual round", () => {
+  const noClub = { courses: [], myName: "Sam Okafor", members: [], me: null };
+
+  it("comes up for somebody with no club at all", () => {
+    const html = render(<NewMatchForm {...noClub} />);
+    // The round types are the screen. All five, grouped by side size.
+    expect(html).toContain("Match Play");
+    expect(html).toContain("Four-Ball");
+    expect(html).toContain("On your own");
+    expect(html).toContain("In pairs");
+    // And they are prefilled into it rather than asked to introduce themselves.
+    expect(html).toContain("Sam Okafor");
+  });
+
+  it("says nothing about a roster when there is no roster", () => {
+    const html = render(<NewMatchForm {...noClub} />);
+    /**
+     * "Guest, not added to your roster" names a roster that does not exist,
+     * and draws a distinction with nothing on the other side of it. This is
+     * the free-tier case and it is the majority of them.
+     */
+    expect(html).not.toContain("not added to your roster");
+    expect(html).not.toContain("Start typing to pick a member");
+    expect(html).toContain("nobody entered here is added to a club roster");
+  });
+
+  it("offers the roster, and says so, when there is one", () => {
+    const html = render(
+      <NewMatchForm
+        courses={[]}
+        myName="Sam Okafor"
+        members={[{ id: "m1", name: "Ana Ferreira", handicap: "11.2" }]}
+        me={null}
+      />,
+    );
+    expect(html).toContain("Start typing to pick a member");
+    // The two states must differ, or the assertion above and the one before it
+    // are both satisfied by a screen that says the same thing either way.
+    expect(html).not.toContain("nobody entered here is added to a club roster");
+  });
+
+  it("starts the organizer as a member when the club knows them", () => {
+    const me = { id: "m9", name: "Sam Okafor", handicap: "+1.4" };
+    const html = render(<NewMatchForm courses={[]} myName="Sam Okafor" members={[me]} me={me} />);
+    // Their own row, marked as what it is. Somebody in their own club's
+    // roster for years should not read "guest" on their own screen.
+    expect(html).toContain("· member");
+    expect(html).not.toContain("guest, not added to your roster");
+  });
+
+  it("holds a handicap without showing one until shots are being given", () => {
+    /**
+     * A level round needs no index, and the field is not rendered until
+     * somebody says shots ARE being given — so the member's handicap is
+     * carried in state and shown nowhere.
+     *
+     * Pinned because it looks like a bug from the outside: picking a member
+     * "for their handicap" and then seeing no handicap. The number is there;
+     * the question it answers has not been asked yet.
+     */
+    const me = { id: "m9", name: "Sam Okafor", handicap: "+1.4" };
+    const html = render(<NewMatchForm courses={[]} myName="Sam Okafor" members={[me]} me={me} />);
+    expect(html).toContain("Are shots being given?");
+    expect(html).toContain("No — play level");
+    // The suggestion list is closed, so the only place an index could appear
+    // is a handicap field, and there is none.
+    expect(html).not.toContain('inputMode="decimal"');
+    expect(html).not.toContain("Handicap</label>");
+  });
+
+  it("warns that the round is temporary before anything is entered", () => {
+    // The whole justification for deleting it after a day is that nobody
+    // finds out afterwards. On the setup screen, before any names are typed.
+    const html = render(<NewMatchForm {...noClub} />);
+    expect(html).toMatch(/deleted about a day/i);
+  });
+
+  it("offers money without asking for it first", () => {
+    const html = render(<NewMatchForm {...noClub} />);
+    expect(html).toContain("Playing for anything?");
+    expect(html).toContain("No — just the golf");
+    expect(html).toContain("Skins");
+    // A Nassau is three bets on one match, and match play is the default —
+    // so it is offered here and gone the moment a medal is picked.
+    expect(html).toContain("Nassau");
+    // And the stake field is NOT there until a game is chosen: a setup screen
+    // that shows a "how much?" box by default has made a bet look compulsory.
+    expect(html).not.toContain("Stake per player");
+  });
+
+  it("hides the course picker when there is nothing to pick", () => {
+    // An empty picker offering one choice called "Decide later" is a question
+    // pretending to be a control.
+    const html = render(<NewMatchForm {...noClub} />);
+    expect(html).not.toContain("Where are you playing?");
+
+    const withCourse = render(
+      <NewMatchForm
+        {...noClub}
+        courses={[{ id: "c1", name: "Royal Dornoch", city: "Dornoch", hasCard: true }]}
+      />,
+    );
+    expect(withCourse).toContain("Where are you playing?");
   });
 });
