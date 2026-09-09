@@ -63,6 +63,7 @@ vi.mock("@/app/actions/messaging", actionModule);
 import { SeriesClient } from "@/components/SeriesClient";
 import { TeeEditor } from "@/components/TeeEditor";
 import { NewMatchForm } from "@/components/NewMatchForm";
+import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { TeamsClient } from "@/components/TeamsClient";
 import { TeamEntryClient } from "@/components/TeamEntryClient";
 import { teamEntryNote, teamEntryFixedReason } from "@/lib/domain/team-entry";
@@ -5306,5 +5307,87 @@ describe("setting up a casual round", () => {
       />,
     );
     expect(withCourse).toContain("Where are you playing?");
+  });
+});
+
+/**
+ * The flight column, which is only worth a column when there is more than one.
+ *
+ * A column repeating "Flight 1" on every row answers a question nobody asked
+ * and costs width on the screen this table is read on — a phone, in sun, on a
+ * tee box. It is the second-widest column in the compact table and, in a
+ * single-flight event, the only one carrying no information.
+ *
+ * Found on a casual round, whose one group is called "A" and showed "Flight 1"
+ * against both names — flights being exactly the apparatus that path removes,
+ * reappearing in a table. The rule is derived from the ROWS rather than the
+ * event's shape, so it fixes the commonest tournament there is too: a club
+ * medal run as a single flight.
+ */
+describe("the flight column", () => {
+  const row = (id: string, name: string, flight: string): StandingRow => ({
+    id, rank: 1, ranked: true, started: true, name, flight, advancing: false,
+    record: "0-0-0", diff: "0", pts: "0", played: 0, wins: 0, ties: 0, losses: 0,
+    gross: 72, net: 70, toPar: 0, points: 0, thru: 18, holesOwed: 18,
+  });
+
+  const oneFlight = [row("p1", "Ann Doyle", "Flight 1"), row("p2", "Rob Ferris", "Flight 1")];
+  const twoFlights = [row("p1", "Ann Doyle", "Flight 1"), row("p2", "Rob Ferris", "Flight 2")];
+
+  for (const isStroke of [true, false]) {
+    const label = isStroke ? "stroke" : "match";
+
+    it(`is hidden when every ${label}-play row is in the same flight`, () => {
+      const html = render(<LeaderboardTable isStroke={isStroke} rows={oneFlight} />);
+      expect(html).not.toContain("Flight 1");
+      // The rest of the table is untouched — this drops a column, not a row.
+      expect(html).toContain("Ann Doyle");
+      expect(html).toContain("Rob Ferris");
+    });
+
+    it(`is shown when the ${label}-play rows are in different flights`, () => {
+      /**
+       * THE ASSERTION THAT MAKES THE ONE ABOVE MEAN SOMETHING. "Hidden on one
+       * flight" alone is satisfied by deleting the column outright, which
+       * would take real information off a flighted club championship's board.
+       */
+      const html = render(<LeaderboardTable isStroke={isStroke} rows={twoFlights} />);
+      expect(html).toContain("Flight 1");
+      expect(html).toContain("Flight 2");
+    });
+  }
+
+  it("treats no flight at all as one flight, not as a second", () => {
+    // A row with a blank flight and a row in "Flight 1" is one flight. Counting
+    // the blank as a value would put the column back for the exact case that
+    // has least use for it.
+    const html = render(
+      <LeaderboardTable isStroke rows={[row("p1", "Ann Doyle", ""), row("p2", "Rob Ferris", "Flight 1")]} />,
+    );
+    expect(html).not.toContain("Flight 1");
+  });
+
+  it("keeps the header and the cells in step", () => {
+    /**
+     * A header dropped without its cells — or the reverse — shifts every
+     * column after it by one, so the net score renders under "To par". That is
+     * a table that looks fine and is wrong in every row, which is why this
+     * counts rather than searching for a string.
+     */
+    const count = (s: string, re: RegExp) => (s.match(re) ?? []).length;
+    // `/<th/` would match `<thead` too, and did — this asserted 6 cells
+    // against 7 "headers" and read as a real column mismatch in a table that
+    // was correctly aligned. The delimiter is the whole fix.
+    const TH = /<th[ >]/g;
+    const TD = /<td[ >]/g;
+
+    for (const rows of [oneFlight, twoFlights]) {
+      for (const isStroke of [true, false]) {
+        const html = render(<LeaderboardTable isStroke={isStroke} rows={rows} />);
+        const headers = count(html.slice(0, html.indexOf("</thead>")), TH);
+        const cells = count(html.split("<tr")[2] ?? "", TD);
+        expect(cells, `${isStroke ? "stroke" : "match"} · ${rows.length} rows`).toBe(headers);
+      }
+    }
   });
 });
