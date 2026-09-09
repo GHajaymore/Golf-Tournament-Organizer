@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createMatch } from "@/app/actions/match-setup";
 import { CoursePicker, type CourseOption } from "@/components/CoursePicker";
@@ -34,9 +34,25 @@ import { Icon } from "./Icon";
  * for the same stated reason, without this file holding a second opinion about
  * how many people play match play.
  */
+export interface RosterMember {
+  id: string;
+  name: string;
+  /** As it would be typed — "+2" for a plus-handicap, never "-2". */
+  handicap: string;
+}
+
+/** One entered player: a member if `memberId` is set, otherwise a guest. */
+interface Entrant {
+  name: string;
+  hcp: string;
+  /** The roster row this is, or "" for a guest who is not in the club. */
+  memberId: string;
+}
+
 export function NewMatchForm({
   courses,
   myName,
+  members = [],
 }: {
   /** The club's own courses. Empty for somebody who has never set one up,
    *  which is the common case here and why the picker is conditional. */
@@ -44,13 +60,55 @@ export function NewMatchForm({
   /** Prefilled as the first player: whoever is setting this up is almost
    *  always in it, and correcting a name is quicker than typing one. */
   myName: string;
+  /**
+   * The club's roster, for picking rather than typing.
+   *
+   * Optional and defaulting to empty, so somebody who has never run anything
+   * gets the plain name fields they had — the suggestions appear when there is
+   * a club behind them, and nothing changes when there is not.
+   */
+  members?: RosterMember[];
 }) {
   const router = useRouter();
   const [format, setFormat] = useState(QUICK_ROUND_FORMATS[0].name);
-  const [players, setPlayers] = useState<{ name: string; hcp: string }[]>([
-    { name: myName, hcp: "" },
-    { name: "", hcp: "" },
+  const [players, setPlayers] = useState<Entrant[]>([
+    { name: myName, hcp: "", memberId: "" },
+    { name: "", hcp: "", memberId: "" },
   ]);
+  /** Which row's suggestion list is open. -1 for none. */
+  const [openRow, setOpenRow] = useState(-1);
+  /**
+   * The pending "close the list" timer, so re-opening cancels it.
+   *
+   * Closing on blur has to be DELAYED, because clicking a suggestion blurs the
+   * input before the click lands — close immediately and the button is gone
+   * before it can be pressed. But a bare delayed close is a race: focus the
+   * field, blur it, focus it again inside the delay, and the old timer fires
+   * against the new state and shuts a list the player has just opened. Guarding
+   * on the row index does not help, because it is usually the same row.
+   *
+   * Observed rather than theorised — the list refused to open at all while
+   * being driven quickly, with `aria-expanded` flipping true and then false on
+   * its own. Holding the handle and clearing it on every open makes the last
+   * intent win, which is the only thing that can be correct here.
+   */
+  const closeTimer = useRef<number | null>(null);
+
+  const openSuggestions = (i: number) => {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setOpenRow(i);
+  };
+
+  const closeSuggestionsSoon = () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null;
+      setOpenRow(-1);
+    }, 150);
+  };
   const [holes, setHoles] = useState(18);
   const [nine, setNine] = useState("front");
   const [useHandicaps, setUseHandicaps] = useState(false);
@@ -63,8 +121,49 @@ export function NewMatchForm({
   const ceiling = exact ?? QUICK_ROUND_MAX_PLAYERS;
   const named = players.filter((p) => p.name.trim().length > 0);
 
-  const setPlayer = (i: number, patch: Partial<{ name: string; hcp: string }>) =>
+  const setPlayer = (i: number, patch: Partial<Entrant>) =>
     setPlayers((prev) => prev.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+
+  /**
+   * Typing detaches the row from the member it was.
+   *
+   * Without this, picking Dave off the roster and then correcting the name to
+   * "Dave S." would keep Dave's `memberId` — so the round would carry a player
+   * called one thing and linked to another, and the handicap on screen would
+   * stop being the one being used. Editing the name means this is somebody
+   * else until they say otherwise.
+   */
+  const typeName = (i: number, name: string) => {
+    setPlayer(i, { name, memberId: "" });
+    // Typing re-opens the list. Focus alone is not enough: dismissing it with
+    // Escape and then carrying on typing would otherwise leave somebody
+    // filtering a list they cannot see.
+    openSuggestions(i);
+  };
+
+  /** Take the member's name AND their index — the reason to pick at all. */
+  const pickMember = (i: number, m: RosterMember) => {
+    setPlayer(i, { name: m.name, hcp: m.handicap, memberId: m.id });
+    setOpenRow(-1);
+  };
+
+  /**
+   * Members matching what has been typed, minus anyone already in the round.
+   *
+   * Excluding the ones already entered is not tidiness: `planMatch` refuses a
+   * round with two players of the same name, so offering a name that is
+   * already in the list is offering the one choice guaranteed to be rejected.
+   */
+  const suggestionsFor = (i: number, typed: string): RosterMember[] => {
+    const taken = new Set(
+      players.filter((_, j) => j !== i).map((p) => p.name.trim().toLowerCase()).filter(Boolean),
+    );
+    const q = typed.trim().toLowerCase();
+    return members
+      .filter((m) => !taken.has(m.name.toLowerCase()))
+      .filter((m) => !q || m.name.toLowerCase().includes(q))
+      .slice(0, 6);
+  };
 
   /**
    * Picking a round type opens the rows it needs, and never closes any.
@@ -83,7 +182,14 @@ export function NewMatchForm({
       setPlayers((prev) =>
         prev.length >= want
           ? prev
-          : [...prev, ...Array.from({ length: want - prev.length }, () => ({ name: "", hcp: "" }))],
+          : [
+              ...prev,
+              ...Array.from({ length: want - prev.length }, () => ({
+                name: "",
+                hcp: "",
+                memberId: "",
+              })),
+            ],
       );
     }
   };
@@ -97,7 +203,7 @@ export function NewMatchForm({
    * up wrong.
    */
   const planned = planMatch({
-    players: players.map((p) => ({ name: p.name, handicap: useHandicaps ? p.hcp : 0 })),
+    players: players.map((p) => ({ name: p.name, handicap: useHandicaps ? p.hcp : 0, memberId: p.memberId })),
     format,
     holes,
     nine: holes === 9 ? nine : "full",
@@ -119,7 +225,7 @@ export function NewMatchForm({
     startTransition(async () => {
       setError("");
       const res = await createMatch({
-        players: players.map((p) => ({ name: p.name, handicap: useHandicaps ? p.hcp : 0 })),
+        players: players.map((p) => ({ name: p.name, handicap: useHandicaps ? p.hcp : 0, memberId: p.memberId })),
         format,
         holes,
         nine: holes === 9 ? nine : "full",
@@ -205,20 +311,22 @@ export function NewMatchForm({
 
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Who&rsquo;s playing?</span>
-        {/* The second sentence is a DISCLOSURE, not a nicety. Every player is
-            written to the club roster by `upsertMember`, and a player entered
-            without an email is matched there BY NAME — so a second, different
-            Dave entered later lands on the first Dave's row and overwrites his
-            index. Measured; see docs/session-2026-09-08.md.
+        {/* THIS PARAGRAPH USED TO BE A WARNING AND IS NOW A PROMISE.
 
-            Somebody told their playing partner becomes a club member types the
-            email, which is exactly what makes the round precise. The
-            registration screen has said this all along ("Anyone added here
-            joins the club roster too"); the screen that tells you no account is
-            needed was the one that did not. */}
+            It said "everyone joins your club roster", because every name typed
+            here was pushed into the club by `upsertMember` — which filled a
+            roster with people who are not members and, since a member with no
+            email is matched BY NAME, let a second different Dave land on the
+            first Dave's row and overwrite his index. The disclosure was
+            honest; the behaviour was the problem.
+
+            A guest is now a player on this round and nothing else. So the
+            sentence can say the thing somebody actually wants to hear, and it
+            is true. */}
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
-          Just names. Nobody needs an account to be played against — though everyone
-          joins your club roster, so an email keeps two players of the same name apart.
+          {members.length > 0
+            ? "Start typing to pick a member — their handicap comes with them. Anyone else is a guest: they play and they're scored, and they're not added to your club roster."
+            : "Just names. Nobody needs an account to play, and nobody entered here is added to a club roster."}
         </p>
         {/* Said BEFORE the names are typed, not discovered afterwards.
 
@@ -248,16 +356,116 @@ export function NewMatchForm({
               </span>
             )}
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-            <div className="field" style={{ flex: 1, minWidth: 0 }}>
-              <label>Player {i + 1}</label>
+            <div className="field" style={{ flex: 1, minWidth: 0, position: "relative" }}>
+              <label>
+                Player {i + 1}
+                {/* WHICH KIND OF PLAYER THIS IS, said on the row itself.
+
+                    The difference is not cosmetic — a member's handicap is
+                    the club's own and a guest's is whatever was typed — and
+                    it is invisible once the name is in the box. Naming it
+                    here is also the only honest place to promise that a
+                    guest is not being filed into the club's roster. */}
+                {p.memberId ? (
+                  <span className="text-muted" style={{ fontWeight: 500, marginLeft: 6 }}>
+                    · member
+                  </span>
+                ) : p.name.trim() ? (
+                  <span className="text-muted" style={{ fontWeight: 500, marginLeft: 6 }}>
+                    · guest, not added to your roster
+                  </span>
+                ) : null}
+              </label>
               <input
                 className="input"
                 value={p.name}
-                onChange={(e) => setPlayer(i, { name: e.target.value })}
-                onKeyDown={(e) => e.key === "Enter" && submit()}
-                placeholder={i === 0 ? "You" : "Playing partner"}
+                onChange={(e) => typeName(i, e.target.value)}
+                onFocus={() => openSuggestions(i)}
+                // Closed on a DELAY, not on blur directly: clicking a
+                // suggestion blurs the input first, so an immediate close
+                // removes the button before the click lands on it.
+                onBlur={closeSuggestionsSoon}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setOpenRow(-1);
+                  if (e.key === "Enter") submit();
+                }}
+                placeholder={i === 0 ? "You" : members.length ? "Search members, or type a name" : "Playing partner"}
                 autoFocus={i === 1}
+                autoComplete="off"
+                role="combobox"
+                aria-expanded={openRow === i}
+                // A combobox has to NAME the list it controls, or a screen
+                // reader announces a control with nothing attached to it. The
+                // id exists whether or not the list is rendered, which is what
+                // the role requires.
+                aria-controls={`player-${i}-members`}
+                aria-autocomplete="list"
+                aria-label={`Player ${i + 1} name`}
               />
+              {openRow === i && suggestionsFor(i, p.name).length > 0 && (
+                <div
+                  className="card elev-sm"
+                  id={`player-${i}-members`}
+                  role="listbox"
+                  aria-label="Club members"
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    zIndex: 20,
+                    marginTop: 4,
+                    padding: 4,
+                    gap: 0,
+                    maxHeight: 240,
+                    overflowY: "auto",
+                  }}
+                >
+                  {suggestionsFor(i, p.name).map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      role="option"
+                      aria-selected={false}
+                      // `onMouseDown`, not `onClick`: mousedown fires before
+                      // the input's blur, so the pick lands even though
+                      // blurring is what closes this list.
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        pickMember(i, m);
+                      }}
+                      style={{
+                        display: "flex",
+                        width: "100%",
+                        minHeight: 44,
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "transparent",
+                        color: "var(--color-text)",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        fontSize: 13,
+                      }}
+                    >
+                      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {m.name}
+                      </span>
+                      {/* The index, shown BEFORE it is chosen. It is the
+                          reason to pick a member rather than type them, and
+                          it is also the number somebody would otherwise be
+                          recalling from memory — which is the commonest way
+                          a net round is scored wrong. */}
+                      <span className="text-muted" style={{ flex: "none", fontSize: 11.5 }}>
+                        {m.handicap}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             {useHandicaps && (
               <div className="field" style={{ width: 104 }}>
@@ -303,7 +511,7 @@ export function NewMatchForm({
               type="button"
               className="btn btn-ghost"
               style={{ minHeight: 44 }}
-              onClick={() => setPlayers((prev) => [...prev, { name: "", hcp: "" }])}
+              onClick={() => setPlayers((prev) => [...prev, { name: "", hcp: "", memberId: "" }])}
             >
               <Icon name="plus" /> Add a player
             </button>

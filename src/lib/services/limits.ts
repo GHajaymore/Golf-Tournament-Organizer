@@ -32,10 +32,30 @@ export interface OrgLimits {
   staffSeats: LimitResult;
 }
 
-/** Tournaments not yet finished. A completed event costs nothing to keep. */
+/**
+ * Tournaments not yet finished. A completed event costs nothing to keep.
+ *
+ * CASUAL ROUNDS ARE NOT TOURNAMENTS AND ARE NOT COUNTED. A quick round is the
+ * free thing anybody can do — two to eight people, one round, no field, no
+ * flights, no club — and it is stored as an `Event` because that is what the
+ * app has to hang a card off, not because it is one of the things this
+ * allowance is about.
+ *
+ * Counting them had two consequences, both wrong in the same direction. A
+ * Sunday fourball ate a tournament slot the club was paying for; and a club
+ * sitting AT its cap could not set up a Sunday fourball at all — the app
+ * refusing a free feature on the grounds that a paid one was full.
+ *
+ * `shape` is the right question here in a way it is not for the expiry sweep,
+ * and the difference is worth stating because the two rules look alike. This
+ * asks "is this a tournament?", which is precisely what shape records. The
+ * sweep asks "may this row be destroyed?", which shape does not record — and
+ * being wrong here undercounts an allowance by one, while being wrong there
+ * deletes somebody's tournament.
+ */
 export async function activeEventCount(organizationId: string): Promise<number> {
   return prisma.event.count({
-    where: { organizationId, NOT: { status: "completed" } },
+    where: { organizationId, NOT: { status: "completed" }, shape: { not: "match" } },
   });
 }
 

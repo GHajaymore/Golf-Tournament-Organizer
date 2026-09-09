@@ -39,6 +39,31 @@ export default async function NewMatchPage() {
     select: { id: true, name: true, city: true, pars: true, strokeIndex: true },
   });
 
+  /**
+   * The club's members, so the people you actually play with are a tap.
+   *
+   * Typing four names and four handicaps is the slow part of setting a round
+   * up, and it is slow every single time for the same regular four. The club
+   * already knows them and knows their index.
+   *
+   * THE HANDICAP TRAVELS WITH THE NAME, and that is the point rather than a
+   * convenience: an index typed from memory is the commonest way a net round
+   * is scored wrong, and it is wrong invisibly — the card looks fine and the
+   * shots are in the wrong places. The roster's value is the club's own.
+   *
+   * Read from the organizations this person belongs to, the same scope the
+   * courses above use. Capped, because this list is sent to the browser and a
+   * society with two thousand members should not ship all of them to set up a
+   * fourball — the field is a filter-as-you-type, and a name that is not in
+   * the first slice is still enterable as a guest.
+   */
+  const members = await prisma.member.findMany({
+    where: { organizationId: { in: memberships.map((m) => m.organizationId) } },
+    orderBy: { name: "asc" },
+    take: 500,
+    select: { id: true, name: true, handicap: true },
+  });
+
   return (
     <div
       style={{
@@ -97,6 +122,14 @@ export default async function NewMatchPage() {
             hasCard: parseHoleArray(c.pars) !== null && parseHoleArray(c.strokeIndex) !== null,
           }))}
           myName={session.name}
+          members={members.map((m) => ({
+            id: m.id,
+            name: m.name,
+            // As a string, because that is what the handicap field holds and
+            // what `parseHandicap` reads. A plus-handicap is negative in the
+            // database and must be shown back as "+2", never as "-2".
+            handicap: m.handicap < 0 ? `+${Math.abs(m.handicap)}` : String(m.handicap),
+          }))}
         />
 
         {/* The way back out. Somebody who wanted a field, flights and a
