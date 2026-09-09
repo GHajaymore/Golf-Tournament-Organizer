@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { SideBetStart } from "@/components/SideBetStart";
 import { RoundPicker } from "@/components/RoundPicker";
+import { isMatch } from "@/lib/tournament-shape";
 
 /**
  * Each fourball's own money, kept apart from the field's.
@@ -37,6 +38,22 @@ export default async function GroupGamesPage({
   const weeks = playingStages(state.stages);
   const week = weeks.find((s) => s.id === params.round) ?? state.activeStage ?? weeks[0] ?? null;
   const rounds = weeks.map((s) => ({ stageId: s.id, label: roundLabel(weeks, s.id) }));
+
+  /**
+   * A casual round IS one group, so it does not wait for a tee sheet.
+   *
+   * The groups on this screen come from the round's published tee sheet,
+   * because that is the only record of who is playing with whom in a field of
+   * sixty. A quick round has no tee sheet and never will — it is two to eight
+   * people who are all playing together, which is the same fact the sheet
+   * exists to record, already known.
+   *
+   * So the pot is the FIELD's, keyed on `""`. Not a workaround: `potAudience`
+   * returns the whole field for the empty key, and on a casual round the whole
+   * field is the group — the two definitions coincide rather than one being
+   * bent to fit the other.
+   */
+  const casual = isMatch(state.event.shape);
 
   const sheet = week ? parseTeeSheet(week.teeSheet ?? "") : null;
   // A group of one cannot run a skins game against itself. Filtering here
@@ -107,6 +124,15 @@ export default async function GroupGamesPage({
       ).map((r) => ({ name: r.groupKey, kind: r.kind }))
     : [];
 
+  /**
+   * The round's own pot, for a casual round only.
+   *
+   * Net and full-round, the same defaults the per-group pots use, because that
+   * is the game people actually agree on the first tee. The scope and basis
+   * are changeable from the pot's own controls once it exists.
+   */
+  const roundPot = casual && week ? await skinsPotFor(session.eventId, week.id, true, "full", "") : null;
+
   const fieldForBets = [...state.confirmed]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((p) => ({ id: p.id, name: p.name }));
@@ -114,12 +140,27 @@ export default async function GroupGamesPage({
   return (
     <>
       <div className="page-head">
-        <h1 className="page-title">Group games</h1>
+        <h1 className="page-title">{casual ? "Money game" : "Group games"}</h1>
+        {/* Two screens' worth of wording, because they are two situations.
+            A tournament's version is about which of several groups a pot
+            belongs to; a casual round has one group and the only question is
+            what the stake is. Telling four friends that this "does not touch
+            the field's money" answers a question they have never had. */}
         <p className="page-sub">
-          Games that are not the club&rsquo;s: a fourball&rsquo;s own skins, or a bet between
-          whoever wants in wherever they are playing. Anyone in a group can set up that
-          group&rsquo;s game and anyone can start a side bet — neither touches the field&rsquo;s
-          money, and the settle-up folds all of it into one number per player.
+          {casual ? (
+            <>
+              Playing for something? Everyone in this round is in, the app works out who won
+              what, and it never touches the money — it says who owes whom and you settle it
+              yourselves.
+            </>
+          ) : (
+            <>
+              Games that are not the club&rsquo;s: a fourball&rsquo;s own skins, or a bet between
+              whoever wants in wherever they are playing. Anyone in a group can set up that
+              group&rsquo;s game and anyone can start a side bet — neither touches the
+              field&rsquo;s money, and the settle-up folds all of it into one number per player.
+            </>
+          )}
         </p>
       </div>
 
@@ -144,7 +185,12 @@ export default async function GroupGamesPage({
         </div>
       )}
 
-      {week && groups.length === 0 && (
+      {/* NOT shown on a casual round, and this is the change that made the
+          screen usable there at all. It told four friends to publish a tee
+          sheet — apparatus a quick round does not have and is never offered —
+          so the money screen's entire content was an instruction they could
+          not follow. Their pot renders below instead. */}
+      {week && groups.length === 0 && !casual && (
         <div className="card elev-sm" style={{ marginTop: 16 }}>
           <p className="text-muted" style={{ margin: 0, fontSize: 13.5 }}>
             No tee sheet on this round yet, so the app doesn&rsquo;t know who is playing with whom
@@ -152,6 +198,17 @@ export default async function GroupGamesPage({
             it: name it, pick who&rsquo;s in, and it settles the same way.
           </p>
         </div>
+      )}
+
+      {/* The whole round's pot. Everyone playing is in it. */}
+      {roundPot && week && (
+        <SkinsPotClient
+          rounds={rounds}
+          activeStageId={week.id}
+          view={roundPot}
+          groupKey=""
+          groupLabel="Everyone in this round"
+        />
       )}
 
       {pots.map(({ group, view }) =>

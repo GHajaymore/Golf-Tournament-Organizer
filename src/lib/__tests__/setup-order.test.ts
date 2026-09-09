@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SETUP_ORDER, bySetupOrder } from "@/lib/domain/setup-flow";
-import { allNavItems, FIELD_ONLY_SCREENS, screenAppliesToMatch } from "@/lib/nav";
+import { allNavItems, TOURNAMENT_ONLY_SCREENS, screenAppliesToMatch } from "@/lib/nav";
 import { setupChecklist, type ChecklistState } from "@/lib/services/checklist";
 import { readSource } from "./source";
 
@@ -236,7 +236,7 @@ describe("a match is not offered the apparatus of running a field", () => {
      * The point of exporting the set: if somebody decides a match should have
      * a tee sheet after all, they change one line and both readers follow.
      */
-    for (const key of FIELD_ONLY_SCREENS) {
+    for (const key of TOURNAMENT_ONLY_SCREENS) {
       expect(screenAppliesToMatch(key), key).toBe(false);
       expect(asMatch(), key).not.toContain(`/${key}`);
     }

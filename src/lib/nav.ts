@@ -28,28 +28,60 @@ import { canSeeLeaderboard, canEnterScores, type TournamentSettings } from "./to
 export type NavTier = "on-course" | "at-desk";
 
 /**
- * The screens that only make sense against a FIELD.
+ * The screens a casual round does not get.
  *
- * Dividing one into flights, drawing it a tee sheet, announcing things to it,
- * and hiring staff to help. Two people on the first tee have none of that, and
- * every one of these links is a door to a screen about somebody else's
- * problem — so `navForRole` closes them for a match.
+ * TWO CATEGORIES, and the set was named after only the first of them.
+ *
+ * The FIELD apparatus — dividing a field into flights, drawing it a tee sheet,
+ * announcing things to it, hiring staff to help. Four people on the first tee
+ * have none of that, and every one of those links is a door to a screen about
+ * somebody else's problem.
+ *
+ * And the ORGANIZATION apparatus, which was still wide open. Walked on
+ * 2026-09-08, a Sunday fourball's sidebar offered Club settings, Members and
+ * Season standings: the club's branding and colours, its whole roster, and a
+ * league table for an event that is one round long and can never be in a
+ * season — `capabilitiesOf("match").chainsRounds` has said so since the shape
+ * was added. Those are not doors to somebody else's problem, they are doors to
+ * somebody else's CLUB, offered to whoever set up a game.
+ *
+ * `prizes` is here for a third reason, and is the one that had to bring
+ * something with it. It is the club's money — a prize table, contests, the
+ * float, the organizer's ledger, the season's skins — none of which a casual
+ * round has. What it also held was the skins pot, which IS what four friends
+ * playing for a fiver want, so removing the screen without moving that would
+ * have taken the money game away. It lives on Group games now, which is where
+ * players' own money already lived.
+ *
+ * WHAT DELIBERATELY STAYS. Registration & field, because it is where a
+ * mistyped name or a wrong handicap gets fixed and there is nowhere else.
+ * Rounds & formats, because changing 18 to 9 or gross to net is exactly the
+ * second thought people have on the first tee. Tournament details, because it
+ * is where the COURSE is set, and a round with no card cannot be scored net.
+ * Group games, because a round played for a fiver is the oldest bet in golf.
  *
  * EXPORTED because the sidebar was not the only thing offering them. The setup
  * checklist on `/event` went on listing "Flights" and "Access & staff" for a
  * match, which is the same doors reopened one card lower down: the nav had
  * shut them and the checklist had never been told. One set, two readers.
  */
-export const FIELD_ONLY_SCREENS: ReadonlySet<string> = new Set([
+export const TOURNAMENT_ONLY_SCREENS: ReadonlySet<string> = new Set([
+  // The field's apparatus.
   "grouping",
   "foursomes",
   "announcements",
   "access",
+  // The organization's.
+  "organization",
+  "roster",
+  "series",
+  // The club's money. Its skins pot moved to `group-games` rather than going.
+  "prizes",
 ]);
 
 /** Whether a screen is worth offering on an event of this shape. */
 export function screenAppliesToMatch(key: string): boolean {
-  return !FIELD_ONLY_SCREENS.has(key);
+  return !TOURNAMENT_ONLY_SCREENS.has(key);
 }
 
 export interface NavItem {
@@ -222,11 +254,11 @@ export function navForRole(
     orgKind?: OrgKind;
   } = {},
 ): NavSection[] {
-  const FIELD_ONLY = FIELD_ONLY_SCREENS;
+  const TOURNAMENT_ONLY = TOURNAMENT_ONLY_SCREENS;
 
   const allowed = (key: string): boolean => {
     if (!canAccessScreen(viewRole, key)) return false;
-    if (opts.isMatch && FIELD_ONLY.has(key)) return false;
+    if (opts.isMatch && TOURNAMENT_ONLY.has(key)) return false;
     // Teams only matter to a tournament that has a team round in it. Most
     // don't, and a permanent link to an empty screen is just clutter — the
     // link appears the moment a round is set to a team format.
