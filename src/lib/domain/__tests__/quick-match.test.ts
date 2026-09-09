@@ -357,6 +357,52 @@ describe("every round type on offer is a real, playable format", () => {
   });
 });
 
+/**
+ * Members and guests, which is the difference that decides whether a CLUB's
+ * roster is written to.
+ *
+ * The old behaviour pushed every name typed on this screen into the club by
+ * `upsertMember`, which is wrong twice: it fills a member list with people who
+ * are not members, and — because a member with no email is matched BY NAME — a
+ * second, different Dave entered months later lands on the first Dave's row
+ * and overwrites his handicap index. The second failure is silent and corrupts
+ * a real member's data.
+ */
+describe("picking a member, or bringing a guest", () => {
+  it("carries the member through, so the round can link to the roster", () => {
+    const r = planMatch({
+      players: [
+        { name: "Ines", memberId: "mem_1", handicap: "8.2" },
+        { name: "Tobias", memberId: "mem_2", handicap: "14" },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.players.map((p) => p.memberId)).toEqual(["mem_1", "mem_2"]);
+  });
+
+  it("marks a guest as a guest rather than inventing a member for them", () => {
+    // "" and not null/undefined, so the action's check is a plain lookup with
+    // nothing to null-juggle — and a guest is never accidentally truthy.
+    const r = planMatch({ players: [{ name: "Ines", memberId: "mem_1" }, { name: "A mate" }] });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.players[1].memberId).toBe("");
+    // Both answers present, so this cannot pass on a plan that returns "" for
+    // everybody — which is exactly what a dropped field would look like.
+    expect(r.plan.players[0].memberId).toBe("mem_1");
+  });
+
+  it("takes a guest's handicap as readily as a member's", () => {
+    // The guest is somebody's mate off 18, and a net round they are in has to
+    // give them their shots. Refusing to hold a handicap for a non-member
+    // would make "guest" mean "cannot play net", which is not what it means.
+    const r = planMatch({ players: [{ name: "Ines", memberId: "m" }, { name: "A mate", handicap: "18.1" }] });
+    expect(r.ok && r.plan.players[1].handicap).toBe(18.1);
+    expect(r.ok && r.plan.players[1].memberId).toBe("");
+  });
+});
+
 describe("reading a handicap somebody typed", () => {
   it("reads a plus-handicap as better than scratch", () => {
     // The one that matters. A +2 player is two shots BETTER than scratch, and

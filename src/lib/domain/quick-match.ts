@@ -39,6 +39,18 @@ export interface MatchPlayerInput {
   handicap?: string | number | null;
   /** Optional, and optional on purpose — see the note at the top of the file. */
   email?: string | null;
+  /**
+   * The club member this row IS, when one was picked from the roster.
+   *
+   * Absent means a GUEST: somebody's mate, playing once, who is not in the
+   * club and must not be put in it. That distinction is the whole of the
+   * difference — see `PlannedMatchPlayer.memberId`.
+   *
+   * Never trusted. It arrives from a form, so the action re-reads it against
+   * the organization's own roster before using it; an id from another club
+   * would otherwise attach a stranger's handicap and history to this round.
+   */
+  memberId?: string | null;
 }
 
 /**
@@ -220,6 +232,25 @@ export interface PlannedMatchPlayer {
   email: string;
   seed: number;
   /**
+   * The club member this player is, or "" for a guest.
+   *
+   * THE ONE FIELD THAT DECIDES WHETHER THE CLUB'S ROSTER IS WRITTEN TO.
+   *
+   * Every player in a casual round used to be pushed into the roster by
+   * `upsertMember`, and that is wrong twice over. It fills a club's member
+   * list with people who are not members — somebody's brother-in-law, playing
+   * once — and, because a member without an email address is matched BY NAME,
+   * a second different Dave entered months later lands on the first Dave's row
+   * and overwrites his index.
+   *
+   * So a guest is now a `Player` on this event and nothing else. They can be
+   * named, given a handicap, and scored; they leave no trace in the club when
+   * the round is gone. A member picked from the roster keeps their id, which
+   * is what makes their handicap the club's real one rather than a copy that
+   * drifts.
+   */
+  memberId: string;
+  /**
    * Which side this player is on, zero-based, or -1 in an individual round.
    *
    * -1 rather than 0 on purpose: 0 is a real side, and a bug that left every
@@ -384,6 +415,7 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
       name: (p.name ?? "").trim(),
       handicap: parseHandicap(p.handicap),
       email: (p.email ?? "").trim().toLowerCase(),
+      memberId: (p.memberId ?? "").trim(),
     }))
     .filter((p) => p.name.length > 0);
 

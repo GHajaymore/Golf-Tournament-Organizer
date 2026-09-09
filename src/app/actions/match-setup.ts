@@ -4,9 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
-import { upsertMember } from "@/lib/services/roster";
 import { syncPlayerAccount } from "@/lib/services/player-access";
-import { refusalFor } from "@/lib/services/limits";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { planMatch, type MatchSetupInput } from "@/lib/domain/quick-match";
 import { expiryFrom } from "@/lib/domain/round-expiry";
@@ -53,9 +51,32 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
   if (!planned.ok) return { ok: false, error: planned.error };
   const plan = planned.plan;
 
+  /**
+   * An organization, because every event needs one — never a CLUB the player
+   * has to think about.
+   *
+   * `organizationForNewEvent` returns the person's own personal organization,
+   * creating it if this is the first thing they have ever made. That is a
+   * billing boundary and a place to hang rows, and on this path it is
+   * plumbing: somebody playing their mate on Sunday is not starting a club,
+   * and the sidebar of a casual round no longer offers them one.
+   */
   const organizationId = await organizationForNewEvent(session.email, session.name);
-  const refusal = await refusalFor(organizationId, "activeEvents");
-  if (refusal) return { ok: false, error: refusal };
+
+  /**
+   * NO PLAN CHECK, and its absence is the feature.
+   *
+   * This asked `refusalFor(organizationId, "activeEvents")` — the allowance on
+   * how many TOURNAMENTS an organization may have running — and got it wrong
+   * in both directions at once. A Sunday fourball consumed a slot the club was
+   * paying for, and a club sitting at its cap was refused a casual round
+   * entirely: the app declining a free feature because a paid one was full.
+   *
+   * A casual round is the free thing anybody can do, club or no club. It is
+   * capped by what it IS rather than by a plan — two to eight players, one
+   * round, and it deletes itself after a day — and `activeEventCount` no
+   * longer counts these, so the two halves of this agree.
+   */
 
   const event = await prisma.event.create({
     data: {
@@ -200,13 +221,51 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
    * has one phone out, held by whoever set it up. Demanding the second address
    * is what stopped a match being created at all.
    */
+  /**
+   * WHICH OF THESE NAMES IS ACTUALLY A MEMBER OF THIS CLUB.
+   *
+   * Re-read from the roster rather than believed. `memberId` arrives from a
+   * form, and an id belonging to another club would otherwise attach a
+   * stranger's handicap and history to this round — so the query is scoped to
+   * this organization and anything it does not return is treated as a guest.
+   * The failure direction is deliberate: an unrecognised id becomes a guest,
+   * which creates nothing and links nothing, rather than a hard error on the
+   * first tee.
+   *
+   * One query for the lot, not one per player.
+   */
+  const claimed = plan.players.map((p) => p.memberId).filter(Boolean);
+  const members = claimed.length
+    ? await prisma.member.findMany({
+        where: { organizationId, id: { in: claimed } },
+        select: { id: true },
+      })
+    : [];
+  const realMembers = new Set(members.map((m) => m.id));
+
   const playerIds: string[] = [];
   for (const p of plan.players) {
-    const memberId = await upsertMember(
-      organizationId,
-      { name: p.name, email: p.email, handicap: p.handicap, handicapType: "18", handicapSource: "manual" },
-      "staff",
-    );
+    const memberId = realMembers.has(p.memberId) ? p.memberId : null;
+
+    /**
+     * A GUEST IS NOT ADDED TO THE CLUB.
+     *
+     * This called `upsertMember` for every name, so a Sunday fourball put
+     * somebody's brother-in-law on the club's member list permanently. Wrong
+     * twice: it fills a roster with people who are not members, and — because
+     * a member with no email is matched BY NAME — a second, different Dave
+     * entered months later lands on the first Dave's row and overwrites his
+     * index. That second failure is silent and corrupts a real member's
+     * handicap.
+     *
+     * So a guest becomes a `Player` on this event and nothing else. Named,
+     * given a handicap, scored, and gone with the round. A member keeps their
+     * id, which is what makes their handicap the club's own rather than a copy
+     * that drifts from it.
+     *
+     * `Player.memberId` is nullable and always has been, so a guest is not a
+     * new shape — it is the shape the column was for.
+     */
     const player = await prisma.player.create({
       data: {
         eventId: event.id,
