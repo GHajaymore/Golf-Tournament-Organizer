@@ -64,6 +64,23 @@ export default async function NewMatchPage() {
     select: { id: true, name: true, handicap: true },
   });
 
+  /**
+   * Mapped ONCE, so the roster the screen offers and the row it prefills are
+   * the same objects.
+   *
+   * They were built twice, and the two copies disagreed about the type of a
+   * handicap — which is the shape of thing that compiles and then hands a
+   * number to a text field.
+   */
+  const roster = members.map((m) => ({
+    id: m.id,
+    name: m.name,
+    // As a string, because that is what the handicap field holds and what
+    // `parseHandicap` reads. A plus-handicap is negative in the database and
+    // must be shown back as "+2", never as "-2".
+    handicap: m.handicap < 0 ? `+${Math.abs(m.handicap)}` : String(m.handicap),
+  }));
+
   return (
     <div
       style={{
@@ -122,14 +139,28 @@ export default async function NewMatchPage() {
             hasCard: parseHoleArray(c.pars) !== null && parseHoleArray(c.strokeIndex) !== null,
           }))}
           myName={session.name}
-          members={members.map((m) => ({
-            id: m.id,
-            name: m.name,
-            // As a string, because that is what the handicap field holds and
-            // what `parseHandicap` reads. A plus-handicap is negative in the
-            // database and must be shown back as "+2", never as "-2".
-            handicap: m.handicap < 0 ? `+${Math.abs(m.handicap)}` : String(m.handicap),
-          }))}
+          /**
+           * The organizer's OWN roster row, when they have one.
+           *
+           * The first name on this screen is prefilled with whoever is setting
+           * the round up, and until now that row was a guest like any other —
+           * so somebody who has been in their own club's roster for years was
+           * labelled "guest, not added to your roster" on their own screen,
+           * and had to type an index the club already knows.
+           *
+           * Matched on the name the session carries, which is the same string
+           * that prefills the field, so the row is exactly as much a member as
+           * the name in it claims. No match means no match: a personal
+           * organization with an empty roster, or somebody whose account name
+           * differs from their roster name, gets the guest row they had — and
+           * can still pick themselves from the list.
+           */
+          me={
+            roster.find(
+              (m) => m.name.trim().toLowerCase() === session.name.trim().toLowerCase(),
+            ) ?? null
+          }
+          members={roster}
         />
 
         {/* The way back out. Somebody who wanted a field, flights and a

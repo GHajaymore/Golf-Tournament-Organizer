@@ -54,6 +54,7 @@ export function NewMatchForm({
   courses,
   myName,
   members = [],
+  me = null,
 }: {
   /** The club's own courses. Empty for somebody who has never set one up,
    *  which is the common case here and why the picker is conditional. */
@@ -69,11 +70,25 @@ export function NewMatchForm({
    * a club behind them, and nothing changes when there is not.
    */
   members?: RosterMember[];
+  /**
+   * The organizer's own roster row, when the club has one for them.
+   *
+   * The first row is prefilled with whoever is setting the round up, and it
+   * was a guest like any other — so somebody in their own club's roster for
+   * years read "guest, not added to your roster" on their own screen and had
+   * to type an index the club already knows. Null keeps exactly the behaviour
+   * that was there.
+   */
+  me?: RosterMember | null;
 }) {
   const router = useRouter();
   const [format, setFormat] = useState(QUICK_ROUND_FORMATS[0].name);
   const [players, setPlayers] = useState<Entrant[]>([
-    { name: myName, hcp: "", memberId: "" },
+    // Row one is whoever is setting this up, as a member where the club knows
+    // them — name, index and all — and as a plain name where it does not.
+    me
+      ? { name: me.name, hcp: me.handicap, memberId: me.id }
+      : { name: myName, hcp: "", memberId: "" },
     { name: "", hcp: "", memberId: "" },
   ]);
   /** Which row's suggestion list is open. -1 for none. */
@@ -395,7 +410,13 @@ export function NewMatchForm({
                     it is invisible once the name is in the box. Naming it
                     here is also the only honest place to promise that a
                     guest is not being filed into the club's roster. */}
-                {p.memberId ? (
+                {/* Only where there is a roster to be a member OF.
+
+                    With no club behind the screen — the common case, and the
+                    whole free-tier point of it — "guest, not added to your
+                    roster" names a roster that does not exist and draws a
+                    distinction with nothing on the other side of it. */}
+                {members.length === 0 ? null : p.memberId ? (
                   <span className="text-muted" style={{ fontWeight: 500, marginLeft: 6 }}>
                     · member
                   </span>
