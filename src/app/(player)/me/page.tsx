@@ -8,6 +8,7 @@ import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
 import { Icon } from "@/components/Icon";
 import { roundKicker } from "@/lib/domain/round-label";
+import { hasStandingToShow } from "@/lib/domain/player-standing";
 
 /**
  * Today — the player's home.
@@ -76,10 +77,43 @@ export default async function PlayTodayPage() {
         </p>
       )}
 
+      {/**
+       * NOTHING HAS HAPPENED YET, which is the state this screen is in most
+       * often — a player opens it on the way to the first tee.
+       *
+       * The card below is built as two halves, position on the left and score
+       * on the right, and each half falls back to "Not started" on its own. So
+       * before a ball is struck it rendered "Not started" twice, over two
+       * em-dashes, with "0-0-0" underneath: a screen-height of the largest
+       * type on the phone, saying one word, twice, and nothing else.
+       *
+       * Read off a launched tournament on 2026-09-09, on a 375px viewport.
+       *
+       * Said once now, with what a player at that moment actually wants to
+       * know — that this is where it will appear. Everything they DO want is
+       * already on the screen underneath: who they are playing, their tee
+       * group, and their card.
+       *
+       * AND NOT AT ALL WHEN A MATCH CARD IS ABOUT TO SAY IT. A match round
+       * prints "v <opponent> / Not started / Nothing recorded yet" directly
+       * below, so this would be the third and least useful "Not started" on
+       * one phone screen. The stroke case has no match card, which is the case
+       * this is for.
+       */}
+      {me.playerId && !hasStandingToShow(me.standing) && !round?.matches.length && (
+        <section className="card elev-sm" style={{ marginTop: 18 }}>
+          <span className="card-kicker">Not started</span>
+          <p style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.5 }} className="text-muted">
+            Your position and score appear here as soon as the first hole goes in.
+          </p>
+        </section>
+      )}
+
       {me.playerId && (
         <>
           {/* Where I stand. The one number worth the biggest type on the
               screen, and the only place this screen shouts. */}
+          {hasStandingToShow(me.standing) && (
           <section
             className="card elev-sm"
             // `flexDirection: "row"` explicitly: `.card` sets column, and an
@@ -154,6 +188,7 @@ export default async function PlayTodayPage() {
               </div>
             </div>
           </section>
+          )}
 
           {/* WHO I AM PLAYING. Above the tee group, because in a match the
               opponent is the round — and because this is the one the app
