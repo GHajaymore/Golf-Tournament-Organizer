@@ -347,16 +347,48 @@ describe("a match is not offered a field's screens", () => {
     }
   });
 
-  it("keeps the screens a match genuinely has", () => {
+  it("drops the screens that belong to the CLUB rather than to this round", () => {
+    const tournament = keys(false);
+    const match = keys(true);
+    /**
+     * The half the set was not named after, and was still wide open.
+     *
+     * Walked on 2026-09-08, a Sunday fourball's sidebar offered Club settings,
+     * Members and Season standings — the club's branding and colours, its
+     * whole roster, and a league table for an event that is one round long and
+     * can never be in a season. Those are not doors to somebody else's
+     * problem; they are doors to somebody else's CLUB.
+     *
+     * `prizes` goes with them as the club's MONEY — a prize table, contests,
+     * the float, the organizer's ledger. What it also carried, the skins pot,
+     * is asserted below as having somewhere else to be.
+     */
+    for (const gone of ["organization", "roster", "series", "prizes"]) {
+      expect(tournament, gone).toContain(gone);
+      expect(match, gone).not.toContain(gone);
+    }
+  });
+
+  it("keeps the screens a match genuinely has, including somewhere to bet", () => {
     const match = keys(true);
     // The field screen stays because it is the only place a mistyped name or
     // a wrong handicap gets fixed; Rounds stays because changing 18 to 9 is
-    // exactly the second thought two people have on the first tee; the money
-    // screens stay because a match played for a fiver is the oldest bet in
-    // golf.
-    for (const kept of ["registration", "stages", "entry", "leaderboard", "prizes", "group-games"]) {
-      expect(match).toContain(kept);
+    // exactly the second thought two people have on the first tee.
+    for (const kept of ["registration", "stages", "entry", "leaderboard"]) {
+      expect(match, kept).toContain(kept);
     }
+    /**
+     * THE ONE THAT MAKES THE REMOVAL ABOVE HONEST.
+     *
+     * A round played for a fiver is the oldest bet in golf, and dropping
+     * `prizes` would have taken the skins pot with it — the one thing on that
+     * screen a casual round actually wants. `group-games` is where players'
+     * own money already lived and is where the round's pot renders now.
+     *
+     * Asserted here rather than left implied, because "we removed a screen"
+     * and "we removed a capability" look identical in a nav test.
+     */
+    expect(match).toContain("group-games");
   });
 
   it("changes nothing for a tournament that did not ask", () => {
