@@ -34,6 +34,7 @@ import { matchIsOver } from "../domain/match";
 import { resolveCourse } from "../courses";
 import { cardForStage, courseForRound } from "./course-resolution";
 import { holeStrokesReceived, allocationHoles } from "../domain";
+import { roundStrokes } from "./round-cards";
 
 /**
  * The outing's money, gathered in the order somebody actually asks for it.
@@ -381,7 +382,25 @@ async function gameNets(
     const state = await loadEventState(eventId);
     if (state) {
       const stageById = new Map(state.stages.map((s) => [s.id, s]));
-      const cards = await prisma.scorecard.findMany({ where: { eventId } });
+      /**
+       * WHICHEVER TABLE THIS ROUND'S CARDS ARE IN, not just the stroke one.
+       *
+       * The gate below and the pots beneath it both read this, and both read
+       * `prisma.scorecard` alone until 2026-09-09. The note that used to sit
+       * on the gate argued the omission was harmless — "a match round returns
+       * no Scorecard rows at all … so a derived pot on a match round has
+       * nothing to pay either way". That was TRUE when it was written and
+       * stopped being true the day a match round could be scored on full
+       * gross cards, which is what a casual round with a birdie pot now does
+       * by default: `needsCards` forces gross cards precisely so the birdies
+       * can be counted, and then nothing counted them.
+       *
+       * So a £5-a-head birdie pot on a match play round or a four-ball was
+       * staked and never settled — the same defect skins had, in the same
+       * shape, one file over. `roundStrokes` is the single reader both now
+       * ask, so the next pot written cannot inherit it.
+       */
+      const cards = await roundStrokes(eventId);
       /**
        * Every course this tournament may be played on, read once.
        *
@@ -412,14 +431,18 @@ async function gameNets(
        * One measure of the round card's two is deliberately absent: "every
        * match settled". `matchSettled` is satisfied by a match with ONE hole
        * on it, which is loose enough for "which round are we on" and far too
-       * loose to release money. The round card can afford it because a match
-       * round returns no `Scorecard` rows at all — match play writes
-       * `MatchScorecard`, which nothing below reads — so a derived pot on a
-       * match round has nothing to pay either way and the measure changes
-       * nothing there. Where it WOULD have changed something is a stroke round
-       * still holding match rows from before its format was changed, and there
-       * it could only open the gate on half-played cards. So: holes returned,
-       * or the organizer closing the tournament.
+       * loose to release money. So: holes returned, or the organizer closing
+       * the tournament — both of which are properties of the CARDS, and the
+       * cards are now read from all three tables.
+       *
+       * This paragraph used to end differently, and the way it was wrong is
+       * worth keeping. It argued the omission was safe because "a match round
+       * returns no Scorecard rows at all", which was a true statement about
+       * storage doing duty as a claim about money. The moment match play could
+       * be scored on gross cards, the gate stayed shut on a round that was
+       * finished and the pot under it never paid. A reason that depends on a
+       * limitation elsewhere expires when that limitation does, and nothing
+       * tells you.
        *
        * Cached per stage: a club can run four derived pots on one round, and
        * the answer is a property of the round, not of the pot.

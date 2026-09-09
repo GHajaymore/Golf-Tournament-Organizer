@@ -4,6 +4,7 @@ import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { loadEventState } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { GroupingControls } from "@/components/GroupingControls";
+import { generatesPairings } from "@/lib/stage-types";
 import { SetupLockBanner } from "@/components/SetupLockBanner";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
@@ -86,6 +87,7 @@ export default async function GroupingPage() {
         currentMode={mode}
         currentValue={state.event.flightValue}
         locked={locked}
+        drawsPairings={state.stages.some((s) => generatesPairings(s.type))}
       />
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>

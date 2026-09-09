@@ -301,6 +301,8 @@ export interface StrokeStanding {
   gross: number;
   net: number;
   toPar: number;
+  /** Whether a par was known for the holes played — see the leaderboard row. */
+  parKnown: boolean;
   points: number;
   thru: number;
   /** Holes the cards counted here cover, so a screen can say "14 of 18". */
@@ -886,6 +888,10 @@ export async function loadEventState(eventId: string): Promise<EventState | null
         gross: a.gross,
         net: netOf(a),
         toPar: a.gross - a.parThru,
+        // No card behind the round means no par, and `parThru` sums to nought
+        // — which makes to-par read back as the gross score. See `parKnown`
+        // on the leaderboard row for the board that printed "+71" for a 71.
+        parKnown: a.parThru > 0,
         points: a.points,
         thru: a.thru,
         holesOwed: a.holesOwed,
@@ -1285,6 +1291,7 @@ export function standingRows(state: EventState): StandingRow[] {
       gross: s.gross,
       net: s.net,
       toPar: s.toPar,
+      parKnown: s.parKnown,
       points: s.points,
       thru: s.thru,
       holesOwed: s.holesOwed,
@@ -1336,6 +1343,9 @@ export function standingRows(state: EventState): StandingRow[] {
       gross: s?.gross ?? 0,
       net: s?.net ?? 0,
       toPar: s?.toPar ?? 0,
+      // A match-play row with no stroke card has no par either, so the to-par
+      // column reads "—" rather than the zero it used to print.
+      parKnown: s?.parKnown ?? false,
       points: s?.points ?? 0,
       thru: s?.thru ?? 0,
       holesOwed: s?.holesOwed ?? 0,
@@ -1379,7 +1389,23 @@ export function computeHighlights(state: EventState): Highlight[] {
     if (stableford) {
       out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads on ${lead.points} Stableford pts.` });
     } else {
-      const par = lead.toPar === 0 ? "level par" : lead.toPar > 0 ? `+${lead.toPar}` : `${lead.toPar}`;
+      /**
+       * The GROSS when there is no par to be under.
+       *
+       * `toPar` is `gross - parThru`, so a round with no course card behind it
+       * returns the gross score unchanged — and this sentence then announced
+       * "leads at +71 (net 71)" for a 71, which is not a to-par, in the one
+       * card on the screen a reader takes at face value. The board beside it
+       * had already been taught to print "—"; this had not, so the two
+       * disagreed about the same round. See `parKnown`.
+       */
+      const par = !lead.parKnown
+        ? `${lead.gross}`
+        : lead.toPar === 0
+          ? "level par"
+          : lead.toPar > 0
+            ? `+${lead.toPar}`
+            : `${lead.toPar}`;
       out.push({ icon: "🏆", title: "Leader", text: `${lead.player.name} leads at ${par} (net ${lead.net}).` });
     }
     const advancing = scored.filter((s) => state.advancingIds.has(s.player.id));

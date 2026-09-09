@@ -18,6 +18,7 @@ import {
 } from "../domain/skins-pot";
 import { resolveCourse } from "../courses";
 import { parseTeeSheet } from "../domain/tee-sheet";
+import { roundStrokes } from "./round-cards";
 
 /**
  * A week's skins pot, resolved into money.
@@ -153,7 +154,9 @@ export async function skinsPotFor(
       select: { id: true, name: true, handicap: true, handicapType: true, teeId: true, status: true },
       orderBy: { seed: "asc" },
     }),
-    prisma.scorecard.findMany({ where: { eventId, stageId } }),
+    // Every table this round's cards can be in — see `roundStrokes`, which
+    // holds the three sources and the reasoning that used to live below.
+    roundStrokes(eventId, stageId),
     prisma.tee.findMany({
       where: { course: { events: { some: { eventId } } } },
       orderBy: [{ position: "asc" }],
@@ -223,95 +226,6 @@ export async function skinsPotFor(
     }
   };
   const strokesBy = new Map(cards.map((c) => [c.playerId, parse(c.strokes)]));
-
-  /**
-   * AND THE CARDS A MATCH-PLAY ROUND KEEPS SOMEWHERE ELSE.
-   *
-   * Skins on a match-play round could never settle, and the reason is that the
-   * two are different tables. A stroke round writes `Scorecard`, one row per
-   * player; a match round writes `MatchScorecard`, one row per SIDE of the
-   * fixture, keyed by slot "A" or "B". This function read the first and only
-   * the first, so a pot on a match round found no cards at all and reported
-   * "0 skins · provisional" for ever.
-   *
-   * Measured on 2026-09-08: a £5 skins pot on a match that went Final at 5&4,
-   * then a second one scored as full gross cards that still read zero. Ten
-   * pounds in a game that could not be decided. Nothing was ever paid wrongly
-   * — the pot refuses to settle rather than guessing — but it could not be
-   * paid at all, and nothing said why.
-   *
-   * ONLY WHERE THERE IS NOTHING ALREADY, which is the property that makes this
-   * safe to add to money code. A pot that settles today reads exactly the same
-   * cards tomorrow: this fills a gap and can never overwrite. A stroke round
-   * has no `MatchScorecard` rows at all, so it is untouched by construction.
-   *
-   * Individual matches only. A team round keeps its cards per player on
-   * `TeamScorecard` and its fixture names TEAMS rather than players, so slot
-   * "A" is a side of two and not somebody's card — mapping it here would
-   * attribute one player's strokes to the pair. That case is still unsettled
-   * and is deliberately left alone rather than guessed at.
-   */
-  const matchCards = await prisma.matchScorecard.findMany({
-    where: { eventId, match: { stageId } },
-    select: { slot: true, strokes: true, match: { select: { playerAId: true, playerBId: true } } },
-  });
-  for (const row of matchCards) {
-    const playerId = row.slot === "A" ? row.match.playerAId : row.match.playerBId;
-    /**
-     * `!playerId` is DEFENSIVE, and measured as such rather than assumed.
-     *
-     * A team fixture leaves the player columns empty, so this reads "". That
-     * id matches nobody, and dropping the check leaves the audit green — the
-     * team case is safe because the fixture names no players, not because of
-     * this line. It stays because an empty key in a strokes map is a thing a
-     * later reader has to reason about, and not putting it there is cheaper
-     * than explaining it.
-     *
-     * `strokesBy.has` is the load-bearing half: removing it turns the
-     * safety test red, which is the whole argument for making this change to
-     * money code at all.
-     */
-    if (!playerId || strokesBy.has(playerId)) continue;
-    strokesBy.set(playerId, parse(row.strokes));
-  }
-
-  /**
-   * AND THE CARDS A TEAM ROUND KEEPS, WHICH ARE ALREADY PER PLAYER.
-   *
-   * A four-ball was left alone when the match-play source was added, on the
-   * reasoning that a team fixture names TEAMS and slot "A" is a side of two
-   * rather than somebody's card. That is true of `MatchScorecard` and simply
-   * not how a team round stores anything: it writes `TeamScorecard`, and that
-   * table carries its own `playerId`.
-   *
-   * Read off a real four-ball on 2026-09-08 — four rows, four different
-   * player ids, four different cards. The assumption was wrong and the note
-   * saying "deliberately unsettled" was wrong with it, so £20 sat in a pot
-   * reading "0 skins · provisional" for no reason at all.
-   *
-   * FOURSOMES IS THE CASE THAT STAYS OUT, and now for a reason about golf
-   * rather than about storage. Partners play ONE ball, so the side returns one
-   * card with no player against it — `playerId` is empty — and an individual
-   * skin is not a thing that happened.
-   *
-   * The `!row.playerId` half of the guard is DEFENSIVE, measured rather than
-   * assumed: deleting it leaves the audit green, because an empty key matches
-   * no player either way. What actually keeps foursomes out is that its card
-   * carries nobody's id. The check stays so the strokes map never holds a junk
-   * key, not because it is what makes the answer right. (It was claimed as
-   * load-bearing here on first writing and was not; the mutation said so.)
-   *
-   * Gap-filling, like the source above it: a player who already has a card
-   * keeps it, so nothing that settles today changes.
-   */
-  const teamCards = await prisma.teamScorecard.findMany({
-    where: { eventId, stageId },
-    select: { playerId: true, strokes: true },
-  });
-  for (const row of teamCards) {
-    if (!row.playerId || strokesBy.has(row.playerId)) continue;
-    strokesBy.set(row.playerId, parse(row.strokes));
-  }
 
   const returned = (id: string) => (strokesBy.get(id) ?? []).some((s) => s != null);
 

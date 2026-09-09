@@ -58,6 +58,28 @@ export interface StandingRow {
   thru: number;
   /** Holes the counted cards cover, so "thru" can read "14 of 18". */
   holesOwed: number;
+  /**
+   * Whether a PAR was known for the holes this player has played.
+   *
+   * To-par is `gross - parThru`, and `parThru` accumulates `pars[i] ?? 0` — so
+   * a round with no course card behind it sums par to nought and the
+   * subtraction returns the gross score unchanged. The board then printed
+   * "+71" for a 71, in the accent colour, in the column headed TO PAR.
+   *
+   * Read off a real tournament on 2026-09-09, whose venue had been set by
+   * ticking it in the club's course LIBRARY: that attaches the course for the
+   * venue picker and leaves `Event.courseId` and `Stage.courseId` null, which
+   * is what everything scores against. Setup called the tournament finished —
+   * `venued` counts the library, generously and on purpose — and the board
+   * invented a number rather than admitting it had no par.
+   *
+   * A missing figure is a smaller failure than a wrong one, so it shows "—",
+   * exactly as it already does for a player who has returned nothing.
+   *
+   * Optional, defaulting to known, so a caller not yet taught to answer keeps
+   * printing what it prints today.
+   */
+  parKnown?: boolean;
 }
 
 /**
@@ -166,7 +188,14 @@ export function LeaderboardTable({
                 {!compact && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.gross : "—"}</td>}
                 {!isStableford && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.net : "—"}</td>}
                 <td style={{ textAlign: "right", fontWeight: 600, color: "var(--color-accent-200)", ...num }}>
-                  {r.thru > 0 ? (isStableford ? r.points : toParText(r.toPar)) : "—"}
+                  {/* Stableford points are counted off the card and do not
+                      need a par of their own here, so only the to-par branch
+                      asks. See `parKnown`. */}
+                  {r.thru > 0 && (isStableford || r.parKnown !== false)
+                    ? isStableford
+                      ? r.points
+                      : toParText(r.toPar)
+                    : "—"}
                 </td>
               </tr>
             ))}

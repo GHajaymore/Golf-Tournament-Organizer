@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { screenName } from "../nav";
 import { setupFlow, type SetupFlow, type SetupFacts } from "../domain/setup-flow";
 import { isMatch } from "../tournament-shape";
+import { generatesPairings } from "../stage-types";
 import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
 
 /**
@@ -26,19 +27,23 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
   if (!event) return null;
   if (isMatch(event.shape)) return null;
 
-  const [confirmed, stages, groups, matches, venues] = await Promise.all([
+  const [confirmed, stageRows, groups, matches, venues] = await Promise.all([
     prisma.player.count({ where: { eventId, status: "confirmed" } }),
-    prisma.stage.count({ where: { eventId } }),
+    // The TYPES, not just how many. The last step of setup asks for fixtures,
+    // and only some kinds of round have any — see `drawsPairings`.
+    prisma.stage.findMany({ where: { eventId }, select: { type: true } }),
     prisma.group.count({ where: { eventId } }),
     prisma.match.count({ where: { eventId } }),
     prisma.eventCourse.count({ where: { eventId } }),
   ]);
+  const stages = stageRows.length;
 
   const facts: SetupFacts = {
     confirmed,
     stages,
     groups,
     matches,
+    drawsPairings: stageRows.some((s) => generatesPairings(s.type)),
     /**
      * "New Tournament" is what `createEvent` falls back to when the name field
      * is submitted blank, so it is the one string that means "not named yet"

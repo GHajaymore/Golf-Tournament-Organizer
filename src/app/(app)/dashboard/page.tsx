@@ -11,6 +11,7 @@ import { showBracket, bracketBadge, feederFraction } from "@/lib/bracket-visibil
 import { matchProgress, standingRows } from "@/lib/services/tournament";
 import { usesStandardBoard } from "@/lib/formats";
 import { pts, shortName, distinctLabels } from "@/lib/format";
+import { toParText } from "@/lib/domain";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
 import { availabilityFor } from "@/lib/services/availability";
@@ -76,6 +77,33 @@ export default async function DashboardPage() {
   const { event, groupStandings, advancingCount, overallCutoff, brackets } = state;
 
   /**
+   * The venues attached to this tournament, for the line under the title.
+   *
+   * That line read `event.course` and nothing else, so a tournament whose
+   * venue was set through the COURSE LIBRARY — the checkbox list on
+   * Tournament details, which is how a club picks from its own courses and
+   * the only way a league that rotates them can say anything at all — was
+   * greeted every time with "No dates or venue set yet".
+   *
+   * The app disagreed with itself about the same tournament: setup counted it
+   * as venued (`venued` is `event.course || venues > 0`, and generously so on
+   * purpose), the dashboard said there was no venue, and both were reading the
+   * same event. Read off one on 2026-09-09 after ticking a course.
+   *
+   * Only asked when the free-text field is empty, so nothing changes for a
+   * tournament that names its course the ordinary way.
+   */
+  const attachedVenues = event.course.trim()
+    ? []
+    : (
+        await prisma.course.findMany({
+          where: { events: { some: { eventId: event.id } } },
+          select: { name: true },
+          orderBy: { name: "asc" },
+        })
+      ).map((c) => c.name);
+
+  /**
    * Flight-standings labels, decided across the whole card.
    *
    * `shortName` gives "Dave S." to Dave Sherman and Dave Salt alike, and this
@@ -88,6 +116,49 @@ export default async function DashboardPage() {
       (label, i) => [rankedAll[i].player.id, label] as const,
     ),
   );
+
+  /**
+   * The flight columns, ON THE MEASURE THE TOURNAMENT IS ACTUALLY RANKED BY.
+   *
+   * This card read `groupStandings`, which ranks by MATCH POINTS. On a medal
+   * nobody has any, so every figure printed 0 and the order fell through to
+   * the tiebreak chain — while the highlighting beside it came from
+   * `advancingIds`, which the engine correctly derives from the stroke
+   * standings. One card, two measures, disagreeing about the same flight.
+   *
+   * Measured on 2026-09-09, on a four-player medal with every card in: the
+   * board above this said -1, E, +2, +4, and this card said 0, 0, 0, 0. The
+   * ORDER happened to agree that day, which is the part worth being careful
+   * about — with every total equal, the sequence is whatever the match
+   * tiebreak chain settles on, and agreeing with the leaderboard is a
+   * coincidence rather than a property. It is a wrong answer waiting for a
+   * different field, printed under a heading that says standings.
+   *
+   * `strokeStandings` is already sorted and ranked, so filtering it per flight
+   * keeps the engine's order rather than inventing a second one — the same
+   * reason qualification reads it too.
+   */
+  const flightColumns = state.isStroke
+    ? state.groups.map((group) => ({
+        group,
+        ranked: state.strokeStandings
+          .filter((s) => s.player.groupId === group.id)
+          .map((s, i) => ({
+            player: s.player,
+            rank: s.ranked ? i + 1 : 0,
+            // To-par where there is a par, net where there is not — never the
+            // gross wearing a plus sign. See `parKnown`.
+            figure: s.thru > 0 ? (s.parKnown ? toParText(s.toPar) : `${s.net}`) : "—",
+          })),
+      }))
+    : groupStandings.map((gs) => ({
+        group: gs.group,
+        ranked: gs.ranked.map((r) => ({
+          player: r.player,
+          rank: r.rank,
+          figure: pts(r.stats.totalPoints),
+        })),
+      }));
 
   const progress = matchProgress(state);
   const currentStage = state.activeStage ?? state.stages[0];
@@ -402,7 +473,17 @@ export default async function DashboardPage() {
               set up the wrong thing. */}
           <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>{matchEvent ? "The match" : "Tournament dashboard"}</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            {[event.dates, [event.course, event.city].filter(Boolean).join(", ")].filter(Boolean).join(" · ") ||
+            {/* The library's venues stand in for the free-text course when
+                there is none — see `attachedVenues`. Named rather than
+                counted: "2 venues" tells an organizer nothing they did not
+                already know, and a rotating league's whole point is which
+                courses. */}
+            {[
+              event.dates,
+              [event.course || attachedVenues.join(" · "), event.city].filter(Boolean).join(", "),
+            ]
+              .filter(Boolean)
+              .join(" · ") ||
               (matchEvent ? "No date or course set — neither is needed to play it" : "No dates or venue set yet")}
           </p>
         </div>
@@ -693,7 +774,7 @@ export default async function DashboardPage() {
           <span className="text-muted" style={{ fontSize: 12 }}>Advancing rows highlighted</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginTop: 6 }}>
-          {groupStandings.map((gs, gi) => (
+          {flightColumns.map((gs, gi) => (
             <div key={gs.group.id}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Flight {gi + 1}</div>
               {gs.ranked.map((r) => {
@@ -716,7 +797,7 @@ export default async function DashboardPage() {
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {standingLabels.get(r.player.id) ?? shortName(r.player.name)}
                     </span>
-                    <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{pts(r.stats.totalPoints)}</span>
+                    <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{r.figure}</span>
                   </div>
                 );
               })}

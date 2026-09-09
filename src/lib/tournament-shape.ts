@@ -46,8 +46,6 @@ export interface ShapeOption {
   key: TournamentShape;
   label: string;
   blurb: string;
-  /** What this shape starts with, so nobody begins on an empty screen. */
-  openingRound: { type: string; format: string; scoringBasis: string; holes: number };
 }
 
 /**
@@ -57,6 +55,17 @@ export interface ShapeOption {
  * creates everything in one step, so listing it here would be a fourth radio
  * button that leads to the same six screens the match screen exists to skip.
  * `MATCH_SHAPE` below carries its details for the code that needs them.
+ *
+ * A SHAPE NO LONGER CARRIES AN OPENING ROUND, and the field is gone rather
+ * than left unread. It described "what this shape starts with, so nobody
+ * begins on an empty screen", and what it actually did was create every
+ * from-scratch tournament holding a Round Robin nobody had chosen — a stage
+ * type and a scoring format decided by the app and never mentioned again.
+ * `createEvent` stopped reading it on 2026-09-09 and it had no other caller,
+ * so leaving the data here would be leaving the ingredients of the same
+ * default on the shelf for the next person who wants a sensible starting
+ * point. A tournament begins with no rounds and the organizer picks them on
+ * Rounds & formats, which is step two of setup and exists for this.
  */
 export const TOURNAMENT_SHAPES: ShapeOption[] = [
   {
@@ -64,21 +73,18 @@ export const TOURNAMENT_SHAPES: ShapeOption[] = [
     label: "A single round",
     blurb:
       "One day, one round, one result. A club medal, a charity day, a society outing — everyone plays, and the scores decide it.",
-    openingRound: { type: "Round Robin", format: "Stroke Play", scoringBasis: "gross", holes: 18 },
   },
   {
     key: "series",
     label: "A series of rounds",
     blurb:
       "Several rounds that add up: a league over a season, or a championship over a weekend. Standings carry from one round to the next, and you can cut the field between them.",
-    openingRound: { type: "Round Robin", format: "Match Play", scoringBasis: "gross", holes: 18 },
   },
   {
     key: "knockout",
     label: "A knockout",
     blurb:
       "Win and play on, lose and you're out. Start straight into the bracket, or qualify into it from a group stage first.",
-    openingRound: { type: "Bracket Stage", format: "Match Play", scoringBasis: "gross", holes: 18 },
   },
 ];
 
@@ -91,7 +97,6 @@ export const MATCH_SHAPE: ShapeOption = {
   key: "match",
   label: "A match",
   blurb: "Two players, one round, hole by hole. Set it up in one screen and start scoring.",
-  openingRound: { type: "Round Robin", format: "Match Play", scoringBasis: "gross", holes: 18 },
 };
 
 export const DEFAULT_SHAPE: TournamentShape = "series";

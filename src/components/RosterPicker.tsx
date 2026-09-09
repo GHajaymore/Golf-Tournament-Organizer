@@ -25,6 +25,20 @@ export function RosterPicker({
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [result, setResult] = useState("");
+  /**
+   * Whether that outcome actually entered anybody.
+   *
+   * The result line was rendered with a green tick whatever it said, so
+   * "Added 0 · no email for Aisha Rahman, Andre Costa, Ben Carter and 1 other
+   * — not entered" arrived under a success mark. Measured on 2026-09-09
+   * against a club roster with no addresses on it: four members picked, four
+   * refused, and the screen ticked it.
+   *
+   * A run that entered nobody is not a success, and a tick over a sentence
+   * that says so is the screen disagreeing with itself — the reader believes
+   * the icon, goes to the field, and finds it empty.
+   */
+  const [entered, setEntered] = useState(true);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -67,8 +81,30 @@ export function RosterPicker({
       if (r.skipped) bits.push(`${r.skipped} already in the field`);
       if (r.needEmail.length) bits.push(`no email for ${listNames(r.needEmail)} — not entered`);
       if (r.needPhone.length) bits.push(`no mobile for ${listNames(r.needPhone)} — not entered`);
+      /**
+       * And what to DO about it, when the answer is nobody.
+       *
+       * The line stated an outcome and stopped. A club whose roster was
+       * imported from a membership list — which the roster deliberately
+       * allows to carry no addresses — reads "Added 0", four names, and has
+       * no idea that the remedy is one screen away or that it is a remedy.
+       * The "Manage members" link is at the top of this card, so the sentence
+       * only has to point at it.
+       */
+      if (r.added === 0 && (r.needEmail.length || r.needPhone.length)) {
+        bits.push("add their details under Manage members, then pick them again");
+      }
       setResult(`${bits.join(" · ")}.`);
-      setSelected(new Set());
+      setEntered(r.added > 0 || r.waitlisted > 0);
+      // Only what was actually entered clears. Leaving the refused members
+      // ticked is the difference between "pick those four again" and "which
+      // four were they?" — and the names in the line above are truncated at
+      // three.
+      setSelected(
+        r.added === 0 && (r.needEmail.length || r.needPhone.length)
+          ? new Set(ids)
+          : new Set(),
+      );
     });
   };
 
@@ -175,7 +211,14 @@ export function RosterPicker({
       )}
       {result && (
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-          <Icon name="check-circle" style={{ color: "var(--color-accent-2-300)" }} /> {result}
+          {/* The mark follows the sentence. See `entered` above for the run
+              this was written for. */}
+          {entered ? (
+            <Icon name="check-circle" style={{ color: "var(--color-accent-2-300)" }} />
+          ) : (
+            <Icon name="warning-circle" style={{ color: "var(--color-danger)" }} />
+          )}{" "}
+          {result}
         </p>
       )}
     </div>

@@ -40,6 +40,28 @@ export interface SetupFacts {
   groups: number;
   /** Fixtures drawn, which is what generating flights actually produces. */
   matches: number;
+  /**
+   * Whether ANY round in this tournament has pairings drawn from the flights.
+   *
+   * True for a round robin, which is what "generating flights actually
+   * produces" was written about. FALSE for a medal — a Stroke Play Round draws
+   * no pairings, by design, because nobody is playing anybody — and false for
+   * a knockout, whose fixtures come from the bracket rather than from here.
+   *
+   * Without it the last step of setup could never be completed by either of
+   * them. Read off a single-round tournament on 2026-09-09: four players
+   * entered, two flights generated, the screen itself saying "Flights are
+   * made, but no pairings are drawn" — and the rail stuck on "4 TO DO" for
+   * ever, because the thing it was waiting for is not a thing that happens on
+   * a medal.
+   *
+   * What that cost is more than a stuck counter. `readyToLaunch` requires
+   * `complete`, so the one banner that says "setup is finished and the field
+   * still cannot see any of it" never appeared on a medal at all — and the
+   * other warning about an unlaunched tournament does not fire until somebody
+   * enters a score, which is a day too late.
+   */
+  drawsPairings: boolean;
   /** A name of its own, rather than the placeholder a blank one falls back to. */
   named: boolean;
   /** A day it is played on. */
@@ -147,15 +169,22 @@ const STEPS: ReadonlyArray<{
     href: "/grouping",
     question: "How is the field divided, and who plays whom?",
     /**
-     * Two conditions, not one, and the second is the one that matters.
+     * Two conditions where there are two, and one where there is only one.
      *
-     * Flights existing is not the same as a schedule existing: generating
-     * produces both, but a flight built and then left produces a tournament
-     * with groups and no fixtures, which reads as finished and has nothing to
-     * score. The checklist has always tested both; this says so out loud.
+     * Flights existing is not the same as a schedule existing: on a round
+     * robin, generating produces both, and a flight built and then left is a
+     * tournament with groups and no fixtures — it reads as finished and has
+     * nothing to score. That is why the second test is here.
+     *
+     * IT ONLY APPLIES WHERE PAIRINGS ARE DRAWN. A medal draws none and a
+     * knockout draws its own from the bracket, so demanding fixtures of either
+     * is waiting for something that is never going to happen — and it did:
+     * both were pinned on the last step of setup for ever. See
+     * `drawsPairings` for what that cost beyond the counter.
      */
-    missing: (f) => (f.groups === 0 ? "No flights yet." : "Flights are made, but no pairings are drawn."),
-    done: (f) => f.groups > 0 && f.matches > 0,
+    missing: (f) =>
+      f.groups === 0 ? "No flights yet." : "Flights are made, but no pairings are drawn.",
+    done: (f) => f.groups > 0 && (!f.drawsPairings || f.matches > 0),
   },
 ];
 

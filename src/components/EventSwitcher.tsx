@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { switchEvent, createEvent, cloneEvent, deleteEvent } from "@/app/actions/tournament";
 import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
+import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { Icon } from "./Icon";
 
 /** Marks a "Start from" value as an event id rather than a template key, so the
@@ -54,6 +55,24 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
   // first: anyone who clicks Create without reading gets exactly what that
   // button has always done, and copying stays a decision they made on purpose.
   const [source, setSource] = useState(DEFAULT_TEMPLATE_KEY);
+  /**
+   * HOW IT IS PLAYED, WHICH THIS SCREEN NEVER ASKED.
+   *
+   * `createEvent(name, source)` was called with no shape at all, so every
+   * tournament created from here became a series of rounds — the fallback in
+   * `shapeOf` — and nothing on the screen said so. That is the path a
+   * RETURNING organizer uses: `/choose` is for people who have none yet, and
+   * this card is where everyone else creates anything.
+   *
+   * The consequence is not cosmetic. The shape decides whether standings carry
+   * between rounds, whether there is a cut, and whether the bracket and
+   * qualification screens exist at all — so a club medal built from here
+   * arrived dressed as a league, with two screens it would never use.
+   *
+   * Empty, not preselected, for the same reason `/choose` no longer
+   * preselects: a default answer to "how is it played" is the app deciding.
+   */
+  const [shape, setShape] = useState<TournamentShape | "">("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -273,15 +292,34 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
             </optgroup>
           </select>
         </div>
+        {/* Not asked when COPYING: a copy is played the way its source was,
+            and offering the question there would let the two disagree. */}
+        {!copyFrom && (
+          <div className="field" style={{ flex: 1, minWidth: 220 }}>
+            <label>How is it played?</label>
+            <select
+              className="input"
+              value={shape}
+              onChange={(e) => setShape(e.target.value as TournamentShape | "")}
+            >
+              <option value="">Choose…</option>
+              {TOURNAMENT_SHAPES.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <button
           type="button"
           className="btn btn-primary"
-          disabled={pending}
+          disabled={pending || !name.trim() || (!copyFrom && !shape)}
           onClick={() => {
             const copyId = source.startsWith(COPY_PREFIX) ? source.slice(COPY_PREFIX.length) : "";
             setError("");
             startTransition(async () => {
-              const res = copyId ? await cloneEvent(copyId, name) : await createEvent(name, source);
+              const res = copyId
+                ? await cloneEvent(copyId, name)
+                : await createEvent(name, source, shape);
               if (res && !res.ok) setError(res.error ?? "Could not create the tournament.");
             });
             setName("");
@@ -290,6 +328,16 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
           <Icon name="plus" /> Create tournament
         </button>
       </div>
+      {/* Why the button is dead, naming the step that is actually outstanding.
+          Create used to be enabled with an empty name and silently made
+          "New Tournament"; now it says what it wants. */}
+      {!pending && (!name.trim() || (!copyFrom && !shape)) && (
+        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          {!name.trim()
+            ? "Name it first."
+            : "Say how it's played — that decides what the rest of setup asks."}
+        </p>
+      )}
       <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{blurb}</p>
       {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
 

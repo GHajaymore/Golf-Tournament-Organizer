@@ -2,7 +2,7 @@
 import { useState, useTransition } from "react";
 import { createEvent } from "@/app/actions/tournament";
 import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
-import { TOURNAMENT_SHAPES, DEFAULT_SHAPE, type TournamentShape } from "@/lib/tournament-shape";
+import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { retentionNotice, planFor } from "@/lib/plans";
 import { Icon } from "./Icon";
 
@@ -25,11 +25,12 @@ export function CreateFirstTournament({
   const [orgName, setOrgName] = useState("");
   const [open, setOpen] = useState(first);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE_KEY);
-  const [shape, setShape] = useState<TournamentShape>(DEFAULT_SHAPE);
+  // Nothing preselected. See the field below.
+  const [shape, setShape] = useState<TournamentShape | "">("");
   const [pending, startTransition] = useTransition();
 
   const submit = () => {
-    if (!name.trim()) return;
+    if (!name.trim() || !shape) return;
     startTransition(async () => {
       await createEvent(name, template, shape, orgName);
     });
@@ -71,7 +72,14 @@ export function CreateFirstTournament({
       </div>
       {/* Asked before anything else, because it decides what the rest of setup
           is even about: a single round has no next round to carry into, and a
-          knockout has a bracket where a league has none. */}
+          knockout has a bracket where a league has none.
+
+          AND NOTHING IS PRESELECTED. This opened with "A series of rounds"
+          highlighted — the middle option, chosen by a constant — so somebody
+          typing a name and pressing Create made a league without ever reading
+          the three. It is the same fault as the defaulted Round Robin one
+          screen along, in the one place the app has a person to ask. Create
+          stays disabled until this is answered. */}
       <div className="field">
         <label>How is it played?</label>
         <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
@@ -157,7 +165,7 @@ export function CreateFirstTournament({
       )}
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="button" className="btn btn-primary" disabled={pending || !name.trim()} onClick={submit}>
+        <button type="button" className="btn btn-primary" disabled={pending || !name.trim() || !shape} onClick={submit}>
           {pending ? "Creating…" : "Create tournament"} <Icon name="arrow-right" />
         </button>
         {!first && (
@@ -166,6 +174,17 @@ export function CreateFirstTournament({
           </button>
         )}
       </div>
+      {/* A disabled button that does not say why is a dead end, and this one
+          is disabled for two different reasons. Naming the step that is
+          actually outstanding is the difference between "the app is broken"
+          and "I have one more thing to answer". */}
+      {!pending && (!name.trim() || !shape) && (
+        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+          {!name.trim()
+            ? "Give it a name, then say how it's played."
+            : "Say how it's played — that decides what the rest of setup asks."}
+        </p>
+      )}
     </div>
   );
 }

@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
+import { isHeadToHead, isPlayingRound } from "@/lib/stage-types";
 import { loadEventState, parseMatchTiebreakers, playingStages, settingsOf } from "@/lib/services/tournament";
 import { roundHandicapsFor, type RoundHandicapView } from "@/lib/services/round-handicap";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
@@ -69,6 +72,18 @@ export default async function StagesPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const locked = isSetupLocked(state.event);
+  /**
+   * Whether the event's Scoring can rank what these rounds produce.
+   *
+   * Playing rounds only — a Qualification Stage is a cut, not a round, and
+   * counting it would report a mismatch on a tournament with nothing wrong.
+   */
+  const scoring = scoringMismatch(
+    state.event.format,
+    state.stages
+      .filter((s) => isPlayingRound(s.type))
+      .map((s) => ({ type: s.type, headToHead: isHeadToHead(s.type) })),
+  );
   // Where this screen sits in setting the tournament up. Null for a match.
   const flow = await setupFlowFor(session.eventId);
 
@@ -224,6 +239,35 @@ export default async function StagesPage() {
           thing, which is the whole of the change: same component, same props,
           same behaviour, a different place on the page depending on whether
           the organizer has started. */}
+      {/* THE SAME WARNING THE LEADERBOARD CARRIES, on the screen that creates
+          the disagreement.
+
+          The leaderboard is where the harm shows — an empty board over four
+          returned cards — but by then the round has been played. Here the
+          rounds are being chosen, so a sentence about how they will be scored
+          is advice rather than a post-mortem. One rule, in
+          `scoringMismatch`, so the two cannot come to say different things. */}
+      {scoring && (
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-start",
+            padding: "10px 12px",
+            borderRadius: 10,
+            marginBottom: 16,
+            background: "var(--color-danger-bg)",
+            border: "1px solid color-mix(in srgb, var(--color-danger) 40%, transparent)",
+          }}
+        >
+          <p style={{ fontSize: 12.5, margin: 0, lineHeight: 1.5 }}>
+            <b>These rounds cannot be scored as set.</b> {scoring.message}{" "}
+            <Link href="/event" style={{ color: "var(--color-accent)" }}>
+              Tournament details
+            </Link>
+          </p>
+        </div>
+      )}
       {!locked && stages.length === 0 && describeTournament}
       <StagesClient
         stages={stages}

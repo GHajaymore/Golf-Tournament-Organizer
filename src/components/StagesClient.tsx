@@ -27,7 +27,7 @@ import { CUT_SCOPE_HELP, ROUND_CUT_HELP, QUALIFICATION_CUT_HELP } from "@/lib/do
 import { chainIssues, issuesForRound, carryForwardPrompt, type CarryPrompt } from "@/lib/format-chain";
 import {
   STAGE_TYPE_INFO,
-  STAGE_TYPES,
+  // STAGE_TYPES is gone with the round type this screen used to preselect.
   stageTypeInfo,
   generatesPairings,
   seededFromQualifiers,
@@ -1637,7 +1637,25 @@ export function StagesClient({
    * something away as a reward for using it.
    */
   const [addOpen, setAddOpen] = useState(stages.length === 0);
-  const [newType, setNewType] = useState<StageTypeKey>(STAGE_TYPES[0]);
+  /**
+   * WHAT KIND OF ROUND — asked, not assumed.
+   *
+   * This opened on `STAGE_TYPES[0]`, which is Round Robin, so the Add button
+   * read "Add round robin" before anybody had looked at the five cards, and
+   * the sentence under it promised "a full set of pairings" for a tournament
+   * that might be a club medal. On the commonest path — open the screen, press
+   * the obvious button — the app chose the round type and the organizer never
+   * knew there had been a choice.
+   *
+   * A round's type is not a label. It decides what is DRAWN: `stage-types.ts`
+   * records a round robin set to stroke play as "a full set of pairings for a
+   * round in which nobody plays anybody", which is what a defaulted type
+   * produces the moment the format is not the one it assumed.
+   *
+   * Empty until picked, and Add stays disabled — the same rule the tournament
+   * builder and the casual round now follow.
+   */
+  const [newType, setNewType] = useState<StageTypeKey | "">("");
   // Resets to 1 after each add: "add 10 weeks" is a deliberate act, and
   // leaving the box on 10 would make the next click a nasty surprise.
   const [howMany, setHowMany] = useState(1);
@@ -1727,7 +1745,12 @@ export function StagesClient({
       {stages.length === 0 && (
         <div className="card elev-sm">
           <span className="text-muted" style={{ fontSize: 13 }}>
-            No rounds yet — add your first round below (start with a Round Robin).
+            {/* The parenthetical that used to end this line said "start with a
+                Round Robin". It was the defaulted type wearing a suggestion:
+                everyone plays everyone in their flight is a match-play idea,
+                and this screen is reached just as often by a club medal, where
+                it is the wrong answer stated as the obvious one. */}
+            No rounds yet — pick what is being played below.
           </span>
         </div>
       )}
@@ -1913,7 +1936,18 @@ export function StagesClient({
               style={{ minWidth: 150 }}
               aria-label="Format for every round added"
             >
-              <option value="">Default for this event</option>
+              {/* "Default for this event" — preselected, so the commonest path
+                  through this screen never chose a format at all. What it
+                  resolved to was the event's scoring hint, which on a
+                  from-scratch tournament is match: a stroke play round came
+                  out labelled Match Play, and score entry opened it in match
+                  mode with nothing to enter. Measured on 2026-09-09 by adding
+                  one and reading the card.
+
+                  The format is HALF of what a round is — the type decides what
+                  is drawn, the format decides how a score becomes a result —
+                  so it is asked, like the type above it. */}
+              <option value="">Choose…</option>
               <optgroup label="Played on your own">
                 {GOLF_FORMATS.filter((f) => f.playable && !isTeamFormat(f.name)).map((f) => (
                   <option key={f.name} value={f.name}>{f.name}</option>
@@ -1978,8 +2012,10 @@ export function StagesClient({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending}
+            disabled={pending || !newType || !bulkFormat}
             onClick={() =>
+              newType &&
+              bulkFormat &&
               startTransition(async () => {
                 await addStage(newType, {
                   count: howMany,
@@ -1994,9 +2030,14 @@ export function StagesClient({
             }
           >
             <Icon name="plus" />{" "}
-            {howMany === 1
-              ? `Add ${stageTypeInfo(newType).label.toLowerCase()}`
-              : `Add ${howMany} ${stageTypeInfo(newType).label.toLowerCase()}s`}
+            {/* Names the round it will add, and says so is unanswered until
+                one is picked. "Add round robin" on an unanswered screen was
+                the default announcing itself as a decision. */}
+            {!newType
+              ? "Add round"
+              : howMany === 1
+                ? `Add ${stageTypeInfo(newType).label.toLowerCase()}`
+                : `Add ${howMany} ${stageTypeInfo(newType).label.toLowerCase()}s`}
           </button>
         </div>
 
@@ -2012,9 +2053,17 @@ export function StagesClient({
             so it belongs beneath the row it describes — the same place every
             other explanation on this screen sits. */}
         <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", maxWidth: "62ch", lineHeight: 1.5 }}>
-          {generatesPairings(newType)
-            ? "Draws a full set of pairings once flights are generated."
-            : "No pairings are drawn — the field returns cards."}
+          {/* Nothing is promised about a round nobody has chosen. This read
+              "Draws a full set of pairings" on an untouched screen, which
+              described the defaulted Round Robin rather than anything the
+              organizer had asked for. */}
+          {!newType
+            ? "Pick one above — the type decides what gets drawn."
+            : !bulkFormat
+              ? `${generatesPairings(newType) ? "Draws a full set of pairings once flights are generated." : "No pairings are drawn — the field returns cards."} Now choose the format it is scored by.`
+              : generatesPairings(newType)
+                ? "Draws a full set of pairings once flights are generated."
+                : "No pairings are drawn — the field returns cards."}
         </p>
 
         {/* Said before the click, not discovered after it. Deliberately NOT a
