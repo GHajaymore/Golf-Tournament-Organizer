@@ -11,6 +11,7 @@ import {
   QUICK_ROUND_MAX_PLAYERS,
   QUICK_MONEY_GAMES,
 } from "@/lib/domain/quick-match";
+import { entryModesFor } from "@/lib/domain/match-entry";
 import { Icon } from "./Icon";
 
 /**
@@ -159,6 +160,19 @@ export function NewMatchForm({
    * screen never offers a wager the round cannot hold.
    */
   const moneyGames = QUICK_MONEY_GAMES.filter((g) => !g.matchOnly || chosen.headToHead);
+
+  /**
+   * Whether a full card is what this round type would ask for anyway.
+   *
+   * Asked of the FORMAT's own declaration rather than guessed from whether it
+   * is a head-to-head. Match play's first input is who won the hole; stroke
+   * play's only input is the card. Getting that from `entryModesFor` is the
+   * same source the entry screen reads, so the note below cannot claim a
+   * change that screen will not make — the catalogue and the entry screen had
+   * already drifted once over exactly this, which is why the list lives on
+   * the format.
+   */
+  const cardIsNatural = entryModesFor(chosen.name)[0] === "gross-cards";
   const exact = exactPlayersFor(chosen);
   const ceiling = exact ?? QUICK_ROUND_MAX_PLAYERS;
   const named = players.filter((p) => p.name.trim().length > 0);
@@ -662,6 +676,20 @@ export function NewMatchForm({
               Everyone playing is in. The app works out who won what and who owes whom — it never
               takes or moves any money.
             </p>
+            {/* SAID WHERE THE CHOICE IS MADE, because the consequence lands on
+                a different screen an hour later.
+
+                Skins and a birdie pot settle off STROKES, and match play's
+                natural input is who won the hole — so this round will ask for
+                a full card rather than the A/½/B it would otherwise offer.
+                Without saying so, somebody arrives at score entry expecting
+                one thing and finds another, with no idea why. */}
+            {moneyGames.find((g) => g.key === moneyGame)?.needsCards && !cardIsNatural && (
+              <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
+                <Icon name="note-pencil" /> This one is worked out from the scores, so you&rsquo;ll
+                write down strokes on every hole rather than just who won it.
+              </p>
+            )}
           </>
         )}
       </div>

@@ -214,6 +214,15 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
        * Round", which draws none.
        */
       type: plan.stageType,
+      /**
+       * What this round asks a scorer for.
+       *
+       * Set by the MONEY, and only by the money — see `MatchPlan.scoreInput`.
+       * A skins pot settles off strokes, and match play's natural input is who
+       * won the hole, so without this the commonest setup there is creates a
+       * pot that can never be decided.
+       */
+      scoreInput: plan.scoreInput,
       description: "",
       format: plan.format,
       holes: plan.holes,

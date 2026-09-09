@@ -172,6 +172,26 @@ export interface QuickMoneyGame {
    * four-person medal names a wager with no opponent in it.
    */
   matchOnly?: boolean;
+  /**
+   * This game settles off STROKES, so the round has to return a full card.
+   *
+   * The distinction that stranded a real pot. Skins compares scores hole by
+   * hole and a birdie pot counts scores against par, so both read
+   * `Scorecard` rows. A Nassau reads who won each hole and needs no card at
+   * all — it resolves through `resolveMatch` like the match itself.
+   *
+   * It matters because MATCH PLAY, the default round type, is "the one format
+   * that genuinely produces no card": a player tracks who won the hole and
+   * stops counting once it is lost, so `inputs[0]` is "hole-results". Set up
+   * a £5 skins pot on the default round, score it the way the screen offers,
+   * and the match goes Final at 5&4 while the pot reads "0 skins ·
+   * provisional" for ever. Measured on 2026-09-08, exactly that.
+   *
+   * Nothing was paid wrongly — the pot refuses to settle rather than guessing
+   * — but ten pounds sat in a game that could never be decided, and nothing
+   * told anybody why.
+   */
+  needsCards?: boolean;
 }
 
 export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
@@ -180,6 +200,7 @@ export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
     label: "Skins",
     blurb: "A pot on every hole. Win one outright and you take it; tie it and it carries over.",
     pot: "skins",
+    needsCards: true,
   },
   {
     key: "birdies",
@@ -187,6 +208,7 @@ export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
     blurb: "Everyone puts in the same, and every birdie made takes a share of it.",
     pot: "side",
     kind: "birdies",
+    needsCards: true,
   },
   {
     key: "nassau",
@@ -433,6 +455,26 @@ export interface MatchPlan {
    * made a bet the condition of playing.
    */
   money: PlannedMoney | null;
+  /**
+   * What the round must ask a scorer for, or "" to let the format decide.
+   *
+   * Written to `Stage.scoreInput`, which `defaultEntryMode` already honours
+   * above everything else — "the committee's decision beats every default
+   * below it… a club that wants full cards from its match-play day gets
+   * them". A money game that settles off strokes is exactly such a decision,
+   * made by the players rather than a committee.
+   *
+   * Without it, the commonest possible setup — the default round type with a
+   * fiver on the skins — creates a pot that can never settle: the entry
+   * screen offers hole results, hole results write no `Scorecard`, and skins
+   * has nothing to read. Measured on 2026-09-08: a match Final at 5&4 beside
+   * a pot reading "0 skins · provisional".
+   *
+   * Empty for everything else, so a round with no money on it is scored the
+   * way its format says, and a Nassau — which settles off who won each hole —
+   * changes nothing.
+   */
+  scoreInput: string;
 }
 
 export type MatchPlanResult = { ok: true; plan: MatchPlan } | { ok: false; error: string };
@@ -696,6 +738,18 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
       scoringBasis: input.useHandicaps ? "net" : "gross",
       courseId: (input.courseId ?? "").trim() || null,
       money,
+      /**
+       * A card, when the money needs one — and nothing otherwise.
+       *
+       * `"gross-cards"` is a `MatchEntryMode` and one of match play's own
+       * declared inputs, so this asks the format for something it already
+       * offers rather than overriding it with a shape it cannot score.
+       * `resolveScoreInput` ignores anything a format does not list, which is
+       * what makes this safe to set on a round type that produces a card
+       * anyway: stroke play's only input IS the card, so the value is a no-op
+       * there rather than a second opinion.
+       */
+      scoreInput: money?.game.needsCards ? "gross-cards" : "",
     },
   };
 }

@@ -491,6 +491,55 @@ describe("setting up a round with money on it", () => {
     ).toBe(true);
   });
 
+  it("asks for a card when the money settles off strokes", () => {
+    /**
+     * THE ONE THAT STRANDED REAL MONEY.
+     *
+     * Match play is "the one format that genuinely produces no card" — a
+     * player tracks who won the hole and stops counting once it is lost — so
+     * `inputs[0]` is "hole-results" and the entry screen offers A/½/B. Skins
+     * reads `Scorecard` rows, which that never writes.
+     *
+     * Measured on 2026-09-08: a £5 skins pot on the DEFAULT round type, scored
+     * the way the screen offers, left the match Final at 5&4 beside a pot
+     * reading "0 skins · provisional". Nothing was paid wrongly — the pot
+     * refuses to settle rather than guessing — but ten pounds sat in a game
+     * that could never be decided, and nothing said why.
+     */
+    const withSkins = round({ game: "skins", stakeCents: 500 });
+    expect(withSkins.ok).toBe(true);
+    if (withSkins.ok) expect(withSkins.plan.scoreInput).toBe("gross-cards");
+  });
+
+  it("leaves the round to score itself when the money does not need a card", () => {
+    /**
+     * The assertion that stops the one above becoming "always demand a card".
+     *
+     * A Nassau settles off who won each hole, through `resolveMatch`, exactly
+     * like the match itself — so forcing a card on it would take the natural
+     * input away from the one bet that does not need one. And a round played
+     * for nothing should be scored however its format says.
+     */
+    const nassau = round({ game: "nassau", stakeCents: 500 });
+    expect(nassau.ok).toBe(true);
+    if (nassau.ok) expect(nassau.plan.scoreInput).toBe("");
+
+    const nothing = round(null);
+    expect(nothing.ok).toBe(true);
+    if (nothing.ok) expect(nothing.plan.scoreInput).toBe("");
+  });
+
+  it("declares which games read strokes, and which reads holes", () => {
+    // The flag is what drives the round's input, so a wrong one here strands a
+    // pot. Stated per game rather than derived from `pot`, because a side game
+    // is not automatically one or the other — birdies count strokes against
+    // par and a Nassau counts holes, and both are side games.
+    const need = (key: string) => QUICK_MONEY_GAMES.find((g) => g.key === key)?.needsCards === true;
+    expect(need("skins"), "skins compares scores hole by hole").toBe(true);
+    expect(need("birdies"), "a birdie is a score against par").toBe(true);
+    expect(need("nassau"), "a Nassau reads who won the hole").toBe(false);
+  });
+
   it("only offers games the rest of the app can actually settle", () => {
     // Skins is a `SkinsPot`; the others are `SideGame` rows whose `kind` has
     // to be one the settle-up knows. A kind invented here would create a bet
