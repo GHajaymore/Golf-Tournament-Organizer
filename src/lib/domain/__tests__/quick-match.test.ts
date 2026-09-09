@@ -13,6 +13,7 @@ import {
   HANDICAP_MAX,
 } from "../quick-match";
 import { GOLF_FORMATS } from "@/lib/formats";
+import { needsCourseData } from "@/lib/courses";
 import { resolveMatch } from "../match";
 import { isMatch, capabilitiesOf, shapeOption, isTournamentShape } from "@/lib/tournament-shape";
 
@@ -673,5 +674,67 @@ describe("a match that has not been played", () => {
     const asCreated = resolveMatch(JSON.parse(JSON.stringify(new Array(18).fill(null))));
     expect(asCreated.complete).toBe(false);
     expect(asCreated.winner).toBeNull();
+  });
+});
+
+describe("which quick rounds cannot be scored without the course card", () => {
+  /**
+   * `/match/new` offers "Decide later" for the venue, and score entry REFUSES
+   * a round whose scoring needs a card — it renders "Set up this course"
+   * instead of the scorecard. So the setup screen names the reasons before the
+   * round exists, and these are the facts it names them from.
+   *
+   * Measured on 2026-09-09: a four-ball with a £5 birdie pot and no venue was
+   * created happily, and score entry then would not open at all.
+   */
+  const game = (key: string) => QUICK_MONEY_GAMES.find((g) => g.key === key)!;
+
+  it("counts a birdie pot, because a birdie is one under par", () => {
+    expect(game("birdies").needsPars).toBe(true);
+  });
+
+  it("and does NOT count skins, which compares the cards to each other", () => {
+    /**
+     * THE ASSERTION THAT KEEPS THIS HONEST.
+     *
+     * Gross skins is "lowest score on this hole" and needs no par at all —
+     * flagging it would put a warning on a game that does not need one, which
+     * is how a notice becomes boilerplate nobody reads. Net skins does need
+     * the stroke index, and that is carried by the shots question rather than
+     * by the game.
+     *
+     * A Nassau needs neither: it reads who won each hole.
+     */
+    expect(game("skins").needsPars).toBeUndefined();
+    expect(game("nassau").needsPars).toBeUndefined();
+  });
+
+  it("separates 'returns a card' from 'needs a par'", () => {
+    // Two different questions, and skins is the one that shows they are: it
+    // needs a full card and no par. Collapsing them into one flag would warn
+    // about the wrong games in both directions.
+    expect(game("skins").needsCards).toBe(true);
+    expect(game("skins").needsPars).toBeUndefined();
+    expect(game("nassau").needsCards).toBeUndefined();
+  });
+
+  it("agrees with the guard score entry actually blocks on", () => {
+    /**
+     * The format half of the notice goes through `needsCourseData`, which is
+     * the same function `/entry` refuses on — so the setup screen cannot
+     * promise a round the next screen then turns away.
+     *
+     * Asserted at GROSS, which is how the component asks it. Passing the live
+     * basis instead made "Match Play" report as "scored against par" when
+     * shots were being given, which is the stroke index wearing par's name.
+     */
+    const at = (name: string, basis: string) => needsCourseData([{ format: name, scoringBasis: basis }]);
+    // A four-ball aggregates real scores, so it needs par however it is played.
+    expect(at("Four-Ball", "gross")).toBe(true);
+    // Gross singles match play is the one that genuinely needs nothing.
+    expect(at("Match Play", "gross")).toBe(false);
+    // And net match play does — by stroke index, which is why the component
+    // asks this at gross and names the handicap separately.
+    expect(at("Match Play", "net")).toBe(true);
   });
 });

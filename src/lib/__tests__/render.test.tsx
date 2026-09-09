@@ -2973,6 +2973,29 @@ describe("the board answers 'where am I' first", () => {
     expect(html).not.toContain("thru 54");
   });
 
+  it("says something instead of printing column names over nothing", async () => {
+    /**
+     * A HEADER ROW OVER NOTHING IS NOT AN EMPTY STATE.
+     *
+     * Found on a FINISHED four-ball on 2026-09-09: the dashboard card headed
+     * "Where the match stands" printed #, PLAYER, REC, HOLES ± and PTS with
+     * no rows under them, on a match that had been played out and settled.
+     * `standingRows` is per PLAYER and a team round's result belongs to the
+     * SIDE, so there was never going to be a row — and the side standings
+     * were on Reports & export the whole time.
+     */
+    const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+    const empty = render(<LeaderboardTable isStroke={false} rows={[]} compact emptyNote="Standings are by side." />);
+    expect(empty).toContain("Standings are by side.");
+    // The columns are the tell: a table at all means a table with no rows.
+    expect(empty, "no table over nothing").not.toContain("<th");
+
+    // And a board WITH rows is untouched, or this is just "never render".
+    const full = render(<LeaderboardTable isStroke={false} rows={[row({ name: "A. Moore" })]} compact />);
+    expect(full).toContain("A. Moore");
+    expect(full).toContain("<th");
+  });
+
   it("shows no to-par at all when the round had no card behind it", async () => {
     /**
      * To-par is `gross - parThru`, and `parThru` sums `pars[i] ?? 0` — so a

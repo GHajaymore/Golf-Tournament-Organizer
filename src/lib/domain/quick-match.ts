@@ -192,6 +192,27 @@ export interface QuickMoneyGame {
    * told anybody why.
    */
   needsCards?: boolean;
+  /**
+   * And this game cannot be settled without the COURSE's card either.
+   *
+   * A different question from `needsCards`, which is about whether the round
+   * returns strokes. This is about whether those strokes mean anything on
+   * their own. A birdie is a score measured against PAR, so a birdie pot on a
+   * round with no course behind it has nothing to count against — four cards
+   * come back and the pot still cannot say who won.
+   *
+   * Skins is the contrast, and the reason these are two flags rather than
+   * one: gross skins is "lowest score on this hole", which is decided by
+   * comparing the cards to each other and needs no par at all. Net skins does
+   * need the stroke index, so it is asked with the shots question rather than
+   * declared here.
+   *
+   * `needsCourseData` answers the same question for the round's FORMAT, and it
+   * cannot see side games — it reads formats and nothing else. So a gross
+   * match with a birdie pot passes that check, opens score entry, takes four
+   * cards, and settles nothing.
+   */
+  needsPars?: boolean;
 }
 
 export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
@@ -209,6 +230,8 @@ export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
     pot: "side",
     kind: "birdies",
     needsCards: true,
+    // A birdie is one under PAR. Without a card there is no par to be under.
+    needsPars: true,
   },
   {
     key: "nassau",
