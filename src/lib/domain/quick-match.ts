@@ -351,6 +351,22 @@ export interface MatchSetupInput {
   nine?: string | null;
   /** Whether strokes are given. Off means the match is played level. */
   useHandicaps?: boolean;
+  /**
+   * WHERE IT IS PLAYED.
+   *
+   * REQUIRED BY THE SETUP SCREEN, and deliberately not by this function.
+   * `/match/new` offered "Decide later", which is the wrong shape for an
+   * impromptu round — whoever is arranging a Sunday fourball is standing
+   * somewhere — and what the option actually bought was a round that could not
+   * be scored: score entry refuses a round whose scoring needs a card and
+   * renders "Set up this course" instead of the scorecard.
+   *
+   * The rule is a product decision about that SCREEN, not an invariant about
+   * a plan. A gross singles match needs no card at all — `matchNeedsCard` says
+   * so, and is the correctness rule. Refusing here would make this function
+   * assert something that is not true of golf, and every caller and test would
+   * have to carry a course to say otherwise.
+   */
   courseId?: string | null;
   /** What to call it. Blank names the match after the two players. */
   name?: string | null;

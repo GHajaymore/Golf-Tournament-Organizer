@@ -3523,6 +3523,96 @@ describe("side bets", () => {
     );
   };
 
+  describe("a casual round's money games", () => {
+    /**
+     * Two different things are called a side bet, and only one belongs to four
+     * friends on a Sunday.
+     *
+     * Settled by the SCORES — skins, birdies, eagles, low gross, low net, a
+     * Nassau — is agreed on the first tee and decided by the cards. NAMED BY A
+     * WINNER — closest to the pin, longest drive — is a thing a CLUB puts on
+     * for a field: somebody measures, somebody adjudicates, somebody ticks a
+     * name afterwards.
+     *
+     * `group-games` has passed `contests={[]}` for a casual round since it was
+     * written, with the reason in its own comment. The component did not
+     * honour it: an empty list still rendered the adder and the whole block.
+     */
+    it("offers the games the cards decide, and no contest apparatus", async () => {
+      const html = await bets({ contestsApply: false });
+      // What four friends actually play. (Skins is not in this component —
+      // it has its own, `SkinsPotClient`, and this test found that out.)
+      for (const game of ["Low gross", "Low net", "Birdie pot", "Eagle pot"]) {
+        expect(html, `casual rounds still play ${game}`).toContain(game);
+      }
+      // And none of the club's machinery.
+      expect(html, "no contest adder").not.toContain("Add a bet");
+      expect(html, "no winner-picking section").not.toContain("You name the winner");
+      expect(html).not.toContain("Closest to the pin, long drive");
+      // Nor a pointer at a screen a casual round does not have: `prizes` is in
+      // TOURNAMENT_ONLY_SCREENS.
+      expect(html, "no door to a screen that is not there").not.toContain("belongs under");
+    });
+
+    it("and a club round keeps every bit of it", async () => {
+      // THE ASSERTION THAT STOPS THIS BECOMING "DROP CONTESTS".
+      const html = await bets();
+      expect(html).toContain("Add a bet");
+      expect(html).toContain("You name the winner");
+      expect(html).toContain("Closest to the pin, long drive");
+      expect(html).toContain("belongs under");
+    });
+  });
+
+  describe("a Nassau on a round with nobody to play", () => {
+    /**
+     * A Nassau is three bets on ONE MATCH — front nine, back nine, and the
+     * whole thing — so it needs two sides to be between. `nassauLedger` reads
+     * the round's matches, and a stroke-play medal has none: a stake put on it
+     * there is money in with nothing that can come out.
+     *
+     * The row was offered on every round regardless. The casual-round screen
+     * has had `matchOnly` on exactly this game since it was written.
+     */
+    const nassau = {
+      id: "g1", kind: "nassau", buyInCents: 500, entrantIds: [],
+      pending: [], entryMode: "opt-out", excluded: [],
+    };
+
+    it("is not offered at all", async () => {
+      const html = await bets({ headToHead: false });
+      expect(html, "no Nassau row").not.toContain("three bets on every match");
+      // And the sentence above the rows stops advertising it, or it sends
+      // somebody looking for a row that is not there.
+      expect(html).toContain("birdies, eagles are worked out");
+      // The pots that DO settle on a medal are untouched — this is not
+      // "hide the derived games".
+      expect(html).toContain("Low gross");
+      expect(html).toContain("Birdie pot");
+    });
+
+    it("but is never hidden when there is money on it", async () => {
+      /**
+       * THE SAFETY PROPERTY. A round whose format was changed after a Nassau
+       * was staked would otherwise lose the row, and with it the only way to
+       * see or remove the stake — which does not stop the bet existing, only
+       * stops anyone finding it.
+       */
+      const html = await bets({ headToHead: false, sideGames: [nassau] });
+      expect(html).toContain("three bets on every match");
+      expect(html, "and says why").toContain("Nobody plays anybody in this round");
+      expect(html, "and what to do about it").toContain("Set it to 0");
+    });
+
+    it("and a match round is unchanged", async () => {
+      // THE ASSERTION THAT STOPS THIS BECOMING "NEVER OFFER A NASSAU".
+      const html = await bets({ headToHead: true });
+      expect(html).toContain("three bets on every match");
+      expect(html).toContain("and the Nassau are worked out");
+      expect(html).not.toContain("Nobody plays anybody in this round");
+    });
+  });
+
   it("keeps every control on the side-bets card", async () => {
     const html = await bets();
     for (const control of [
@@ -5357,11 +5447,31 @@ describe("setting up a casual round", () => {
     expect(html).not.toContain("Stake per player");
   });
 
-  it("hides the course picker when there is nothing to pick", () => {
-    // An empty picker offering one choice called "Decide later" is a question
-    // pretending to be a control.
+  it("asks where, with an empty library as much as a full one", () => {
+    /**
+     * REPLACES "hides the course picker when there is nothing to pick", and
+     * the reversal is the point rather than a tidy-up.
+     *
+     * The picker used to be hidden when the club had no courses, on the
+     * reasoning that "an empty picker offering one choice called 'Decide
+     * later' is a question pretending to be a control". That was true of the
+     * picker it described — and the fix was to delete "Decide later", not the
+     * question.
+     *
+     * A casual round is impromptu: whoever is arranging one is standing
+     * somewhere. And "Decide later" bought a round that could not be scored —
+     * score entry refuses a round whose scoring needs a card and renders "Set
+     * up this course" instead of the scorecard.
+     *
+     * The empty-library case is exactly the one that must still work, and it
+     * is the COMMON one here: the library is read from the organizations this
+     * person belongs to, and somebody who has just signed up to play their
+     * mate on Sunday belongs to none. The directory search behind the field is
+     * what makes that workable.
+     */
     const html = render(<NewMatchForm {...noClub} />);
-    expect(html).not.toContain("Where are you playing?");
+    expect(html, "asked even with nothing in the library").toContain("Where are you playing?");
+    expect(html, "and never offers to skip it").not.toContain("Decide later");
 
     const withCourse = render(
       <NewMatchForm
@@ -5370,6 +5480,8 @@ describe("setting up a casual round", () => {
       />,
     );
     expect(withCourse).toContain("Where are you playing?");
+    // (The option list itself is a dropdown, closed until typed into, so it
+    // is not in the static markup — only the question is.)
   });
 });
 

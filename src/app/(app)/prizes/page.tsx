@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { PrizesClient } from "@/components/PrizesClient";
 import { ContestsClient } from "@/components/ContestsClient";
+import { isHeadToHead } from "@/lib/stage-types";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { MoneySetup } from "@/components/MoneySetup";
@@ -240,6 +241,9 @@ export default async function PrizesPage({
             };
           })}
           field={state.confirmed.map((p) => ({ id: p.id, name: p.name, playing: true }))}
+          /* A Nassau is three bets on one MATCH, so it is only offered where
+             this round draws opponents — see the prop. */
+          headToHead={isHeadToHead(week.type)}
         />
       )}
       <SkinsSeason rows={skinsSeason} />

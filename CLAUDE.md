@@ -116,6 +116,26 @@ transport failure, restart the preview and run the whole set again before believ
 A green run after a restart on the same commit is the answer; half a red run is not evidence
 about the code.
 
+**And now the MECHANISM, read off `preview_logs` on 2026-09-09 rather than guessed at.** "The
+machine being busy" above is the right instinct and not the actual event. Next restarts itself:
+
+```
+ ✓ Compiled /prizes in 1918ms (1197 modules)
+ ⚠ Server is approaching the used memory threshold, restarting...
+   ▲ Next.js 15.5.22
+ ✓ Ready in 2.5s
+```
+
+That is the dev server deciding, on its own, that it is near its heap limit and starting a fresh
+process — and it is MOST likely right after a build, because the smoke pass then walks 39 routes
+and each one compiles. It takes a couple of seconds and it is invisible from outside except as
+the `fetch failed` the scripts report.
+
+Two things follow. `curl` before the run proves nothing about the middle of it, so a confirmed-up
+server followed by a transport failure is this, not your change — do not go looking for the route.
+And the answer really is just to run the set again: the process that comes back is healthy, the
+same commit, and the second pass has the modules it needs already warm.
+
 **The command at the top is FIVE SIXTHS of the gate. Playwright is the sixth**, and nothing
 above it can see what it sees — a scorecard wider than its column, a target under the touch
 minimum, a card that opens blank over a round already played, a date rendered in the wrong

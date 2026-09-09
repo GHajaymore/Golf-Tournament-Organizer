@@ -95,6 +95,8 @@ export function ContestsClient({
   contests,
   sideGames,
   field,
+  headToHead = true,
+  contestsApply = true,
 }: {
   roundLabel: string;
   stageId: string;
@@ -102,6 +104,50 @@ export function ContestsClient({
   /** The derived pots — settled by the cards, so no winner is ever picked. */
   sideGames: SideGameView[];
   field: Array<{ id: string; name: string; playing: boolean }>;
+  /**
+   * Whether anybody in this round is playing SOMEBODY.
+   *
+   * A Nassau is three bets on ONE MATCH — the front nine, the back nine and
+   * the whole thing — so it needs two sides to be between. `nassauLedger`
+   * reads the round's matches, and a stroke-play medal has none: a stake put
+   * on it there is money in with nothing that can ever come out.
+   *
+   * The row was offered on every round regardless. The casual-round screen has
+   * had `matchOnly` on exactly this game since it was written, for exactly
+   * this reason; the tournament screen had no equivalent.
+   *
+   * Optional and defaulting to TRUE, which is the safe direction for a caller
+   * that has not been taught to answer: it keeps offering everything rather
+   * than silently removing a bet somebody may have money on.
+   */
+  headToHead?: boolean;
+  /**
+   * Whether NAME-A-WINNER contests belong on this screen at all.
+   *
+   * Two different things are called a side bet, and only one of them belongs
+   * to four friends on a Sunday:
+   *
+   *   settled by the SCORES — skins, birdies, eagles, low gross, low net, a
+   *   Nassau. Four people agree these on the first tee and the cards decide
+   *   them. Nobody administers anything.
+   *
+   *   NAMED BY A WINNER — closest to the pin, longest drive. These are things
+   *   a CLUB puts on for a field: somebody measures, somebody adjudicates,
+   *   somebody ticks a name afterwards. A group of friends playing a weekday
+   *   round does not run one, and a screen offering it makes a quick game look
+   *   like an event to be administered.
+   *
+   * `group-games` has passed `contests={[]}` for a casual round since it was
+   * written, with the reason in its own comment — "a closest-to-the-pin is a
+   * thing a club puts on for a field, and this screen belongs to the people
+   * playing". The intent was right and the component did not honour it: an
+   * empty list still rendered the ADDER, the heading, and the whole "You name
+   * the winner" block, so a casual round with one birdie pot on it was handed
+   * the club's contest apparatus anyway.
+   *
+   * Defaults to true, which keeps every club screen exactly as it is.
+   */
+  contestsApply?: boolean;
 }) {
   const { money, plain, parse } = useMoney();
   const [pending, startTransition] = useTransition();
@@ -187,7 +233,7 @@ export function ContestsClient({
     <section className="card elev-sm" style={{ marginTop: 16 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
         <span className="card-title">Side bets — {roundLabel}</span>
-        {!adding && (
+        {contestsApply && !adding && (
           <button type="button" className="btn btn-secondary" onClick={() => setAdding(true)} disabled={pending}>
             <Icon name="plus" /> Add a bet
           </button>
@@ -199,11 +245,21 @@ export function ContestsClient({
             at something nothing on the screen called that — and pointed by
             POSITION, which is a claim nothing checks. */}
         Player-funded: everyone in the pot puts in, the winner takes it, and it lands in the same
-        settle-up as the expenses. A club-funded prize belongs under <b>Prizes</b> on this screen
-        instead — nobody owes anybody for those.
+        settle-up as the expenses.
+        {contestsApply ? (
+          <>
+            {" "}A club-funded prize belongs under <b>Prizes</b> on this screen instead — nobody owes
+            anybody for those.
+          </>
+        ) : (
+          /* A casual round has no Prizes screen — `prizes` is in
+             TOURNAMENT_ONLY_SCREENS — so pointing at one sends somebody
+             looking for a door that is not there. */
+          ""
+        )}
       </p>
 
-      {adding && (
+      {contestsApply && adding && (
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
           <div className="pair-grid">
             <div className="field">
@@ -246,14 +302,34 @@ export function ContestsClient({
       <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--color-divider)" }}>
         <span className="card-kicker">Settled by the scores</span>
         <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 10px", lineHeight: 1.55 }}>
-          Low gross, low net, birdies, eagles and the Nassau are worked out from the cards — set the
-          stake and who is in, and the money follows the scoring. Nobody types a winner.
+          {/* Names only what is actually offered below. A round with no
+              matches does not show the Nassau row, and a sentence advertising
+              a bet the screen does not carry sends somebody looking for it. */}
+          Low gross, low net, birdies, eagles{headToHead ? " and the Nassau are" : " are"} worked out
+          from the cards — set the stake and who is in, and the money follows the scoring. Nobody
+          types a winner.
         </p>
 
         {DERIVED_ROWS.map((row) => {
           const game = sideGames.find((g) => g.kind === row.kind);
           const entered = new Set(game?.entrantIds ?? []);
           const on = !!game && game.buyInCents > 0;
+          /**
+           * A NASSAU IS NOT OFFERED ON A ROUND WITH NO MATCHES.
+           *
+           * See `headToHead`. Hidden rather than disabled, because a row with
+           * a stake box that cannot be used is a question the organizer still
+           * has to answer.
+           *
+           * BUT NEVER HIDDEN WHEN THERE IS MONEY ON IT. A round whose format
+           * was changed after a Nassau was staked would otherwise lose the
+           * row, and with it the only way to see or remove the stake — which
+           * is the worse failure by far: it would not stop the bet existing,
+           * only stop anyone finding it. It stays visible, with the stake, and
+           * says why it cannot settle.
+           */
+          const cannotSettle = row.kind === "nassau" && !headToHead;
+          if (cannotSettle && !on) return null;
           return (
             <div key={row.kind} style={{ paddingTop: 10, borderTop: "1px solid var(--color-divider)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -279,6 +355,17 @@ export function ContestsClient({
                   />
                 </label>
               </div>
+
+              {/* Only reachable with a stake already on it — see above. Says
+                  what is wrong and what to do, because the money is real and
+                  the round it was staked on cannot decide it. */}
+              {cannotSettle && (
+                <p style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5, color: "var(--color-danger)" }}>
+                  <Icon name="warning-circle" /> Nobody plays anybody in this round, so there are no
+                  matches for a Nassau to be between and this stake cannot settle. Set it to 0 to take
+                  it off, or move the bet to a match-play round.
+                </p>
+              )}
 
               {/* Same block, and the same reasoning, as the contests below:
                   these people asked to join from their phone and have not paid
@@ -364,6 +451,11 @@ export function ContestsClient({
           them, because it counts `contests` and the derived pots are not
           contests. It was answering a different question than the one its
           position implied. */}
+      {/* The club's half — see `contestsApply`. Not rendered at all for a
+          group of friends, rather than rendered empty: a heading with "None on
+          this round yet" under it is still the app suggesting somebody ought
+          to start one. */}
+      {contestsApply && (
       <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--color-divider)" }}>
         <span className="card-kicker">You name the winner</span>
         <p className="text-muted" style={{ fontSize: 12.5, margin: "4px 0 10px", lineHeight: 1.55 }}>
@@ -505,6 +597,7 @@ export function ContestsClient({
         );
       })}
       </div>
+      )}
 
       {error && (
         <p style={{ fontSize: 12.5, marginTop: 10, color: "var(--color-danger)" }}>
