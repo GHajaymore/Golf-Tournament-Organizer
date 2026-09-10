@@ -151,11 +151,35 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
    * was not being asked.
    */
   const declaredFinal = event.status === "completed";
+  /**
+   * AND NOBODY IS STILL TO TEE OFF.
+   *
+   * The card reading was `started.every(...)` — every player who has BEGUN has
+   * finished — and that is true of a morning tee time at one o'clock while the
+   * afternoon groups are in the car park. Measured on 2026-09-10 on a charity
+   * day: four complete cards, two players with none, and the board carrying a
+   * grey FINAL chip directly above two rows it had itself rendered as "not
+   * started". The screen contradicted itself, to the audience least able to
+   * know otherwise.
+   *
+   * `thru === 0` is NOT the "short card" the paragraph above is about. A
+   * withdrawal at the turn, a match won 5&4, somebody who walked in — those
+   * return SOME holes, and they are why the rule cannot ask for a full card
+   * from everybody. A player with nothing at all has either not begun or is
+   * not coming, and the board cannot tell which. "Live" is the honest reading
+   * of a board that has no result for somebody, and it is the safe one: a
+   * finished day still labelled Live is stale, while a live day labelled Final
+   * announces a winner over players who are on the 4th.
+   *
+   * The committee's word still outranks it, which is what resolves a no-show:
+   * marking the tournament Completed is the act that says the result stands,
+   * and it already locks configuration and starts the retention clock.
+   */
   const allIn =
     declaredFinal ||
     (roundMatches.length > 0
       ? roundMatches.every((m) => matchSettled(m))
-      : started.length > 0 && started.every((r) => r.thru >= holeCount));
+      : rows.length > 0 && started.length === rows.length && started.every((r) => r.thru >= holeCount));
 
   return {
     name: event.name,
