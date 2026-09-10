@@ -4059,6 +4059,43 @@ describe("how money works", () => {
     );
   };
 
+  it("sends a society to Society settings, not to Club settings", async () => {
+    /**
+     * `settingsLabel` exists precisely to stop this, and its own comment
+     * records the same defect one screen over: "a solo organizer came to be
+     * shown a screen about a club they do not have while the same page
+     * correctly rendered their type as Personal".
+     *
+     * Read off a real society on 2026-09-09, in a sentence that names the
+     * society correctly two words earlier and then sends them to "Club
+     * settings".
+     */
+    const html = await money({ orgKind: "community", clubName: "zz-Society" });
+    expect(html).toContain("Society settings");
+    expect(html, "the screen it points at is not a club's").not.toContain("Club settings");
+
+    // THE CONTROL: a club still gets a club's words, or this is just a
+    // rename.
+    const club = await money({ orgKind: "club", clubName: "zz-Club" });
+    expect(club).toContain("Club settings");
+  });
+
+  it("and calls an unnamed outfit what it actually is", async () => {
+    /**
+     * The fallbacks went with it. `clubName` is the organization's real name
+     * and is right whenever there is one; where there is not, "this club" is a
+     * guess about what kind of outfit this is, and the profile has the answer.
+     */
+    const society = await money({ orgKind: "community", clubName: "" });
+    expect(society).toContain("this society");
+    expect(society).not.toContain("this club");
+
+    // A personal organizer runs an OUTING — neither a club nor a society.
+    const solo = await money({ orgKind: "personal", clubName: "" });
+    expect(solo).toContain("this outing");
+    expect(solo).toContain("Outing settings");
+  });
+
   it("puts the club default on club settings, where the checklist sends people", async () => {
     // SETUP_HREF.money is /organization, and orgSetupState ticks the step off
     // `organization.moneyMode`. That column was written only from a collapsed

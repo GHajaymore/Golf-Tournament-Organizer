@@ -184,7 +184,18 @@ export function CreateFirstTournament({
             placeholder="e.g. Cedar Dunes Golf Club"
           />
           <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
-            Leave blank to run it under your own name. You can set this later in Club settings.
+            {/* NOT "Club settings". This field is on the FIRST tournament,
+                where the organization does not exist yet and is created as
+                `personal` — whose settings screen is called "Outing settings",
+                not a club's. `settingsLabel` was written for exactly this:
+                "a solo organizer came to be shown a screen about a club they
+                do not have".
+
+                Named rather than looked up, because there is no organization
+                to look up yet — and the moment somebody types a name in the
+                box above, the screen they will find is that one. */}
+            Leave blank to run it under your own name. You can set this later in the
+            organization&rsquo;s own settings.
           </p>
         </div>
       )}

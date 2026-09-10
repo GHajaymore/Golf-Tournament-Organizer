@@ -163,10 +163,15 @@ export function EventSwitcher({
                       {confirmingId === e.id ? (
                         <>
                           <span className="text-muted" style={{ fontSize: 12 }}>Delete?</span>
-                          <button type="button" className="btn btn-icon" title="Confirm delete" disabled={pending} style={{ color: "var(--color-accent)" }} onClick={() => startTransition(() => deleteEvent(e.id))}>
+                          {/* NAMED. Every control in this table acted on a
+                              row and said only what it did — twelve identical
+                              "Delete tournament" buttons to anyone reading by
+                              name, and a "Confirm delete" that destroys a
+                              tournament without saying which. */}
+                          <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"} for good`} aria-label={`Delete ${e.name || "this tournament"} for good`} disabled={pending} style={{ color: "var(--color-accent)" }} onClick={() => startTransition(() => deleteEvent(e.id))}>
                             <Icon name="check" />
                           </button>
-                          <button type="button" className="btn btn-icon" title="Cancel" onClick={() => setConfirmingId("")}>
+                          <button type="button" className="btn btn-icon" title={`Keep ${e.name || "this tournament"}`} aria-label={`Keep ${e.name || "this tournament"}`} onClick={() => setConfirmingId("")}>
                             <Icon name="x" />
                           </button>
                         </>
@@ -175,14 +180,14 @@ export function EventSwitcher({
                           {e.isActive ? (
                             <span className="tag tag-outline">Managing</span>
                           ) : e.hasAccess ? (
-                            <button type="button" className="btn btn-secondary" disabled={pending} onClick={() => startTransition(() => switchEvent(e.id))}>
+                            <button type="button" className="btn btn-secondary" aria-label={`Manage ${e.name || "this tournament"}`} disabled={pending} onClick={() => startTransition(() => switchEvent(e.id))}>
                               Manage
                             </button>
                           ) : (
                             <span className="text-muted" style={{ fontSize: 12 }}>No access</span>
                           )}
                           {e.isOrganizer && (
-                            <button type="button" className="btn btn-icon" title="Delete tournament" disabled={pending} onClick={() => setConfirmingId(e.id)}>
+                            <button type="button" className="btn btn-icon" title={`Delete ${e.name || "this tournament"}`} aria-label={`Delete ${e.name || "this tournament"}`} disabled={pending} onClick={() => setConfirmingId(e.id)}>
                               <Icon name="trash" />
                             </button>
                           )}
@@ -241,6 +246,7 @@ export function EventSwitcher({
                     <button
                       type="button"
                       className="btn btn-secondary"
+                      aria-label={`Open ${e.name || "this round"}`}
                       disabled={pending}
                       onClick={() => startTransition(() => switchEvent(e.id))}
                     >
@@ -253,7 +259,8 @@ export function EventSwitcher({
                     <button
                       type="button"
                       className="btn btn-icon"
-                      title="Delete this round"
+                      title={`Delete ${e.name || "this round"}`}
+                      aria-label={`Delete ${e.name || "this round"}`}
                       disabled={pending}
                       onClick={() => setConfirmingId(e.id)}
                     >
@@ -269,7 +276,8 @@ export function EventSwitcher({
                     <button
                       type="button"
                       className="btn btn-icon"
-                      title="Confirm delete"
+                      title={`Delete ${e.name || "this round"} for good`}
+                      aria-label={`Delete ${e.name || "this round"} for good`}
                       disabled={pending}
                       style={{ color: "var(--color-accent)" }}
                       onClick={() => startTransition(() => deleteEvent(e.id))}

@@ -111,7 +111,7 @@ export function MoneySetup({
   if (!isTournament) {
     return (
       <section className="card elev-sm" style={{ gap: 10 }}>
-        <span className="card-title" style={{ fontSize: 15 }}>Money at {clubName || "this club"}</span>
+        <span className="card-title" style={{ fontSize: 15 }}>Money at {clubName || `this ${profile.noun}`}</span>
         <p className="text-muted" style={{ fontSize: 12.5, margin: "-2px 0 4px", lineHeight: 1.55 }}>
           What every tournament here uses unless it says otherwise. Changing it does not touch a
           tournament that has already made its own choice.
@@ -159,7 +159,7 @@ export function MoneySetup({
 
       {option(
         "",
-        `Follow ${clubName || "the club"} — currently ${MONEY_MODE_LABEL[inherited].toLowerCase()}`,
+        `Follow ${clubName || `the ${profile.noun}`} — currently ${MONEY_MODE_LABEL[inherited].toLowerCase()}`,
         orgMode
           ? `Whatever the club is set to — it has chosen ${MONEY_MODE_LABEL[inherited].toLowerCase()}.`
           : `Whatever the club is set to. A ${profile.label.toLowerCase()} defaults to ${MONEY_MODE_LABEL[inherited].toLowerCase()}.`,
@@ -180,8 +180,23 @@ export function MoneySetup({
           and left Club settings, where the setup checklist sends people to
           "Decide how money works", with no money control on it at all. */}
       <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+        {/* THE SCREEN'S OWN NAME, not "Club settings".
+
+            `settingsLabel` exists precisely so this cannot happen — its
+            comment records the same defect one screen over: "a solo organizer
+            came to be shown a screen about a club they do not have while the
+            same page correctly rendered their type as Personal". Read off a
+            SOCIETY on 2026-09-09, in a sentence that names the society
+            correctly two words earlier and then sends them to "Club
+            settings".
+ 
+            The fallbacks go with it. `clubName` is the organization's real
+            name and is right whenever there is one; where there is not, "this
+            club" is a guess about what kind of outfit this is, and
+            `profile.noun` is the answer. */}
         <Icon name="buildings" /> The default for every tournament at{" "}
-        {clubName || "this club"} is on <a href="/organization">Club settings</a>.
+        {clubName || `this ${profile.noun}`} is on{" "}
+        <a href="/organization">{profile.settingsLabel}</a>.
       </p>
 
       <p className="text-muted" style={{ fontSize: 12, margin: "2px 0 0" }}>

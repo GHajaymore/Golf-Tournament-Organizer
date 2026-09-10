@@ -810,7 +810,13 @@ export default async function DashboardPage() {
                       padding: advancing ? "3px 6px" : "3px 0",
                     }}
                   >
-                    <span style={{ width: 14, color: "var(--color-neutral-500)" }}>{r.rank}</span>
+                    {/* NO POSITION WHERE NONE WAS EARNED. `rank` is 0 for a
+                        player who holds no position — nobody has returned a
+                        card, or theirs stopped short — and 0 is not a
+                        finishing place. The board directly above this has
+                        always printed "—" for exactly that; this card printed
+                        a zero against every name before a ball was struck. */}
+                    <span style={{ width: 14, color: "var(--color-neutral-500)" }}>{r.rank || "—"}</span>
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {standingLabels.get(r.player.id) ?? shortName(r.player.name)}
                     </span>
