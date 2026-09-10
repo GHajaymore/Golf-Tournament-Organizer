@@ -65,7 +65,10 @@ export async function saveSkinsPot(
   // each running their own net front-nine skins are two pots, and without it
   // the second one saved would overwrite the first — the same silent loss of
   // somebody's money, one scope wider.
-  const data = { buyInCents: buyIn };
+  // Money and a "playing for a pint" note are two different agreements about
+  // the same pot, so the note goes the moment a stake arrives. Enforced at the
+  // write for the reason `saveSideGame` gives at length.
+  const data = { buyInCents: buyIn, stakeNote: "" };
   await prisma.skinsPot.upsert({
     where: { stageId_net_scope_groupKey: { stageId, net: input.net, scope: input.scope, groupKey } },
     create: { eventId, stageId, net: input.net, scope: input.scope, groupKey, ...data },

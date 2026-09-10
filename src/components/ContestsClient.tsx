@@ -92,6 +92,15 @@ export interface SideGameView {
   id: string;
   kind: string;
   buyInCents: number;
+  /**
+   * What this game is played for when it is NOT money — "a pint", "lunch".
+   *
+   * Set means the stake is not a figure, and `buyInCents` is 0 beside it. It
+   * has to be carried this far because a zero stake on its own is ambiguous:
+   * "nobody has priced this yet" and "we are not playing for money" render
+   * identically, and only one of them is something to go and fix.
+   */
+  stakeNote: string;
   /** Confirmed stakes — the pot. */
   entrantIds: string[];
   /** Put their own name down from the app and still owe the cash. */
@@ -324,7 +333,8 @@ export function ContestsClient({
         {DERIVED_ROWS.map((row) => {
           const game = sideGames.find((g) => g.kind === row.kind);
           const entered = new Set(game?.entrantIds ?? []);
-          const on = !!game && game.buyInCents > 0;
+          const forSomethingElse = !!game?.stakeNote.trim();
+          const on = !!game && (game.buyInCents > 0 || forSomethingElse);
           /**
            * A NASSAU IS NOT OFFERED ON A ROUND WITH NO MATCHES.
            *
@@ -366,6 +376,18 @@ export function ContestsClient({
                   />
                 </label>
               </div>
+
+              {/* PLAYED FOR SOMETHING THAT IS NOT MONEY, said where the money
+                  would be. An empty stake box on its own reads as a game
+                  nobody has priced yet — which is a different state, and the
+                  one somebody would go and fix. */}
+              {forSomethingElse && game && (
+                <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
+                  Playing for <b style={{ color: "var(--color-text)" }}>{game.stakeNote}</b> — the
+                  result is worked out the same way, with no money on it. A stake above turns it
+                  into a money game.
+                </p>
+              )}
 
               {/* Only reachable with a stake already on it — see above. Says
                   what is wrong and what to do, because the money is real and

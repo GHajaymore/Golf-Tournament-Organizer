@@ -224,6 +224,7 @@ export default async function PrizesPage({
             id: g.id,
             kind: g.kind,
             buyInCents: g.buyInCents,
+            stakeNote: g.stakeNote,
             entryMode: modeOf(g.entryMode),
             /**
              * Confirmed stakes only — the same rule the contests follow, and

@@ -156,7 +156,17 @@ export async function saveSideGame(
 
   const game = await prisma.sideGame.upsert({
     where: { stageId_kind_groupKey: { stageId, kind, groupKey } },
-    update: { buyInCents: cents },
+    /**
+     * THE NOTE GOES WHEN A STAKE ARRIVES, and it is cleared here rather than
+     * checked for anywhere else.
+     *
+     * A game carries either money or a note saying what is being played for
+     * instead — never both, because both is two different agreements about
+     * the same bet. Enforcing it at the write means no reader has to know the
+     * rule and no later caller can store the contradiction by forgetting it.
+     * Same shape as `standingRows` refusing a manual format on its first line.
+     */
+    update: { buyInCents: cents, stakeNote: "" },
     // groupKey in the CREATE too. Omitted, a fourball's game was written as
     // the field's — or collided with the field's existing row on the unique
     // key and threw. The where clause knew about the group and the create

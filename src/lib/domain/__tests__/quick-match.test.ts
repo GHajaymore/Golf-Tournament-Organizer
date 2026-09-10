@@ -9,6 +9,8 @@ import {
   QUICK_ROUND_FORMATS,
   QUICK_MONEY_GAMES,
   MAX_QUICK_STAKE,
+  STAKE_NOTE_MAX,
+  matchOnlyRefusal,
   HANDICAP_MIN,
   HANDICAP_MAX,
 } from "../quick-match";
@@ -443,8 +445,10 @@ describe("picking a member, or bringing a guest", () => {
  * people owe each other and a wrong number here becomes a demand.
  */
 describe("setting up a round with money on it", () => {
-  const round = (money: { game: string; stakeCents: number } | null, format = "Match Play") =>
-    planMatch({ players: [{ name: "A" }, { name: "B" }], format, money });
+  const round = (
+    money: { game: string; stakeCents: number; stakeNote?: string } | null,
+    format = "Match Play",
+  ) => planMatch({ players: [{ name: "A" }, { name: "B" }], format, money });
 
   it("plays for nothing unless somebody says otherwise", () => {
     // The default, and it stays the default. A setup screen that asks "how
@@ -475,6 +479,82 @@ describe("setting up a round with money on it", () => {
     const r = round({ game: "skins", stakeCents: 0 });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/stake/i);
+  });
+
+  it("takes a game played for something that is not money", () => {
+    /**
+     * MOST SUNDAY GOLF, and the case the screen had no box for. A pint, lunch,
+     * the next green fee. The game is real and the winner is real; there is
+     * simply nothing here for an app that records money to record.
+     *
+     * It is a zero stake WITH a note, and the note is what makes the zero mean
+     * something. Without it, "nobody has said how much yet" and "we are not
+     * playing for money" are the same row.
+     */
+    const r = round({ game: "skins", stakeCents: 0, stakeNote: "a pint" });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.money?.game.key, "the game is still created").toBe("skins");
+    expect(r.plan.money?.stakeNote).toBe("a pint");
+    expect(r.plan.money?.stakeCents, "and no money is on it").toBe(0);
+  });
+
+  it("refuses money and a something-else in the same breath", () => {
+    /**
+     * The one combination that cannot be honoured, and the reason it is
+     * refused rather than resolved: dropping the stake loses money somebody
+     * typed, and dropping the note records money nobody agreed to. Either
+     * silent resolution invents an agreement.
+     *
+     * The screen makes these mutually exclusive, so this is the boundary
+     * check — `planMatch` feeds a `"use server"` export, which is a public
+     * HTTP endpoint and will be called with whatever the caller likes.
+     */
+    const r = round({ game: "skins", stakeCents: 500, stakeNote: "a pint" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/not both/i);
+  });
+
+  it("trims a note to something that fits beside the game's name", () => {
+    const r = round({ game: "skins", stakeCents: 0, stakeNote: "x".repeat(STAKE_NOTE_MAX + 20) });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.plan.money?.stakeNote.length).toBe(STAKE_NOTE_MAX);
+  });
+
+  it("treats whitespace as no note at all, not as playing for a space", () => {
+    // Otherwise an untouched text box next to an untouched stake box creates
+    // a game worth nothing, for nothing, that nobody asked for.
+    const r = round({ game: "", stakeCents: 0, stakeNote: "   " });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.plan.money).toBeNull();
+  });
+
+  it("still refuses a bet with no opponent when it is played for a pint", () => {
+    // The rule is about the GAME needing two sides, not about the currency.
+    const medal = planMatch({
+      players: [{ name: "A" }, { name: "B" }, { name: "C" }],
+      format: "Stroke Play",
+      money: { game: "nassau", stakeCents: 0, stakeNote: "a pint" },
+    });
+    expect(medal.ok).toBe(false);
+  });
+
+  it("describes a match bet as one bet and a Nassau as three", () => {
+    /**
+     * `A ${game.label} is three bets on one match` was written for the Nassau
+     * and interpolated for every match-only game, so the day "The match" was
+     * added the refusal read "A The match is three bets on one match". One bet
+     * is not three, and a refusal that misdescribes what was refused is how
+     * somebody concludes the app does not know what they picked.
+     */
+    const nassau = matchOnlyRefusal(QUICK_MONEY_GAMES.find((g) => g.key === "nassau")!);
+    const match = matchOnlyRefusal(QUICK_MONEY_GAMES.find((g) => g.key === "match")!);
+    expect(nassau).toMatch(/three bets/);
+    expect(match).not.toMatch(/three bets/);
+    expect(match).not.toMatch(/A The match/);
+    // Both still say what to do instead, which is the half a refusal is for.
+    expect(nassau).toMatch(/match play/i);
+    expect(match).toMatch(/match play/i);
   });
 
   it("refuses a slipped decimal", () => {

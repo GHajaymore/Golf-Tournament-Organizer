@@ -276,17 +276,58 @@ export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
  */
 export const MAX_QUICK_STAKE = 100_000;
 
+/**
+ * The longest a non-money stake may be described in.
+ *
+ * It is a stake, not a paragraph: "a pint", "loser buys lunch", "next green
+ * fee". Long enough for the sentence anybody actually says on the tee, short
+ * enough to sit on one line beside the game's name on a phone.
+ */
+export const STAKE_NOTE_MAX = 40;
+
+/**
+ * Why a `matchOnly` game cannot go on this round, in that game's own terms.
+ *
+ * It read `A ${game.label} is three bets on one match, so it needs two
+ * sides` for every game that carried the flag — true of a Nassau and the
+ * reason the sentence was written, and nonsense the day a second one was
+ * added: "A The match is three bets on one match". One bet is not three, and
+ * a refusal that misdescribes what was refused is how somebody concludes the
+ * app does not know what they picked.
+ */
+export function matchOnlyRefusal(game: QuickMoneyGame): string {
+  const what =
+    game.key === "nassau"
+      ? "three bets on one match"
+      : "a bet between two sides";
+  return `${game.label} is ${what}, so it needs an opponent. Pick another game, or play match play.`;
+}
+
 export interface QuickMoneyChoice {
   /** One of `QUICK_MONEY_GAMES`. */
   game: string;
   /** Stake per player, in minor units. */
   stakeCents: number;
+  /**
+   * What they are playing for INSTEAD of money.
+   *
+   * Set, and the stake must be zero: this is the game where the loser buys
+   * lunch. The app keeps the score and declares the winner exactly as it would
+   * for a tenner, and records no money at all, because there is none to
+   * record. Whatever was agreed is settled between the players.
+   *
+   * Not the same as leaving the whole money question alone, which is what
+   * `money: null` means and stays the default.
+   */
+  stakeNote?: string | null;
 }
 
 /** What the plan says to create, or null for a round played for nothing. */
 export interface PlannedMoney {
   game: QuickMoneyGame;
   stakeCents: number;
+  /** Empty for a money stake. See `QuickMoneyChoice.stakeNote`. */
+  stakeNote: string;
 }
 
 /**
@@ -393,7 +434,14 @@ export interface MatchSetupInput {
   courseId?: string | null;
   /** What to call it. Blank names the match after the two players. */
   name?: string | null;
-  /** Playing for something. Absent, or a zero stake, means playing for nothing. */
+  /**
+   * Playing for something.
+   *
+   * Absent means the question was never asked — the default, and the round
+   * carries no game at all. A zero stake with no note is the same thing.
+   * A zero stake WITH a note is a real game played for something that is not
+   * money; see `QuickMoneyChoice.stakeNote`.
+   */
   money?: QuickMoneyChoice | null;
 }
 
@@ -746,24 +794,47 @@ export function planMatch(input: MatchSetupInput): MatchPlanResult {
 
     const stake = Math.round(Number(wanted.stakeCents));
     const game = QUICK_MONEY_GAMES.find((g) => g.key === (wanted.game ?? "").trim());
+    /**
+     * PLAYING FOR SOMETHING THAT IS NOT MONEY, which most Sunday golf is.
+     *
+     * A pint, lunch, the next green fee, pride. The game is real, the winner
+     * is real, and there is nothing for this app to count — so it is recorded
+     * as a game with a zero stake and a note saying what it was for, and every
+     * settler already returns nothing at zero without being told.
+     */
+    const note = (wanted.stakeNote ?? "").trim().slice(0, STAKE_NOTE_MAX);
 
-    // No game and no stake is "playing for nothing", which is not an error.
-    if (!game && !stake) return null;
+    // No game and nothing staked is "playing for nothing", which is not an error.
+    if (!game && !stake && !note) return null;
     if (!game) return { error: "Pick one of the money games offered." };
+    /**
+     * BOTH is the one thing that cannot be honoured.
+     *
+     * The screen makes them mutually exclusive, so this is the boundary
+     * check — a `"use server"` export is a public endpoint and will be called
+     * with whatever the caller likes. Refused rather than resolved, because
+     * either resolution invents an agreement: dropping the stake loses money
+     * somebody typed, and dropping the note records money nobody agreed to.
+     */
+    if (note && stake > 0) {
+      return { error: "Playing for money or playing for something else — not both. Pick one." };
+    }
+    if (note) {
+      if (game.matchOnly && !headToHead) return { error: matchOnlyRefusal(game) };
+      return { game, stakeCents: 0, stakeNote: note };
+    }
     // A game chosen with no stake is a bet for nothing, which is the one
     // combination that looks deliberate and settles to zero for everybody.
     if (!Number.isFinite(stake) || stake <= 0) {
-      return { error: `How much is the ${game.label.toLowerCase()} for? Put a stake in, or play for nothing.` };
+      return {
+        error: `How much is the ${game.label.toLowerCase()} for? Put a stake in, or say what you're playing for instead.`,
+      };
     }
     if (stake > MAX_QUICK_STAKE) {
       return { error: "That stake looks like a slipped decimal. Check it before starting the round." };
     }
-    if (game.matchOnly && !headToHead) {
-      return {
-        error: `A ${game.label} is three bets on one match, so it needs two sides. Pick another game, or play match play.`,
-      };
-    }
-    return { game, stakeCents: stake };
+    if (game.matchOnly && !headToHead) return { error: matchOnlyRefusal(game) };
+    return { game, stakeCents: stake, stakeNote: "" };
   })();
 
   if (money && "error" in money) return { ok: false, error: money.error };

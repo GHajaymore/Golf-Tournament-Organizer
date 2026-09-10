@@ -42,6 +42,8 @@ export interface SkinsShare {
 
 export interface SkinsView {
   buyInCents: number;
+  /** What the pot is played for when it is not money. See the schema. */
+  stakeNote: string;
   net: boolean;
   scope: SkinsScope;
   entrantIds: string[];
@@ -122,6 +124,18 @@ export function SkinsPotClient({
 
   const name = (id: string) => view.nameById[id] ?? "—";
   const r = view.result;
+  /**
+   * Played for something that is not money — a pint, lunch, pride.
+   *
+   * The skins are still worked out and still shown; there is simply no figure
+   * on them. This gates the money COLUMNS rather than the result, which is the
+   * distinction that had to be made: the whole block below hung on
+   * `r.potCents > 0`, so a pot with no cash in it showed nobody who had won a
+   * single hole. The promise made when the round was set up — "scored and
+   * settled the same way, the app just won't put a figure on it" — would have
+   * been broken on the one screen that matters.
+   */
+  const forSomethingElse = view.stakeNote.trim().length > 0;
 
   return (
     <div className="card elev-sm" style={{ gap: 14, marginTop: 16 }}>
@@ -212,6 +226,22 @@ export function SkinsPotClient({
           <label>Buy-in</label>
           <input className="input" inputMode="decimal" value={buyIn} onChange={(e) => setBuyIn(e.target.value)} />
         </div>
+        {/* What was agreed instead of money, shown where the money would be.
+            An empty buy-in box on its own says "nobody has priced this yet",
+            which is a different thing and the one somebody would go and fix.
+
+            Saving a buy-in replaces it, and says so: a pot carries money or a
+            note, never both, and that is enforced where the stake is written
+            rather than argued about here. */}
+        {forSomethingElse && (
+          <p
+            className="text-muted"
+            style={{ fontSize: 12, margin: "0 0 8px", flexBasis: "100%", lineHeight: 1.5 }}
+          >
+            Playing for <b style={{ color: "var(--color-text)" }}>{view.stakeNote}</b> — no money on
+            this one. Putting a buy-in in above turns it into a money game.
+          </p>
+        )}
         <div className="field" style={{ width: 150 }}>
           <label>Holes</label>
           <select className="input" value={scope} onChange={(e) => setScope(e.target.value as SkinsScope)}>
@@ -343,17 +373,27 @@ export function SkinsPotClient({
       </div>
 
       {/* ── The money ─────────────────────────────────────────────────── */}
-      {r && r.potCents > 0 && (
+      {r && (r.potCents > 0 || forSomethingElse) && (
         <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>
-          <span className="card-kicker">The pot</span>
+          <span className="card-kicker">{forSomethingElse ? "The skins" : "The pot"}</span>
           {/* The arithmetic, in full. A payout with no working shown is the
               thing a club checks against cash in a hand and distrusts. */}
           <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 10px", lineHeight: 1.6 }}>
-            {view.entrantIds.length} × {money(view.buyInCents)}
-            ={" "}
-            <b style={{ color: "var(--color-text)" }}>{money(r.potCents)}</b> over{" "}
-            {r.claimedSkins + r.unclaimedSkins} skins
-            {r.unclaimedSkins > 0 ? `, ${r.unclaimedSkins} of them unclaimed` : ""}.
+            {forSomethingElse ? (
+              <>
+                <b style={{ color: "var(--color-text)" }}>{r.claimedSkins + r.unclaimedSkins} skins</b>
+                {r.unclaimedSkins > 0 ? `, ${r.unclaimedSkins} of them unclaimed` : ""}, played for{" "}
+                {view.stakeNote}.
+              </>
+            ) : (
+              <>
+                {view.entrantIds.length} × {money(view.buyInCents)}
+                ={" "}
+                <b style={{ color: "var(--color-text)" }}>{money(r.potCents)}</b> over{" "}
+                {r.claimedSkins + r.unclaimedSkins} skins
+                {r.unclaimedSkins > 0 ? `, ${r.unclaimedSkins} of them unclaimed` : ""}.
+              </>
+            )}
           </p>
 
           {r.provisional && (
@@ -368,30 +408,43 @@ export function SkinsPotClient({
                 <tr>
                   <th style={{ textAlign: "left" }}>Player</th>
                   <th style={{ textAlign: "center" }}>Skins</th>
-                  <th style={{ textAlign: "right" }}>Won</th>
-                  <th style={{ textAlign: "right" }}>In</th>
-                  <th style={{ textAlign: "right" }}>Net</th>
+                  {/* Three columns of zeroes is worse than no columns: it
+                      reads as a settled game in which nobody won anything. */}
+                  {!forSomethingElse && <th style={{ textAlign: "right" }}>Won</th>}
+                  {!forSomethingElse && <th style={{ textAlign: "right" }}>In</th>}
+                  {!forSomethingElse && <th style={{ textAlign: "right" }}>Net</th>}
                 </tr>
               </thead>
               <tbody>
                 {[...r.shares]
-                  .sort((a, b) => b.netCents - a.netCents || name(a.playerId).localeCompare(name(b.playerId)))
+                  .sort((a, b) =>
+                    // Ordered by what the table is actually about. With no
+                    // money on it every `netCents` is 0, so sorting by it
+                    // leaves the winner wherever the alphabet put them.
+                    forSomethingElse
+                      ? b.skins - a.skins || name(a.playerId).localeCompare(name(b.playerId))
+                      : b.netCents - a.netCents || name(a.playerId).localeCompare(name(b.playerId)),
+                  )
                   .map((s) => (
                     <tr key={s.playerId}>
                       <td>{name(s.playerId)}</td>
                       <td style={{ textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{s.skins}</td>
-                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{money(s.wonCents)}</td>
-                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{money(s.stakeCents)}</td>
-                      <td
-                        style={{
-                          textAlign: "right",
-                          fontVariantNumeric: "tabular-nums",
-                          fontWeight: 500,
-                          color: s.netCents < 0 ? "var(--color-danger)" : "var(--color-accent-2)",
-                        }}
-                      >
-                        {s.netCents > 0 ? "+" : ""}{money(s.netCents)}
-                      </td>
+                      {!forSomethingElse && (
+                        <>
+                          <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{money(s.wonCents)}</td>
+                          <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{money(s.stakeCents)}</td>
+                          <td
+                            style={{
+                              textAlign: "right",
+                              fontVariantNumeric: "tabular-nums",
+                              fontWeight: 500,
+                              color: s.netCents < 0 ? "var(--color-danger)" : "var(--color-accent-2)",
+                            }}
+                          >
+                            {s.netCents > 0 ? "+" : ""}{money(s.netCents)}
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
               </tbody>

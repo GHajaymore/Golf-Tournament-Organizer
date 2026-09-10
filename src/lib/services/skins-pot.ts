@@ -32,6 +32,8 @@ import { roundStrokes } from "./round-cards";
 export interface SkinsPotView {
   potId: string | null;
   buyInCents: number;
+  /** What this pot is played for when it is not money. See the schema. */
+  stakeNote: string;
   net: boolean;
   scope: SkinsScope;
   /**
@@ -405,6 +407,7 @@ export async function skinsPotFor(
   return {
     potId: pot?.id ?? null,
     buyInCents: pot?.buyInCents ?? 0,
+    stakeNote: pot?.stakeNote ?? "",
     net,
     scope,
     entrantIds,

@@ -297,6 +297,7 @@ export default async function GroupGamesPage({
               id: g.id,
               kind: g.kind,
               buyInCents: g.buyInCents,
+              stakeNote: g.stakeNote,
               entryMode: potModeOf(g.entryMode),
               entrantIds: m.entrants,
               pending: m.pending.map((playerId) => ({ playerId, name: potNameOf(playerId) })),

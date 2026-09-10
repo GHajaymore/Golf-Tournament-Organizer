@@ -3632,7 +3632,7 @@ describe("side bets", () => {
      * has had `matchOnly` on exactly this game since it was written.
      */
     const nassau = {
-      id: "g1", kind: "nassau", buyInCents: 500, entrantIds: [],
+      id: "g1", kind: "nassau", buyInCents: 500, stakeNote: "", entrantIds: [],
       pending: [], entryMode: "opt-out", excluded: [],
     };
 
@@ -3667,6 +3667,128 @@ describe("side bets", () => {
       expect(html).toContain("three bets on every match");
       expect(html).toContain("and the Nassau are worked out");
       expect(html).not.toContain("Nobody plays anybody in this round");
+    });
+  });
+
+  describe("a game played for something that is not money", () => {
+    /**
+     * A pint, lunch, the next green fee. The commonest stake in Sunday golf,
+     * and the one this screen could not show: a game with no cash in it is a
+     * zero `buyInCents`, which renders identically to a game nobody has priced
+     * yet — an empty stake box and none of the pot apparatus.
+     *
+     * Those are different states and only one of them is something to go and
+     * fix, so the note is stored beside the stake and shown where the stake
+     * would be.
+     */
+    const pint = {
+      id: "g2", kind: "birdies", buyInCents: 0, stakeNote: "a pint", entrantIds: ["p1"],
+      pending: [], entryMode: "opt-out", excluded: [],
+    };
+
+    it("says what it is played for, where the money would be", async () => {
+      const html = await bets({ sideGames: [pint] });
+      expect(html, "the stake, in the words they agreed").toContain("a pint");
+      expect(html, "and that it is not money").toContain("with no money on it");
+    });
+
+    it("counts as ON, so the pot's own controls are there", async () => {
+      /**
+       * THE ASSERTION THAT MAKES IT A GAME RATHER THAN A LABEL. `on` was
+       * `buyInCents > 0`, so everything below the stake box — who is in, the
+       * entry mode, the whole reason the row exists — was hidden for a game
+       * played for anything but cash. Setting one up and finding it inert is
+       * worse than not offering it.
+       */
+      const html = await bets({ sideGames: [pint] });
+      expect(html, "who is in it").toContain("In the pot");
+    });
+
+    it("and a game nobody has priced is still just empty", async () => {
+      // THE OTHER DIRECTION. Without this, "show the note" passes on a rule
+      // that treats every unpriced game as a game played for nothing.
+      const html = await bets({ sideGames: [{ ...pint, stakeNote: "" }] });
+      expect(html).not.toContain("with no money on it");
+    });
+
+    /**
+     * The skins pot has its own component, and it had the worse version of the
+     * same fault: the entire result block — who won which hole, the whole point
+     * of the game — hung on `potCents > 0`. So a fourball playing skins for a
+     * pint would have set it up, played eighteen holes, and been shown nothing
+     * at all.
+     */
+    describe("the skins pot played for a pint", () => {
+      const skins = async (over: Record<string, unknown> = {}) => {
+        const { SkinsPotClient } = await import("@/components/SkinsPotClient");
+        const view = {
+          buyInCents: 0,
+          stakeNote: "a pint",
+          net: true,
+          scope: "full" as const,
+          entrantIds: ["p1", "p2"],
+          pendingIds: [],
+          field: [
+            { id: "p1", name: "zz-Alex", playing: true },
+            { id: "p2", name: "zz-Sam", playing: true },
+          ],
+          result: {
+            potCents: 0,
+            claimedSkins: 3,
+            unclaimedSkins: 0,
+            carryCents: 0,
+            provisional: false,
+            shares: [
+              { playerId: "p1", skins: 3, wonCents: 0, stakeCents: 0, netCents: 0 },
+              { playerId: "p2", skins: 0, wonCents: 0, stakeCents: 0, netCents: 0 },
+            ],
+          },
+          transfers: [],
+          nameById: { p1: "zz-Alex", p2: "zz-Sam" },
+          holes: [],
+          ...over,
+        };
+        return render(
+          <SkinsPotClient rounds={[{ stageId: "s1", label: "Round 1" }]} activeStageId="s1" view={view} />,
+        );
+      };
+
+      it("still shows who won the skins", async () => {
+        const html = await skins();
+        expect(html, "the count that decides it").toContain("3 skins");
+        expect(html, "and who has them").toContain("zz-Alex");
+        expect(html, "said in the words they agreed").toContain("a pint");
+      });
+
+      it("and shows no money columns, because there is no money", async () => {
+        // Three columns of zeroes reads as a settled game nobody won anything
+        // in, which is a different and wrong statement.
+        const html = await skins();
+        expect(html).not.toContain(">Won<");
+        expect(html).not.toContain(">Net<");
+      });
+
+      it("while a pot with cash in it keeps all of them", async () => {
+        // THE ASSERTION THAT STOPS THIS BECOMING "DROP THE MONEY COLUMNS".
+        const html = await skins({
+          buyInCents: 500,
+          stakeNote: "",
+          result: {
+            potCents: 1000,
+            claimedSkins: 3,
+            unclaimedSkins: 0,
+            carryCents: 0,
+            provisional: false,
+            shares: [
+              { playerId: "p1", skins: 3, wonCents: 1000, stakeCents: 500, netCents: 500 },
+              { playerId: "p2", skins: 0, wonCents: 0, stakeCents: 500, netCents: -500 },
+            ],
+          },
+        });
+        expect(html).toContain(">Won<");
+        expect(html).toContain(">Net<");
+        expect(html).not.toContain("no money on");
+      });
     });
   });
 
