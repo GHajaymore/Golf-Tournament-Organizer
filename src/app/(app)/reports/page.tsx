@@ -195,6 +195,10 @@ export default async function ReportsPage() {
         eventName={event.name}
         brand={brand}
         scored={kind !== "manual"}
+        /* The same rule the sidebar applies to the Bracket link, asked of the
+           same two stage types — a medal that ends at the last round has no
+           bracket to print. */
+        hasBracket={state.stages.some((s) => s.type === "Bracket Stage" || s.type === "Qualification Stage")}
         snapshotTitle={snapshotTitle}
         board={board}
         extraCsv={extraCsv}
