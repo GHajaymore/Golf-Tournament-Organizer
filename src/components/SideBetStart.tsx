@@ -7,6 +7,7 @@ import { DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
 import { PersonChip } from "@/components/PersonChip";
 import { useMoney } from "@/components/CurrencyProvider";
 import { nameHold, type NameHold } from "@/lib/domain/bet-name";
+import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 import { Icon } from "./Icon";
 
 /**
@@ -88,6 +89,18 @@ export function SideBetStart({
   const [name, setName] = useState("");
   const [game, setGame] = useState<string>("skins");
   const [buyIn, setBuyIn] = useState("5");
+  /**
+   * Whether the bet is in money, or in whatever the group agreed instead.
+   *
+   * The round's own setup screen asks this; this one could only take cash, so
+   * the same agreement was refused on the screen NEARER to where it is made —
+   * three of you on the 9th fairway deciding the loser buys lunch.
+   *
+   * Money stays the default, because a bet started here usually is one.
+   */
+  const [stakeKind, setStakeKind] = useState<"money" | "other">("money");
+  /** What they are playing for, when it is not money — "a pint", "lunch". */
+  const [stakeNote, setStakeNote] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const trimmed = name.trim();
@@ -147,7 +160,17 @@ export function SideBetStart({
     setError("");
     startTransition(async () => {
       const parsed = parse(buyIn);
-      const cents = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+      /**
+       * One or the other, resolved before either write.
+       *
+       * A blank description still counts as an answer: somebody who picked
+       * "Something else" has said the thing that matters — this is not for
+       * money — and being refused for not naming the pint would be the screen
+       * arguing with them.
+       */
+      const forOther = stakeKind === "other";
+      const cents = forOther ? 0 : Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+      const note = forOther ? stakeNote.trim() || "Not for money" : "";
       const ids = [...picked];
 
       // Two different stores because they are two different games, not one
@@ -160,6 +183,7 @@ export function SideBetStart({
           net: true,
           scope: "full",
           groupKey: trimmed,
+          stakeNote: note,
         });
         if (!made.ok) {
           setError(made.error ?? "Couldn't start that.");
@@ -173,7 +197,7 @@ export function SideBetStart({
           return;
         }
       } else {
-        const made = await saveSideGame(stageId, game, cents, trimmed);
+        const made = await saveSideGame(stageId, game, cents, trimmed, note);
         if (!made.ok || !made.id) {
           setError(made.error ?? "Couldn't start that.");
           return;
@@ -187,6 +211,7 @@ export function SideBetStart({
 
       setOpen(false);
       setName("");
+      setStakeNote("");
       setPicked(new Set());
       router.refresh();
     });
@@ -236,6 +261,33 @@ export function SideBetStart({
         </p>
       </div>
 
+      {/* THE SAME QUESTION THE ROUND ITSELF ASKS, and it has to be here too.
+          A round could be set up for a pint while the bet started halfway down
+          the 9th fairway could only be priced in cash — the same agreement,
+          refused on the screen nearer to where it is actually made. */}
+      <div>
+        <span className="card-kicker">What for</span>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          {(["money", "other"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              className={`btn ${stakeKind === k ? "btn-primary" : "btn-secondary"}`}
+              style={{ fontSize: 12.5, padding: "6px 12px" }}
+              aria-pressed={stakeKind === k}
+              onClick={() => setStakeKind(k)}
+            >
+              {k === "money" ? "Money" : "Something else"}
+            </button>
+          ))}
+        </div>
+        {stakeKind === "other" && (
+          <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0", lineHeight: 1.5 }}>
+            Settled the same way, with no figure on it. Whatever you agreed is between you.
+          </p>
+        )}
+      </div>
+
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div className="field" style={{ flex: 1, minWidth: 180 }}>
           <label>What to call it</label>
@@ -247,10 +299,32 @@ export function SideBetStart({
             onChange={(e) => setName(e.target.value)}
           />
         </div>
-        <div className="field" style={{ width: 120 }}>
-          <label>Buy-in</label>
-          <input className="input" inputMode="decimal" value={buyIn} onChange={(e) => setBuyIn(e.target.value)} />
-        </div>
+        {stakeKind === "money" ? (
+          <div className="field" style={{ width: 120 }}>
+            <label htmlFor="side-bet-buyin">Buy-in</label>
+            <input
+              id="side-bet-buyin"
+              className="input"
+              inputMode="decimal"
+              value={buyIn}
+              onChange={(e) => setBuyIn(e.target.value)}
+            />
+          </div>
+        ) : (
+          <div className="field" style={{ width: 180 }}>
+            <label htmlFor="side-bet-note">
+              Playing for <span className="text-muted" style={{ fontWeight: 400 }}>— optional</span>
+            </label>
+            <input
+              id="side-bet-note"
+              className="input"
+              value={stakeNote}
+              maxLength={STAKE_NOTE_MAX}
+              placeholder="a pint"
+              onChange={(e) => setStakeNote(e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
       {held && (

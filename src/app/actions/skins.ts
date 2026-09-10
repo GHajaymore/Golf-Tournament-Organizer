@@ -6,6 +6,7 @@ import { parseTeeSheet } from "@/lib/domain/tee-sheet";
 import { requirePotAccess } from "@/lib/services/game-access";
 import { getSession } from "@/lib/auth";
 import { potAudience } from "@/lib/domain/pot-audience";
+import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 
 /**
  * The skins pot on a league round.
@@ -39,7 +40,19 @@ function refresh() {
  */
 export async function saveSkinsPot(
   stageId: string,
-  input: { buyInCents: number; net: boolean; scope: string; groupKey?: string },
+  input: {
+    buyInCents: number;
+    net: boolean;
+    scope: string;
+    groupKey?: string;
+    /**
+     * What the pot is being played for, when that is not money.
+     *
+     * Ignored the moment a buy-in is passed — see the note beside the write.
+     * Optional, so every existing caller keeps writing what it wrote before.
+     */
+    stakeNote?: string;
+  },
 ): Promise<SkinsResult> {
   const groupKey = (input.groupKey ?? "").trim();
   // Staff for the field's pot; a player in that fourball for the group's own.
@@ -66,9 +79,10 @@ export async function saveSkinsPot(
   // the second one saved would overwrite the first — the same silent loss of
   // somebody's money, one scope wider.
   // Money and a "playing for a pint" note are two different agreements about
-  // the same pot, so the note goes the moment a stake arrives. Enforced at the
-  // write for the reason `saveSideGame` gives at length.
-  const data = { buyInCents: buyIn, stakeNote: "" };
+  // the same pot, so a buy-in replaces the note. Enforced at the write, for
+  // the reason `saveSideGame` gives at length.
+  const note = buyIn > 0 ? "" : (input.stakeNote ?? "").trim().slice(0, STAKE_NOTE_MAX);
+  const data = { buyInCents: buyIn, stakeNote: note };
   await prisma.skinsPot.upsert({
     where: { stageId_net_scope_groupKey: { stageId, net: input.net, scope: input.scope, groupKey } },
     create: { eventId, stageId, net: input.net, scope: input.scope, groupKey, ...data },
