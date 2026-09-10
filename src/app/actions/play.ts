@@ -10,7 +10,7 @@ import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { cleanHoleResults } from "@/lib/domain/score-payload";
 import { roundLabel } from "@/lib/domain/round-label";
 import { marginToHoles } from "@/lib/domain";
-import { writeScorecard } from "@/lib/services/scorecard-write";
+import { writeScorecard, certifyCard } from "@/lib/services/scorecard-write";
 
 /**
  * Redeeming a Round Code.
@@ -445,6 +445,69 @@ export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimRes
       actor: session.playerName,
       action: "score",
       detail: "Card entered via round code",
+    },
+  });
+  boardChanged(session.eventId);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * Signing that card — Rule 3.3b, from the surface the field actually uses.
+ *
+ * THE HALF #259 LEFT OUT, and the committee saw all of it. A charity day's
+ * field submits with a Round Code, and the code surface had no way to
+ * certify — so every card arrived at Score entry reading "Not certified yet"
+ * and landed in "needs attention", where the only control is "Approve
+ * anyway". Measured on 2026-09-10: the same screen cites Rule 3.3b in the
+ * sentence above the button that overrides it.
+ *
+ * Signs through `certifyCard`, the same function the console's own card
+ * screen uses, so what a signature MEANS is one rule rather than two.
+ *
+ * The signer is the player the SESSION names — no id from the caller, for the
+ * reason `savePlayCard` gives at length — and is recorded by name, because a
+ * code holder has no account and the record's job is to say who claimed the
+ * scores were right.
+ */
+export async function certifyPlayCard(): Promise<ClaimResult> {
+  const session = await getPlaySession();
+  if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+
+  const [event, stage] = await Promise.all([
+    prisma.event.findUnique({ where: { id: session.eventId } }),
+    prisma.stage.findUnique({ where: { id: session.stageId }, select: { id: true, eventId: true } }),
+  ]);
+  if (!event || !stage) return { ok: false, error: "Round not found." };
+  if (stage.eventId !== session.eventId) return { ok: false, error: "That round isn't in your tournament." };
+
+  const settings = settingsOf(event);
+  // The same question the write asks, and for the same reason: a tournament
+  // the committee scores must not have its cards signed by a code holder.
+  if (!canEnterScores(settings, "player")) {
+    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
+  }
+
+  try {
+    await certifyCard({
+      eventId: session.eventId,
+      stageId: session.stageId,
+      playerId: session.playerId,
+      by: session.playerName,
+    });
+  } catch (e) {
+    // Refused rather than crashed — no card yet, or one the committee has
+    // already accepted. Both are sentences a player should read.
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't certify that card." };
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      eventId: session.eventId,
+      matchId: null,
+      actor: session.playerName,
+      action: "card.certify",
+      detail: "Card certified via round code",
     },
   });
   boardChanged(session.eventId);

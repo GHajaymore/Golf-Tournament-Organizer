@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard } from "@/app/actions/play";
+import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard, certifyPlayCard } from "@/app/actions/play";
 import { HoleByHoleCard } from "./HoleByHoleCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
@@ -97,6 +97,9 @@ export function PlayClient(props: Props) {
   const [entryMode, setEntryMode] = useState<"holes" | "result">("holes");
   const [resultWinner, setResultWinner] = useState<"me" | "them" | "halved">("me");
   const [resultMargin, setResultMargin] = useState("");
+  // Whether this card has been signed. Held apart from `saved`, because
+  // saving and signing are different statements — see the buttons.
+  const [certified, setCertified] = useState(false);
   // The player's own card, for a round with no opponent in it. Sized to the
   // ROUND rather than to what arrived, so a short stored card still draws
   // every hole the round is played over.
@@ -305,6 +308,26 @@ export function PlayClient(props: Props) {
       0,
     );
 
+    const certifyCard = () => {
+      setError("");
+      startTransition(async () => {
+        // Save first: signing a card the server has not seen would certify
+        // numbers nobody stored. Same order as the console's own card.
+        const wrote = await savePlayCard(card);
+        if (!wrote.ok) {
+          setError(wrote.error ?? "Couldn't save that card.");
+          return;
+        }
+        setSaved(true);
+        const res = await certifyPlayCard();
+        if (!res.ok) {
+          setError(res.error ?? "Couldn't certify that card.");
+          return;
+        }
+        setCertified(true);
+      });
+    };
+
     const saveCard = () => {
       setError("");
       startTransition(async () => {
@@ -366,7 +389,7 @@ export function PlayClient(props: Props) {
 
           <button
             type="button"
-            className="btn btn-primary"
+            className={certified ? "btn btn-secondary" : "btn btn-primary"}
             disabled={pending || (props.submitWhole && !cardComplete)}
             onClick={saveCard}
           >
@@ -379,6 +402,33 @@ export function PlayClient(props: Props) {
               Fill all {holeCount} holes to submit.
             </p>
           )}
+
+          {/* SIGNING IT — Rule 3.3b, and the half this surface did not have.
+              Without it every card a field submitted with a Round Code
+              arrived at the committee reading "Not certified yet" and landed
+              in "needs attention", where the only control is "Approve
+              anyway": the same screen citing the rule above the button that
+              overrides it. Measured on 2026-09-10.
+
+              A separate, deliberate act, exactly as it is on the signed-in
+              card. Saving is bookkeeping; certifying is a statement that
+              these hole scores are right. */}
+          <button
+            type="button"
+            className="btn btn-primary"
+            // Certifying an unfinished card would be claiming holes that were
+            // never played were right.
+            disabled={pending || !cardComplete || certified}
+            onClick={certifyCard}
+            style={{ minHeight: 52 }}
+          >
+            <Icon name="check" /> {certified ? "Certified" : "Certify my card"}
+          </button>
+          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+            {cardComplete
+              ? "Certifying says these hole scores are correct. The committee accepts it after that."
+              : `Certify once all ${holeCount} holes are in.`}
+          </p>
           {error && (
             <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {error}

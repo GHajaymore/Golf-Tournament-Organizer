@@ -18,7 +18,7 @@ vi.mock("@/lib/play-auth", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
-const { savePlayCard } = await import("@/app/actions/play");
+const { savePlayCard, certifyPlayCard } = await import("@/app/actions/play");
 
 /**
  * A Round Code can score a MEDAL, not only a match.
@@ -243,5 +243,80 @@ describe("a round code on a medal round", () => {
     const res = await savePlayCard(FULL_CARD);
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/session expired/i);
+  });
+});
+
+/**
+ * AND THE PLAYER CAN SIGN IT — Rule 3.3b, from the surface the field uses.
+ *
+ * Without this every card a charity day's field submitted arrived at Score
+ * entry reading "Not certified yet" and landed in "needs attention", where
+ * the only control is "Approve anyway". Measured on 2026-09-10: the same
+ * screen cites the rule in the sentence directly above the button that
+ * overrides it, and the app gave the field no way to satisfy it.
+ */
+describe("signing a card entered with a round code", () => {
+  it("certifies the code holder's own card, and records who", async () => {
+    asPlayer(mine);
+    await savePlayCard(FULL_CARD);
+    const res = await certifyPlayCard();
+    expect(res.ok, res.error).toBe(true);
+
+    const card = await prisma.scorecard.findFirst({
+      where: { eventId, stageId, playerId: mine },
+      select: { status: true, certifiedBy: true, certifiedAt: true },
+    });
+    expect(card!.status).toBe("certified");
+    // By NAME, because a code holder has no account — the record's job is to
+    // say who claimed the scores were right, not to be a credential.
+    expect(card!.certifiedBy, "somebody signed it").toBe(`${TAG} player`);
+    expect(card!.certifiedAt, "and when").not.toBeNull();
+  });
+
+  it("refuses when the committee keeps the cards", async () => {
+    // The same gate the write has. A tournament the committee scores must not
+    // have its cards signed by a code holder either.
+    await setEvent({ scoreEntryBy: "staff" });
+    asPlayer(mine);
+    const res = await certifyPlayCard();
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/entered by the organizer/);
+    await setEvent({ scoreEntryBy: "players" });
+  });
+
+  it("refuses to sign a card the committee has already accepted", async () => {
+    /**
+     * THE SAFETY PROPERTY, and the reason signing goes through the same
+     * `certifyCard` the console uses. An approved card is the committee's,
+     * not the marker's, to change — and a code is held by the whole field.
+     */
+    asPlayer(mine);
+    await savePlayCard(FULL_CARD);
+    await prisma.scorecard.updateMany({
+      where: { eventId, stageId, playerId: mine },
+      data: { status: "approved", approvedBy: "committee@example.invalid", approvedAt: new Date() },
+    });
+
+    const res = await certifyPlayCard();
+    expect(res.ok).toBe(false);
+
+    const card = await prisma.scorecard.findFirst({
+      where: { eventId, stageId, playerId: mine },
+      select: { status: true },
+    });
+    expect(card!.status, "the acceptance stands").toBe("approved");
+    // Put it back for anything that runs after.
+    await prisma.scorecard.updateMany({
+      where: { eventId, stageId, playerId: mine },
+      data: { status: "entered", approvedBy: "", approvedAt: null },
+    });
+  });
+
+  it("refuses when there is no card to sign", async () => {
+    // Signing nothing would be a signature over an empty row.
+    asPlayer(theirs);
+    const res = await certifyPlayCard();
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/no card to certify/i);
   });
 });

@@ -48,11 +48,16 @@ function actions(file: string): { name: string; body: string }[] {
  * in fact narrower now: there is one writer, and it is the one that has to
  * carry the checks.
  */
-function cardWriter(): { name: string; body: string } {
+function cardService(name: string): { name: string; body: string } {
   const src = stripComments(readSource("src", "lib", "services", "scorecard-write.ts"));
-  const found = exportedFunctions(src).find((f) => f.name === "writeScorecard");
-  if (!found) throw new Error("writeScorecard not found — these guards would pass vacuously");
+  const found = exportedFunctions(src).find((f) => f.name === name);
+  if (!found) throw new Error(`${name} not found — these guards would pass vacuously`);
   return found;
+}
+
+/** The one function that writes a stroke card. */
+function cardWriter(): { name: string; body: string } {
+  return cardService("writeScorecard");
 }
 
 describe("every server action is guarded", () => {
@@ -634,17 +639,20 @@ describe("a round code obeys the tournament's score-entry setting", () => {
    * somebody adds a door.
    *
    * "Records a score" is what these have in common: a match result written to
-   * `Match`, or a card written through `writeScorecard`. Anything that starts
-   * doing either fails this block the day it is written.
+   * `Match`, a card written through `writeScorecard`, or a card SIGNED through
+   * `certifyCard` — a signature is a statement about a result under Rule 3.3b,
+   * so it belongs to the same set. Anything that starts doing any of them
+   * fails this block the day it is written, which the signing door did.
    */
   const writers = actions("play.ts").filter(
-    (a) => /prisma\.match\.update\(|writeScorecard\(/.test(a.body),
+    (a) => /prisma\.match\.update\(|writeScorecard\(|certifyCard\(/.test(a.body),
   );
 
   it("finds the write actions it is about to assert on", () => {
     // Or the whole block passes vacuously — the failure mode this file has
     // caught twice.
     expect(writers.map((a) => a.name).sort()).toEqual([
+      "certifyPlayCard",
       "savePlayCard",
       "savePlayMatchHoles",
       "savePlayMatchResult",
@@ -830,14 +838,20 @@ describe("an accepted result is only undone by someone entitled to undo it", () 
     // SAYS did not ask at all, so the same row was writable through a
     // neighbouring door. One shared predicate now, rather than three copies of
     // a condition that were never going to stay in step.
-    for (const name of ["disputeScorecard", "certifyScorecard"]) {
-      expect(fn(name), name).toMatch(/isCardLocked\(/);
-      expect(fn(name), name).toMatch(/LOCKED_CARD_REFUSAL/);
+    expect(fn("disputeScorecard")).toMatch(/isCardLocked\(/);
+    expect(fn("disputeScorecard")).toMatch(/LOCKED_CARD_REFUSAL/);
+    /**
+     * And the two functions in `services/scorecard-write.ts` the other doors
+     * go through: the one that changes what a card SAYS and the one that
+     * SIGNS it. `certifyScorecard` delegated the day a fourth door needed the
+     * same rule — the Round Code surface — and this went red on the move,
+     * which is what it is for.
+     */
+    for (const name of ["writeScorecard", "certifyCard"]) {
+      const body = cardService(name).body;
+      expect(body, name).toMatch(/isCardLocked\(/);
+      expect(body, name).toMatch(/LOCKED_CARD_REFUSAL/);
     }
-    // And the stroke card's own writer, wherever it lives — see `cardWriter`.
-    const writer = cardWriter().body;
-    expect(writer).toMatch(/isCardLocked\(/);
-    expect(writer).toMatch(/LOCKED_CARD_REFUSAL/);
   });
 
   it("saveScorecard writes through that one writer rather than its own upsert", () => {

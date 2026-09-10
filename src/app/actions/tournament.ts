@@ -51,7 +51,7 @@ import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { cleanStrokes } from "@/lib/domain/score-payload";
-import { writeScorecard, type SaveCardResult } from "@/lib/services/scorecard-write";
+import { writeScorecard, certifyCard, type SaveCardResult } from "@/lib/services/scorecard-write";
 import {
   freezeRoundHandicaps,
   roundHandicapRows,
@@ -3874,23 +3874,17 @@ export async function certifyScorecard(stageId: string, playerId: string) {
   await assertEventPlayer(eventId, playerId);
   await assertOwnCard(session, eventId, playerId);
 
-  // Scoped on eventId as well as the pair: the (stageId, playerId) unique key
-  // is caller-supplied, and without the event in the filter it would name a
-  // row in any tournament. Same hole that saveScorecard had.
-  const card = await prisma.scorecard.findFirst({
-    where: { eventId, stageId, playerId },
-    select: { id: true, status: true },
-  });
-  if (!card) throw new Error("There's no card to certify yet.");
-  // An approved card is the committee's, not the marker's, to change. Shared
-  // with saveScorecard and disputeScorecard so the three doors into this row
-  // cannot drift apart again.
-  if (isCardLocked(card.status)) throw new Error(LOCKED_CARD_REFUSAL);
-
-  await prisma.scorecard.update({
-    where: { id: card.id },
-    data: { status: "certified", certifiedBy: session.email, certifiedAt: new Date() },
-  });
+  /**
+   * The signature itself, in `services/scorecard-write.ts`.
+   *
+   * Lifted out for the reason the comment here already gave — "the three doors
+   * into this row cannot drift apart again" — the day a FOURTH arrived: the
+   * Round Code surface, which had no way to sign at all.
+   *
+   * The guards above are what did not move. Who may sign is this action's
+   * question and the play surface asks a different one.
+   */
+  await certifyCard({ eventId, stageId, playerId, by: session.email });
   await refresh();
   return { ok: true };
 }
