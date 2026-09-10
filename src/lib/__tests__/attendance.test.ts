@@ -11,6 +11,7 @@ import {
   resolveAttendance,
   tracksPerRound,
   weekReturnsNote,
+  attendanceModeChange,
 } from "../domain/attendance";
 
 /**
@@ -211,5 +212,84 @@ describe("what the week's card count says", () => {
     const s = weekReturnsNote({ expected: 4, returned: 5, out: 1 });
     expect(s).not.toContain("-1");
     expect(s).not.toContain("still to come");
+  });
+});
+
+/**
+ * The switch that empties every tee sheet, and said nothing.
+ *
+ * Only explicit choices are stored, which is what makes "by default you're in"
+ * true for forty players without forty rows — and it is what makes this switch
+ * quietly enormous. A silent player's status is derived from the mode at read
+ * time, so moving an opt-out league to opt-in or captains turns everyone who
+ * has never touched the app from IN to OUT, for every round, the moment Save
+ * is pressed.
+ */
+describe("changing the weekly sign-up mode", () => {
+  it("warns when everybody silent is about to become out", () => {
+    for (const to of ["opt-in", "captains"] as const) {
+      const s = attendanceModeChange("opt-out", to);
+      expect(s, to).toMatch(/in to OUT/);
+      expect(s, to).toMatch(/tee sheet will be empty/i);
+      // The organizer's first fear, answered: stored answers survive, because
+      // resolveAttendance prefers an explicit row over the default in every
+      // mode.
+      expect(s, to).toMatch(/Answers already given are kept/);
+    }
+  });
+
+  it("warns the other way too, which is the same surprise reversed", () => {
+    for (const from of ["opt-in", "captains"] as const) {
+      expect(attendanceModeChange(from, "opt-out")).toMatch(/out to IN/);
+    }
+  });
+
+  it("says nothing when the switch moves nobody", () => {
+    // opt-in and captains both read silence as out, so nobody's status
+    // changes. Warning here would be crying wolf on the one screen where a
+    // warning has to mean something.
+    expect(attendanceModeChange("opt-in", "captains")).toBeNull();
+    expect(attendanceModeChange("captains", "opt-in")).toBeNull();
+    for (const m of ATTENDANCE_MODES) expect(attendanceModeChange(m, m)).toBeNull();
+  });
+
+  it("describes switching the question off as the question disappearing", () => {
+    // Not a change of default: there is no default any more, because nobody is
+    // asked and nobody is left out.
+    const s = attendanceModeChange("opt-in", "everyone");
+    expect(s).toMatch(/every confirmed player will be in every round/i);
+    expect(s).toMatch(/come back if you turn it on again/i);
+  });
+
+  it("describes switching it on by what happens today", () => {
+    // From `everyone`, nobody has ever answered anything — so opt-out moves
+    // nobody and opt-in empties the sheet, and those read differently.
+    expect(attendanceModeChange("everyone", "opt-out")).toMatch(/Nothing moves today/);
+    expect(attendanceModeChange("everyone", "opt-in")).toMatch(/Tee sheets stay empty/);
+    expect(attendanceModeChange("everyone", "captains")).toMatch(/until you record it/);
+  });
+
+  it("has something to say about every switch that moves somebody", () => {
+    /**
+     * Swept from the modes rather than hand-listed, so a mode added later is
+     * covered the day it is added. The rule the sweep asserts: a pair whose
+     * default status differs must produce a sentence, and a pair whose default
+     * matches must not — with `everyone` exempt in both directions, because
+     * "no question at all" is not a default and gets its own wording.
+     */
+    for (const from of ATTENDANCE_MODES) {
+      for (const to of ATTENDANCE_MODES) {
+        const s = attendanceModeChange(from, to);
+        if (from === to) {
+          expect(s, `${from}->${to}`).toBeNull();
+        } else if (from === "everyone" || to === "everyone") {
+          expect(s, `${from}->${to}`).toBeTruthy();
+        } else if (defaultStatus(from) === defaultStatus(to)) {
+          expect(s, `${from}->${to}`).toBeNull();
+        } else {
+          expect(s, `${from}->${to}`).toBeTruthy();
+        }
+      }
+    }
   });
 });
