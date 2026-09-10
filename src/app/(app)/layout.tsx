@@ -20,6 +20,7 @@ import { brandForEvent, themeForEvent, currencyForEvent } from "@/lib/services/o
 export const metadata = { robots: NOINDEX };
 import { DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
+import { OrgProfileProvider } from "@/components/OrgProfileProvider";
 import { themeCss, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { settingsOf } from "@/lib/services/tournament";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
@@ -94,6 +95,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <CurrencyProvider currency={currency}>
+    {/* What kind of outfit this is, beside its currency and its theme — one
+        fact about the organization read by a dozen screens that name it. A
+        society is not a club, and the console said so in eight places. */}
+    <OrgProfileProvider kind={event?.organization.kind}>
     <div
       id="club-theme"
       // Drives `color-scheme` in globals.css. Native form chrome — the date
@@ -145,6 +150,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         brand={brand}
       />
     </div>
+    </OrgProfileProvider>
     </CurrencyProvider>
   );
 }

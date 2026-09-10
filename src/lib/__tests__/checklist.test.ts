@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { setupChecklist, isUnstarted, clubBrandingState, type ChecklistState } from "../services/checklist";
 import { NAV, screenName } from "../nav";
 import { DEFAULT_THEME, DEFAULT_SECONDARY } from "../themes";
-import { readVerbatim } from "./source";
+import { readVerbatim, readSource } from "./source";
 
 /**
  * The setup checklist, and the question it answers on the dashboard: is this
@@ -290,6 +290,49 @@ describe("a checklist row calls a screen what the sidebar calls it", () => {
       // The one deliberate exception, asserted by name so a second one has to
       // be added here on purpose.
       expect(row.label).toBe("Add your club's logo & colours");
+    }
+  });
+
+  it("calls the outfit what it is, rather than calling everybody a club", () => {
+    /**
+     * A society secretary and a charity organizer were both told to brand a
+     * club they have not got. The same defect `settingsLabel` exists for one
+     * screen along — "a solo organizer came to be shown a screen about a club
+     * they do not have" — and this row is the other half of it.
+     *
+     * `noun` rather than `label`, because `label` does not survive being
+     * dropped into running text: "Add your Society or league's logo".
+     */
+    const forKind = (orgKind: string) =>
+      setupChecklist({ ...state, orgKind }).find((r) => r.href === "/organization")!;
+
+    expect(forKind("community").label).toBe("Add your society's logo & colours");
+    expect(forKind("community").detail).toContain("your society's badge");
+    expect(forKind("personal").label).toBe("Add your outing's logo & colours");
+    // A CLUB still reads exactly as it did, which is the assertion that keeps
+    // this from being a rewrite of the wording for everybody.
+    expect(forKind("club").label).toBe("Add your club's logo & colours");
+    // And so does a caller that has not been told — every one of them, before
+    // the question existed.
+    expect(setupChecklist(state).find((r) => r.href === "/organization")!.label).toBe(
+      "Add your club's logo & colours",
+    );
+  });
+
+  it("and both screens that show the list actually tell it which", () => {
+    /**
+     * READ FROM SOURCE, because a fallback is only safe if somebody uses the
+     * real value. `CreateFirstTournament`'s `plan` prop was documented, tested
+     * and defaulted — and never passed by its one caller, so the default WAS
+     * the behaviour and every test of it was green. Same shape here: a society
+     * that is still called a club because two pages forgot to say so is
+     * exactly as broken as no fallback at all.
+     *
+     * Through `readSource`, so a comment mentioning `orgKind` cannot satisfy
+     * an assertion about passing it.
+     */
+    for (const page of [["src", "app", "(app)", "dashboard", "page.tsx"], ["src", "app", "(app)", "event", "page.tsx"]]) {
+      expect(readSource(...page), page.join("/")).toMatch(/orgKind: /);
     }
   });
 

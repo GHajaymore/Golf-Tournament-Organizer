@@ -1,4 +1,5 @@
 "use client";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { useState, useTransition } from "react";
 import { saveCustomCourse } from "@/app/actions/tournament";
 import { parseCard, assignCardRows } from "@/lib/domain/scorecard-parse";
@@ -36,6 +37,8 @@ export function CourseSetupPrompt({
    *  setup, where it's an optional detail the organizer may fill in. */
   blocking?: boolean;
 }) {
+  // A society is not a club, and this screen says so. See OrgProfileProvider.
+  const org = useOrgProfile();
   const [name, setName] = useState(eventCourse);
   const [city, setCity] = useState(eventCity);
   const [pasteText, setPasteText] = useState("");
@@ -171,7 +174,7 @@ export function CourseSetupPrompt({
           paste" and they do — out of sight, which is not what a reader
           understands by that. */}
       <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0", lineHeight: 1.45 }}>
-        Copy the rows straight off the club&rsquo;s website — totals and labels are stripped
+        Copy the rows straight off the course&rsquo;s website — totals and labels are stripped
         automatically, and the card below fills in. Open it to check.
       </p>
       {pasteSummaryText && (
@@ -195,13 +198,13 @@ export function CourseSetupPrompt({
           <>
             {"“"}{eventCourse || "This event"}{"”"} isn&rsquo;t one of the built-in courses, so there&rsquo;s no real par,
             yardage, or handicap data for it yet — scoring (net, Stableford, tiebreakers) needs that before you can
-            enter results. Paste the card off the club&rsquo;s website, or fill it in by hand below.
+            enter results. Paste the card off the course&rsquo;s website, or fill it in by hand below.
           </>
         ) : (
           <>
             Par, yardage and stroke index for {"“"}{eventCourse || "this event"}{"”"}. Gross match play doesn&rsquo;t
             need this to score, but printed scorecards do — they carry the course details alongside your club&rsquo;s
-            logo. Paste the card off the club&rsquo;s website, or fill it in by hand.
+            logo. Paste the card off the course&rsquo;s website, or fill it in by hand.
           </>
         )}
       </p>
@@ -221,7 +224,7 @@ export function CourseSetupPrompt({
 
       {saved.length > 0 && (
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: "block", marginBottom: 6 }}>Your club&rsquo;s courses</label>
+          <label style={{ display: "block", marginBottom: 6 }}>Your {org.noun}&rsquo;s courses</label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {saved.map((c) => (
               <button

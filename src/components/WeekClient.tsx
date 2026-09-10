@@ -1,4 +1,5 @@
 "use client";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { WeekView } from "@/lib/services/week-view";
@@ -92,6 +93,8 @@ function Section({
 }
 
 export function WeekClient({ view, canManageMoney }: { view: WeekView; canManageMoney: boolean }) {
+  // A society is not a club, and this screen says so. See OrgProfileProvider.
+  const org = useOrgProfile();
   const { money } = useMoney();
   const router = useRouter();
   const pathname = usePathname();
@@ -332,7 +335,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                 ) : null,
               )}
               <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0" }}>
-                Calculated and recorded here. The club settles up in person — TourneyHQ never moves money.
+                Calculated and recorded here. The {org.noun} settles up in person — TourneyHQ never moves money.
               </p>
             </Section>
           )}

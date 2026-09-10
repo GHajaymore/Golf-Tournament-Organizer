@@ -1,4 +1,5 @@
 "use client";
+import { useOrgProfile, leadingNoun } from "@/components/OrgProfileProvider";
 import { CardImport } from "./CardImport";
 import { screenName } from "@/lib/nav";
 import { Fragment, useState, useTransition } from "react";
@@ -63,6 +64,8 @@ export function CourseLibrary({
    *  links here rather than growing a second card editor of its own. */
   openCourseId?: string | null;
 }) {
+  // A society is not a club, and this screen says so. See OrgProfileProvider.
+  const org = useOrgProfile();
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(courses.filter((c) => c.inEvent).map((c) => c.id)),
   );
@@ -563,7 +566,7 @@ export function CourseLibrary({
       {courses.length > 0 && canEdit && (
         <div style={{ maxWidth: 340 }}>
           <CoursePicker
-            label="Club’s home course"
+            label={`${leadingNoun(org.noun)}’s home course`}
             // The town and the card status come free here, and this is the
             // list where they matter most: a club with two courses called
             // Hillcrest cannot tell them apart by name, and setting a home

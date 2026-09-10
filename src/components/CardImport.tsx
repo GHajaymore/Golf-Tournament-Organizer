@@ -124,7 +124,7 @@ export function CardImport({
       <div>
         <span className="card-title" style={{ fontSize: 15 }}>Paste a course card</span>
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", maxWidth: "68ch", lineHeight: 1.5 }}>
-          Copy the par, yardage and stroke-index rows straight off the club&apos;s website — totals and
+          Copy the par, yardage and stroke-index rows straight off the course&apos;s website — totals and
           labels are stripped automatically. Everything is checked before it saves.
         </p>
       </div>

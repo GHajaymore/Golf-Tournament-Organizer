@@ -1,4 +1,5 @@
 "use client";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { useState, useTransition } from "react";
 import { saveOrganizationCurrency } from "@/app/actions/organization";
 import { CURRENCIES, money, currencySymbol } from "@/lib/domain/money-format";
@@ -18,6 +19,8 @@ import { Icon } from "./Icon";
  * before a club published a prize list.
  */
 export function CurrencyPicker({ currency }: { currency: string }) {
+  // A society is not a club, and this screen says so. See OrgProfileProvider.
+  const org = useOrgProfile();
   const [value, setValue] = useState(currency || "USD");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -51,7 +54,7 @@ export function CurrencyPicker({ currency }: { currency: string }) {
         <FieldInfo label="the club's currency">
           <p>
             What every amount in this club is written in — prizes, pots, buy-ins and the settle-up.
-            It is one setting for the club rather than one per tournament.
+            It is one setting for the {org.noun} rather than one per tournament.
           </p>
           <p>
             It is the currency ITSELF, not just the symbol. Amounts are held in the smallest unit,

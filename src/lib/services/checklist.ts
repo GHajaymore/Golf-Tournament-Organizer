@@ -1,6 +1,7 @@
 import type { ChecklistItem } from "@/components/SetupChecklist";
 import { screenName, screenAppliesToMatch } from "@/lib/nav";
 import { bySetupOrder } from "@/lib/domain/setup-flow";
+import { orgProfile } from "@/lib/domain/org-profile";
 
 /**
  * Whether a club has put its own stamp on the app yet.
@@ -73,6 +74,19 @@ export interface ChecklistState {
    * not loaded the flow shows the list it always showed.
    */
   details?: { done: boolean; missing: string };
+  /**
+   * What kind of outfit this tournament belongs to — see `orgProfile`.
+   *
+   * Only the branding nudge reads it, and only to call the thing by its own
+   * name. That row said "Add your club's logo & colours" to everybody, so a
+   * society secretary and a charity organizer were both told to brand a club
+   * they have not got — the same defect `settingsLabel` was written for, one
+   * screen along, and the one this codebase keeps rediscovering.
+   *
+   * Absent falls back to the club wording, which is what every caller got
+   * before the question existed.
+   */
+  orgKind?: string | null;
   /**
    * This event is a MATCH — two people playing each other, not a tournament.
    *
@@ -154,9 +168,13 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
   // live. Once either is set it drops off — this is a first-run prompt, not a
   // permanent line item.
   if (state.branding && !state.branding.hasLogo && !state.branding.hasColours) {
+    // A society is not a club and an outing is neither. `noun` is the word
+    // that survives being dropped into running text — the reason it exists
+    // apart from `label`, which does not: "Add your society's logo".
+    const noun = state.orgKind ? orgProfile(state.orgKind).noun : "club";
     items.push({
-      label: "Add your club's logo & colours",
-      detail: "Put your club's badge and colours on the leaderboard and player screens.",
+      label: `Add your ${noun}'s logo & colours`,
+      detail: `Put your ${noun}'s badge and colours on the leaderboard and player screens.`,
       done: false,
       href: "/organization",
       optional: true,

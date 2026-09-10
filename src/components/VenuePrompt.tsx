@@ -1,4 +1,5 @@
 "use client";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { useMemo, useState, useTransition } from "react";
 import { nameMatchVenue } from "@/app/actions/courses";
 import { matchCourse, needsNine, cardProblems, teeProblems, exactCardClaim } from "@/lib/domain/venue";
@@ -71,6 +72,9 @@ export function VenuePrompt({
   aName: string;
   bName: string;
 }) {
+  // A society is not a club, and this screen is the one a society lives on:
+  // a different course every month. See OrgProfileProvider.
+  const org = useOrgProfile();
   const [typed, setTyped] = useState("");
   const [chosen, setChosen] = useState<VenueCourse | null>(null);
   const [nine, setNine] = useState<"full" | "front" | "back">(holes === 9 ? "front" : "full");
@@ -250,7 +254,7 @@ export function VenuePrompt({
       {browsing && shortlist.rows.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <span className="text-muted" style={{ fontSize: 12 }}>
-            {typed.trim() ? "Courses matching that" : "Courses this club has played"} — one tap uses
+            {typed.trim() ? "Courses matching that" : `Courses this ${org.noun} has played`} — one tap uses
             its saved card.
           </span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -289,7 +293,7 @@ export function VenuePrompt({
       {/* The club already has it: one tap, real card, nothing to type. */}
       {claim === "has-card" && found?.kind === "exact" && (
         <div className="tag tag-accent-2" style={{ alignSelf: "flex-start" }}>
-          <Icon name="check-circle" /> Using the club&rsquo;s saved card for {found.course.name}
+          <Icon name="check-circle" /> Using the {org.noun}&rsquo;s saved card for {found.course.name}
         </div>
       )}
 
@@ -328,8 +332,8 @@ export function VenuePrompt({
         <>
           <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
             {needsCard
-              ? `${settled?.name} is in the club's library with no card yet — add it once and every later round there has it.`
-              : "New to this club — add its card once and every later round here has it."}
+              ? `${settled?.name} is in the ${org.noun}'s library with no card yet — add it once and every later round there has it.`
+              : `New to this ${org.noun} — add its card once and every later round here has it.`}
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div className="field">
@@ -354,7 +358,7 @@ export function VenuePrompt({
             </button>
             <span className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
               Out, In and Total columns are ignored, so a row copied straight
-              off a card or a club website works.
+              off a card or a course website works.
             </span>
           </div>
 

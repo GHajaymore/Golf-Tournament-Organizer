@@ -291,7 +291,9 @@ export default async function DashboardPage() {
   const brandingOrg = unstarted
     ? await prisma.organization.findUnique({
         where: { id: event.organizationId },
-        select: { logoUrl: true, themeSetAt: true },
+        // `kind` so the nudge below calls the outfit by its own name — a
+        // society is not a club. See ChecklistState.orgKind.
+        select: { logoUrl: true, themeSetAt: true, kind: true },
       })
     : null;
   /**
@@ -313,6 +315,7 @@ export default async function DashboardPage() {
     ? setupChecklist({
         ...state,
         branding: clubBrandingState(brandingOrg),
+        orgKind: brandingOrg?.kind,
         details: detailStep ? { done: detailStep.done, missing: detailStep.missing } : undefined,
       })
     : [];
