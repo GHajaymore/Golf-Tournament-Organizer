@@ -137,9 +137,11 @@ export function TeeEditor({
                 <th style={{ textAlign: "right" }}>Rating</th>
                 <th style={{ textAlign: "right" }}>Slope</th>
                 <th style={{ textAlign: "right" }}>Par</th>
-                <th style={{ textAlign: "right" }} title="What a 14.0 index plays off here">
-                  14.0 plays
-                </th>
+                {/* The one column whose heading does not explain itself, and
+                    the explanation was in a `title`. Said under the table
+                    instead — a column header has no room for a sentence, and
+                    a tooltip has no reader on a phone. */}
+                <th style={{ textAlign: "right" }}>14.0 plays</th>
                 {canEdit && <th style={{ width: 70 }} />}
               </tr>
             </thead>
@@ -199,6 +201,16 @@ export function TeeEditor({
               ))}
             </tbody>
           </table>
+          {/* WHAT THE LAST COLUMN IS, on the page. It read "14.0 plays" with
+              the sentence in a `title`, which never appears on a touch device
+              — and this is the one figure on the table that is not simply a
+              number off the card. It is also the useful one: two sets of tees
+              differ by exactly this. */}
+          <p className="text-muted" style={{ fontSize: 11, margin: "8px 0 0", lineHeight: 1.5 }}>
+            <b>14.0 plays</b> is the course handicap a 14.0 index gets off each set — worked out
+            from that set&rsquo;s rating, slope and par. It is what the difference between two sets
+            of tees actually costs a player.
+          </p>
         </div>
       )}
 

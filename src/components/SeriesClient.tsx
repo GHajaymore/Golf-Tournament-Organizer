@@ -325,7 +325,25 @@ export function SeriesClient({
                   <Fragment key={s.memberId}>
                     <tr>
                       <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                        {s.position ?? <span className="text-muted" title="Hasn't played enough rounds to be ranked">—</span>}
+                        {/* AN EM-DASH IS NOT AN ANSWER, and its `title` was
+                            the only one. A season table is read on a phone,
+                            where there is no hover — so a member who is not
+                            ranked saw a dash and had no way to find out why.
+                            The rule is `minEvents`, it is a real club setting,
+                            and "why am I not on the table?" is the question
+                            this column gets asked. */}
+                        {s.position ?? (
+                          <span
+                            className="text-muted"
+                            aria-label={
+                              active && active.minEvents > 0
+                                ? `Not ranked — fewer than ${active.minEvents} rounds played`
+                                : "Not ranked yet"
+                            }
+                          >
+                            —
+                          </span>
+                        )}
                       </td>
                       <td style={{ fontWeight: 500 }}>{s.name}</td>
                       <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{s.played}</td>
@@ -377,6 +395,18 @@ export function SeriesClient({
                 ))}
               </tbody>
             </table>
+            {/* SAID UNDER THE TABLE, not only in a tooltip on the dash.
+                The rule is already stated once at the top of this screen, as
+                "· N rounds to qualify" — but that is beside the season's NAME,
+                and the question is asked of a row halfway down. Shown only
+                while somebody is actually unranked, so it is an answer rather
+                than a standing caveat. */}
+            {active && active.minEvents > 0 && standings.some((s) => s.position == null) && (
+              <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", lineHeight: 1.5 }}>
+                A dash means not ranked yet — this season counts members with at least{" "}
+                {active.minEvents} round{active.minEvents === 1 ? "" : "s"} played.
+              </p>
+            )}
           </div>
         )}
       </div>

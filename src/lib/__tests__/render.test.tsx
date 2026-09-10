@@ -184,6 +184,38 @@ describe("season standings", () => {
     expect(html).toContain("no roster record");
   });
 
+  it("says on the page why an unranked member is unranked", () => {
+    /**
+     * The whole answer used to be a `title` on an em-dash. A season table is
+     * read on a phone, where there is no hover — so a member who is not ranked
+     * saw "—" and had no way to find out why, and "why am I not on the table?"
+     * is the question this column gets asked.
+     *
+     * `minEvents` is a real club setting and it is right there in the
+     * component, so the note names the actual number rather than describing a
+     * rule in the abstract.
+     */
+    const html = render(
+      <SeriesClient seasons={[{ ...season, minEvents: 3 }]} activeId="s1" events={[]}
+        standings={[standing({ position: null, played: 1 })]} unlinked={0}
+        currentEventId="" currentEventSeriesId={null} canEdit={false} />,
+    );
+    expect(html, "the rule, in the words of this season").toContain("at least 3 rounds played");
+    expect(html).toContain("A dash means not ranked yet");
+  });
+
+  it("and says nothing of the kind when everybody is ranked", () => {
+    // THE ASSERTION THAT KEEPS THIS FROM BECOMING A STANDING CAVEAT. A note
+    // explaining a dash on a table with no dashes in it is clutter on every
+    // visit.
+    const html = render(
+      <SeriesClient seasons={[{ ...season, minEvents: 3 }]} activeId="s1" events={[]}
+        standings={[standing()]} unlinked={0}
+        currentEventId="" currentEventSeriesId={null} canEdit={false} />,
+    );
+    expect(html).not.toContain("A dash means not ranked yet");
+  });
+
   it("renders fractional points from a shared position", () => {
     const html = render(
       <SeriesClient seasons={[season]} activeId="s1" events={[]}
@@ -215,6 +247,14 @@ describe("tees and ratings", () => {
     // lets an organizer sanity-check a transposed number.
     expect(html).toContain(">15<");
     expect(html).toContain("no rating yet");
+    /**
+     * AND WHAT THAT COLUMN IS, on the page. The heading reads "14.0 plays"
+     * and the sentence explaining it was in a `title`, which never appears on
+     * a touch device — on the one figure in this table that is not simply a
+     * number copied off the card, and the useful one: two sets of tees differ
+     * by exactly this.
+     */
+    expect(html).toContain("is the course handicap a 14.0 index gets off each set");
   });
 
   it("hides the controls from someone who can't edit", () => {

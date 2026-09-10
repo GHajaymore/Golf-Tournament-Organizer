@@ -130,8 +130,11 @@ export function OrganizationAccess({
                   <tr key={p.email}>
                     <td style={{ fontWeight: 500 }}>
                       {p.name || "—"}
+                      {/* No tooltip on the tag: "invited" is the state —
+                          asked, not yet signed in. The title said the same
+                          thing in more words, to a mouse only. */}
                       {!p.hasLogin && (
-                        <span className="tag tag-neutral" style={{ marginLeft: 6, fontSize: 10 }} title="Hasn't set a password yet">
+                        <span className="tag tag-neutral" style={{ marginLeft: 6, fontSize: 10 }}>
                           invited
                         </span>
                       )}

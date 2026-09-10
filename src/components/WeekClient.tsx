@@ -145,10 +145,16 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
               className={active ? "btn btn-primary" : "btn btn-ghost"}
               style={{ whiteSpace: "nowrap", flexShrink: 0, fontSize: 12.5 }}
               aria-current={active ? "true" : undefined}
+              /* WHAT THE DOT MEANS, on the button rather than in a tooltip.
+                 "Not scored yet" was carried by a `title` on a middle dot —
+                 and this strip is read on a phone, where there is no hover.
+                 A member saw a dot beside some weeks and not others with no
+                 way to find out which was which. */
+              aria-label={`${w.date || w.label}${w.played ? "" : " — no scores yet"}`}
             >
               {w.date || w.label}
               {!w.played && (
-                <span style={{ opacity: 0.6, marginLeft: 6, fontSize: 11 }} title="No scores yet">
+                <span aria-hidden style={{ opacity: 0.6, marginLeft: 6, fontSize: 11 }}>
                   ·
                 </span>
               )}

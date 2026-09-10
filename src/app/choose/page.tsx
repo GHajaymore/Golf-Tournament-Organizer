@@ -192,10 +192,16 @@ export default async function ChooseTournamentPage({
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "none" }}>
-                  {/* Makes inherited access legible: "why can I see this?" */}
+                  {/* Makes inherited access legible: "why can I see this?"
+                      The sentence that answered it was in a `title`, so on a
+                      phone the tag said "via club" and nothing else — and it
+                      said CLUB to a society, which is the noun #253 taught the
+                      console to stop assuming. Per row, because each of these
+                      tournaments belongs to a different outfit; the sentence
+                      is under the list, said once. */}
                   {a.source === "organization" && (
-                    <span className="tag tag-neutral" title="Access inherited from your organization role">
-                      <Icon name="buildings" /> via club
+                    <span className="tag tag-neutral">
+                      <Icon name="buildings" /> via {orgProfile(a.event.organization?.kind).noun}
                     </span>
                   )}
                   <span className={`tag ${a.role === "admin" ? "tag-accent" : "tag-neutral"}`}>{ROLE_LABEL[a.role] ?? a.role}</span>
@@ -205,6 +211,17 @@ export default async function ChooseTournamentPage({
             </form>
           ))}
         </div>
+
+        {/* Said once, under the list, rather than in a tooltip on every row.
+            "Why can I see this one?" is asked of a tournament nobody named you
+            on — and the answer only appeared on hover, which is no answer at
+            all on the device this list is opened on. */}
+        {accounts.some((a) => a.source === "organization") && (
+          <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", lineHeight: 1.5 }}>
+            Tournaments marked <b>via</b> are ones you reach through your role in the organization
+            that runs them, rather than because somebody added you to that tournament.
+          </p>
+        )}
 
         {/* OFFERED BEFORE THE TOURNAMENT BUILDER, and above it on the page.
             Not because it matters more, but because it is the request this
