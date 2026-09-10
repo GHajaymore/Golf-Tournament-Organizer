@@ -58,6 +58,9 @@ const TONE_STYLE: Record<DayTone, React.CSSProperties> = {
   none: {},
 };
 
+/** Reading order for the key, kept stable however few tones survive. */
+const LEGEND_ORDER: DayTone[] = ["in", "in-default", "out", "out-default", "locked"];
+
 const TONE_ICON: Record<DayTone, string> = {
   in: "ph-bold ph-check",
   "in-default": "ph ph-check",
@@ -84,6 +87,32 @@ export function AvailabilityCalendar({
     () => buildAvailabilityCalendar(rounds, today),
     [rounds, today],
   );
+
+  /**
+   * The key explains what is ON the calendar, not what the type can hold.
+   *
+   * It listed all five tones always, and at most three can ever appear at
+   * once: opt-out has no "Out by default" because its default is in, opt-in
+   * has no "In by default", and a captains league — where nothing is a
+   * question and every square is closed — has neither, while still being
+   * handed a key for both. A legend naming symbols the reader cannot find is
+   * a legend they stop reading.
+   *
+   * Derived from the days rather than from the mode, so it cannot come to
+   * disagree with the grid beside it.
+   */
+  const legendTones = useMemo(() => {
+    const present = new Set<DayTone>();
+    for (const m of months) {
+      for (const week of m.weeks) {
+        for (const day of week) {
+          const t = toneOf(day);
+          if (t !== "none") present.add(t);
+        }
+      }
+    }
+    return LEGEND_ORDER.filter((t) => present.has(t));
+  }, [months]);
 
   if (months.length === 0 && undated.length === 0) return null;
 
@@ -160,7 +189,7 @@ export function AvailabilityCalendar({
         </section>
       ))}
 
-      <Legend />
+      <Legend tones={legendTones} />
 
       {/* A round nobody has dated cannot go on a grid, and dropping it would
           hide the one round most likely to need an answer. */}
@@ -289,8 +318,9 @@ function Square({
   );
 }
 
-function Legend() {
-  const items: DayTone[] = ["in", "in-default", "out", "out-default", "locked"];
+function Legend({ tones }: { tones: DayTone[] }) {
+  const items = tones;
+  if (items.length === 0) return null;
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
       {items.map((tone) => (
