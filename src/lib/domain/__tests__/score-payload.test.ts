@@ -159,7 +159,18 @@ describe("no action stores a card it did not validate", () => {
    */
   const TAKES_A_CARD_FROM_THE_CLIENT = [
     ["src/app/actions/play.ts", "savePlayMatchHoles", "cleanHoleResults"],
-    ["src/app/actions/tournament.ts", "saveScorecard", "cleanStrokes"],
+    /**
+     * `saveScorecard`'s body moved to `services/scorecard-write.ts`, so the
+     * cleaning moved with it — and this test went red on the move, which is
+     * the point of it.
+     *
+     * It follows the writer rather than being relaxed, and the property is
+     * narrower now than it was: the stroke card has ONE writer, so there is
+     * one place a payload can get in unvalidated instead of one per action.
+     * `audit-guards.test.ts` asserts the other half — that no action reaches
+     * past it to `scorecard.upsert` on its own.
+     */
+    ["src/lib/services/scorecard-write.ts", "writeScorecard", "cleanStrokes"],
     ["src/app/actions/tournament.ts", "saveMatchScorecard", "cleanStrokes"],
     ["src/app/actions/tournament.ts", "saveTeamScorecard", "cleanStrokes"],
   ] as const;
