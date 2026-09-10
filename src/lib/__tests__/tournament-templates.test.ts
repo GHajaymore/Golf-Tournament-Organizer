@@ -4,6 +4,7 @@ import { cleanSettings, DEFAULT_SETTINGS } from "../tournament-settings";
 import { PLAYABLE_FORMAT_NAMES } from "../formats";
 import { needsCourseData } from "../courses";
 import { readSource } from "./source";
+import { roundShapeMismatch } from "../domain/round-shape";
 
 describe("template catalogue", () => {
   it("has unique keys", () => {
@@ -65,6 +66,39 @@ describe("template catalogue", () => {
       if (t.settings.scoreEntryBy !== "players") continue;
       expect(["email", "code", "both"], `${t.key} locks players out`).toContain(t.settings.playerAccess);
     }
+  });
+
+  it("never draws opponents for a round scored off a card, or the reverse", () => {
+    /**
+     * SWEPT, not spot-checked, because this is a whole class of mistake and
+     * the two templates that had it are the two most-used stroke events in the
+     * product.
+     *
+     * `stage-types.ts` has described the failure since the medal round was
+     * added — "a round robin set to Stroke Play, which generated a full set of
+     * pairings for a round in which nobody plays anybody" — and `createEvent`
+     * quotes it back when explaining why "Start from scratch" no longer
+     * defaults a round. The type was added; the templates that needed it were
+     * never changed, and the club championship and the charity day both went
+     * on drawing a schedule of matches for a medal.
+     *
+     * Measured through the ordinary flow on 2026-09-10: a charity day, eight
+     * players, flights generated, TWELVE head-to-head matches in the database.
+     */
+    for (const t of TOURNAMENT_TEMPLATES) {
+      for (const r of t.rounds) {
+        const bad = roundShapeMismatch(r.type, r.format);
+        expect(bad?.message ?? "", `${t.key}: ${r.type} + ${r.format}`).toBe("");
+      }
+    }
+  });
+
+  it("and the sweep can actually see one, or it is decoration", () => {
+    // The mutation, written down: the pair the two templates held is refused,
+    // and so is its mirror. A sweep whose rule returns null for everything
+    // passes a catalogue of nonsense.
+    expect(roundShapeMismatch("Round Robin", "Stroke Play")).not.toBeNull();
+    expect(roundShapeMismatch("Stroke Play Round", "Match Play")).not.toBeNull();
   });
 });
 

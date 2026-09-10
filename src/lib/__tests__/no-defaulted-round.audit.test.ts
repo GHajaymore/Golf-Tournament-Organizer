@@ -95,9 +95,18 @@ describe("what rounds a new tournament arrives holding", () => {
     await createEvent(`${TAG} champs`, "club-championship", "single");
     const rounds = await roundsOf("champs");
     expect(rounds).toHaveLength(1);
-    // The template's OWN choice, asserted by value — a round that came from
-    // somewhere else would still be one round.
-    expect(rounds[0]).toEqual({ type: "Round Robin", format: "Stroke Play" });
+    /**
+     * The template's OWN choice, asserted by value — a round that came from
+     * somewhere else would still be one round.
+     *
+     * It said `Round Robin` until 2026-09-10, and this test went green on it
+     * for the same reason the template was wrong: a championship is a MEDAL,
+     * and the head-to-head type drew a full set of pairings for a round in
+     * which nobody plays anybody. Read from the template rather than pinned
+     * here would have hidden it — the literal is what makes this assertion
+     * worth having, and the value is what needed correcting.
+     */
+    expect(rounds[0]).toEqual({ type: "Stroke Play Round", format: "Stroke Play" });
   });
 
   it("does not let the SHAPE decide either", async () => {

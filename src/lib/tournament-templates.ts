@@ -90,7 +90,17 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
       // mean something: everybody faced the same course.
       teePolicy: "one",
     },
-    rounds: [{ type: "Round Robin", format: "Stroke Play", scoringBasis: "gross", holes: 18 }],
+    /**
+     * A MEDAL ROUND, which is what a championship is — and this said Round
+     * Robin, the head-to-head type, until 2026-09-10.
+     *
+     * `stage-types.ts` has described that failure since the medal round was
+     * added: "the only way to run one was a round robin set to Stroke Play,
+     * which generated a full set of pairings for a round in which nobody plays
+     * anybody". The type was added; the templates that needed it were not
+     * changed. See `round-shape.ts`, which now makes the pair impossible.
+     */
+    rounds: [{ type: "Stroke Play Round", format: "Stroke Play", scoringBasis: "gross", holes: 18 }],
   },
   {
     key: "league-round",
@@ -197,7 +207,19 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
     // And not a scramble because team formats are named in formats.ts with no
     // team model behind them; a template choosing one would be a promise that
     // breaks on the first tee. The scramble variant belongs with the team work.
-    rounds: [{ type: "Round Robin", format: "Stroke Play", scoringBasis: "stableford", holes: 18 }],
+    /**
+     * A medal round, same as the championship, and the same wrong type until
+     * 2026-09-10 — with a worse consequence here, because this template turns
+     * PLAYER SELF-SCORING on.
+     *
+     * Measured through the ordinary flow: eight players, flights generated,
+     * and the app drew twelve head-to-head matches for a Stableford outing.
+     * `/me/card` reads `generatesPairings`, so every one of those players
+     * opened their own card and was told "Round Robin is match play, so your
+     * score is recorded against your opponent rather than as your own card" —
+     * on the one screen the template exists to send them to.
+     */
+    rounds: [{ type: "Stroke Play Round", format: "Stroke Play", scoringBasis: "stableford", holes: 18 }],
   },
   {
     key: "custom",
