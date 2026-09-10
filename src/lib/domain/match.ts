@@ -392,3 +392,41 @@ export function deriveNetHoles(
   }
   return holes;
 }
+
+/**
+ * Where a match stands, in the words a player standing on the tee would use.
+ *
+ * "Alex 2 up" is a fact and half a sentence. What a match-play player asks is
+ * "how many holes are LEFT" — two up with two to play is a match somebody can
+ * still save, two up with one to play is over bar the handshake, and the
+ * number that separates them was not on the screen. Live scoring is exactly
+ * where it matters: the card is being filled in as the round is played.
+ *
+ * DORMIE gets its name, because golf has one and it is the state everything
+ * hinges on: leading by exactly as many holes as remain. Saying "3 up with 3
+ * to play" is true and misses that the match cannot now be lost.
+ *
+ * A finished match says what it finished by — the standard notation, from
+ * `resolveMatch`, which owns the closeout rule. Nothing here recomputes it.
+ */
+export function matchStandingText(
+  r: Pick<MatchResolution, "complete" | "winner" | "resultText" | "lead" | "remaining" | "played">,
+  /** What to call the two sides. A pair's name works as well as a person's. */
+  aLabel: string,
+  bLabel: string,
+): string {
+  if (r.complete) {
+    if (r.winner === "H") return "Halved";
+    return `${r.winner === "A" ? aLabel : bLabel} ${r.resultText}`;
+  }
+  if (r.played === 0) return "Not started";
+
+  const leader = r.lead > 0 ? aLabel : bLabel;
+  const by = Math.abs(r.lead);
+  // All square is the one state with no leader to name, and "with N to play"
+  // still belongs on it — level with two left is a different match from level
+  // with fourteen.
+  if (by === 0) return `All square with ${r.remaining} to play`;
+  if (by === r.remaining) return `${leader} dormie ${by}`;
+  return `${leader} ${by} up with ${r.remaining} to play`;
+}
