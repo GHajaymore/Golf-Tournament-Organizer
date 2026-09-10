@@ -3149,6 +3149,32 @@ export async function createEvent(
         scoringBasis: r.scoringBasis,
       })),
     });
+
+    /**
+     * AND THE EVENT'S SCORING IS SET FROM THE ROUNDS IT JUST MADE.
+     *
+     * `Event.format` decides how the leaderboard ranks — it is the only thing
+     * `isStroke` reads — and nothing here touched it, so every templated
+     * tournament kept the column default, "match". A charity day therefore
+     * arrived set to Match play with a medal round in it, and the board
+     * rendered its match-points table: P, W, ½, L, PTS, every cell zero, the
+     * field in seed order. Exactly the failure `scoring-mismatch.ts` was
+     * written about, arriving through the front door of a named template.
+     *
+     * DERIVED rather than a seventh field on the template, so a template added
+     * next year cannot forget it, and so this cannot come to disagree with
+     * `scoringMismatch` — which states the same rule and would then be warning
+     * about a contradiction the app had created itself.
+     *
+     * Only where the template names its rounds. "Start from scratch" creates
+     * none and is left exactly as it was: a tournament with nothing in it has
+     * nothing to derive from, and the setup flow asks.
+     */
+    const anyHeadToHead = plannedRounds.some((r) => isHeadToHead(r.type));
+    await prisma.event.update({
+      where: { id: event.id },
+      data: { format: anyHeadToHead ? "match" : "stroke" },
+    });
   }
   await prisma.account.create({
     data: { eventId: event.id, name: session.name, email: session.email, role: "admin" },
