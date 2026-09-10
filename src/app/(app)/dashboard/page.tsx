@@ -210,7 +210,7 @@ export default async function DashboardPage() {
    * rather than "is this a match", because the sweep keys on the same column:
    * the screen and the deletion agree by reading one fact, not two.
    */
-  const expiry = expiryNotice(hoursLeft(event));
+  const expiry = expiryNotice(hoursLeft(event), isStaff);
   // Null for anybody who runs no organization of their own.
   const orgFacts = isStaff ? await orgSetupFactsFor(session.email, session.name) : null;
   const orgSetup = orgFacts ? orgSetupState(orgFacts) : null;
