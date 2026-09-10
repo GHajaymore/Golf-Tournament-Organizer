@@ -44,7 +44,7 @@ export default async function MessagesPage() {
         <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Messages</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           {isStaff
-            ? "Reach the whole club, one flight, one round, or one player."
+            ? `Reach the whole ${ctx.orgNoun ?? "club"}, one flight, one round, or one player.`
             : "Your group, your flight, your match, and anyone in the field."}
         </p>
       </div>

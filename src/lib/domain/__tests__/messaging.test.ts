@@ -10,9 +10,12 @@ import {
   unreadCount,
   directKeyFor,
   teeGroupId,
+  scopeLabel,
+  SCOPE_LABEL,
   MAX_MESSAGE_LENGTH,
   type MembershipContext,
 } from "@/lib/domain/messaging";
+import { readSource } from "@/lib/__tests__/source";
 
 const base: MembershipContext = {
   email: "rita@example.invalid",
@@ -331,5 +334,64 @@ describe("players only", () => {
 
   it("parses as a known kind", () => {
     expect(parseScopeKey(scopeKey("players"))).toEqual({ kind: "players", id: "" });
+  });
+});
+
+/**
+ * Exactly one message scope names the outfit, and it named a club.
+ *
+ * "Everyone at the club" is the roster that outlives any one tournament — the
+ * whole reason a club-level conversation is different from an event-level one
+ * — and it is the identical screen a society and a charity day read. Same
+ * defect as `settingsLabel` and the branding nudge: one sentence, written out
+ * by hand, that assumes what kind of outfit is reading it.
+ */
+describe("what a message scope is called", () => {
+  it("calls the outfit by its own name on the one scope that names it", () => {
+    expect(scopeLabel("club", "society")).toBe("Everyone at the society");
+    expect(scopeLabel("club", "outing")).toBe("Everyone at the outing");
+  });
+
+  it("and reads exactly as it did for a club, and with nothing passed", () => {
+    // THE ASSERTION THAT KEEPS THIS FROM BEING A REWRITE FOR EVERYBODY — and
+    // the one that covers a caller not yet taught, which is the case that
+    // actually ships.
+    expect(scopeLabel("club", "club")).toBe(SCOPE_LABEL.club);
+    expect(scopeLabel("club")).toBe(SCOPE_LABEL.club);
+  });
+
+  it("leaves every scope that does not name the outfit alone", () => {
+    // Nine of the ten are about the tournament, not the organization. A noun
+    // reaching any of them would be this change overreaching.
+    for (const kind of ["event", "players", "staff", "flight", "round", "team", "foursome", "match", "direct"] as const) {
+      expect(scopeLabel(kind, "society"), kind).toBe(SCOPE_LABEL[kind]);
+    }
+  });
+});
+
+/**
+ * And the service actually fills it in.
+ *
+ * `scopeLabel` defaults to the club wording, which is right — a caller that
+ * has not been taught is unchanged rather than newly wrong — and is also
+ * exactly how this would go unnoticed. `CreateFirstTournament`'s `plan` prop
+ * was documented, tested and defaulted, and never passed by its one caller, so
+ * the default WAS the behaviour and every assertion about it was green.
+ *
+ * Read through `readSource`, which strips comments, so a sentence mentioning
+ * `orgNoun` cannot satisfy an assertion about setting it.
+ */
+describe("the service tells the labels which outfit this is", () => {
+  const src = readSource("src", "lib", "services", "messaging.ts");
+
+  it("puts the organization's own noun on the context", () => {
+    expect(src).toMatch(/orgNoun: orgProfile\(event\.organization\.kind\)\.noun/);
+  });
+
+  it("and every label it composes reads it", () => {
+    // Three places compose one. A fourth written later that reaches for
+    // SCOPE_LABEL.club directly is the way this comes back.
+    expect((src.match(/scopeLabel\(kind, ctx\.orgNoun\)/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    expect(src, "nothing reads the club-worded entry directly").not.toMatch(/SCOPE_LABEL\[kind\]/);
   });
 });

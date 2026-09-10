@@ -1,3 +1,4 @@
+import { orgProfile } from "@/lib/domain/org-profile";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
@@ -28,6 +29,7 @@ import {
   unreadCount,
   cleanMessageBody,
   SCOPE_LABEL,
+  scopeLabel,
   MAX_TITLE_LENGTH,
   type MembershipContext,
   type ScopeKey,
@@ -65,7 +67,9 @@ export async function membershipFor(
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, organizationId: true },
+    // The organization's KIND rides along on a query that already runs, so a
+    // society's message scopes can be called what they are. See orgNoun.
+    select: { id: true, organizationId: true, organization: { select: { kind: true } } },
   });
   if (!event) return null;
 
@@ -182,6 +186,7 @@ export async function membershipFor(
     email: key,
     role,
     organizationId: event.organizationId,
+    orgNoun: orgProfile(event.organization.kind).noun,
     eventId,
     playerId,
     onRoster: !!member || !!playerId || role !== "player",
@@ -282,8 +287,8 @@ export async function threadsFor(ctx: MembershipContext): Promise<ThreadListItem
       id: t.id,
       scopeKey: t.scopeKey,
       kind,
-      title: t.title || SCOPE_LABEL[kind],
-      label: SCOPE_LABEL[kind],
+      title: t.title || scopeLabel(kind, ctx.orgNoun),
+      label: scopeLabel(kind, ctx.orgNoun),
       lastMessageAt: t.lastMessageAt.getTime(),
       unread: unreadCount(
         msgs.map((m) => ({ createdAt: m.createdAt.getTime(), authorEmail: m.authorEmail })),
@@ -356,8 +361,8 @@ export async function threadView(ctx: MembershipContext, threadId: string): Prom
     id: thread.id,
     scopeKey: thread.scopeKey,
     kind,
-    title: thread.title || SCOPE_LABEL[kind],
-    label: SCOPE_LABEL[kind],
+    title: thread.title || scopeLabel(kind, ctx.orgNoun),
+    label: scopeLabel(kind, ctx.orgNoun),
     canPost: canPostToScope(ctx, thread.scopeKey),
     messages: messages.map((m) => ({
       id: m.id,
@@ -655,7 +660,7 @@ export async function composableScopes(
     const parsed = parseScopeKey(key);
     if (!parsed) continue;
     const { kind, id } = parsed;
-    let label = SCOPE_LABEL[kind];
+    let label = scopeLabel(kind, ctx.orgNoun);
     if (kind === "flight") label = `Flight ${groupName.get(id) ?? ""}`.trim();
     if (kind === "round") label = stageName.get(id) ?? "Round";
     if (kind === "team") label = teamName.get(id) ?? "Your team";
