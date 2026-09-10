@@ -7,6 +7,7 @@ import { isDerivedKind, DERIVED_LABEL } from "@/lib/domain/derived-games";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { requirePotAccess } from "@/lib/services/game-access";
 import { potAudience } from "@/lib/domain/pot-audience";
+import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
 
 /**
  * The side bets the cards settle: low gross, low net, birdies, eagles, Nassau.
@@ -131,6 +132,14 @@ export async function saveSideGame(
   buyInCents: number,
   /** The field's game, or one fourball's. Empty is the field's. */
   groupKeyInput: string = "",
+  /**
+   * What it is being played for, when that is not money.
+   *
+   * Ignored the moment a stake is passed — see the note beside the write.
+   * Optional and defaulting to empty, so every existing caller (a stake box,
+   * and nothing else) keeps writing exactly what it wrote before.
+   */
+  stakeNote: string = "",
 ): Promise<SideGameResult> {
   const groupKey = (groupKeyInput ?? "").trim();
 
@@ -154,30 +163,44 @@ export async function saveSideGame(
     return { ok: false, error: "Enter a stake, or zero to switch it off." };
   }
 
+  /**
+   * MONEY OR A NOTE, DECIDED HERE, so no reader has to know the rule.
+   *
+   * A game carries either a stake in currency or a note saying what is being
+   * played for instead — a pint, lunch, the next green fee. Never both: both
+   * is two different agreements about the same bet, and there is no honest way
+   * to resolve it afterwards.
+   *
+   * A stake WINS, and silently, which is the one place this is not refused.
+   * Every caller that passes money is a stake box somebody has just typed in,
+   * and the note is what that typing replaces — refusing it would mean telling
+   * somebody they cannot price their own bet until they have first found and
+   * cleared a sentence on another screen. `planMatch` refuses the combination
+   * where it IS a contradiction: one form, both boxes, one submit.
+   *
+   * Same shape as `standingRows` returning `[]` on its first line for a manual
+   * format: a rule enforced where the data is built cannot be forgotten by a
+   * caller written later.
+   */
+  const note = cents > 0 ? "" : (stakeNote ?? "").trim().slice(0, STAKE_NOTE_MAX);
+
   const game = await prisma.sideGame.upsert({
     where: { stageId_kind_groupKey: { stageId, kind, groupKey } },
-    /**
-     * THE NOTE GOES WHEN A STAKE ARRIVES, and it is cleared here rather than
-     * checked for anywhere else.
-     *
-     * A game carries either money or a note saying what is being played for
-     * instead — never both, because both is two different agreements about
-     * the same bet. Enforcing it at the write means no reader has to know the
-     * rule and no later caller can store the contradiction by forgetting it.
-     * Same shape as `standingRows` refusing a manual format on its first line.
-     */
-    update: { buyInCents: cents, stakeNote: "" },
+    update: { buyInCents: cents, stakeNote: note },
     // groupKey in the CREATE too. Omitted, a fourball's game was written as
     // the field's — or collided with the field's existing row on the unique
     // key and threw. The where clause knew about the group and the create
     // did not, which is the shape that always writes to the wrong row.
-    create: { eventId, stageId, kind, groupKey, buyInCents: cents, createdBy: name },
+    create: { eventId, stageId, kind, groupKey, buyInCents: cents, stakeNote: note, createdBy: name },
   });
 
   await logMoney(
     eventId,
     "sidegame.save",
-    `${isDerivedKind(kind) ? DERIVED_LABEL[kind] : "Nassau"} at ${money(cents)}`,
+    // The audit line says what was actually agreed. "at £0.00" for a game
+    // played for a pint is a record of the wrong thing, and this log is what
+    // anybody reconstructing a settle-up reads.
+    `${isDerivedKind(kind) ? DERIVED_LABEL[kind] : "Nassau"} ${note ? `for ${note}` : `at ${money(cents)}`}`,
   );
   revalidatePath("/", "layout");
   return { ok: true, id: game.id };

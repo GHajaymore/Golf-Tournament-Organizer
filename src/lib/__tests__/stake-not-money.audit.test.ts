@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 const { createMatch } = await import("@/app/actions/match-setup");
 const { moneyFor } = await import("@/lib/services/expenses");
 const { saveSideGame } = await import("@/app/actions/side-games");
+const { saveSkinsPot } = await import("@/app/actions/skins");
 
 /**
  * "We're playing for a pint" reaches the database as a game with no money in
@@ -167,6 +168,78 @@ describe("a round played for a pint", () => {
     });
     expect(game!.buyInCents, "the stake they typed").toBe(500);
     expect(game!.stakeNote, "and the pint is gone, rather than sitting beside it").toBe("");
+  });
+
+  it("can also be started mid-round, on the screen nearest to where it is agreed", async () => {
+    /**
+     * The same agreement, made three holes in.
+     *
+     * A round could be set up for a pint while the bet started halfway down
+     * the 9th fairway could only be priced in cash — the same thing refused on
+     * the screen NEARER to where people actually decide it. `saveSideGame` and
+     * `saveSkinsPot` take the note now, and both apply the same rule at the
+     * write: a stake wins, a note stands where there is no stake.
+     */
+    const event = await roundFor("adhoc", { game: "birdies", stakeCents: 500 });
+    const stageId = event.stages[0].id;
+    session = { email: EMAIL, name: `${TAG} owner`, eventId: event.id, role: "admin", viewRole: "admin" };
+
+    const eagles = await saveSideGame(stageId, "eagles", 0, "zz-back nine", "lunch");
+    expect(eagles.ok, eagles.error).toBe(true);
+    const game = await prisma.sideGame.findFirst({
+      where: { eventId: event.id, kind: "eagles" },
+      select: { buyInCents: true, stakeNote: true },
+    });
+    expect(game!.stakeNote).toBe("lunch");
+    expect(game!.buyInCents).toBe(0);
+
+    const pot = await saveSkinsPot(stageId, {
+      buyInCents: 0,
+      net: true,
+      scope: "full",
+      groupKey: "zz-back nine",
+      stakeNote: "lunch",
+    });
+    expect(pot.ok, pot.error).toBe(true);
+    const skins = await prisma.skinsPot.findFirst({
+      where: { eventId: event.id, groupKey: "zz-back nine" },
+      select: { buyInCents: true, stakeNote: true },
+    });
+    expect(skins!.stakeNote).toBe("lunch");
+    expect(skins!.buyInCents).toBe(0);
+  });
+
+  it("and a stake beats a note there too, rather than storing both", async () => {
+    /**
+     * THE INVARIANT AT THE WRITE, asked of the other door into it. Both at
+     * once is two different agreements about one bet, and the rule cannot live
+     * in one caller — a screen written later would not know it existed.
+     */
+    const event = await roundFor("both", { game: "birdies", stakeCents: 500 });
+    const stageId = event.stages[0].id;
+    session = { email: EMAIL, name: `${TAG} owner`, eventId: event.id, role: "admin", viewRole: "admin" };
+
+    await saveSideGame(stageId, "eagles", 250, "zz-crew", "a pint");
+    const game = await prisma.sideGame.findFirst({
+      where: { eventId: event.id, kind: "eagles" },
+      select: { buyInCents: true, stakeNote: true },
+    });
+    expect(game!.buyInCents, "the money they typed").toBe(250);
+    expect(game!.stakeNote, "and no pint beside it").toBe("");
+
+    await saveSkinsPot(stageId, {
+      buyInCents: 250,
+      net: true,
+      scope: "full",
+      groupKey: "zz-crew",
+      stakeNote: "a pint",
+    });
+    const skins = await prisma.skinsPot.findFirst({
+      where: { eventId: event.id, groupKey: "zz-crew" },
+      select: { buyInCents: true, stakeNote: true },
+    });
+    expect(skins!.buyInCents).toBe(250);
+    expect(skins!.stakeNote).toBe("");
   });
 
   it("still refuses a game with neither a stake nor a word about it", async () => {
