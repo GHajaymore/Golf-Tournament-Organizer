@@ -78,6 +78,7 @@ import { ThemePicker } from "@/components/ThemePicker";
 import { DEFAULT_CLUB_THEME, type ClubTheme } from "@/lib/themes";
 import { BracketModePicker } from "@/components/BracketModePicker";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
+import { readSource } from "./source";
 import { StagesClient, type StageView } from "@/components/StagesClient";
 import { CourseLibrary } from "@/components/CourseLibrary";
 import { EventSwitcher } from "@/components/EventSwitcher";
@@ -1024,6 +1025,70 @@ describe("settings screens", () => {
   it("omits the retention notice on a plan that keeps data", () => {
     const html = render(<CreateFirstTournament first plan="club" />);
     expect(html).not.toContain("guarantee that a finished tournament is kept");
+  });
+
+  /**
+   * The two tests above pass `plan` by hand, and that is exactly why neither
+   * caught the defect: `/choose`, the form's only caller, never passed it. So
+   * the prop defaulted to "free" and a red box told every organizer in the
+   * product — paying or not — that their finished tournament might not be
+   * kept. A prop asserted only by tests that supply it is a prop nothing
+   * proves is wired.
+   *
+   * The warning now follows the organization SELECTED below, so somebody who
+   * runs a paid club and a free society is told the truth about whichever one
+   * they pick.
+   */
+  describe("the retention warning follows the organization, not a default", () => {
+    const org = (over: Record<string, string> = {}) => ({
+      id: "o1", name: "zz-Fairway Society", kind: "community", plan: "club", ...over,
+    });
+
+    it("says nothing when the organization it is for keeps its results", () => {
+      // `plan` is deliberately the WRONG answer here: it is the fallback for
+      // somebody with no organization at all, and must lose to a real one.
+      const html = render(<CreateFirstTournament first plan="free" organizations={[org()]} />);
+      expect(html).not.toContain("guarantee that a finished tournament is kept");
+    });
+
+    it("and still warns when it does not", () => {
+      // THE OTHER DIRECTION, or "read the organization" passes on a rule that
+      // simply stopped warning anybody.
+      const html = render(
+        <CreateFirstTournament first plan="club" organizations={[org({ plan: "free" })]} />,
+      );
+      expect(html).toContain("guarantee that a finished tournament is kept");
+    });
+
+    it("names the plan it is talking about", () => {
+      const html = render(<CreateFirstTournament first plan="club" organizations={[org({ plan: "free" })]} />);
+      expect(html).toContain("On the Free plan");
+    });
+  });
+
+  describe("who is running this, asked only where it is a question", () => {
+    /**
+     * `orgName` never renames an existing organization, so for anybody whose
+     * society already has a name this was a box that did nothing above a
+     * sentence that was false — "leave blank to run it under your own name",
+     * when the event went under the society either way.
+     *
+     * Not a rare path: the setup checklist on the same screen puts "Name your
+     * society" first and "Create your first tournament" last, so working
+     * through it in the order offered lands here every time.
+     */
+    it("is gone once the organization has a name somebody chose", () => {
+      const html = render(<CreateFirstTournament first organizationNamed />);
+      expect(html).not.toContain("run it under your own name");
+    });
+
+    it("but is still asked while it is still nameless", () => {
+      // THE ASSERTION THAT STOPS THIS BECOMING "DROP THE FIELD". A brand-new
+      // organizer's organization is named after them, and this is the one
+      // place they are offered a club name instead.
+      const html = render(<CreateFirstTournament first />);
+      expect(html).toContain("run it under your own name");
+    });
   });
 });
 
@@ -4434,6 +4499,31 @@ describe("tournament details", () => {
       expect(labels, `not a real screen: ${plain}`).toContain(plain);
       expect(html, `not named in the flow: ${plain}`).toContain(label);
     }
+  });
+});
+
+describe("the create-tournament form is actually wired to the page", () => {
+  /**
+   * READ FROM SOURCE, because this is the half a render test cannot see.
+   *
+   * `CreateFirstTournament` takes a `plan` and the tests above pass it — and
+   * `/choose`, its only caller, never did. The prop defaulted to "free" and a
+   * red box told every organizer in the product that their finished tournament
+   * might not be kept. Every assertion about it was green the whole time,
+   * because every one of them supplied the prop itself.
+   *
+   * `/choose` is a server component: it cannot be rendered here, and the thing
+   * that must be true is about the call site. Read through `readSource`, so a
+   * comment naming a prop cannot satisfy an assertion about passing it.
+   */
+  const src = readSource("src", "app", "choose", "page.tsx");
+
+  it("tells the form which organization it is for", () => {
+    expect(src, "each one carries its own plan").toMatch(/organizations=\{await organizationsForOrganizer\(/);
+  });
+
+  it("and whether 'Who is running this?' is still a question", () => {
+    expect(src).toMatch(/organizationNamed=\{/);
   });
 });
 
