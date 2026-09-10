@@ -31,14 +31,74 @@ import { logoSrc } from "../domain/logo-upload";
  * owns a club falls into case 1 and keeps that club untouched — typing a
  * different name on a later event must never rename it.
  */
+/**
+ * The organizations this person may create a tournament in.
+ *
+ * ASKED WHEN THERE IS MORE THAN ONE, and that is the whole of the change.
+ * `organizationForNewEvent` picks a single membership ordered by kind and then
+ * age, and kinds sort alphabetically — so "club" always beats "community" and
+ * "personal". Somebody who runs a club AND a society got the club every time,
+ * was never asked, and had no way to say otherwise.
+ *
+ * Demonstrated on 2026-09-09: an owner of both created a tournament from the
+ * charity-day template and it landed in the club, with nothing on the screen
+ * saying a choice had been made.
+ *
+ * The consequences are not cosmetic. The event draws its field from that
+ * organization's roster, inherits its settings and currency, counts against
+ * its plan allowance, appears in its tournament list, and offers its champion
+ * to its honours board. The society's staff cannot see it and the club's
+ * staff can — which is a charity day's players landing inside a club's data
+ * boundary because of an alphabetical sort.
+ *
+ * Owners and admins only, the same bar `organizationForNewEvent` applies:
+ * being a member of a club you merely play in is not permission to create the
+ * club's tournaments.
+ */
+export async function organizationsForOrganizer(
+  email: string,
+): Promise<Array<{ id: string; name: string; kind: string }>> {
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (!user) return [];
+  const rows = await prisma.organizationMember.findMany({
+    where: { userId: user.id, role: { in: ["owner", "admin"] } },
+    include: { organization: { select: { id: true, name: true, kind: true } } },
+    // The same order the default follows, so the list's first entry IS the one
+    // that would have been chosen silently.
+    orderBy: [{ organization: { kind: "asc" } }, { createdAt: "asc" }],
+  });
+  return rows.map((r) => ({ id: r.organization.id, name: r.organization.name, kind: r.organization.kind }));
+}
+
 export async function organizationForNewEvent(
   email: string,
   displayName: string,
   orgName?: string,
+  /**
+   * The organization the organizer PICKED, when the screen asked.
+   *
+   * Never trusted. It arrives from a form, so it is re-read against this
+   * person's own owner/admin memberships before it is used — an id belonging
+   * to somebody else's club would otherwise create an event inside it, which
+   * is the whole of a takeover.
+   *
+   * Absent, or not theirs, falls through to the preference order below, which
+   * is exactly what every caller got before the question existed.
+   */
+  preferredOrganizationId?: string | null,
 ): Promise<string> {
   const user = await prisma.user.findUnique({ where: { email } });
 
   if (user) {
+    const wanted = (preferredOrganizationId ?? "").trim();
+    if (wanted) {
+      const chosen = await prisma.organizationMember.findFirst({
+        where: { userId: user.id, organizationId: wanted, role: { in: ["owner", "admin"] } },
+        select: { organizationId: true },
+      });
+      if (chosen) return chosen.organizationId;
+    }
+
     const membership = await prisma.organizationMember.findFirst({
       where: { userId: user.id, role: { in: ["owner", "admin"] } },
       include: { organization: true },

@@ -14,10 +14,21 @@ import { Icon } from "./Icon";
 export function CreateFirstTournament({
   first,
   plan = "free",
+  organizations = [],
 }: {
   first: boolean;
   /** The organization's plan, so the retention term shown is the real one. */
   plan?: string;
+  /**
+   * The organizations this person may create in — see
+   * `organizationsForOrganizer`.
+   *
+   * Asked ONLY when there is more than one. Somebody who runs a single club is
+   * not made to answer a question with one answer, which is the common case
+   * and where an extra field would be pure friction. Somebody who runs a club
+   * AND a society was never asked at all, and always got the club.
+   */
+  organizations?: Array<{ id: string; name: string; kind: string }>;
 }) {
   const retention = retentionNotice(plan);
   const planName = planFor(plan).name;
@@ -27,12 +38,22 @@ export function CreateFirstTournament({
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE_KEY);
   // Nothing preselected. See the field below.
   const [shape, setShape] = useState<TournamentShape | "">("");
+  /**
+   * Which organization this belongs to.
+   *
+   * Defaults to the first, which IS the one that would have been chosen
+   * silently — `organizationsForOrganizer` returns them in the same order
+   * `organizationForNewEvent` picks by. So the field changes nothing for
+   * somebody who does not touch it, and gives everybody else the choice they
+   * never had.
+   */
+  const [organizationId, setOrganizationId] = useState(organizations[0]?.id ?? "");
   const [pending, startTransition] = useTransition();
 
   const submit = () => {
     if (!name.trim() || !shape) return;
     startTransition(async () => {
-      await createEvent(name, template, shape, orgName);
+      await createEvent(name, template, shape, orgName, organizationId || undefined);
     });
   };
 
@@ -70,6 +91,32 @@ export function CreateFirstTournament({
           autoFocus
         />
       </div>
+      {/* WHOSE TOURNAMENT THIS IS, asked only when there is a choice.
+
+          An organizer who runs one club is not made to answer a question with
+          one answer. One who runs a club and a society was never asked at all
+          and always got the club — kinds sort alphabetically, so "club" beat
+          "community" every time, and the event took the club's roster, its
+          settings, its plan allowance and its honours board with it. */}
+      {organizations.length > 1 && (
+        <div className="field">
+          <label htmlFor="new-org">Who is this for?</label>
+          <select
+            id="new-org"
+            className="input"
+            value={organizationId}
+            onChange={(e) => setOrganizationId(e.target.value)}
+          >
+            {organizations.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
+          <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
+            Its members, its settings and its season. A tournament cannot be moved afterwards.
+          </p>
+        </div>
+      )}
+
       {/* Asked before anything else, because it decides what the rest of setup
           is even about: a single round has no next round to carry into, and a
           knockout has a bracket where a league has none.

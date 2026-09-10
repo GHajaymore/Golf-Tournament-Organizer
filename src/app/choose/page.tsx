@@ -16,7 +16,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
-import { orgSetupFactsFor } from "@/lib/services/organization";
+import { orgSetupFactsFor, organizationsForOrganizer } from "@/lib/services/organization";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { Icon } from "@/components/Icon";
 
@@ -268,7 +268,12 @@ export default async function ChooseTournamentPage({
         {/* Keyed on the count so the form remounts (and collapses) once the
             first tournament exists, instead of staying open from its initial
             "no tournaments yet" state. */}
-        <CreateFirstTournament key={accounts.length} first={accounts.length === 0} />
+        <CreateFirstTournament
+          key={accounts.length}
+          first={accounts.length === 0}
+          /* Only asked when there is more than one — see the prop. */
+          organizations={await organizationsForOrganizer(session.email)}
+        />
 
         {/* A player given a round code but never added by email lands here with
             nothing to enter — accessibleEvents only knows people an organizer
