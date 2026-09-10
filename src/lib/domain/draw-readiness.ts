@@ -26,9 +26,15 @@
 export interface DrawBlock {
   /** What is stopping the draw, in words an organizer would use. */
   problem: string;
-  /** Where to go and fix it. */
+  /**
+   * Where to go and fix it, or "" when the remedy is on this screen.
+   *
+   * Empty for the week-field case only, following `sideDrawReadiness`: the
+   * control that puts a player back in the week is right above this sentence,
+   * and a link pointing anywhere else would be sending somebody away from it.
+   */
   href: string;
-  /** The link's text, which must read as the thing to do. */
+  /** The link's text, which must read as the thing to do. "" with no href. */
   linkLabel: string;
 }
 
@@ -37,6 +43,22 @@ export interface DrawReadinessInput {
   fieldSize: number;
   /** Setup is frozen because the tournament is live or completed. */
   locked: boolean;
+  /**
+   * The whole confirmed roster, when `fieldSize` has been narrowed to a week.
+   *
+   * A league tee sheet is drawn from the players who are IN for the round, not
+   * from the season's roster, so `fieldSize` reaching zero has two completely
+   * different causes and one of them was being reported as the other. Twenty
+   * confirmed members and nobody signed up for Tuesday produced "nobody is
+   * entered yet — add players to the field", over a full registration list,
+   * with a link to the one screen that could not help. Under `captains` mode,
+   * where every player defaults to OUT and staff record the list, that was the
+   * permanent state of the screen.
+   *
+   * Omit it wherever the field is not narrowed — the flights screen draws from
+   * the roster itself, so there the two zeros are the same zero.
+   */
+  rosterSize?: number;
 }
 
 /**
@@ -64,6 +86,16 @@ export function drawReadiness(input: DrawReadinessInput): DrawBlock | null {
     };
   }
   if (input.fieldSize <= 0) {
+    // Entered, but not in for this round. A different problem with a different
+    // remedy, and saying the other one sends an organizer to a screen where
+    // everything is already correct.
+    if ((input.rosterSize ?? 0) > 0) {
+      return {
+        problem: `Nobody is in for this round yet, so there is nobody to pair — ${input.rosterSize} are in the field for the season. Mark who is playing in the list above.`,
+        href: "",
+        linkLabel: "",
+      };
+    }
     return {
       problem: "Pairings cannot be drawn from an empty field — nobody is entered yet.",
       href: "/registration",

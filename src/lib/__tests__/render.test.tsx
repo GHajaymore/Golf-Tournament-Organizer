@@ -924,6 +924,38 @@ describe("rounds and format", () => {
     });
   });
 
+  it("does not tell a captains league that its players may answer", () => {
+    /**
+     * The sentence under the sign-up deadline read "Players may answer until
+     * the end of this day" in every mode that tracks attendance. Under
+     *  the players are never asked at all — the captain sends the
+     * pairs in and the club records them — so it described a window nobody is
+     * offered and a deadline that binds nobody.
+     */
+    // Two chained rounds with the carry question unanswered — what opens the
+    // Customize panel the sign-up deadline lives in, on a static render.
+    const asked = render(
+      <StagesClient {...base} chainsRounds flightCount={2}
+        stages={[
+          stage({ id: "r1", position: 0, attendance: { in: 18, out: 2, inByDefault: 5, playersAnswer: true } }),
+          stage({ id: "r2", position: 1, carryAsked: false }),
+        ]} />,
+    );
+    expect(asked).toContain("Players may answer until the end of this day");
+
+    const captains = render(
+      <StagesClient {...base} chainsRounds flightCount={2}
+        stages={[
+          stage({ id: "r1", position: 0, attendance: { in: 18, out: 2, inByDefault: 5, playersAnswer: false } }),
+          stage({ id: "r2", position: 1, carryAsked: false }),
+        ]} />,
+    );
+    expect(captains).not.toContain("Players may answer");
+    expect(captains).toContain("Players are never asked in this mode");
+    // Both modes need to know WHERE the list is set, now that there is one.
+    expect(asked).toContain("Set who is playing on the Tee sheet");
+    expect(captains).toContain("Set who is playing on the Tee sheet");
+  });
   // The guard against a "simplification" that quietly drops a setting. Every
   // control the round card carried before the separation is asserted present,
   // by its own visible label, with the panel open.
@@ -934,7 +966,7 @@ describe("rounds and format", () => {
       <StagesClient {...base} chainsRounds
         flightCount={2}
         stages={[
-          stage({ id: "r1", position: 0, attendance: { in: 18, out: 2, inByDefault: 5 } }),
+          stage({ id: "r1", position: 0, attendance: { in: 18, out: 2, inByDefault: 5, playersAnswer: true } }),
           stage({ id: "r2", position: 1, carryAsked: false }),
         ]}
         venues={[{ id: "c1", name: "Bushwood" }, { id: "c2", name: "Augusta" }]} />,
@@ -6241,5 +6273,95 @@ describe("the event switcher, with a quick round in the list", () => {
     expect(html).toContain("2 total");
     expect(html).toContain("Spring Medal");
     expect(html).not.toContain("Quick rounds");
+  });
+});
+
+/**
+ * The staff side of the weekly question.
+ *
+ * `setAttendance` has always allowed staff to answer for anybody, at any time.
+ * Nothing called it that way — the only writer in the app was the player's own
+ * availability card — so `captains` mode, whose help text says the club enters
+ * the list its captains send in, had nowhere to enter it and drew every tee
+ * sheet from an empty field.
+ */
+describe("WeekField", () => {
+  const rows = [
+    { playerId: "p1", name: "Ann Doyle", status: "in" as const, explicit: true, decidedBy: "Club office" },
+    { playerId: "p2", name: "Rob Ferris", status: "in" as const, explicit: false, decidedBy: "" },
+    { playerId: "p3", name: "Sam Ives", status: "out" as const, explicit: true, decidedBy: "Sam Ives" },
+  ];
+
+  it("counts the week the way the tee sheet below it will", async () => {
+    const { WeekField } = await import("@/components/WeekField");
+    const html = render(
+      <WeekField stageId="s1" roundLabel="Round 3" mode="opt-out" rows={rows} canEdit />,
+    );
+    // Two in, one out — and one of the two only because nobody said otherwise.
+    // Those are different Wednesdays and the panel has to say which.
+    expect(html).toContain("2 in");
+    expect(html).toContain("(1 by default)");
+    expect(html).toContain("1 out");
+    expect(html).toContain("Who is playing Round 3");
+  });
+
+  it("names whoever recorded each answer", async () => {
+    // "Why am I not playing this week" has to have a name in the answer.
+    // Captains mode so the list is open — see the fold test below.
+    const { WeekField } = await import("@/components/WeekField");
+    const html = render(
+      <WeekField stageId="s1" roundLabel="Round 3" mode="captains" rows={rows} canEdit />,
+    );
+    expect(html).toContain("Club office");
+    expect(html).toContain("Sam Ives");
+    // Rob has answered nothing, and saying "—" there would read as a person.
+    expect(html).toContain("nobody yet");
+  });
+
+  it("opens itself under captains, where nothing else can put a player in", async () => {
+    const { WeekField } = await import("@/components/WeekField");
+    const html = render(
+      <WeekField stageId="s1" roundLabel="Round 3" mode="captains" rows={rows} canEdit />,
+    );
+    expect(html).toContain("Ann Doyle");
+    expect(html).toContain('aria-expanded="true"');
+  });
+
+  it("stays folded where the players answer for themselves", async () => {
+    // Opt-out is a correction tool, not the sign-up. Opening it every visit
+    // would put a forty-name table above the draw an organizer came for.
+    const { WeekField } = await import("@/components/WeekField");
+    const html = render(
+      <WeekField stageId="s1" roundLabel="Round 3" mode="opt-out" rows={rows} canEdit />,
+    );
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("Ann Doyle");
+    // The counts survive the fold — they are the reason to open it.
+    expect(html).toContain("2 in");
+  });
+
+  it("tells a player-facing mode that the deadline does not bind staff", async () => {
+    const { WeekField } = await import("@/components/WeekField");
+    const optOut = render(
+      <WeekField stageId="s1" roundLabel="Round 3" mode="opt-out" rows={rows} canEdit />,
+    );
+    expect(optOut).toContain("the sign-up deadline binds players, not you");
+    // Under captains there is no player deadline to be unbound from, so the
+    // sentence would be answering a question nobody asked.
+    const captains = render(
+      <WeekField stageId="s1" roundLabel="Round 3" mode="captains" rows={rows} canEdit />,
+    );
+    expect(captains).not.toContain("binds players");
+  });
+
+  it("offers an assistant-less viewer no way to change anybody", async () => {
+    const { WeekField } = await import("@/components/WeekField");
+    const html = render(
+      <WeekField stageId="s1" roundLabel="Round 3" mode="captains" rows={rows} canEdit={false} />,
+    );
+    expect(html).not.toContain("<input");
+    expect(html).toContain("Only an organizer");
+    // The counts stay — reading who is in is not the same as changing it.
+    expect(html).toContain("2 in");
   });
 });

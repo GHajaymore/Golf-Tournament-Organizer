@@ -92,7 +92,21 @@ export interface StageView {
   optDeadline: string;
   /** Resolved sign-up counts for this round; null when the league question
    *  is switched off. */
-  attendance: { in: number; out: number; inByDefault: number } | null;
+  attendance: {
+    in: number;
+    out: number;
+    inByDefault: number;
+    /**
+     * Whether the PLAYER is the one who answers, on their own phone.
+     *
+     * False under `captains`, where the captain sends the pairs in and the
+     * club records them. The sentence under this control said "Players may
+     * answer until the end of this day" in every mode that tracks attendance
+     * — telling a captains league about a window its players are never
+     * offered, and describing a deadline that binds nobody.
+     */
+    playersAnswer: boolean;
+  } | null;
   matchCount: number;
   /** Venue for this round; null means the tournament's own course. */
   courseId: string | null;
@@ -1503,7 +1517,10 @@ function StageCard({
                   </span>
                 </div>
                 <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0", lineHeight: 1.4 }}>
-                  Players may answer until the end of this day; after it, changes go through you.
+                  {stage.attendance.playersAnswer
+                    ? "Players may answer until the end of this day; after it, changes go through you."
+                    : "Players are never asked in this mode — you record the list the captains send in."}{" "}
+                  Set who is playing on the Tee sheet.
                 </p>
               </div>
             )}

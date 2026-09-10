@@ -5,6 +5,7 @@ import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { FoursomeMaker } from "@/components/FoursomeMaker";
+import { WeekField, type WeekFieldRow } from "@/components/WeekField";
 import type { Standing } from "@/lib/domain/draw";
 import { prisma } from "@/lib/db";
 import { settingsOf } from "@/lib/services/tournament";
@@ -107,7 +108,18 @@ export default async function FoursomesPage({
    */
   const attendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
   let field = state.confirmed;
-  let attendanceNote = "";
+  /**
+   * The week's list, as rows an organizer can change.
+   *
+   * It used to be a SENTENCE — "This week: 14 in · 6 out" — and nothing else,
+   * which was honest about the field and useless about it. There was no staff
+   * writer for attendance anywhere in the app, so the count was the end of the
+   * conversation: a player who missed the sign-up deadline could not be taken
+   * off by the committee, and under `captains` — where the help text promises
+   * the club enters the list its captains send in — nobody could be put ON.
+   * That mode resolved every player to out and drew from an empty field.
+   */
+  let weekRows: WeekFieldRow[] = [];
   if (tracksPerRound(attendanceMode) && stage) {
     const explicit = await prisma.roundAttendance.findMany({
       where: { eventId: session.eventId, stageId: stage.id },
@@ -119,7 +131,14 @@ export default async function FoursomesPage({
     );
     const inIds = new Set(resolved.rows.filter((r) => r.status === "in").map((r) => r.playerId));
     field = state.confirmed.filter((p) => inIds.has(p.id));
-    attendanceNote = `This week: ${resolved.in} in${resolved.inByDefault ? ` (${resolved.inByDefault} by default)` : ""} · ${resolved.out} out. The sheet below is drawn from the ${resolved.in} who are in.`;
+    const nameById = new Map(state.confirmed.map((p) => [p.id, p.name]));
+    weekRows = resolved.rows.map((r) => ({
+      playerId: r.playerId,
+      name: nameById.get(r.playerId) ?? "",
+      status: r.status,
+      explicit: r.explicit,
+      decidedBy: r.decidedBy,
+    }));
   }
 
   // Only meaningful once a sheet has actually gone out: an unpublished draft
@@ -191,12 +210,20 @@ export default async function FoursomesPage({
           Decide who plays together, what order they go off, and from which tee. Once a round has been
           played you can re-pair off the leaderboard and send the leaders out last.
         </p>
-        {attendanceNote && (
-          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 12.5, fontWeight: 500 }}>
-            {attendanceNote}
-          </p>
-        )}
       </div>
+
+      {/* The list the sheet below is drawn from, and the control that changes
+          it — in that order, above the draw, because a sheet drawn from the
+          wrong field is not worth reading. */}
+      {stage && weekRows.length > 0 && (
+        <WeekField
+          stageId={stage.id}
+          roundLabel={roundLabel(state.stages, stage.id)}
+          mode={attendanceMode}
+          rows={weekRows}
+          canEdit={session.role === "admin" || session.role === "assistant"}
+        />
+      )}
 
       {/* A published sheet is a snapshot of a field that keeps moving.
           validateTeeSheet ran when it went out and never again, so a player
@@ -244,6 +271,11 @@ export default async function FoursomesPage({
           label: roundLabelWith(rounds, r.id, r.playedOn ? shortDate(r.playedOn) : ""),
         }))}
         activeRoundId={stage?.id ?? ""}
+        // Only when the field above has actually been narrowed to a week. In a
+        // tournament `field` IS the roster, and passing it would turn "nobody
+        // has entered" into "nobody is in for this round" on a screen with no
+        // round to be in.
+        rosterSize={weekRows.length > 0 ? state.confirmed.length : 0}
       />
       <TeeSheetPrint
         groups={printGroups}

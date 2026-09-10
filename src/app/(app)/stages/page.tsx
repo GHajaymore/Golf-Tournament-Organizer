@@ -4,7 +4,7 @@ import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
 import { isHeadToHead, isPlayingRound } from "@/lib/stage-types";
 import { loadEventState, parseMatchTiebreakers, playingStages, settingsOf } from "@/lib/services/tournament";
 import { roundHandicapsFor, type RoundHandicapView } from "@/lib/services/round-handicap";
-import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
+import { playersAnswer, resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
@@ -182,7 +182,12 @@ export default async function StagesPage() {
                 .filter((r) => r.stageId === s.id)
                 .map((r) => ({ playerId: r.playerId, status: r.status, decidedBy: r.decidedBy })),
             );
-            return { in: resolved.in, out: resolved.out, inByDefault: resolved.inByDefault };
+            return {
+              in: resolved.in,
+              out: resolved.out,
+              inByDefault: resolved.inByDefault,
+              playersAnswer: playersAnswer(attendanceMode as AttendanceMode),
+            };
           })(),
     matchCount: state.matches.filter((m) => m.stageId === s.id).length,
     courseId: s.courseId,
