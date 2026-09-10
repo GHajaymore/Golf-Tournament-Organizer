@@ -1,5 +1,6 @@
 "use client";
 import { WEEK_BASIS_LABEL, WEEK_BASIS_COLUMN, valueOnBasis } from "@/lib/domain/week-basis";
+import { weekReturnsNote } from "@/lib/domain/attendance";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -216,8 +217,15 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
             kicker="The night"
             title="Results"
             aside={
+              /* "16 played" is the same sentence whether sixteen were expected
+                 or eighteen were, and those are different nights — one is
+                 finished, the other has two cards outstanding and somebody to
+                 ring. Only a league knows how many were expected, so a
+                 tournament keeps the plain count it always had. */
               <span className="text-muted" style={{ fontSize: 12 }}>
-                {view.results.length} played
+                {view.attendance
+                  ? weekReturnsNote(view.attendance)
+                  : `${view.results.length} played`}
               </span>
             }
           >

@@ -12,8 +12,10 @@ import {
   chainRoundStandings,
   parseMatchTiebreakers,
   matchSettled,
+  settingsOf,
 } from "./tournament";
 import { movementBetween, type WeekRow } from "../domain/week-movement";
+import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
 import { isManualFormat, stablefordTableFor } from "../formats";
 import {
   weekBasis,
@@ -91,6 +93,20 @@ export interface WeekView {
   skins: SkinsGame[];
   /** True when no score has been entered for this week yet. */
   empty: boolean;
+  /**
+   * Who was expected, and how many of them have handed a card in.
+   *
+   * Null outside a weekly league — a tournament has no "in for this round" and
+   * the whole field is expected every time.
+   *
+   * The sheet drops anybody who did not play, deliberately: "somebody who did
+   * not play this week is not last, they are absent". Correct for the RANKING
+   * and silent about the question an organizer actually has at nine o'clock,
+   * which is whether the night is finished. Sixteen rows on a week eighteen
+   * were in for is two cards outstanding and somebody to ring; sixteen rows on
+   * a week sixteen were in for is done. The sheet looked identical either way.
+   */
+  attendance: { expected: number; returned: number; out: number } | null;
   /**
    * Whether the night's gross/net results table has rows.
    *
@@ -220,6 +236,37 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
 
   const results = positionWithTies(scored, (a, b) => levelOnBasis(basis, a, b));
 
+  /**
+   * Who was expected, and how many have handed a card in.
+   *
+   * `scored` above drops anybody who did not play, which is right for the
+   * ranking and silent about whether the night is FINISHED. Counted here,
+   * against the week's own field rather than the season roster, so the number
+   * is "cards still to come" and not "members who were never coming".
+   *
+   * `thru > 0` for returned, matching the filter the table itself uses — a
+   * card with nothing on it is not a card in, and counting it would tell an
+   * organizer the night was done while a scorer was still walking up 18.
+   */
+  const attendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
+  let attendance: WeekView["attendance"] = null;
+  if (tracksPerRound(attendanceMode)) {
+    const explicit = await prisma.roundAttendance.findMany({
+      where: { eventId, stageId: stage.id },
+    });
+    const resolved = resolveAttendance(
+      attendanceMode,
+      state.confirmed.map((p) => p.id),
+      explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
+    );
+    const inIds = new Set(resolved.rows.filter((r) => r.status === "in").map((r) => r.playerId));
+    attendance = {
+      expected: resolved.in,
+      returned: scored.filter((r) => inIds.has(r.playerId)).length,
+      out: resolved.out,
+    };
+  }
+
   // Standings after this week against standings after the one before, so the
   // movement column means "because of last night" and nothing else.
   const idx = weeks.findIndex((s) => s.id === stage.id);
@@ -303,6 +350,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
      */
     hasScoreTable: results.length > 0,
     manual,
+    attendance,
   };
 }
 
