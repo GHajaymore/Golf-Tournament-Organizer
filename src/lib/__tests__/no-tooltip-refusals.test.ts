@@ -169,14 +169,24 @@ const KNOWN_DEBT: string[] = [
   // answer. Both are now `ConfirmButton` notes — visible text beside the armed
   // confirm, which is the moment somebody is deciding, and readable on the
   // phone the button is being tapped on.
-
-  "Hasn't set a password yet",
-  "Hasn't played enough rounds to be ranked",
-  "Tees, course rating and slope — what the shots given are calculated from",
-  "Who last wrote a score for this match, and when the card was completed",
-  "The side's playing handicap",
-  "What a 14.0 index plays off here",
-  "Access inherited from your organization role",
+  //
+  // The remaining SEVEN were paid on 2026-09-10, which is what this list is
+  // for. They fell into two kinds, and the difference decided the fix:
+  //
+  //   the tooltip repeated what was already on screen — "Plays off 12" IS the
+  //   playing handicap, "invited" IS the state, "Entered by Ann · 12 Jun" IS
+  //   who and when. Deleted; nothing was lost by anybody.
+  //
+  //   the tooltip was the ONLY carrier — a bare "Blue" that did not say it was
+  //   a tee, a "14.0 plays" column, a "via club" tag, and a season table's
+  //   em-dash whose title held the whole `minEvents` rule. Those moved onto
+  //   the page: a word in the visible text, or one line under the table.
+  //
+  // The em-dash was the worst of them. A member not ranked in their society's
+  // season saw "—" and, on a phone, had no way to find out why.
+  //
+  // The list is now empty and the freeze below is 0. A new tooltip has nowhere
+  // to go but a failure, which is what the guard was written for.
 ];
 
 describe("no control explains itself only in a tooltip", () => {
@@ -217,10 +227,15 @@ describe("no control explains itself only in a tooltip", () => {
   });
 
   it("keeps the known debt from growing", () => {
-    // Frozen at the count found when the guard was rewritten. Lowering this
-    // as tooltips are fixed is the point; raising it is the thing the freeze
-    // exists to prevent.
-    expect(KNOWN_DEBT.length).toBeLessThanOrEqual(9);
+    /**
+     * Frozen at the count found when the guard was rewritten, and lowered
+     * every time one was paid — nine, then seven, and zero on 2026-09-10.
+     *
+     * AT ZERO THIS IS NO LONGER A FREEZE BUT A FLOOR. There is no debt left to
+     * grandfather, so the only way to add an entry is to raise this number in
+     * the same diff, which is the visible decision the list exists to force.
+     */
+    expect(KNOWN_DEBT.length).toBe(0);
   });
 
   it("catches every spelling of the blocked-reason tooltip", () => {

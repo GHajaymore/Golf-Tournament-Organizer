@@ -1050,15 +1050,24 @@ export function ScoreEntryClient({
                   <span>{nineByMatch[active.id] === "back" ? "Back 9 (10–18)" : "Front 9 (1–9)"}</span>
                 )}
                 {(active.aTee || active.bTee) && (
-                  <span title="Tees, course rating and slope — what the shots given are calculated from">
+                  /* A bare "Blue" does not say it is a TEE, and the word
+                     that said so was in a `title` — invisible on the phone
+                     this screen is used on. Said in the visible text now: the
+                     tees are what every shot given on this card is calculated
+                     from, so which set was played is the first thing a query
+                     asks about. */
+                  <span>
                     <Icon name="flag-pennant" style={{ marginRight: 3 }} />
                     {active.aTee === active.bTee
-                      ? active.aTee
-                      : `${aLabel} ${active.aTee ?? "—"} · ${bLabel} ${active.bTee ?? "—"}`}
+                      ? `${active.aTee} tees`
+                      : `${aLabel} ${active.aTee ?? "—"} · ${bLabel} ${active.bTee ?? "—"} tees`}
                   </span>
                 )}
                 {(active.scoredAt || active.enteredBy) && (
-                  <span title="Who last wrote a score for this match, and when the card was completed">
+                  /* No tooltip: "Entered by Ann · 12 Jun 2026" already says
+                     who wrote it and when. The title repeated the visible text
+                     in more words, and only to somebody with a mouse. */
+                  <span>
                     <Icon name="clock-counter-clockwise" style={{ marginRight: 3 }} />
                     {active.enteredBy ? `Entered by ${active.enteredBy}` : "Entered"}
                     {active.scoredAt

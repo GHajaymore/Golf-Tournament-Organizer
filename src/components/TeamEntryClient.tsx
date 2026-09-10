@@ -151,7 +151,9 @@ export function TeamEntryClient({
             {t.opponentName && (
               <span className="text-muted" style={{ fontSize: 13 }}>v {t.opponentName}</span>
             )}
-            <span className="tag tag-neutral" title="The side's playing handicap">
+            {/* No tooltip: "Plays off 12" IS the playing handicap, said in
+                the words a side would use. */}
+            <span className="tag tag-neutral">
               Plays off {t.playingHandicap}
             </span>
             <span className="text-muted" style={{ fontSize: 12, marginLeft: "auto" }}>
