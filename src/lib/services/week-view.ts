@@ -15,6 +15,14 @@ import {
 } from "./tournament";
 import { movementBetween, type WeekRow } from "../domain/week-movement";
 import { isManualFormat, stablefordTableFor } from "../formats";
+import {
+  weekBasis,
+  compareOnBasis,
+  levelOnBasis,
+  valueOnBasis,
+  directionOnBasis,
+  type WeekBasis,
+} from "../domain/week-basis";
 import { cleanIsoDate, shortDate } from "../domain/round-dates";
 
 /**
@@ -62,7 +70,15 @@ export interface WeekView {
   holes: number;
   /** Ranked by the round's own basis: Stableford by points, otherwise by net. */
   results: WeekResult[];
-  stableford: boolean;
+  /**
+   * What the night is decided on — see `week-basis.ts`.
+   *
+   * This was a boolean, `stableford`, and everything that was not Stableford
+   * was ranked and labelled as NET. A round set to gross was therefore ranked
+   * by net on the one screen a league reads every week, while the ordinary
+   * leaderboard ranked the same round by gross.
+   */
+  basis: WeekBasis;
   /** Standings after this week, with movement since the week before. */
   standings: WeekRow[];
   /**
@@ -183,7 +199,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     ? cards.some((c) => c.stageId === stage.id)
     : state.matches.some((m) => m.stageId === stage.id && matchSettled(m));
 
-  const stableford = stage.scoringBasis === "stableford";
+  const basis = weekBasis(stage.scoringBasis);
   const scored = state.confirmed
     .map((p) => {
       const a = agg.get(p.id) ?? emptyAgg();
@@ -200,11 +216,9 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     // a league where missing a Tuesday puts you bottom of the sheet is a
     // league nobody comes back to.
     .filter((r) => r.thru > 0)
-    .sort((x, y) => (stableford ? y.points - x.points : x.net - y.net || x.gross - y.gross));
+    .sort((x, y) => compareOnBasis(basis, x, y));
 
-  const results = positionWithTies(scored, (a, b) =>
-    stableford ? a.points === b.points : a.net === b.net && a.gross === b.gross,
-  );
+  const results = positionWithTies(scored, (a, b) => levelOnBasis(basis, a, b));
 
   // Standings after this week against standings after the one before, so the
   // movement column means "because of last night" and nothing else.
@@ -217,7 +231,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     : await standingsWithMovement(state, weeks, idx, cards, {
         holeDifficulty,
         handicapFor,
-        stableford,
+        basis,
       });
 
   /**
@@ -273,7 +287,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     format: stage.format,
     holes: stage.holes,
     results,
-    stableford,
+    basis,
     standings,
     skins,
     // A manual week is not "empty" — it has a result, just not one this app
@@ -311,7 +325,7 @@ async function standingsWithMovement(
     // This one is the match-play tiebreak order, which is an event-level chain.
     holeDifficulty: number[];
     handicapFor: (playerId: string, stageId: string) => number;
-    stableford: boolean;
+    basis: WeekBasis;
   },
 ): Promise<WeekRow[]> {
   const nameOf = new Map(state.confirmed.map((p) => [p.id, p.name]));
@@ -357,12 +371,20 @@ async function standingsWithMovement(
     return state.confirmed
       .map((p) => {
         const a = agg.get(p.id) ?? emptyAgg();
-        return { playerId: p.id, name: p.name, value: opts.stableford ? a.points : netOf(a), thru: a.thru };
+        return {
+          playerId: p.id,
+          name: p.name,
+          // The season total is on the same figure the night was decided on,
+          // or the table under the sheet ranks the league on something the
+          // round was never set to.
+          value: valueOnBasis(opts.basis, { gross: a.gross, net: netOf(a), points: a.points }),
+          thru: a.thru,
+        };
       })
       .filter((r) => r.thru > 0);
   };
 
-  // Stableford totals rank high-to-low; net strokes low-to-high.
-  const dir = opts.stableford ? "desc" : "asc";
+  // Stableford totals rank high-to-low; strokes low-to-high.
+  const dir = directionOnBasis(opts.basis);
   return movementBetween(through(idx), idx > 0 ? through(idx - 1) : [], dir);
 }
