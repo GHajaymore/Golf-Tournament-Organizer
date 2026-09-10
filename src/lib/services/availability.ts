@@ -5,6 +5,7 @@ import {
   playerMayChange,
   playersAnswer,
   resolveAttendance,
+  tracksPerRound,
   type AttendanceMode,
 } from "@/lib/domain/attendance";
 import { cleanIsoDate, relativeDay, shortDate } from "@/lib/domain/round-dates";
@@ -81,6 +82,21 @@ export interface AvailabilityView {
   /** "" when this session maps to no player in this event. */
   playerId: string;
   /**
+   * Whether the PLAYER answers, or is only being told the answer.
+   *
+   * False under `captains`, and until the club could record a list at all this
+   * whole view was returned EMPTY there — so a player in a captains league
+   * opened the app on a Monday and was shown nothing whatever about Tuesday.
+   * The club had an answer, the captain had sent it in, and the one person it
+   * was about was the only one who could not see it.
+   *
+   * Read-only rather than hidden, now that there is a list to read. What must
+   * not happen is the player CHANGING it: two answers to one question and no
+   * way for the club to tell which was meant is the failure `setAttendance`
+   * refuses at the endpoint, and this is the screen agreeing with it.
+   */
+  asksPlayer: boolean;
+  /**
    * The round to answer for now — the first that has not already been played.
    *
    * Null only when every round is behind us. A round played TODAY is still
@@ -95,7 +111,14 @@ export interface AvailabilityView {
   captainOf: CaptainFlight[];
 }
 
-const EMPTY: AvailabilityView = { playerId: "", next: null, future: [], past: [], captainOf: [] };
+const EMPTY: AvailabilityView = {
+  playerId: "",
+  asksPlayer: false,
+  next: null,
+  future: [],
+  past: [],
+  captainOf: [],
+};
 
 /**
  * Split the season around today.
@@ -133,10 +156,17 @@ export async function availabilityFor(
   now: Date = new Date(),
 ): Promise<AvailabilityView> {
   const mode = settingsOf(state.event).attendanceMode as AttendanceMode;
-  // Whether the PLAYER is asked, not whether attendance is tracked. Under
-  // `captains` it is tracked and the player is never asked — their captain
-  // sent the pairs and the club wrote them down.
-  if (!playersAnswer(mode)) return EMPTY;
+  /**
+   * Tracked at all, which is a different question from who answers.
+   *
+   * This used to gate on `playersAnswer`, so a `captains` league returned the
+   * empty view and its players were shown nothing about the week — not even
+   * the answer their own captain had already sent to the club. `asksPlayer`
+   * carries the distinction downstream instead, and the card renders read-only
+   * rather than not at all.
+   */
+  if (!tracksPerRound(mode)) return EMPTY;
+  const asksPlayer = playersAnswer(mode);
 
   const own = await prisma.player.findMany({
     where: {
@@ -181,6 +211,7 @@ export async function availabilityFor(
 
   return {
     playerId,
+    asksPlayer,
     ...splitBySchedule(rounds, now),
     captainOf: await captainFlightsFor(state, mode, own.map((o) => o.id), leagueRounds, explicit),
   };

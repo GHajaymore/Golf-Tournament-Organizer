@@ -2489,7 +2489,16 @@ describe("a player's own availability", () => {
         today="2026-05-01"
         playerId="p9"
         next={round()}
-        future={[round({ stageId: "s2", label: "Round 4", playedOn: "2026-06-02" })]}
+        future={[
+          // In BY DEFAULT, and it used to be `explicit: true` like the round
+          // above it. The "In by default" assertion below was passing off the
+          // calendar's key, which listed all five marks whatever was on the
+          // grid — so the test read as proof that a default square is labelled
+          // and was in fact proof of nothing but a fixed list. The key is
+          // derived from the days now, and the fixture has to contain the
+          // square it claims to be checking.
+          round({ stageId: "s2", label: "Round 4", playedOn: "2026-06-02", explicit: false }),
+        ]}
         past={[]}
       />,
     );
@@ -6447,5 +6456,140 @@ describe("stroke-play card, on a week somebody is missing", () => {
   it("says nothing of the kind on a card for somebody who is in", () => {
     const html = render(<StrokePlayEntry {...league} />);
     expect(html).not.toContain("is marked out for this round");
+  });
+});
+
+/**
+ * A player in a captains league, who was shown nothing at all.
+ *
+ * `availabilityFor` gated on `playersAnswer`, so a `captains` league returned
+ * the empty view and this card never rendered. The captain had sent the side
+ * to the club and the club had written it down; the one person it was about
+ * was the only one who could not see it.
+ */
+describe("a player whose captain answers for them", () => {
+  const round = (over: Record<string, unknown> = {}) => ({
+    stageId: "s1",
+    label: "Round 3",
+    playedOn: "2026-05-19",
+    dateLabel: "Tue 19 May",
+    whenLabel: "in 5 days",
+    optDeadline: "2026-05-18",
+    deadlineLabel: "Answer by Mon 18 May",
+    status: "in" as const,
+    explicit: true,
+    locked: false,
+    ...over,
+  });
+
+  const view = async (over: Record<string, unknown> = {}) => {
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    return render(
+      <RoundAvailability
+        today="2026-05-01"
+        playerId="p9"
+        next={round(over)}
+        future={[]}
+        past={[]}
+        asksPlayer={false}
+      />,
+    );
+  };
+
+  it("is told the answer instead of being asked the question", async () => {
+    const html = await view();
+    expect(html).toContain("You&#x27;re playing");
+    // A question it cannot answer is worse than a statement. Disabled radios
+    // would say "you may answer this, but not now" — and nobody is ever going
+    // to enable them.
+    expect(html).not.toContain('name="avail-s1"');
+  });
+
+  it("says who to ask, by their role rather than 'the organizer'", async () => {
+    const html = await view();
+    expect(html).toContain("ask your captain");
+    expect(html).not.toContain("Say whether you");
+  });
+
+  it("prints no sign-up deadline, because none binds them", async () => {
+    // "Answer by Mon 18 May" over a question they are never asked, and
+    // "Sign-up closed" is a refusal of something never offered.
+    const html = await view();
+    expect(html).not.toContain("Answer by Mon 18 May");
+    expect(await view({ locked: true })).not.toContain("Sign-up closed");
+  });
+
+  it("says the side has not arrived yet rather than 'by default'", async () => {
+    // Under captains, silence means the captain has not named them — not that
+    // a default is standing in, which is what "by default" reads as.
+    const html = await view({ explicit: false, status: "out" as const });
+    expect(html).toContain("sent this week");
+    expect(html).toContain("side in yet");
+    expect(html).not.toContain("by default");
+    expect(html).toContain("Not this week");
+  });
+
+  it("leaves an opt-out league asking the question exactly as before", async () => {
+    const { RoundAvailability } = await import("@/components/RoundAvailability");
+    const html = render(
+      <RoundAvailability today="2026-05-01" playerId="p9" next={round()} future={[]} past={[]} />,
+    );
+    expect(html).toContain('name="avail-s1"');
+    expect(html).toContain("Answer by Mon 18 May");
+    expect(html).toContain("Say whether you");
+    expect(html).not.toContain("ask your captain");
+  });
+});
+
+/**
+ * The calendar's key, and the symbols it used to promise.
+ *
+ * It listed all five tones on every render, and at most three can ever appear
+ * at once — opt-out has no "Out by default" because its default is in, opt-in
+ * has no "In by default", and a captains league has neither while every square
+ * is closed. A key naming marks the reader cannot find on the grid beside it
+ * is a key they stop reading.
+ */
+describe("the weekly sign-up calendar's key", () => {
+  const round = (over: Record<string, unknown> = {}) => ({
+    stageId: "s1", label: "Round 7", status: "in" as const, explicit: true,
+    locked: false, playedOn: "2026-09-09", ...over,
+  });
+  const cal = async (rounds: ReturnType<typeof round>[]) => {
+    const { AvailabilityCalendar } = await import("@/components/AvailabilityCalendar");
+    return render(
+      <AvailabilityCalendar rounds={rounds} today="2026-09-01" pending={false} onAnswer={() => {}} />,
+    );
+  };
+
+  it("names only the marks that are on this calendar", async () => {
+    // An opt-out league: stated answers and in-by-default, never out-by-default.
+    const html = await cal([
+      round({ stageId: "s1", status: "in", explicit: true }),
+      round({ stageId: "s2", status: "in", explicit: false, playedOn: "2026-09-16" }),
+      round({ stageId: "s3", status: "out", explicit: true, playedOn: "2026-09-23" }),
+    ]);
+    expect(html).toContain("In by default");
+    expect(html).toContain("Playing");
+    expect(html).toContain("Not playing");
+    expect(html).not.toContain("Out by default");
+    // Nothing is closed either, so the lock has no place in the key.
+    expect(html).not.toContain("Closed");
+  });
+
+  it("drops both defaults for a captains league, where nothing is a default", async () => {
+    const html = await cal([
+      round({ stageId: "s1", status: "in", explicit: true, locked: true }),
+      round({ stageId: "s2", status: "out", explicit: true, locked: true, playedOn: "2026-09-16" }),
+    ]);
+    expect(html).toContain("Closed");
+    expect(html).not.toContain("by default");
+  });
+
+  it("still names a mark the moment one appears", async () => {
+    // The guard against a "simplification" that just deleted the key: add the
+    // out-by-default square and its entry has to come back.
+    const html = await cal([round({ status: "out", explicit: false })]);
+    expect(html).toContain("Out by default");
   });
 });

@@ -306,6 +306,7 @@ export default async function PlayTodayPage() {
                 future={availability.future}
                 past={availability.past}
                 captainOf={availability.captainOf}
+                asksPlayer={availability.asksPlayer}
                 today={todayIso()}
               />
             </div>

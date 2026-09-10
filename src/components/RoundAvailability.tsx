@@ -37,6 +37,7 @@ export function RoundAvailability({
   past,
   captainOf = [],
   today,
+  asksPlayer = true,
 }: {
   /** The signed-in player's entry in this tournament. */
   playerId: string;
@@ -48,6 +49,20 @@ export function RoundAvailability({
   /** Today as yyyy-mm-dd, from the server. The browser's idea of today is the
    *  device's, and a phone an hour ahead would light the wrong square. */
   today: string;
+  /**
+   * Whether this player ANSWERS, or is only being told the answer.
+   *
+   * False under `captains`, where the captain sends the pairs to the club and
+   * the club records them. The card is then a read of the list rather than a
+   * question — a player who could flip their own row would leave the club
+   * holding two answers with no way to tell which was meant, which is exactly
+   * what `setAttendance` refuses at the endpoint.
+   *
+   * Until the club could record a list at all, `availabilityFor` returned the
+   * empty view here and the card did not render. So the one person the answer
+   * was about was the only one who could not see it.
+   */
+  asksPlayer?: boolean;
 }) {
   const all = [...(next ? [next] : []), ...future, ...past];
   const [byStage, setByStage] = useState<Record<string, "in" | "out">>(() =>
@@ -99,6 +114,7 @@ export function RoundAvailability({
       explicit={explicitByStage[r.stageId]}
       pending={pending}
       onAnswer={answer}
+      asksPlayer={asksPlayer}
     />
   );
 
@@ -107,11 +123,23 @@ export function RoundAvailability({
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0 }}>
           <span className="card-title" style={{ fontSize: 15 }}>
-            Your availability
+            {asksPlayer ? "Your availability" : "Whether you're playing"}
           </span>
           <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
-            Say whether you&rsquo;re playing, round by round. You can change your answer until each
-            round&rsquo;s sign-up deadline; after that the organizer makes changes.
+            {asksPlayer ? (
+              <>
+                Say whether you&rsquo;re playing, round by round. You can change your answer until each
+                round&rsquo;s sign-up deadline; after that the organizer makes changes.
+              </>
+            ) : (
+              /* Named, so the player knows who to ring. "Ask the organizer"
+                 would send them past the person who actually decided. */
+              <>
+                Your captain sends the side to the club and the club records it, so there is nothing to
+                answer here &mdash; this is what they have you down for. To change a week, ask your
+                captain.
+              </>
+            )}
           </p>
         </div>
         {canCalendar && (
@@ -158,7 +186,12 @@ export function RoundAvailability({
             label: r.label,
             status: byStage[r.stageId] ?? r.status,
             explicit: explicitByStage[r.stageId] ?? r.explicit,
-            locked: r.locked,
+            // Every square is untappable where the captain decides. The
+            // calendar's `locked` already means exactly "you cannot change
+            // this one" — it drops the "Tap to mark" hint and the click
+            // handler with it — so this reuses that rather than adding a
+            // second way for a square to be inert.
+            locked: r.locked || !asksPlayer,
             playedOn: r.playedOn,
           }))}
           today={today}
@@ -294,6 +327,7 @@ function Round({
   explicit,
   pending,
   onAnswer,
+  asksPlayer = true,
 }: {
   round: AvailabilityRound;
   emphasis: boolean;
@@ -301,6 +335,8 @@ function Round({
   explicit: boolean;
   pending: boolean;
   onAnswer: (stageId: string, status: "in" | "out") => void;
+  /** See the same prop on RoundAvailability. False = read the list, not answer. */
+  asksPlayer?: boolean;
 }) {
   return (
     <div
@@ -332,36 +368,62 @@ function Round({
         )}
       </div>
       <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div className="seg">
-          <label className="seg-opt" style={{ opacity: r.locked ? 0.5 : 1 }}>
-            <input
-              type="radio"
-              name={`avail-${r.stageId}`}
-              checked={status === "in"}
-              disabled={pending || r.locked}
-              onChange={() => onAnswer(r.stageId, "in")}
-            />
-            In
-          </label>
-          <label className="seg-opt" style={{ opacity: r.locked ? 0.5 : 1 }}>
-            <input
-              type="radio"
-              name={`avail-${r.stageId}`}
-              checked={status === "out"}
-              disabled={pending || r.locked}
-              onChange={() => onAnswer(r.stageId, "out")}
-            />
-            Out
-          </label>
-        </div>
-        {!explicit && (
+        {/* A statement, not a question, where the captain decides. Disabled
+            radios would say "you may answer this, but not now", which is the
+            wrong reason — nobody is ever going to enable them. */}
+        {asksPlayer ? (
+          <div className="seg">
+            <label className="seg-opt" style={{ opacity: r.locked ? 0.5 : 1 }}>
+              <input
+                type="radio"
+                name={`avail-${r.stageId}`}
+                checked={status === "in"}
+                disabled={pending || r.locked}
+                onChange={() => onAnswer(r.stageId, "in")}
+              />
+              In
+            </label>
+            <label className="seg-opt" style={{ opacity: r.locked ? 0.5 : 1 }}>
+              <input
+                type="radio"
+                name={`avail-${r.stageId}`}
+                checked={status === "out"}
+                disabled={pending || r.locked}
+                onChange={() => onAnswer(r.stageId, "out")}
+              />
+              Out
+            </label>
+          </div>
+        ) : (
+          <span
+            className={`tag ${status === "in" ? "tag-accent" : "tag-neutral"}`}
+            style={{ fontSize: 12 }}
+          >
+            <Icon name={status === "in" ? "check-circle" : "x-circle"} />{" "}
+            {status === "in" ? "You're playing" : "Not this week"}
+          </span>
+        )}
+        {/* "by default" belongs only to a mode with a default worth naming.
+            Under captains, silence means the captain has not named you, and
+            "by default" reads as a setting rather than as an absence. */}
+        {asksPlayer && !explicit && (
           <span className="tag tag-neutral" style={{ fontSize: 10.5 }}>
             by default
           </span>
         )}
-        <span className="text-muted" style={{ fontSize: 11.5 }}>
-          {r.deadlineLabel}
-        </span>
+        {!asksPlayer && !explicit && (
+          <span className="text-muted" style={{ fontSize: 11.5 }}>
+            Your captain hasn&rsquo;t sent this week&rsquo;s side in yet.
+          </span>
+        )}
+        {/* The deadline binds players. Where players are never asked there is
+            no window to print, and "Sign-up closed" would be a refusal of
+            something never offered. */}
+        {asksPlayer && (
+          <span className="text-muted" style={{ fontSize: 11.5 }}>
+            {r.deadlineLabel}
+          </span>
+        )}
       </div>
     </div>
   );
