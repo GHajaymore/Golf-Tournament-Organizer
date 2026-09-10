@@ -20,6 +20,7 @@ import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices } from "@/lib/
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { isTeamFormat } from "@/lib/side-style";
+import { roundShapeMismatch } from "@/lib/domain/round-shape";
 import { INTERVAL_OPTIONS, roundDates, shortDate } from "@/lib/domain/round-dates";
 import { CoursePicker } from "@/components/CoursePicker";
 import FieldInfo from "@/components/FieldInfo";
@@ -676,6 +677,14 @@ function StageCard({
   };
 
   const activeFormat = GOLF_FORMATS.find((f) => f.name === format);
+  /**
+   * Whether this round's type and its format can produce a result together.
+   *
+   * Read off `format` — the value in the dropdown — rather than
+   * `stage.format`, so the sentence appears the moment the organizer picks
+   * the pair rather than after the save round-trips.
+   */
+  const shapeProblem = roundShapeMismatch(stage.type, format);
   // Every format in the catalog is listed, but only those runnable end to end
   // can be picked. Showing the rest greyed out with the reason is deliberate:
   // hiding them entirely makes the app look like it can't do team golf, while
@@ -958,6 +967,39 @@ function StageCard({
                   Keep {stage.format}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* THE ROUND'S TYPE AND ITS FORMAT, DISAGREEING — said beside the
+              two controls that set them.
+
+              The type is chosen when the round is added and the format here,
+              on a different visit, so the pair is easy to get wrong and
+              impossible to see. Two named templates held it until 2026-09-10:
+              a charity day drew twelve head-to-head matches for a Stableford
+              outing, and every player's own card screen told them their score
+              belonged to an opponent.
+
+              A warning rather than a refusal, for the same reason
+              `scoring-mismatch.ts` gives one level up: these are real controls
+              an organizer sets on purpose, and rewriting one under them would
+              be worse than saying so. `roundShapeMismatch` is the one rule,
+              read by the templates' own sweep and by this. */}
+          {shapeProblem && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: "8px 10px",
+                border: "1px solid var(--color-danger)",
+                borderRadius: 8,
+                fontSize: 12.5,
+                lineHeight: 1.55,
+              }}
+            >
+              <b style={{ color: "var(--color-danger)" }}>
+                <Icon name="warning-circle" /> This round cannot be scored as set.
+              </b>
+              <div className="text-muted" style={{ marginTop: 4 }}>{shapeProblem.message}</div>
             </div>
           )}
 
