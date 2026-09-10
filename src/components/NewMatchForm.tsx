@@ -10,6 +10,7 @@ import {
   QUICK_ROUND_FORMATS,
   QUICK_ROUND_MAX_PLAYERS,
   QUICK_MONEY_GAMES,
+  STAKE_NOTE_MAX,
 } from "@/lib/domain/quick-match";
 import { entryModesFor } from "@/lib/domain/match-entry";
 import { Icon } from "./Icon";
@@ -148,6 +149,22 @@ export function NewMatchForm({
   const [moneyGame, setMoneyGame] = useState("");
   /** The stake as typed, in whole currency units — "5", "2.50". */
   const [stake, setStake] = useState("");
+  /**
+   * Whether the stake is MONEY, or something the players sort out themselves.
+   *
+   * Most Sunday golf is played for a pint, lunch or nothing at all, and this
+   * screen only had a box for pounds — so a fourball playing skins for the
+   * next round of drinks either invented a stake nobody agreed or left the
+   * game off the round entirely and kept it on a scorecard in somebody's
+   * pocket.
+   *
+   * Money stays the default because it is what the box was for, and because
+   * defaulting the other way would quietly stop recording stakes people do
+   * agree in cash.
+   */
+  const [stakeKind, setStakeKind] = useState<"money" | "other">("money");
+  /** What they are playing for, when it is not money — "a pint", "lunch". */
+  const [stakeNote, setStakeNote] = useState("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -175,6 +192,27 @@ export function NewMatchForm({
     const n = Number(stake.replace(/[^0-9.]/g, ""));
     return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
   })();
+
+  /**
+   * The whole money answer, built once so the preview and the submit cannot
+   * disagree — the same reason `planned` is computed from the same object the
+   * action is sent.
+   *
+   * The two halves are mutually exclusive by construction here, which is what
+   * lets `planMatch` refuse the combination outright rather than having to
+   * decide which one the person meant.
+   *
+   * A blank description still counts as an answer. Somebody who picked
+   * "Something else" and typed nothing has said the thing that matters — this
+   * is not for money — and being refused for not naming the pint would be the
+   * screen arguing with them. "Not for money" is what the round then says it
+   * is played for, which is exactly true.
+   */
+  const moneyChoice = {
+    game: moneyGame,
+    stakeCents: stakeKind === "other" ? 0 : stakeCents,
+    stakeNote: stakeKind === "other" ? stakeNote.trim() || "Not for money" : "",
+  };
 
   /**
    * Games this round type can actually run.
@@ -291,7 +329,7 @@ export function NewMatchForm({
     nine: holes === 9 ? nine : "full",
     useHandicaps,
     courseId,
-    money: { game: moneyGame, stakeCents },
+    money: moneyChoice,
   });
 
   /**
@@ -314,7 +352,7 @@ export function NewMatchForm({
         nine: holes === 9 ? nine : "full",
         useHandicaps,
         courseId,
-        money: { game: moneyGame, stakeCents },
+        money: moneyChoice,
       });
       if (!res.ok) {
         setError(res.error ?? "Couldn't set that round up.");
@@ -693,25 +731,76 @@ export function NewMatchForm({
             <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.5 }}>
               {moneyGames.find((g) => g.key === moneyGame)?.blurb}
             </p>
-            <div className="field" style={{ maxWidth: 180, marginTop: 10 }}>
-              <label>Stake each</label>
-              <input
-                className="input"
-                inputMode="decimal"
-                value={stake}
-                onChange={(e) => setStake(e.target.value)}
-                placeholder="5"
-                aria-label="Stake per player"
-              />
+            {/* MONEY IS NOT THE ONLY THING PEOPLE PLAY FOR, and this screen
+                behaved as though it were: one box, marked in pounds, required
+                before the game could be created.
+
+                Most Sunday golf is played for a pint, for lunch, for the next
+                green fee, or for nothing but the bragging. A fourball agreeing
+                that either invented a stake nobody said or left the game off
+                the round entirely — which is the pocket scorecard this whole
+                path exists to replace.
+
+                Money stays first and stays the default. The app records what
+                people agreed; it has never moved a penny either way, and a
+                round played for a pint is one where there is simply nothing to
+                record. */}
+            <div className="field" style={{ marginTop: 10 }}>
+              <label>What for?</label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                <button type="button" style={pill(stakeKind === "money")} onClick={() => setStakeKind("money")}>
+                  Money
+                </button>
+                <button type="button" style={pill(stakeKind === "other")} onClick={() => setStakeKind("other")}>
+                  Something else
+                </button>
+              </div>
             </div>
+            {stakeKind === "money" ? (
+              <div className="field" style={{ maxWidth: 180, marginTop: 10 }}>
+                <label htmlFor="quick-stake">Stake each</label>
+                <input
+                  id="quick-stake"
+                  className="input"
+                  inputMode="decimal"
+                  value={stake}
+                  onChange={(e) => setStake(e.target.value)}
+                  placeholder="5"
+                  aria-label="Stake per player"
+                />
+              </div>
+            ) : (
+              <div className="field" style={{ maxWidth: 280, marginTop: 10 }}>
+                <label htmlFor="quick-stake-note">
+                  Playing for <span className="text-muted" style={{ fontWeight: 400 }}>— optional</span>
+                </label>
+                <input
+                  id="quick-stake-note"
+                  className="input"
+                  value={stakeNote}
+                  onChange={(e) => setStakeNote(e.target.value)}
+                  placeholder="a pint"
+                  maxLength={STAKE_NOTE_MAX}
+                  aria-label="What the round is played for"
+                />
+                {/* Said plainly, because the difference between this and a
+                    stake is the whole point: the app keeps the score and names
+                    the winner, and there is no figure for anyone to settle. */}
+                <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 }}>
+                  Scored and settled the same way — the app just won&rsquo;t put a figure on it. Whatever
+                  you agreed is between you.
+                </p>
+              </div>
+            )}
             {/* THE SENTENCE THIS APP HAS TO KEEP SAYING. It works out who owes
                 whom and writes it down; it never moves a penny. Said here
                 because this is the moment somebody first agrees to money in
                 it, and an app that took a stake without saying so would be
                 claiming to be something it is not. */}
             <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0", lineHeight: 1.5 }}>
-              Everyone playing is in. The app works out who won what and who owes whom — it never
-              takes or moves any money.
+              {stakeKind === "money"
+                ? "Everyone playing is in. The app works out who won what and who owes whom — it never takes or moves any money."
+                : "Everyone playing is in. The app works out who won what, and records no money at all."}
             </p>
             {/* SAID WHERE THE CHOICE IS MADE, because the consequence lands on
                 a different screen an hour later.

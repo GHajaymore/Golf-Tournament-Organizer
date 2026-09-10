@@ -448,6 +448,8 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
           eventId: event.id,
           stageId: stage.id,
           buyInCents: plan.money.stakeCents,
+          // Empty unless they are playing for something that is not money.
+          stakeNote: plan.money.stakeNote,
           // Net follows the round: a level round's skins are gross, and a
           // net pot on a round played off scratch would allocate shots the
           // players agreed not to give.
@@ -477,6 +479,8 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
           stageId: stage.id,
           kind: plan.money.game.kind ?? "",
           buyInCents: plan.money.stakeCents,
+          // Empty unless they are playing for something that is not money.
+          stakeNote: plan.money.stakeNote,
           /**
            * OPT-OUT, which skins cannot be and this can.
            *

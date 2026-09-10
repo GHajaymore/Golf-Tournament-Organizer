@@ -1779,6 +1779,22 @@ model SkinsPot {
    * Stake per player, in whole cents, so no total is ever a rounded float.
    */
   buyInCents Int     @default(0)
+
+  /**
+   * What this game is played for when it is NOT money.
+   *
+   * Empty is the normal case: the stake is `buyInCents` and the settle-up is
+   * in currency. Non-empty means the players agreed something the app has no
+   * business counting — a pint, lunch, the next green fee, pride — and
+   * `buyInCents` is 0 alongside it, so every settler already returns nothing
+   * without knowing this column exists.
+   *
+   * It is stored rather than inferred because a zero stake is otherwise
+   * AMBIGUOUS. "Nobody has said how much yet" and "we are not playing for
+   * money" look identical at 0, and the money screen has to be able to tell
+   * a game that is finished being set up from one that is not.
+   */
+  stakeNote String @default("")
   /**
    * Net applies handicap strokes per hole — what makes skins playable in a
    * mixed-ability club field. Gross is a scratch player's game.
@@ -2134,6 +2150,22 @@ model SideGame {
    * of the three segments — a "$5 Nassau" is 500 here, and can cost $15.
    */
   buyInCents Int @default(0)
+
+  /**
+   * What this game is played for when it is NOT money.
+   *
+   * Empty is the normal case: the stake is `buyInCents` and the settle-up is
+   * in currency. Non-empty means the players agreed something the app has no
+   * business counting — a pint, lunch, the next green fee, pride — and
+   * `buyInCents` is 0 alongside it, so every settler already returns nothing
+   * without knowing this column exists.
+   *
+   * It is stored rather than inferred because a zero stake is otherwise
+   * AMBIGUOUS. "Nobody has said how much yet" and "we are not playing for
+   * money" look identical at 0, and the money screen has to be able to tell
+   * a game that is finished being set up from one that is not.
+   */
+  stakeNote String @default("")
 
   /**
    * opt-in | opt-out — see lib/domain/pot-entry.ts.
