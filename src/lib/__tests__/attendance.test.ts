@@ -10,6 +10,7 @@ import {
   playersAnswer,
   resolveAttendance,
   tracksPerRound,
+  weekReturnsNote,
 } from "../domain/attendance";
 
 /**
@@ -163,5 +164,52 @@ describe("captains send the list and the club enters it", () => {
     expect(defaultStatus("everyone")).toBe("in");
     expect(defaultStatus("opt-out")).toBe("in");
     expect(defaultStatus("opt-in")).toBe("out");
+  });
+});
+
+/**
+ * "16 played" was the same sentence on two different nights.
+ *
+ * The week sheet dropped anybody who did not play — right for the ranking,
+ * and silent about whether the night was FINISHED. Sixteen rows on a week
+ * eighteen were in for is two cards outstanding and somebody to ring;
+ * sixteen rows on a week sixteen were in for is done, and the sheet looked
+ * identical either way.
+ */
+describe("what the week's card count says", () => {
+  it("names the cards still to come", () => {
+    const s = weekReturnsNote({ expected: 18, returned: 16, out: 6 });
+    expect(s).toContain("16 of 18");
+    expect(s).toContain("2 still to come");
+    expect(s).toContain("6 out this week");
+  });
+
+  it("stops saying it the moment the last card is in", () => {
+    const s = weekReturnsNote({ expected: 18, returned: 18, out: 6 });
+    expect(s).toContain("18 of 18");
+    expect(s).not.toContain("still to come");
+  });
+
+  it("says nothing about absentees when there are none", () => {
+    // "16 of 16 · 0 out" puts a nought on the screen for a fact nobody asked.
+    const s = weekReturnsNote({ expected: 16, returned: 16, out: 0 });
+    expect(s).not.toContain("out");
+    expect(s).toContain("16 of 16");
+  });
+
+  it("reads as a week not yet filled rather than a week nobody played", () => {
+    // Under captains before the captains' lists arrive, and under opt-in
+    // before anybody signs up, this is the ordinary state of a future week.
+    expect(weekReturnsNote({ expected: 0, returned: 0, out: 0 })).toMatch(/Nobody is in for this round yet/);
+    expect(weekReturnsNote({ expected: 0, returned: 0, out: 4 })).toContain("4 out");
+  });
+
+  it("cannot report more cards in than were expected", () => {
+    // A walk-up's card is deliberately still recorded — see the entry picker —
+    // but they were not among the expected, so they must not push the count
+    // past the total or produce a negative "still to come".
+    const s = weekReturnsNote({ expected: 4, returned: 5, out: 1 });
+    expect(s).not.toContain("-1");
+    expect(s).not.toContain("still to come");
   });
 });

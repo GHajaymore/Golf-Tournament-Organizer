@@ -161,3 +161,32 @@ export function resolveAttendance(
     rows,
   };
 }
+
+/**
+ * How the week's card count reads at nine o'clock.
+ *
+ * The week sheet said "16 played" and nothing else, which is the same sentence
+ * whether sixteen were expected or eighteen were. Those are different nights:
+ * one is finished and one has two cards outstanding and somebody to ring.
+ *
+ * Returned is counted among the players who were IN, so the number is "still
+ * to come" and never "members who were never coming". A card handed in by
+ * somebody marked out — the walk-up the app deliberately still records — is
+ * therefore not counted toward the expected total and cannot push it past it.
+ *
+ * The absent are named only when there are any. "16 of 16 played · 0 out" puts
+ * a nought on the screen for a fact nobody asked about.
+ */
+export function weekReturnsNote(a: { expected: number; returned: number; out: number }): string {
+  const outPart = a.out > 0 ? ` · ${a.out} out this week` : "";
+  if (a.expected === 0) {
+    // Nobody was in. Under captains before the list arrives, and under opt-in
+    // before anyone signs up, this is the ordinary state of a future week.
+    return a.out > 0 ? `Nobody is in for this round yet · ${a.out} out` : "Nobody is in for this round yet";
+  }
+  const missing = Math.max(0, a.expected - a.returned);
+  if (missing === 0) {
+    return `${a.returned} of ${a.expected} in have returned a card${outPart}`;
+  }
+  return `${a.returned} of ${a.expected} in have returned a card · ${missing} still to come${outPart}`;
+}
