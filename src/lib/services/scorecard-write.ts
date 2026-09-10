@@ -211,3 +211,47 @@ export async function writeScorecard(input: {
   // the second copy is what this is fixing.
   return { ok: true, revision: cardRevision(clean), status: saved.status };
 }
+
+/**
+ * Signing a card — Rule 3.3b, and the same three lines wherever it is done.
+ *
+ * Lifted out of `certifyScorecard` for the reason that action already states:
+ * "the three doors into this row cannot drift apart again". There is a fourth
+ * now — the Round Code surface, which had no way to sign at all, so every card
+ * a charity day's field submitted arrived at the committee reading "Not
+ * certified yet" and had to be waved through with "Approve anyway". The screen
+ * cited Rule 3.3b while the app gave the field no way to satisfy it.
+ *
+ * WHO may sign is NOT decided here, deliberately, for the same reason
+ * `writeScorecard` leaves authorization to its callers: the console asks
+ * `requireScoreEntry` and `assertOwnCard`, the play surface asks its own
+ * session, and a single answer would let one of them through the other's door.
+ *
+ * `by` is whatever identifies the signer to a person reading the card later —
+ * an email from the console, a player's name from a round code. It is a record
+ * of who said the scores were right, not a credential.
+ */
+export async function certifyCard(input: {
+  eventId: string;
+  stageId: string;
+  playerId: string;
+  by: string;
+}): Promise<void> {
+  // Scoped on eventId as well as the pair: the (stageId, playerId) unique key
+  // is caller-supplied, and without the event in the filter it would name a
+  // row in any tournament. Same hole that saveScorecard had.
+  const card = await prisma.scorecard.findFirst({
+    where: { eventId: input.eventId, stageId: input.stageId, playerId: input.playerId },
+    select: { id: true, status: true },
+  });
+  if (!card) throw new Error("There's no card to certify yet.");
+  // An approved card is the committee's, not the marker's, to change. Shared
+  // with the write above and with `disputeScorecard` so the doors into this
+  // row cannot drift apart.
+  if (isCardLocked(card.status)) throw new Error(LOCKED_CARD_REFUSAL);
+
+  await prisma.scorecard.update({
+    where: { id: card.id },
+    data: { status: "certified", certifiedBy: input.by, certifiedAt: new Date() },
+  });
+}
