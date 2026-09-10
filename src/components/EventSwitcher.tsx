@@ -48,7 +48,17 @@ const STATUS: Record<string, { label: string; tag: string }> = {
   completed: { label: "Completed", tag: "tag-neutral" },
 };
 
-export function EventSwitcher({ events }: { events: EventRow[] }) {
+export function EventSwitcher({
+  events,
+  organizations = [],
+}: {
+  events: EventRow[];
+  /**
+   * The organizations this person may create in — see
+   * `organizationsForOrganizer`. Asked only when there is more than one.
+   */
+  organizations?: Array<{ id: string; name: string; kind: string }>;
+}) {
   const [name, setName] = useState("");
   const [confirmingId, setConfirmingId] = useState("");
   // Deliberately defaults to a blank tournament even though copying is listed
@@ -73,6 +83,13 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
    * preselects: a default answer to "how is it played" is the app deciding.
    */
   const [shape, setShape] = useState<TournamentShape | "">("");
+  /**
+   * Whose tournament this is, when there is a choice.
+   *
+   * Defaults to the first, which IS the one that would have been chosen
+   * silently — so nothing changes for somebody who does not touch it.
+   */
+  const [organizationId, setOrganizationId] = useState(organizations[0]?.id ?? "");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -292,6 +309,25 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
             </optgroup>
           </select>
         </div>
+        {/* WHOSE, when this person runs more than one outfit.
+
+            A copy keeps its source's organization, so the question only
+            applies to a tournament being created fresh — the same reason the
+            shape is not asked there. */}
+        {!copyFrom && organizations.length > 1 && (
+          <div className="field" style={{ flex: 1, minWidth: 220 }}>
+            <label>Who is this for?</label>
+            <select
+              className="input"
+              value={organizationId}
+              onChange={(e) => setOrganizationId(e.target.value)}
+            >
+              {organizations.map((o) => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         {/* Not asked when COPYING: a copy is played the way its source was,
             and offering the question there would let the two disagree. */}
         {!copyFrom && (
@@ -319,7 +355,7 @@ export function EventSwitcher({ events }: { events: EventRow[] }) {
             startTransition(async () => {
               const res = copyId
                 ? await cloneEvent(copyId, name)
-                : await createEvent(name, source, shape);
+                : await createEvent(name, source, shape, undefined, organizationId || undefined);
               if (res && !res.ok) setError(res.error ?? "Could not create the tournament.");
             });
             setName("");

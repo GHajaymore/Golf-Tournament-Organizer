@@ -3024,6 +3024,17 @@ export async function createEvent(
   templateKey?: string,
   shapeKey?: string,
   orgName?: string,
+  /**
+   * WHICH ORGANIZATION, when the organizer was asked.
+   *
+   * Only asked at all when they own more than one — see
+   * `organizationsForOrganizer`. Verified inside
+   * `organizationForNewEvent` against this person's own owner/admin
+   * memberships, never taken on trust: a "use server" export is a public HTTP
+   * endpoint, and an id belonging to somebody else's club would otherwise
+   * create an event inside it.
+   */
+  chosenOrganizationId?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
@@ -3062,7 +3073,12 @@ export async function createEvent(
   // organization on their first event, named after their club/society/company
   // when they said who runs it (else after them). An organizer who already owns
   // one keeps it — orgName never renames an existing organization.
-  const organizationId = await organizationForNewEvent(session.email, session.name, orgName);
+  const organizationId = await organizationForNewEvent(
+    session.email,
+    session.name,
+    orgName,
+    chosenOrganizationId,
+  );
   // Plan limits bite only once billing is connected — see services/limits.ts.
   const refusal = await refusalFor(organizationId, "activeEvents");
   if (refusal) return { ok: false, error: refusal };

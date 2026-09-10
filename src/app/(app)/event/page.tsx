@@ -1,4 +1,5 @@
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
+import { organizationsForOrganizer } from "@/lib/services/organization";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { PlaySettings } from "@/components/PlaySettings";
@@ -132,7 +133,10 @@ export default async function EventPage({
         </p>
       </div>
 
-      <EventSwitcher events={eventRows} />
+      <EventSwitcher
+        events={eventRows}
+        organizations={await organizationsForOrganizer(session.email)}
+      />
 
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
 
