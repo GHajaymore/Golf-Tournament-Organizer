@@ -20,7 +20,7 @@ import type { HoleResult } from "@/lib/domain";
 import { needsTeams, entryModeFor } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
-import { aggregateTeamCard, singleBallTeamCard } from "@/lib/domain/team";
+import { aggregateTeamCard, singleBallTeamCard, allocatedStrokes } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
@@ -168,13 +168,40 @@ export default async function EntryPage() {
     const pushRow = (teamId: string, matchId: string, opponentName?: string) => {
       const t = teamById.get(teamId);
       if (!t) return;
+      /**
+       * THE SHOTS EACH CARD RECEIVES, hole by hole.
+       *
+       * The team card showed none at all — no dots, no total — so a four-ball
+       * played off handicap, which is how nearly all of them are played, gave
+       * a scorer no way to see who was getting a shot where. The stroke card
+       * and the match card have both carried them for a while; this was the
+       * one card in the app that did not.
+       *
+       * `allocatedStrokes` is the SAME function `aggregateTeamCard` uses to
+       * decide the side's score, called with the same allowance, so the dots
+       * on the card and the net beneath it cannot disagree. Writing the
+       * allocation out here would be a second opinion about the one number a
+       * player checks.
+       *
+       * A single-ball side (foursomes) has one card and one figure:
+       * `playingHandicap` is already allowance-applied — `singleBallTeamCard`
+       * uses it raw — so the allowance is 100 rather than applied twice.
+       */
+      const teamAllowance = effectiveAllowance(activeStage.format, activeStage.handicapAllowance);
       const cardRows =
         sideOnly
-          ? [{ playerId: "", playerName: "", handicap: 0, strokes: strokesFor(teamId, matchId, "") }]
+          ? [{
+              playerId: "",
+              playerName: "",
+              handicap: 0,
+              shots: allocatedStrokes(t.playingHandicap, 100, teamStrokeIndex),
+              strokes: strokesFor(teamId, matchId, ""),
+            }]
           : t.members.map((m) => ({
               playerId: m.playerId,
               playerName: m.name,
               handicap: m.handicap,
+              shots: allocatedStrokes(m.handicap, teamAllowance, teamStrokeIndex),
               strokes: strokesFor(teamId, matchId, m.playerId),
             }));
       const card =
@@ -193,7 +220,7 @@ export default async function EntryPage() {
               })),
               teamPars,
               teamStrokeIndex,
-              effectiveAllowance(activeStage.format, activeStage.handicapAllowance),
+              teamAllowance,
               effectiveCountBest(activeStage.format, activeStage.countBest),
             );
       rows.push({
