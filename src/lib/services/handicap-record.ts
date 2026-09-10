@@ -57,9 +57,33 @@ export async function memberHandicapRecord(
   });
   if (!member) return null;
 
-  // Every entry this member has made, scoped to their own club's events.
+  /**
+   * Every entry this member has made in one of their club's TOURNAMENTS.
+   *
+   * `shape: { not: "match" }` — a casual round is not a counting round, and
+   * this is the worst place in the app for it to have been one. The suggestion
+   * built here is what `acceptClubHandicap` writes to `Member.handicap`: a
+   * PERMANENT club handicap, the number every future competition scores that
+   * person off.
+   *
+   * The path was open end to end. A casual round's players carry `memberId`
+   * whenever they were picked off the roster — only new names are left
+   * unlinked — so a Sunday fourball's cards join to the member; nothing stops
+   * those cards being approved; and this query asked only for the club's
+   * events. So four friends messing about on a Tuesday could move somebody's
+   * index, and the club would have no way of telling from the number that it
+   * had happened.
+   *
+   * A handicap is built from rounds played under the Rules of Golf in a
+   * competition the committee ran. That is what a tournament is here and what
+   * a quick round explicitly is not — it has no field, no flights, no club,
+   * and it deletes itself in a day.
+   *
+   * The same question `activeEventCount` asks, in the same words, for the same
+   * reason: "is this a tournament?" is precisely what `shape` records.
+   */
   const entries = await prisma.player.findMany({
-    where: { memberId, event: { organizationId } },
+    where: { memberId, event: { organizationId, shape: { not: "match" } } },
     /**
      * `groupId` and `handicapType` are here because the two lines that read
      * them below were each resolving without them.

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { organizationIdForEvent } from "@/lib/services/roster";
 import { DEFAULT_POINTS_TABLE } from "@/lib/domain/series";
+import { isMatch } from "@/lib/tournament-shape";
 
 export interface SeriesResult {
   ok: boolean;
@@ -122,6 +123,22 @@ export async function setEventSeries(eventId: string, seriesId: string | null): 
   const organizationId = await requireOrg();
   const event = await prisma.event.findFirst({ where: { id: eventId, organizationId } });
   if (!event) return { ok: false, error: "Tournament not found." };
+  /**
+   * A CASUAL ROUND IS NOT A LEG OF A SEASON.
+   *
+   * An order of merit is a sequence of the club's competitions, and a quick
+   * round is deliberately none of that — no field, no flights, no club, and it
+   * deletes itself in a day. Attaching one would score season points off a
+   * Sunday fourball and then remove the round the points came from.
+   *
+   * Refused here, at the only place `seriesId` is written, rather than
+   * filtered in `seriesTable` — a round that must not be in a season must not
+   * be ATTACHABLE to one, or the link sits in the database waiting for the
+   * next reader that forgets.
+   */
+  if (isMatch(event.shape)) {
+    return { ok: false, error: "A quick round isn't part of a season — it's one game, and it deletes itself." };
+  }
   if (seriesId) {
     const series = await prisma.series.findFirst({ where: { id: seriesId, organizationId } });
     if (!series) return { ok: false, error: "Season not found." };

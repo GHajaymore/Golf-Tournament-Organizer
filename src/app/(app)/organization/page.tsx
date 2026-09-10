@@ -29,7 +29,18 @@ export default async function OrganizationPage() {
     where: { id: event.organizationId },
     include: {
       subscription: true,
-      _count: { select: { events: true, members: true } },
+      /**
+       * The events count is shown under the kicker "Tournaments", so it counts
+       * tournaments. A casual round is stored as an Event because that is what
+       * the app hangs a card off, not because it is one — the same distinction
+       * `activeEventCount` draws for billing.
+       *
+       * Without the filter the club's settings page and its plan allowance
+       * disagreed about the same number, on the same screen.
+       */
+      _count: {
+        select: { events: { where: { shape: { not: "match" } } }, members: true },
+      },
     },
   });
   if (!org) redirect("/dashboard");
