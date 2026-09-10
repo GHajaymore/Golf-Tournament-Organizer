@@ -49,6 +49,7 @@ export function OrgSetupChecklist({
   if (state.ready) return null;
 
   const doneCount = state.steps.length - state.remaining.length;
+  const anyBlocked = state.steps.some((s) => s.blocked);
 
   return (
     <section className="card elev-sm" style={{ gap: 14 }}>
@@ -57,8 +58,17 @@ export function OrgSetupChecklist({
           Setting up your {state.profile.noun}
         </span>
         <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.5 }}>
-          {doneCount} of {state.steps.length} done. Work through them in any order — nothing here is
-          locked, and you can come back to it.
+          {doneCount} of {state.steps.length} done.{" "}
+          {/* "Work through them in any order — nothing here is locked" was
+              FALSE on a brand-new account, where three of the four rows lead
+              to screens that live inside a tournament and bounce back here
+              without one. The sentence has to follow the rows: a promise the
+              screen breaks on the organizer's first click is worse than no
+              promise. Read off the steps rather than off the event count, so
+              the two cannot come to disagree. */}
+          {anyBlocked
+            ? "Start with the tournament — the rest open up once you have one, and you can come back to them in any order."
+            : "Work through them in any order — nothing here is locked, and you can come back to it."}
         </p>
       </div>
 
@@ -91,8 +101,21 @@ export function OrgSetupChecklist({
               ? "1px solid var(--color-accent)"
               : "1px solid color-mix(in srgb, var(--color-text) 10%, transparent)",
           } as const;
-          const Row = here
-            ? ({ children }: { children: React.ReactNode }) => <div style={rowStyle}>{children}</div>
+          /**
+           * A row is a link only where the link goes somewhere.
+           *
+           * Two reasons it does not, and they read differently to an organizer:
+           * `here` is "you are already on it", `blocked` is "not yet". Both
+           * render as plain text rather than a click that reloads the page or
+           * bounces off a guard — a dead link on the first screen of a new
+           * account is the worst possible first impression, because the honest
+           * reading of it is that the product is broken.
+           */
+          const inert = here || !!step.blocked;
+          const Row = inert
+            ? ({ children }: { children: React.ReactNode }) => (
+                <div style={{ ...rowStyle, opacity: step.blocked ? 0.72 : 1 }}>{children}</div>
+              )
             : ({ children }: { children: React.ReactNode }) => (
                 <Link href={step.href} className="link-reset" style={rowStyle}>
                   {children}
@@ -133,7 +156,20 @@ export function OrgSetupChecklist({
                   >
                     {step.blurb}
                   </span>
-                  {!step.done && step.consequence && (
+                  {/* WHY IT IS NOT A LINK, on the row. Before the consequence,
+                      because "pairings cannot be drawn from an empty field"
+                      is advice about a screen this organizer cannot open yet
+                      — and a warning they cannot act on is the thing that
+                      teaches them to stop reading the next one. */}
+                  {step.blocked && (
+                    <span
+                      className="text-muted"
+                      style={{ display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}
+                    >
+                      <Icon name="lock-simple" aria-hidden="true" /> {step.blocked}
+                    </span>
+                  )}
+                  {!step.done && !step.blocked && step.consequence && (
                     <span
                       className="text-muted"
                       style={{ display: "block", fontSize: 11.5, marginTop: 4, lineHeight: 1.5 }}

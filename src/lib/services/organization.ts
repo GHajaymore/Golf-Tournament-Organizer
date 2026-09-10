@@ -27,9 +27,17 @@ import { logoSrc } from "../domain/logo-upload";
  *   3. a newly created organization, named `orgName` when the organizer gave
  *      one, else after the person (the behaviour before that field existed)
  *
- * `orgName` only ever names a *new* organization. An organizer who already
- * owns a club falls into case 1 and keeps that club untouched — typing a
- * different name on a later event must never rename it.
+ * `orgName` names an organization that has never BEEN named — a new one at
+ * case 3, or one still carrying the name sign-up derived from the person at
+ * cases 1 and 2. An organizer who already named their club keeps it untouched:
+ * typing something different on a later event must never rename it, and
+ * `organizationWasNamed` is what tells the two apart. See `nameIfStillUnnamed`.
+ *
+ * This paragraph used to read "`orgName` only ever names a *new* organization",
+ * which was true of the code and made the field useless: sign-up creates an
+ * organization and a membership, so every signed-up organizer resolved at case
+ * 1 or 2 and case 3 was unreachable for them. The box on the first-tournament
+ * form did nothing at all.
  */
 /**
  * The organizations this person may create a tournament in.
@@ -91,6 +99,57 @@ export async function organizationsForOrganizer(
   }));
 }
 
+/**
+ * Take the name the organizer typed, if this organization has never had one.
+ *
+ * "Who's running this?" on the first tournament was a box that did nothing for
+ * every organizer who had signed up — which is all of them. Sign-up creates an
+ * organization and a membership, so `organizationForNewEvent` always found one
+ * at step 1 or 2 and returned it, and `orgName` only ever reached step 3, the
+ * create. Walked on 2026-09-10: signed up as a society, typed "Zz Heathland
+ * Society" into that field, created the tournament, and the organization was
+ * still called "Zz Secretary" — under a checklist whose first row is "Name
+ * your society".
+ *
+ * The condition is exactly the one the SCREEN uses to decide whether to ask:
+ * `organizationWasNamed`. Asking and doing now read the same rule from the
+ * same function, so a field that appears is a field that works.
+ *
+ * OWNER, not owner-or-admin, and this is the whole of why the check is
+ * repeated here rather than inherited from the resolver. An admin added to
+ * somebody else's still-unnamed organization would otherwise rename it by
+ * typing in a box on their own first tournament. Choosing where a tournament
+ * goes and renaming the tenant are different powers.
+ *
+ * Silent when it declines. There is nothing an organizer could do about it and
+ * the name is settable afterwards on the organization's own screen, which the
+ * sentence under the field already says.
+ */
+async function nameIfStillUnnamed(
+  organizationId: string,
+  userId: string,
+  orgName: string | undefined,
+  displayName: string,
+  email: string,
+): Promise<void> {
+  const wanted = (orgName ?? "").trim();
+  if (!wanted) return;
+
+  const owner = await prisma.organizationMember.findFirst({
+    where: { organizationId, userId, role: "owner" },
+    select: { id: true },
+  });
+  if (!owner) return;
+
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { name: true },
+  });
+  if (!org || organizationWasNamed(org.name, displayName, email)) return;
+
+  await prisma.organization.update({ where: { id: organizationId }, data: { name: wanted } });
+}
+
 export async function organizationForNewEvent(
   email: string,
   displayName: string,
@@ -117,7 +176,10 @@ export async function organizationForNewEvent(
         where: { userId: user.id, organizationId: wanted, role: { in: ["owner", "admin"] } },
         select: { organizationId: true },
       });
-      if (chosen) return chosen.organizationId;
+      if (chosen) {
+        await nameIfStillUnnamed(chosen.organizationId, user.id, orgName, displayName, email);
+        return chosen.organizationId;
+      }
     }
 
     const membership = await prisma.organizationMember.findFirst({
@@ -127,7 +189,14 @@ export async function organizationForNewEvent(
       // the choice is stable rather than shifting as rows are added.
       orderBy: [{ organization: { kind: "asc" } }, { createdAt: "asc" }],
     });
-    if (membership) return membership.organizationId;
+    if (membership) {
+      // BOTH return paths, deliberately. The picker appears only when somebody
+      // runs more than one organization, so a new secretary comes through the
+      // branch below and a club-and-society organizer through the one above —
+      // and the field is offered on whichever they see.
+      await nameIfStillUnnamed(membership.organizationId, user.id, orgName, displayName, email);
+      return membership.organizationId;
+    }
   }
 
   return createOrganizationWithOwner({ email, displayName, orgName });

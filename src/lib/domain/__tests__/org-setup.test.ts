@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import { orgSetupState, SETUP_HREF, type OrgSetupFacts } from "../org-setup";
 
@@ -86,7 +86,17 @@ describe("org setup checklist", () => {
   });
 
   it("points at the first undone step and no further", () => {
-    const s = orgSetupState(facts({ memberCount: 0, eventCount: 0 }));
+    /**
+     * `eventCount: 1`, and it used to be 0.
+     *
+     * With no tournament, every step but the tournament itself is unreachable
+     * — `/roster` bounces an eventless session straight back to /choose — so
+     * "the first undone step" was answered with a dead link, and this test
+     * asserted it. The mechanism it is really about is "first undone, not
+     * second", which needs a fixture where the question has a real answer.
+     * The no-tournament case has its own block below.
+     */
+    const s = orgSetupState(facts({ memberCount: 0, eventCount: 1 }));
     expect(s.next?.key).toBe("roster");
     expect(s.ready).toBe(false);
   });
@@ -181,6 +191,152 @@ describe("the checklist links somewhere that exists", () => {
     for (const kind of ["club", "community", "personal"]) {
       for (const step of orgSetupState(facts({ kind })).steps) {
         expect(known.has(step.href), `${kind}/${step.key} -> ${step.href}`).toBe(true);
+      }
+    }
+  });
+});
+
+/**
+ * THREE OF THE FOUR FIRST-RUN ROWS WERE LINKS THAT BOUNCED.
+ *
+ * The docstring at the top of `org-setup.ts` has said the whole of this since
+ * the file was written: "/organization and /roster are inside the (app) shell,
+ * which requireEventSession gates on an ACTIVE EVENT … until that changes, the
+ * only step a brand-new organization can actually do is create its first
+ * tournament, and the checklist must not pretend otherwise."
+ *
+ * It pretended. Walked on 2026-09-10: signed up as a society, pressed the
+ * first row — "Name your society", carrying the Next chip — and arrived back
+ * on /choose with no explanation, under a sentence promising that "nothing
+ * here is locked". Same for "Add your members" and "Decide how money works".
+ *
+ * A rule stated in a comment and checked by nothing is the exact failure this
+ * codebase keeps unwinding, so it is checked here twice: that the checklist
+ * marks those steps, and that the marking is TRUE of the routes rather than a
+ * guess that could rot the day a screen stops needing an event.
+ */
+describe("a brand-new organization with no tournament", () => {
+  const fresh = (over: Partial<OrgSetupFacts> = {}) =>
+    orgSetupState(facts({ eventCount: 0, named: false, memberCount: 0, moneyAnswered: false, ...over }));
+
+  it("marks every step that lives inside a tournament", () => {
+    for (const step of fresh().steps) {
+      const inChoose = step.href.startsWith("/choose");
+      expect(!!step.blocked, `${step.key} -> ${step.href}`).toBe(!inChoose);
+    }
+  });
+
+  it("leaves the one step that can actually be done alone", () => {
+    const tournament = fresh().steps.find((s) => s.key === "tournament");
+    expect(tournament?.blocked).toBe("");
+  });
+
+  it("points Next at the step that works", () => {
+    // It was `remaining[0]` — "Name your society", the first of the three that
+    // bounce. Marking the one reachable step is the whole job of that chip.
+    const s = fresh();
+    expect(s.next?.key).toBe("tournament");
+    expect(s.next?.blocked).toBe("");
+  });
+
+  it("says why, rather than just going quiet", () => {
+    const profile = fresh().steps.find((s) => s.key === "profile");
+    expect(profile?.blocked).toMatch(/tournament/i);
+  });
+
+  it("blocks nothing at all once one tournament exists", () => {
+    // The control. Without it every assertion above is satisfied by a
+    // checklist that blocks everything for ever.
+    for (const step of orgSetupState(facts({ eventCount: 1 })).steps) {
+      expect(step.blocked, step.key).toBe("");
+    }
+    expect(orgSetupState(facts({ eventCount: 1, named: false })).next?.key).toBe("profile");
+  });
+
+  it("marks the same steps for every kind of organization", () => {
+    // A society, a club and a one-off outing get different STEPS, and all of
+    // them hang off an event in the same way.
+    for (const kind of ["club", "community", "personal"]) {
+      for (const step of fresh({ kind }).steps) {
+        expect(!!step.blocked, `${kind}/${step.key}`).toBe(!step.href.startsWith("/choose"));
+      }
+    }
+  });
+});
+
+/**
+ * And the marking has to be TRUE, not merely consistent.
+ *
+ * The assertions above would all pass against a checklist that blocked the
+ * right rows for the wrong reason — and would go on passing on the day
+ * somebody makes `/roster` reachable without an event, quietly telling
+ * organizers a screen is shut when it is open. So this reads the routes.
+ */
+describe("what the checklist claims about a screen matches the screen", () => {
+  const pageSource = (href: string) => {
+    const route = href.split(/[?#]/)[0];
+    // The route groups are stripped from the URL, so the file could be under
+    // either shell. Both are tried rather than one assumed.
+    for (const group of ["(app)", "(player)", ""]) {
+      const path = join(process.cwd(), "src", "app", group, route.slice(1), "page.tsx");
+      try {
+        return readFileSync(path, "utf8");
+      } catch {
+        /* next candidate */
+      }
+    }
+    throw new Error(`no page file for ${href}`);
+  };
+
+  it("every step it blocks really does need an event", () => {
+    for (const step of orgSetupState(facts({ eventCount: 0 })).steps) {
+      if (!step.blocked) continue;
+      const src = pageSource(step.href);
+      // `requireScreen` and `requireState` both go through
+      // `requireEventSession`, which is the redirect that does this.
+      expect(src, `${step.href} is blocked but does not require an event`).toMatch(
+        /require(Screen|EventSession|State)\(/,
+      );
+    }
+  });
+
+  it("the step it does NOT block really is reachable without one", () => {
+    const tournament = orgSetupState(facts({ eventCount: 0 })).steps.find(
+      (s) => s.key === "tournament",
+    )!;
+    const src = pageSource(tournament.href);
+    // /choose is where an eventless session is SENT, so it cannot itself
+    // demand one. This is the assertion that fails if the picker is ever put
+    // inside the event shell.
+    expect(src).not.toMatch(/require(Screen|EventSession|State)\(/);
+  });
+});
+
+/**
+ * And it calls the tenant what the tenant is called.
+ *
+ * This file already records the same slip once — "Name your personal", from
+ * using the label where the noun belongs — and the blocked note repeated it
+ * the day it was written: "your club's own screens live inside one", shown to
+ * a society. Read off the screen during the walk that found the dead links.
+ */
+describe("the blocked note speaks each organization's own language", () => {
+  it("says society to a society and club to a club", () => {
+    const noteFor = (kind: string) =>
+      orgSetupState(facts({ kind, eventCount: 0 })).steps.find((s) => s.blocked)!.blocked;
+    expect(noteFor("community")).toContain("society");
+    expect(noteFor("community")).not.toContain("club");
+    expect(noteFor("club")).toContain("club");
+  });
+
+  it("never says the raw kind, whatever kind it is handed", () => {
+    // The failure mode is a value falling through into prose. "community" and
+    // "personal" are storage words, and neither is a thing anybody calls their
+    // golf society.
+    for (const kind of ["club", "community", "personal", "", null, "nonsense"]) {
+      const blocked = orgSetupState(facts({ kind, eventCount: 0 })).steps.filter((s) => s.blocked);
+      for (const step of blocked) {
+        expect(step.blocked, `${kind}/${step.key}`).not.toMatch(/community|personal|nonsense/);
       }
     }
   });

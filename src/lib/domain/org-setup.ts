@@ -78,6 +78,26 @@ export interface SetupStep {
   consequence: string;
   /** Where to go and do it. */
   href: string;
+  /**
+   * Why this step cannot be reached YET, or "" when it can.
+   *
+   * Not a gate this file invented — a gate that already existed and was not
+   * being reported. `/organization`, `/roster` and `/event` all resolve their
+   * organization FROM the selected event, and `requireEventSession` redirects
+   * to /choose when a session has none. So on a brand-new account, three of
+   * the four rows on this checklist were links that bounced silently back to
+   * the page they were clicked from, under a sentence promising that "nothing
+   * here is locked".
+   *
+   * Walked on 2026-09-10: signed up as a society, pressed "Name your society",
+   * and arrived back on /choose with no explanation. Same for "Add your
+   * members" and "Decide how money works". The one row that worked was the one
+   * already saying it happens on this page.
+   *
+   * Derived from the href rather than from a list of keys, so a step added
+   * later is covered the day it is added.
+   */
+  blocked: string;
 }
 
 /** The facts this derives from. Counts rather than rows — nothing here needs
@@ -116,7 +136,9 @@ export interface OrgSetupState {
  */
 export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
   const profile = orgProfile(facts.kind);
-  const steps: SetupStep[] = [];
+  // Built without `blocked`, which is decided once at the end against the
+  // whole list rather than repeated on every push.
+  const steps: Omit<SetupStep, "blocked">[] = [];
 
   /**
    * `noun`, not `label.toLowerCase()`. This read "Name your personal" for a
@@ -209,12 +231,50 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
     href: SETUP_HREF.tournament,
   });
 
-  const remaining = steps.filter((s) => !s.done);
+  /**
+   * Everything but the tournament itself lives INSIDE a tournament.
+   *
+   * `/organization` and `/roster` read their organization off the selected
+   * event, and `/event` is a tournament's own screen — so until there is one,
+   * `requireEventSession` sends every one of them back to /choose. That is
+   * correct behaviour for those screens and it is what the checklist has to
+   * report rather than walk an organizer into.
+   *
+   * Keyed on the href, not on the step key: `/choose` is the one screen that
+   * works without an event, so a step added later pointing anywhere else is
+   * marked without this line being touched. And once one tournament exists,
+   * nothing is blocked and the checklist is exactly what it was.
+   */
+  const noEventYet = facts.eventCount === 0;
+  const blockedSteps = steps.map((s) => ({
+    ...s,
+    blocked:
+      noEventYet && !s.href.startsWith(SETUP_HREF.tournament.split("?")[0])
+        ? // `profile.noun`, not "club". Read off the screen on 2026-09-10 while
+          // signed up as a SOCIETY: "your club's own screens live inside one".
+          // The same slip this file already records against "Name your
+          // personal" — the app's word for the tenant is not always club.
+          `Opens once you have a tournament — your ${profile.noun}'s own screens live inside one.`
+        : "",
+  }));
+
+  const remaining = blockedSteps.filter((s) => !s.done);
+  /**
+   * The "Next" chip points at something that can actually be done.
+   *
+   * It was `remaining[0]`, which on a new account is "Name your society" — the
+   * first of the three rows that bounce. Marking the one step that works is
+   * the whole job of that chip; marking a dead one is worse than marking none.
+   *
+   * Falls back to the plain first remaining step, so an organizer with nothing
+   * reachable still sees where the list starts rather than nothing at all.
+   */
+  const next = remaining.find((s) => !s.blocked) ?? remaining[0] ?? null;
   return {
     profile,
-    steps,
+    steps: blockedSteps,
     remaining,
     ready: remaining.length === 0,
-    next: remaining[0] ?? null,
+    next,
   };
 }

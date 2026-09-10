@@ -4872,11 +4872,22 @@ describe("the setup checklist", () => {
   });
 
   it("leaves every step a live link, including ones not reached yet", async () => {
-    // The point of a checklist rather than a gate: creating the tournament
-    // before the roster is loaded is a normal way to work.
+    /**
+     * The point of a checklist rather than a gate: creating the tournament
+     * before the roster is loaded is a normal way to work, so an undone step
+     * is never disabled for being undone.
+     *
+     * `eventCount: 1`, and it used to be 0. This is about ORDER — undone
+     * steps stay clickable — and with no tournament at all the rows are inert
+     * for an unrelated reason: the screens they point at do not open yet.
+     * Testing the order rule against that fixture proved neither thing.
+     */
     const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
     const { SETUP_HREF } = await import("@/lib/domain/org-setup");
-    const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />);
+    const html = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 1, named: false })} />);
+    // Undone and out of order, and still a link.
+    expect(html).toContain(`href="${SETUP_HREF.roster}"`);
+    expect(html).toContain(`href="${SETUP_HREF.profile}"`);
     // Read from the table rather than written out again here. This line used
     // to assert `href="/tournaments/new"`, a route that has never existed —
     // the test agreed with the code and both were wrong. What routes exist is
@@ -4898,17 +4909,90 @@ describe("the setup checklist", () => {
     // the page it was on, directly above CreateFirstTournament, the form that
     // does it. The query string is not part of "which page is this".
     const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    /**
+     * `eventCount: 1`, and it used to be 0.
+     *
+     * The last assertion is the point of the test: only the row for THIS page
+     * loses its link. With no tournament every other row is unreachable and
+     * loses its link too, for a different and correct reason — so the fixture
+     * could no longer tell "not linked because you are here" from "not linked
+     * because it does not open yet". The no-tournament rendering is asserted
+     * on its own below.
+     */
     const html = render(
       <OrgSetupChecklist currentPath="/choose"
-        state={await state({ memberCount: 0, eventCount: 0 })} />,
+        state={await state({ memberCount: 0, eventCount: 1 })} />,
     );
     expect(html).not.toContain('href="/choose');
-    // The row itself stays: it is a real step, it is what a brand-new
-    // organizer does next, and dropping it would understate "0 of 5 done".
+    // The row itself stays: it is a real step, and dropping it would
+    // understate the count.
     expect(html).toContain("Create your first tournament");
     expect(html).toContain("You do this one on this page");
     // Only that one row loses its link — the others are unaffected.
     expect(html).toContain('href="/roster"');
+  });
+
+  it("does not link a step that cannot be opened yet, and says why", async () => {
+    /**
+     * THE WALK. Signed up as a society on 2026-09-10, pressed the first row —
+     * "Name your society", carrying the Next chip — and arrived back on
+     * /choose with no explanation, under a sentence promising that "nothing
+     * here is locked". Three of the four rows did that.
+     *
+     * `org-setup.ts` had said so in its own docstring since the file was
+     * written: "the only step a brand-new organization can actually do is
+     * create its first tournament, and the checklist must not pretend
+     * otherwise."
+     */
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const html = render(
+      <OrgSetupChecklist currentPath="/choose"
+        state={await state({ named: false, memberCount: 0, eventCount: 0, moneyAnswered: false })} />,
+    );
+    // No link to any of the screens that live inside a tournament.
+    for (const href of ["/roster", "/organization", "/event"]) {
+      expect(html, href).not.toContain(`href="${href}"`);
+    }
+    // The rows are still THERE, and each says why it is not a link.
+    expect(html).toContain("Add your members");
+    expect(html).toContain("Opens once you have a tournament");
+    // And the promise the screen was breaking is not made.
+    expect(html).not.toContain("nothing here is locked");
+    expect(html).toContain("Start with the tournament");
+  });
+
+  it("marks the one step that can be done, not the first that cannot", async () => {
+    // The Next chip was on "Name your society" — the first of the three that
+    // bounce. Marking the only reachable step is the whole job of that chip.
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const html = render(
+      <OrgSetupChecklist currentPath="/choose"
+        state={await state({ named: false, memberCount: 0, eventCount: 0, moneyAnswered: false })} />,
+    );
+    const chip = html.indexOf('class="tag tag-neutral">Next');
+    expect(chip).toBeGreaterThan(-1);
+    // The chip sits inside the tournament row, which is last — so everything
+    // before it is the other four rows.
+    expect(html.lastIndexOf("Create your first tournament")).toBeLessThan(chip);
+    expect(html.indexOf("Add your members")).toBeLessThan(chip);
+  });
+
+  it("does not say a step costs something it cannot yet be blamed for", async () => {
+    /**
+     * "Pairings cannot be drawn from an empty field" is advice about a screen
+     * this organizer cannot open, on a row they cannot act on. A warning
+     * somebody is unable to do anything about is what teaches them to skip
+     * the next one — the same reasoning `org-setup.ts` records for not
+     * overstating the course step's consequence.
+     */
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const blocked = render(
+      <OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />,
+    );
+    expect(blocked).not.toContain("empty field");
+    // And it comes straight back the moment the step is reachable.
+    const open = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 1 })} />);
+    expect(open).toContain("empty field");
   });
 
   it("still links it from anywhere else", async () => {
