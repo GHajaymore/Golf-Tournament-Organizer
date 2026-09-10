@@ -2,7 +2,9 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { prisma } from "../db";
 import { COURSE_REF, cardForStage } from "./course-resolution";
-import { loadEventState, matchSettled, standingRows, cutLineNote } from "./tournament";
+import { loadEventState, matchSettled, standingRows, cutLineNote, settingsOf } from "./tournament";
+import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
+import type { StandingRow } from "@/components/LeaderboardTable";
 import { boardKind } from "../formats";
 import { teamStandings } from "./teams";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "./points-standings";
@@ -78,6 +80,38 @@ export interface LiveBoardView {
   colorScheme: string;
 }
 
+/**
+ * Mark the rows a weekly league says are not playing this round.
+ *
+ * Returns the rows UNCHANGED for every tournament, which is what keeps this
+ * invisible to the ninety per cent of events that have no weekly question:
+ * `tracksPerRound` is false, no query runs, and `absent` stays undefined on
+ * every row so that any reader which does not know about it is right.
+ *
+ * Resolved through `resolveAttendance` rather than read off the stored rows,
+ * because "out" is mostly the ABSENCE of a row — under opt-in and captains a
+ * player is out by saying nothing — and a reader that only knew about explicit
+ * rows would mark nobody in exactly the leagues where this matters most.
+ */
+async function withAttendance(
+  eventId: string,
+  state: { event: { attendanceMode?: string }; confirmed: { id: string }[] },
+  stageId: string,
+  rows: StandingRow[],
+): Promise<StandingRow[]> {
+  const mode = settingsOf(state.event as Parameters<typeof settingsOf>[0]).attendanceMode as AttendanceMode;
+  if (!tracksPerRound(mode) || !stageId) return rows;
+
+  const explicit = await prisma.roundAttendance.findMany({ where: { eventId, stageId } });
+  const resolved = resolveAttendance(
+    mode,
+    state.confirmed.map((p) => p.id),
+    explicit.map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
+  );
+  const out = new Set(resolved.rows.filter((r) => r.status === "out").map((r) => r.playerId));
+  return rows.map((r) => ({ ...r, absent: out.has(r.id) }));
+}
+
 async function gather(eventId: string): Promise<LiveBoardView | null> {
   const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return null;
@@ -123,7 +157,20 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
         )
       : null;
 
-  const rows = standingRows(state);
+  /**
+   * The board's rows, marked with who a weekly league says is not coming.
+   *
+   * `standingRows` is pure over `EventState` and stays that way — attendance
+   * is a query, and pushing it in there would put a database read behind every
+   * caller of a function the exporter, the dashboard and the reports all use.
+   * Decorated here instead, on the one surface that needs it.
+   *
+   * The rows themselves are NOT filtered. "The leaderboard shows the whole
+   * field, not just who has scored" is a rule with a test of its own, and a
+   * member who opted out of Tuesday is still in the league — dropping their
+   * row would be the board disagreeing with the season table beside it.
+   */
+  const rows = await withAttendance(eventId, state, activeStage?.id ?? "", standingRows(state));
   const brand = await brandForEvent(eventId);
   const theme = await themeForEvent(eventId);
 
@@ -134,7 +181,6 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
    * won 5&4 returns fourteen holes and is finished. Counting holes there would
    * leave the board reading "Live" for a round that ended hours ago.
    */
-  const started = rows.filter((r) => r.thru > 0);
   const roundMatches = activeStage ? state.matches.filter((m) => m.stageId === activeStage.id) : [];
   /**
    * AND THE COMMITTEE'S OWN WORD, which outranks both readings.
@@ -175,11 +221,34 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
    * marking the tournament Completed is the act that says the result stands,
    * and it already locks configuration and starts the retention clock.
    */
+  /**
+   * AND SOMEBODY WHO IS NOT COMING IS NOT SOMEBODY STILL TO TEE OFF.
+   *
+   * The rule above is right and, on a weekly league, unsatisfiable. It asks
+   * that every confirmed player has begun; six members who opted out of
+   * Tuesday never will, so a league night's public board read LIVE for the
+   * rest of the season. The committee's word could not resolve it either — a
+   * league is not marked Completed until the season ends, months later.
+   *
+   * What changed is not the rule, it is what the app knows. "A player with
+   * nothing at all has either not begun or is not coming, and the board cannot
+   * tell which" was true when it was written and is not any more: a league
+   * records the answer, and `absent` carries it onto the row.
+   *
+   * So the field this asks about is the players who are IN. Everything the
+   * paragraph above protects still holds — a short card still counts, a player
+   * who is in and has nothing still holds the board Live, and a tournament
+   * (where `absent` is undefined on every row) is judged exactly as before.
+   */
+  const expected = rows.filter((r) => !r.absent);
+  const expectedStarted = expected.filter((r) => r.thru > 0);
   const allIn =
     declaredFinal ||
     (roundMatches.length > 0
       ? roundMatches.every((m) => matchSettled(m))
-      : rows.length > 0 && started.length === rows.length && started.every((r) => r.thru >= holeCount));
+      : expected.length > 0 &&
+        expectedStarted.length === expected.length &&
+        expectedStarted.every((r) => r.thru >= holeCount));
 
   return {
     name: event.name,
