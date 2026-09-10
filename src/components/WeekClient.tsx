@@ -1,4 +1,5 @@
 "use client";
+import { WEEK_BASIS_LABEL, WEEK_BASIS_COLUMN, valueOnBasis } from "@/lib/domain/week-basis";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -169,7 +170,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
           )}
         </h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          {view.format} · {view.holes} holes · {view.stableford ? "Stableford points" : "net strokes"}
+          {view.format} · {view.holes} holes · {WEEK_BASIS_LABEL[view.basis]}
         </p>
       </div>
 
@@ -220,9 +221,16 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                   <tr>
                     <th style={{ ...th, width: 44 }}>Pos</th>
                     <th style={th}>Player</th>
-                    <th style={{ ...th, textAlign: "right" }}>Gross</th>
+                    {/* A GROSS night has one strokes column, not the same
+                        number twice. `cardTotals` states the same rule for a
+                        printed card — "no handicap is involved, so a net
+                        column would be a column of the same numbers" — and
+                        this table had it as Gross | Gross. */}
+                    {view.basis !== "gross" && (
+                      <th style={{ ...th, textAlign: "right" }}>Gross</th>
+                    )}
                     <th style={{ ...th, textAlign: "right" }}>
-                      {view.stableford ? "Points" : "Net"}
+                      {WEEK_BASIS_COLUMN[view.basis]}
                     </th>
                   </tr>
                 </thead>
@@ -240,9 +248,9 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
                           </span>
                         )}
                       </td>
-                      <td style={num}>{r.gross}</td>
+                      {view.basis !== "gross" && <td style={num}>{r.gross}</td>}
                       <td style={{ ...num, fontWeight: 600 }}>
-                        {view.stableford ? r.points : r.net}
+                        {valueOnBasis(view.basis, r)}
                       </td>
                     </tr>
                   ))}
