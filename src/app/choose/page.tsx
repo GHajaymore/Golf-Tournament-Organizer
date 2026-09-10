@@ -271,7 +271,12 @@ export default async function ChooseTournamentPage({
         <CreateFirstTournament
           key={accounts.length}
           first={accounts.length === 0}
-          /* Only asked when there is more than one — see the prop. */
+          /* Whether "Who's running this?" is a real question — see the prop.
+             Every organization has a name from birth, so this is the derived
+             one, not the presence of a string. */
+          organizationNamed={facts?.named ?? false}
+          /* Only asked when there is more than one — see the prop. Each one
+             carries its own plan, so the retention warning follows the pick. */
           organizations={await organizationsForOrganizer(session.email)}
         />
 

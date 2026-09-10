@@ -14,11 +14,30 @@ import { Icon } from "./Icon";
 export function CreateFirstTournament({
   first,
   plan = "free",
+  organizationNamed = false,
   organizations = [],
 }: {
   first: boolean;
-  /** The organization's plan, so the retention term shown is the real one. */
+  /**
+   * The plan to warn about when this person has NO organization yet — which
+   * is the only case this is read in, and "free" is then right, because the
+   * organization about to be created starts on it.
+   *
+   * Where organizations DO exist, the warning follows the one selected below;
+   * see `retention`. This prop was the only source, was never passed by its
+   * one caller, and therefore told every club in the product that its
+   * finished tournaments might not be kept.
+   */
   plan?: string;
+  /**
+   * Whether the organization has a name its organizer chose.
+   *
+   * Every organization has a name from birth — sign-up derives one from the
+   * person — so this is `organizationWasNamed`, not `!!name`. It decides
+   * whether the "Who's running this?" field below is a real question or a
+   * dead one; see the field.
+   */
+  organizationNamed?: boolean;
   /**
    * The organizations this person may create in — see
    * `organizationsForOrganizer`.
@@ -28,10 +47,8 @@ export function CreateFirstTournament({
    * and where an extra field would be pure friction. Somebody who runs a club
    * AND a society was never asked at all, and always got the club.
    */
-  organizations?: Array<{ id: string; name: string; kind: string }>;
+  organizations?: Array<{ id: string; name: string; kind: string; plan: string }>;
 }) {
-  const retention = retentionNotice(plan);
-  const planName = planFor(plan).name;
   const [name, setName] = useState("");
   const [orgName, setOrgName] = useState("");
   const [open, setOpen] = useState(first);
@@ -49,6 +66,24 @@ export function CreateFirstTournament({
    */
   const [organizationId, setOrganizationId] = useState(organizations[0]?.id ?? "");
   const [pending, startTransition] = useTransition();
+
+  /**
+   * THE PLAN OF THE ORGANIZATION THIS IS ACTUALLY FOR.
+   *
+   * The retention warning below is a red box telling somebody their finished
+   * tournament may not be kept. It read a `plan` prop that the one caller —
+   * `/choose` — never passed, so it defaulted to "free" and said that to every
+   * organizer in the product, paying or not.
+   *
+   * Read from the SELECTED organization rather than a single value, so
+   * somebody who runs a paid club and a free society is told the truth about
+   * whichever one they pick. Falling back to the prop covers the case where
+   * there is no organization yet, where "free" is correct: the one about to be
+   * created starts there.
+   */
+  const activePlan = organizations.find((o) => o.id === organizationId)?.plan ?? plan;
+  const retention = retentionNotice(activePlan);
+  const planName = planFor(activePlan).name;
 
   const submit = () => {
     if (!name.trim() || !shape) return;
@@ -173,8 +208,21 @@ export function CreateFirstTournament({
       {/* Names the organization created for this organizer's first tournament,
           so a club's events read under the club rather than under a person.
           Only shown on the first tournament — once an organization exists it is
-          never renamed, so the field would do nothing on later events. */}
-      {first && (
+          never renamed, so the field would do nothing on later events.
+
+          AND ONLY WHILE THE ORGANIZATION IS STILL UNNAMED, which "the first
+          tournament" is not the same question as. `orgName` never renames an
+          existing organization — `organizationForNewEvent` says so — so for
+          anybody who named their society before creating anything, this was a
+          box that did nothing, above a sentence that was false: it promised
+          "leave blank to run it under your own name", and the event went under
+          the society either way.
+
+          That is not a rare path. The setup checklist on this very screen puts
+          "Name your society" FIRST and "Create your first tournament" LAST, so
+          working through it in the order offered lands here every time. Walked
+          on 2026-09-10 as a new society secretary, which is how it was found. */}
+      {first && !organizationNamed && (
         <div className="field">
           <label>Who&rsquo;s running this? <span className="text-muted" style={{ fontWeight: 400 }}>— club, society or company (optional)</span></label>
           <input

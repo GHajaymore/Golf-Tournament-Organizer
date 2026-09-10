@@ -57,17 +57,38 @@ import { logoSrc } from "../domain/logo-upload";
  */
 export async function organizationsForOrganizer(
   email: string,
-): Promise<Array<{ id: string; name: string; kind: string }>> {
+): Promise<Array<{ id: string; name: string; kind: string; plan: string }>> {
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (!user) return [];
   const rows = await prisma.organizationMember.findMany({
     where: { userId: user.id, role: { in: ["owner", "admin"] } },
-    include: { organization: { select: { id: true, name: true, kind: true } } },
+    /**
+     * The PLAN comes with each one, because the screen that asks which
+     * organization also warns about what its plan keeps.
+     *
+     * Carried here rather than fetched separately so the two cannot disagree:
+     * a picker offering three clubs and a retention warning read from a fourth
+     * source is the shape that tells a paying club its results may be dropped.
+     */
+    select: {
+      createdAt: true,
+      organization: {
+        // The plan lives on the SUBSCRIPTION row, and an organization need not
+        // have one — no row is the free plan, which is what `planForOrganization`
+        // says and the only place that rule may be stated.
+        select: { id: true, name: true, kind: true, subscription: { select: { plan: true } } },
+      },
+    },
     // The same order the default follows, so the list's first entry IS the one
     // that would have been chosen silently.
     orderBy: [{ organization: { kind: "asc" } }, { createdAt: "asc" }],
   });
-  return rows.map((r) => ({ id: r.organization.id, name: r.organization.name, kind: r.organization.kind }));
+  return rows.map((r) => ({
+    id: r.organization.id,
+    name: r.organization.name,
+    kind: r.organization.kind,
+    plan: r.organization.subscription?.plan ?? DEFAULT_PLAN,
+  }));
 }
 
 export async function organizationForNewEvent(
