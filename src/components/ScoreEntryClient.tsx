@@ -8,11 +8,12 @@ import {
   parseStrokesTranscript,
   deriveNetHoles,
   matchStrokesGiven,
+  matchStandingText,
   namesAreDistinct,
   type HoleResult,
 } from "@/lib/domain";
 import { CoursePicker } from "@/components/CoursePicker";
-import { firstName, distinctLabels } from "@/lib/format";
+import { firstName, distinctLabels, initials } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
 import { declaredInput, inputOverrideApplies, resolveScoreInput } from "@/lib/formats";
 import {
@@ -105,10 +106,21 @@ export function defaultEntryMode(
   return UI_KEY_OF[declaredInput(format)];
 }
 
-/** Who took the hole, as one glyph in a scorecard column. */
-function holeMark(r: HoleResult): React.ReactNode {
-  if (r === "A") return <span style={{ color: "var(--color-accent)" }}>A</span>;
-  if (r === "B") return <span style={{ color: "var(--color-accent-2)" }}>B</span>;
+/**
+ * Who took the hole, as two characters in a scorecard column.
+ *
+ * NAMED FOR THE PLAYERS. It printed "A" and "B", and A and B are not the two
+ * people playing — a scorer reading down the card to see who won a hole was
+ * reading letters that told them nothing. The labels come from the caller,
+ * which puts them through `distinctLabels` so a clash widens rather than
+ * printing the same two letters against two different people.
+ *
+ * The colours are unchanged and are the same two the picker's buttons wear,
+ * so the association is learned once.
+ */
+function holeMark(r: HoleResult, aLabel: string, bLabel: string): React.ReactNode {
+  if (r === "A") return <span style={{ color: "var(--color-accent)" }}>{aLabel}</span>;
+  if (r === "B") return <span style={{ color: "var(--color-accent-2)" }}>{bLabel}</span>;
   if (r === "H") return <span className="text-muted">½</span>;
   return null;
 }
@@ -441,7 +453,21 @@ export function ScoreEntryClient({
   const [winner, setWinner] = useState<Winner>("A");
   const [margin, setMargin] = useState("");
   const [listening, setListening] = useState<string | null>(null);
-  const [listenHint, setListenHint] = useState("Tap the mic and say e.g. “Sam wins 3 and 2”.");
+  /**
+   * What the mic last heard. EMPTY until it has heard something.
+   *
+   * It used to start as "Tap the mic and say e.g. “Sam wins 3 and 2”." — the
+   * prompt for the FINAL-RESULT panel, where dictating a margin is exactly
+   * what the mic does. This one string is rendered in two places, and the
+   * other is under the full scorecard, where the mic dictates STROKES: a
+   * scorer typing eighteen numbers was told to say "Sam wins 3 and 2", which
+   * is not a thing that screen can hear.
+   *
+   * So the state now holds only what was actually heard, and each site says
+   * its own idle prompt. The feedback stays shared, because it is about
+   * whichever mic just ran.
+   */
+  const [listenHint, setListenHint] = useState("");
   const recognitionRef = useRef<unknown>(null);
   const entryRef = useRef<HTMLDivElement>(null);
   const [, startTransition] = useTransition();
@@ -502,6 +528,17 @@ export function ScoreEntryClient({
    */
   const [aLabel, bLabel] = useMemo(
     () => (active ? distinctLabels([active.aName, active.bName]) : ["", ""]),
+    [active],
+  );
+  /**
+   * The same two names at two characters, for the hole picker's columns.
+   *
+   * Through `distinctLabels` again, with `initials` as the base, so a clash
+   * widens rather than printing the same two letters against two people — the
+   * one failure that would be worse than the "A" and "B" this replaces.
+   */
+  const [aInitials, bInitials] = useMemo(
+    () => (active ? distinctLabels([active.aName, active.bName], initials) : ["", ""]),
     [active],
   );
   /**
@@ -764,25 +801,49 @@ export function ScoreEntryClient({
   const holesWonA = holes.filter((h) => h === "A").length;
   const holesWonB = holes.filter((h) => h === "B").length;
 
-  const statusBig = resolution.complete
-    ? resolution.winner === "H"
-      ? "Halved"
-      : `${resolution.winner === "A" ? aLabel : bLabel} ${resolution.resultText}`
-    : holes.some((h) => h !== null)
-      ? resolution.lead === 0
-        ? "All square"
-        : `${resolution.lead > 0 ? aLabel : bLabel} ${Math.abs(resolution.lead)} up`
-      : "Not started";
+  /**
+   * WITH HOW MANY TO PLAY, which is the half of the sentence that was missing.
+   *
+   * "Alex 2 up" is a fact. What a match-play player asks is how many holes are
+   * LEFT — two up with two to play is a match somebody can still save, two up
+   * with one to play is over bar the handshake — and this is live scoring, so
+   * it is the exact moment the difference matters. `matchStandingText` also
+   * names DORMIE, which is the state everything hinges on and which "3 up with
+   * 3 to play" says without saying.
+   */
+  const statusBig = matchStandingText(resolution, aLabel, bLabel);
 
   const hasCourseData = pars.length > 0;
 
   /**
    * One hole's three-way picker.
    *
-   * Named for the two players rather than "home/away": on a phone the column
-   * is too narrow for a name, so the letters carry the colour and the label
-   * carries the name for anyone using a screen reader.
+   * NAMED FOR THE PLAYERS, not for the alphabet. It read "A" and "B", and A
+   * and B are not the two people playing — a scorer looking down the card to
+   * see who won a hole was reading letters that told them nothing. The column
+   * is about two characters wide on a phone, so two characters is what there
+   * is: initials, made distinct by `distinctLabels` so Alex Rourke against
+   * Adam Reid does not print "AR" twice, which would be worse than A and B —
+   * two letters that look like a name and name the wrong person.
+   *
+   * The colour was already carried by `.is-a` / `.is-b` on the pressed
+   * button. What it could not do is be seen from across the card, which is why
+   * the hole NUMBER is tinted too — see the header row.
    */
+  /**
+   * The tint a hole's number wears once somebody has won it.
+   *
+   * Kept to a wash rather than a fill: the number still has to be legible in
+   * sun, and eighteen solid blocks would read as a chart rather than a card. A
+   * halved hole is deliberately unmarked — halves are the commonest outcome,
+   * and colouring them would leave nothing uncoloured to notice.
+   */
+  const wonStyle = (h: HoleResult): React.CSSProperties => {
+    if (h === "A") return { background: "color-mix(in srgb, var(--color-accent) 30%, transparent)" };
+    if (h === "B") return { background: "color-mix(in srgb, var(--color-accent-2) 30%, transparent)" };
+    return {};
+  };
+
   const pick = (i: number) => (
     <div className="sc-pick">
       <button
@@ -792,7 +853,7 @@ export function ScoreEntryClient({
         aria-label={`Hole ${i + 1} to ${active.aName}`}
         onClick={() => setHole(i, "A")}
       >
-        A
+        {aInitials}
       </button>
       <button
         type="button"
@@ -810,7 +871,7 @@ export function ScoreEntryClient({
         aria-label={`Hole ${i + 1} to ${active.bName}`}
         onClick={() => setHole(i, "B")}
       >
-        B
+        {bInitials}
       </button>
     </div>
   );
@@ -1283,9 +1344,21 @@ export function ScoreEntryClient({
                     <thead>
                       <tr>
                         <th>Hole</th>
-                        {front.map((i) => (<th key={i}>{i + 1}</th>))}
+                        {/* THE HOLE NUMBER CARRIES WHO WON IT.
+
+                            The picker below already colours the pressed
+                            button, and that is a thing you read one hole at a
+                            time. A card is read ACROSS: an organizer wants to
+                            see the shape of the match — three in a row, a
+                            turn at the tenth — and eighteen small buttons do
+                            not show that. Tinting the number does, and costs
+                            no space at all.
+
+                            The same two colours as the buttons, so the
+                            association is learned once. */}
+                        {front.map((i) => (<th key={i} style={wonStyle(holes[i])}>{i + 1}</th>))}
                         {isEighteen && <th className="sc-tot">Out</th>}
-                        {back.map((i) => (<th key={i}>{i + 1}</th>))}
+                        {back.map((i) => (<th key={i} style={wonStyle(holes[i])}>{i + 1}</th>))}
                         {isEighteen && <th className="sc-tot">In</th>}
                       </tr>
                     </thead>
@@ -1383,7 +1456,7 @@ export function ScoreEntryClient({
                     why the name was ignored. */}
                 <div className="text-muted" style={{ fontSize: 12 }}>
                   {canHearNames
-                    ? listenHint
+                    ? listenHint || "Tap the mic and say e.g. “Sam wins 3 and 2”."
                     : `Both players are called ${firstName(active.aName)}, so the margin is heard but the winner isn't — pick it above.`}
                 </div>
               </div>
@@ -1405,9 +1478,12 @@ export function ScoreEntryClient({
                   <thead>
                     <tr>
                       <th>Hole</th>
-                      {front.map((i) => (<th key={i}>{i + 1}</th>))}
+                      {/* Tinted by who won it — the same wash as the
+                          hole-results card, so one card can be read across
+                          rather than one hole at a time. */}
+                      {front.map((i) => (<th key={i} style={wonStyle(holes[i])}>{i + 1}</th>))}
                       {isEighteen && <th className="sc-tot">Out</th>}
-                      {back.map((i) => (<th key={i}>{i + 1}</th>))}
+                      {back.map((i) => (<th key={i} style={wonStyle(holes[i])}>{i + 1}</th>))}
                       {isEighteen && <th className="sc-tot">In</th>}
                       {/* The player rows have always emitted a gross total.
                           The header never declared it, so every column in the
@@ -1442,10 +1518,61 @@ export function ScoreEntryClient({
                       // collision puts a score on the wrong card.
                       const label = slot === "A" ? aLabel : bLabel;
                       const gross = sum(strokes.filter((s): s is number => s != null), 0, strokes.length);
+                      /**
+                       * THE SHOTS THIS PLAYER IS GETTING, beside their name.
+                       *
+                       * The dots on the card are derived from it, and the card
+                       * showed the dots and not the number — so a scorer could
+                       * see that Bram was getting two on the 1st and had no way
+                       * to check whether two was right. The number is what a
+                       * player says out loud on the first tee ("you're getting
+                       * twenty-two"), and it is the one figure that makes every
+                       * dot on the row verifiable.
+                       *
+                       * The TOTAL, not the handicap, because in match play the
+                       * shots are the DIFFERENCE between the two — a 2 playing
+                       * a 24 gives 22, and neither 2 nor 24 is the number on
+                       * this card. Printing a raw index here would be a figure
+                       * that does not add up to the dots beside it.
+                       *
+                       * Only in net play. In a level match nobody is getting
+                       * anything, and a handicap shown on a card it does not
+                       * touch invites the reader to think it does.
+                       */
+                      const shots = given.reduce((t, n) => t + (n ?? 0), 0);
                       return (
                         <tr key={slot}>
-                          <td style={{ fontWeight: 500, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                          {/* A TABLE CELL, WITH THE FLEX INSIDE IT.
+
+                              This `<td>` carried `display: flex` directly, and
+                              a cell told to be a flex container stops being a
+                              table cell: it leaves the column-width algorithm
+                              entirely and sizes itself from its own contents.
+                              Every other row's first column is measured by the
+                              table; these two were not, so the label column
+                              was a negotiation between two different rules.
+
+                              Measured on 2026-09-09 it happened to agree —
+                              117px on every row — which is exactly why it
+                              survived: it is content-dependent, so a longer
+                              name, a wider Voice button or a narrower phone
+                              can pull the two apart, and when it does the
+                              sticky first column shifts and takes all eighteen
+                              holes with it.
+
+                              The div does the same job with none of that. */}
+                          <td style={{ fontWeight: 500, whiteSpace: "nowrap" }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                             {label}
+                            {netMode && shots > 0 && (
+                              <span
+                                className="text-muted"
+                                title={`${label} receives ${shots} shot${shots === 1 ? "" : "s"} over the round`}
+                                style={{ fontWeight: 400, fontSize: 11.5, fontVariantNumeric: "tabular-nums" }}
+                              >
+                                +{shots}
+                              </span>
+                            )}
                             <button
                               type="button"
                               className="btn btn-secondary"
@@ -1456,6 +1583,7 @@ export function ScoreEntryClient({
                               <Icon name={listening === `hcp-${slot}` ? "ph-fill ph-microphone" : "ph ph-microphone"} style={{ fontSize: 11 }} />{" "}
                               {listening === `hcp-${slot}` ? "Listening…" : "Voice"}
                             </button>
+                            </span>
                           </td>
                           {front.map((i) => (
                             <td key={i} style={{ padding: 2, position: "relative" }}>
@@ -1468,10 +1596,19 @@ export function ScoreEntryClient({
                               />
                               {given[i] > 0 && (
                                 <span
-                                  title={`${label} receives a shot here`}
-                                  style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1 }}
+                                  /* HOW MANY, not merely that there are some.
+                                     This printed one dot whatever the number,
+                                     so a player receiving TWO shots on the
+                                     stroke-index-1 hole — an ordinary
+                                     twenty-shot difference — saw the same mark
+                                     as somebody receiving one. The stroke
+                                     card's own Shots row has repeated the dot
+                                     since it was written; this is the match
+                                     card catching up with it. */
+                                  title={`${label} receives ${given[i]} shot${given[i] === 1 ? "" : "s"} here`}
+                                  style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1, letterSpacing: -1 }}
                                 >
-                                  •
+                                  {"•".repeat(given[i])}
                                 </span>
                               )}
                             </td>
@@ -1488,10 +1625,19 @@ export function ScoreEntryClient({
                               />
                               {given[i] > 0 && (
                                 <span
-                                  title={`${label} receives a shot here`}
-                                  style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1 }}
+                                  /* HOW MANY, not merely that there are some.
+                                     This printed one dot whatever the number,
+                                     so a player receiving TWO shots on the
+                                     stroke-index-1 hole — an ordinary
+                                     twenty-shot difference — saw the same mark
+                                     as somebody receiving one. The stroke
+                                     card's own Shots row has repeated the dot
+                                     since it was written; this is the match
+                                     card catching up with it. */
+                                  title={`${label} receives ${given[i]} shot${given[i] === 1 ? "" : "s"} here`}
+                                  style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1, letterSpacing: -1 }}
                                 >
-                                  •
+                                  {"•".repeat(given[i])}
                                 </span>
                               )}
                             </td>
@@ -1507,11 +1653,11 @@ export function ScoreEntryClient({
                     <tr>
                       <td>Net result</td>
                       {front.map((i) => (
-                        <td key={i}>{holeMark(holes[i])}</td>
+                        <td key={i}>{holeMark(holes[i], aInitials, bInitials)}</td>
                       ))}
                       {isEighteen && <td className="sc-tot" />}
                       {back.map((i) => (
-                        <td key={i}>{holeMark(holes[i])}</td>
+                        <td key={i}>{holeMark(holes[i], aInitials, bInitials)}</td>
                       ))}
                       {isEighteen && <td className="sc-tot" />}
                       <td className="sc-tot" />
@@ -1519,7 +1665,13 @@ export function ScoreEntryClient({
                   </tbody>
                 </table>
               </div>
-              <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>{listenHint}</p>
+              {/* The prompt for THIS mic, which dictates strokes. See
+                  `listenHint`: the shared default used to advertise the
+                  final-result panel's phrasing on a screen that cannot hear
+                  it. */}
+              <p className="text-muted" style={{ fontSize: 12, margin: "8px 0 0" }}>
+                {listenHint || "Tap a player's mic and read their scores in order, e.g. “four, par, birdie, six”."}
+              </p>
             </div>
           )}
 

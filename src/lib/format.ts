@@ -127,3 +127,30 @@ export function listNames(names: string[], max = 3): string {
   const rest = clean.length - max;
   return `${clean.slice(0, max).join(", ")} and ${rest} other${rest === 1 ? "" : "s"}`;
 }
+
+/**
+ * A name reduced to two letters, for a column too narrow for anything else.
+ *
+ * The match card is eighteen columns of hole on a phone, and each one carries
+ * a three-way picker. There is room for two characters, which is why the
+ * picker said "A" and "B" — and "A" and "B" are not the two people playing.
+ * A scorer looking at a card wants to see who won the hole, and the letters of
+ * the alphabet do not tell them.
+ *
+ * PASS THIS TO `distinctLabels` RATHER THAN USING IT DIRECTLY, and that is the
+ * whole reason it is written as a `base` formatter. Two players whose initials
+ * collide — Alex Rourke against Adam Reid — would otherwise both read "AR",
+ * which is worse than A and B: two letters that look like a name and name the
+ * wrong person. `distinctLabels` widens exactly those two and leaves everybody
+ * else alone.
+ *
+ * First and last, not first two: "Jean-Paul Sartre" is JS to anyone who knows
+ * him. A single name gives its first two letters, because one letter in a
+ * two-letter slot reads as a mistake.
+ */
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
