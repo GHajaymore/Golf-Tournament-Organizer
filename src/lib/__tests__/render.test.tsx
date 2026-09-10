@@ -370,6 +370,63 @@ describe("team screens", () => {
     expect(shared).toContain("Team card");
   });
 
+  it("shows a team card's shots, and its Out / In / Total", async () => {
+    /**
+     * The one card in the app that carried NEITHER.
+     *
+     * A four-ball is nearly always played off handicap, and this card showed
+     * no pops at all — so a scorer had no way to see who was getting a shot
+     * where, on the format where it decides every hole. The stroke card and
+     * the match card have both carried them for a while.
+     *
+     * It also had no Out / In / Tot, so a side comparing their card with the
+     * paper one in their pocket had to add nine numbers in their head.
+     *
+     * The dots come from `allocatedStrokes` on the SERVER — the same function
+     * `aggregateTeamCard` scores the side with — so they cannot disagree with
+     * the net beneath them. Here they are passed in, which is the contract
+     * being asserted.
+     */
+    const { allocatedStrokes } = await import("@/lib/domain/team");
+    const si = Array.from({ length: 18 }, (_, i) => i + 1);
+    // 22 off, at a four-ball's 90%: 19.8 rounds to 20, so two shots fall on
+    // the hardest two holes. (20 off gives exactly 18 — one a hole and no
+    // double at all, which is what the guard below caught.)
+    const shots = allocatedStrokes(22, 90, si);
+    expect(shots[0], "the fixture has to have a double for this to prove anything").toBe(2);
+
+    const html = render(
+      <TeamEntryClient round="Four-Ball" note={teamEntryNote("Four-Ball")} holes={18}
+        pars={Array(18).fill(4)} strokeIndex={si}
+        teams={[{ teamId: "t1", teamName: "Side A", matchId: "m1", opponentName: "Side B",
+          playingHandicap: 18, grossTotal: 0, netTotal: 0, played: 0,
+          cards: [{ playerId: "p1", playerName: "Ann", handicap: 22, shots, strokes: Array(18).fill(null) }] }]} />,
+    );
+    expect(html, "the row exists").toContain("Shots");
+    // TWO dots where two shots fall — the count, not merely a mark.
+    expect(html).toContain("••");
+    expect(html).toContain("Out");
+    expect(html).toContain("In");
+    expect(html).toContain("Tot");
+    // Par totals, so the columns carry something rather than being empty.
+    expect(html).toContain("72");
+  });
+
+  it("and leaves the Shots row off a card that receives none", () => {
+    // A level round has no shots to show, and an empty row headed "Shots"
+    // would be the card implying somebody was getting one.
+    const html = render(
+      <TeamEntryClient round="Four-Ball" note={teamEntryNote("Four-Ball")} holes={18}
+        pars={Array(18).fill(4)} strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+        teams={[{ teamId: "t1", teamName: "Side A", matchId: "m1", opponentName: "Side B",
+          playingHandicap: 0, grossTotal: 0, netTotal: 0, played: 0,
+          cards: [{ playerId: "p1", playerName: "Ann", handicap: 0, shots: Array(18).fill(0), strokes: Array(18).fill(null) }] }]} />,
+    );
+    expect(html).not.toContain("Shots");
+    // The totals are not conditional on shots, and stay.
+    expect(html).toContain("Tot");
+  });
+
   it("tells a side-only four-ball which number to write down", () => {
     /**
      * The case this screen used to get wrong twice over. A four-ball set to
