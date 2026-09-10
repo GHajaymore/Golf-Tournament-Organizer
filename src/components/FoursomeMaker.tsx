@@ -56,6 +56,7 @@ export function FoursomeMaker({
   published = false,
   rounds = [],
   activeRoundId = "",
+  rosterSize = 0,
 }: {
   players: Player[];
   /** Current leaderboard, best first. Empty before anyone has posted a score. */
@@ -69,6 +70,14 @@ export function FoursomeMaker({
   /** Every round the field plays, so a sheet can be drawn ahead or reopened. */
   rounds?: Array<{ id: string; label: string }>;
   activeRoundId?: string;
+  /**
+   * The whole confirmed field, when `players` has been narrowed to a week.
+   *
+   * Only for the refusal below, which otherwise cannot tell an empty
+   * registration list from a league round nobody has signed up for. Zero
+   * means not narrowed, and the two zeros are then the same zero.
+   */
+  rosterSize?: number;
 }) {
   const hasStandings = standings.length > 0;
   const [algo, setAlgo] = useState<Pairing>("random");
@@ -187,7 +196,14 @@ export function FoursomeMaker({
   // uses, because a tee sheet is drawn from the field exactly as flights are.
   // `locked` is false here: this screen has no lock of its own, and claiming
   // one would be a refusal the app cannot back up.
-  const saveBlock = drawReadiness({ fieldSize: players.length, locked: false });
+  // `rosterSize` is what separates "nobody has entered" from "nobody is in
+  // this week" — see drawReadiness. It is the season's confirmed field, which
+  // this screen narrows to the round's attendees before handing it over.
+  const saveBlock = drawReadiness({
+    fieldSize: players.length,
+    locked: false,
+    rosterSize,
+  });
 
   return (
     <>
@@ -440,7 +456,13 @@ export function FoursomeMaker({
             </div>
           )}
           <div style={{ flex: 1 }} />
-          <span className="text-muted" style={{ fontSize: 12 }}>{groups.length} groups · {summary}</span>
+          {/* "1 groups · 1 foursome" — the count was hard-plural, and a
+              four-player league week is exactly one group. The summary beside
+              it already pluralises itself. */}
+          <span className="text-muted" style={{ fontSize: 12 }}>
+            {groups.length} {groups.length === 1 ? "group" : "groups"}
+            {summary ? ` · ${summary}` : ""}
+          </span>
           {(algo === "random" || order === "random") && (
             <button type="button" className="btn btn-primary" onClick={() => setSeed((s) => s + 1)}>
               <Icon name="shuffle" /> Reshuffle
@@ -511,10 +533,18 @@ export function FoursomeMaker({
           >
             <Icon name="info" style={{ fontSize: 14, marginTop: 1, flex: "none" }} />
             <span>
-              {saveBlock.problem}{" "}
-              <a href={saveBlock.href} style={{ color: "var(--color-accent-300)" }}>
-                {saveBlock.linkLabel}
-              </a>
+              {saveBlock.problem}
+              {/* No link when the remedy is the panel above this screen's
+                  heading — pointing somewhere else would be sending an
+                  organizer away from the control that fixes it. */}
+              {saveBlock.href && (
+                <>
+                  {" "}
+                  <a href={saveBlock.href} style={{ color: "var(--color-accent-300)" }}>
+                    {saveBlock.linkLabel}
+                  </a>
+                </>
+              )}
             </span>
           </p>
         )}
