@@ -103,6 +103,19 @@ export interface MembershipContext {
   playerId: string | null;
   /** Whether they are on the club roster at all. */
   onRoster: boolean;
+  /**
+   * What to call the outfit inside a sentence — "society", "outing".
+   *
+   * Carried on the context because the labels are composed in the SERVICE,
+   * where the organization has already been read, rather than in the screen.
+   * Optional and defaulting to the club wording at every reader, so nothing
+   * that builds a context without it changes.
+   *
+   * Read by NOTHING that decides access. It is here because this is the
+   * object the label-building functions already receive; a second parameter
+   * threaded beside it would be one more thing to forget.
+   */
+  orgNoun?: string;
   groupIds: string[];
   /** Rounds they are actually in — not every round of the tournament. */
   stageIds: string[];
@@ -261,7 +274,13 @@ export function canStartThreadIn(ctx: MembershipContext, key: ScopeKey): boolean
   return canPostToScope(ctx, key);
 }
 
-/** Human label for a scope kind, for headers and pickers. */
+/**
+ * Human label for a scope kind, for headers and pickers.
+ *
+ * The club entry is the CLUB-worded default, and `scopeLabel` is what every
+ * screen should read — see there. Kept as a map because nine of the ten do
+ * not name the outfit at all.
+ */
 export const SCOPE_LABEL: Record<ScopeKind, string> = {
   club: "Everyone at the club",
   event: "Everyone in this tournament",
@@ -274,6 +293,21 @@ export const SCOPE_LABEL: Record<ScopeKind, string> = {
   match: "Your match",
   direct: "Direct message",
 };
+
+/**
+ * The same label, calling the outfit by its own name.
+ *
+ * Exactly one scope names it — the roster that outlives any one tournament —
+ * and "Everyone at the club" is wrong for the society and the charity day
+ * reading the identical screen. `noun` rather than `label`, because
+ * "Everyone at the Society or league" is not English; see `org-profile.ts`.
+ *
+ * Defaults to the club wording, so a caller that has not been taught reads
+ * exactly what `SCOPE_LABEL` gave it before this existed.
+ */
+export function scopeLabel(kind: ScopeKind, orgNoun = "club"): string {
+  return kind === "club" ? `Everyone at the ${orgNoun}` : SCOPE_LABEL[kind];
+}
 
 /**
  * Ordering for a thread list: most recently active first, but anything the
