@@ -953,8 +953,11 @@ describe("rounds and format", () => {
     expect(captains).not.toContain("Players may answer");
     expect(captains).toContain("Players are never asked in this mode");
     // Both modes need to know WHERE the list is set, now that there is one.
-    expect(asked).toContain("Set who is playing on the Tee sheet");
-    expect(captains).toContain("Set who is playing on the Tee sheet");
+    // And it is a LINK to this round’s own sheet, not to whichever one the
+    // tee sheet screen would have picked for itself.
+    expect(asked).toContain('href="/foursomes?round=r1"');
+    expect(captains).toContain('href="/foursomes?round=r1"');
+    expect(asked).toContain("Set who is playing");
   });
   // The guard against a "simplification" that quietly drops a setting. Every
   // control the round card carried before the separation is asserted present,
@@ -6363,5 +6366,86 @@ describe("WeekField", () => {
     expect(html).toContain("Only an organizer");
     // The counts stay — reading who is in is not the same as changing it.
     expect(html).toContain("2 in");
+  });
+});
+
+/**
+ * The card picker on a league week.
+ *
+ * It listed the whole season roster with nothing to tell a Tuesday's four
+ * apart from the six on the books, and opened on whichever name sorted first
+ * — absent or not. A card entered against somebody who told the club they
+ * could not make it reaches the week sheet and the season standings.
+ */
+describe("stroke-play card, on a week somebody is missing", () => {
+  const PARS = [4, 5, 3, 4, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 4];
+  const SI = [7, 3, 11, 1, 15, 5, 17, 9, 13, 8, 4, 12, 2, 16, 6, 18, 10, 14];
+  const league = {
+    // Deliberately absent FIRST, which is the state the default selection got
+    // wrong: `players[0]` was whoever sorted to the top of the roster.
+    players: [
+      { id: "p1", name: "Alex Vaughn", handicap: 8, absent: true },
+      { id: "p2", name: "Bee Nolan", handicap: 14 },
+      { id: "p3", name: "Cal Reid", handicap: 21 },
+    ],
+    pars: PARS,
+    yards: new Array(18).fill(400),
+    strokeIndex: SI,
+    holes: 18,
+    stageId: "s1",
+    cardsByPlayer: {},
+  };
+
+  it("opens on somebody who was actually there", () => {
+    const html = render(<StrokePlayEntry {...league} />);
+    // Bee is the first player who is IN, and the card that opens is hers.
+    expect(html).toContain("Bee Nolan");
+    const selected = html.match(/<option[^>]*selected[^>]*>([^<]*)</)?.[1] ?? "";
+    expect(selected).toContain("Bee Nolan");
+    expect(selected).not.toContain("Alex Vaughn");
+  });
+
+  it("separates the week's field from the week's absentees", () => {
+    const html = render(<StrokePlayEntry {...league} />);
+    expect(html).toContain('label="Playing this round"');
+    expect(html).toContain('label="Marked out this week"');
+    // Kept, not removed: somebody who turned up unannounced played, and a
+    // screen that refuses their card is wrong in the worse direction.
+    expect(html).toContain("Alex Vaughn");
+  });
+
+  it("leaves a tournament's picker as one flat list", () => {
+    // No week to be out of. A lone optgroup labelled "Playing this round"
+    // over the entire field would be a heading that says nothing.
+    const html = render(
+      <StrokePlayEntry
+        {...league}
+        players={[
+          { id: "p1", name: "Alex Vaughn", handicap: 8 },
+          { id: "p2", name: "Bee Nolan", handicap: 14 },
+        ]}
+      />,
+    );
+    expect(html).not.toContain("<optgroup");
+    expect(html).toContain("Alex Vaughn");
+    expect(html).toContain("Bee Nolan");
+  });
+
+  it("says so on the card itself when an absentee is chosen", () => {
+    // Everyone out — so the picker cannot fall back to a present player and
+    // the warning is the only thing standing between a misclick and a score.
+    const html = render(
+      <StrokePlayEntry
+        {...league}
+        players={[{ id: "p1", name: "Alex Vaughn", handicap: 8, absent: true }]}
+      />,
+    );
+    expect(html).toContain("is marked out for this round");
+    expect(html).toContain("Entering a card here still counts it");
+  });
+
+  it("says nothing of the kind on a card for somebody who is in", () => {
+    const html = render(<StrokePlayEntry {...league} />);
+    expect(html).not.toContain("is marked out for this round");
   });
 });

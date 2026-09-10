@@ -1520,7 +1520,14 @@ function StageCard({
                   {stage.attendance.playersAnswer
                     ? "Players may answer until the end of this day; after it, changes go through you."
                     : "Players are never asked in this mode — you record the list the captains send in."}{" "}
-                  Set who is playing on the Tee sheet.
+                  {/* To THIS round's sheet, not to whichever one the tee sheet
+                      screen would have picked for itself. A deadline set on
+                      Round 6 that sends an organizer to Round 3 is a link that
+                      changes the subject. */}
+                  <a href={`/foursomes?round=${stage.id}`} style={{ color: "var(--color-accent-300)" }}>
+                    Set who is playing
+                  </a>
+                  .
                 </p>
               </div>
             )}

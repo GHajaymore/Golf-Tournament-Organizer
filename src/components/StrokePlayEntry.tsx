@@ -21,6 +21,20 @@ interface StrokePlayer {
   id: string;
   name: string;
   handicap: number;
+  /**
+   * Marked out for this round of a weekly league.
+   *
+   * The picker listed the whole season roster, so a Tuesday where four of
+   * six were in offered six names in one flat list with nothing to tell them
+   * apart — and the FIRST of them, whoever the sort happened to put there,
+   * was selected before the organizer looked. A card entered against an
+   * absentee reaches the week sheet and the season standings.
+   *
+   * Marked rather than removed, deliberately. Somebody who turned up
+   * unannounced played, and a screen that refuses to record their card is
+   * wrong about the round in the more damaging direction.
+   */
+  absent?: boolean;
 }
 
 export function StrokePlayEntry({
@@ -80,7 +94,17 @@ export function StrokePlayEntry({
   /** Whether that course is the club's own. */
   venueIsHome?: boolean;
 }) {
-  const [playerId, setPlayerId] = useState(players[0]?.id ?? "");
+  /**
+   * The card opens on somebody who was actually there.
+   *
+   * It opened on `players[0]` — the first of the season roster, absent or not
+   * — so on a league week the pre-selected player could be one of the people
+   * who told the club they could not make it. The first keystroke then lands
+   * on the wrong card, and nothing on the screen said so.
+   */
+  const presentPlayers = players.filter((p) => !p.absent);
+  const absentPlayers = players.filter((p) => p.absent);
+  const [playerId, setPlayerId] = useState(presentPlayers[0]?.id ?? players[0]?.id ?? "");
   const [cards, setCards] = useState<Record<string, (number | null)[]>>(() => {
     const init: Record<string, (number | null)[]> = {};
     for (const p of players) init[p.id] = cardsByPlayer[p.id] ?? new Array(holes).fill(null);
@@ -277,11 +301,41 @@ export function StrokePlayEntry({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div className="field" style={{ minWidth: 220 }}>
           <label>Player</label>
+          {/* Split into two groups when a league has marked anybody out, and
+              left as one flat list when it has not — a tournament has no
+              "this week" and a lone optgroup labelled "Playing this round"
+              would be a heading over the whole field.
+
+              The absent are kept, and kept SECOND. A player who turned up
+              unannounced still played, and a card is the proof; what this
+              stops is the misclick, not the entry. */}
           <select className="input" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
-            {players.map((p) => (
-              <option key={p.id} value={p.id}>{p.name} (hcp {p.handicap})</option>
-            ))}
+            {absentPlayers.length === 0 ? (
+              players.map((p) => (
+                <option key={p.id} value={p.id}>{p.name} (hcp {p.handicap})</option>
+              ))
+            ) : (
+              <>
+                <optgroup label="Playing this round">
+                  {presentPlayers.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} (hcp {p.handicap})</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Marked out this week">
+                  {absentPlayers.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} (hcp {p.handicap})</option>
+                  ))}
+                </optgroup>
+              </>
+            )}
           </select>
+          {player?.absent && (
+            <p className="text-muted" style={{ fontSize: 11.5, margin: "4px 0 0", lineHeight: 1.45 }}>
+              <Icon name="warning-circle" /> {player.name} is marked out for this round. Entering a card
+              here still counts it — change who is playing on the{" "}
+              <Link href="/foursomes">Tee sheet</Link> if they did play.
+            </p>
+          )}
         </div>
         {/* The figures this round is actually scored on, in reading order.
             All four used to show on every card, so a gross medal reported a
