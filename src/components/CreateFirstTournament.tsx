@@ -172,6 +172,15 @@ export function CreateFirstTournament({
                 key={s.key}
                 type="button"
                 onClick={() => setShape(s.key)}
+                /* Which one is chosen, said in something other than a colour.
+                   These three decide what the whole of setup then asks, and
+                   the answer was carried by a background tint and a border and
+                   nothing else — so read aloud, this is three identical
+                   buttons and no way to tell which is selected. Create stays
+                   disabled until one is, which makes an unannounced answer
+                   worse rather than harmless: the button says no and the form
+                   does not say why. */
+                aria-pressed={active}
                 style={{
                   textAlign: "left",
                   padding: "10px 12px",

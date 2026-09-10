@@ -126,6 +126,10 @@ export function SingleMatchRulePicker({
             key={k}
             type="button"
             className={kind === k ? "on" : ""}
+            /* The `on` class is the whole of "this is the rule in force", and
+               it is a colour. Which of the three is chosen decides who plays
+               this match, so it is not a decoration to announce. */
+            aria-pressed={kind === k}
             disabled={pending || locked}
             onClick={() => {
               const why = unavailable(k);
