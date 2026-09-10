@@ -10,6 +10,7 @@ import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
 import { cleanHoleResults } from "@/lib/domain/score-payload";
 import { roundLabel } from "@/lib/domain/round-label";
 import { marginToHoles } from "@/lib/domain";
+import { writeScorecard } from "@/lib/services/scorecard-write";
 
 /**
  * Redeeming a Round Code.
@@ -353,5 +354,100 @@ export async function savePlayMatchResult(
       detail: `Result entered via round code: ${winner === "H" ? "halved" : margin || "1 UP"}`,
     },
   });
+  return { ok: true };
+}
+
+/**
+ * A stroke card, entered with a Round Code.
+ *
+ * THE HALF THIS SURFACE DID NOT HAVE. Everything above scores a MATCH, so a
+ * medal round with code access — which is exactly what the charity-day
+ * template sets up, with `scoreEntryBy: "players"` and a Round Code so a
+ * roster of names can get in without accounts — sent every player who
+ * redeemed their code to "No match for you in Round 1. Check with your
+ * organizer." Walked on 2026-09-10. There was nothing wrong with the draw;
+ * there is simply no draw in a medal, and this was the only door.
+ *
+ * IT WRITES THROUGH `writeScorecard`, the same function the console's own
+ * entry screen uses. Validation, the partial-card rule, the revision
+ * conflict, whether a save retracts a certification and when a round's
+ * handicaps freeze are all rules with real subtlety and a bug behind each —
+ * a second copy of them here is how two writers of one card come to disagree.
+ *
+ * THE AUTHORIZATION IS THIS FILE'S OWN, and that is the half that must never
+ * be shared. A round code identifies a player and never staff, so it asks the
+ * same two questions `savePlayMatchHoles` asks — does the tournament let
+ * players report at all, and is this round the one the code opened — and adds
+ * nothing about roles, because there is no role here to add.
+ */
+export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimResult> {
+  const session = await getPlaySession();
+  if (!session) return { ok: false, error: "Your session expired. Enter the round code again." };
+
+  const [event, stage] = await Promise.all([
+    prisma.event.findUnique({ where: { id: session.eventId } }),
+    prisma.stage.findUnique({ where: { id: session.stageId }, select: { id: true, eventId: true } }),
+  ]);
+  if (!event || !stage) return { ok: false, error: "Round not found." };
+
+  // The round the code opened has to belong to the tournament the session
+  // names. Both come off the signed cookie, so this cannot normally differ —
+  // and "cannot normally" is not a reason to write a card without asking.
+  if (stage.eventId !== session.eventId) return { ok: false, error: "That round isn't in your tournament." };
+
+  const settings = settingsOf(event);
+  /**
+   * The same refusal the match path gives, for the same reason. A committee-
+   * scored tournament must refuse a round code outright: without this, an
+   * organizer who handed out codes purely so the field could sign in believed
+   * only the committee could touch a result, while any code holder could
+   * overwrite a card — and a score edit always resets approval, so one the
+   * committee had already confirmed would go back to pending with nobody told.
+   */
+  if (!canEnterScores(settings, "player")) {
+    return { ok: false, error: "Scores for this tournament are entered by the organizer." };
+  }
+
+  /**
+   * The card is written for the player the SESSION names, never one the
+   * caller sends. There is no playerId argument for the same reason the match
+   * path checks membership: a round code is a shared secret announced to a
+   * field, so anybody holding it could otherwise write anybody's card.
+   */
+  try {
+    const result = await writeScorecard({
+      eventId: session.eventId,
+      stageId: session.stageId,
+      playerId: session.playerId,
+      strokes,
+      settings,
+      role: "player",
+      // The phone is holding the card it just typed, and this surface has no
+      // offline queue behind it — the console's conflict path is for a replay
+      // arriving minutes late, which cannot happen here.
+      expectedRevision: undefined,
+    });
+    if (!result.ok) {
+      return { ok: false, error: "Somebody else has changed this card. Reload and try again." };
+    }
+  } catch (e) {
+    // `writeScorecard` throws on an invalid payload, a partial card that is
+    // not allowed and a locked card, exactly as it did inside the console
+    // action. This surface reports rather than crashes: the message is written
+    // for a player standing on the 18th green, not for a stack trace.
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't save that card." };
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      eventId: session.eventId,
+      matchId: null,
+      actor: session.playerName,
+      action: "score",
+      detail: "Card entered via round code",
+    },
+  });
+  boardChanged(session.eventId);
+  revalidatePath("/", "layout");
   return { ok: true };
 }

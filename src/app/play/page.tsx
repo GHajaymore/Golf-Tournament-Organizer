@@ -2,12 +2,13 @@ import { COURSE_REF } from "@/lib/services/course-resolution";
 import { prisma } from "@/lib/db";
 import { getPlaySession } from "@/lib/play-auth";
 import { settingsOf } from "@/lib/services/tournament";
-import { courseForMatch, cardForMatch } from "@/lib/services/course-resolution";
+import { courseForMatch, cardForMatch, courseForRound, cardForStage } from "@/lib/services/course-resolution";
 import { brandForEvent } from "@/lib/services/organization";
 import { PlayClient } from "@/components/PlayClient";
 import type { HoleResult } from "@/lib/domain";
 import { NOINDEX } from "@/lib/site";
 import { isNetBasis } from "@/lib/domain/match-entry";
+import { isHeadToHead } from "@/lib/stage-types";
 
 /**
  * The Round Code surface.
@@ -43,6 +44,69 @@ export default async function PlayPage() {
   const brand = await brandForEvent(event.id);
 
   if (!match) {
+    /**
+     * NO MATCH IS NOT THE SAME AS NOTHING TO DO.
+     *
+     * A medal has no draw, so every player on a stroke-play round arrived here
+     * and was told "you don't have a match scheduled in this round of X. Check
+     * with your organizer" — a sentence about a draw problem that does not
+     * exist, on a round that is scored from a card.
+     *
+     * It matters because the charity-day template turns exactly this on:
+     * `scoreEntryBy: "players"` with a Round Code, so a roster of names can
+     * score without accounts. Walked on 2026-09-10: the code redeemed, the
+     * field listed, the player tapped their name, and the flow ended there.
+     *
+     * So the round decides which surface this is. A round that draws nobody
+     * against anybody gets a card; "no match" is kept for a round that DOES
+     * draw pairings and simply has none for this player, where the original
+     * sentence is exactly right and the organizer really is who to ask.
+     */
+    const cardStage = await prisma.stage.findUnique({
+      where: { id: session.stageId },
+      select: { id: true, type: true, holes: true, nine: true, scoringBasis: true, courseId: true },
+    });
+
+    if (cardStage && !isHeadToHead(cardStage.type)) {
+      const roundVenue = cardStage.courseId
+        ? await prisma.course.findUnique({ where: { id: cardStage.courseId } })
+        : null;
+      // The same chain the console reads, narrowed to the holes this round is
+      // played over — so the card on the phone and the card the save is scored
+      // against are the same nine.
+      const resolved = courseForRound(roundVenue, event);
+      const roundCard = resolved ? cardForStage(resolved, cardStage) : null;
+
+      // The card as already returned. Opening blank and then saving would
+      // erase a round somebody entered on the ninth tee.
+      const existing = await prisma.scorecard.findFirst({
+        where: { eventId: event.id, stageId: cardStage.id, playerId: session.playerId },
+        select: { strokes: true },
+      });
+      let entered: (number | null)[] = [];
+      try {
+        entered = existing ? (JSON.parse(existing.strokes) as (number | null)[]) : [];
+      } catch {
+        entered = [];
+      }
+
+      return (
+        <PlayClient
+          stage="card"
+          brand={brand}
+          playerName={session.playerName}
+          eventName={event.name}
+          roundLabel={session.roundLabel}
+          submitWhole={settings.scoreEntryWindow === "after"}
+          holes={cardStage.holes === 9 ? 9 : 18}
+          pars={roundCard?.pars ?? []}
+          yards={roundCard?.yards ?? []}
+          strokeIndex={roundCard?.strokeIndex ?? []}
+          card={entered}
+        />
+      );
+    }
+
     return (
       <PlayClient
         stage="no-match"

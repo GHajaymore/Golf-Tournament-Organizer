@@ -17,9 +17,8 @@ const ACTIONS_DIR = join(process.cwd(), "src", "app", "actions");
 /** An action file with its comments already gone. See __tests__/source.ts. */
 const read = (f: string) => readSource("src", "app", "actions", f);
 
-/** Every exported action in a file, with its body, comments removed. */
-function actions(file: string): { name: string; body: string }[] {
-  const src = stripComments(read(file));
+/** Every exported async function in a source string, with its body. */
+function exportedFunctions(src: string): { name: string; body: string }[] {
   const out: { name: string; body: string }[] = [];
   const re = /export async function (\w+)\s*\(/g;
   let m: RegExpExecArray | null;
@@ -29,6 +28,31 @@ function actions(file: string): { name: string; body: string }[] {
     out.push({ name: m[1], body: src.slice(start, next === -1 ? undefined : next) });
   }
   return out;
+}
+
+/** Every exported action in a file, with its body, comments removed. */
+function actions(file: string): { name: string; body: string }[] {
+  return exportedFunctions(stripComments(read(file)));
+}
+
+/**
+ * The one function that writes a stroke card, wherever it lives.
+ *
+ * It used to live inside `saveScorecard`, and the two blocks below asserted
+ * against that action's body. It moved to `services/scorecard-write.ts` so the
+ * Round Code surface could write a card through the same rules rather than a
+ * second copy of them — and BOTH blocks went red on the move, which is
+ * precisely what they are for.
+ *
+ * So they follow it rather than being relaxed. The property is unchanged and
+ * in fact narrower now: there is one writer, and it is the one that has to
+ * carry the checks.
+ */
+function cardWriter(): { name: string; body: string } {
+  const src = stripComments(readSource("src", "lib", "services", "scorecard-write.ts"));
+  const found = exportedFunctions(src).find((f) => f.name === "writeScorecard");
+  if (!found) throw new Error("writeScorecard not found — these guards would pass vacuously");
+  return found;
 }
 
 describe("every server action is guarded", () => {
@@ -600,16 +624,42 @@ describe("the round-code result path carries every guard the hole path has", () 
 describe("a round code obeys the tournament's score-entry setting", () => {
   const play = stripComments(read("play.ts"));
 
-  it("gates both write actions on canEnterScores, as every other path does", () => {
+  /**
+   * Every action here that records a score, ENUMERATED FROM SOURCE.
+   *
+   * It was a hand list of the two match writers, and the day a third arrived —
+   * `savePlayCard`, so a medal round with code access could be scored at all —
+   * the count-based assertion below went red and the two rules above simply
+   * did not cover it. A hand list is a guard that stops guarding the moment
+   * somebody adds a door.
+   *
+   * "Records a score" is what these have in common: a match result written to
+   * `Match`, or a card written through `writeScorecard`. Anything that starts
+   * doing either fails this block the day it is written.
+   */
+  const writers = actions("play.ts").filter(
+    (a) => /prisma\.match\.update\(|writeScorecard\(/.test(a.body),
+  );
+
+  it("finds the write actions it is about to assert on", () => {
+    // Or the whole block passes vacuously — the failure mode this file has
+    // caught twice.
+    expect(writers.map((a) => a.name).sort()).toEqual([
+      "savePlayCard",
+      "savePlayMatchHoles",
+      "savePlayMatchResult",
+    ]);
+  });
+
+  it("gates every write action on canEnterScores, as every other path does", () => {
     // Neither one asked. A tournament set to `scoreEntryBy: "staff"` that
     // hands out round codes purely for sign-in believed the committee held
     // the cards, while any code holder could write a full result — and since
     // a score edit resets approval, un-confirm a card the committee had
     // already signed off, leaving no sign on any screen that it happened.
-    for (const fn of ["savePlayMatchHoles", "savePlayMatchResult"]) {
-      const body = actions("play.ts").find((a) => a.name === fn)!.body;
-      expect(body, fn).toMatch(/canEnterScores\(/);
-      expect(body, fn).toMatch(/entered by the organizer/);
+    for (const { name, body } of writers) {
+      expect(body, name).toMatch(/canEnterScores\(/);
+      expect(body, name).toMatch(/entered by the organizer/);
     }
   });
 
@@ -617,16 +667,27 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     // A play session carries no role: the holder typed a code that was read
     // out to the field. Passing anything staff-shaped here would pass every
     // check by definition.
-    expect(play.match(/canEnterScores\(\s*settings(Of\(event\))?,\s*"player"\)/g)?.length).toBe(2);
+    //
+    // Counted against the writers rather than a number written here, so a
+    // fourth door cannot be added without one.
+    expect(play.match(/canEnterScores\(\s*settings(Of\(event\))?,\s*"player"\)/g)?.length).toBe(
+      writers.length,
+    );
   });
 
   it("refuses by returning, not by throwing", () => {
     // These actions are called straight from the client component, which
     // renders res.error. A thrown error reaches the player as an unhandled
     // server-action failure with no wording of its own.
-    for (const fn of ["savePlayMatchHoles", "savePlayMatchResult"]) {
-      const body = actions("play.ts").find((a) => a.name === fn)!.body;
-      expect(body, fn).not.toMatch(/throw new Error/);
+    //
+    // `savePlayCard` calls a writer that DOES throw — the console's rules,
+    // lifted unchanged — so it catches and reports. That is the same property
+    // stated for a caller that delegates, which is why the assertion is about
+    // what escapes rather than about the word appearing in the file.
+    for (const { name, body } of writers) {
+      const throws = body.match(/throw new Error/g)?.length ?? 0;
+      const caught = /catch \(/.test(body);
+      expect(throws === 0 || caught, `${name} lets a throw reach the player`).toBe(true);
     }
   });
 
@@ -769,16 +830,34 @@ describe("an accepted result is only undone by someone entitled to undo it", () 
     // SAYS did not ask at all, so the same row was writable through a
     // neighbouring door. One shared predicate now, rather than three copies of
     // a condition that were never going to stay in step.
-    for (const name of ["saveScorecard", "disputeScorecard", "certifyScorecard"]) {
+    for (const name of ["disputeScorecard", "certifyScorecard"]) {
       expect(fn(name), name).toMatch(/isCardLocked\(/);
       expect(fn(name), name).toMatch(/LOCKED_CARD_REFUSAL/);
     }
+    // And the stroke card's own writer, wherever it lives — see `cardWriter`.
+    const writer = cardWriter().body;
+    expect(writer).toMatch(/isCardLocked\(/);
+    expect(writer).toMatch(/LOCKED_CARD_REFUSAL/);
+  });
+
+  it("saveScorecard writes through that one writer rather than its own upsert", () => {
+    /**
+     * THE ASSERTION THAT MAKES THE ONE ABOVE MEAN ANYTHING.
+     *
+     * Checking the writer proves nothing if an action can still reach past it
+     * to the table. A second `scorecard.upsert` in this file is a second set
+     * of rules about locking, conflicts and certification — which is the exact
+     * shape S2/S3 were.
+     */
+    const save = fn("saveScorecard");
+    expect(save).toMatch(/writeScorecard\(/);
+    expect(save, "no second door to the table").not.toMatch(/\bscorecard\.upsert\(/);
   });
 
   it("reads the card's state before it writes, not after", () => {
     // A check that runs after the upsert is a comment.
-    const save = fn("saveScorecard");
-    expect(save.indexOf("isCardLocked")).toBeLessThan(save.indexOf("scorecard.upsert"));
+    const writer = cardWriter().body;
+    expect(writer.indexOf("isCardLocked")).toBeLessThan(writer.indexOf("scorecard.upsert"));
   });
 
   it("leaves exactly one way out of approved, and it is organizer-only", () => {
@@ -1204,15 +1283,21 @@ describe("a round freezes the handicaps it is scored against", () => {
    * So the doors are enumerated from the SOURCE rather than by hand. A fifth
    * way to store a card fails this test the day it is written.
    */
-  const bodies = actions("tournament.ts");
+  const bodies = [...actions("tournament.ts"), cardWriter()];
   const stores = bodies.filter((a) => /(scorecard|matchScorecard|teamScorecard)\.upsert\(/.test(a.body));
 
   it("finds the actions that store cards", () => {
+    /**
+     * `writeScorecard` is in this list because `saveScorecard`'s body moved
+     * there — see `cardWriter`. Enumerated from source either way, so a fifth
+     * way to store a card still fails this test the day it is written, and a
+     * door that leaves the actions file does not escape it.
+     */
     expect(stores.map((a) => a.name).sort()).toEqual([
       "importScores",
       "saveMatchScorecard",
-      "saveScorecard",
       "saveTeamScorecard",
+      "writeScorecard",
     ]);
   });
 
@@ -1369,11 +1454,19 @@ describe("the pending-card queue never clears a card it did not send", () => {
    * alone restores the drift.
    */
   it("reports the status the save produced instead of leaving it to be guessed", () => {
-    const actionsSrc = stripComments(read("tournament.ts"));
+    // Read from the WRITER rather than the action: the body moved to
+    // `services/scorecard-write.ts` — see `cardWriter` — and this went red on
+    // the move, which is the assertion working.
+    const writer = cardWriter().body;
     // Off the row the upsert returned. Re-applying `statusAfterEdit` here
     // would be a third copy of the rule whose second copy is the bug.
-    expect(actionsSrc).toMatch(/return \{ ok: true, revision: cardRevision\(clean\), status: saved\.status \}/);
-    expect(actionsSrc).toMatch(/const saved = await prisma\.scorecard\.upsert\(/);
+    expect(writer).toMatch(/return \{ ok: true, revision: cardRevision\(clean\), status: saved\.status \}/);
+    expect(writer).toMatch(/const saved = await prisma\.scorecard\.upsert\(/);
+    // And the action still hands that answer straight back, rather than
+    // rebuilding one of its own on the way out.
+    const save = actions("tournament.ts").find((a) => a.name === "saveScorecard")!.body;
+    expect(save).toMatch(/return result;/);
+    expect(save, "no second opinion about what the save did").not.toMatch(/statusAfterEdit\(/);
   });
 
   it("does not let the phone decide what a save did to a signature", () => {
