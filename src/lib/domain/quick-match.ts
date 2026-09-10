@@ -234,6 +234,29 @@ export const QUICK_MONEY_GAMES: readonly QuickMoneyGame[] = [
     needsPars: true,
   },
   {
+    /**
+     * THE COMMONEST BET IN GOLF, and the one this screen had nowhere to put.
+     *
+     * Everything else here is a POT — everybody pays in and the cards decide
+     * who takes it out. "We're playing for a tenner" is not that: it is one
+     * wager between the two sides, settled by the match result.
+     *
+     * A Nassau is three of these on one card, so offering only the Nassau
+     * meant a fourball agreeing a single stake had to describe it as three
+     * bets and divide by three.
+     *
+     * It needs NO CARD at all — it reads who won each hole, exactly as the
+     * Nassau does — which is why it is the one money game that can ride on a
+     * match scored the way match play is actually played.
+     */
+    key: "match",
+    label: "The match",
+    blurb: "One bet on the match itself. The winning side takes a stake from each opponent.",
+    pot: "side",
+    kind: "match",
+    matchOnly: true,
+  },
+  {
     key: "nassau",
     label: "Nassau",
     blurb: "Three bets in one: the front nine, the back nine, and the match overall.",

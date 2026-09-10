@@ -13,6 +13,7 @@ import {
   HANDICAP_MAX,
 } from "../quick-match";
 import { GOLF_FORMATS } from "@/lib/formats";
+import { DERIVED_KINDS } from "../derived-games";
 import { needsCourseData } from "@/lib/courses";
 import { resolveMatch } from "../match";
 import { isMatch, capabilitiesOf, shapeOption, isTournamentShape } from "@/lib/tournament-shape";
@@ -570,10 +571,20 @@ describe("setting up a round with money on it", () => {
   });
 
   it("only offers games the rest of the app can actually settle", () => {
-    // Skins is a `SkinsPot`; the others are `SideGame` rows whose `kind` has
-    // to be one the settle-up knows. A kind invented here would create a bet
-    // that no engine ever resolves — money recorded and never paid out.
-    const SIDE_KINDS = ["low-gross", "low-net", "birdies", "eagles", "nassau"];
+    /**
+     * Skins is a `SkinsPot`; the others are `SideGame` rows whose `kind` has
+     * to be one the settle-up knows. A kind invented here would create a bet
+     * that no engine ever resolves — money recorded and never paid out.
+     *
+     * The pot half is read from `DERIVED_KINDS` rather than retyped, so a new
+     * pot is covered the day it is added. The other two are the wagers
+     * between SIDES — settled by the match rather than out of a pot, which is
+     * exactly why they are not in that list — and they are named here because
+     * the code that settles them is server-only and cannot be imported into a
+     * unit test. `gameNets` and `side-games.ts` are the two places that have
+     * to agree with this line.
+     */
+    const SIDE_KINDS = [...DERIVED_KINDS, "nassau", "match"];
     for (const g of QUICK_MONEY_GAMES) {
       if (g.pot === "side") {
         expect(SIDE_KINDS, g.key).toContain(g.kind);

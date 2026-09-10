@@ -107,8 +107,15 @@ async function logMoney(eventId: string, action: string, detail: string) {
 
 const money = (cents: number) => `${(cents / 100).toFixed(2)}`;
 
-/** A Nassau is a match bet rather than a pot, and is not in DERIVED_KINDS. */
-const KINDS = ["low-gross", "low-net", "birdies", "eagles", "nassau"];
+/**
+ * A Nassau and a match bet are wagers BETWEEN two sides rather than pots, so
+ * neither is in DERIVED_KINDS — but both are stored as side games and both
+ * have to be settable here.
+ */
+const KINDS = ["low-gross", "low-net", "birdies", "eagles", "nassau", "match"];
+
+/** The two that are settled by the match rather than out of a pot. */
+const MATCH_BETS = new Set(["nassau", "match"]);
 
 /**
  * Start (or re-price) one derived bet on a round.
@@ -302,9 +309,19 @@ export async function requestSideGameEntry(
     select: { id: true, kind: true, entryMode: true },
   });
   if (!game) return { ok: false, error: "That side game isn't in this tournament." };
-  if (game.kind === "nassau") {
-    // Nassau is a bet between the two players in a match, not a pot to join.
-    return { ok: false, error: "The Nassau applies to your match — there's nothing to join." };
+  if (MATCH_BETS.has(game.kind)) {
+    /**
+     * A match bet is between the two SIDES, not a pot with a membership. You
+     * are in it because you are playing the match — there is nothing to join
+     * and nobody to add.
+     */
+    return {
+      ok: false,
+      error:
+        game.kind === "nassau"
+          ? "The Nassau applies to your match — there's nothing to join."
+          : "That bet is on your match — you're in it because you're playing.",
+    };
   }
 
   const me = await prisma.player.findFirst({
