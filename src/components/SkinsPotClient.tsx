@@ -1,4 +1,5 @@
 "use client";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { useState, useTransition } from "react";
 import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
@@ -90,6 +91,8 @@ export function SkinsPotClient({
   /** What to call it, when it is a group's rather than the field's. */
   groupLabel?: string;
 }) {
+  // A society is not a club, and this screen says so. See OrgProfileProvider.
+  const org = useOrgProfile();
   const { plain: money, parse: parseBuyIn } = useMoney();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -470,7 +473,7 @@ export function SkinsPotClient({
               <p>
                 The shortest set of payments that squares everybody, rather than every player paying
                 every other. TourneyHQ does not handle the money — this is the list to settle by
-                whatever means the club already uses.
+                whatever means the {org.noun} already uses.
               </p>
             </FieldInfo>
           </div>

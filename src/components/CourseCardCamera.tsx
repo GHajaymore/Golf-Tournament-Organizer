@@ -114,7 +114,7 @@ export function CourseCardCamera({
         </button>
         <FieldInfo label="photographing a course card">
           <p>
-            Take a photo of the club&rsquo;s printed card and the par, stroke index and yardage rows
+            Take a photo of the course&rsquo;s printed card and the par, stroke index and yardage rows
             are filled in below for you to check.
             <b> Nothing is saved until you save it.</b>
           </p>

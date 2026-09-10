@@ -1,4 +1,5 @@
 "use client";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { registrationStatus, formatDeadline } from "@/lib/registration";
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
@@ -91,6 +92,8 @@ export function RegistrationClient({
   /** The club's members, for filling the field without retyping anyone. */
   roster: RosterCandidate[];
 }) {
+  // A society is not a club, and this screen says so. See OrgProfileProvider.
+  const org = useOrgProfile();
   /**
    * Whether the two self-service panels are open.
    *
@@ -934,7 +937,7 @@ export function RegistrationClient({
         <div className="card elev-sm" style={{ gap: 10 }}>
           <span className="card-title" style={{ fontSize: 15 }}>Add someone new</span>
           <p className="text-muted" style={{ fontSize: 12, margin: "-4px 0 0" }}>
-            Anyone added here joins the club roster too, so you only enter their details once.
+            Anyone added here joins the {org.noun} roster too, so you only enter their details once.
           </p>
           <div className="field"><label>Player name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>

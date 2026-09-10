@@ -1,4 +1,5 @@
 "use client";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { confirmChampion, removeFromHonours } from "@/app/actions/roster";
@@ -27,6 +28,8 @@ export function HonoursBoard({
   pending: PendingChampion[];
   canEdit: boolean;
 }) {
+  // A society is not a club, and this screen says so. See OrgProfileProvider.
+  const org = useOrgProfile();
   const router = useRouter();
   const [error, setError] = useState("");
   const [pickFor, setPickFor] = useState<string | null>(null);
@@ -58,7 +61,7 @@ export function HonoursBoard({
     <div className="card elev-sm" style={{ marginTop: 16, gap: 10 }}>
       <span className="card-title">Honours board</span>
       <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
-        Every champion this club has confirmed. Once a name is here it stays as it was recorded —
+        Every champion this {org.noun} has confirmed. Once a name is here it stays as it was recorded —
         it doesn&rsquo;t move when a member leaves the roster, a tournament is renamed, or the way a
         round is scored is corrected later.
       </p>

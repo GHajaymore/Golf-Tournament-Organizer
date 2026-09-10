@@ -4045,6 +4045,36 @@ describe("the honours board", () => {
     expect(await board([])).toContain("Nothing on the board yet");
   });
 
+  it("calls the outfit what it is rather than calling everybody a club", async () => {
+    /**
+     * "Every champion this club has confirmed" was written out by hand, on a
+     * screen a society and a charity day reach exactly as a club does.
+     * `org-profile.ts` exists because "Club settings" was shown to a solo
+     * organizer with no club; the same sentence was still being written by
+     * hand across the console, and `OrgProfileProvider` is what stops it
+     * having to be remembered at each one.
+     */
+    const { OrgProfileProvider } = await import("@/components/OrgProfileProvider");
+    const { HonoursBoard } = await import("@/components/HonoursBoard");
+    const inside = (kind: string) =>
+      render(
+        <OrgProfileProvider kind={kind}>
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          <HonoursBoard board={[{ year: 2026, entries: [entry()] }] as any} pending={[]} canEdit />
+        </OrgProfileProvider>,
+      );
+
+    expect(inside("community")).toContain("Every champion this society has confirmed");
+    expect(inside("personal")).toContain("Every champion this outing has confirmed");
+    // THE ASSERTION THAT KEEPS THIS FROM BEING A REWRITE FOR EVERYBODY.
+    expect(inside("club")).toContain("Every champion this club has confirmed");
+    // And with no provider at all — a surface nobody has wired — the club
+    // wording is what every one of these screens said before this existed.
+    expect(await board([{ year: 2026, entries: [entry()] }])).toContain(
+      "Every champion this club has confirmed",
+    );
+  });
+
   it("keeps a proposal visibly apart from the record", async () => {
     // A fresh computation must never read as a result. The heading is the
     // whole guard: one section is what the club decided, the other is what the
@@ -4560,6 +4590,39 @@ describe("tournament details", () => {
       expect(labels, `not a real screen: ${plain}`).toContain(plain);
       expect(html, `not named in the flow: ${plain}`).toContain(label);
     }
+  });
+});
+
+describe("the console tells its screens what kind of outfit this is", () => {
+  /**
+   * The provider defaults to the CLUB profile, so a screen nobody has wired is
+   * unchanged rather than newly wrong — which is the right default and also
+   * exactly how this would go unnoticed. `CreateFirstTournament`'s `plan` prop
+   * was documented, tested and defaulted, and never passed: the default WAS
+   * the behaviour and every test of it was green.
+   *
+   * So the wrapping is read from source, through `readSource`, and the two
+   * facts are asserted apart: the layout mounts the provider, and it hands it
+   * the organization's real kind rather than a constant.
+   */
+  const src = readSource("src", "app", "(app)", "layout.tsx");
+
+  it("mounts the provider around the console", () => {
+    expect(src).toMatch(/<OrgProfileProvider/);
+  });
+
+  it("and gives it the organization's own kind", () => {
+    expect(src).toMatch(/<OrgProfileProvider kind=\{event\?\.organization\.kind\}/);
+  });
+
+  it("starts a label with the noun rather than shouting it or spelling out the label", async () => {
+    const { leadingNoun } = await import("@/components/OrgProfileProvider");
+    expect(leadingNoun("society")).toBe("Society");
+    expect(leadingNoun("club")).toBe("Club");
+    // Not `toUpperCase()` on the whole word, which is the slip this exists to
+    // stop being written four times.
+    expect(leadingNoun("outing")).toBe("Outing");
+    expect(leadingNoun("")).toBe("");
   });
 });
 

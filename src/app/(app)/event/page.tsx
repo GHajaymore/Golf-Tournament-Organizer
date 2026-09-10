@@ -49,7 +49,9 @@ export default async function EventPage({
   const eventTees = await teesForEvent(e.id);
   const org = await prisma.organization.findUnique({
     where: { id: e.organizationId },
-    select: { defaultCourseId: true, logoUrl: true, themeSetAt: true },
+    // `kind` so the branding nudge calls the outfit by its own name — a
+    // society is not a club. See ChecklistState.orgKind.
+    select: { defaultCourseId: true, logoUrl: true, themeSetAt: true, kind: true },
   });
   const homeCourseId = org?.defaultCourseId ?? null;
 
@@ -114,6 +116,7 @@ export default async function EventPage({
     isMatch: matchEvent,
     ...state,
     branding: clubBrandingState(org),
+    orgKind: org?.kind,
     details: detailStep ? { done: detailStep.done, missing: detailStep.missing } : undefined,
   });
 
