@@ -34,6 +34,16 @@ const num = { fontVariantNumeric: "tabular-nums" as const };
  * than left as an unexplained dash where the rank should be.
  */
 function cardState(r: StandingRow, holes: number): string {
+  /**
+   * "Not playing this week" and "not started" are different facts, and only
+   * one of them means somebody may still walk in.
+   *
+   * Checked before `thru`, not after: an absentee has no card by definition,
+   * so asking about holes first answers with the vaguer of the two every
+   * time. This is also what stops the board carrying a FINAL chip above rows
+   * it has itself called "not started" — see `absent` on StandingRow.
+   */
+  if (r.absent) return "not playing this week";
   if (r.thru <= 0) return "not started";
   // Against what this row's own cards cover, falling back to the round's hole
   // count for a row that has none. A Round Robin stage holds the whole round

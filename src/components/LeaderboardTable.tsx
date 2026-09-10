@@ -42,6 +42,25 @@ export interface StandingRow {
    * published countback, not by software. This is how a screen says so.
    */
   tiedAtCut?: boolean;
+  /**
+   * Marked out of THIS round by a weekly league.
+   *
+   * A row with no card is either somebody still on the 4th or somebody who is
+   * not coming, and until a league could record the answer the board genuinely
+   * could not tell — which is what the "not started" wording and the `allIn`
+   * rule in `live-board.ts` were both built around.
+   *
+   * A league now records it. So a Tuesday where six of twenty-four opted out
+   * has six rows the board KNOWS will never have a card, and reading them as
+   * "not started" held the public board on LIVE for the rest of the season:
+   * `allIn`'s card branch asks that every confirmed player has begun, and six
+   * of them never will. A weekly league is not marked Completed until the
+   * season ends, so the committee's word could not resolve it either.
+   *
+   * Undefined outside a league, and false for anybody in for the round, so
+   * every reader that does not know about this is correct without asking.
+   */
+  absent?: boolean;
   // match-play
   record: string;
   diff: string;

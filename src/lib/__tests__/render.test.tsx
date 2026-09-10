@@ -6656,3 +6656,82 @@ describe("changing the weekly sign-up mode, on screen", () => {
     expect(src).toMatch(/\{attendanceWarning && \(/);
   });
 });
+
+/**
+ * "Not playing this week" and "not started" are different facts.
+ *
+ * Only one of them means somebody may still walk in, and the public board is
+ * read by the audience least able to tell — which is why the board carrying a
+ * FINAL chip above rows it had itself called "not started" was recorded as a
+ * fault worth its own paragraph in `live-board.ts`.
+ */
+describe("a league board row for somebody who is out this week", () => {
+  const leagueRow = (over: Partial<StandingRow> = {}): StandingRow => ({
+    id: "p1",
+    rank: 0,
+    ranked: false,
+    started: false,
+    holesOwed: 18,
+    name: "C. Reid",
+    flight: "—",
+    advancing: false,
+    record: "",
+    diff: "",
+    pts: "",
+    played: 0,
+    wins: 0,
+    ties: 0,
+    losses: 0,
+    gross: 0,
+    net: 0,
+    toPar: 0,
+    points: 0,
+    thru: 0,
+    ...over,
+  });
+
+  const board = async (rows: StandingRow[]) => {
+    const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+    return render(<PlayerLeaderboard isStroke rows={rows} holes={18} unit="strokes" />);
+  };
+
+  it("says which of the two it is", async () => {
+    const html = await board([leagueRow({ absent: true })]);
+    expect(html).toContain("not playing this week");
+    expect(html).not.toContain("not started");
+  });
+
+  it("still says 'not started' for somebody who is in and has nothing", async () => {
+    // The control. Without it the assertion above passes against a reader that
+    // simply stopped saying anything.
+    const html = await board([leagueRow({ absent: false })]);
+    expect(html).toContain("not started");
+    expect(html).not.toContain("not playing this week");
+  });
+
+  it("keeps the row on the board rather than dropping it", async () => {
+    // "The leaderboard shows the whole field, not just who has scored", and a
+    // member who missed a Tuesday is still in the league.
+    const html = await board([leagueRow({ absent: true })]);
+    expect(html).toContain("C. Reid");
+  });
+
+  it("reads an absentee's state before their holes, not after", async () => {
+    /**
+     * Ordering, and it is not cosmetic. A row could carry `absent` and a
+     * partial card — the walk-up the entry screen deliberately still records,
+     * on a week they were marked out — and asking about holes first would call
+     * that "thru 4" while the club has them down as not playing. The absence
+     * is the fact the reader needs; the holes are the argument for correcting
+     * it on the tee sheet.
+     */
+    const html = await board([leagueRow({ absent: true, thru: 4 })]);
+    expect(html).toContain("not playing this week");
+    expect(html).not.toContain("thru 4");
+  });
+
+  it("says nothing new on a tournament, where no row carries the field", async () => {
+    const html = await board([leagueRow()]);
+    expect(html).not.toContain("not playing this week");
+  });
+});
