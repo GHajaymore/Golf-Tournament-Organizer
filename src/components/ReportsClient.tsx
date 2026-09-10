@@ -28,6 +28,7 @@ export function ReportsClient({
   extraCsv = [],
   board,
   scored = true,
+  hasBracket = true,
 }: {
   rows: StandingRow[];
   isStroke: boolean;
@@ -52,6 +53,19 @@ export function ReportsClient({
    * printable blank scorecards, stay.
    */
   scored?: boolean;
+  /**
+   * Whether this tournament has a bracket at all.
+   *
+   * The sidebar has hidden the Bracket link on tournaments without one since
+   * `navForRole` learned about `hasKnockout` — "every tournament carried a
+   * permanent door to an empty screen" — and this list carried the same door
+   * one screen along, offering "Bracket sheet · Open the bracket, then print
+   * to PDF" on a one-round charity day. Walked on 2026-09-10.
+   *
+   * Defaults to true, so a caller that has not been taught offers exactly what
+   * it offered before.
+   */
+  hasBracket?: boolean;
 }) {
   const router = useRouter();
   /**
@@ -119,8 +133,11 @@ export function ReportsClient({
         }))
       : []),
     // These stay whatever the format is: a bracket and a blank scorecard are
-    // not claims about who won.
-    { label: "Bracket sheet", desc: "Open the bracket, then print to PDF.", icon: "ph ph-tree-structure", action: () => router.push("/bracket"), kind: "open" },
+    // not claims about who won. The bracket still has to EXIST, which is a
+    // different question from what the round is scored by — see `hasBracket`.
+    ...(hasBracket
+      ? [{ label: "Bracket sheet", desc: "Open the bracket, then print to PDF.", icon: "ph ph-tree-structure", action: () => router.push("/bracket"), kind: "open" as const }]
+      : []),
     { label: "Scorecards", desc: "Open printable scorecards for the field.", icon: "ph ph-cards", action: () => router.push("/scorecard"), kind: "open" },
   ];
 

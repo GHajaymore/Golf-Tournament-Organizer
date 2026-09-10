@@ -606,6 +606,65 @@ describe("rounds and format", () => {
     expect(html).not.toContain("Carry forward");
   });
 
+  describe("the exports a tournament without a bracket is offered", () => {
+    /**
+     * The sidebar has hidden the Bracket link on tournaments without one since
+     * `navForRole` learned about `hasKnockout` — "every tournament carried a
+     * permanent door to an empty screen" — and Reports & export carried the
+     * same door one screen along.
+     *
+     * Found by walking a charity day to the end on 2026-09-10: no bracket in
+     * the sidebar, and "Bracket sheet · Open the bracket, then print to PDF"
+     * offered on the exports list beneath it.
+     */
+    const reports = async (over: Record<string, unknown> = {}) => {
+      const { ReportsClient } = await import("@/components/ReportsClient");
+      return render(
+        <ReportsClient rows={[]} isStroke eventName="zz-walk Charity Day" {...over} />,
+      );
+    };
+
+    it("does not offer a bracket sheet when there is no bracket", async () => {
+      expect(await reports({ hasBracket: false })).not.toContain("Bracket sheet");
+    });
+
+    it("and still offers one where there is", async () => {
+      // THE ASSERTION THAT STOPS THIS BECOMING "DROP THE BRACKET SHEET". A
+      // knockout's printed draw is the thing that goes on the clubhouse wall.
+      expect(await reports({ hasBracket: true })).toContain("Bracket sheet");
+    });
+
+    it("and a caller that has not been taught is unchanged", async () => {
+      // The default is what every caller got before the question existed.
+      expect(await reports()).toContain("Bracket sheet");
+    });
+
+    it("keeps the exports that apply to every tournament", async () => {
+      const html = await reports({ hasBracket: false });
+      expect(html, "a blank card is not a claim about who won").toContain("Scorecards");
+      expect(html).toContain("Full standings");
+    });
+
+    it("and the page actually answers the question", () => {
+      /**
+       * READ FROM SOURCE, and this one was earned: deleting the page's
+       * `hasBracket=` left every assertion above GREEN, because each of them
+       * supplies the prop itself. Exactly the shape that let
+       * `CreateFirstTournament`'s `plan` default become the behaviour for
+       * every organizer in the product while its tests passed.
+       *
+       * The two stage types are named here as well as on the page on purpose:
+       * they are the same pair `navForRole` gates the sidebar link on, and a
+       * page that answered with only one of them would hide the sheet on a
+       * tournament that has a bracket.
+       */
+      const src = readSource("src", "app", "(app)", "reports", "page.tsx");
+      expect(src).toMatch(/hasBracket=\{/);
+      expect(src).toContain("Bracket Stage");
+      expect(src).toContain("Qualification Stage");
+    });
+  });
+
   describe("a type and a format that cannot be scored together", () => {
     /**
      * The type is chosen when the round is added and the format on this card,
