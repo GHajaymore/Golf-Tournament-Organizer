@@ -88,6 +88,7 @@ export function EntryModes({
   cardScanAvailable = true,
   brand,
   venueIsHome = false,
+  absentByStage = {},
 }: {
   rounds: EntryRound[];
   activeIndex: number;
@@ -96,6 +97,18 @@ export function EntryModes({
    *  a feature nobody can see is a feature nobody asks for. */
   cardScanAvailable?: boolean;
   players: Array<{ id: string; name: string; handicap: number }>;
+  /**
+   * Who a weekly league has marked OUT, per round.
+   *
+   * Per round rather than folded into `players`, because `players` is the
+   * season roster and this screen switches between rounds without reloading
+   * it. A single flag on the player would be a fact about whichever round
+   * happened to be open when the page was rendered.
+   *
+   * Empty for every tournament that does not track attendance, which is what
+   * keeps the picker below one flat list where there is no week to be out of.
+   */
+  absentByStage?: Record<string, string[]>;
   isStaff: boolean;
   defaultMode?: "match" | "stroke";
   /** Whether real par/stroke-index data backs this event. */
@@ -299,7 +312,11 @@ export function EntryModes({
         <StrokePlayEntry
           key={round.stageId}
           cardScanAvailable={cardScanAvailable}
-          players={players}
+          // Decorated for THIS round, not the page. See absentByStage.
+          players={players.map((p) => ({
+            ...p,
+            absent: (absentByStage[round.stageId] ?? []).includes(p.id),
+          }))}
           pars={round.card.pars}
           yards={round.card.yards}
           strokeIndex={round.card.strokeIndex}

@@ -103,3 +103,29 @@ describe("every mode that tracks attendance has somebody who can write it", () =
     expect(week).toMatch(/useState\(!playersAnswer\(mode\)\)/);
   });
 });
+
+/**
+ * And the absentee marker has to be WIRED, which a render test cannot see.
+ *
+ * The picker tests in `render.test.tsx` hand `absent` to the component
+ * themselves, so deleting the line in `EntryModes` that computes it leaves
+ * every one of them green — the same failure that got two wiring mutations
+ * past this suite before. The call sites are pinned here instead.
+ */
+describe("the entry screen actually reads the week", () => {
+  it("decorates the picker from this round's absentees, not the page's", () => {
+    const modes = readSource("src/components/EntryModes.tsx");
+    expect(modes).toMatch(/absent: \(absentByStage\[round\.stageId\] \?\? \[\]\)\.includes\(p\.id\)/);
+  });
+
+  it("resolves them through the mode rather than reading raw rows", () => {
+    const page = readSource("src/app/(app)/entry/page.tsx");
+    // "Out" is mostly the ABSENCE of a row — under opt-in and captains a
+    // player is out by saying nothing — so a reader that only knew about
+    // stored rows would mark nobody in exactly the leagues that need it.
+    expect(page).toMatch(/resolveAttendance\(/);
+    expect(page).toMatch(/tracksPerRound\(entryAttendanceMode\)/);
+    expect(page).toMatch(/absentByStage=\{absentByStage\}/);
+    expect(page).toMatch(/\.filter\(\(row\) => row\.status === "out"\)/);
+  });
+});

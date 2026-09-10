@@ -19,6 +19,7 @@ import {
 import type { HoleResult } from "@/lib/domain";
 import { needsTeams, entryModeFor } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
+import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import { aggregateTeamCard, singleBallTeamCard, allocatedStrokes } from "@/lib/domain/team";
 import { TeamEntryClient, type TeamEntryRow } from "@/components/TeamEntryClient";
@@ -649,6 +650,44 @@ export default async function EntryPage() {
     rounds.findIndex((r) => r.stageId === state.activeStage?.id),
   );
 
+  /**
+   * Who a weekly league has marked out, per round.
+   *
+   * The card picker listed the whole season roster with nothing to tell a
+   * Tuesday's four apart from the six on the books, and opened on whichever
+   * name sorted first — absent or not. A card entered against somebody who
+   * told the club they could not make it reaches the week sheet and the
+   * season standings, and nothing on the screen said a word about it.
+   *
+   * Read through `resolveAttendance` rather than the raw rows, because "out"
+   * is mostly the ABSENCE of a row: under opt-in and captains a player is out
+   * by saying nothing, and a reader that only knew about explicit rows would
+   * mark nobody in exactly the leagues that need it most.
+   *
+   * Empty for every tournament that does not track attendance — there is no
+   * week to be out of, and the picker stays the flat list it has always been.
+   */
+  const absentByStage: Record<string, string[]> = {};
+  const entryAttendanceMode = settingsOf(state.event).attendanceMode as AttendanceMode;
+  if (tracksPerRound(entryAttendanceMode)) {
+    const explicit = await prisma.roundAttendance.findMany({
+      where: { eventId: session.eventId },
+    });
+    const confirmedIds = state.confirmed.map((p) => p.id);
+    for (const r of rounds) {
+      const resolved = resolveAttendance(
+        entryAttendanceMode,
+        confirmedIds,
+        explicit
+          .filter((e) => e.stageId === r.stageId)
+          .map((e) => ({ playerId: e.playerId, status: e.status, decidedBy: e.decidedBy })),
+      );
+      absentByStage[r.stageId] = resolved.rows
+        .filter((row) => row.status === "out")
+        .map((row) => row.playerId);
+    }
+  }
+
   // ── What the mic can answer ─────────────────────────────────────────────
   // Only for someone actually playing: an organizer entering the field's
   // cards has no handicap of their own to be told and no opponent to be
@@ -719,6 +758,7 @@ export default async function EntryPage() {
       players={state.confirmed
         .filter((p) => !ownIds || ownIds.has(p.id))
         .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap }))}
+      absentByStage={absentByStage}
       isStaff={isStaff}
       // Off the round's format, not the event's match/stroke flag. A skins
       // round is entered as a stroke card and a Nassau as a match card, which
