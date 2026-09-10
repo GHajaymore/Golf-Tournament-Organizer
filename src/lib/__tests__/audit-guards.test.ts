@@ -624,16 +624,42 @@ describe("the round-code result path carries every guard the hole path has", () 
 describe("a round code obeys the tournament's score-entry setting", () => {
   const play = stripComments(read("play.ts"));
 
-  it("gates both write actions on canEnterScores, as every other path does", () => {
+  /**
+   * Every action here that records a score, ENUMERATED FROM SOURCE.
+   *
+   * It was a hand list of the two match writers, and the day a third arrived —
+   * `savePlayCard`, so a medal round with code access could be scored at all —
+   * the count-based assertion below went red and the two rules above simply
+   * did not cover it. A hand list is a guard that stops guarding the moment
+   * somebody adds a door.
+   *
+   * "Records a score" is what these have in common: a match result written to
+   * `Match`, or a card written through `writeScorecard`. Anything that starts
+   * doing either fails this block the day it is written.
+   */
+  const writers = actions("play.ts").filter(
+    (a) => /prisma\.match\.update\(|writeScorecard\(/.test(a.body),
+  );
+
+  it("finds the write actions it is about to assert on", () => {
+    // Or the whole block passes vacuously — the failure mode this file has
+    // caught twice.
+    expect(writers.map((a) => a.name).sort()).toEqual([
+      "savePlayCard",
+      "savePlayMatchHoles",
+      "savePlayMatchResult",
+    ]);
+  });
+
+  it("gates every write action on canEnterScores, as every other path does", () => {
     // Neither one asked. A tournament set to `scoreEntryBy: "staff"` that
     // hands out round codes purely for sign-in believed the committee held
     // the cards, while any code holder could write a full result — and since
     // a score edit resets approval, un-confirm a card the committee had
     // already signed off, leaving no sign on any screen that it happened.
-    for (const fn of ["savePlayMatchHoles", "savePlayMatchResult"]) {
-      const body = actions("play.ts").find((a) => a.name === fn)!.body;
-      expect(body, fn).toMatch(/canEnterScores\(/);
-      expect(body, fn).toMatch(/entered by the organizer/);
+    for (const { name, body } of writers) {
+      expect(body, name).toMatch(/canEnterScores\(/);
+      expect(body, name).toMatch(/entered by the organizer/);
     }
   });
 
@@ -641,16 +667,27 @@ describe("a round code obeys the tournament's score-entry setting", () => {
     // A play session carries no role: the holder typed a code that was read
     // out to the field. Passing anything staff-shaped here would pass every
     // check by definition.
-    expect(play.match(/canEnterScores\(\s*settings(Of\(event\))?,\s*"player"\)/g)?.length).toBe(2);
+    //
+    // Counted against the writers rather than a number written here, so a
+    // fourth door cannot be added without one.
+    expect(play.match(/canEnterScores\(\s*settings(Of\(event\))?,\s*"player"\)/g)?.length).toBe(
+      writers.length,
+    );
   });
 
   it("refuses by returning, not by throwing", () => {
     // These actions are called straight from the client component, which
     // renders res.error. A thrown error reaches the player as an unhandled
     // server-action failure with no wording of its own.
-    for (const fn of ["savePlayMatchHoles", "savePlayMatchResult"]) {
-      const body = actions("play.ts").find((a) => a.name === fn)!.body;
-      expect(body, fn).not.toMatch(/throw new Error/);
+    //
+    // `savePlayCard` calls a writer that DOES throw — the console's rules,
+    // lifted unchanged — so it catches and reports. That is the same property
+    // stated for a caller that delegates, which is why the assertion is about
+    // what escapes rather than about the word appearing in the file.
+    for (const { name, body } of writers) {
+      const throws = body.match(/throw new Error/g)?.length ?? 0;
+      const caught = /catch \(/.test(body);
+      expect(throws === 0 || caught, `${name} lets a throw reach the player`).toBe(true);
     }
   });
 

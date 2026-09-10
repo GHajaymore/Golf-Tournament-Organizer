@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
-import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult } from "@/app/actions/play";
+import { redeemRoundCode, claimPlayerSlot, leavePlay, savePlayMatchHoles, savePlayMatchResult, savePlayCard } from "@/app/actions/play";
+import { HoleByHoleCard } from "./HoleByHoleCard";
 import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
 import { Icon } from "./Icon";
@@ -21,7 +22,7 @@ interface PlayMatch {
 }
 
 interface Props {
-  stage: "code" | "score" | "no-match";
+  stage: "code" | "score" | "no-match" | "card";
   brand?: Brand | null;
   playerName?: string;
   eventName?: string;
@@ -44,6 +45,19 @@ interface Props {
   yards?: number[];
   strokeIndex?: number[];
   netMode?: boolean;
+  /**
+   * The player's own strokes, for a round that is scored from a card rather
+   * than played against somebody.
+   *
+   * A medal has no draw, so this surface's match-only shape sent every player
+   * on a stroke-play round to "no match for you" — on a template that turns
+   * player self-scoring ON and hands out a Round Code precisely so a roster of
+   * names can score without accounts.
+   *
+   * Sent as already returned rather than opened blank, or saving would erase a
+   * round somebody entered at the turn.
+   */
+  card?: (number | null)[];
 }
 
 function Shell({ brand, children }: { brand?: Brand | null; children: React.ReactNode }) {
@@ -83,6 +97,12 @@ export function PlayClient(props: Props) {
   const [entryMode, setEntryMode] = useState<"holes" | "result">("holes");
   const [resultWinner, setResultWinner] = useState<"me" | "them" | "halved">("me");
   const [resultMargin, setResultMargin] = useState("");
+  // The player's own card, for a round with no opponent in it. Sized to the
+  // ROUND rather than to what arrived, so a short stored card still draws
+  // every hole the round is played over.
+  const [card, setCard] = useState<(number | null)[]>(() =>
+    Array.from({ length: props.holes || props.pars?.length || 18 }, (_, i) => props.card?.[i] ?? null),
+  );
 
   /* ── Step 1: enter the code ───────────────────────────────────────── */
 
@@ -256,6 +276,124 @@ export function PlayClient(props: Props) {
             {pending ? "Checking…" : "Continue"}
           </button>
         </div>
+      </Shell>
+    );
+  }
+
+  /* ── A round scored from a card, not against an opponent ──────────── */
+
+  if (props.stage === "card") {
+    /**
+     * A MEDAL, ON THE SURFACE THAT ONLY KNEW ABOUT MATCHES.
+     *
+     * Same grid the console's own entry screen uses — `HoleByHoleCard` is
+     * presentational and calls back, so this owns the strokes and the save and
+     * the two screens cannot come to draw a card differently.
+     *
+     * The save goes through `savePlayCard`, which writes through the same
+     * `writeScorecard` the console does: one set of rules about validation,
+     * partial cards, conflicts, certification and freezing a round's
+     * handicaps, rather than a second copy on this side.
+     */
+    const holeCount = props.holes || props.pars?.length || 18;
+    const filledHoles = card.filter((h) => typeof h === "number" && h > 0).length;
+    const cardComplete = filledHoles === holeCount;
+    const pars = props.pars ?? [];
+    const gross = card.reduce<number>((sum, s) => sum + (typeof s === "number" ? s : 0), 0);
+    const parSoFar = pars.reduce<number>(
+      (sum, par, i) => sum + (typeof card[i] === "number" ? par : 0),
+      0,
+    );
+
+    const saveCard = () => {
+      setError("");
+      startTransition(async () => {
+        const res = await savePlayCard(card);
+        if (!res.ok) {
+          setError(res.error ?? "Couldn't save that card.");
+          return;
+        }
+        setSaved(true);
+      });
+    };
+
+    return (
+      <Shell brand={props.brand}>
+        <div style={{ marginBottom: 14 }}>
+          <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
+          <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
+            {props.playerName}
+          </h1>
+          <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 12 }}>
+            {/* Says which kind of round this is, because the surface used to
+                claim every round was a match. */}
+            Your own card — nobody to play, just your score on each hole.{" "}
+            {props.submitWhole
+              ? "Your organizer wants the full round submitted at the end."
+              : "Saves as you go."}
+          </p>
+        </div>
+
+        <div className="card elev-sm" style={{ gap: 10 }}>
+          <div style={{ display: "flex", gap: 14, fontSize: 13, flexWrap: "wrap" }}>
+            <span><b>{gross || "—"}</b> gross</span>
+            {parSoFar > 0 && (
+              <span className="text-muted">
+                {gross === parSoFar ? "level" : gross > parSoFar ? `+${gross - parSoFar}` : gross - parSoFar}
+              </span>
+            )}
+            <span className="text-muted" style={{ marginLeft: "auto" }}>
+              {filledHoles}/{holeCount} holes
+            </span>
+          </div>
+
+          <HoleByHoleCard
+            players={[{ id: "me", name: props.playerName ?? "You" }]}
+            cards={{ me: card }}
+            pars={pars}
+            yards={props.yards ?? []}
+            strokeIndex={props.strokeIndex ?? []}
+            holes={holeCount}
+            onSet={(_id, hole, value) => {
+              setCard((prev) => {
+                const next = Array.from({ length: holeCount }, (_, i) => prev[i] ?? null);
+                next[hole] = value;
+                return next;
+              });
+              setSaved(false);
+            }}
+          />
+
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={pending || (props.submitWhole && !cardComplete)}
+            onClick={saveCard}
+          >
+            {pending ? "Saving…" : saved ? "Saved" : props.submitWhole ? "Submit my card" : "Save"}
+          </button>
+          {/* A disabled button that does not say why is a dead end, and this
+              one is disabled for exactly one reason. */}
+          {props.submitWhole && !cardComplete && !pending && (
+            <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+              Fill all {holeCount} holes to submit.
+            </p>
+          )}
+          {error && (
+            <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+              <Icon name="warning-circle" /> {error}
+            </p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className="btn btn-ghost"
+          style={{ alignSelf: "flex-start", marginTop: 12 }}
+          onClick={() => startTransition(async () => { await leavePlay(); window.location.reload(); })}
+        >
+          Sign out
+        </button>
       </Shell>
     );
   }
