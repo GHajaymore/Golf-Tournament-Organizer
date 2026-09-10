@@ -32,6 +32,7 @@ import {
   ATTENDANCE_MODES,
   ATTENDANCE_MODE_LABEL,
   ATTENDANCE_MODE_HELP,
+  attendanceModeChange,
 } from "@/lib/domain/attendance";
 import {
   PLAYER_ACCESS,
@@ -202,6 +203,17 @@ export function PlaySettings({
   const teeDirty = isTournament && teeId !== defaultTeeId;
   const dirty =
     (Object.keys(form) as (keyof TournamentSettings)[]).some((k) => form[k] !== settings[k]) || teeDirty;
+
+  /**
+   * The weekly-sign-up switch, judged against the mode still in force.
+   *
+   * `settings` is what is saved and `form` is the draft, so this is a warning
+   * about a change not yet made — which is the only moment it is useful.
+   */
+  const attendanceWarning = attendanceModeChange(
+    settings.attendanceMode,
+    form.attendanceMode,
+  );
 
   const set = <K extends keyof TournamentSettings>(key: K, value: TournamentSettings[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -479,6 +491,28 @@ export function PlaySettings({
         disabled={!canEdit || pending}
         onChange={(v) => set("attendanceMode", v)}
       />
+
+      {/* WHAT THE SWITCH DOES TO THE PEOPLE ALREADY IN THE LEAGUE.
+          Only explicit choices are stored, so every silent player's status is
+          derived from this setting at read time — and moving an opt-out league
+          to opt-in or captains turns everyone who has never touched the app
+          from in to OUT, for every round, at the moment Save is pressed. The
+          next tee sheet then comes out empty. Shown BEFORE saving, against the
+          mode still in force, because afterwards it is not a warning. */}
+      {attendanceWarning && (
+        <p
+          style={{
+            fontSize: 12.5,
+            margin: 0,
+            lineHeight: 1.55,
+            padding: "9px 11px",
+            borderRadius: 9,
+            background: "color-mix(in srgb, var(--color-text) 5%, transparent)",
+          }}
+        >
+          <Icon name="warning-circle" /> {attendanceWarning}
+        </p>
+      )}
 
       {error && (
         <p style={{ fontSize: 13, margin: 0, color: "var(--color-danger)" }}>

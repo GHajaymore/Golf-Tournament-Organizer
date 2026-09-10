@@ -6593,3 +6593,66 @@ describe("the weekly sign-up calendar's key", () => {
     expect(html).toContain("Out by default");
   });
 });
+
+/**
+ * The weekly-sign-up switch, on the screen where it is pressed.
+ *
+ * `attendanceModeChange` decides the wording and is unit-tested. What only a
+ * render can show is that the warning is compared against the SAVED mode and
+ * not the draft — a screen that compared the draft with itself would produce
+ * the empty string for ever, and every test of the sentence would still pass.
+ */
+describe("changing the weekly sign-up mode, on screen", () => {
+  const settings = {
+    leaderboardVisibility: "players",
+    scoreEntryBy: "players",
+    scoreEntryWindow: "anytime",
+    voiceEntry: false,
+    playerAccess: "code",
+    scoreApproval: "players",
+    attendanceMode: "opt-out",
+    attestBy: "one",
+  };
+  const panel = async (over: Record<string, unknown> = {}) => {
+    const { PlaySettings } = await import("@/components/PlaySettings");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return render(<PlaySettings mode="tournament" settings={{ ...settings, ...over } as any} canEdit />);
+  };
+
+  it("says nothing while the saved mode is the one selected", async () => {
+    // A static render has made no change yet, so the draft IS the saved value
+    // and there is nothing to warn about. This is the state the screen is in
+    // every time it loads, and a warning here would be permanent noise.
+    const html = await panel();
+    expect(html).not.toContain("tee sheet will be empty");
+    expect(html).not.toContain("in to OUT");
+  });
+
+  it("still offers every mode to switch to", async () => {
+    // The control the warning attaches to has to be there for either to mean
+    // anything — and the two staff-entered modes are the ones that empty a
+    // sheet, so they are named individually.
+    const html = await panel();
+    expect(html).toContain("In unless they opt out");
+    expect(html).toContain("Out unless they opt in");
+    expect(html).toContain("Captains send the list, the club enters it");
+  });
+
+  it("compares the draft against the SAVED mode, not against itself", async () => {
+    /**
+     * The mutation the two tests above cannot catch, and the one that matters.
+     *
+     * A static render never changes the draft, so `form.attendanceMode` and
+     * `settings.attendanceMode` are equal in both of them — which means
+     * comparing the draft with itself produces the empty string for ever and
+     * every assertion above still passes. The comparison is the whole feature,
+     * so it is pinned in source.
+     */
+    const { readSource } = await import("./source");
+    const src = readSource("src/components/PlaySettings.tsx");
+    expect(src).toMatch(
+      /attendanceModeChange\(\s*settings\.attendanceMode,\s*form\.attendanceMode,?\s*\)/,
+    );
+    expect(src).toMatch(/\{attendanceWarning && \(/);
+  });
+});

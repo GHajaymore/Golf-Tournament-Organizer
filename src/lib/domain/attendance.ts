@@ -190,3 +190,46 @@ export function weekReturnsNote(a: { expected: number; returned: number; out: nu
   }
   return `${a.returned} of ${a.expected} in have returned a card · ${missing} still to come${outPart}`;
 }
+
+/**
+ * What changing the mode does to a league already under way.
+ *
+ * Only explicit choices are stored, which is what makes "by default you're in"
+ * true for forty players without forty rows — and it is also what makes this
+ * switch quietly enormous. Every silent player's status is derived from the
+ * mode at read time, so moving an opt-out league to opt-in or captains turns
+ * everyone who has never touched the app from IN to OUT, all at once, for
+ * every round of the season. The tee sheet is drawn from who is in, so the
+ * next one comes out empty and nothing on the settings screen said it would.
+ *
+ * Returns null when nothing observable changes: the same mode, or a move
+ * between two modes that resolve silence the same way. opt-in to captains
+ * moves nobody — both read silence as out — so warning there would be crying
+ * wolf on the one screen where a warning has to mean something.
+ *
+ * The stored answers are named because that is the organizer's first fear.
+ * They survive: `resolveAttendance` prefers an explicit row over the default
+ * in every mode, so somebody who said "out" for week six still is.
+ */
+export function attendanceModeChange(from: AttendanceMode, to: AttendanceMode): string | null {
+  if (from === to) return null;
+
+  // Switching the question off entirely. Not a change of default — there is
+  // no longer a default, because nobody is asked and nobody is excluded.
+  if (!tracksPerRound(to)) {
+    return "Every confirmed player will be in every round, and the weekly question disappears. Answers already given are kept, and come back if you turn it on again.";
+  }
+  if (!tracksPerRound(from)) {
+    return defaultStatus(to) === "out"
+      ? "Nobody is in for any round until they say so — or, under captains, until you record it. Tee sheets stay empty until then."
+      : "Everyone is in for every round unless they say otherwise, which is where they are now. Nothing moves today.";
+  }
+
+  const was = defaultStatus(from);
+  const now = defaultStatus(to);
+  if (was === now) return null;
+
+  return now === "out"
+    ? "Everyone who has not answered moves from in to OUT, for every round. Your next tee sheet will be empty until they answer. Answers already given are kept."
+    : "Everyone who has not answered moves from out to IN, for every round. Answers already given are kept.";
+}
