@@ -19,6 +19,7 @@
 
 import { splitExactly } from "./money";
 import { playNassau } from "./nassau";
+import { resolveMatch } from "./match";
 import type { HoleResult } from "./types";
 
 export const DERIVED_KINDS = ["low-gross", "low-net", "birdies", "eagles"] as const;
@@ -221,6 +222,93 @@ export function nassauLedger(bets: NassauBet[]): Net[] {
   const totals = new Map<string, number>();
   for (const bet of bets) {
     for (const n of nassauNets(bet)) {
+      totals.set(n.playerId, (totals.get(n.playerId) ?? 0) + n.netCents);
+    }
+  }
+  return [...totals.entries()]
+    .map(([playerId, netCents]) => ({ playerId, netCents }))
+    .filter((n) => n.netCents !== 0)
+    .sort((a, b) => b.netCents - a.netCents || a.playerId.localeCompare(b.playerId));
+}
+
+/* ── The match itself ──────────────────────────────────────────────────────
+ *
+ * The commonest bet in golf and the one the app had nowhere to put: "we're
+ * playing for a tenner". Everything else here is a POT — everybody pays in and
+ * the cards decide who takes it out. This is not: it is one wager between two
+ * sides, settled by the match result and nothing else.
+ *
+ * A Nassau is three of these on one card, front, back and overall. This is the
+ * overall one on its own, which is what people actually agree on the first
+ * tee — and offering only the Nassau meant a foursome playing for a single
+ * stake had to describe it as three bets and divide by three.
+ */
+
+export interface MatchBet {
+  matchId: string;
+  /** Everyone on each side. One id for singles, two for a four-ball. */
+  sideA: string[];
+  sideB: string[];
+  holes: HoleResult[];
+  /** What each PLAYER has on it, integer cents. A "$10 match" is 1000 here. */
+  stakeCents: number;
+}
+
+/**
+ * What a match bet owes, once the match is over.
+ *
+ * PER PLAYER, NOT PER SIDE, and that is the whole of the arithmetic. In a
+ * four-ball each of the four has a tenner on it, so each winner takes one from
+ * their opposite number — the side does not win one stake between two. It
+ * sums to zero either way, which is the only thing that makes a settle-up
+ * honest, and it is what the players themselves would count out at the bar.
+ *
+ * ONLY A FINISHED MATCH PAYS. `resolveMatch` owns what finished means,
+ * including a closeout — 3&2 is over with two holes unplayed — so a lead is
+ * never mistaken for a result. The same rule the Nassau's segments follow, and
+ * the same reason: paying a lead is settling a bet still being played.
+ *
+ * A HALVED MATCH PAYS NOBODY. Everyone keeps their own stake, which is what a
+ * halved match means and why this returns nothing rather than zeroes.
+ */
+export function matchBetNets(bet: MatchBet): Net[] {
+  const stake = Math.max(0, Math.round(bet.stakeCents));
+  const a = bet.sideA.filter(Boolean);
+  const b = bet.sideB.filter(Boolean);
+  if (stake === 0 || a.length === 0 || b.length === 0) return [];
+
+  const result = resolveMatch(bet.holes);
+  if (!result.complete || result.winner === "H" || result.winner === null) return [];
+
+  /**
+   * Uneven sides are paid at the SMALLER side's rate.
+   *
+   * Two against one is not a thing a fourball agrees to, but a side can end up
+   * short — somebody withdraws, a fourball plays as a threesome — and the bet
+   * still has to sum to zero. Paying every winner a full stake out of fewer
+   * losers would invent money. The stake each player is down is capped by what
+   * the other side actually put in.
+   */
+  const perPlayer = Math.floor((stake * Math.min(a.length, b.length)) / Math.max(a.length, b.length));
+  const winners = result.winner === "A" ? a : b;
+  const losers = result.winner === "A" ? b : a;
+  const toWinner = winners.length <= losers.length ? stake : perPlayer;
+  const fromLoser = losers.length <= winners.length ? stake : perPlayer;
+
+  const nets: Net[] = [
+    ...winners.map((playerId) => ({ playerId, netCents: toWinner })),
+    ...losers.map((playerId) => ({ playerId, netCents: -fromLoser })),
+  ];
+  return nets
+    .filter((n) => n.netCents !== 0)
+    .sort((x, y) => y.netCents - x.netCents || x.playerId.localeCompare(y.playerId));
+}
+
+/** Every match bet in a round, as one ledger. */
+export function matchBetLedger(bets: MatchBet[]): Net[] {
+  const totals = new Map<string, number>();
+  for (const bet of bets) {
+    for (const n of matchBetNets(bet)) {
       totals.set(n.playerId, (totals.get(n.playerId) ?? 0) + n.netCents);
     }
   }

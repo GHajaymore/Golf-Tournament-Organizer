@@ -29,11 +29,22 @@ const DERIVED_ROWS: Array<{ kind: string; label: string; help: string }> = [
     help: DERIVED_HELP[kind],
   })),
   {
+    // "We're playing for a tenner" — one bet on the match, which a Nassau is
+    // three of. Offering only the Nassau meant a fourball agreeing a single
+    // stake had to describe it as three bets and divide by three.
+    kind: "match",
+    label: "The match",
+    help: "One bet on the match itself. The winning side takes a stake from each opponent.",
+  },
+  {
     kind: "nassau",
     label: "Nassau",
     help: "Front, back and overall — three bets on every match at this stake.",
   },
 ];
+
+/** The games that need two sides to be between — see `headToHead`. */
+const MATCH_ONLY = new Set(["nassau", "match"]);
 
 /**
  * Closest to the pin, long drive, and whatever else the first tee invented.
@@ -328,7 +339,7 @@ export function ContestsClient({
            * only stop anyone finding it. It stays visible, with the stake, and
            * says why it cannot settle.
            */
-          const cannotSettle = row.kind === "nassau" && !headToHead;
+          const cannotSettle = MATCH_ONLY.has(row.kind) && !headToHead;
           if (cannotSettle && !on) return null;
           return (
             <div key={row.kind} style={{ paddingTop: 10, borderTop: "1px solid var(--color-divider)" }}>
@@ -361,9 +372,9 @@ export function ContestsClient({
                   the round it was staked on cannot decide it. */}
               {cannotSettle && (
                 <p style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.5, color: "var(--color-danger)" }}>
-                  <Icon name="warning-circle" /> Nobody plays anybody in this round, so there are no
-                  matches for a Nassau to be between and this stake cannot settle. Set it to 0 to take
-                  it off, or move the bet to a match-play round.
+                  <Icon name="warning-circle" /> Nobody plays anybody in this round, so there is no
+                  match for {row.label.toLowerCase()} to be between and this stake cannot settle. Set
+                  it to 0 to take it off, or move the bet to a match-play round.
                 </p>
               )}
 

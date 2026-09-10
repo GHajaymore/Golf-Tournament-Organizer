@@ -22,6 +22,7 @@ import { contestLedger, contestNets, isContestKind, isDecided, potOf } from "../
 import {
   derivedNets,
   nassauLedger,
+  matchBetLedger,
   isDerivedKind,
   DERIVED_LABEL,
   DERIVED_HELP,
@@ -532,6 +533,61 @@ async function gameNets(
               };
             });
           for (const n of nassauLedger(bets)) add(n.playerId, n.netCents);
+          continue;
+        }
+
+        /**
+         * THE MATCH ITSELF — "we're playing for a tenner".
+         *
+         * Beside the Nassau rather than with the pots below, because it is the
+         * same shape of thing: a wager between two SIDES settled by the match
+         * result, not a pool the cards divide. It reads who won each hole and
+         * needs no scorecard at all, which is what lets it ride on a match
+         * scored the way match play is actually played.
+         *
+         * Not gated by `roundIsFinal` either, for the reason money-layout.ts
+         * gives about the Nassau: `matchBetNets` pays only a match that
+         * `resolveMatch` calls COMPLETE — closeout included, so 3&2 is over
+         * with two holes unplayed — and a finished match cannot be re-decided
+         * by holes nobody is going to play. Withholding a settled result is
+         * the opposite failure and just as wrong.
+         */
+        if (game.kind === "match") {
+          const betGroup = game.groupKey
+            ? parseTeeSheet(stage.teeSheet ?? "")?.groups.find((g) => g.name === game.groupKey)
+            : null;
+          const inBet = betGroup ? new Set(betGroup.playerIds) : null;
+          /**
+           * A TEAM match's sides are teams, so the players come from the roster
+           * rather than from the fixture: `Match` holds team ids there and
+           * leaves the player columns empty.
+           */
+          const teamRows = await prisma.team.findMany({
+            where: { eventId, members: { some: {} } },
+            select: { id: true, members: { select: { playerId: true } } },
+          });
+          const sideOf = new Map(teamRows.map((t) => [t.id, t.members.map((m) => m.playerId)]));
+
+          const bets = state.matches
+            .filter((m) => m.stageId === game.stageId)
+            .map((m) => ({
+              matchId: m.id,
+              sideA: m.playerAId ? [m.playerAId] : sideOf.get(m.teamAId) ?? [],
+              sideB: m.playerBId ? [m.playerBId] : sideOf.get(m.teamBId) ?? [],
+              holes: (() => {
+                try {
+                  return JSON.parse(m.holes) as HoleResultArr;
+                } catch {
+                  return [] as HoleResultArr;
+                }
+              })(),
+              stakeCents: game.buyInCents,
+            }))
+            // A group's bet is the matches inside that fourball — every player
+            // on both sides has to be in it, the same rule the Nassau follows.
+            .filter((b) => !inBet || [...b.sideA, ...b.sideB].every((id) => inBet.has(id)));
+
+          for (const n of matchBetLedger(bets)) add(n.playerId, n.netCents);
           continue;
         }
 
