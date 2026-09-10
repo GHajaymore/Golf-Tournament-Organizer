@@ -9,6 +9,8 @@ import { todayIso } from "@/lib/deadline";
 import { Icon } from "@/components/Icon";
 import { roundKicker } from "@/lib/domain/round-label";
 import { hasStandingToShow } from "@/lib/domain/player-standing";
+import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
+import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 
 /**
  * Today — the player's home.
@@ -69,6 +71,30 @@ export default async function PlayTodayPage() {
       >
         {state.event.name}
       </h1>
+
+      {/**
+       * A casual round is deleted about a day after it is set up, and the whole
+       * justification for that being acceptable is that the people it belongs
+       * to are told before it happens.
+       *
+       * They were not. The banner lived only on /dashboard — which is precisely
+       * the screen players are routed away from, `landingScreenFor` sending
+       * every player to /me — so in an Ada-versus-Bo round the person who set
+       * it up was warned and their opponent was not. The other three of a
+       * fourball lost the card with no notice at all.
+       *
+       * The same mistake the availability card was moved here to fix, on the
+       * same screen, for the same reason.
+       *
+       * `canKeep` is false: `keepRound` is staff-only and refuses everybody
+       * else by name, so the sentence names the remedy a player actually has
+       * — ask whoever set it up — rather than a button they cannot press.
+       * `hoursLeft` is null for every tournament ever created, so nothing
+       * mounts outside a casual round.
+       */}
+      <div style={{ marginTop: 14 }}>
+        <RoundExpiryBanner notice={expiryNotice(hoursLeft(state.event), false)} canKeep={false} />
+      </div>
 
       {!me.playerId && (
         <p style={{ marginTop: 16, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>

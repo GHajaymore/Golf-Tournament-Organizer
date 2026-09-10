@@ -101,10 +101,26 @@ export function hoursLeft(
  * `hoursLeft` is still the right reading of the COLUMN, and stays for anything
  * that wants it. It is just not what the player should be told.
  */
-export function expiryNotice(hours: number | null): string {
+export function expiryNotice(hours: number | null, canKeep = true): string {
   if (hours === null) return "";
+  /**
+   * The way out, worded for whoever is reading it.
+   *
+   * "Keep it to hold on to the scores" names a button only staff have — for a
+   * casual round, whoever set it up. `keepRound` refuses everybody else and
+   * says so, so telling the other three players to press it is an instruction
+   * they cannot follow, about scores they are about to lose.
+   *
+   * They are still TOLD. Hiding the warning from the people whose scores are
+   * going is the wrong half to hide: the button is the part they cannot use,
+   * the sentence is the part they need. So the remedy becomes the one they
+   * actually have, which is to ask the person who can.
+   */
+  const remedy = canKeep
+    ? "Keep it to hold on to the scores."
+    : "Ask whoever set it up to keep it if you want the scores.";
   if (hours <= 0) {
-    return "This round has passed its day and will be deleted shortly. Keep it to hold on to the scores.";
+    return `This round has passed its day and will be deleted shortly. ${remedy}`;
   }
-  return "This round is temporary — it's deleted about a day after it was set up. Keep it to hold on to the scores.";
+  return `This round is temporary — it's deleted about a day after it was set up. ${remedy}`;
 }
