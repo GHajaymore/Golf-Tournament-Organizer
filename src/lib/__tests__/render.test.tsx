@@ -1090,6 +1090,37 @@ describe("settings screens", () => {
       expect(html).toContain("run it under your own name");
     });
   });
+
+  it("says which tournament shape is chosen without relying on a colour", () => {
+    /**
+     * The three shapes decide what the whole of setup then asks, nothing is
+     * preselected, and Create stays disabled until one is picked — so an
+     * unannounced answer is worse than harmless here: the button says no and
+     * the form does not say why.
+     *
+     * Both values asserted, because an `aria-pressed` written as a constant
+     * would satisfy either one alone.
+     */
+    const html = render(<CreateFirstTournament first />);
+    const pressed = html.match(/aria-pressed="(true|false)"/g) ?? [];
+    expect(pressed.length, "one per shape").toBeGreaterThanOrEqual(3);
+    expect(html, "and nothing is chosen on a fresh form").not.toContain('aria-pressed="true"');
+
+    /**
+     * AND IT IS BOUND TO THE SELECTION, which the render above cannot show.
+     *
+     * The shape is internal state with no prop, so every render here is the
+     * fresh form and every button is correctly unpressed — which means a
+     * hard-coded `aria-pressed={false}` passes the assertions above exactly as
+     * the real thing does. Caught by mutating it and watching nothing go red.
+     *
+     * So the binding is read from source, through `readSource`: it must be the
+     * SAME `active` the background colour reads, or the attribute is decoration
+     * about a different question.
+     */
+    const src = readSource("src", "components", "CreateFirstTournament.tsx");
+    expect(src).toMatch(/aria-pressed=\{active\}/);
+  });
 });
 
 describe("roster CSV import", () => {
@@ -3528,6 +3559,36 @@ describe("the two controls built after the audit", () => {
       />,
     );
     expect(html).toContain("No pairing rule set yet.");
+    // And nothing claims to be chosen, because nothing is.
+    expect(html).toContain('aria-pressed="false"');
+    expect(html).not.toContain('aria-pressed="true"');
+  });
+
+  it("says which pairing rule is in force in something other than a colour", async () => {
+    /**
+     * The `on` class was the whole of "this is the rule", and it is a
+     * background colour. Which of the three is chosen decides WHO PLAYS this
+     * match, so it is not a decoration.
+     *
+     * Both directions, in one render: exactly one of the three is pressed.
+     */
+    const { SingleMatchRulePicker } = await import("@/components/SingleMatchRulePicker");
+    const html = render(
+      <SingleMatchRulePicker
+        stageId="s1"
+        rule={{ kind: "seeds", a: 1, b: 2 }}
+        ruleLabel="1st against 2nd"
+        problem=""
+        aName="Rita Ahuja"
+        bName="Tom Brooks"
+        matchId={null}
+        stale={false}
+        rounds={rounds}
+        players={players}
+      />,
+    );
+    expect((html.match(/aria-pressed="true"/g) ?? []).length, "one rule is in force").toBe(1);
+    expect((html.match(/aria-pressed="false"/g) ?? []).length, "and two are not").toBe(2);
   });
 
   it("names the pair once the rule resolves, and offers to make the match", async () => {
@@ -5669,6 +5730,40 @@ describe("setting up a casual round", () => {
     expect(html).toContain("In pairs");
     // And they are prefilled into it rather than asked to introduce themselves.
     expect(html).toContain("Sam Okafor");
+  });
+
+  it("says which of each row of choices is chosen, in something other than a colour", () => {
+    /**
+     * Every question on this screen is a row of look-alike buttons — round
+     * type, how many holes, whether shots are given, what you are playing for
+     * — and `pill()` returned a STYLE, so "this one is selected" was a
+     * background tint, a border, and nothing else. Read aloud, the screen is a
+     * row of identical buttons with no way to tell what the form is set to.
+     *
+     * Counted rather than spot-checked: a screen where four of five rows
+     * announce themselves is still a screen you cannot fill in, and naming one
+     * button here would pass while ten others stayed silent.
+     *
+     * `pill` returns PROPS now, so `style={pill(x)}` is a type error and the
+     * look cannot be had without the state — which is why this asserts the
+     * count rather than trying to enumerate the rows.
+     */
+    const html = render(<NewMatchForm {...noClub} />);
+    /**
+     * Counted against the pills THEMSELVES rather than a number written here,
+     * so the assertion cannot drift as the screen grows. `padding:9px 14px` is
+     * `pillStyle`'s own, and only a pill wears it — the round-type cards
+     * override the padding and are counted separately below. A fixed number
+     * would go stale the first time a row is added or shown conditionally,
+     * which is most of them.
+     */
+    const pills = html.match(/<button[^>]*padding:9px 14px[^>]*>/g) ?? [];
+    const silent = pills.filter((b) => !/aria-pressed/.test(b));
+    expect(pills.length, "the screen is made of these").toBeGreaterThanOrEqual(7);
+    expect(silent, "every pill says whether it is chosen").toEqual([]);
+    // Both values, or the attribute is being written as a constant.
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain('aria-pressed="false"');
   });
 
   it("says nothing about a roster when there is no roster", () => {

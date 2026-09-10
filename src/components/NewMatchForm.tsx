@@ -365,7 +365,7 @@ export function NewMatchForm({
     });
   };
 
-  const pill = (active: boolean) => ({
+  const pillStyle = (active: boolean) => ({
     padding: "9px 14px",
     minHeight: 44,
     borderRadius: 10,
@@ -376,6 +376,23 @@ export function NewMatchForm({
     background: active ? "color-mix(in srgb, var(--color-accent) 16%, transparent)" : "var(--color-bg)",
     border: `1px solid ${active ? "var(--color-accent)" : "var(--color-divider)"}`,
   });
+
+  /**
+   * A one-of-these button, WITH the fact that it is chosen.
+   *
+   * This returned a style object, so every one of these eleven buttons said it
+   * was selected in a background colour and a border and nowhere else. Read
+   * aloud, the whole screen is a row of identical buttons: which round type,
+   * how many holes, whether shots are given, what you are playing for — none
+   * of them announces an answer, so there is no way to tell what the form is
+   * currently set to without being able to see it.
+   *
+   * Returned as PROPS rather than a style so the two cannot come apart. Using
+   * it the old way — `{...pill(x)}` — is now a type error, which is a
+   * better guarantee than a rule in a comment: a pill added next year carries
+   * its state because there is no way to give it the look without it.
+   */
+  const pill = (active: boolean) => ({ "aria-pressed": active, style: pillStyle(active) });
 
   return (
     <div className="card elev-sm" style={{ gap: 16 }}>
@@ -407,7 +424,7 @@ export function NewMatchForm({
                 onClick={() => chooseFormat(f.name)}
                 aria-pressed={active}
                 style={{
-                  ...pill(active),
+                  ...pillStyle(active),
                   textAlign: "left",
                   padding: "11px 14px",
                   display: "flex",
@@ -656,13 +673,13 @@ export function NewMatchForm({
       <div className="field">
         <label>How many holes?</label>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-          <button type="button" style={pill(holes === 18)} onClick={() => setHoles(18)}>18 holes</button>
-          <button type="button" style={pill(holes === 9)} onClick={() => setHoles(9)}>9 holes</button>
+          <button type="button" {...pill(holes === 18)} onClick={() => setHoles(18)}>18 holes</button>
+          <button type="button" {...pill(holes === 9)} onClick={() => setHoles(9)}>9 holes</button>
         </div>
         {holes === 9 && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-            <button type="button" style={pill(nine === "front")} onClick={() => setNine("front")}>Front nine</button>
-            <button type="button" style={pill(nine === "back")} onClick={() => setNine("back")}>Back nine</button>
+            <button type="button" {...pill(nine === "front")} onClick={() => setNine("front")}>Front nine</button>
+            <button type="button" {...pill(nine === "back")} onClick={() => setNine("back")}>Back nine</button>
           </div>
         )}
       </div>
@@ -684,10 +701,10 @@ export function NewMatchForm({
       <div className="field">
         <label>Are shots being given?</label>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-          <button type="button" style={pill(!useHandicaps)} onClick={() => setUseHandicaps(false)}>
+          <button type="button" {...pill(!useHandicaps)} onClick={() => setUseHandicaps(false)}>
             No — play level (gross)
           </button>
-          <button type="button" style={pill(useHandicaps)} onClick={() => setUseHandicaps(true)}>
+          <button type="button" {...pill(useHandicaps)} onClick={() => setUseHandicaps(true)}>
             Yes — off handicaps (net)
           </button>
         </div>
@@ -712,14 +729,14 @@ export function NewMatchForm({
       <div className="field">
         <label>Playing for anything?</label>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-          <button type="button" style={pill(moneyGame === "")} onClick={() => setMoneyGame("")}>
+          <button type="button" {...pill(moneyGame === "")} onClick={() => setMoneyGame("")}>
             No — just the golf
           </button>
           {moneyGames.map((g) => (
             <button
               key={g.key}
               type="button"
-              style={pill(moneyGame === g.key)}
+              {...pill(moneyGame === g.key)}
               onClick={() => setMoneyGame(g.key)}
             >
               {g.label}
@@ -748,10 +765,10 @@ export function NewMatchForm({
             <div className="field" style={{ marginTop: 10 }}>
               <label>What for?</label>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-                <button type="button" style={pill(stakeKind === "money")} onClick={() => setStakeKind("money")}>
+                <button type="button" {...pill(stakeKind === "money")} onClick={() => setStakeKind("money")}>
                   Money
                 </button>
-                <button type="button" style={pill(stakeKind === "other")} onClick={() => setStakeKind("other")}>
+                <button type="button" {...pill(stakeKind === "other")} onClick={() => setStakeKind("other")}>
                   Something else
                 </button>
               </div>
