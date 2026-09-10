@@ -606,6 +606,50 @@ describe("rounds and format", () => {
     expect(html).not.toContain("Carry forward");
   });
 
+  describe("a type and a format that cannot be scored together", () => {
+    /**
+     * The type is chosen when the round is added and the format on this card,
+     * on a different visit — so the pair is easy to get wrong and impossible
+     * to see. Two named templates held it: a charity day drew twelve
+     * head-to-head matches for a Stableford outing, and every player's own
+     * card screen told them their score belonged to an opponent.
+     *
+     * Said beside the two controls that set it, and as a warning rather than a
+     * refusal, for the reason `scoring-mismatch.ts` gives one level up: these
+     * are real controls an organizer sets on purpose.
+     */
+    it("says so on the round it is on", () => {
+      const html = render(
+        <StagesClient {...base} chainsRounds={false}
+          stages={[stage({ type: "Round Robin", format: "Stroke Play" })]} />,
+      );
+      expect(html).toContain("This round cannot be scored as set");
+      expect(html, "and what to use instead").toContain("Stroke Play Round");
+    });
+
+    it("and the mirror of it", () => {
+      const html = render(
+        <StagesClient {...base} chainsRounds={false}
+          stages={[stage({ type: "Stroke Play Round", format: "Match Play" })]} />,
+      );
+      expect(html).toContain("This round cannot be scored as set");
+    });
+
+    it("but says nothing about a round that is set up correctly", () => {
+      // THE ASSERTION THAT STOPS THIS BECOMING A BANNER ON EVERY ROUND. Both
+      // ordinary shapes, and the four-ball that is deliberately either.
+      for (const s of [
+        stage({ type: "Round Robin", format: "Match Play" }),
+        stage({ type: "Stroke Play Round", format: "Stroke Play" }),
+        stage({ type: "Round Robin", format: "Four-Ball" }),
+        stage({ type: "Stroke Play Round", format: "Four-Ball" }),
+      ]) {
+        const html = render(<StagesClient {...base} chainsRounds={false} stages={[s]} />);
+        expect(html, `${s.type} + ${s.format}`).not.toContain("cannot be scored as set");
+      }
+    });
+  });
+
   it("asks the carry-forward question on a points-based chain", () => {
     // Two Round Robin rounds scored on points: the second round's total is
     // ambiguous until someone says whether round one carries into it.
