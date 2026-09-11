@@ -368,10 +368,29 @@ export function EntryModes({
         />
       )}
 
-      {/* The committee's step, staff only. Sits under entry because that is
-          where the cards are, and because approving is the thing you do once
-          the group in front of you has finished. */}
-      {mode === "stroke" && isStaff && (
+      {/**
+       * The committee's step, staff only. Sits under entry because that is
+       * where the cards are, and because approving is the thing you do once
+       * the group in front of you has finished.
+       *
+       * NOT ON A CASUAL ROUND, and the reason is a contradiction rather than
+       * clutter. `createMatch` sets a quick round to player confirmation and
+       * says why in its own words: "there is no committee to approve a card
+       * that both players just agreed on standing on the 18th green". #281
+       * made the player's own screens say exactly that — a signed card reads
+       * "Certified — that's your card", toned done, and `/play` tells them
+       * nobody else has to accept it.
+       *
+       * This panel was still telling the same person, one screen away, that
+       * "only accepted cards are results". Both are shown to whoever set the
+       * round up: they are staff of their own personal organization, so
+       * `isStaff` is true for a fourball of two.
+       *
+       * Walked on 2026-09-11. Hidden rather than reworded, because there is
+       * no second party here to accept anything — the card is already final
+       * where it stands.
+       */}
+      {mode === "stroke" && isStaff && !casual && (
         <RoundApproval
           stageId={round.stroke.stageId}
           isAdmin={isAdmin}
