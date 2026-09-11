@@ -482,6 +482,34 @@ export async function cardBrand(
   };
 }
 
+/**
+ * Every organization whose COURSES this person should be offered.
+ *
+ * Their own memberships, whatever the role — a member of a club is offered
+ * that club's courses even though they run nothing. `/match/new` has always
+ * scoped its venue picker this way, and this is that scope, named and shared
+ * so the card screen can ask the same question.
+ *
+ * It exists because a casual round belongs to the person rather than to any
+ * club: scoping its library to the EVENT's organization asks a personal one
+ * for its courses and gets none, so a secretary setting up a Sunday fourball
+ * at their own course found the venue picker empty of it. Reading a club's
+ * course list is a convenience and not the club taking the round over — a
+ * golf course is a physical place, not club apparatus.
+ *
+ * Ids only. Nothing here decides what may be CHANGED; it decides what may be
+ * offered to pick from, and every write still goes through its own check.
+ */
+export async function courseOrgIdsFor(email: string): Promise<string[]> {
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (!user) return [];
+  const rows = await prisma.organizationMember.findMany({
+    where: { userId: user.id },
+    select: { organizationId: true },
+  });
+  return [...new Set(rows.map((r) => r.organizationId))];
+}
+
 /** The organizations a person owns, administers, or is staff in. */
 export async function organizationsFor(email: string) {
   const user = await prisma.user.findUnique({ where: { email } });

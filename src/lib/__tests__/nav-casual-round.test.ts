@@ -235,6 +235,26 @@ describe("the card screen on a casual round", () => {
 
   it("is told which shape it is by the page, not left to guess", () => {
     const page = readSource("src", "app", "(app)", "entry", "page.tsx");
-    expect(page).toMatch(/casual=\{isMatch\(state\.event\.shape\)\}/);
+    // Read ONCE into `casualRound` and passed down. Three things on that page
+    // turn on it now — this prop, the venue library's scope, and nothing else
+    // should have to ask a second time.
+    expect(page).toMatch(/const casualRound = isMatch\(state\.event\.shape\)/);
+    expect(page).toMatch(/casual=\{casualRound\}/);
+  });
+
+  it("offers the club's courses even though the round is not the club's", () => {
+    /**
+     * The regression this fixes, and it was one I introduced: once a quick
+     * round moved into the person's own organization, the venue picker on this
+     * screen asked THAT organization for its courses and got none. A secretary
+     * setting up a fourball at their own course could no longer find it.
+     *
+     * `/match/new` has always read the person's memberships for the same
+     * picker, so the two screens now ask one question. A golf course is a
+     * physical place, not club apparatus — offering it is a convenience, not
+     * the club taking the round over.
+     */
+    const page = readSource("src", "app", "(app)", "entry", "page.tsx");
+    expect(page).toMatch(/casualRound \? await courseOrgIdsFor\(session\.email\) : state\.event\.organizationId/);
   });
 });

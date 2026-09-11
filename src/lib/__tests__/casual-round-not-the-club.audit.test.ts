@@ -214,3 +214,119 @@ describe("the quick-round setup path", () => {
     expect(readSource("src/app/actions/match-setup.ts")).toMatch(/expiresAt: expiryFrom\(/);
   });
 });
+
+/**
+ * AND THE CLUB'S COURSES ARE STILL OFFERED, which is the line between
+ * "the round is not the club's" and "the club is hidden from you".
+ *
+ * Moving a quick round into the person's own organization took the club's
+ * course library off the card screen with it: that screen scoped
+ * `clubCourses` to the EVENT's organization, which is now a personal one with
+ * no courses in it. A secretary setting up a fourball at their own course
+ * could no longer find it in the venue picker.
+ *
+ * A golf course is a physical place, not club apparatus. Offering one is a
+ * convenience — the same convenience the memory records for the member list
+ * and its stored handicaps — and `/match/new` has always read the person's
+ * memberships for exactly this.
+ */
+describe("what a casual round may still read from the club", () => {
+  it("offers every course the person's clubs have on file", async () => {
+    const { club, displayName } = await clubSecretary("kit");
+    await prisma.course.create({
+      data: {
+        organizationId: club.id,
+        name: `${TAG} kit Heath`,
+        pars: JSON.stringify(new Array(18).fill(4)),
+        yards: JSON.stringify(new Array(18).fill(400)),
+        strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      },
+    });
+    const personal = await personalOrganizationFor(at("kit"), displayName);
+    expect(personal).not.toBe(club.id);
+
+    const { courseOrgIdsFor } = await import("@/lib/services/organization");
+    const ids = await courseOrgIdsFor(at("kit"));
+    // Both: the club whose course it is, and the organization the round is in.
+    expect(ids).toContain(club.id);
+    expect(ids).toContain(personal);
+
+    const { clubCourses } = await import("@/lib/services/courses");
+    const names = (await clubCourses(ids, "no-such-event")).map((c) => c.name);
+    expect(names).toContain(`${TAG} kit Heath`);
+  });
+
+  it("offers them to an ordinary member, not only to whoever runs the club", async () => {
+    /**
+     * THE CASE THIS IS ACTUALLY FOR, and the one the test above does not
+     * reach: a club member who runs nothing. They are the casual golfer this
+     * whole path exists for — the fourball on a Sunday, at the course they
+     * are a member of — and every other organization reader in this file is
+     * deliberately owner-or-admin only.
+     *
+     * Found by mutation: narrowing the membership query to `role: "owner"`
+     * left the fixture above green, because a secretary owns their club.
+     */
+    const host = await clubSecretary("pat");
+    await prisma.course.create({
+      data: {
+        organizationId: host.club.id,
+        name: `${TAG} pat Common`,
+        pars: JSON.stringify(new Array(18).fill(4)),
+        yards: JSON.stringify(new Array(18).fill(400)),
+        strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      },
+    });
+    const member = await prisma.user.create({ data: { email: at("ray"), name: `${TAG} ray` } });
+    await prisma.organizationMember.create({
+      data: { organizationId: host.club.id, userId: member.id, role: "member" },
+    });
+
+    const { courseOrgIdsFor } = await import("@/lib/services/organization");
+    const { clubCourses } = await import("@/lib/services/courses");
+    const ids = await courseOrgIdsFor(at("ray"));
+    expect(ids).toContain(host.club.id);
+    const names = (await clubCourses(ids, "no-such-event")).map((c) => c.name);
+    expect(names).toContain(`${TAG} pat Common`);
+  });
+
+  it("offers nothing from a club this person is not in", async () => {
+    // The scope is memberships, not every course in the database.
+    const other = await clubSecretary("lou");
+    await prisma.course.create({
+      data: {
+        organizationId: other.club.id,
+        name: `${TAG} lou Private`,
+        pars: JSON.stringify(new Array(18).fill(4)),
+        yards: JSON.stringify(new Array(18).fill(400)),
+        strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      },
+    });
+    const stranger = await prisma.user.create({
+      data: { email: at("mo"), name: `${TAG} mo` },
+    });
+    expect(stranger.id).toBeTruthy();
+
+    const { courseOrgIdsFor } = await import("@/lib/services/organization");
+    const { clubCourses } = await import("@/lib/services/courses");
+    const names = (await clubCourses(await courseOrgIdsFor(at("mo")), "no-such-event")).map((c) => c.name);
+    expect(names).not.toContain(`${TAG} lou Private`);
+  });
+
+  it("still takes a single organization, so nothing else changed", async () => {
+    // Every tournament caller passes one id and must behave exactly as before.
+    const { club } = await clubSecretary("nan");
+    await prisma.course.create({
+      data: {
+        organizationId: club.id,
+        name: `${TAG} nan Links`,
+        pars: JSON.stringify(new Array(18).fill(4)),
+        yards: JSON.stringify(new Array(18).fill(400)),
+        strokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+      },
+    });
+    const { clubCourses } = await import("@/lib/services/courses");
+    const names = (await clubCourses(club.id, "no-such-event")).map((c) => c.name);
+    expect(names).toContain(`${TAG} nan Links`);
+  });
+});

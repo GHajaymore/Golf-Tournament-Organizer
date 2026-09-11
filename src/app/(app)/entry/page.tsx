@@ -1,6 +1,7 @@
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
 import { clubCourses } from "@/lib/services/courses";
+import { courseOrgIdsFor } from "@/lib/services/organization";
 import { cardBrand } from "@/lib/services/organization";
 import { loadEventState, effectiveScoreStatus, settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, allowsAutoConfirm } from "@/lib/tournament-settings";
@@ -38,6 +39,9 @@ export default async function EntryPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+  // A quick round, not a tournament. Read once: three things on this screen
+  // turn on it and a second call would be a second answer waiting to differ.
+  const casualRound = isMatch(state.event.shape);
 
   // The tournament decides whether players report their own scores. The save
   // actions enforce this too — this only keeps the screen honest.
@@ -343,9 +347,22 @@ export default async function EntryPage() {
     ownIds.has(m.playerBId) ||
     (ownTeamIds !== null && (ownTeamIds.has(m.teamAId) || ownTeamIds.has(m.teamBId)));
 
-  // Offered first when a venue is asked for: a card somebody at this club
-  // already entered beats anything typed again from memory.
-  const clubLibrary = await clubCourses(state.event.organizationId, session.eventId);
+  /**
+   * Offered first when a venue is asked for: a card somebody at this club
+   * already entered beats anything typed again from memory.
+   *
+   * A CASUAL ROUND READS THE PERSON'S MEMBERSHIPS, not the event's own
+   * organization. A quick round belongs to the person now rather than to any
+   * club, so scoping to the event's organization asks a personal one for its
+   * courses and gets none — a secretary setting up a fourball at their own
+   * course found the venue picker empty of it. `/match/new` has always read
+   * memberships for exactly this, and the two screens disagreeing about which
+   * courses exist is the split worth avoiding.
+   */
+  const clubLibrary = await clubCourses(
+    casualRound ? await courseOrgIdsFor(session.email) : state.event.organizationId,
+    session.eventId,
+  );
   // Kept only for its NAME, in the header. Every card on this screen is now
   // resolved per round, because rounds differ — see `roundCard` below.
   const course = resolveCourse(state.event);
@@ -761,7 +778,7 @@ export default async function EntryPage() {
         .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap }))}
       absentByStage={absentByStage}
       // A quick round has no field, no spreadsheet and no draw. See the prop.
-      casual={isMatch(state.event.shape)}
+      casual={casualRound}
       isStaff={isStaff}
       // Off the round's format, not the event's match/stroke flag. A skins
       // round is entered as a stroke card and a Nassau as a match card, which
