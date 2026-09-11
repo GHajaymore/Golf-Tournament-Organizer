@@ -30,6 +30,7 @@ export function ReportsClient({
   board,
   scored = true,
   hasBracket = true,
+  hasTeeSheet = true,
 }: {
   rows: StandingRow[];
   isStroke: boolean;
@@ -67,6 +68,14 @@ export function ReportsClient({
    * it offered before.
    */
   hasBracket?: boolean;
+  /**
+   * Whether any round has a SAVED tee sheet, which is what the printable
+   * cards are built from — see the Scorecards entry below.
+   *
+   * Defaults to true, so a caller that has not been taught offers exactly
+   * what it offered before.
+   */
+  hasTeeSheet?: boolean;
 }) {
   const router = useRouter();
   /**
@@ -168,7 +177,32 @@ export function ReportsClient({
     ...(hasBracket
       ? [{ label: "Bracket sheet", desc: "Open the bracket, then print to PDF.", icon: "ph ph-tree-structure", action: () => router.push("/bracket"), kind: "open" as const }]
       : []),
-    { label: "Scorecards", desc: "Open printable scorecards for the field.", icon: "ph ph-cards", action: () => router.push("/scorecard"), kind: "open" },
+    /**
+     * SAYS WHAT IS MISSING RATHER THAN PROMISING WHAT ISN'T THERE.
+     *
+     * This read "Open printable scorecards for the field" unconditionally. The
+     * link goes to /scorecard, which redirects to the Tee sheet, where
+     * `TeeSheetPrint` returns null until a sheet has been SAVED — so on a
+     * tournament with no draw yet it delivered a pairing screen with no
+     * scorecards on it and nothing to say why. Read off Demo Cup on
+     * 2026-09-11: four rounds, none drawn, and no mention of printing
+     * anywhere on the destination.
+     *
+     * Kept rather than hidden, which is the opposite of what `hasBracket`
+     * above does, and deliberately. A tournament with no bracket is never
+     * going to have one — that door leads nowhere for good. A tee sheet not
+     * drawn YET is a step an organizer is about to take, so the entry stays
+     * and tells them which one.
+     */
+    {
+      label: "Scorecards",
+      desc: hasTeeSheet
+        ? "Open printable scorecards for the field."
+        : "Draw and save a tee sheet first — cards print one per group.",
+      icon: "ph ph-cards",
+      action: () => router.push("/scorecard"),
+      kind: "open",
+    },
   ];
 
   return (
