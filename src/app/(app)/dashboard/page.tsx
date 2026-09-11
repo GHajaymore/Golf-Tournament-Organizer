@@ -229,7 +229,7 @@ export default async function DashboardPage() {
    * `isMatch` rather than a new flag: the same fact the heading, the round
    * label and the sidebar already turn on.
    */
-  const orgFacts = isStaff && !matchEvent ? await orgSetupFactsFor(session.email, session.name) : null;
+  const orgFacts = isStaff && !matchEvent ? await orgSetupFactsFor(session.email, session.name, session.eventId) : null;
   const orgSetup = orgFacts ? orgSetupState(orgFacts) : null;
   const isAdmin = session.viewRole === "admin";
 

@@ -308,11 +308,37 @@ export async function createOrganizationWithOwner(input: {
  * made, and `signUp` already creates one for anybody who is actually an
  * organizer.
  *
- * Which organization, when they run several: the same preference order
- * `organizationForNewEvent` uses — owner or admin, a real club ahead of the
- * personal fallback, oldest first — so the checklist is about the same
- * organization a new tournament would land in. Two different answers to "which
- * of my organizations is this page about" would be the usual defect.
+ * WHICH ORGANIZATION — and the answer depends on whether a tournament is open.
+ *
+ * With one open it is that tournament's club, full stop. `eventId` is the
+ * whole of the question, because every screen the checklist LINKS TO already
+ * works that way: `/organization` resolves the event's `organizationId` and
+ * edits that club's name, branding and money mode.
+ *
+ * It used to answer from the caller's memberships instead — owner or admin, a
+ * club ahead of the personal fallback, oldest first — and that produced a
+ * checklist about one organization on a page about another. Two failures, and
+ * the second is the one that cannot be argued with:
+ *
+ *   - It could not be completed by following it. "Name your outing" links to
+ *     `/organization`, which names the EVENT's club; the tick tracked the
+ *     membership-chosen one, so the step stayed undone however many times it
+ *     was done.
+ *   - It described a club with no tournaments over a tournament in progress.
+ *     Read off Demo Cup on 2026-09-11 — 33 players, 47 results, a bracket —
+ *     with "1 of 3 done. Start with the tournament" above it and the club
+ *     screens marked "Opens once you have a tournament".
+ *
+ * That reproduces for anyone whose access to the tournament is an `Account`
+ * row rather than an organization membership — an assistant the club invited
+ * by email — and equally for anyone who owns two clubs, where the ordering
+ * picked the older one regardless of which tournament was on screen. Both got
+ * commoner the day a quick round started creating a personal organization.
+ *
+ * Without an open tournament — `/choose`, where the whole point is that one
+ * has not been picked — the membership order is still the right answer, and
+ * is kept: the checklist is then about the organization a new tournament
+ * would land in, which is what `organizationForNewEvent` decides.
  *
  * The facts are COUNTS, never rows. Nothing downstream needs to know what a
  * member is, only whether there are any, and counting in the database beats
@@ -321,7 +347,29 @@ export async function createOrganizationWithOwner(input: {
 export async function orgSetupFactsFor(
   email: string,
   displayName: string,
+  /** The tournament currently open, when there is one. */
+  eventId?: string,
 ): Promise<OrgSetupFacts | null> {
+  if (eventId) {
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: {
+        organization: {
+          select: {
+            name: true,
+            kind: true,
+            moneyMode: true,
+            _count: { select: { roster: true, events: true, courses: true } },
+          },
+        },
+      },
+    });
+    // A stale event id falls through to the membership answer rather than
+    // returning null: losing the checklist is a worse failure than choosing
+    // the organization the old way.
+    if (event) return factsFrom(event.organization, displayName, email);
+  }
+
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (!user) return null;
 
@@ -341,7 +389,26 @@ export async function orgSetupFactsFor(
   });
   if (!membership) return null;
 
-  const org = membership.organization;
+  return factsFrom(membership.organization, displayName, email);
+}
+
+/**
+ * The same counts whichever way the organization was chosen.
+ *
+ * One reader, so the two paths above cannot answer "is this club set up"
+ * differently — which is the defect the `eventId` branch exists to fix, and
+ * would be an easy way to reintroduce.
+ */
+function factsFrom(
+  org: {
+    name: string;
+    kind: string;
+    moneyMode: string;
+    _count: { roster: number; events: number; courses: number };
+  },
+  displayName: string,
+  email: string,
+): OrgSetupFacts {
   return {
     kind: org.kind,
     // Not `!!org.name` — every organization has a name from birth, because
