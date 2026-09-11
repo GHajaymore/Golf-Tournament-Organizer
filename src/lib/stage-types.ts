@@ -173,6 +173,28 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
 export const WEEKLY_ROUND_TYPES: readonly StageTypeKey[] = ["Round Robin", "Stroke Play Round"];
 
 /**
+ * THE ROUNDS THAT MAKE A TOURNAMENT A KNOCKOUT.
+ *
+ * A bracket is a knockout draw, so a league or a medal that ends at its last
+ * round has nothing to show on `/bracket` — `navForRole` hides the link on
+ * exactly this condition, because without it "every tournament carried a
+ * permanent door to an empty screen".
+ *
+ * This pair was written out in four separate files: the console layout, the
+ * dashboard, `standingRows`, and the Reports screen. That is a rule with four
+ * copies and no single place to correct it, which is how a fifth reader comes
+ * to be written that never learned it — and one had been. The "Recommended
+ * flow" card on `/event` told every organizer to visit the Bracket, on a
+ * one-round charity day and a round-robin society league alike, which is the
+ * same door reopened one screen along. `/reports` had the identical fault
+ * closed on 2026-09-10 and the sidebar before that; this is the third time.
+ *
+ * A Qualification Stage counts because it is a knockout's front half — it
+ * exists to seed a bracket, and `/bracket` is where its audit now lives.
+ */
+export const KNOCKOUT_STAGE_TYPES: readonly StageTypeKey[] = ["Bracket Stage", "Qualification Stage"];
+
+/**
  * The most rounds one click may create.
  *
  * A season, generously. High enough that no real league is refused, low enough
@@ -187,6 +209,22 @@ export const MAX_ROUNDS_AT_ONCE = 40;
 /** Whether this round is one of a league's weeks. */
 export function isWeeklyRound(type: string): boolean {
   return (WEEKLY_ROUND_TYPES as readonly string[]).includes(type);
+}
+
+/** Whether this round is part of a knockout — the bracket, or the qualifying
+ *  that seeds it. */
+export function isKnockoutRound(type: string): boolean {
+  return (KNOCKOUT_STAGE_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Whether this tournament has a knockout in it at all.
+ *
+ * The question every reader actually asks, so that none of them has to spell
+ * the pair of types out — see `KNOCKOUT_STAGE_TYPES` for the four that did.
+ */
+export function hasKnockoutStage(stages: readonly { type: string }[]): boolean {
+  return stages.some((s) => isKnockoutRound(s.type));
 }
 
 export function isStageType(v: string): v is StageTypeKey {

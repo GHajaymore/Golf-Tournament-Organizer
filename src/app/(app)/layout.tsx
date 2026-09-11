@@ -24,7 +24,7 @@ import { OrgProfileProvider } from "@/components/OrgProfileProvider";
 import { themeCss, DEFAULT_CLUB_THEME } from "@/lib/themes";
 import { settingsOf } from "@/lib/services/tournament";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
-import { WEEKLY_ROUND_TYPES } from "@/lib/stage-types";
+import { KNOCKOUT_STAGE_TYPES, WEEKLY_ROUND_TYPES } from "@/lib/stage-types";
 import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { myPlayerIds } from "@/lib/services/me";
 import { isMatch } from "@/lib/tournament-shape";
@@ -52,7 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // round.
   const knockoutRounds = event
     ? await prisma.stage.count({
-        where: { eventId: event.id, type: { in: ["Bracket Stage", "Qualification Stage"] } },
+        where: { eventId: event.id, type: { in: [...KNOCKOUT_STAGE_TYPES] } },
       })
     : 0;
   // Screens the tournament governs (leaderboard, score entry) are filtered out

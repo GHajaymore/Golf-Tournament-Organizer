@@ -1,4 +1,5 @@
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
+import { hasKnockoutStage } from "@/lib/stage-types";
 import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState, matchProgress, standingRows } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
@@ -201,7 +202,7 @@ export default async function ReportsPage() {
         /* The same rule the sidebar applies to the Bracket link, asked of the
            same two stage types — a medal that ends at the last round has no
            bracket to print. */
-        hasBracket={state.stages.some((s) => s.type === "Bracket Stage" || s.type === "Qualification Stage")}
+        hasBracket={hasKnockoutStage(state.stages)}
         /**
          * Whether a tee sheet has been SAVED for any round, because that is
          * what the printable cards are built from.

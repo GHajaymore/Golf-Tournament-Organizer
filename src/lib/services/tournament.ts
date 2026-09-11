@@ -1,6 +1,6 @@
 import "server-only";
 import { roundTeeId } from "./handicaps";
-import { isPlayingRound } from "../stage-types";
+import { hasKnockoutStage, isPlayingRound } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { isManualFormat, stablefordTableFor } from "../formats";
@@ -1038,9 +1038,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // set in Round setup rather than the qualifyPerGroup default (2/flight = 8
   // across four flights, which highlighted the wrong players on every board).
   // With neither a knockout nor a round cut, nobody is advancing yet.
-  const hasKnockout = stages.some(
-    (s) => s.type === "Bracket Stage" || s.type === "Qualification Stage",
-  );
+  const hasKnockout = hasKnockoutStage(stages);
   let advancingIds: Set<string>;
   if (hasKnockout) {
     advancingIds = qualifierIds;

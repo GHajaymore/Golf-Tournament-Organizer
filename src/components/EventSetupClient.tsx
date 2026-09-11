@@ -63,6 +63,7 @@ export function EventSetupClient({
   playersCount,
   courses,
   isMatch = false,
+  hasBracket = true,
 }: {
   initial: EventForm;
   playersCount: number;
@@ -77,6 +78,17 @@ export function EventSetupClient({
    * problem, on the screen a casual round is most likely to be opened from.
    */
   isMatch?: boolean;
+  /**
+   * Whether this tournament has a knockout in it at all.
+   *
+   * Only the "Recommended flow" card reads it, and only to drop one line —
+   * see that line for the two screens this same rule had to be taught before.
+   *
+   * Defaults to true, the way `ReportsClient.hasBracket` does and for the same
+   * reason: a caller that has not been taught offers exactly what it offered
+   * before, so this cannot quietly remove the step from a real knockout.
+   */
+  hasBracket?: boolean;
 }) {
   const [f, setF] = useState<EventForm>(initial);
   const [manualTarget, setManualTarget] = useState(initial.manualPlayerCount);
@@ -658,7 +670,23 @@ export function EventSetupClient({
                 would send somebody looking for a sidebar entry that is not
                 there, which is the exact fault this list has already had
                 twice. */}
-            <li>Bracket — who qualified, and who plays whom</li>
+            {/* AND ONLY WHERE THERE IS A BRACKET, which is the third finding of
+                that same fault rather than the fourth avoidance of it.
+
+                The sidebar hides `/bracket` unless the tournament has a
+                knockout round in it — without that gate "every tournament
+                carried a permanent door to an empty screen" — and `/reports`
+                had the identical door closed on 2026-09-10, where it offered
+                "Bracket sheet · Open the bracket, then print to PDF" on a
+                one-round charity day. This list was the reader nobody had
+                told, so a society league and a club medal were each walked to
+                a bracket they will never have.
+
+                Read off a round-robin league on 2026-09-11: no Bracket entry
+                in the sidebar, this card still listing it, and `/bracket`
+                itself rendering a manager that reads "Champion TBD" for a
+                tournament which ends at its last round. */}
+            {hasBracket && <li>Bracket — who qualified, and who plays whom</li>}
             <li>Prizes &amp; payouts → Reports &amp; export</li>
           </ol>
         </div>
