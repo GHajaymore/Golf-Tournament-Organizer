@@ -339,3 +339,43 @@ export function nextRoundFlights(
   }
   return kept;
 }
+
+/**
+ * WHETHER THE QUALIFYING LINE WAS SETTLED ON POINTS OR ON COUNTBACK.
+ *
+ * The qualification panel prints "Cutoff pts" — the lowest total that got
+ * through — and says of the table under it: "Every player is shown, so you
+ * can see exactly who missed out and by how much."
+ *
+ * On Demo Cup, read on 2026-09-11, it printed 10.5. Four players were on
+ * exactly 10.5: two advanced and two did not. So the honest answer to "by how
+ * much" was "by nothing", and the screen had no way to say it — a member on
+ * 10.5 reads a cutoff of 10.5 and concludes they qualified.
+ *
+ * The app was not WRONG about who goes through. `rankPlayers` separated them
+ * on the club's own tiebreak chain — head-to-head, holes-won ratio, fewest
+ * holes lost, lower handicap — which is a published countback and a perfectly
+ * proper way to decide a cut. What was missing is that it happened at all,
+ * on the screen an organizer has to explain the cut from.
+ *
+ * Deliberately NOT the same thing as `tiedAtCut`. That fires when the chain
+ * cannot separate two players at the line and a play-off is owed. This fires
+ * when it CAN and did: nobody is owed anything, and the organizer still needs
+ * to be able to answer "I had the cutoff score, why am I out?".
+ *
+ * Points only, and that is the whole of its claim. It says the line did not
+ * fall between two different totals; it does not say which tiebreaker settled
+ * it, because that is the chain's business and differs per club.
+ */
+export function cutSettledOnCountback(
+  rows: ReadonlyArray<{ points: number; advancing: boolean }>,
+): boolean {
+  const through = rows.filter((r) => r.advancing);
+  const out = rows.filter((r) => !r.advancing);
+  // Nobody on one side of the line means there is no line to describe.
+  if (through.length === 0 || out.length === 0) return false;
+
+  const lowestThrough = Math.min(...through.map((r) => r.points));
+  const highestOut = Math.max(...out.map((r) => r.points));
+  return lowestThrough === highestOut;
+}
