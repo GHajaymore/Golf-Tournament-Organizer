@@ -1,7 +1,7 @@
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
 import { clubCourses } from "@/lib/services/courses";
-import { courseOrgIdsFor } from "@/lib/services/organization";
+import { organizationIdsFor } from "@/lib/services/organization";
 import { cardBrand } from "@/lib/services/organization";
 import { loadEventState, effectiveScoreStatus, settingsOf } from "@/lib/services/tournament";
 import { canEnterScores, allowsAutoConfirm } from "@/lib/tournament-settings";
@@ -360,7 +360,7 @@ export default async function EntryPage() {
    * courses exist is the split worth avoiding.
    */
   const clubLibrary = await clubCourses(
-    casualRound ? await courseOrgIdsFor(session.email) : state.event.organizationId,
+    casualRound ? await organizationIdsFor(session.email) : state.event.organizationId,
     session.eventId,
   );
   // Kept only for its NAME, in the header. Every card on this screen is now

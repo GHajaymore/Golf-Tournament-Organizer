@@ -245,8 +245,8 @@ describe("what a casual round may still read from the club", () => {
     const personal = await personalOrganizationFor(at("kit"), displayName);
     expect(personal).not.toBe(club.id);
 
-    const { courseOrgIdsFor } = await import("@/lib/services/organization");
-    const ids = await courseOrgIdsFor(at("kit"));
+    const { organizationIdsFor } = await import("@/lib/services/organization");
+    const ids = await organizationIdsFor(at("kit"));
     // Both: the club whose course it is, and the organization the round is in.
     expect(ids).toContain(club.id);
     expect(ids).toContain(personal);
@@ -282,9 +282,9 @@ describe("what a casual round may still read from the club", () => {
       data: { organizationId: host.club.id, userId: member.id, role: "member" },
     });
 
-    const { courseOrgIdsFor } = await import("@/lib/services/organization");
+    const { organizationIdsFor } = await import("@/lib/services/organization");
     const { clubCourses } = await import("@/lib/services/courses");
-    const ids = await courseOrgIdsFor(at("ray"));
+    const ids = await organizationIdsFor(at("ray"));
     expect(ids).toContain(host.club.id);
     const names = (await clubCourses(ids, "no-such-event")).map((c) => c.name);
     expect(names).toContain(`${TAG} pat Common`);
@@ -307,9 +307,9 @@ describe("what a casual round may still read from the club", () => {
     });
     expect(stranger.id).toBeTruthy();
 
-    const { courseOrgIdsFor } = await import("@/lib/services/organization");
+    const { organizationIdsFor } = await import("@/lib/services/organization");
     const { clubCourses } = await import("@/lib/services/courses");
-    const names = (await clubCourses(await courseOrgIdsFor(at("mo")), "no-such-event")).map((c) => c.name);
+    const names = (await clubCourses(await organizationIdsFor(at("mo")), "no-such-event")).map((c) => c.name);
     expect(names).not.toContain(`${TAG} lou Private`);
   });
 
