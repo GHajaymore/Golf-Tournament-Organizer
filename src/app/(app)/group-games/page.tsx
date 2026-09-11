@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
@@ -28,6 +29,8 @@ import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
  *
  * TourneyHQ works this out and writes it down. It never moves the money.
  */
+export const metadata = screenMetadata("/group-games");
+
 export default async function GroupGamesPage({
   searchParams,
 }: {

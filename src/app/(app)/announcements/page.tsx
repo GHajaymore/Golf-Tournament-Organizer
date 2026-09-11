@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
 import { entitlementForEvent } from "@/lib/services/entitlements";
@@ -12,6 +13,8 @@ function ago(d: Date): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
+
+export const metadata = screenMetadata("/announcements");
 
 export default async function AnnouncementsPage() {
   const session = await requireScreen("announcements");

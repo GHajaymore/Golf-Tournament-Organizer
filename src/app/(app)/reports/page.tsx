@@ -1,3 +1,4 @@
+import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState, matchProgress, standingRows } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
@@ -25,6 +26,8 @@ import { toParText } from "@/lib/domain";
  *
  * The branch now comes from `boardKind`, which both screens share.
  */
+export const generateMetadata = () => screenMetadataForEvent("/reports");
+
 export default async function ReportsPage() {
   const session = await requireScreen("reports");
   const state = await loadEventState(session.eventId);

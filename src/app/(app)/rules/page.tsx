@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -20,6 +21,8 @@ import { Icon } from "@/components/Icon";
  * The audience is whoever has to defend a result. A professional asked why a
  * tie broke that way, or which allowance was applied, answers from here.
  */
+
+export const metadata = screenMetadata("/rules");
 
 export default async function RulesPage() {
   await requireScreen("rules");

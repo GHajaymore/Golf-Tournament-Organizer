@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { allowsAutoConfirm } from "@/lib/tournament-settings";
@@ -28,6 +29,15 @@ import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
  * reads, so this screen cannot tell a player something the tournament
  * disagrees with.
  */
+
+/**
+ * The one screen outside the console that never named itself either.
+ *
+ * `/me` is where `landingScreenFor("player")` sends everybody who plays, so
+ * this is the tab a player keeps open on the course — and it read the
+ * marketing sentence, the same as the organizer's twenty-one.
+ */
+export const metadata = screenMetadata("/me");
 
 export default async function PlayTodayPage() {
   const session = await requireSession();

@@ -154,6 +154,36 @@ const MATCH_SECTION_LABEL: Readonly<Record<string, string>> = {
   Results: "Afterwards",
 };
 
+/**
+ * WHAT ONE ITEM IS CALLED, given who is looking at it.
+ *
+ * Two things move a label off its constant, and both used to be applied by the
+ * sidebar alone: a casual round renames two entries, and an organization that
+ * is not a club renames its own settings — "Society settings", "Outing
+ * settings". `screenName` knew about neither, which was invisible while the
+ * sidebar was the only reader.
+ *
+ * It stopped being invisible the moment browser tabs started naming themselves
+ * from `screenName`: a society's sidebar read "Society settings" and its tab
+ * read "Club settings", which is precisely the two-names-for-one-screen fault
+ * that function's own comment is about. So both readers resolve a label here
+ * and cannot disagree.
+ *
+ * A casual round beats the organization's wording, which is the order the
+ * sidebar already applied (`forMatch(relabel(...))`) and the right one: a
+ * casual round now belongs to a person rather than to any club, so there is no
+ * society whose settings those would be.
+ */
+export function itemLabel(
+  item: { key: string; label: string },
+  isMatch: boolean,
+  orgKind?: OrgKind,
+): string {
+  if (isMatch && MATCH_ITEM_LABEL[item.key]) return MATCH_ITEM_LABEL[item.key];
+  if (orgKind && item.key === "organization") return orgProfile(orgKind).settingsLabel;
+  return item.label;
+}
+
 export interface NavItem {
   key: string;
   label: string;
@@ -384,7 +414,7 @@ export function navForRole(
       ...s,
       label: profile.groupLabel,
       items: s.items.map((i) =>
-        i.key === "organization" ? { ...i, label: profile.settingsLabel } : i,
+        i.key === "organization" ? { ...i, label: itemLabel(i, false, opts.orgKind) } : i,
       ),
     };
   };
@@ -416,7 +446,7 @@ export function navForRole(
       : {
           ...s,
           label: MATCH_SECTION_LABEL[s.label] ?? s.label,
-          items: s.items.map((i) => ({ ...i, label: MATCH_ITEM_LABEL[i.key] ?? i.label })),
+          items: s.items.map((i) => ({ ...i, label: itemLabel(i, true, opts.orgKind) })),
         };
 
   return NAV.map((s) =>
@@ -483,7 +513,7 @@ export function primaryTabs(sections: NavSection[]): NavItem[] {
  *
  * Falls back to the href, which is at least true, rather than to a guess.
  */
-export function screenName(href: string, isMatch = false): string {
+export function screenName(href: string, isMatch = false, orgKind?: OrgKind): string {
   const path = href.split(/[?#]/)[0];
   for (const section of NAV) {
     for (const item of section.items) {
@@ -498,7 +528,7 @@ export function screenName(href: string, isMatch = false): string {
          * cross-references inside tournament screens — keeps the tournament
          * name, which is the only name those screens are ever shown under.
          */
-        return (isMatch && MATCH_ITEM_LABEL[item.key]) || item.label;
+        return itemLabel(item, isMatch, orgKind);
       }
     }
   }

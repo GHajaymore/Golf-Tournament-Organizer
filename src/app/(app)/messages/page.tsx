@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
 import { membershipFor, threadsFor, composableScopes, messageableField, messagesOptOutFor } from "@/lib/services/messaging";
@@ -12,6 +13,8 @@ import { MessagesClient } from "@/components/MessagesClient";
  * given; it builds the membership from the session and asks for what that
  * membership can see.
  */
+export const metadata = screenMetadata("/messages");
+
 export default async function MessagesPage() {
   const session = await requireScreen("messages");
 

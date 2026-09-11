@@ -1,3 +1,4 @@
+import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
@@ -15,6 +16,8 @@ import { MoneySetup } from "@/components/MoneySetup";
 import { cleanSettings } from "@/lib/tournament-settings";
 import { isAppearance, DEFAULT_APPEARANCE } from "@/lib/themes";
 import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/components/SettingsNav";
+
+export const generateMetadata = () => screenMetadataForEvent("/organization");
 
 export default async function OrganizationPage() {
   const session = await requireScreen("organization");

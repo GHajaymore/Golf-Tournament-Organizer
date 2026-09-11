@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -14,6 +15,8 @@ import { organizationIdForEvent } from "@/lib/services/roster";
  * same table is what an organizer looks at from whichever tournament they
  * happen to have open.
  */
+export const metadata = screenMetadata("/series");
+
 export default async function SeriesPage({
   searchParams,
 }: {

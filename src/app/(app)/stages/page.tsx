@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
@@ -66,6 +67,8 @@ function teamScoringFor(s: {
     maxSide: sideSizeRange(s.format).max,
   };
 }
+
+export const metadata = screenMetadata("/stages");
 
 export default async function StagesPage() {
   const session = await requireScreen("stages");
