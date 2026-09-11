@@ -234,6 +234,36 @@ this announces itself as YOUR BUG. So when a layout or heading assertion fails o
 your change did not touch, **search the log for `Client Manifest` before believing it** — and
 confirm the same way as the SEGV, by re-running the commit rather than editing the page.
 
+**And a THIRD, which is a click that never lands.** `offline.spec.ts:245` — "taking their
+card clears the queue without sending anything" — times out on the desktop project trying to
+press the card chooser's button:
+
+```
+Error: locator.click: Test timeout of 30000ms exceeded.
+  - locator resolved to <button ...>Use theirs</button>
+  - element is not stable ... element is outside of the viewport
+  - <a href="/me/board">…</a> from <nav aria-label="Sections">…</nav> intercepts pointer events
+  - element was detached from the DOM, retrying
+```
+
+Note what it is NOT: the dialog is found and visible, so this is not a screen that failed to
+render, and there is no expected-versus-received anywhere in it. It is the click.
+
+**Desktop only** — `phone` and `small-phone` run the same test and passed it in the same run.
+**It is on `main`**, measured 2026-09-11 rather than assumed: five runs of that spec at the
+desktop viewport, three green and two red, across `main` and a branch whose new files nothing
+in `src/app` or `src/components` imports.
+
+That last bit is why it is written down. The first sample said branch-fails / main-passes, and
+on one sample each that reads exactly like a regression you just introduced — it took two more
+runs on `main` to see the coin land the other way. **One run of each is not a comparison.** If
+this fails on a change that cannot reach the player card, re-run the same spec on `main` two or
+three times before believing it.
+
+Unlike the SEGV, this one may be worth fixing rather than tolerating: pointer events being
+intercepted by the section nav at 1280x900 is also what a person would experience, so it may be
+a real desktop layout fault wearing a flake's clothes. Nobody has looked yet.
+
 ## What gates a merge, and what gates a deploy
 
 `ci.yml` is the only workflow that runs on its own — every push and every PR. It does the
