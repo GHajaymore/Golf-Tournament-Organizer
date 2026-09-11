@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { cutLineTies } from "../standings";
+import { cutSettledOnCountback } from "../cut";
+import { readSource } from "@/lib/__tests__/source";
 
 /**
  * A tie for the last qualifying place is not the software's to break.
@@ -129,5 +131,96 @@ describe("finding a tie the cut line runs through", () => {
       "overall",
     );
     expect(ties[0].playerIds.sort()).toEqual(["a", "b", "c"]);
+  });
+});
+
+/**
+ * AND THE OTHER HALF: the chain COULD separate them, and nobody said so.
+ *
+ * `cutLineTies` above is the case where a countback runs out and a play-off is
+ * owed. This is its complement — the totals are equal, the club's chain
+ * settled it, and the result is perfectly proper. What was missing is that the
+ * screen never mentioned it.
+ *
+ * The qualification panel prints "Cutoff pts" (the lowest total that got
+ * through) and promises of the table beneath: "Every player is shown, so you
+ * can see exactly who missed out and by how much."
+ *
+ * Read off Demo Cup on 2026-09-11: it printed 10.5, and FOUR players were on
+ * exactly 10.5 — two advanced, two did not. So "by how much" was "by nothing",
+ * and a member on 10.5 reading a cutoff of 10.5 concludes they qualified. The
+ * organizer has to answer that from this screen.
+ */
+describe("whether the qualifying line was settled on countback", () => {
+  const r = (points: number, advancing: boolean) => ({ points, advancing });
+
+  it("says so when the last one through and the first one out are level", () => {
+    // Demo Cup's shape: 15, 13.5, 10.5, 10.5 through; 10.5, 10.5 out.
+    expect(
+      cutSettledOnCountback([r(15, true), r(13.5, true), r(10.5, true), r(10.5, true), r(10.5, false), r(10.5, false)]),
+    ).toBe(true);
+  });
+
+  it("stays quiet when the line falls between two different totals", () => {
+    // Nothing to explain: 10.5 through, 9.5 out, and the gap is the reason.
+    expect(cutSettledOnCountback([r(15, true), r(10.5, true), r(9.5, false), r(9, false)])).toBe(false);
+  });
+
+  it("is about the LINE, not about ties elsewhere in the field", () => {
+    /**
+     * Two players level at the top and two level at the bottom, with a clear
+     * gap at the cut. Nobody is owed an explanation, and claiming a countback
+     * decided the line would be inventing one.
+     */
+    expect(cutSettledOnCountback([r(15, true), r(15, true), r(8, false), r(8, false)])).toBe(false);
+  });
+
+  it("says nothing when everybody goes through, or nobody does", () => {
+    // No line has formed, so there is nothing to describe on either side.
+    expect(cutSettledOnCountback([r(15, true), r(10, true)])).toBe(false);
+    expect(cutSettledOnCountback([r(15, false), r(10, false)])).toBe(false);
+    expect(cutSettledOnCountback([])).toBe(false);
+  });
+
+  it("does not care how the list is ordered", () => {
+    /**
+     * It reads the EXTREMES, not the first and last row — the panel passes
+     * flights concatenated, which is nothing like overall rank order.
+     *
+     * This fixture is built so the two readings disagree, because the obvious
+     * one does not. Both sides ascending: the last row through is 15 and the
+     * first row out is 9, which look nothing alike, while the lowest through
+     * and the highest out are both 10.5. Reading rows instead of extremes says
+     * "no countback"; reading extremes says "countback", which is the truth.
+     *
+     * Written the ordinary way first — through descending, out descending —
+     * where min happens to BE the last row and max happens to BE the first,
+     * so the mutation passed and the test proved nothing. Caught by mutating.
+     */
+    expect(
+      cutSettledOnCountback([r(10.5, true), r(15, true), r(9, false), r(10.5, false)]),
+    ).toBe(true);
+  });
+});
+
+/** And the panel has to ask, and say it where the misleading number is. */
+describe("where the countback note appears", () => {
+  const src = () => readSource("src/components/QualificationPanel.tsx");
+
+  it("asks over the whole field, both sides of the line", () => {
+    // `qualifiers` alone cannot answer it — the question is about who missed.
+    expect(src()).toMatch(/cutSettledOnCountback\(allRows\)/);
+  });
+
+  it("sits with the Cutoff pts figure, which is the one that misleads", () => {
+    /**
+     * Not in the prose at the top. The number is what a reader checks their
+     * own score against, and an explanation two paragraphs away is not read
+     * by the person who has already found their answer.
+     */
+    const s = src();
+    const card = s.slice(s.indexOf("Cutoff pts"), s.indexOf("Cutoff pts") + 700);
+    expect(card).toMatch(/\{countback && \(/);
+    expect(card).toMatch(/settled on countback/);
   });
 });

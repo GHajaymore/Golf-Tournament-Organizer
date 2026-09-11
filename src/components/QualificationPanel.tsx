@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cutSettledOnCountback } from "@/lib/domain/cut";
 import { screenName } from "@/lib/nav";
 import { pts, shortName, distinctLabels } from "@/lib/format";
 import { Icon } from "./Icon";
@@ -77,6 +78,13 @@ export function QualificationPanel({
    * the scope is the panel.
    */
   const allRows = flights.flatMap((f) => f.rows);
+  /**
+   * Whether the qualifying line fell between two equal totals — see
+   * `cutSettledOnCountback`. Computed over every player in the panel rather
+   * than the qualifiers alone, because the question is about both sides of
+   * the line.
+   */
+  const countback = cutSettledOnCountback(allRows);
   const flightLabels = new Map(
     distinctLabels(allRows.map((r) => r.name), shortName).map((label, i) => [allRows[i].id, label] as const),
   );
@@ -135,6 +143,28 @@ export function QualificationPanel({
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>
             {cutoff === null ? "—" : pts(cutoff)}
           </div>
+          {/**
+           * THE NUMBER ALONE IS TRUE AND INCOMPLETE.
+           *
+           * `overallCutoff` is the lowest total that got through. On Demo Cup
+           * that is 10.5 — and four players are on exactly 10.5, of whom two
+           * advanced and two did not. A member on 10.5 reads a cutoff of 10.5
+           * and concludes they qualified; the organizer has to explain why
+           * they did not, from this screen.
+           *
+           * Nothing is wrong with the result: `rankPlayers` separated them on
+           * the club's own chain, which is a published countback and a proper
+           * way to decide a cut. What was missing is that it happened.
+           *
+           * Not `tiedAtCut`, which is the opposite case — the chain COULD NOT
+           * separate them and a play-off is owed. Here nobody is owed
+           * anything and the question still gets asked at the bar.
+           */}
+          {countback && (
+            <span className="text-muted" style={{ fontSize: 11.5, lineHeight: 1.4 }}>
+              Players finished level on this. The line was settled on countback.
+            </span>
+          )}
         </div>
       </div>
 
