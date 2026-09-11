@@ -75,6 +75,42 @@ export const TOURNAMENT_ONLY_SCREENS: ReadonlySet<string> = new Set([
   "organization",
   "roster",
   "series",
+  /**
+   * Messaging a field you do not have.
+   *
+   * `/messages` is threads, staff broadcasts and an SMS fan-out priced per
+   * segment against the club's rate — apparatus for reaching forty people who
+   * are not in the room. A casual round is two to eight players who are
+   * standing on the same tee, and the round is gone tomorrow.
+   *
+   * It is also the club's: the thread scopes are the club's flights, rounds
+   * and teams, and a quick round now belongs to the person rather than to any
+   * club at all, so what it would offer is a conversation about somebody
+   * else's tournament.
+   */
+  "messages",
+  /**
+   * THE TOURNAMENT'S OWN FILING CABINET, and the reason a casual round has a
+   * panel of its own instead.
+   *
+   * `/event` is the club's settings, its course library and its plan.
+   * `/registration` is a registration desk: approvals, a waitlist, a capacity,
+   * an invite message. `/stages` is rounds and formats with cut lines, carry
+   * forward and tiebreakers. Every one of them is apparatus for running a
+   * field, and a casual round is two to eight people who are standing on the
+   * same tee.
+   *
+   * These used to stay, on the argument that each was the only door to
+   * something a round genuinely has — a mistyped handicap, eighteen changed to
+   * nine. That argument was right about the NEED and wrong about the door:
+   * what it produced was a fourball being walked through a tournament's setup
+   * screens to change one number. `CasualRoundPanel` is those three things,
+   * on the round's own screen, and it is what makes removing these safe rather
+   * than stranding.
+   */
+  "event",
+  "registration",
+  "stages",
   // The club's money. Its skins pot moved to `group-games` rather than going.
   "prizes",
 ]);
@@ -83,6 +119,40 @@ export const TOURNAMENT_ONLY_SCREENS: ReadonlySet<string> = new Set([
 export function screenAppliesToMatch(key: string): boolean {
   return !TOURNAMENT_ONLY_SCREENS.has(key);
 }
+
+/**
+ * What a casual round calls the screens it keeps.
+ *
+ * Not a second set of screens — the same ones, named for what they are when
+ * the event is four friends rather than a field. "Registration & field" is a
+ * registration desk with a waitlist and approvals; on a Sunday fourball it is
+ * the list of who is playing and what they are off.
+ *
+ * Only the entries that would read wrongly. Score entry, Live leaderboard,
+ * Rules reference and Group games mean exactly the same thing to a fourball
+ * as to a championship and are deliberately absent from this map.
+ */
+const MATCH_ITEM_LABEL: Readonly<Record<string, string>> = {
+  reports: "Export this round",
+  // "Dashboard" is a word for a desk. This screen already titles itself "The
+  // match" on a casual round; the sidebar was the half still calling it
+  // something else.
+  dashboard: "This round",
+};
+
+/**
+ * And the headings above them.
+ *
+ * The sections are the tournament lifecycle — "Overview → Club → Set up →
+ * Manage → Results" — which is a real description of running a competition and
+ * a strange thing to show somebody who has just pressed "Start the round". A
+ * casual round has no set-up phase to lock, nothing to manage but the card,
+ * and no results to publish to anyone who was not standing there.
+ */
+const MATCH_SECTION_LABEL: Readonly<Record<string, string>> = {
+  Manage: "Playing",
+  Results: "Afterwards",
+};
 
 export interface NavItem {
   key: string;
@@ -319,9 +389,39 @@ export function navForRole(
     };
   };
 
-  return NAV.map((s) => relabel({ ...s, items: s.items.filter((i) => allowed(i.key)) })).filter(
-    (s) => s.items.length > 0,
-  );
+  /**
+   * A casual round's sidebar in a casual round's words.
+   *
+   * The screens themselves are right to be here — the comment on `isMatch`
+   * above says why each one stays, and none of that changes. What was wrong is
+   * what they are CALLED. Two people who opened the app to play each other on
+   * Sunday were handed "Tournament details", "Registration & field", "Rounds &
+   * formats", under headings reading Set up, Manage and Results: a filing
+   * cabinet for an event that does not exist, describing a round that will be
+   * deleted tomorrow. Read off the screen on 2026-09-10 after setting one up.
+   *
+   * Renaming rather than removing, deliberately. Every one of these is the
+   * only door to something a round genuinely needs — a mistyped name, a wrong
+   * index, eighteen changed to nine on the first tee — and a sidebar that
+   * hides them strands somebody exactly as a dead link does.
+   *
+   * `screenName()` states the rule that a screen has one name, and grants the
+   * phone's tab bar a single confined exception. This is the second, and it is
+   * confined the same way: two maps, read in one place, applied only when the
+   * event is a casual round.
+   */
+  const forMatch = (s: NavSection): NavSection =>
+    !opts.isMatch
+      ? s
+      : {
+          ...s,
+          label: MATCH_SECTION_LABEL[s.label] ?? s.label,
+          items: s.items.map((i) => ({ ...i, label: MATCH_ITEM_LABEL[i.key] ?? i.label })),
+        };
+
+  return NAV.map((s) =>
+    forMatch(relabel({ ...s, items: s.items.filter((i) => allowed(i.key)) })),
+  ).filter((s) => s.items.length > 0);
 }
 
 /**
@@ -383,11 +483,23 @@ export function primaryTabs(sections: NavSection[]): NavItem[] {
  *
  * Falls back to the href, which is at least true, rather than to a guess.
  */
-export function screenName(href: string): string {
+export function screenName(href: string, isMatch = false): string {
   const path = href.split(/[?#]/)[0];
   for (const section of NAV) {
     for (const item of section.items) {
-      if (item.href === path) return item.label;
+      if (item.href === path) {
+        /**
+         * A casual round calls three of these something else, and this reader
+         * has to agree with the sidebar or it becomes the exact fault the
+         * paragraph above describes.
+         *
+         * The flag defaults to false, so every caller that does not know
+         * about casual rounds — the setup flow, the checklist, half a dozen
+         * cross-references inside tournament screens — keeps the tournament
+         * name, which is the only name those screens are ever shown under.
+         */
+        return (isMatch && MATCH_ITEM_LABEL[item.key]) || item.label;
+      }
     }
   }
   return path;

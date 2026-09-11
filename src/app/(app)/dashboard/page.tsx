@@ -31,6 +31,7 @@ import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { Icon } from "@/components/Icon";
+import { CasualRoundPanel } from "@/components/CasualRoundPanel";
 
 /**
  * Shortcuts into the sidebar, with the dashboard's own shorter labels.
@@ -179,6 +180,10 @@ export default async function DashboardPage() {
    * of the page, and tsc does not catch it.
    */
   const matchEvent = isMatch(event.shape);
+  // A casual round has exactly one round in it, which is what makes a single
+  // panel the whole of its settings. The active stage rather than stages[0]:
+  // same reader every other screen uses.
+  const casualStage = matchEvent ? state.activeStage ?? state.stages[0] ?? null : null;
   // Counted over the rounds the field plays, not over the Round Robins: those
   // two lists are the same only in a tournament that is nothing but round
   // robins, and this screen sits beside others that always counted rounds.
@@ -529,6 +534,28 @@ export default async function DashboardPage() {
           "Launch tournament" dialog would ask them to confirm their flight
           count. The match is created live and stays unlocked; the only
           question left, whether it is finished, is answered by the card. */}
+      {/* A CASUAL ROUND'S OWN CONTROLS, in place of a tournament's setup
+          screens. `/event`, `/registration` and `/stages` are gone from this
+          shape's sidebar — they are a club's settings, a registration desk and
+          a rounds screen with cut lines — and these three things are what a
+          fourball actually reconsiders: eighteen or nine, shots or level, and
+          a handicap somebody typed wrong. Staff only, which on a quick round
+          means whoever set it up. */}
+      {matchEvent && isStaff && casualStage && (
+        <CasualRoundPanel
+          stageId={casualStage.id}
+          holes={casualStage.holes}
+          scoringBasis={casualStage.scoringBasis}
+          players={state.confirmed.map((p) => ({
+            id: p.id,
+            name: p.name,
+            // Plus handicaps are stored negative and must never be shown back
+            // as "-2" — the same rule the setup form states.
+            handicap: p.handicap < 0 ? `+${Math.abs(p.handicap)}` : String(p.handicap),
+          }))}
+        />
+      )}
+
       {!matchEvent && (
         <LifecycleBar
           status={event.status}
@@ -611,7 +638,10 @@ export default async function DashboardPage() {
                 }}
               >
                 <Icon name={a.icon} style={{ fontSize: 20, color: "var(--color-accent)" }} />
-                {screenName(a.href)}
+                {/* The sidebar renames three of these on a casual round; this tile
+                    has to agree with it or the reader hunts for a screen that is
+                    not in the list. */}
+                {screenName(a.href, matchEvent)}
               </Link>
             ))}
           </div>
