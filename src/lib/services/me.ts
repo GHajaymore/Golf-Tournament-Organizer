@@ -49,6 +49,21 @@ import type { HoleResult } from "@/lib/domain/types";
  * play, whatever the roster says.
  */
 export async function myPlayerIds(eventId: string, email: string): Promise<Set<string>> {
+  /**
+   * AN EMPTY ADDRESS MATCHES NOBODY, stated rather than relied upon.
+   *
+   * `where: { email: { equals: "" } }` does not mean "no rows" — it means
+   * EVERY entry without an address. Until entries could be made without one
+   * that set was empty and this could not misfire, and `getSession` still only
+   * ever hands over a real address, so nothing reaches here with "" today.
+   *
+   * Both of those are circumstances, not guarantees, and the consequence if
+   * either changes is not a blank screen: it is one signed-in player being
+   * handed every email-less player's card, score entry and money in the event.
+   * A refusal on the first line costs nothing and cannot be forgotten by a
+   * caller — the same shape `standingRows` uses for manual formats.
+   */
+  if (!email.trim()) return new Set();
   const rows = await prisma.player.findMany({
     // Case-insensitive: an address typed into a roster import is not
     // necessarily cased the way the same person typed it when signing up.

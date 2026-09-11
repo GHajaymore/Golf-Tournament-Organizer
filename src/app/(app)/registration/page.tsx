@@ -4,6 +4,7 @@ import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import { redirect } from "next/navigation";
 import { RegistrationClient } from "@/components/RegistrationClient";
+import { entryNeedsEmail } from "@/lib/tournament-settings";
 import { brandForEvent } from "@/lib/services/organization";
 import { rosterForEvent } from "@/lib/services/roster";
 import { planForEvent } from "@/lib/services/entitlements";
@@ -41,6 +42,7 @@ export default async function RegistrationPage() {
       // to, so the column never shows an empty box meaning "the round’s".
       tees={eventTees.map((t) => ({ id: t.id, name: t.name }))}
       teePolicy={settingsOf(state.event).teePolicy}
+      needsEmail={entryNeedsEmail(settingsOf(state.event))}
       defaultTeeName={
         eventTees.find((t) => t.id === roundTee)?.name
           ? `${eventTees.find((t) => t.id === roundTee)?.name} (round’s)`

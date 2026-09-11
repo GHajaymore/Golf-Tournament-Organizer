@@ -378,3 +378,44 @@ export function usesAccessCodes(settings: TournamentSettings): boolean {
 export function usesEmailSignIn(settings: TournamentSettings): boolean {
   return settings.playerAccess === "email" || settings.playerAccess === "both";
 }
+
+/**
+ * WHETHER AN ENTRY NEEDS AN EMAIL ADDRESS — asked of the tournament, not
+ * assumed of the world.
+ *
+ * Every organizer path into a field refused a blank address, with the reason
+ * "it's how this player signs in". For a tournament signing players in by
+ * email that is exactly right. For one using Round Codes it is not true, and
+ * the product says so in its own words two screens away: `/event` explains the
+ * access code "exists because a society roster is often names and nothing
+ * else, and chasing sixty people for an email before anyone can score is not a
+ * workable ask", and the society, league, member-guest and charity templates
+ * all ship `playerAccess: "both"` or `"code"` for that reason.
+ *
+ * So the app told a society it did not need addresses and then demanded one
+ * from every entrant. A club with two hundred names and no emails could not
+ * enter its own members. Walked 2026-09-11.
+ *
+ * EMAIL IS A CREDENTIAL HERE, NOT AN IDENTITY. The identity is `Member.id`
+ * inside an organization and `Player.id` inside an event, which is what the
+ * scoring path already uses: `createPlaySession` signs
+ * `stageId:playerId:expiry:code` and never reads an address. `handicap`, the
+ * draw, the leaderboard and the money are all keyed the same way. So a player
+ * with no email can already play and be scored; what they cannot do is sign in
+ * with an address they do not have.
+ *
+ * WHICH MEANS THIS IS THE WHOLE RULE: an address is required exactly when it
+ * is the only way in. `usesAccessCodes` is the same predicate that decides
+ * whether codes are generated at all, so a tournament cannot be in a state
+ * where this asks for an address and no code exists.
+ *
+ * NOT APPLIED TO OPEN REGISTRATION, deliberately, and the difference is not
+ * about identity. The public form is a stranger on a shared link: the entry
+ * rate limit is keyed on their address (`checkRateLimit("register-email", …)`),
+ * de-duplication has nothing else to match a stranger on, and the form sends
+ * them a confirmation. An organizer typing in a name is none of those things —
+ * they are holding the list, and they are already authenticated.
+ */
+export function entryNeedsEmail(settings: TournamentSettings): boolean {
+  return !usesAccessCodes(settings);
+}
