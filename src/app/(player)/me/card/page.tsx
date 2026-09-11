@@ -4,7 +4,7 @@ import { needsTeams } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
-import { canEnterScores, mayReportPartialCard } from "@/lib/tournament-settings";
+import { canEnterScores, mayReportPartialCard, allowsAutoConfirm } from "@/lib/tournament-settings";
 import { resolveCourse, hasCourseData } from "@/lib/courses";
 import { courseForRound, applyNine, cleanNine } from "@/lib/services/course-resolution";
 import { holeStrokesReceived, allocationHoles } from "@/lib/domain";
@@ -150,6 +150,12 @@ export default async function PlayCardPage() {
       shotsPerHole={shots}
       playingHandicap={playing}
       status={me.round.card?.status ?? "entered"}
+      // Whether signing this card hands it to anybody. Under player
+      // confirmation nothing approves a scorecard — `certifyCard` writes
+      // "certified" and the only paths out are staff actions — so the card
+      // stops there, and saying "it's with the committee now" is a wait that
+      // never ends. A casual round is exactly that case.
+      staffApproves={!allowsAutoConfirm(settings)}
       // The club's badge at the head of the card, so the card a player holds
       // carries the mark that is on the paper one.
       brand={brand}

@@ -169,3 +169,79 @@ export function approvalSummary(review: ApprovalReview): string {
   const head = `Approve ${r} ${r === 1 ? "card" : "cards"}`;
   return e === 0 ? `${head}.` : `${head}, leaving ${e} that ${e === 1 ? "needs" : "need"} attention.`;
 }
+
+/**
+ * WHAT A PLAYER'S OWN CARD SAYS IS HAPPENING TO IT.
+ *
+ * Three screens told a player their signed card was "with the committee": the
+ * status line on /me, the note after signing on /me/card, and the sentence
+ * under Certify on /play. All three were hard-coded, and all three are false
+ * for a round the club has set to player confirmation — most of all a casual
+ * round, where `createMatch` chooses that setting and says why in its own
+ * words: "there is no committee to approve a card that both players just
+ * agreed on standing on the 18th green."
+ *
+ * And a card really does STOP at certified there. `certifyCard` writes
+ * "certified" whatever the setting says, and the only two paths to "approved"
+ * are staff actions — `allowsAutoConfirm` governs MATCH confirmation, not
+ * scorecards, so nothing ever moves it on. So two people on a Sunday were not
+ * told to wait for a committee once; they were told it on their home screen,
+ * in a colour meaning unfinished, for as long as the round existed.
+ *
+ * `staffApproves` is read from the round's own `scoreApproval` setting rather
+ * than from anything about how the round was created, so a club that changes
+ * its mind mid-season is followed — and so is the club that runs player
+ * confirmation for an ordinary tournament, which has exactly the same absence
+ * of a reviewer and was being told the same untruth.
+ */
+export type CardTone = "done" | "waiting" | "problem";
+
+export interface CardStanding {
+  label: string;
+  tone: CardTone;
+  /** "" hides the button entirely. */
+  action: string;
+}
+
+export function cardStanding(status: string, staffApproves: boolean): CardStanding {
+  if (status === "approved") return { label: "Approved", tone: "done", action: "" };
+  // Someone says this card is wrong. It is the player's to look at, and it is
+  // emphatically not "finish" — every hole may already be on it.
+  if (status === "disputed") return { label: "Disputed", tone: "problem", action: "See my card" };
+  if (status === "certified") {
+    return staffApproves
+      ? { label: "Certified — with the committee", tone: "waiting", action: "See my card" }
+      : /**
+         * Done, and coloured done. This is the end of the road for a card in a
+         * round with no reviewer, and the old screen offered "Finish my card"
+         * next to it — a call to action, on a complete card, that had already
+         * been signed. There is nothing left to finish.
+         */
+        { label: "Certified — that's your card", tone: "done", action: "See my card" };
+  }
+  return { label: "Entered, not yet certified", tone: "waiting", action: "Finish my card" };
+}
+
+/** The line shown on the card itself the moment a player signs it. */
+export function certifiedNote(staffApproves: boolean): string {
+  return staffApproves
+    ? "Certified. It's with the committee now."
+    : "Certified. That's your card — nobody else has to accept it.";
+}
+
+/**
+ * The sentence under the Certify button — one copy, for both cards.
+ *
+ * There are two screens a player can sign on: `/me/card` for somebody with an
+ * account and `/play` for somebody holding a Round Code, and they had the
+ * sentence written out separately. #280 corrected the one on `/play` and left
+ * the other saying the old thing, which is the drift `certifyCard`'s own
+ * comment was written about — "the doors into this row cannot drift apart
+ * again". A shared string is how that stops happening a fourth time.
+ */
+export function certifyPrompt(complete: boolean, holes: number, staffApproves: boolean): string {
+  if (!complete) return `Certify once all ${holes} holes are in.`;
+  return staffApproves
+    ? "Certifying says these hole scores are correct. The committee accepts it after that."
+    : "Certifying says these hole scores are correct. That is the card — nobody else has to accept it.";
+}

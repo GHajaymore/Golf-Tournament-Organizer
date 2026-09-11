@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
-import { loadEventState } from "@/lib/services/tournament";
+import { loadEventState, settingsOf } from "@/lib/services/tournament";
+import { allowsAutoConfirm } from "@/lib/tournament-settings";
+import { cardStanding } from "@/lib/domain/card-approval";
 import { meFor } from "@/lib/services/me";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
@@ -25,13 +27,6 @@ import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
  * disagrees with.
  */
 
-const CARD_STATE: Record<string, { label: string; tone: "done" | "waiting" | "problem" }> = {
-  entered: { label: "Entered, not yet certified", tone: "waiting" },
-  certified: { label: "Certified — with the committee", tone: "waiting" },
-  approved: { label: "Approved", tone: "done" },
-  disputed: { label: "Disputed", tone: "problem" },
-};
-
 export default async function PlayTodayPage() {
   const session = await requireSession();
   const state = await loadEventState(session.eventId);
@@ -41,7 +36,13 @@ export default async function PlayTodayPage() {
 
   const round = me.round;
   const card = round?.card ?? null;
-  const cardState = card ? CARD_STATE[card.status] ?? CARD_STATE.entered : null;
+  /**
+   * Whether a committee is going to look at this card, from the round's own
+   * setting. `cardStanding` carries the whole reason; the short version is
+   * that a card stops at "certified" when nobody approves cards, and this
+   * screen was calling that state unfinished, in grey, forever.
+   */
+  const cardState = cardStanding(card?.status ?? "entered", !allowsAutoConfirm(settingsOf(state.event)));
 
   return (
     <div>
@@ -292,19 +293,24 @@ export default async function PlayTodayPage() {
                     style={{
                       display: "block",
                       color:
-                        cardState?.tone === "problem"
+                        cardState.tone === "problem"
                           ? "var(--color-danger)"
-                          : cardState?.tone === "done"
+                          : cardState.tone === "done"
                             ? "var(--color-accent-2-300)"
                             : "var(--color-neutral-400)",
                     }}
                   >
-                    {cardState?.label}
+                    {cardState.label}
                   </span>
                 </p>
-                {card.status !== "approved" && (
+                {/* The button's WORDS come from the same place as the line
+                    above it. "Finish my card" over a signed, complete card was
+                    the loudest half of the same untruth — a call to action on
+                    something with nothing left to do. */}
+                {cardState.action && (
                   <Link className="btn btn-primary" href="/me/card">
-                    <Icon name="pencil-simple" /> Finish my card
+                    <Icon name={cardState.action === "Finish my card" ? "pencil-simple" : "eye"} />{" "}
+                    {cardState.action}
                   </Link>
                 )}
               </>
