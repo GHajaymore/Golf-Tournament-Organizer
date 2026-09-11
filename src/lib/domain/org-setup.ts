@@ -48,6 +48,38 @@ export type SetupStepKey = "profile" | "course" | "roster" | "tournament" | "mon
  * changes, the only step a brand-new organization can actually do is create
  * its first tournament, and the checklist must not pretend otherwise.
  */
+/**
+ * THE CLUB IS SET UP ONCE; THE TOURNAMENTS ARE MANY.
+ *
+ * That is the relationship, and the app had it upside down: every club screen
+ * resolved its organization through whichever tournament happened to be open,
+ * so the one-time decisions — the club's name, its colours, its handicap
+ * policy, how its money works — could not be made until a tournament existed
+ * to stand inside. A secretary's first act became their second.
+ *
+ * This is the list of steps that no longer need one. It is a list rather than
+ * "everything except the tournament step" because the two halves have to be
+ * able to disagree: `/roster` still reads the active event for "who is already
+ * in this field", so it is still blocked, and saying so honestly is better
+ * than a blanket rule that would promise a screen which then bounces.
+ *
+ * `org-setup.test.ts` holds this to account in both directions — every href
+ * marked blocked must really require an event, and `/choose` must not. Add a
+ * screen here only after it actually works without one.
+ */
+const EVENTLESS_HREFS: readonly string[] = [
+  // `/choose` is where an eventless session is SENT, so it cannot demand one.
+  "/choose",
+  // Club settings: name, branding, theme, handicap policy, and the club's
+  // money default. Two of the four setup steps point here.
+  "/organization",
+];
+
+function worksWithoutATournament(href: string): boolean {
+  const path = href.split("?")[0];
+  return EVENTLESS_HREFS.includes(path);
+}
+
 export const SETUP_HREF: Record<SetupStepKey, string> = {
   // The club settings screen: name, branding, theme, staff access.
   profile: "/organization",
@@ -249,7 +281,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
   const blockedSteps = steps.map((s) => ({
     ...s,
     blocked:
-      noEventYet && !s.href.startsWith(SETUP_HREF.tournament.split("?")[0])
+      noEventYet && !worksWithoutATournament(s.href)
         ? // `profile.noun`, not "club". Read off the screen on 2026-09-10 while
           // signed up as a SOCIETY: "your club's own screens live inside one".
           // The same slip this file already records against "Name your

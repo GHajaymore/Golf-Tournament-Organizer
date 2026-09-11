@@ -66,8 +66,15 @@ export function OrgSetupChecklist({
               screen breaks on the organizer's first click is worse than no
               promise. Read off the steps rather than off the event count, so
               the two cannot come to disagree. */}
+          {/* AND IT STOPPED BEING "start with the tournament".
+              The club is set up once and its tournaments are many, so naming
+              it and settling how its money works come first — both live on
+              /organization, which no longer stands inside a tournament. Only
+              the members list still needs one, and the sentence now says which
+              way round that is rather than sending everybody to the tournament
+              first. */}
           {anyBlocked
-            ? "Start with the tournament — the rest open up once you have one, and you can come back to them in any order."
+            ? `Start with your ${state.profile.noun} — only the members list waits on your first tournament, and you can come back to these in any order.`
             : "Work through them in any order — nothing here is locked, and you can come back to it."}
         </p>
       </div>

@@ -219,10 +219,26 @@ describe("a brand-new organization with no tournament", () => {
   const fresh = (over: Partial<OrgSetupFacts> = {}) =>
     orgSetupState(facts({ eventCount: 0, named: false, memberCount: 0, moneyAnswered: false, ...over }));
 
-  it("marks every step that lives inside a tournament", () => {
+  it("marks every step that lives inside a tournament, and no longer the club's own", () => {
+    /**
+     * THE CLUB IS SET UP ONCE; THE TOURNAMENTS ARE MANY.
+     *
+     * This used to assert that every step but `/choose` was blocked, because
+     * every club screen reached its organization through whichever tournament
+     * was open. That made the one-time decisions — the club's name, its
+     * colours, its handicap policy, how its money works — unreachable until a
+     * tournament existed to stand inside, which is the second thing done
+     * first.
+     *
+     * `/organization` answers from `primaryOrganizationFor` now, so the two
+     * steps pointing at it are reachable on day one. `/roster` still reads the
+     * active event for "who is already in this field" and is still blocked —
+     * and the pair of tests below hold both halves of that claim to the code.
+     */
+    const eventless = ["/choose", "/organization"];
     for (const step of fresh().steps) {
-      const inChoose = step.href.startsWith("/choose");
-      expect(!!step.blocked, `${step.key} -> ${step.href}`).toBe(!inChoose);
+      const free = eventless.some((h) => step.href.startsWith(h));
+      expect(!!step.blocked, `${step.key} -> ${step.href}`).toBe(!free);
     }
   });
 
@@ -231,17 +247,26 @@ describe("a brand-new organization with no tournament", () => {
     expect(tournament?.blocked).toBe("");
   });
 
-  it("points Next at the step that works", () => {
-    // It was `remaining[0]` — "Name your society", the first of the three that
-    // bounce. Marking the one reachable step is the whole job of that chip.
+  it("points Next at naming the club, which is now the first thing that works", () => {
+    /**
+     * It pointed at "Create your first tournament", because that was the only
+     * reachable step — "Name your society" bounced. Naming the club is the
+     * first thing a secretary actually does, and now that it works it is where
+     * the chip belongs.
+     *
+     * Still the same rule underneath: Next is the first REACHABLE unfinished
+     * step. What changed is which steps are reachable.
+     */
     const s = fresh();
-    expect(s.next?.key).toBe("tournament");
+    expect(s.next?.key).toBe("profile");
     expect(s.next?.blocked).toBe("");
   });
 
   it("says why, rather than just going quiet", () => {
-    const profile = fresh().steps.find((s) => s.key === "profile");
-    expect(profile?.blocked).toMatch(/tournament/i);
+    // The roster still reads the active event for "who is already in this
+    // field", so it is still blocked — and still has to say so.
+    const roster = fresh().steps.find((s) => s.key === "roster");
+    expect(roster?.blocked).toMatch(/tournament/i);
   });
 
   it("blocks nothing at all once one tournament exists", () => {
@@ -254,11 +279,13 @@ describe("a brand-new organization with no tournament", () => {
   });
 
   it("marks the same steps for every kind of organization", () => {
-    // A society, a club and a one-off outing get different STEPS, and all of
-    // them hang off an event in the same way.
+    // A society, a club and a one-off outing get different STEPS, and which of
+    // them need a tournament does not depend on what the outfit is.
+    const eventless = ["/choose", "/organization"];
     for (const kind of ["club", "community", "personal"]) {
       for (const step of fresh({ kind }).steps) {
-        expect(!!step.blocked, `${kind}/${step.key}`).toBe(!step.href.startsWith("/choose"));
+        const free = eventless.some((h) => step.href.startsWith(h));
+        expect(!!step.blocked, `${kind}/${step.key}`).toBe(!free);
       }
     }
   });

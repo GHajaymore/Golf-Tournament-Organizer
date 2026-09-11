@@ -29,6 +29,7 @@ import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { myPlayerIds } from "@/lib/services/me";
 import { isMatch } from "@/lib/tournament-shape";
 import { isOrgKind, type OrgKind } from "@/lib/domain/org-profile";
+import { organizationsForOrganizer } from "@/lib/services/organization";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -69,6 +70,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // shell is offered. Most club tournaments are run by someone playing in them.
   const ownEntries = event ? (await myPlayerIds(event.id, session.email)).size : 0;
 
+  /**
+   * The club this person runs, asked for only when there is no tournament to
+   * answer from — so the ordinary console request costs nothing extra.
+   */
+  const ownedOrgs = event ? [] : await organizationsForOrganizer(session.email);
+  const orgKindNow = event?.organization.kind ?? ownedOrgs[0]?.kind ?? "";
+
   const sections = navForRole(session.viewRole, event ? settingsOf(event) : undefined, {
     hasTeamRound: teamRounds > 0,
     hasKnockout: knockoutRounds > 0,
@@ -76,7 +84,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     wantsTeams: event ? wantsTeams(cleanSideStyle(event.sideStyle)) : false,
     isPlayerToo: ownEntries > 0,
     isMatch: isMatch(event?.shape),
-    orgKind: isOrgKind(event?.organization.kind ?? "") ? event!.organization.kind as OrgKind : undefined,
+    /**
+     * The outfit's own word for itself, from the club rather than from the
+     * tournament — or the sidebar reads "Club settings" to a society that has
+     * not created a tournament yet, which is the same two-names fault the
+     * browser tab had.
+     */
+    orgKind: isOrgKind(orgKindNow) ? (orgKindNow as OrgKind) : undefined,
+    // A club with no tournament yet still has club settings to reach.
+    orgAdminWithoutEvent: !event && ownedOrgs.length > 0,
   });
   // Club branding replaces the TourneyHQ mark in the sidebar for every
   // tournament this organization runs (with attribution kept on free plans).
@@ -98,7 +114,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     {/* What kind of outfit this is, beside its currency and its theme — one
         fact about the organization read by a dozen screens that name it. A
         society is not a club, and the console said so in eight places. */}
-    <OrgProfileProvider kind={event?.organization.kind}>
+    <OrgProfileProvider kind={orgKindNow || undefined}>
     <div
       id="club-theme"
       // Drives `color-scheme` in globals.css. Native form chrome — the date

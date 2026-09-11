@@ -4911,7 +4911,17 @@ describe("the console tells its screens what kind of outfit this is", () => {
   });
 
   it("and gives it the organization's own kind", () => {
-    expect(src).toMatch(/<OrgProfileProvider kind=\{event\?\.organization\.kind\}/);
+    /**
+     * From `orgKindNow`, which is the event's club when there is a tournament
+     * open and the club this person runs when there is not.
+     *
+     * It read `event?.organization.kind` directly, which was undefined for a
+     * society that had not created a tournament yet — so the console called
+     * its own screens "Club settings" to a society, in the one state where
+     * setting the society up is the only thing to do.
+     */
+    expect(src).toMatch(/<OrgProfileProvider kind=\{orgKindNow \|\| undefined\}/);
+    expect(src).toMatch(/const orgKindNow = event\?\.organization\.kind \?\? ownedOrgs\[0\]\?\.kind/);
   });
 
   it("starts a label with the noun rather than shouting it or spelling out the label", async () => {
@@ -5061,16 +5071,24 @@ describe("the setup checklist", () => {
       <OrgSetupChecklist currentPath="/choose"
         state={await state({ named: false, memberCount: 0, eventCount: 0, moneyAnswered: false })} />,
     );
-    // No link to any of the screens that live inside a tournament.
-    for (const href of ["/roster", "/organization", "/event"]) {
+    /**
+     * THE CLUB IS SET UP ONCE, AND THAT PART IS REACHABLE NOW.
+     *
+     * `/organization` no longer stands inside a tournament — it answers from
+     * `primaryOrganizationFor` — so naming the club and choosing how its money
+     * works are live on day one, which is the order a secretary actually works
+     * in. `/roster` and `/event` still read the active event, so they are
+     * still honestly marked.
+     */
+    for (const href of ["/roster", "/event"]) {
       expect(html, href).not.toContain(`href="${href}"`);
     }
-    // The rows are still THERE, and each says why it is not a link.
+    expect(html).toContain('href="/organization"');
+    // The rows are still THERE, and each blocked one says why it is not a link.
     expect(html).toContain("Add your members");
     expect(html).toContain("Opens once you have a tournament");
     // And the promise the screen was breaking is not made.
     expect(html).not.toContain("nothing here is locked");
-    expect(html).toContain("Start with the tournament");
   });
 
   it("marks the one step that can be done, not the first that cannot", async () => {
@@ -5083,10 +5101,18 @@ describe("the setup checklist", () => {
     );
     const chip = html.indexOf('class="tag tag-neutral">Next');
     expect(chip).toBeGreaterThan(-1);
-    // The chip sits inside the tournament row, which is last — so everything
-    // before it is the other four rows.
-    expect(html.lastIndexOf("Create your first tournament")).toBeLessThan(chip);
-    expect(html.indexOf("Add your members")).toBeLessThan(chip);
+    /**
+     * The chip now sits on NAMING THE CLUB, which is both the first reachable
+     * step and the first thing a secretary does. It used to sit on "Create
+     * your first tournament" only because that was the sole row that worked.
+     *
+     * The rule is unchanged — Next marks the first reachable unfinished step —
+     * so this asserts it lands before the rows that follow it rather than
+     * hard-coding a row number.
+     */
+    expect(html.indexOf("Name your")).toBeLessThan(chip);
+    expect(html.lastIndexOf("Create your first tournament")).toBeGreaterThan(chip);
+    expect(html.indexOf("Add your members")).toBeGreaterThan(chip);
   });
 
   it("does not say a step costs something it cannot yet be blamed for", async () => {

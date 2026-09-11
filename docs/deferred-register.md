@@ -135,6 +135,33 @@ money.
 
 ---
 
+### Casual rounds are still started from the organizer console
+**Parked 2026-09-11**, deliberately, after checking what removal would cost.
+
+Ajay: take "Just playing a round?" out of the organizer/admin setup and make it
+a member-side thing. Right instinct — a Sunday fourball is not club
+administration — but the two entry points on `/choose` and in `EventSwitcher`
+are the **only** links to `/match/new` in the entire app. Grep it before
+believing otherwise:
+
+```
+src/app/choose/page.tsx:240        href="/match/new"
+src/components/EventSwitcher.tsx:410   href="/match/new"
+```
+
+So removing them strands the feature at a URL nobody can reach. The move needs
+its member-side door built in the SAME change — the landing page's "Playing
+today? Enter your round code" is the natural neighbour, and `/play` is the
+player's entry — rather than a removal now and a replacement later.
+
+### What the club section should be CALLED
+Open, and small. The sidebar heading and the settings screen are relabelled per
+organization kind today — "Club", "Society", "Outing" — from
+`orgProfile.groupLabel`, because a society being addressed as a club was a real
+complaint the console had in eight places. The setup FLOW is identical for all
+three; only the word differs. Worth deciding whether one fixed name is wanted
+instead, and what it should be, before more screens grow the per-kind wording.
+
 ## 4. Environment and ops
 
 ### `CRON_SECRET` is not set on the Vercel project

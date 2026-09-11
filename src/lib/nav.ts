@@ -352,11 +352,34 @@ export function navForRole(
      * because of who is running it.
      */
     orgKind?: OrgKind;
+    /**
+     * This person runs a club and has no tournament open — see `allowed`.
+     *
+     * Named for the whole condition rather than "isOrgAdmin", because it is
+     * the PAIR that matters: with a tournament open the ordinary role check is
+     * the right one and must keep applying.
+     */
+    orgAdminWithoutEvent?: boolean;
   } = {},
 ): NavSection[] {
   const TOURNAMENT_ONLY = TOURNAMENT_ONLY_SCREENS;
 
   const allowed = (key: string): boolean => {
+    /**
+     * THE CLUB'S OWN SCREEN, FOR A CLUB WITH NO TOURNAMENT YET.
+     *
+     * `viewRole` is derived from EVENT access — `getSession` returns "player"
+     * when `accessibleEvents` is empty — so the secretary who has just created
+     * a society and not yet a tournament is typed as a player, and the whole
+     * Club section vanishes from their sidebar. They could reach Club settings
+     * by typing the URL and not by any link on the screen.
+     *
+     * Only `organization` is opened, and only in that state. Members and
+     * Season standings still read the active event, so offering them here
+     * would be a link that bounces — the exact fault the org setup rail is
+     * careful to mark rather than commit.
+     */
+    if (opts.orgAdminWithoutEvent && key === "organization") return true;
     if (!canAccessScreen(viewRole, key)) return false;
     if (opts.isMatch && TOURNAMENT_ONLY.has(key)) return false;
     // Teams only matter to a tournament that has a team round in it. Most
