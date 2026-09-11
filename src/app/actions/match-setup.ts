@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { personalOrganizationFor, settingsForNewEvent } from "@/lib/services/organization";
+import { personalOrganizationFor, organizationIdsFor, settingsForNewEvent } from "@/lib/services/organization";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { planMatch, type MatchSetupInput } from "@/lib/domain/quick-match";
@@ -314,10 +314,30 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
    *
    * One query for the lot, not one per player.
    */
+  /**
+   * SCOPED TO THE PERSON'S MEMBERSHIPS, not to the round's organization.
+   *
+   * It was `organizationId`, which is now this person's PERSONAL organization
+   * — an organization with no roster at all. So every member picked from the
+   * club list at setup came back unmatched and was recorded as a guest, and
+   * the link that makes a handicap the club's own rather than a copy was lost
+   * on every round a club member played.
+   *
+   * That is worse than it sounds. `/match/new` offers the club's members with
+   * their stored index precisely so nobody types one from memory — the one
+   * thing that gets a net round scored wrong invisibly — and this reduced the
+   * pick to a name with a number beside it.
+   *
+   * The security reasoning is unchanged and is why this is a WIDER scope
+   * rather than no scope: an id is still re-read rather than believed, and it
+   * is re-read against the clubs this person actually belongs to. They may
+   * claim a member of a club they are in; a stranger's id still matches
+   * nothing and still becomes a guest.
+   */
   const claimed = plan.players.map((p) => p.memberId).filter(Boolean);
   const members = claimed.length
     ? await prisma.member.findMany({
-        where: { organizationId, id: { in: claimed } },
+        where: { organizationId: { in: await organizationIdsFor(session.email) }, id: { in: claimed } },
         select: { id: true },
       })
     : [];

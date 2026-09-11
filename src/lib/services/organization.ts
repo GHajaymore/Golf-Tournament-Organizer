@@ -483,24 +483,32 @@ export async function cardBrand(
 }
 
 /**
- * Every organization whose COURSES this person should be offered.
+ * Every organization this person belongs to — THE SCOPE OF WHAT THEY MAY BE
+ * OFFERED.
  *
- * Their own memberships, whatever the role — a member of a club is offered
- * that club's courses even though they run nothing. `/match/new` has always
- * scoped its venue picker this way, and this is that scope, named and shared
- * so the card screen can ask the same question.
+ * Their own memberships, whatever the role. A member of a club is offered that
+ * club's courses and that club's member list even though they run nothing, and
+ * that is the point: `/match/new` has always scoped both pickers this way, and
+ * this is that scope named once so the other readers ask the same question.
  *
  * It exists because a casual round belongs to the person rather than to any
- * club: scoping its library to the EVENT's organization asks a personal one
- * for its courses and gets none, so a secretary setting up a Sunday fourball
- * at their own course found the venue picker empty of it. Reading a club's
- * course list is a convenience and not the club taking the round over — a
- * golf course is a physical place, not club apparatus.
+ * club. Scoping to the EVENT's organization asks a personal one, which has no
+ * courses and no roster — so a secretary setting up a Sunday fourball at their
+ * own club found the venue picker empty of their course and every member they
+ * picked recorded as a guest.
  *
- * Ids only. Nothing here decides what may be CHANGED; it decides what may be
- * offered to pick from, and every write still goes through its own check.
+ * Reading a club's lists is a convenience, not the club taking the round over.
+ * A golf course is a physical place and a member's handicap is the club's own
+ * number; offering either is what the memory calls the wedge — "friendly
+ * rounds pick players from the club member list with their stored handicaps".
+ *
+ * IDS ONLY, and this is the whole of its authority. It decides what may be
+ * offered to pick FROM; it decides nothing about what may be changed, and
+ * every write still goes through its own check. Narrowing by role would be
+ * wrong here for the same reason widening it elsewhere would be: the question
+ * is "whose lists am I entitled to see", not "what may I administer".
  */
-export async function courseOrgIdsFor(email: string): Promise<string[]> {
+export async function organizationIdsFor(email: string): Promise<string[]> {
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (!user) return [];
   const rows = await prisma.organizationMember.findMany({

@@ -255,6 +255,6 @@ describe("the card screen on a casual round", () => {
      * the club taking the round over.
      */
     const page = readSource("src", "app", "(app)", "entry", "page.tsx");
-    expect(page).toMatch(/casualRound \? await courseOrgIdsFor\(session\.email\) : state\.event\.organizationId/);
+    expect(page).toMatch(/casualRound \? await organizationIdsFor\(session\.email\) : state\.event\.organizationId/);
   });
 });
