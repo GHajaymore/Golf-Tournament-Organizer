@@ -699,9 +699,80 @@ describe("rounds and format", () => {
        * tournament that has a bracket.
        */
       const src = readSource("src", "app", "(app)", "reports", "page.tsx");
-      expect(src).toMatch(/hasBracket=\{/);
+      // Anchored, for the reason the tee-sheet block below records: the
+      // unanchored form is a substring of a renamed prop and matches an
+      // attribute React never reads. Same hole, found while adding that one.
+      expect(src).toMatch(/\shasBracket=\{/);
       expect(src).toContain("Bracket Stage");
       expect(src).toContain("Qualification Stage");
+    });
+  });
+
+  describe("the scorecards a tournament with no tee sheet is offered", () => {
+    /**
+     * "Scorecards — Open printable scorecards for the field" sends an
+     * organizer to /scorecard, which redirects to the Tee sheet, where
+     * `TeeSheetPrint` returns null until a sheet has been SAVED. So a
+     * tournament with no draw yet got a pairing screen with no scorecards on
+     * it and nothing to say why.
+     *
+     * Read off Demo Cup on 2026-09-11: four rounds, none with a saved sheet,
+     * and no mention of printing anywhere on the destination.
+     */
+    const reports = async (over: Record<string, unknown> = {}) => {
+      const { ReportsClient } = await import("@/components/ReportsClient");
+      return render(<ReportsClient rows={[]} isStroke eventName="zz-walk Club Medal" {...over} />);
+    };
+
+    it("says what is missing instead of promising cards that are not there", async () => {
+      const html = await reports({ hasTeeSheet: false });
+      expect(html).toContain("Draw and save a tee sheet first");
+      expect(html).not.toContain("Open printable scorecards for the field");
+    });
+
+    it("keeps the entry rather than hiding it", async () => {
+      /**
+       * THE OPPOSITE OF WHAT `hasBracket` DOES, and deliberately. A
+       * tournament with no bracket is never going to have one, so that door
+       * leads nowhere for good. A tee sheet not drawn YET is a step the
+       * organizer is about to take, and hiding the entry would mean never
+       * learning printed cards exist.
+       */
+      expect(await reports({ hasTeeSheet: false })).toContain("Scorecards");
+    });
+
+    it("promises them once a sheet exists", async () => {
+      // The assertion that stops this becoming "always say draw a sheet".
+      expect(await reports({ hasTeeSheet: true })).toContain(
+        "Open printable scorecards for the field",
+      );
+    });
+
+    it("and a caller that has not been taught is unchanged", async () => {
+      expect(await reports()).toContain("Open printable scorecards for the field");
+    });
+
+    it("and the page actually answers the question", () => {
+      /**
+       * The same lesson as the bracket block above, which earned it: every
+       * assertion here supplies the prop itself, so none of them can see the
+       * page failing to send one.
+       */
+      const src = readSource("src", "app", "(app)", "reports", "page.tsx");
+      /**
+       * ANCHORED ON THE WHITESPACE BEFORE IT, which this needed.
+       *
+       * Written as `/hasTeeSheet=\{/` first, and mutating the page's
+       * `hasTeeSheet={` to `x-hasTeeSheet={` left it GREEN — the pattern is a
+       * substring of the broken version, so it matched an attribute React
+       * would never read. A prop name only means anything at a boundary.
+       */
+      expect(src).toMatch(/\shasTeeSheet=\{/);
+      // From the SAVED sheet's groups, which is what the cards are built from
+      // — `teeSheetPublished` is a different question and would answer this
+      // one wrongly for a sheet drawn but not yet shown to the field.
+      expect(src).toContain("teeSheet");
+      expect(src).toMatch(/groups/);
     });
   });
 

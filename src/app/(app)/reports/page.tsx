@@ -199,6 +199,28 @@ export default async function ReportsPage() {
            same two stage types — a medal that ends at the last round has no
            bracket to print. */
         hasBracket={state.stages.some((s) => s.type === "Bracket Stage" || s.type === "Qualification Stage")}
+        /**
+         * Whether a tee sheet has been SAVED for any round, because that is
+         * what the printable cards are built from.
+         *
+         * "Scorecards — Open printable scorecards for the field" sends an
+         * organizer to /scorecard, which redirects to the Tee sheet, where
+         * `TeeSheetPrint` renders nothing at all until a sheet is saved. On
+         * Demo Cup — four rounds, none drawn — that is a link promising
+         * printed cards and delivering a pairing screen with no mention of
+         * them. Read on 2026-09-11.
+         *
+         * Any round rather than the active one: the cards are printed per
+         * round from the sheet screen, and an organizer who has drawn round 1
+         * and is looking at round 2 has not lost the ability to print.
+         */
+        hasTeeSheet={state.stages.some((s) => {
+          try {
+            return ((JSON.parse(s.teeSheet || "{}") as { groups?: unknown[] }).groups ?? []).length > 0;
+          } catch {
+            return false;
+          }
+        })}
         snapshotTitle={snapshotTitle}
         board={board}
         extraCsv={extraCsv}
