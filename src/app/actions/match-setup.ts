@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { organizationForNewEvent, settingsForNewEvent } from "@/lib/services/organization";
+import { personalOrganizationFor, settingsForNewEvent } from "@/lib/services/organization";
 import { syncPlayerAccount } from "@/lib/services/player-access";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { planMatch, type MatchSetupInput } from "@/lib/domain/quick-match";
@@ -53,15 +53,21 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
 
   /**
    * An organization, because every event needs one — never a CLUB the player
-   * has to think about.
+   * has to think about, and never one the CLUB has to think about either.
    *
-   * `organizationForNewEvent` returns the person's own personal organization,
-   * creating it if this is the first thing they have ever made. That is a
-   * billing boundary and a place to hang rows, and on this path it is
-   * plumbing: somebody playing their mate on Sunday is not starting a club,
-   * and the sidebar of a casual round no longer offers them one.
+   * This called `organizationForNewEvent`, under a comment claiming it
+   * "returns the person's own personal organization". It does not. That
+   * resolver prefers a real club — kinds sort alphabetically, so `club` beats
+   * `community` beats `personal` — so for every organizer who actually runs
+   * something, a quick round was created INSIDE their club: in its tournament
+   * picker, under its branding and theme, on its plan, counted among the
+   * things its other organizers read.
+   *
+   * `personalOrganizationFor` is the resolver that means what that sentence
+   * said. A club secretary is the same person on Sunday as on Saturday, and
+   * their Sunday fourball is theirs.
    */
-  const organizationId = await organizationForNewEvent(session.email, session.name);
+  const organizationId = await personalOrganizationFor(session.email, session.name);
 
   /**
    * NO PLAN CHECK, and its absence is the feature.
@@ -134,11 +140,20 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
        * ships, and `keepRound` is it.
        */
       expiresAt: expiryFrom(new Date()),
-      // The club's house defaults still apply — a club that scores everything
-      // itself should not find its own match set to player entry — but two
-      // people playing each other are the only two who can score it, so the
-      // settings that exist to police a field are set to the answer a field of
-      // two makes true anyway.
+      /**
+       * The defaults of the PERSON'S own organization, which is what this
+       * round belongs to — not the club's house rules.
+       *
+       * This comment used to read "the club's house defaults still apply",
+       * which was true and is no longer wanted. A club's settings are about
+       * policing a field: who may enter a score, who signs it off, who sees
+       * the board. Two people playing each other are the only two who can
+       * score it, and a secretary's Sunday fourball is not an event their
+       * committee has any rules about.
+       *
+       * The overrides below still win, so the settings that would matter are
+       * pinned here regardless of what this returns.
+       */
       ...(await settingsForNewEvent(organizationId)),
       /**
        * NOT PUBLIC, whatever the club's default is.
@@ -198,12 +213,11 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
        * a society trip, not a Sunday fourball.
        *
        * Left to resolve, a casual round inherited the ledger from whatever
-       * kind of outfit its organization happened to be — and
-       * `organizationForNewEvent` creates a PERSONAL organization, which
-       * defaults to `ledger: true`. So every quick round set up by somebody
-       * with no club at all — the free-tier case this whole path exists for —
-       * arrived in "split shared costs" mode, offering to work out who owes
-       * whom for a minibus nobody hired.
+       * kind of outfit its organization happened to be — and this path resolves
+       * to a PERSONAL organization, which defaults to `ledger: true`. So every
+       * quick round set up by somebody with no club at all — the free-tier
+       * case this whole path exists for — arrived in "split shared costs"
+       * mode, offering to work out who owes whom for a minibus nobody hired.
        *
        * "none" is precisely the right mode rather than a way of switching
        * money off, and `MONEY_MODE_LABEL` says so where it is declared: what

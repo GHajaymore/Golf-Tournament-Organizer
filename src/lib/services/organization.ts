@@ -228,6 +228,50 @@ export async function organizationForNewEvent(
  * `addOrganizationMember` does for staff it invites, claimed with a password on
  * first login.
  */
+/**
+ * The person's OWN organization — never a club they happen to run.
+ *
+ * A casual round is not the club's business. Somebody playing their mate on
+ * Sunday is not running a competition for their members, and a club secretary
+ * is the same person on Saturday as on Sunday: `organizationForNewEvent`
+ * prefers a real club over the personal fallback (kinds sort alphabetically,
+ * so "club" beats "community" beats "personal"), which meant every quick round
+ * a secretary set up was created INSIDE their club.
+ *
+ * `match-setup.ts` said it did the opposite — "returns the person's own
+ * personal organization … somebody playing their mate on Sunday is not
+ * starting a club" — and that sentence was true only for organizers who ran
+ * nothing else. For everybody who runs a club it was exactly backwards, and
+ * the club then carried the round: in its tournament picker, under its
+ * branding and its theme, against its plan, in the counts its organizers read.
+ *
+ * OWNER ONLY, and personal only. An admin of somebody else's personal
+ * organization must not have their Sunday fourball land in it, and a `club`
+ * or `community` row is by definition the shared tenant this is avoiding.
+ * Oldest first so the answer is stable rather than shifting as rows are added.
+ *
+ * Creates one on first use, exactly as the other resolver does. Everyone gets
+ * an organization, so no code path has to handle an event without one.
+ */
+export async function personalOrganizationFor(
+  email: string,
+  displayName: string,
+): Promise<string> {
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+
+  if (user) {
+    const own = await prisma.organizationMember.findFirst({
+      where: { userId: user.id, role: "owner", organization: { kind: "personal" } },
+      select: { organizationId: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (own) return own.organizationId;
+  }
+
+  // No orgName: this one is the person's, and it is named after them.
+  return createOrganizationWithOwner({ email, displayName, kind: "personal" });
+}
+
 export async function createOrganizationWithOwner(input: {
   email: string;
   displayName: string;
