@@ -546,6 +546,7 @@ export default async function DashboardPage() {
           stageId={casualStage.id}
           holes={casualStage.holes}
           scoringBasis={casualStage.scoringBasis}
+          accessCode={casualStage.accessCode}
           players={state.confirmed.map((p) => ({
             id: p.id,
             name: p.name,

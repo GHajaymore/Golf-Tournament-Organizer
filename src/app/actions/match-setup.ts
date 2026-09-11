@@ -8,6 +8,7 @@ import { syncPlayerAccount } from "@/lib/services/player-access";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { planMatch, type MatchSetupInput } from "@/lib/domain/quick-match";
 import { expiryFrom } from "@/lib/domain/round-expiry";
+import { generateAccessCode } from "@/lib/codes";
 
 /**
  * Create ONE casual round, whole, in one call.
@@ -41,6 +42,30 @@ export interface CreateMatchResult {
   ok: boolean;
   error?: string;
   eventId?: string;
+}
+
+
+/**
+ * One unused Round Code, retried on the vanishingly rare collision.
+ *
+ * The tournament path issues codes in a loop over a whole event's rounds; a
+ * casual round has exactly one, so this is that loop for a single stage. Same
+ * alphabet, same length, same uniqueness across every tournament — a code is
+ * looked up on its own at redemption, with no event to narrow by.
+ *
+ * Falls back to "" rather than throwing. An empty code means code access
+ * simply does not work for this round, which is a disappointment; failing here
+ * would mean the round itself is not created, which is the worse outcome on
+ * the first tee. `redeemCode` treats "" as no match, and `stage.accessCode`
+ * has always defaulted to it.
+ */
+async function issueCode(): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = generateAccessCode();
+    if ((await prisma.stage.count({ where: { accessCode: code } })) > 0) continue;
+    return code;
+  }
+  return "";
 }
 
 export async function createMatch(input: MatchSetupInput): Promise<CreateMatchResult> {
@@ -204,6 +229,32 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
       attestBy: plan.drawsMatch ? "opponent" : "marker",
       attendanceMode: "everyone",
       /**
+       * A ROUND CODE, so everybody can score their own card.
+       *
+       * This was left to resolve and fell to the app default, `email` — which
+       * for a casual round means the only way in is an account, and a guest is
+       * by definition somebody with no account and often no address. So the
+       * whole field of a fourball had exactly one route to a card: the phone
+       * belonging to whoever set the round up.
+       *
+       * That is defensible for two people and poor for eight, and it is
+       * contradicted on the product's own front page, which offers "Playing
+       * today? Enter your round code" to a golfer whose round has none.
+       *
+       * "both", not "code": whoever set it up signs in with their address and
+       * everyone else uses the code, and neither has to know which of the two
+       * the other used.
+       *
+       * WHAT A CODE ACTUALLY GRANTS, stated rather than implied. It opens the
+       * PLAY shell as a player of this round — never staff, never the console
+       * — and whoever holds it picks which player they are from the list. So
+       * it is exactly as strong as handing somebody your phone, which is what
+       * it replaces, and no stronger. Redemption is rate limited, the code is
+       * unique across every tournament, and a casual round deletes itself
+       * after a day, so the code dies with the round rather than outliving it.
+       */
+      playerAccess: "both",
+      /**
        * THE GOLF BET, NEVER THE TRAVEL EXPENSES.
        *
        * These are two different kinds of money and only one of them belongs
@@ -272,6 +323,21 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
       nine: plan.nine,
       scoringBasis: plan.scoringBasis,
       courseId: plan.courseId,
+      /**
+       * The round's code, issued with the round rather than later.
+       *
+       * A tournament issues codes when an organizer turns code access on, from
+       * Play settings — a screen a casual round deliberately no longer has.
+       * Without this, `playerAccess: "both"` above would be a promise with
+       * nothing behind it: the setting would say codes are accepted and every
+       * code anyone tried would be wrong.
+       *
+       * Unique across every tournament, because redemption looks a code up on
+       * its own with no event to narrow by. The collision retry lives in
+       * `issueCode` for the same reason the tournament path has one: 27^8 makes
+       * this effectively never happen, and "effectively never" is not never.
+       */
+      accessCode: await issueCode(),
     },
   });
 

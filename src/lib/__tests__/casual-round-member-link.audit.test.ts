@@ -193,3 +193,140 @@ describe("an id belonging to a club this person is not in", () => {
     ).toBe(before);
   });
 });
+
+/**
+ * ONE PHONE DOING FOUR CARDS.
+ *
+ * `playerAccess` was the one setting `createMatch` left to resolve, and for a
+ * casual round it fell to the app default: `email`. So the only way to a card
+ * was an account — and a guest is by definition somebody without one, often
+ * without an address at all. A fourball had exactly one route to four cards:
+ * the phone belonging to whoever set the round up.
+ *
+ * The product's own front page contradicts it, offering "Playing today? Enter
+ * your round code" to a golfer whose round has no code.
+ *
+ * What a code grants is stated rather than implied: the PLAY shell, as a
+ * player of this round, picked from the list. Never staff, never the console.
+ * It is exactly as strong as handing somebody your phone — which is what it
+ * replaces — and it dies with the round a day later.
+ */
+describe("a quick round's players getting to their own cards", () => {
+  const roundOf = async (eventId: string) =>
+    prisma.event.findUniqueOrThrow({
+      where: { id: eventId },
+      select: { playerAccess: true, stages: { select: { accessCode: true } } },
+    });
+
+  it("accepts a round code as well as an address", async () => {
+    const res = await createMatch({
+      format: "Stroke Play",
+      players: [
+        { name: `${TAG} sec`, handicap: "10", memberId: "" },
+        { name: `${TAG} Mate`, handicap: "18", memberId: "" },
+      ],
+      holes: 18,
+      useHandicaps: true,
+    } as never);
+    expect(res.ok, res.error).toBe(true);
+
+    const round = await roundOf(res.eventId!);
+    // "both", not "code": whoever set it up signs in with their address and
+    // everyone else uses the code.
+    expect(round.playerAccess).toBe("both");
+  });
+
+  it("issues the code with the round, not later", async () => {
+    /**
+     * A tournament issues codes when an organizer turns code access on, from
+     * Play settings — a screen a casual round deliberately does not have. So
+     * without this the setting would say codes are accepted and every code
+     * anyone tried would be wrong.
+     */
+    const res = await createMatch({
+      format: "Stroke Play",
+      players: [
+        { name: `${TAG} sec`, handicap: "10", memberId: "" },
+        { name: `${TAG} Mate`, handicap: "18", memberId: "" },
+      ],
+      holes: 18,
+      useHandicaps: true,
+    } as never);
+    expect(res.ok, res.error).toBe(true);
+
+    const round = await roundOf(res.eventId!);
+    expect(round.stages).toHaveLength(1);
+    expect(round.stages[0].accessCode).toMatch(/^[A-Z0-9]{6,10}$/);
+  });
+
+  it("gives two rounds two different codes", async () => {
+    // Redemption looks a code up on its own, with no event to narrow by, so a
+    // repeat would send one round's players into another's.
+    const mk = async (who: string) =>
+      createMatch({
+        format: "Stroke Play",
+        players: [
+          { name: `${TAG} sec`, handicap: "10", memberId: "" },
+          { name: `${TAG} ${who}`, handicap: "18", memberId: "" },
+        ],
+        holes: 18,
+        useHandicaps: true,
+      } as never);
+
+    const a = await mk("One");
+    const b = await mk("Two");
+    expect(a.ok && b.ok).toBe(true);
+    const [ra, rb] = [await roundOf(a.eventId!), await roundOf(b.eventId!)];
+    expect(ra.stages[0].accessCode).not.toBe(rb.stages[0].accessCode);
+    expect(ra.stages[0].accessCode).toBeTruthy();
+  });
+
+  it("checks a new code against EVERY tournament, not just this one", async () => {
+    /**
+     * Read from source, and the reason is worth stating because a
+     * source-reading assertion is usually the weaker choice.
+     *
+     * The collision retry cannot be exercised through `createMatch`: two
+     * random eight-character codes from a twenty-seven character alphabet
+     * effectively never collide, so deleting the check entirely leaves every
+     * behavioural test green — confirmed by mutation. Writing a test that
+     * "covers" it would be decoration.
+     *
+     * What CAN be got wrong, and silently, is the scope of the check. A code
+     * is looked up at redemption on its own, with no event to narrow by, so a
+     * uniqueness check scoped to one event would let two rounds share a code
+     * and send one round's players into another's. That is the property, so
+     * that is what is pinned.
+     */
+    const { readSource } = await import("./source");
+    const src = readSource("src/app/actions/match-setup.ts");
+    expect(src).toMatch(/prisma\.stage\.count\(\{ where: \{ accessCode: code \} \}\)/);
+    // No eventId anywhere in that condition — the whole point.
+    const check = src.slice(src.indexOf("prisma.stage.count"));
+    expect(check.slice(0, 120)).not.toMatch(/eventId/);
+  });
+
+  it("does not make the round public in the bargain", async () => {
+    /**
+     * The line between "your mates can score" and "anyone can read it". A code
+     * is given to the people playing; `leaderboardVisibility` decides whether a
+     * link works for everybody else, and a casual round pins it to
+     * "participants" for reasons that have their own audit test.
+     */
+    const res = await createMatch({
+      format: "Stroke Play",
+      players: [
+        { name: `${TAG} sec`, handicap: "10", memberId: "" },
+        { name: `${TAG} Mate`, handicap: "18", memberId: "" },
+      ],
+      holes: 18,
+      useHandicaps: true,
+    } as never);
+    expect(res.ok, res.error).toBe(true);
+    const event = await prisma.event.findUniqueOrThrow({
+      where: { id: res.eventId! },
+      select: { leaderboardVisibility: true },
+    });
+    expect(event.leaderboardVisibility).toBe("participants");
+  });
+});
