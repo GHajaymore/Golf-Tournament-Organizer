@@ -100,6 +100,32 @@ npx vitest run --config vitest.audit.config.ts
 Use `NEXT_DIST_DIR=.next-ci` for builds while a dev server is running; sharing `.next` between
 them corrupts it.
 
+**And PLAYWRIGHT STARTS A BUILD YOU DID NOT TYPE.** The rule above reads as being about the build
+command you run, so the obvious way to follow it — pass `NEXT_DIST_DIR` to your own `next build`
+and think no more about it — leaves the trap wide open. `playwright.config.ts` sets
+`webServer.command` to `npm run build && npx next start --port 3101`, and that build goes to the
+default `.next`, which is exactly where the dev server lives.
+
+On 2026-09-11 that produced two runs that were not evidence about anything. The first exited 0
+with an EMPTY log. The second went red — and read like a real regression: five `offline.spec`
+tests failing together, then the whole of `organizer.spec` behind them.
+
+The tells are worth knowing, because the failures name spec files your change never touched:
+
+- every failure takes the SAME time (2.6s here), which is a timeout rather than an assertion;
+- they CASCADE — everything from test 92 onward, not a scattered few;
+- they take out WHOLE FILES, including ones unrelated to each other.
+
+An assertion failure has an expected and a received value, and it does not bring its neighbours
+down with it. So read that shape as "the server under it died", the same way `FAIL 0` is read
+above — and note it looks nothing like either of the two intermittent e2e failures below, which
+is why it is easy to start debugging the wrong thing.
+
+The fix is not another dist directory: `next start` has to serve the build Playwright just made.
+**Stop the dev server, delete `.next`, then run Playwright.** A clean run on the same commit is
+the answer — here it was 388 passed, 0 failed, on the tree that had "failed" five offline tests
+twenty minutes earlier.
+
 **A build can still take the dev server down with it, and the smoke scripts then blame your
 change.** Separate dist directories stop the two corrupting each other's output; they do not stop
 the machine being busy enough that the dev server dies mid-run. On 2026-09-08 that happened four
