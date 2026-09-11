@@ -6,6 +6,10 @@ import { OrgBrand, type Brand } from "./OrgBrand";
 import type { HoleResult } from "@/lib/domain";
 import { Icon } from "./Icon";
 import { filterNames, showsNameFilter } from "@/lib/domain/name-filter";
+import { cardTotals, TOTAL_LABEL } from "@/lib/domain/card-totals";
+import { computeStrokeCard, stablefordPointsForHole, modifiedStablefordForHole } from "@/lib/domain/stroke";
+import { toParText } from "@/lib/domain";
+import { boardKind } from "@/lib/formats";
 
 interface PlayMatch {
   id: string;
@@ -78,6 +82,38 @@ interface Props {
    * nothing.
    */
   expiryNotice?: string;
+  /**
+   * How this round is scored — gross | net | both | stableford.
+   *
+   * The card reported a gross total and a to-par figure, always, whatever the
+   * round was played for. On the charity-day template that is precisely
+   * backwards: it runs a STABLEFORD, and its own blurb says why — "so a bad
+   * hole can't ruin anyone's round". A first-timer who takes a ten was shown
+   * "+6" rather than the nought points it actually costs them, on the one
+   * screen the template exists to send them to.
+   *
+   * `cardTotals` is the reader the console's card already uses, so the phone
+   * and the desk now report the same figures for the same round.
+   */
+  scoringBasis?: string;
+  /**
+   * The round's format, because it outranks the basis where they disagree.
+   *
+   * A Modified Stableford round whose basis still reads "gross" — the ordinary
+   * way this happens, the format changed after the basis was set — is still
+   * won on points. See `ENGINE_TOTALS`.
+   */
+  roundFormat?: string;
+  /**
+   * Strokes received per hole, RESOLVED ON THE SERVER.
+   *
+   * Never recomputed here from a raw index. `stroke.ts` records what that
+   * costs on the console's card: a net and a Stableford total three to five
+   * strokes away from the dots printed beside them, and one stroke away at
+   * minimum, since Stroke Play carries a 95% allowance. The same numbers the
+   * board and the skins pot are settled from.
+   */
+  shots?: number[];
 }
 
 /**
@@ -367,11 +403,31 @@ export function PlayClient(props: Props) {
     const filledHoles = card.filter((h) => typeof h === "number" && h > 0).length;
     const cardComplete = filledHoles === holeCount;
     const pars = props.pars ?? [];
-    const gross = card.reduce<number>((sum, s) => sum + (typeof s === "number" ? s : 0), 0);
-    const parSoFar = pars.reduce<number>(
-      (sum, par, i) => sum + (typeof card[i] === "number" ? par : 0),
-      0,
-    );
+    /**
+     * The figures THIS ROUND is won on, computed the way the console does.
+     *
+     * `computeStrokeCard` with the server-resolved shots, and `cardTotals` to
+     * decide which of its numbers to print — one reader for both, so the card
+     * on the phone and the card on the desk cannot disagree about the same
+     * round. Modified Stableford is scored on the Modified table, which is why
+     * the format is passed rather than inferred.
+     */
+    const totals = computeStrokeCard(card, pars, 0, props.strokeIndex, {
+      shotsPerHole: props.shots,
+      pointsForHole:
+        boardKind(props.roundFormat ?? "") === "modified-stableford"
+          ? modifiedStablefordForHole
+          : stablefordPointsForHole,
+    });
+    const shown = cardTotals(props.scoringBasis ?? "gross", props.roundFormat);
+    const figure = (t: (typeof shown)[number]): string | number =>
+      t === "gross"
+        ? totals.gross || "—"
+        : t === "net"
+          ? totals.net || "—"
+          : t === "points"
+            ? totals.points
+            : toParText(totals.toPar);
 
     const certifyCard = () => {
       setError("");
@@ -424,12 +480,14 @@ export function PlayClient(props: Props) {
 
         <div className="card elev-sm" style={{ gap: 10 }}>
           <div style={{ display: "flex", gap: 14, fontSize: 13, flexWrap: "wrap" }}>
-            <span><b>{gross || "—"}</b> gross</span>
-            {parSoFar > 0 && (
-              <span className="text-muted">
-                {gross === parSoFar ? "level" : gross > parSoFar ? `+${gross - parSoFar}` : gross - parSoFar}
+            {/* The figure the round is decided on leads, because that is the
+                one being read. `cardTotals` puts points first on a Stableford
+                for exactly that reason. */}
+            {shown.map((t, i) => (
+              <span key={t} className={i === 0 ? undefined : "text-muted"}>
+                <b>{figure(t)}</b> {TOTAL_LABEL[t].toLowerCase()}
               </span>
-            )}
+            ))}
             <span className="text-muted" style={{ marginLeft: "auto" }}>
               {filledHoles}/{holeCount} holes
             </span>

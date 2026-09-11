@@ -6819,3 +6819,107 @@ describe("a league board row for somebody who is out this week", () => {
     expect(html).not.toContain("not playing this week");
   });
 });
+
+/**
+ * THE PLAYER'S OWN CARD, ON THE ROUND IT IS ACTUALLY SCORED BY.
+ *
+ * It reported a gross total and a to-par figure, always, whatever the round
+ * was played for. On the charity-day template that is precisely backwards: it
+ * runs a Stableford, and its own blurb says why — "so a bad hole can't ruin
+ * anyone's round". Walked on 2026-09-10 as a first-timer off 28: a 6 on the
+ * first showed "6 gross · +2", the two numbers Stableford exists to stop them
+ * reading, and no points at all.
+ *
+ * `cardTotals` is the reader the console's card already uses. The phone and
+ * the desk now report the same figures for the same round.
+ */
+describe("the play card's totals", () => {
+  const PARS = [4, 5, 3, 4, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 4];
+  const SI = [7, 3, 11, 1, 15, 5, 17, 9, 13, 8, 4, 12, 2, 16, 6, 18, 10, 14];
+  /** A 27 playing handicap: two shots on S.I. 1-9, one on 10-18. */
+  const SHOTS = SI.map((si) => (si <= 9 ? 2 : 1));
+
+  const card = async (over: Record<string, unknown> = {}) => {
+    const { PlayClient } = await import("@/components/PlayClient");
+    return render(
+      <PlayClient
+        stage="card"
+        playerName="Zz First Timer"
+        eventName="Charity Day"
+        roundLabel="Round 1"
+        holes={18}
+        pars={PARS}
+        strokeIndex={SI}
+        shots={SHOTS}
+        // A 6 on the first: par 4, S.I. 7, two shots — net par, two points.
+        card={[6, ...new Array(17).fill(null)]}
+        {...over}
+      />,
+    );
+  };
+
+  it("leads with the points on a Stableford round", async () => {
+    const html = await card({ scoringBasis: "stableford" });
+    expect(html).toContain("stableford");
+    expect(html).toContain("2</b> stableford");
+    // Gross stays — it is what they wrote in the box — but second.
+    expect(html.indexOf("stableford")).toBeLessThan(html.indexOf("</b> gross"));
+  });
+
+  it("does not show a to-par figure on a Stableford round", async () => {
+    // The number the format exists to stop a first-timer reading.
+    const html = await card({ scoringBasis: "stableford" });
+    expect(html).not.toContain("to par");
+  });
+
+  it("shows gross and to-par on a gross medal, as it always did", async () => {
+    // The control. Without it every assertion above passes against a card that
+    // simply started printing Stableford at everybody.
+    const html = await card({ scoringBasis: "gross" });
+    expect(html).toContain("to par");
+    expect(html).not.toContain("stableford");
+  });
+
+  it("shows the net figure on a net round", async () => {
+    const html = await card({ scoringBasis: "net" });
+    expect(html).toContain("</b> net");
+    expect(html).toContain("</b> gross");
+  });
+
+  it("scores a Modified Stableford round on the Modified table", async () => {
+    /**
+     * The format outranks the basis. A round whose basis still reads "gross"
+     * because the format was changed afterwards — the ordinary way this
+     * happens — is still won on points, and on the MODIFIED table: two eagles
+     * and sixteen pars read 40 on the standard one and 10 on this.
+     */
+    const html = await card({ scoringBasis: "gross", roundFormat: "Modified Stableford" });
+    expect(html).toContain("stableford");
+    /**
+     * THE NUMBER, not the label. Both tables print the word "Stableford", so
+     * asserting the heading left the wrong table green — caught by mutation.
+     *
+     * The fixture is a six on a par four with two shots: net par. Standard
+     * Stableford pays 2 for that; the Modified table pays 0, because it only
+     * rewards beating par. Two tables, one card, and only the number tells
+     * them apart.
+     */
+    expect(html).toContain("0</b> stableford");
+    const standard = await card({ scoringBasis: "stableford" });
+    expect(standard).toContain("2</b> stableford");
+  });
+
+  it("uses the shots it was given, not a handicap it guessed", async () => {
+    /**
+     * The defect `stroke.ts` records by name: a card printing points derived
+     * from a raw index while the dots beside them came from the server's
+     * resolved figure. Same card, same round, different shots — so if the
+     * component were computing its own allocation the two would agree.
+     */
+    const two = await card({ scoringBasis: "stableford", shots: SHOTS });
+    const none = await card({ scoringBasis: "stableford", shots: new Array(18).fill(0) });
+    // Six on a par four is two points with two shots and none with none.
+    expect(two).toContain("2</b> stableford");
+    expect(none).toContain("0</b> stableford");
+  });
+});

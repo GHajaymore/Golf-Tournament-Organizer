@@ -185,3 +185,43 @@ describe("what the code screen says it is asking for", () => {
     expect(screen).toMatch(/tee sheet/);
   });
 });
+
+/**
+ * And the SHOTS have to reach that card from the server.
+ *
+ * A render test hands them in, so it cannot see the page failing to send them
+ * — the wiring failure that has caught this suite three times today. The
+ * defect it would hide is the one `stroke.ts` names: points computed from a
+ * raw index while the dots beside them come from the resolved figure, "three
+ * to five strokes apart on the same screen".
+ */
+describe("what the play page sends the card", () => {
+  const page = () => readSource("src", "app", "play", "page.tsx");
+
+  it("resolves the playing handicap through the one resolver", () => {
+    // `strokeHandicapFor` puts a committee override and the frozen value ahead
+    // of the roster figure, and applies the round's allowance. Rebuilding it
+    // from `player.handicap` is the documented fault.
+    expect(page()).toMatch(/strokeHandicapFor\(session\.playerId, cardStage\.id\)/);
+    expect(page()).toMatch(/holeStrokesReceived\(playing, roundCard\.strokeIndex\[h\] \?\? 18, holeCount\)/);
+  });
+
+  it("tells the card how the round is scored, and what it is", () => {
+    const src = page();
+    expect(src).toMatch(/scoringBasis=\{cardStage\.scoringBasis\}/);
+    // The format too: Modified Stableford is won on points whatever the basis
+    // says, and only the format knows that.
+    expect(src).toMatch(/roundFormat=\{cardStage\.format\}/);
+    expect(src).toMatch(/shots=\{shots\}/);
+  });
+
+  it("selects the format it passes, rather than sending undefined", () => {
+    // The select is the easy half to forget: the prop would still be there and
+    // every Modified Stableford round would quietly score on the standard
+    // table.
+    const src = page();
+    const select = src.slice(src.indexOf("const cardStage"), src.indexOf("const cardStage") + 400);
+    expect(select).toMatch(/format: true/);
+    expect(select).toMatch(/scoringBasis: true/);
+  });
+});

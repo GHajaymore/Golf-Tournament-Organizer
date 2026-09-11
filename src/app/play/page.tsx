@@ -1,13 +1,14 @@
 import { COURSE_REF } from "@/lib/services/course-resolution";
 import { prisma } from "@/lib/db";
 import { getPlaySession } from "@/lib/play-auth";
-import { settingsOf } from "@/lib/services/tournament";
+import { settingsOf, loadEventState } from "@/lib/services/tournament";
 import { courseForMatch, cardForMatch, courseForRound, cardForStage } from "@/lib/services/course-resolution";
 import { brandForEvent } from "@/lib/services/organization";
 import { PlayClient } from "@/components/PlayClient";
 import type { HoleResult } from "@/lib/domain";
 import { NOINDEX } from "@/lib/site";
 import { isNetBasis } from "@/lib/domain/match-entry";
+import { holeStrokesReceived } from "@/lib/domain/stroke";
 import { isHeadToHead } from "@/lib/stage-types";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 
@@ -78,7 +79,9 @@ export default async function PlayPage() {
      */
     const cardStage = await prisma.stage.findUnique({
       where: { id: session.stageId },
-      select: { id: true, type: true, holes: true, nine: true, scoringBasis: true, courseId: true },
+      // `format` too: a Modified Stableford round is won on points whatever the
+      // basis says, and `cardTotals` needs the format to know that.
+      select: { id: true, type: true, holes: true, nine: true, scoringBasis: true, format: true, courseId: true },
     });
 
     if (cardStage && !isHeadToHead(cardStage.type)) {
@@ -104,6 +107,34 @@ export default async function PlayPage() {
         entered = [];
       }
 
+      /**
+       * THE SHOTS THIS ROUND ACTUALLY ALLOCATES THIS PLAYER.
+       *
+       * Read through `loadEventState`, whose `strokeHandicapFor` is the one
+       * resolver — it puts a committee override and the value frozen by the
+       * first card ahead of the roster figure, and it returns a PLAYING
+       * handicap with the round's allowance already applied.
+       *
+       * Deliberately not rebuilt from `player.handicap` here. `stroke.ts` and
+       * the console's entry screen both record what that costs, in the same
+       * words: a card printing a net and a Stableford total derived from the
+       * raw index while the dots beside them came from the resolved figure,
+       * "three to five strokes apart on the same screen, and one stroke apart
+       * at minimum, since Stroke Play carries a 95% allowance". This surface
+       * had no totals at all to be wrong, which is why it was never caught.
+       *
+       * It costs a full state load on a phone. That is the price of the card
+       * in somebody's hand agreeing with the board they are on.
+       */
+      const cardState = await loadEventState(event.id);
+      const holeCount = cardStage.holes === 9 ? 9 : 18;
+      const playing = cardState?.strokeHandicapFor(session.playerId, cardStage.id) ?? 0;
+      const shots = roundCard
+        ? Array.from({ length: holeCount }, (_, h) =>
+            holeStrokesReceived(playing, roundCard.strokeIndex[h] ?? 18, holeCount),
+          )
+        : [];
+
       return (
         <PlayClient
           expiryNotice={expiry}
@@ -113,11 +144,17 @@ export default async function PlayPage() {
           eventName={event.name}
           roundLabel={session.roundLabel}
           submitWhole={settings.scoreEntryWindow === "after"}
-          holes={cardStage.holes === 9 ? 9 : 18}
+          holes={holeCount}
           pars={roundCard?.pars ?? []}
           yards={roundCard?.yards ?? []}
           strokeIndex={roundCard?.strokeIndex ?? []}
           card={entered}
+          /* How the round is scored, so the card reports the figure it is won
+             on. A Stableford showed gross and to-par — the two numbers the
+             format exists to stop a first-timer reading. */
+          scoringBasis={cardStage.scoringBasis}
+          roundFormat={cardStage.format}
+          shots={shots}
         />
       );
     }
