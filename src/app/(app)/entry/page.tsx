@@ -19,6 +19,7 @@ import {
 import type { HoleResult } from "@/lib/domain";
 import { needsTeams, entryModeFor } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
+import { isMatch } from "@/lib/tournament-shape";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
 import { teamsForStage, effectiveAllowance, effectiveCountBest } from "@/lib/services/teams";
 import { aggregateTeamCard, singleBallTeamCard, allocatedStrokes } from "@/lib/domain/team";
@@ -759,6 +760,8 @@ export default async function EntryPage() {
         .filter((p) => !ownIds || ownIds.has(p.id))
         .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap }))}
       absentByStage={absentByStage}
+      // A quick round has no field, no spreadsheet and no draw. See the prop.
+      casual={isMatch(state.event.shape)}
       isStaff={isStaff}
       // Off the round's format, not the event's match/stroke flag. A skins
       // round is entered as a stroke card and a Nassau as a match card, which
