@@ -8,6 +8,7 @@ import { CardConflict } from "@/components/CardConflict";
 import { RuleCite } from "@/components/RuleCite";
 import { toParText } from "@/lib/domain";
 import { cardRevision } from "@/lib/domain/pending-card";
+import { certifyPrompt, certifiedNote } from "@/lib/domain/card-approval";
 import { Icon } from "./Icon";
 
 /**
@@ -55,6 +56,7 @@ export function PlayerCard({
   initialStrokes,
   initialRevision = "",
   savePartial = true,
+  staffApproves = true,
 }: {
   stageId: string;
   playerId: string;
@@ -98,6 +100,17 @@ export function PlayerCard({
    * a refusal the screen reads as a failure.
    */
   savePartial?: boolean;
+  /**
+   * Whether a committee is going to look at this card once it is signed, from
+   * the round's own `scoreApproval` setting.
+   *
+   * Default TRUE, which is the safe direction: a caller that has not been
+   * updated keeps promising the review, and the failure mode of getting it
+   * wrong that way is a club being told about its own committee. The other
+   * default would quietly stop every club medal mentioning the review that is
+   * genuinely coming.
+   */
+  staffApproves?: boolean;
 }) {
   const [strokes, setStrokes] = useState<(number | null)[]>(() =>
     Array.from({ length: holes }, (_, i) => initialStrokes[i] ?? null),
@@ -278,7 +291,7 @@ export function PlayerCard({
         revision.current = res.revision;
         await certifyScorecard(stageId, playerId);
         setState("certified");
-        setNote("Certified. It's with the committee now.");
+        setNote(certifiedNote(staffApproves));
         /**
          * Nothing is outstanding, so the queue must be told.
          *
@@ -563,9 +576,7 @@ export function PlayerCard({
           </button>
 
           <p style={{ margin: "10px 0 0", fontSize: 12.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-            {complete
-              ? "Certifying says these hole scores are correct. The committee accepts it after that."
-              : `Certify once all ${holes} holes are in.`}
+            {certifyPrompt(complete, holes, staffApproves)}
           </p>
           <p style={{ margin: "6px 0 0" }}>
             <RuleCite rule="scorecardCertification" />

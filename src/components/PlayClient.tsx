@@ -10,6 +10,7 @@ import { cardTotals, TOTAL_LABEL } from "@/lib/domain/card-totals";
 import { computeStrokeCard, stablefordPointsForHole, modifiedStablefordForHole } from "@/lib/domain/stroke";
 import { toParText } from "@/lib/domain";
 import { boardKind } from "@/lib/formats";
+import { certifyPrompt } from "@/lib/domain/card-approval";
 
 interface PlayMatch {
   id: string;
@@ -573,11 +574,7 @@ export function PlayClient(props: Props) {
               being read by them the moment a quick round began issuing Round
               Codes. */}
           <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
-            {!cardComplete
-              ? `Certify once all ${holeCount} holes are in.`
-              : props.staffApproves
-                ? "Certifying says these hole scores are correct. The committee accepts it after that."
-                : "Certifying says these hole scores are correct. That is the card — nobody else has to accept it."}
+            {certifyPrompt(cardComplete, holeCount, !!props.staffApproves)}
           </p>
           {error && (
             <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
