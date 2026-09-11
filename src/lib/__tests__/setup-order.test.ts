@@ -169,8 +169,23 @@ describe("a screen has one name", () => {
     const src = readSource("src", "app", "(app)", "dashboard", "page.tsx");
     const list = src.slice(src.indexOf("const QUICK_ACTIONS"), src.indexOf("];", src.indexOf("const QUICK_ACTIONS")));
     expect(list, "QUICK_ACTIONS is not where a screen gets named").not.toMatch(/label:/);
-    // And the tiles ask the sidebar for the name instead.
-    expect(src).toMatch(/screenName\(a\.href\)/);
+    /**
+     * And the tiles ask the sidebar for the name instead.
+     *
+     * `screenName(a.href` rather than the whole call: it takes a second
+     * argument now, because a casual round calls three of these screens
+     * something else — "Who's playing" for Registration & field — and the tile
+     * has to agree with the sidebar or it recreates the very split this test
+     * exists to stop, one shape further along.
+     *
+     * What is being asserted is unchanged and is the whole point: the tile has
+     * nothing of its own to disagree WITH. Where the name comes from is
+     * `screenName`; the shape flag only chooses which of its two names.
+     */
+    expect(src).toMatch(/screenName\(a\.href[,)]/);
+    // Never a literal beside it — that is what "no labels of their own" means.
+    const tile = src.slice(src.indexOf("screenName(a.href"));
+    expect(tile.slice(0, 60)).not.toMatch(/"[A-Z]/);
   });
 
   it("points every quick action at a screen the sidebar still has", () => {
@@ -211,16 +226,23 @@ describe("a match is not offered the apparatus of running a field", () => {
     expect(hrefs).not.toContain("/access");
   });
 
-  it("keeps the steps a match genuinely has", () => {
+  it("drops the tournament's setup screens too, now a round has its own", () => {
     /**
-     * The field screen stays: it is where a mistyped name or a wrong handicap
-     * gets fixed and there is nowhere else. Rounds stays because changing 18
-     * to 9, or gross to net, is exactly the second thought two people have on
-     * the first tee.
+     * These two USED TO BE ASSERTED PRESENT, on a reason that was right about
+     * the need and wrong about the door: "the field screen stays because it is
+     * where a mistyped name or a wrong handicap gets fixed, and there is
+     * nowhere else; Rounds stays because changing 18 to 9 is exactly the
+     * second thought two people have on the first tee."
+     *
+     * There is somewhere else now. `CasualRoundPanel` puts holes, shots and
+     * the handicaps on the round's own screen, so a fourball is no longer
+     * walked through a registration desk — approvals, a waitlist, a capacity —
+     * or a rounds screen with cut lines and tiebreakers, to change one number.
      */
     const hrefs = asMatch();
-    expect(hrefs).toContain("/registration");
-    expect(hrefs).toContain("/stages");
+    expect(hrefs).not.toContain("/registration");
+    expect(hrefs).not.toContain("/stages");
+    expect(hrefs).not.toContain("/event");
   });
 
   it("leaves a tournament with all of them — the control", () => {
@@ -240,7 +262,16 @@ describe("a match is not offered the apparatus of running a field", () => {
       expect(screenAppliesToMatch(key), key).toBe(false);
       expect(asMatch(), key).not.toContain(`/${key}`);
     }
-    expect(screenAppliesToMatch("stages")).toBe(true);
-    expect(screenAppliesToMatch("registration")).toBe(true);
+    /**
+     * And something a match DOES still have, so the sweep above cannot pass
+     * against a set that has grown to cover every screen in the app.
+     *
+     * This was `stages` and `registration`, which have since moved into the
+     * set — the round's own panel replaced them. `entry` is the card and
+     * `group-games` the money, and neither will ever leave a casual round:
+     * one is the golf and the other is the bet.
+     */
+    expect(screenAppliesToMatch("entry")).toBe(true);
+    expect(screenAppliesToMatch("group-games")).toBe(true);
   });
 });

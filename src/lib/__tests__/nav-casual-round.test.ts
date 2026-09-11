@@ -1,0 +1,181 @@
+import { describe, it, expect } from "vitest";
+import { navForRole, screenName, TOURNAMENT_ONLY_SCREENS } from "../nav";
+import { readSource } from "./source";
+
+/**
+ * A casual round's console, kept simple.
+ *
+ * Walked on 2026-09-10: set a quick round up as two people playing on Sunday,
+ * pressed "Start the round", and landed in the organizer console with ten
+ * links — "Tournament details", "Registration & field", "Rounds & formats",
+ * "Messages", "Reports & export" — under headings reading Set up, Manage and
+ * Results. A filing cabinet for an event that does not exist, describing a
+ * round that is deleted tomorrow.
+ *
+ * The first attempt at this renamed those screens. That was the wrong fix and
+ * was called out as such: renaming leaves a fourball inside a registration
+ * desk with approvals and a waitlist, and inside a rounds screen with cut
+ * lines and tiebreakers, reading friendlier labels. The two worlds were still
+ * mixed.
+ *
+ * So they are gone, and `CasualRoundPanel` is what a round actually needs —
+ * holes, shots, and the handicaps — on its own screen. Removing a door without
+ * replacing it is stranding, which is the failure this session spent the day
+ * removing elsewhere, so the replacement is asserted here too.
+ */
+const sidebar = (isMatch: boolean) => navForRole("admin", undefined, { isMatch, isPlayerToo: true });
+const keys = (isMatch: boolean) => sidebar(isMatch).flatMap((s) => s.items.map((i) => i.key));
+const labels = (isMatch: boolean) => sidebar(isMatch).flatMap((s) => s.items.map((i) => i.label));
+
+describe("what a casual round's sidebar offers", () => {
+  it("offers no tournament setup screens at all", () => {
+    const ks = keys(true);
+    for (const gone of ["event", "registration", "stages", "grouping", "access", "messages"]) {
+      expect(ks, gone).not.toContain(gone);
+    }
+    // And none of the club's, which was already true and must stay true.
+    for (const gone of ["organization", "roster", "series", "prizes"]) {
+      expect(ks, gone).not.toContain(gone);
+    }
+  });
+
+  it("keeps the golf, the board and the bet", () => {
+    const ks = keys(true);
+    for (const kept of ["dashboard", "entry", "leaderboard", "group-games", "me", "rules"]) {
+      expect(ks, kept).toContain(kept);
+    }
+  });
+
+  it("is short enough to read at a glance", () => {
+    /**
+     * The number IS the feature. Ten links for two people playing each other
+     * on a Sunday is what this is fixing, and a cap is the only assertion that
+     * notices a screen quietly being added back.
+     *
+     * Deliberately a ceiling rather than an exact list — a casual round
+     * gaining one genuinely useful screen should not be a test failure, and
+     * gaining five should.
+     */
+    expect(keys(true).length).toBeLessThanOrEqual(7);
+    // And a tournament keeps its full console, so this is not a cap on
+    // everybody.
+    expect(keys(false).length).toBeGreaterThan(12);
+  });
+
+  it("heads what is left with what is happening, not a lifecycle", () => {
+    // "Set up → Manage → Results" describes running a competition, which is a
+    // strange thing to show somebody who has just pressed "Start the round".
+    const ss = sidebar(true).map((s) => s.label);
+    expect(ss).toContain("Playing");
+    for (const gone of ["Set up", "Manage", "Results", "Club"]) {
+      expect(ss, gone).not.toContain(gone);
+    }
+  });
+
+  it("leaves a tournament's sidebar exactly as it was", () => {
+    // The control, and the one that matters most: a change for ONE shape that
+    // leaked would rewrite the console for every club in the product.
+    const ls = labels(false);
+    for (const kept of ["Registration & field", "Rounds & formats", "Tournament details", "Messages"]) {
+      expect(ls, kept).toContain(kept);
+    }
+    expect(sidebar(false).map((s) => s.label)).toContain("Set up");
+  });
+});
+
+/**
+ * REMOVING A DOOR WITHOUT REPLACING IT IS STRANDING.
+ *
+ * `roles.test.ts` used to assert `registration` and `stages` PRESENT on a
+ * match, on a reason that was right about the need: the field screen is where
+ * a wrong handicap gets fixed, and Rounds is where eighteen becomes nine. Both
+ * are real things a fourball does. They just do not need a registration desk
+ * to do them.
+ */
+describe("what replaces them", () => {
+  const panel = () => readSource("src/components/CasualRoundPanel.tsx");
+
+  it("changes the holes, the shots and the handicaps", () => {
+    const src = panel();
+    expect(src).toMatch(/setStageHoles\(stageId, n\)/);
+    expect(src).toMatch(/setStageScoringBasis\(stageId, "gross"\)/);
+    expect(src).toMatch(/setStageScoringBasis\(stageId, "net"\)/);
+    expect(src).toMatch(/updateSignup\(p\.id, \{ handicap: n \}\)/);
+  });
+
+  it("reuses the tournament's own actions rather than writing a second set", () => {
+    // They carry the authorization and the validation. A parallel set written
+    // for casual rounds would be a second place for those rules to be wrong —
+    // the defect class this codebase keeps paying for. What is separate is the
+    // SCREEN, not the engine.
+    expect(panel()).toMatch(/from "@\/app\/actions\/tournament"/);
+  });
+
+  it("refuses to leave a round with fewer than two players", () => {
+    // Two is the smallest round there is; removing the second leaves no round.
+    expect(panel()).toMatch(/players\.length > 2/);
+  });
+
+  it("shows a plus handicap as a plus, never as a minus", () => {
+    // Stored negative. "-2" beside a name is the kind of wrong that looks
+    // right and puts the shots in the wrong holes.
+    expect(panel()).toMatch(/startsWith\("\+"\)/);
+  });
+
+  it("is on the round's own screen, for whoever set it up", () => {
+    const dash = readSource("src", "app", "(app)", "dashboard", "page.tsx");
+    expect(dash).toMatch(/matchEvent && isStaff && casualStage && \(/);
+    expect(dash).toMatch(/<CasualRoundPanel/);
+  });
+
+  it("is not on a tournament's dashboard", () => {
+    // A club has its own screens for all of this, and two places to set one
+    // number is how they come to disagree.
+    const dash = readSource("src", "app", "(app)", "dashboard", "page.tsx");
+    const at = dash.indexOf("<CasualRoundPanel");
+    expect(at).toBeGreaterThan(-1);
+    expect(dash.slice(0, at)).toMatch(/matchEvent && isStaff/);
+  });
+});
+
+/**
+ * A screen still has one name.
+ *
+ * `screenName`'s docstring states the rule: a cross-reference "has to call it
+ * what the sidebar calls it, or the reader hunts for a screen that is not in
+ * the list". Only one screen is renamed for a casual round now, and the reader
+ * takes the shape so the two cannot split.
+ */
+describe("what a casual round calls the screens it keeps", () => {
+  it("calls the export and the overview what they are for a round", () => {
+    expect(screenName("/reports", true)).toBe("Export this round");
+    expect(screenName("/reports")).toBe("Reports & export");
+    // "Dashboard" is a word for a desk, and this screen already titles itself
+    // "The match" on a casual round — the sidebar was the half still calling
+    // it something else.
+    expect(screenName("/dashboard", true)).toBe("This round");
+    expect(screenName("/dashboard")).toBe("Dashboard");
+  });
+
+  it("renames nothing else", () => {
+    // Score entry, the board, the rules and the money mean the same thing to a
+    // fourball as to a championship. A map that grew past the two above would
+    // be the console quietly becoming two consoles.
+    for (const href of ["/entry", "/leaderboard", "/rules", "/group-games", "/me"]) {
+      expect(screenName(href, true), href).toBe(screenName(href, false));
+    }
+  });
+
+  it("is what the dashboard's tiles ask, with the shape passed in", () => {
+    const src = readSource("src", "app", "(app)", "dashboard", "page.tsx");
+    expect(src).toMatch(/screenName\(a\.href, matchEvent\)/);
+  });
+
+  it("keeps one set of screens for both readers", () => {
+    // The sidebar and the per-tournament setup checklist ask the same set, so
+    // a decision about a casual round is made in one line.
+    for (const key of ["event", "registration", "stages", "messages"]) {
+      expect(TOURNAMENT_ONLY_SCREENS.has(key), key).toBe(true);
+    }
+  });
+});

@@ -371,11 +371,29 @@ describe("a match is not offered a field's screens", () => {
 
   it("keeps the screens a match genuinely has, including somewhere to bet", () => {
     const match = keys(true);
-    // The field screen stays because it is the only place a mistyped name or
-    // a wrong handicap gets fixed; Rounds stays because changing 18 to 9 is
-    // exactly the second thought two people have on the first tee.
-    for (const kept of ["registration", "stages", "entry", "leaderboard"]) {
+    /**
+     * `registration` and `stages` USED TO BE ON THIS LIST, and the reason
+     * given was right about the need and wrong about the door: "the field
+     * screen stays because it is the only place a mistyped name or a wrong
+     * handicap gets fixed; Rounds stays because changing 18 to 9 is exactly
+     * the second thought two people have on the first tee."
+     *
+     * Both of those are real. What they produced was a fourball being walked
+     * through a registration desk — approvals, a waitlist, a capacity, an
+     * invite message — and a rounds screen with cut lines, carry-forward and
+     * tiebreakers, to change one number. A casual round is not a small
+     * tournament, and that walk is the thing this product is meant to be an
+     * alternative to.
+     *
+     * They are `CasualRoundPanel` now: holes, shots and the handicaps, on the
+     * round's own screen. The need is asserted there, and what stays here is
+     * the round itself.
+     */
+    for (const kept of ["entry", "leaderboard"]) {
       expect(match, kept).toContain(kept);
+    }
+    for (const gone of ["registration", "stages", "event"]) {
+      expect(match, gone).not.toContain(gone);
     }
     /**
      * THE ONE THAT MAKES THE REMOVAL ABOVE HONEST.
