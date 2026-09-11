@@ -116,7 +116,25 @@ export function CoursePicker({
   const [, startAdd] = useTransition();
   const seq = useRef(0);
 
-  const chosen = options.find((o) => o.id === value) ?? null;
+  /**
+   * A course taken from the DIRECTORY, remembered by name.
+   *
+   * `options` is a server prop, fixed at page load, so a course picked out of
+   * the directory is never in it — it was imported a moment ago, or it lives
+   * in a library this reader cannot see. `chosen` is therefore null, and the
+   * box went blank: the venue was set, the form knew it, and the one field
+   * the screen will not let you past looked untouched.
+   *
+   * Read off /match/new on 2026-09-11, with the blocker underneath already
+   * advanced from "Say where you're playing" to the next question. Nothing
+   * was broken except what the reader could see, which is the half that
+   * decides whether they try again.
+   */
+  const [takenFromDirectory, setTakenFromDirectory] = useState<{ id: string; name: string } | null>(null);
+
+  const chosen =
+    options.find((o) => o.id === value) ??
+    (takenFromDirectory && takenFromDirectory.id === value ? takenFromDirectory : null);
   // An extra choice is a real answer too, and the box has to say so rather
   // than going blank the moment somebody picks "no fixed course".
   const chosenExtra = extras.find((x) => x.id === value && x.id !== "") ?? null;
@@ -190,7 +208,29 @@ export function CoursePicker({
     startAdd(async () => {
       const res = await importCourseFromDirectory(hit.id);
       setAdding("");
-      if (res.ok && res.courseId) pick(res.courseId);
+      /**
+       * THE ID IS THE ANSWER, WHETHER OR NOT THE IMPORT HAPPENED.
+       *
+       * "Already in your course library" comes back as `ok: false` — correct,
+       * nothing was added — WITH the existing course's id attached. Requiring
+       * `ok` threw that away, so the click did nothing at all: no venue
+       * chosen, no message, the field still empty. A dead control on the one
+       * field the form will not let you past.
+       *
+       * It happens whenever the list this picker SHOWS and the library the
+       * import writes to are scoped differently — an organizer whose access
+       * to an event comes from an Account rather than an organization
+       * membership is exactly that person, and is how this was found on
+       * 2026-09-11.
+       *
+       * The caller asked for a venue, not for an import. A course that is
+       * already there is the best possible outcome of that question.
+       */
+      if (res.courseId) {
+        // Before `pick`, so the box has a name to show the moment it closes.
+        setTakenFromDirectory({ id: res.courseId, name: hit.name });
+        pick(res.courseId);
+      }
     });
   };
 
