@@ -19,7 +19,7 @@ import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { currentRoundCut } from "@/lib/domain/cut";
 import { navForRole, screenName } from "@/lib/nav";
-import { isWeeklyRound } from "@/lib/stage-types";
+import { hasKnockoutStage, isWeeklyRound } from "@/lib/stage-types";
 import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
@@ -296,9 +296,7 @@ export default async function DashboardPage() {
   // the "Qualification cutoff" card read event-level qualifyPerGroup/advancing,
   // which only mean something when there is a Bracket/Qualification stage to
   // qualify into — a tournament that instead cuts round to round has neither.
-  const hasKnockout = state.stages.some(
-    (s) => s.type === "Bracket Stage" || s.type === "Qualification Stage",
-  );
+  const hasKnockout = hasKnockoutStage(state.stages);
   const navHrefs = new Set(
     navForRole(session.viewRole, settings, {
       hasTeamRound: state.stages.some((s) => TEAM_FORMAT_NAMES.includes(s.format)),

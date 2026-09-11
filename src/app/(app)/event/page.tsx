@@ -3,6 +3,7 @@ import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { organizationsForOrganizer } from "@/lib/services/organization";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
+import { hasKnockoutStage } from "@/lib/stage-types";
 import { PlaySettings } from "@/components/PlaySettings";
 import { teesForEvent } from "@/lib/services/handicaps";
 import { CourseLibrary } from "@/components/CourseLibrary";
@@ -196,6 +197,7 @@ export default async function EventPage({
       <EventSetupClient
         key={e.id}
         isMatch={matchEvent}
+        hasBracket={hasKnockoutStage(state.stages)}
         initial={{
           name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,
           address: e.address, regDeadline: e.regDeadline, capacity: e.capacity,

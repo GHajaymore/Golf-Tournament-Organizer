@@ -693,18 +693,20 @@ describe("rounds and format", () => {
        * `CreateFirstTournament`'s `plan` default become the behaviour for
        * every organizer in the product while its tests passed.
        *
-       * The two stage types are named here as well as on the page on purpose:
-       * they are the same pair `navForRole` gates the sidebar link on, and a
-       * page that answered with only one of them would hide the sheet on a
-       * tournament that has a bracket.
+       * THE PAIR OF STAGE TYPES USED TO BE NAMED HERE, because the page spelt
+       * them out. It no longer does, and that is the fix rather than a
+       * loosening: the same expression lived in four files, and the fifth
+       * reader — the "Recommended flow" card on `/event` — was written without
+       * it and walked every league to a bracket. `hasKnockoutStage` is the one
+       * home now, and `knockout-readers.test.ts` pins what it contains, that
+       * nobody spells it out again, and that all five readers ask.
        */
       const src = readSource("src", "app", "(app)", "reports", "page.tsx");
       // Anchored, for the reason the tee-sheet block below records: the
       // unanchored form is a substring of a renamed prop and matches an
       // attribute React never reads. Same hole, found while adding that one.
       expect(src).toMatch(/\shasBracket=\{/);
-      expect(src).toContain("Bracket Stage");
-      expect(src).toContain("Qualification Stage");
+      expect(src).toMatch(/hasBracket=\{hasKnockoutStage\(state\.stages\)\}/);
     });
   });
 
@@ -4774,12 +4776,13 @@ describe("registration and field", () => {
 describe("tournament details", () => {
   // Neither this component nor the /event page had a render test — the screen
   // was covered by smoke alone, which proves it does not 500 and nothing else.
-  const setup = async (over: Record<string, unknown> = {}) => {
+  const setup = async (over: Record<string, unknown> = {}, props: Record<string, unknown> = {}) => {
     const { EventSetupClient } = await import("@/components/EventSetupClient");
     return render(
       <EventSetupClient
         playersCount={24}
         courses={[{ id: "c1", name: "Bushwood", city: "Chicago", address: "" }]}
+        {...props}
         initial={{
           name: "zz-Club Championship", dates: "", format: "match", course: "Bushwood",
           courseId: "c1", courseMode: "fixed", city: "Chicago", address: "", regDeadline: "", capacity: 32,
@@ -4806,6 +4809,44 @@ describe("tournament details", () => {
     ]) {
       expect(html, `missing control: ${control}`).toContain(control);
     }
+  });
+
+  it("does not walk a league to a bracket it will never have", async () => {
+    /**
+     * THE THIRD READER OF ONE RULE.
+     *
+     * `navForRole` hides `/bracket` unless the tournament has a knockout round
+     * — without it "every tournament carried a permanent door to an empty
+     * screen" — and `ReportsClient` had the identical door closed on
+     * 2026-09-10. The "Recommended flow" card was never told, so a society
+     * league and a club medal were each pointed at a bracket, from the screen
+     * whose whole job is telling an organizer what to do next.
+     *
+     * Walked on 2026-09-11 on a round-robin league: no Bracket entry in the
+     * sidebar, this card still listing it, and `/bracket` rendering a manager
+     * reading "Champion TBD".
+     */
+    const league = await setup({}, { hasBracket: false });
+    expect(league).toContain("Recommended flow");
+    expect(league).not.toContain("who qualified, and who plays whom");
+    // The steps either side of it stay, so this cannot pass off the card
+    // having failed to render at all.
+    expect(league).toContain("Tee sheet");
+    expect(league).toContain("Reports &amp; export");
+  });
+
+  it("still walks a knockout to its bracket", async () => {
+    // The control. Removing the line unconditionally would satisfy the test
+    // above, and would take the step away from the tournaments that need it.
+    const knockout = await setup({}, { hasBracket: true });
+    expect(knockout).toContain("who qualified, and who plays whom");
+  });
+
+  it("offers the step by default, so an untaught caller loses nothing", async () => {
+    // `hasBracket` defaults to true for the same reason ReportsClient's does:
+    // a caller that has not been taught must offer exactly what it did before.
+    const untaught = await setup();
+    expect(untaught).toContain("who qualified, and who plays whom");
   });
 
   it("does not file the scoring questions under Tournament identity", async () => {
