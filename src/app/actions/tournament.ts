@@ -39,6 +39,7 @@ import {
   canEnterScores,
   mayReportPartialCard,
   allowsAutoConfirm,
+  entryNeedsEmail,
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import type { Session } from "@/lib/auth";
@@ -278,10 +279,20 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
   const clean = input.name.trim();
   if (!clean) return { ok: false, error: "Enter a player name." };
   const cleanEmail = (input.email ?? "").trim().toLowerCase();
-  if (!cleanEmail) return { ok: false, error: "Email is required — it's how this player signs in." };
-  if (!EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
   const event = await prisma.event.findUnique({ where: { id: eventId }, include: COURSE_REF });
   if (!event) return { ok: false, error: "Event not found." };
+  /**
+   * Asked of the tournament, not demanded of everybody — see `entryNeedsEmail`.
+   *
+   * A tournament signing players in by email genuinely needs one from each of
+   * them, and says so. One using Round Codes does not, and refusing the entry
+   * anyway is what stopped a society with a names-only roster entering its own
+   * members.
+   */
+  if (!cleanEmail && entryNeedsEmail(settingsOf(event))) {
+    return { ok: false, error: "Email is required — it's how this player signs in." };
+  }
+  if (cleanEmail && !EMAIL_RE.test(cleanEmail)) return { ok: false, error: "Enter a valid email address." };
   // The same rule the public form follows. An organizer typing someone in must
   // not be able to create an entrant the tournament cannot reach, when the
   // stranger filling in the form on their phone cannot.
@@ -307,17 +318,43 @@ export async function addSignup(input: SignupInput): Promise<SignupResult> {
    * Case-insensitive, matching the public form: the same address arrives from a
    * CSV, a phone keyboard and a committee laptop in three different casings.
    */
-  const duplicate = await prisma.player.findFirst({
-    where: { eventId, email: { equals: cleanEmail, mode: "insensitive" } },
-    select: { name: true, status: true },
-  });
+  /**
+   * AND ON THE NAME WHEN THERE IS NO ADDRESS TO MATCH ON.
+   *
+   * `email: { equals: "" }` does not mean "nobody" — it means EVERY entry
+   * without an address, so the first email-less player would have made the
+   * second one a duplicate of them, and the third, for the whole field. A
+   * check that refuses everybody is worse than the duplicate it was written to
+   * catch.
+   *
+   * Name is what `upsertMember` already falls back to for exactly this case
+   * ("email ? findFirst by email : findFirst by name"), so the roster and the
+   * field agree about who is already here rather than each having a rule.
+   *
+   * It is a weaker key and it is the right one: two members really called John
+   * Smith are why email became the key in the first place, and an organizer
+   * entering the second of them by hand is told the first is already in and
+   * can see for themselves. A silent second row is the failure that costs two
+   * tee slots and two shares of a split expense; being asked about a real
+   * namesake costs one look.
+   */
+  const duplicate = cleanEmail
+    ? await prisma.player.findFirst({
+        where: { eventId, email: { equals: cleanEmail, mode: "insensitive" } },
+        select: { name: true, status: true },
+      })
+    : await prisma.player.findFirst({
+        where: { eventId, name: { equals: clean, mode: "insensitive" } },
+        select: { name: true, status: true },
+      });
   if (duplicate) {
+    const how = cleanEmail ? "with that email" : "under that name";
     return {
       ok: false,
       error:
         duplicate.status === "withdrawn"
-          ? `${duplicate.name} is already entered with that email but has withdrawn — re-enter them from the roster rather than adding a second entry.`
-          : `${duplicate.name} is already in the field with that email.`,
+          ? `${duplicate.name} is already entered ${how} but has withdrawn — re-enter them from the roster rather than adding a second entry.`
+          : `${duplicate.name} is already in the field ${how}.`,
     };
   }
 
@@ -607,7 +644,18 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
   }
   const headerCols = table.columns;
   const emailIdx = headerCols.indexOf("email");
-  if (emailIdx === -1) {
+  /**
+   * The same rule as every other way in — see `entryNeedsEmail`.
+   *
+   * Refused at the HEADER for the reason the phone check below records: a file
+   * with no email column at all would otherwise read as a hundred individually
+   * invalid rows, and the organizer would be told "skipped 100" with no hint
+   * that one missing column caused it. That stays; what changes is that a
+   * tournament using Round Codes is not asked for the column, because a
+   * names-only membership list is exactly the file it will be handed.
+   */
+  const needsEmail = entryNeedsEmail(settingsOf(event));
+  if (needsEmail && emailIdx === -1) {
     return {
       imported: 0,
       skippedDuplicates: 0,
@@ -631,16 +679,31 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
     };
   }
   /**
-   * De-duplicated on email alone.
+   * De-duplicated on email where there is one, and on name where there is not.
    *
-   * It also matched on name, which drops the second real John Smith in a club
-   * that has two of them — and clubs do. Email is the identity key everywhere
-   * else in this app precisely because names are not unique, and the entry
-   * importer already requires one from every row, so there is nothing for the
-   * name check to catch that the email check does not.
+   * The name check was removed once, correctly, with this reasoning: it drops
+   * the second real John Smith in a club that has two of them, "and clubs do"
+   * — and it was safe to remove because "the entry importer already requires
+   * one from every row".
+   *
+   * That last clause is no longer true, so the conclusion no longer follows.
+   * A file of names with no addresses would re-import in full on every upload,
+   * because every row's key is the empty string and `.filter(Boolean)` drops
+   * it — the field doubles and nothing says a word.
+   *
+   * So: email remains the key whenever a row has one, and namesakes are still
+   * both imported in that case. Name is the fallback ONLY for rows that have
+   * no address at all, which is the same fallback `upsertMember` already makes
+   * for the roster. The John Smith cost is real and confined to lists that
+   * carry no addresses, where nothing better exists — and it fails towards
+   * skipping a row an organizer can add by hand, rather than towards a silent
+   * double entry nobody sees until the tee sheet.
    */
-  const existing = await prisma.player.findMany({ where: { eventId }, select: { email: true } });
+  const existing = await prisma.player.findMany({ where: { eventId }, select: { email: true, name: true } });
   const seenEmails = new Set(existing.map((p) => p.email.trim().toLowerCase()).filter(Boolean));
+  const seenNames = new Set(
+    existing.filter((p) => !p.email.trim()).map((p) => p.name.trim().toLowerCase()).filter(Boolean),
+  );
 
   let confirmedCount = await prisma.player.count({ where: { eventId, status: "confirmed" } });
   const unlimited = event.capacity <= 0;
@@ -658,12 +721,24 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
       skippedInvalid += 1;
       continue;
     }
-    const emailKey = cell(table, cols, "email").toLowerCase();
-    if (!emailKey || !EMAIL_RE.test(emailKey)) {
+    const emailKey = emailIdx === -1 ? "" : cell(table, cols, "email").toLowerCase();
+    /**
+     * A blank address is a refusal only where the tournament needs one. A
+     * MALFORMED one is always a refusal — "j.smith@" is somebody's mistake in
+     * either case, and importing it would create an entrant whose sign-in can
+     * never work while the roster shows an address that looks fine at a
+     * glance.
+     */
+    if (!emailKey && needsEmail) {
       skippedInvalid += 1;
       continue;
     }
-    if (seenEmails.has(emailKey)) {
+    if (emailKey && !EMAIL_RE.test(emailKey)) {
+      skippedInvalid += 1;
+      continue;
+    }
+    const nameKey = name.trim().toLowerCase();
+    if (emailKey ? seenEmails.has(emailKey) : seenNames.has(nameKey)) {
       skippedDuplicates += 1;
       continue;
     }
@@ -710,8 +785,17 @@ export async function importCsvSignups(csv: string): Promise<CsvImportResult> {
         handicapSource,
       },
     });
+    // A no-op for a blank address, which is what makes an email-less entry a
+    // Round Code player rather than a broken sign-in.
     await syncPlayerAccount(eventId, name, emailKey);
-    seenEmails.add(emailKey);
+    /**
+     * BOTH KEYS UPDATED AS WE GO, or a file that repeats a row imports it
+     * twice. `seenEmails` alone would have let every duplicate of an
+     * address-less name straight through — the within-file half of the same
+     * hole the set above closes for rows already in the field.
+     */
+    if (emailKey) seenEmails.add(emailKey);
+    else seenNames.add(nameKey);
     imported += 1;
   }
 

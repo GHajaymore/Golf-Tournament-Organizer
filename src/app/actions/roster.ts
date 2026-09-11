@@ -15,6 +15,8 @@ import { parseCsv, hasNameColumn, nameFrom, cell, splitCsvLine, splitCsvRecords 
 import { parseHandicapInput, looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
+import { entryNeedsEmail } from "@/lib/tournament-settings";
+import { settingsOf } from "@/lib/services/tournament";
 
 /**
  * Club roster management.
@@ -147,11 +149,17 @@ export interface MemberImportResult {
 /**
  * Build the roster from a club's own export.
  *
- * Deliberately more forgiving than the tournament entry import, because the
- * two answer different questions. An entry list needs an email — that is how
- * the player signs in. A roster is the club's record of its members, and
+ * More forgiving than the tournament entry import, because the two answer
+ * different questions. A roster is the club's record of its members, and
  * plenty of them have no email on file; refusing those rows would mean the
  * roster could never match the membership list it was copied from.
+ *
+ * THE GAP BETWEEN THE TWO HAS NARROWED, and this comment used to describe it
+ * as absolute: "an entry list needs an email — that is how the player signs
+ * in." True of a tournament signing players in by email, and false of one
+ * using Round Codes — which is what made this importer's tolerance useless in
+ * practice, since a club could load two hundred address-less members here and
+ * then enter none of them. See `entryNeedsEmail`.
  *
  * Rows already on the roster are updated rather than skipped, so re-uploading
  * a corrected export is the natural way to bulk-edit handicaps — which is how
@@ -460,6 +468,7 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   const needEmail: string[] = [];
   const needPhone: string[] = [];
   const needsPhone = phoneRequiredFor(await planForEvent(eventId), event.requirePhone);
+  const needsEmail = entryNeedsEmail(settingsOf(event));
 
   // Read once, outside the loop: adding forty members should not read the
   // tee table forty times.
@@ -492,7 +501,19 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
      * forty members off the club list should not have the whole action refused
      * because two of them have no address on file.
      */
-    const missingEmail = !m.email.trim();
+    /**
+     * ASKED OF THE TOURNAMENT NOW — see `entryNeedsEmail`.
+     *
+     * The paragraph above is still right about what a blank address costs
+     * under EMAIL sign-in: no account, no message, "a second-class entrant
+     * nobody had decided to create". It was wrong only in assuming every
+     * tournament signs players in that way. Under Round Codes there is no
+     * second class — `createPlaySession` identifies a player by `Player.id`
+     * and never reads an address — and the roster this screen picks from is
+     * deliberately allowed to hold members without one, which is what made
+     * "add from the club roster" refuse the very members it was listing.
+     */
+    const missingEmail = needsEmail && !m.email.trim();
     const missingPhone = needsPhone && !looksLikePhone(m.phone);
     if (missingEmail || missingPhone) {
       needContact.push(m.name);

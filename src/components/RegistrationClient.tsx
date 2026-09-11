@@ -71,8 +71,20 @@ export function RegistrationClient({
   tees = [],
   teePolicy = "own",
   defaultTeeName = "",
+  needsEmail = true,
 }: {
   event: EventInfo;
+  /**
+   * Whether this tournament's sign-in actually needs an address — see
+   * `entryNeedsEmail`.
+   *
+   * The field was marked "required, grants sign-in" and its Add button was
+   * disabled without one, on every tournament, including the society and
+   * charity templates that ship Round Codes precisely so a names-only roster
+   * can play. Defaults to true so a caller that has not been taught asks for
+   * exactly what it asked for before.
+   */
+  needsEmail?: boolean;
   confirmed: Signup[];
   /**
    * The sets this course is rated for, and which the round uses.
@@ -942,8 +954,8 @@ export function RegistrationClient({
           <div className="field"><label>Player name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <div className="field">
-              <label>Email <span style={{ color: "var(--color-accent-300)" }}>· required, grants sign-in</span></label>
-              <input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" style={!email.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
+              <label>Email <span style={{ color: "var(--color-accent-300)" }}>{needsEmail ? "· required, grants sign-in" : "· optional — they sign in with the Round Code"}</span></label>
+              <input className="input" type="email" required={needsEmail} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@email" style={needsEmail && !email.trim() ? { borderColor: "var(--color-accent)" } : undefined} />
             </div>
             <div className="field"><label>Phone</label><input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1…" /></div>
           </div>
@@ -972,7 +984,7 @@ export function RegistrationClient({
             </div>
           </div>
           <div className="field"><label>Home club</label><input className="input" value={homeClub} onChange={(e) => setHomeClub(e.target.value)} placeholder="Optional" /></div>
-          <button type="button" className="btn btn-primary btn-block" disabled={pending || !name.trim() || !email.trim()} onClick={submitAdd}><Icon name="plus" /> Add to field</button>
+          <button type="button" className="btn btn-primary btn-block" disabled={pending || !name.trim() || (needsEmail && !email.trim())} onClick={submitAdd}><Icon name="plus" /> Add to field</button>
           {addError && (
             <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
               <Icon name="warning-circle" /> {addError}
@@ -988,15 +1000,31 @@ export function RegistrationClient({
               <Icon name="upload-simple" /> Import CSV
               <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} style={{ display: "none" }} />
             </label>
+            {/* Says what this tournament actually requires, rather than what
+                every tournament used to. Built as a list rather than a third
+                nested ternary: two independent switches (email, phone) make
+                four sentences, and the nested form had already produced one
+                that read "name and email (both required — email is how each
+                player signs in), handicap, phone". */}
             <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
-              First row must be a header. Recognized columns:{" "}
-              {phoneRequired ? "name, email and phone (all three required" : "name and email (both required"} — email
-              is how each player signs in
-              {phoneRequired
-                ? ", and this tournament collects a mobile for every entrant), handicap, handicap type (9/18)."
-                : "), handicap, phone, handicap type (9/18)."}{" "}
-              Rows missing a required column, or duplicating a name or email already in the field, are skipped
-              automatically.
+              First row must be a header. Required columns:{" "}
+              {[
+                "name",
+                ...(needsEmail ? ["email"] : []),
+                ...(phoneRequired ? ["phone"] : []),
+              ].join(", ")}
+              {needsEmail ? " — email is how each player signs in" : ""}
+              {phoneRequired ? ", and this tournament collects a mobile for every entrant" : ""}. Also read:{" "}
+              {[
+                ...(needsEmail ? [] : ["email"]),
+                ...(phoneRequired ? [] : ["phone"]),
+                "handicap",
+                "handicap type (9/18)",
+              ].join(", ")}
+              .{" "}
+              {needsEmail
+                ? "Rows missing a required column, or duplicating an email already in the field, are skipped automatically."
+                : "Rows missing a required column are skipped automatically. Without an email to go on, a row is treated as already entered when its name matches somebody in the field."}
             </p>
             {importResult && (
               importResult.error ? (
