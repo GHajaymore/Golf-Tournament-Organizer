@@ -228,7 +228,21 @@ export function RegistrationClient({
   };
 
   const submitAdd = () => {
-    if (!name.trim() || !email.trim()) {
+    /**
+     * THE THIRD PLACE THIS RULE WAS WRITTEN, and the one that made relaxing
+     * the other two look like it had not worked.
+     *
+     * The server was taught to ask the tournament, the label was taught, the
+     * Add button was taught — and this early return still refused the entry
+     * before the action was ever called. Walked on 2026-09-11 on a charity day
+     * with Round Codes: the field read "Email · optional", the button was
+     * enabled, and clicking it produced "Email is required".
+     *
+     * A client-side copy of a server rule is the shape that guarantees this:
+     * it cannot be caught by a test of the action, and it fails in the one
+     * direction nobody checks, by refusing rather than admitting.
+     */
+    if (!name.trim() || (needsEmail && !email.trim())) {
       setAddError(!name.trim() ? "Enter a player name." : "Email is required — it's how this player signs in.");
       return;
     }

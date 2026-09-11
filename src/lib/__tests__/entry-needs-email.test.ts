@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { entryNeedsEmail, usesAccessCodes, usesEmailSignIn, DEFAULT_SETTINGS } from "../tournament-settings";
+import {
+  entryNeedsEmail,
+  usesAccessCodes,
+  usesEmailSignIn,
+  DEFAULT_SETTINGS,
+  type TournamentSettings,
+} from "../tournament-settings";
 import { readSource } from "./source";
 import { TOURNAMENT_TEMPLATES } from "../tournament-templates";
 
@@ -22,7 +28,13 @@ import { TOURNAMENT_TEMPLATES } from "../tournament-templates";
  * and it is required exactly when it is the only way in.
  */
 
-const withAccess = (playerAccess: string) => ({ ...DEFAULT_SETTINGS, playerAccess } as const);
+/**
+ * Typed as the union rather than `string`, so the loops below cannot quietly
+ * assert about a `playerAccess` the app does not have.
+ */
+const ACCESS_VALUES = ["email", "code", "both"] as const;
+type Access = (typeof ACCESS_VALUES)[number];
+const withAccess = (playerAccess: Access): TournamentSettings => ({ ...DEFAULT_SETTINGS, playerAccess });
 
 describe("when an entry needs an email", () => {
   it("asks for one only when it is the only way in", () => {
@@ -38,7 +50,7 @@ describe("when an entry needs an email", () => {
      * entries it has a sign-in for. Asserted over every value rather than the
      * three above, so a fourth `playerAccess` added later is covered.
      */
-    for (const access of ["email", "code", "both"]) {
+    for (const access of ACCESS_VALUES) {
       const s = withAccess(access);
       expect(entryNeedsEmail(s), access).toBe(!usesAccessCodes(s));
     }
@@ -70,7 +82,7 @@ describe("the templates this was blocking", () => {
     const asking: string[] = [];
     for (const t of TOURNAMENT_TEMPLATES) {
       if (t.blank || !t.settings?.playerAccess) continue;
-      const s = { ...DEFAULT_SETTINGS, playerAccess: t.settings.playerAccess };
+      const s: TournamentSettings = { ...DEFAULT_SETTINGS, playerAccess: t.settings.playerAccess };
       (entryNeedsEmail(s) ? asking : freed).push(t.key);
     }
     expect(freed).toContain("league-round");
@@ -126,6 +138,43 @@ describe("the paths that ask", () => {
     expect(client).toMatch(/\(needsEmail && !email\.trim\(\)\)/);
     const page = readSource("src", "app", "(app)", "registration", "page.tsx");
     expect(page).toMatch(/needsEmail=\{entryNeedsEmail\(settingsOf\(state\.event\)\)\}/);
+  });
+
+  it("keeps no unconditional copy of the refusal anywhere", () => {
+    /**
+     * THE ONE THE FIRST CUT MISSED, and it is the reason this test exists in
+     * this shape rather than as three positive assertions.
+     *
+     * `submitAdd` carried its own `!email.trim()` early return with the same
+     * message, so the server was relaxed, the label read "optional", the
+     * button was enabled — and clicking it still refused. Walked on
+     * 2026-09-11 on a charity day, which is exactly the tournament this whole
+     * change is for.
+     *
+     * A count, because the message is legitimately written twice — once in the
+     * action, once in the client — and both must now be reached only through a
+     * `needsEmail` test. Any THIRD copy, or either of these two losing its
+     * condition, is what this catches.
+     */
+    const guarded = [
+      ["src", "app", "actions", "tournament.ts"],
+      ["src", "components", "RegistrationClient.tsx"],
+    ] as const;
+    for (const parts of guarded) {
+      const src = readSource(...parts);
+      const refusals = src.match(/"Email is required[^"]*"/g) ?? [];
+      expect(refusals.length, parts.join("/")).toBe(1);
+      // And the line that produces it is reached only behind the rule.
+      expect(src, parts.join("/")).toMatch(/needsEmail(\)| &&)|entryNeedsEmail\(/);
+    }
+    // Nowhere else in the product states it at all.
+    for (const parts of [
+      ["src", "app", "actions", "roster.ts"],
+      ["src", "lib", "plans.ts"],
+      ["src", "lib", "services", "player-access.ts"],
+    ] as const) {
+      expect(readSource(...parts), parts.join("/")).not.toMatch(/"Email is required/);
+    }
   });
 });
 

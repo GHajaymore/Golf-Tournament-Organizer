@@ -347,8 +347,12 @@ export function upgradeBenefits(planKey: string | null | undefined): string[] {
 /**
  * Whether this tournament must collect a phone number as well as an email.
  *
- * Email is required everywhere and always — it is how a player signs in, so an
- * entry without one produces somebody who cannot reach their own tournament.
+ * Email is required where it is the only way IN — see `entryNeedsEmail`, which
+ * is the rule this sentence used to state as "everywhere and always". That was
+ * true of a tournament signing players in by email and false of one using
+ * Round Codes, where `createPlaySession` identifies a player by `Player.id`
+ * and never reads an address.
+ *
  * Phone is a different question, and the answer depends on the plan.
  *
  * On the free plan it is required, with no way to turn it off. On a paid plan
