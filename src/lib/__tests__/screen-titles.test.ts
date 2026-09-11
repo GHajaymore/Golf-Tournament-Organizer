@@ -49,6 +49,9 @@ function isRedirectOnly(src: string): boolean {
   return /redirect\(["'][^"']+["']\);?\s*}\s*$/.test(src.trim());
 }
 
+/** The screens this sweep actually asks for a title, resolved once. */
+const TITLED = consoleScreens().filter((dir) => !isRedirectOnly(readSource(APP_DIR, dir, "page.tsx")));
+
 describe("every console screen names itself", () => {
   const screens = consoleScreens();
 
@@ -59,9 +62,28 @@ describe("every console screen names itself", () => {
     expect(screens).toContain("leaderboard");
   });
 
-  for (const dir of screens) {
+  it("asks a real number of them, not none", () => {
+    /**
+     * THE COUNT, BECAUSE A BROKEN SKIP IS INVISIBLE FROM THE FAILURE COUNT.
+     *
+     * `isRedirectOnly` decides which screens the loop below generates a test
+     * for, so a version of it that answered "yes" to everything would emit no
+     * per-screen tests at all — and vitest would report this file GREEN.
+     *
+     * Measured, not reasoned about: forcing it to `return true` took this file
+     * from 28 tests to 7, with zero failures. That is the same shape that read
+     * as "the suite cannot catch this" during the 2026-09-11 mutation audit,
+     * where a mutation that broke parsing reported 3372 passed and 1800 tests
+     * never ran. The lesson there was to compare the test COUNT rather than
+     * the failure count; this asserts it so nobody has to remember.
+     */
+    expect(TITLED.length).toBeGreaterThanOrEqual(20);
+    // And the redirects are a handful, not most of the console.
+    expect(screens.length - TITLED.length).toBeLessThanOrEqual(5);
+  });
+
+  for (const dir of TITLED) {
     const src = readSource(APP_DIR, dir, "page.tsx");
-    if (isRedirectOnly(src)) continue;
 
     it(`/${dir} exports a title taken from the sidebar`, () => {
       /**
@@ -92,10 +114,8 @@ describe("every console screen names itself", () => {
      * source of truth for the one string the sidebar already owns, and the
      * sidebar is what the organizer clicked.
      */
-    for (const dir of consoleScreens()) {
-      const src = readSource(APP_DIR, dir, "page.tsx");
-      if (isRedirectOnly(src)) continue;
-      expect(src).not.toMatch(/export const metadata = \{/);
+    for (const dir of TITLED) {
+      expect(readSource(APP_DIR, dir, "page.tsx")).not.toMatch(/export const metadata = \{/);
     }
   });
 });
@@ -140,9 +160,8 @@ describe("the names themselves", () => {
     // The counterpart to the test above, on the other side of the boundary: a
     // third relabelled screen must also be wired to the shape-aware helper,
     // and a static title on one of these two is the bug this PR fixed.
-    for (const dir of consoleScreens()) {
+    for (const dir of TITLED) {
       const src = readSource(APP_DIR, dir, "page.tsx");
-      if (isRedirectOnly(src)) continue;
       const shapeAware = /screenMetadataForShape\(/.test(src);
       const renamed = screenName(`/${dir}`, true) !== screenName(`/${dir}`, false);
       expect(shapeAware, `/${dir}`).toBe(renamed);
