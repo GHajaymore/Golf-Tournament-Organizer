@@ -7,6 +7,8 @@ import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
 import { Icon } from "@/components/Icon";
 import { NOINDEX } from "@/lib/site";
+import { tournamentClashFor } from "@/lib/services/tournament-clash";
+import { TournamentClashNotice } from "@/components/TournamentClashNotice";
 
 export const metadata = { title: "Set up a round", robots: NOINDEX };
 
@@ -20,6 +22,11 @@ export const metadata = { title: "Set up a round", robots: NOINDEX };
  */
 export default async function NewMatchPage() {
   const session = await requireSession();
+
+  // Whether they are due to play a real tournament round today. Read before
+  // the roster query so the warning is decided on the same request that
+  // renders the form.
+  const clash = await tournamentClashFor(session.email);
 
   /**
    * The club's own courses, if there are any.
@@ -123,6 +130,10 @@ export default async function NewMatchPage() {
             offers exactly what they came for. */}
         <div className="page-kicker">One round, no apparatus</div>
         <h1 style={{ fontSize: 30, margin: "8px 0 4px" }}>Set up a round</h1>
+
+        {/* YOU ARE ALREADY PLAYING ONE OF THESE TODAY — see the component.
+            Before the form, because afterwards it is a post-mortem. */}
+        {clash && <TournamentClashNotice clash={clash} />}
         <p className="text-muted" style={{ fontSize: 14, margin: "0 0 24px", lineHeight: 1.6 }}>
           A match, a medal or a fourball — scored properly, with nothing to configure.
           Pick what you&rsquo;re playing and who&rsquo;s in it; everything else has an answer

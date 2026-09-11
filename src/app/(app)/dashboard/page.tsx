@@ -211,8 +211,20 @@ export default async function DashboardPage() {
    * the screen and the deletion agree by reading one fact, not two.
    */
   const expiry = expiryNotice(hoursLeft(event), isStaff);
-  // Null for anybody who runs no organization of their own.
-  const orgFacts = isStaff ? await orgSetupFactsFor(session.email, session.name) : null;
+  /**
+   * Null for anybody who runs no organization of their own — AND ON A CASUAL
+   * ROUND, whoever they are.
+   *
+   * A club is not the subject of this screen when the screen is a Sunday
+   * fourball. Somebody who opened the app to play their mate is not being
+   * asked to name a society and load a roster, and since a quick round now
+   * belongs to the person's own organization rather than their club, the
+   * checklist would be reporting on a club they are not currently inside.
+   *
+   * `isMatch` rather than a new flag: the same fact the heading, the round
+   * label and the sidebar already turn on.
+   */
+  const orgFacts = isStaff && !matchEvent ? await orgSetupFactsFor(session.email, session.name) : null;
   const orgSetup = orgFacts ? orgSetupState(orgFacts) : null;
   const isAdmin = session.viewRole === "admin";
 
