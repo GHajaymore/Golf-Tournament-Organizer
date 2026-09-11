@@ -35,18 +35,37 @@ export function LeaderboardBoard({
 
   return (
     <>
-      <div className="seg" style={{ width: "fit-content", marginBottom: 12 }}>
-        <label className="seg-opt">
-          <input type="radio" name="lbview" checked={view === "overall"} onChange={() => setView("overall")} />
-          Overall
-        </label>
-        <label className="seg-opt">
-          <input type="radio" name="lbview" checked={view === "flight"} onChange={() => setView("flight")} />
-          By flight
-        </label>
-      </div>
+      {/**
+       * ONLY WHERE THERE IS MORE THAN ONE FLIGHT.
+       *
+       * The toggle rendered always, and "By flight" then had nothing to offer
+       * in the two cases that matter. With NO flights — nobody assigned one —
+       * it switched to a view containing nothing at all. With ONE it reprinted
+       * the overall table under a heading, which is the same table and a word.
+       *
+       * Both were read off a two-player round on 2026-09-11: `createMatch`
+       * creates a single group called "A" and puts everyone in it, because a
+       * player row needs a group, so a quick round is the one-flight case
+       * rather than the none case and the obvious `> 0` would have missed it.
+       *
+       * Keyed on the DATA rather than the round's shape. A tournament before
+       * its draw is the none case and a small society is the one case, and a
+       * shape check would have left both exactly as they were.
+       */}
+      {flights.length > 1 && (
+        <div className="seg" style={{ width: "fit-content", marginBottom: 12 }}>
+          <label className="seg-opt">
+            <input type="radio" name="lbview" checked={view === "overall"} onChange={() => setView("overall")} />
+            Overall
+          </label>
+          <label className="seg-opt">
+            <input type="radio" name="lbview" checked={view === "flight"} onChange={() => setView("flight")} />
+            By flight
+          </label>
+        </div>
+      )}
 
-      {view === "overall" ? (
+      {view === "overall" || flights.length < 2 ? (
         <LeaderboardTable isStroke={isStroke} isStableford={isStableford} rows={rows} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>

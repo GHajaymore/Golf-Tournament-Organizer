@@ -14,6 +14,8 @@ import { TeamLeaderboard } from "@/components/TeamLeaderboard";
 import { SkinsLeaderboard, NassauLeaderboard, ModifiedStablefordLeaderboard } from "@/components/PointsLeaderboard";
 import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "@/lib/services/points-standings";
 import { boardKind } from "@/lib/formats";
+import { isMatch } from "@/lib/tournament-shape";
+import { boardIntro, boardFootnote, boardShowsHighlights, boardShowsCommentary } from "@/lib/domain/board-copy";
 import { ManualRoundBoard } from "@/components/ManualRoundBoard";
 import { teamStandings } from "@/lib/services/teams";
 import { resolveCourse } from "@/lib/courses";
@@ -113,6 +115,21 @@ export default async function LeaderboardPage() {
   );
   const highlights = computeHighlights(state);
   const isStaff = session.viewRole === "admin" || session.viewRole === "assistant";
+  /**
+   * A quick round rather than a tournament. Same question `/entry` and
+   * `/dashboard` already ask, under the same name.
+   *
+   * The TABLE is identical either way and deliberately so — where you stand is
+   * exactly what a golfer wants afterwards, which is why `nav.ts` keeps this
+   * screen for a casual round. What changes is the sentences around it: see
+   * `board-copy.ts` for the four that were not true of a fourball.
+   */
+  const casualRound = isMatch(state.event.shape);
+  const boardCopy = {
+    isStroke: state.isStroke,
+    stableford: state.activeStage?.scoringBasis === "stableford",
+    casual: casualRound,
+  };
   const commentary = await prisma.commentary.findMany({
     where: { eventId: session.eventId },
     orderBy: { createdAt: "desc" },
@@ -147,11 +164,7 @@ export default async function LeaderboardPage() {
           <div className="page-kicker">Overview</div>
           <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            {state.isStroke
-              ? state.activeStage?.scoringBasis === "stableford"
-                ? "Overall standings across all flights · Stableford points (higher is better)."
-                : "Overall standings across all flights · stroke play (gross / net / to-par)."
-              : "Overall standings across all flights · match points breakdown."}
+            {boardIntro(boardCopy)}
           </p>
         </div>
         {/* This was a STATIC badge reading "Updating live", on a page that did
@@ -169,7 +182,7 @@ export default async function LeaderboardPage() {
         <LiveRefresh renderedAt={new Date().toISOString()} compact />
       </div>
 
-      {highlights.length > 0 && (
+      {boardShowsHighlights(casualRound) && highlights.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <span className="card-kicker" style={{ display: "block", marginBottom: 8 }}>Tournament highlights</span>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
@@ -221,21 +234,19 @@ export default async function LeaderboardPage() {
       <div className="card elev-sm">
         <LeaderboardBoard isStroke={state.isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} rows={rows} isStaff={isStaff} />
         <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
-          {state.isStroke
-            ? state.activeStage?.scoringBasis === "stableford"
-              ? "Points are Stableford: 2 for a net par, +1 per stroke better, -1 per stroke worse, floored at 0. Advancing rows reflect the qualification cutoff."
-              : "Net = gross minus handicap strokes received on the holes played; To-par is versus the holes played. Advancing rows reflect the qualification cutoff."
-            : "Columns: P played, W won, ½ halved, L lost. Advancing rows reflect the current qualification cutoff and update live as scores are entered."}
+          {boardFootnote(boardCopy)}
         </p>
       </div>
 
-      <div style={{ marginTop: 16 }}>
-        <CommentaryPanel
-          items={commentaryItems}
-          canPost={isStaff}
-          aiAvailable={(await entitlementForEvent(session.eventId, "aiAssist")).allowed}
-        />
-      </div>
+      {boardShowsCommentary(casualRound) && (
+        <div style={{ marginTop: 16 }}>
+          <CommentaryPanel
+            items={commentaryItems}
+            canPost={isStaff}
+            aiAvailable={(await entitlementForEvent(session.eventId, "aiAssist")).allowed}
+          />
+        </div>
+      )}
     </>
   );
 }
