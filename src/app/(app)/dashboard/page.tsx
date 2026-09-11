@@ -29,6 +29,7 @@ import { RoundExpiryBanner } from "@/components/RoundExpiryBanner";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
+import { placesWithin } from "@/lib/domain/flight-places";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { Icon } from "@/components/Icon";
 import { CasualRoundPanel } from "@/components/CasualRoundPanel";
@@ -138,15 +139,28 @@ export default async function DashboardPage() {
    * `strokeStandings` is already sorted and ranked, so filtering it per flight
    * keeps the engine's order rather than inventing a second one — the same
    * reason qualification reads it too.
+   *
+   * IT KEPT THE ORDER AND THEN REINVENTED THE NUMBER. This mapped
+   * `rank: s.ranked ? i + 1 : 0`, so two players in a flight that the engine
+   * had ranked level were printed 1 and 2 — the paragraph above being right
+   * about the order and silent about the place.
+   *
+   * The match branch below never had it: `groupStandings` runs
+   * `computeStandings` over the group alone, so `r.rank` is already the flight
+   * place with its ties intact. The two halves of one card answered "what
+   * place in this flight" differently.
+   *
+   * `placesWithin` is the same rule the board's by-flight view and the flight
+   * results CSV use. Unranked rows still report 0 — a player with no card has
+   * no place, and that is a different statement from being last.
    */
   const flightColumns = state.isStroke
     ? state.groups.map((group) => ({
         group,
-        ranked: state.strokeStandings
-          .filter((s) => s.player.groupId === group.id)
-          .map((s, i) => ({
+        ranked: placesWithin(state.strokeStandings.filter((s) => s.player.groupId === group.id))
+          .map((s) => ({
             player: s.player,
-            rank: s.ranked ? i + 1 : 0,
+            rank: s.ranked ? s.rank : 0,
             // To-par where there is a par, net where there is not — never the
             // gross wearing a plus sign. See `parKnown`.
             figure: s.thru > 0 ? (s.parKnown ? toParText(s.toPar) : `${s.net}`) : "—",

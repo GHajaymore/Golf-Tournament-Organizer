@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
 import { toParText } from "@/lib/domain";
 import { toCsv } from "@/lib/domain/csv-export";
+import { placesWithin } from "@/lib/domain/flight-places";
 import { Icon } from "./Icon";
 
 function download(filename: string, rows: string[][]) {
@@ -99,14 +100,43 @@ export function ReportsClient({
     download(`${eventName}-standings.csv`, [header, ...body]);
   };
 
+  /**
+   * THE PLACE WITHIN THE FLIGHT, which is what this file says it holds.
+   *
+   * The column is headed "Rank", the file is called flight-results, and the
+   * control describes it as "Per-flight finishing order" — and it printed the
+   * TOURNAMENT-wide rank. On Demo Cup that exports
+   *
+   *     Flight 2, 3, Diego Alvarez
+   *
+   * for a player who is FIRST in Flight 2 and third overall, while the board's
+   * own by-flight view of the same standings calls him 1st. Whoever reads the
+   * CSV to award a flight prize is reading the wrong number, and the two
+   * screens disagree about the same question.
+   *
+   * `placesWithin` is the board's rule, so the export and the screen cannot
+   * drift: renumber from one, and share a place wherever the overall ranking
+   * shared one, because two players sharing an overall rank were separated by
+   * nothing.
+   *
+   * `rows` arrives in overall rank order, so filtering a flight out of it
+   * keeps that order and the old `a.rank - b.rank` sort is not needed.
+   */
   const groupResults = () => {
     const scoreCol = isStroke ? (isStableford ? "Points" : "Net") : "Points";
     const scoreVal = (r: StandingRow) => (isStroke ? String(isStableford ? r.points : r.net) : r.pts);
+    const flights = [...new Set(rows.map((r) => r.flight))].sort((a, b) => a.localeCompare(b));
     download(`${eventName}-flight-results.csv`, [
       ["Flight", "Rank", "Player", scoreCol, "Status"],
-      ...[...rows]
-        .sort((a, b) => a.flight.localeCompare(b.flight) || a.rank - b.rank)
-        .map((r) => [r.flight, String(r.rank), r.name, scoreVal(r), status(r)]),
+      ...flights.flatMap((f) =>
+        placesWithin(rows.filter((r) => r.flight === f)).map((r) => [
+          f,
+          String(r.rank),
+          r.name,
+          scoreVal(r),
+          status(r),
+        ]),
+      ),
     ]);
   };
 
