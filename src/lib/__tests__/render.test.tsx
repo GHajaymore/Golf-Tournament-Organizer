@@ -6923,3 +6923,60 @@ describe("the play card's totals", () => {
     expect(none).toContain("0</b> stableford");
   });
 });
+
+/**
+ * WHAT HAPPENS AFTER A PLAYER SIGNS THEIR CARD, which is not the same in the
+ * two kinds of round.
+ *
+ * The sentence under the Certify button read "The committee accepts it after
+ * that" to everybody. Under staff approval — a charity day, a club medal —
+ * that is exactly right. Under player confirmation the card is final the
+ * moment it is signed and nobody is going to look at it.
+ *
+ * `createMatch` sets a casual round to player confirmation and says why in its
+ * own words: "there is no committee to approve a card that both players just
+ * agreed on standing on the 18th green". So two people on a Sunday were being
+ * told to wait for a committee that does not exist — and they started reading
+ * that sentence the moment a quick round began issuing Round Codes.
+ */
+describe("what the play card says a signature leads to", () => {
+  const PARS = [4, 5, 3, 4, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 4];
+  const full = PARS.map((p) => p);
+
+  const card = async (over: Record<string, unknown> = {}) => {
+    const { PlayClient } = await import("@/components/PlayClient");
+    return render(
+      <PlayClient
+        stage="card"
+        playerName="Zz Player"
+        eventName="A round"
+        roundLabel="Round 1"
+        holes={18}
+        pars={PARS}
+        card={full}
+        {...over}
+      />,
+    );
+  };
+
+  it("names the committee where there is one", async () => {
+    const html = await card({ staffApproves: true });
+    expect(html).toContain("The committee accepts it after that");
+  });
+
+  it("does not invent one where there is not", async () => {
+    const html = await card({ staffApproves: false });
+    expect(html).not.toContain("committee");
+    expect(html).toContain("nobody else has to accept it");
+  });
+
+  it("still asks for the whole card first, whichever it is", async () => {
+    // The half-finished state comes before either sentence: certifying an
+    // unfinished card claims holes nobody played were right.
+    for (const staffApproves of [true, false]) {
+      const html = await card({ staffApproves, card: [4, ...new Array(17).fill(null)] });
+      expect(html, String(staffApproves)).toContain("Certify once all 18 holes are in");
+      expect(html, String(staffApproves)).not.toContain("committee");
+    }
+  });
+});
