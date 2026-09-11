@@ -100,11 +100,18 @@ describe("what the app says launching does", () => {
      * real — `isSetupLocked` reads exactly that — so it is the half worth
      * saying, and the only half.
      */
+    /**
+     * THE WHOLE FUNCTION, not a fixed number of characters.
+     *
+     * This sliced 700 characters, which held the write until the launch gate
+     * was added in front of it — and then the test failed because the code it
+     * asserts about had moved, not because it had changed. A window measured
+     * in characters is a window that closes on its own.
+     */
     const action = src("src/app/actions/tournament.ts");
-    const launch = action.slice(
-      action.indexOf("export async function launchTournament"),
-      action.indexOf("export async function launchTournament") + 700,
-    );
+    const from = action.indexOf("export async function launchTournament");
+    const after = action.indexOf("export async function", from + 1);
+    const launch = action.slice(from, after === -1 ? undefined : after);
     expect(launch).toMatch(/status: "live"/);
     expect(launch).toMatch(/configUnlocked: false/);
     // If a visibility flag is ever written here, this test should fail and the

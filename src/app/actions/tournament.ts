@@ -75,7 +75,8 @@ import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
-import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { isCutScope } from "@/lib/domain/cut";
 import { isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
@@ -3218,9 +3219,25 @@ export async function deleteEvent(eventId: string) {
 
 const STATUS_FLOW = ["draft", "registration", "ready", "live", "completed"];
 
-export async function setEventStatus(status: string) {
+export async function setEventStatus(status: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
   const s = STATUS_FLOW.includes(status) ? status : "draft";
+  /**
+   * FINISHING IS A STATEMENT, not a tidy-up.
+   *
+   * It publishes the standings as final and, on a free plan, starts the clock
+   * the retention window runs on. Doing it with cards still waiting to be
+   * signed off declares a winner from scores nobody has agreed.
+   *
+   * Only in the completing direction: re-opening a finished tournament is how
+   * a club fixes exactly this, and a gate on the way back would be the app
+   * refusing the remedy it just asked for.
+   */
+  if (s === "completed") {
+    const state = await loadEventState(eventId);
+    const refusal = state ? finishRefusal({ pendingConfirmations: state.pendingConfirmations }) : null;
+    if (refusal) return { ok: false, error: refusal };
+  }
   // Stamp the completion time, because on a free plan it starts the clock the
   // retention window runs on. Reopening a tournament clears it: a club that
   // un-completes an event has said the result isn't final, and the countdown
@@ -3230,10 +3247,29 @@ export async function setEventStatus(status: string) {
     data: { status: s, completedAt: s === "completed" ? new Date() : null },
   });
   await refresh();
+  return { ok: true };
 }
 
-export async function launchTournament() {
+export async function launchTournament(): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
+  /**
+   * NOTHING USED TO STOP THIS, and launching is not a small act: it publishes
+   * the tournament to its field and clears `configUnlocked`, so a tournament
+   * with no rounds and nobody in it went live AND locked. The organizer's next
+   * move was to unlock the thing they had just locked, in order to build the
+   * tournament they had just published.
+   *
+   * The two conditions are in `launchRefusal` with the reasoning. Guided
+   * inside setting up, gated between phases — see phase-gate.ts.
+   */
+  const [stages, confirmed] = await Promise.all([
+    prisma.stage.findMany({ where: { eventId }, select: { type: true } }),
+    prisma.player.count({ where: { eventId, status: "confirmed" } }),
+  ]);
+  const playingRounds = stages.filter((s) => isPlayingRound(s.type)).length;
+  const refusal = launchRefusal({ playingRounds, confirmed });
+  if (refusal) return { ok: false, error: refusal };
+
   // On launch, every non-staff account receives the Player role. Once registration
   // collects player emails (Phase 4), this also provisions their logins.
   await prisma.account.updateMany({
@@ -3245,6 +3281,7 @@ export async function launchTournament() {
     data: { status: "live", launchedAt: new Date(), configUnlocked: false },
   });
   await refresh();
+  return { ok: true };
 }
 
 export async function setConfigUnlocked(unlocked: boolean) {

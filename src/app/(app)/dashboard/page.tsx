@@ -19,7 +19,8 @@ import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { currentRoundCut } from "@/lib/domain/cut";
 import { navForRole, screenName } from "@/lib/nav";
-import { hasKnockoutStage, isWeeklyRound } from "@/lib/stage-types";
+import { hasKnockoutStage, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
+import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
 import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
@@ -297,6 +298,27 @@ export default async function DashboardPage() {
   // which only mean something when there is a Bracket/Qualification stage to
   // qualify into — a tournament that instead cuts round to round has neither.
   const hasKnockout = hasKnockoutStage(state.stages);
+
+  /**
+   * WHY THE NEXT PHASE IS NOT AVAILABLE YET, for the lifecycle bar's button.
+   *
+   * Computed here and enforced again inside the actions, from the same two
+   * functions — so the greyed-out button and the refusal say the same thing in
+   * the same words, and neither is load-bearing on its own.
+   *
+   * Only the two transitions that mean something. Moving from draft to "taking
+   * entries" is a club saying what it is doing and gates nothing; going live
+   * and declaring a result are the ones that change what the field sees.
+   */
+  const phaseBlock =
+    event.status === "ready" || event.status === "registration"
+      ? launchRefusal({
+          playingRounds: state.stages.filter((s) => isPlayingRound(s.type)).length,
+          confirmed: state.confirmed.length,
+        })
+      : event.status === "live"
+        ? finishRefusal({ pendingConfirmations: state.pendingConfirmations })
+        : null;
   const navHrefs = new Set(
     navForRole(session.viewRole, settings, {
       hasTeamRound: state.stages.some((s) => TEAM_FORMAT_NAMES.includes(s.format)),
@@ -578,6 +600,7 @@ export default async function DashboardPage() {
           isAdmin={isAdmin}
           configUnlocked={event.configUnlocked}
           matchesScored={progress.done}
+          blockedReason={phaseBlock ?? undefined}
           summary={{
             name: event.name,
             dates: event.dates,
