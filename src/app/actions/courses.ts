@@ -9,6 +9,7 @@ import { canEnterScores, canChooseOwnTee } from "@/lib/tournament-settings";
 import { playsInMatch } from "@/lib/services/match-access";
 import { parseHoleArray } from "@/lib/courses";
 import { parseCard, cardRefusal } from "@/lib/domain/scorecard-parse";
+import type { Near } from "@/lib/domain/course-ranking";
 import {
   searchDirectory,
   fetchDirectoryCourse,
@@ -806,6 +807,50 @@ export interface DirectorySearchResult {
  * — there is no row here to own. Coverage is US-only, so no results is an
  * ordinary answer rather than a failure, and the screen says which it was.
  */
+/**
+ * WHERE THIS CLUB PLAYS, FROM WHAT IT HAS ALREADY TOLD US.
+ *
+ * The catalogue is 2,184 courses and "golf" is in most course names, so a
+ * vague query matches 1,579 of them and only twenty survive the cut. Which
+ * twenty is worth getting right, and a club almost always plays near itself.
+ *
+ * Read off the tournament's own town and the courses the club has already
+ * saved — no geolocation prompt, no coordinates, and no API allowance spent.
+ * `Course` and `CourseCatalog` carry city/state/country and nothing else, so
+ * this is the only locality the data can support today.
+ *
+ * Returns undefined when the club has said nothing, which makes the whole
+ * feature inert rather than guessing — and `localityOf` is a ranking either
+ * way, so a course with no town is never pushed out of the list.
+ */
+async function clubNear(eventId: string): Promise<Near | undefined> {
+  if (!eventId) return undefined;
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { city: true, organizationId: true },
+  });
+  if (!event) return undefined;
+  /**
+   * A TOWN AND NOTHING ELSE, because that is all the schema holds.
+   *
+   * `Course` carries `city` and `address` — no state, no country — so a club's
+   * own courses can only ever say which town. `CourseCatalog` rows do carry
+   * state and country, but comparing a catalogue row's state against a
+   * club that has never stated one answers nothing.
+   *
+   * Falling back to the club's own course when the tournament has no town yet,
+   * which is the state every new tournament starts in — and the state somebody
+   * is in precisely when they are looking a course up.
+   */
+  const mine = await prisma.course.findFirst({
+    where: { organizationId: event.organizationId, NOT: { city: "" } },
+    select: { city: true },
+    orderBy: { id: "desc" },
+  });
+  const city = event.city.trim() || mine?.city || "";
+  return city ? ({ city } satisfies Near) : undefined;
+}
+
 export async function searchCourseDirectory(
   query: string,
   localOnly = false,
@@ -824,7 +869,7 @@ export async function searchCourseDirectory(
    * was on it and the free read loses one it never needed.
    */
   if (!localOnly && session.role !== "admin") throw new Error("Organizer access required");
-  const hits = await searchDirectory(query, localOnly);
+  const hits = await searchDirectory(query, localOnly, await clubNear(session.eventId));
 
   /**
    * Which of these the club already has.

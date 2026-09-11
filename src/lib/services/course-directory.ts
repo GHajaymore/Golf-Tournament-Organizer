@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { parseAreaQuery } from "@/lib/domain/course-area";
-import { rankCourseHits } from "@/lib/domain/course-ranking";
+import { rankCourseHits, type Near } from "@/lib/domain/course-ranking";
 import { parseHoleArray } from "@/lib/courses";
 import {
   hitsFrom,
@@ -132,6 +132,14 @@ function fromCatalog(row: {
 export async function searchDirectory(
   query: string,
   localOnly = false,
+  /**
+   * Where the club plays, used to order rows the query itself could not
+   * separate — see `localityOf`.
+   *
+   * Optional and inert when absent, so a caller that does not know stays
+   * exactly as it was.
+   */
+  near?: Near,
 ): Promise<DirectoryHit[]> {
   const q = query.trim();
   const area = parseAreaQuery(q);
@@ -174,16 +182,48 @@ export async function searchDirectory(
   }
   if (area.city) matches.push({ city: { contains: area.city, mode: "insensitive" } });
 
-  const local = await prisma.courseCatalog.findMany({
-    where: {
-      // The state NARROWS rather than widens: "Cincinnati, OH" means the
-      // Cincinnati in Ohio, not every Cincinnati and also all of Ohio. A
-      // state on its own has no other half, so it stands as the whole query.
-      AND: [
-        ...(area.state ? [{ state: area.state }] : []),
-        ...(matches.length ? [{ OR: matches }] : []),
-      ],
-    },
+  const where = {
+    // The state NARROWS rather than widens: "Cincinnati, OH" means the
+    // Cincinnati in Ohio, not every Cincinnati and also all of Ohio. A
+    // state on its own has no other half, so it stands as the whole query.
+    AND: [
+      ...(area.state ? [{ state: area.state }] : []),
+      ...(matches.length ? [{ OR: matches }] : []),
+    ],
+  };
+
+  /**
+   * THE CLUB'S OWN TOWN, ASKED FOR SEPARATELY — because the cut below happens
+   * in the DATABASE, before anything is ranked.
+   *
+   * The general read takes 100 rows ordered by name, which is a fine sample
+   * when the query is specific and a poor one when it is not: "golf" matches
+   * 1,579 of the 2,184 catalogue rows, so the 100 that come back are simply
+   * the first 100 alphabetically. Ranking them by locality afterwards can only
+   * reorder that arbitrary slice, and measuring it showed exactly that — a
+   * Cincinnati club searching "golf" got ZERO of its own town's 21 courses,
+   * with or without the club's location, because none of them survived the
+   * alphabetical cut to be ranked at all.
+   *
+   * So the town is fetched in its own bounded query and merged before ranking.
+   * It is one extra indexed read, it is skipped entirely when the club has no
+   * town or the query names its own place, and it cannot displace anything:
+   * the rows join the same list and the same ranking decides the order.
+   */
+  const homeTown =
+    near?.city && !area.city && !area.state
+      ? await prisma.courseCatalog.findMany({
+          where: { AND: [...where.AND, { city: { equals: near.city, mode: "insensitive" as const } }] },
+          orderBy: [{ cardProblem: "asc" }, { name: "asc" }],
+          take: 40,
+          select: {
+            id: true, name: true, city: true, state: true, country: true, par: true, website: true,
+          },
+        })
+      : [];
+
+  const general = await prisma.courseCatalog.findMany({
+    where,
     // Courses with a card first: a club searching wants one it can score on,
     // and the ones we could not read should not crowd out the ones we could.
     orderBy: [{ cardProblem: "asc" }, { name: "asc" }],
@@ -206,10 +246,32 @@ export async function searchDirectory(
    * in the query above; it is a filter, not something to sort by.
    */
   const rankOn = area.text || area.city || q;
-  if (local.length > 0 || localOnly) return rankCourseHits(local, rankOn).slice(0, 20);
+  /**
+   * WHAT THEY TYPED BEATS WHERE THEY ARE.
+   *
+   * Somebody who writes "cincinnati oh" has said where they mean, and the
+   * club's own town has no business reordering that — a society playing away,
+   * or an organizer looking up the course of a club they are visiting, is
+   * exactly the person who would be fought by it. `parseAreaQuery` has already
+   * read the place out of the query, so this is simply: if they named one,
+   * theirs wins and the club's is dropped.
+   *
+   * With no place in the query, the club's town only breaks ties between rows
+   * the query ranked equally — it can never outrank a better name match. So
+   * "type the name you mean" keeps working from anywhere, which is the whole
+   * reason this is a ranking and not a filter.
+   */
+  const place = area.city || area.state ? undefined : near;
+  /**
+   * Merged by id, the home town's rows first so a duplicate keeps that copy.
+   * Both reads ask the same `where`, so nothing here can widen the search —
+   * it only makes sure the club's own town reached the ranker at all.
+   */
+  const local = [...homeTown, ...general.filter((g) => !homeTown.some((h) => h.id === g.id))];
+  if (local.length > 0 || localOnly) return rankCourseHits(local, rankOn, place).slice(0, 20);
 
   const payload = await getJson(`/v1/courses/search?q=${encodeURIComponent(q.slice(0, 80))}`);
-  return rankCourseHits(hitsFrom(payload), rankOn).slice(0, 20);
+  return rankCourseHits(hitsFrom(payload), rankOn, place).slice(0, 20);
 }
 
 /** One course in full — its card, if it has a usable one, and its rated tees. */
