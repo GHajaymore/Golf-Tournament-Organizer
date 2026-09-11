@@ -114,6 +114,20 @@ interface Props {
    * board and the skins pot are settled from.
    */
   shots?: number[];
+  /**
+   * Whether a signed card then waits for the committee.
+   *
+   * True under `scoreApproval: "staff"` — a charity day, a club medal — where
+   * the card sits pending until an organizer approves it. False under player
+   * confirmation, which is what a casual round is set to and which
+   * `createMatch` explains in its own words: "there is no committee to approve
+   * a card that both players just agreed on standing on the 18th green".
+   *
+   * The sentence under the Certify button said the committee accepts it, to
+   * everybody. Two people on a Sunday were told to wait for a committee that
+   * does not exist and never arrives.
+   */
+  staffApproves?: boolean;
 }
 
 /**
@@ -547,10 +561,23 @@ export function PlayClient(props: Props) {
           >
             <Icon name="check" /> {certified ? "Certified" : "Certify my card"}
           </button>
+          {/* WHAT HAPPENS NEXT, and it is not the same in the two kinds of
+              round. "The committee accepts it after that" is true under staff
+              approval and false under player confirmation — where the card is
+              final the moment it is signed and nobody is going to look at it.
+
+              `createMatch` sets a casual round to player confirmation and says
+              why in its own words: "there is no committee to approve a card
+              that both players just agreed on standing on the 18th green".
+              The screen was telling those two the opposite, and it started
+              being read by them the moment a quick round began issuing Round
+              Codes. */}
           <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
-            {cardComplete
-              ? "Certifying says these hole scores are correct. The committee accepts it after that."
-              : `Certify once all ${holeCount} holes are in.`}
+            {!cardComplete
+              ? `Certify once all ${holeCount} holes are in.`
+              : props.staffApproves
+                ? "Certifying says these hole scores are correct. The committee accepts it after that."
+                : "Certifying says these hole scores are correct. That is the card — nobody else has to accept it."}
           </p>
           {error && (
             <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>

@@ -225,3 +225,18 @@ describe("what the play page sends the card", () => {
     expect(select).toMatch(/scoringBasis: true/);
   });
 });
+
+/**
+ * And the page has to tell the card which kind of round it is.
+ *
+ * The render tests hand `staffApproves` in, so they cannot see the page
+ * failing to send it — in which case it is undefined, falsy, and every
+ * charity day quietly stops mentioning the committee that really is going to
+ * review the card. The wrong direction of the same bug.
+ */
+describe("who the play page says accepts a card", () => {
+  it("reads the round's own approval setting", () => {
+    const page = readSource("src", "app", "play", "page.tsx");
+    expect(page).toMatch(/staffApproves=\{!allowsAutoConfirm\(settings\)\}/);
+  });
+});

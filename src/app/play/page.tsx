@@ -2,6 +2,7 @@ import { COURSE_REF } from "@/lib/services/course-resolution";
 import { prisma } from "@/lib/db";
 import { getPlaySession } from "@/lib/play-auth";
 import { settingsOf, loadEventState } from "@/lib/services/tournament";
+import { allowsAutoConfirm } from "@/lib/tournament-settings";
 import { courseForMatch, cardForMatch, courseForRound, cardForStage } from "@/lib/services/course-resolution";
 import { brandForEvent } from "@/lib/services/organization";
 import { PlayClient } from "@/components/PlayClient";
@@ -155,6 +156,9 @@ export default async function PlayPage() {
           scoringBasis={cardStage.scoringBasis}
           roundFormat={cardStage.format}
           shots={shots}
+          /* Whether a signed card then waits for a committee. A casual round is
+             set to player confirmation because there is not one. */
+          staffApproves={!allowsAutoConfirm(settings)}
         />
       );
     }
