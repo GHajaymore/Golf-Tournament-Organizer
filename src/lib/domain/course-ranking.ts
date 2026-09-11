@@ -36,6 +36,22 @@ export const enum Tier {
   NoMatch = 5,
 }
 
+
+const norm = (s: string): string =>
+  s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    // Dropped, not spaced: "Andrew's" is one word and splitting it into
+    // "andrew s" stops "st andrews" ever matching "St. Andrew's Links".
+    .replace(/[.'`’]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/** Does any word of `text` begin with `q`? */
+const wordStarts = (text: string, q: string): boolean =>
+  text.split(" ").some((w) => w.startsWith(q));
+
 /**
  * Where the club plays, as much of it as is known.
  *
@@ -106,21 +122,6 @@ export function localityOf(
   if ((city && rowCity) || (state && rowState)) return Locality.Elsewhere;
   return Locality.Unplaced;
 }
-
-const norm = (s: string): string =>
-  s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    // Dropped, not spaced: "Andrew's" is one word and splitting it into
-    // "andrew s" stops "st andrews" ever matching "St. Andrew's Links".
-    .replace(/[.'`’]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-
-/** Does any word of `text` begin with `q`? */
-const wordStarts = (text: string, q: string): boolean =>
-  text.split(" ").some((w) => w.startsWith(q));
 
 /**
  * How well one course answers this query.
