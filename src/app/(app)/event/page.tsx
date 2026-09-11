@@ -136,10 +136,42 @@ export default async function EventPage({
         </p>
       </div>
 
-      <EventSwitcher
-        events={eventRows}
-        organizations={await organizationsForOrganizer(session.email)}
-      />
+      {/**
+       * THE SWITCHER YIELDS WHILE SETUP IS STILL RUNNING.
+       *
+       * `/event` is two screens in one, and its own subtitle says so: "Manage
+       * your tournaments, or configure the one you're running." The manager
+       * half — every tournament you have, plus a form to create another, plus
+       * a link to set up a casual round — sat directly under the heading, and
+       * the half the screen is NAMED after sat below all three.
+       *
+       * That matters because of who is sent here. The setup rail's first step
+       * points at this screen and describes it as "Say where it is played, or
+       * what day". Walked on 2026-09-11 with a tournament created a minute
+       * earlier: the first thing under the heading was a table of tournaments,
+       * then "Create a new tournament", then "Just playing a round?" — and the
+       * dates and venue fields were fourth. An organizer following the guide
+       * to fill in a date is met with a form for making another tournament.
+       *
+       * So it moves below while the rail is speaking, and leads again once the
+       * rail goes quiet. Precisely when that is, since "setup is done" would
+       * be wrong: `railSpeaks` is `!complete || readyToLaunch`, and
+       * `readyToLaunch` is `complete && !launched` — so the rail keeps talking
+       * through the gap between finishing setup and launching, and only stops
+       * once the tournament is LAUNCHED. Which is the right line. A launched
+       * tournament is one an organizer comes to /event to manage; an unlaunched
+       * one is still being built, even if every box is ticked.
+       *
+       * Same predicate and same reasoning as the checklist immediately below:
+       * while the guide is running the ordered guide wins, afterwards the
+       * status board does. One rule, two readers.
+       */}
+      {!railSpeaks(flow) && (
+        <EventSwitcher
+          events={eventRows}
+          organizations={await organizationsForOrganizer(session.email)}
+        />
+      )}
 
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
 
@@ -228,6 +260,19 @@ export default async function EventPage({
           defaultTeeId={e.defaultTeeId}
         />
       </div>
+
+      {/* And here it is while the guide is running: still on the screen, still
+          one click from switching or creating, just no longer standing in
+          front of the fields the guide sent this organizer to fill in. */}
+      {railSpeaks(flow) && (
+        <div style={{ marginTop: 16 }}>
+          <EventSwitcher
+            events={eventRows}
+            organizations={await organizationsForOrganizer(session.email)}
+          />
+        </div>
+      )}
+
       <SetupFlowFooter flow={flow} href="/event" />
     </>
   );
