@@ -179,3 +179,62 @@ describe("what a casual round calls the screens it keeps", () => {
     }
   });
 });
+
+/**
+ * And the card screen, which is where a casual golfer actually spends the
+ * round.
+ *
+ * Walked on 2026-09-10 after the sidebar was cut: the screen itself still
+ * carried "Import scores" — bring in a whole round from a spreadsheet —
+ * "Clear scores", whose own tooltip says it removes scores "without touching
+ * the draw", and a toggle between entering "Match by match" and across the
+ * "Whole field". Two people standing on the same tee have no spreadsheet, no
+ * draw and no field.
+ */
+describe("the card screen on a casual round", () => {
+  const entry = () => readSource("src/components/EntryModes.tsx");
+
+  it("offers no spreadsheet import and no bulk clear", () => {
+    const src = entry();
+    expect(src).toMatch(/isStaff && !casual && \(/);
+    expect(src).toMatch(/isStaff && !casual && !clearing && \(/);
+  });
+
+  it("does not ask how to type the scores in", () => {
+    // `defaultMode` reads the round's own format, so for a casual round the
+    // toggle only ever offers the wrong one of the two — under a label
+    // describing a field they do not have.
+    expect(entry()).toMatch(/\{!casual && \(/);
+  });
+
+  it("keeps all three for a tournament, which is what they are for", () => {
+    // The control. A club typing up Saturday's cards on Monday is exactly who
+    // the import exists for.
+    const src = entry();
+    expect(src).toMatch(/Import scores/);
+    expect(src).toMatch(/Clear scores/);
+    expect(src).toMatch(/Match by match/);
+    expect(src).toMatch(/Whole field/);
+  });
+
+  it("heads the screen with the section the sidebar puts it in", () => {
+    // "Manage" is the tournament's word and the sidebar's section; on a casual
+    // round that section is "Playing", and the kicker follows it.
+    expect(entry()).toMatch(/\{casual \? "Playing" : "Manage"\}/);
+  });
+
+  it("still calls the screen what the sidebar calls it", () => {
+    /**
+     * The heading was briefly renamed to "The card" and put back. A screen has
+     * one name — `screenName` states the rule — and a heading disagreeing with
+     * the sidebar is that rule broken on the page that has it open.
+     */
+    expect(entry()).toMatch(/<h1[^>]*>Score entry<\/h1>/);
+    expect(screenName("/entry", true)).toBe("Score entry");
+  });
+
+  it("is told which shape it is by the page, not left to guess", () => {
+    const page = readSource("src", "app", "(app)", "entry", "page.tsx");
+    expect(page).toMatch(/casual=\{isMatch\(state\.event\.shape\)\}/);
+  });
+});

@@ -89,6 +89,7 @@ export function EntryModes({
   brand,
   venueIsHome = false,
   absentByStage = {},
+  casual = false,
 }: {
   rounds: EntryRound[];
   activeIndex: number;
@@ -109,6 +110,16 @@ export function EntryModes({
    * keeps the picker below one flat list where there is no week to be out of.
    */
   absentByStage?: Record<string, string[]>;
+  /**
+   * This is a casual round, not a tournament.
+   *
+   * What it removes from this screen is the apparatus of running a FIELD:
+   * importing a round from a spreadsheet, wiping a round of scores, and
+   * choosing whether to type them in "match by match" or across the "whole
+   * field". Two to eight people standing on the same tee have no spreadsheet
+   * to import, no draw to keep while they clear it, and no field.
+   */
+  casual?: boolean;
   isStaff: boolean;
   defaultMode?: "match" | "stroke";
   /** Whether real par/stroke-index data backs this event. */
@@ -161,8 +172,15 @@ export function EntryModes({
   return (
     <>
       <div style={{ marginBottom: 16 }}>
-        <div className="page-kicker">Manage</div>
+        {/* The kicker matches the sidebar section this screen sits in — and on
+            a casual round that section is "Playing", not "Manage". Nobody who
+            has just walked off the 1st is managing anything. */}
+        <div className="page-kicker">{casual ? "Playing" : "Manage"}</div>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+          {/* NOT renamed, though it was briefly. The sidebar calls this
+              screen "Score entry" on every shape, and a heading that said
+              something else would be the one-name rule broken on the page
+              that has it open — see `screenName`. */}
           <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Score entry</h1>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {rounds.length > 1 && (
@@ -191,16 +209,24 @@ export function EntryModes({
               * format is stated beside it, so the two can never be confused
               * for one another again.
               */}
-            <div className="seg" role="radiogroup" aria-label="How to enter the scores">
-              <label className="seg-opt">
-                <input type="radio" name="entrytop" checked={mode === "match"} onChange={() => setMode("match")} />
-                Match by match
-              </label>
-              <label className="seg-opt">
-                <input type="radio" name="entrytop" checked={mode === "stroke"} onChange={() => setMode("stroke")} />
-                Whole field
-              </label>
-            </div>
+            {/* NOT ON A CASUAL ROUND, where there is one right answer and no
+                field. `defaultMode` reads the round's own format — a match is
+                entered match by match, a medal as cards — so for two to eight
+                people the toggle only ever offers the wrong one of the two,
+                under a label ("Whole field") describing a field they do not
+                have. */}
+            {!casual && (
+              <div className="seg" role="radiogroup" aria-label="How to enter the scores">
+                <label className="seg-opt">
+                  <input type="radio" name="entrytop" checked={mode === "match"} onChange={() => setMode("match")} />
+                  Match by match
+                </label>
+                <label className="seg-opt">
+                  <input type="radio" name="entrytop" checked={mode === "stroke"} onChange={() => setMode("stroke")} />
+                  Whole field
+                </label>
+              </div>
+            )}
             {(courseName || eventDates) && (
               <span className="text-muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
                 <Icon name="map-pin" style={{ marginRight: 4 }} />
@@ -210,7 +236,15 @@ export function EntryModes({
                 {[round?.format, courseName, eventDates].filter(Boolean).join(" · ")}
               </span>
             )}
-            {isStaff && (
+            {/* NEITHER OF THESE ON A CASUAL ROUND.
+                Importing is "bring in a whole round from a spreadsheet" — a
+                club typing up Saturday's cards on Monday. Clearing is "remove
+                this round's scores without touching the draw", which is a
+                sentence about a draw a fourball does not have, and a
+                destructive control beside the card they are filling in as
+                they play. A wrong score on a quick round is fixed by typing
+                over it, which is the only correction two people need. */}
+            {isStaff && !casual && (
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -220,7 +254,7 @@ export function EntryModes({
                 <Icon name="upload-simple" /> {importing ? "Close import" : "Import scores"}
               </button>
             )}
-            {isStaff && !clearing && (
+            {isStaff && !casual && !clearing && (
               <button
                 type="button"
                 className="btn btn-secondary"
