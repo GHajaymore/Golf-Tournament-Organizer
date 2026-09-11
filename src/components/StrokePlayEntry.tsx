@@ -14,6 +14,7 @@ import {
 import { boardKind } from "@/lib/formats";
 import { cardTotals, TOTAL_LABEL } from "@/lib/domain/card-totals";
 import { isCardLocked } from "@/lib/domain/card-approval";
+import { visibleSaveNote, type SavedNote } from "@/lib/domain/save-note";
 import { saveScorecard } from "@/app/actions/tournament";
 import { Icon } from "./Icon";
 
@@ -145,7 +146,35 @@ export function StrokePlayEntry({
   const [listenHint, setListenHint] = useState("Tap the mic and read scores in order, e.g. “four, par, birdie, six”.");
   const recognitionRef = useRef<unknown>(null);
   const [pending, startTransition] = useTransition();
-  const [saveNote, setSaveNote] = useState("");
+  /**
+   * "SAVED." HAS TO BELONG TO THE CARD IT IS SITTING UNDER.
+   *
+   * It was a plain string, set when a save returned and never cleared again —
+   * not when the scorer picked a different player, not when they typed another
+   * score. It renders inside the footer line, immediately after
+   * "18/18 holes", which is exactly where somebody reads "this card is in".
+   *
+   * The sequence is the ordinary one for a fourball, and it loses a round.
+   * Save the first player. Pick the second. Type their eighteen holes. The
+   * footer now reads "Front 37 · Back 37 · 18/18 holes · Saved." over a card
+   * the server has never seen — this screen holds a partial card on the device
+   * under `scoreEntryWindow: "after"` and the note was left over from the
+   * previous player. Walk away and that round is gone.
+   *
+   * Found exactly that way on 2026-09-11, walking a two-player round: the
+   * second card read Saved, and the database had one scorecard.
+   *
+   * So it is DERIVED rather than cleared. The note remembers the cards it was
+   * about and which player was on screen, and it is rendered only while both
+   * still match — any edit to any card, and any change of player, and it is
+   * simply no longer true, with nothing to remember to reset. There are five
+   * places that mutate `cards`; a sixth added later is covered by this without
+   * knowing the rule exists.
+   */
+  const [saved, setSaved] = useState<SavedNote | null>(null);
+
+  // Still true? `visibleSaveNote` carries the whole reason.
+  const saveNote = visibleSaveNote(saved, JSON.stringify(cards), playerId);
 
   const player = players.find((p) => p.id === playerId);
   const strokes = cards[playerId] ?? new Array(holes).fill(null);
@@ -229,13 +258,16 @@ export function StrokePlayEntry({
       for (const id of targets.filter((id) => !locked.includes(id))) {
         await saveScorecard(stageId, id, cards[id] ?? new Array(holes).fill(null));
       }
-      setSaveNote(
-        locked.length
+      setSaved({
+        text: locked.length
           ? `Saved. ${locked
               .map((id) => players.find((p) => p.id === id)?.name ?? "A card")
               .join(", ")} — already approved, so left unchanged. An organizer can reopen it below.`
           : "Saved.",
-      );
+        // What was actually sent, and who was on screen when it was.
+        cards: JSON.stringify(cards),
+        playerId,
+      });
     });
 
   const toggleListen = () => {
