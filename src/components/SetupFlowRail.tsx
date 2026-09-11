@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Icon } from "./Icon";
 import { positionOf, canAdvance, type SetupFlow } from "@/lib/domain/setup-flow";
+import { LAUNCH_DOES, VISIBILITY_IS_ELSEWHERE } from "@/lib/domain/lifecycle-state";
 
 /**
  * Where you are in setting the tournament up, and what is next.
@@ -54,10 +55,19 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
             for a control that is two lifecycle steps away. Same fault as a
             refusal telling somebody to press a button that no longer exists —
             and the dashboard's own status bar already walks the steps. */}
+        {/* IT DOES NOT HAND OUT ACCESS, and this used to say it did:
+            "Nobody in the field can see any of it yet … that is what opens
+            their schedule, their card and the leaderboard to them."
+
+            Measured on 2026-09-11 as a player on a `draft` tournament — the
+            board rendered, the card rendered, and it offered to certify.
+            `launchTournament` writes status, launchedAt and configUnlocked and
+            nothing else; `canSeeLeaderboard` reads `leaderboardVisibility`.
+            See `LAUNCH_DOES` in domain/lifecycle-state.ts, which both this and
+            the dashboard warning now read so they cannot drift apart again. */}
         <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6, maxWidth: "68ch" }}>
-          Nobody in the field can see any of it yet. The dashboard is where you open entries and take
-          it live — that is what opens their schedule, their card and the leaderboard to them, and it
-          locks the configuration until you unlock it again.
+          The dashboard is where you open entries and take it live. {LAUNCH_DOES}{" "}
+          {VISIBILITY_IS_ELSEWHERE}
         </p>
         <Link href="/dashboard" className="btn btn-primary" style={{ alignSelf: "flex-start" }}>
           <Icon name="rocket-launch" /> Go to the dashboard
