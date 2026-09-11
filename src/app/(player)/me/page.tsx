@@ -4,6 +4,8 @@ import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { allowsAutoConfirm } from "@/lib/tournament-settings";
 import { cardStanding } from "@/lib/domain/card-approval";
+import { announcementsFor } from "@/lib/services/announcements";
+import { AnnouncementList } from "@/components/AnnouncementList";
 import { meFor } from "@/lib/services/me";
 import { availabilityFor } from "@/lib/services/availability";
 import { RoundAvailability } from "@/components/RoundAvailability";
@@ -33,6 +35,7 @@ export default async function PlayTodayPage() {
   if (!state) redirect("/");
   const me = await meFor(state, session.email);
   const availability = await availabilityFor(state, session.email);
+  const announcements = await announcementsFor(session.eventId);
 
   const round = me.round;
   const card = round?.card ?? null;
@@ -96,6 +99,27 @@ export default async function PlayTodayPage() {
       <div style={{ marginTop: 14 }}>
         <RoundExpiryBanner notice={expiryNotice(hoursLeft(state.event), false)} canKeep={false} />
       </div>
+
+      {/**
+       * WHAT THE ORGANIZER POSTED, on the screen the player is actually on.
+       *
+       * `/announcements` promises "Pinned posts sit at the top of every
+       * player's dashboard" and "Posts appear on every player's dashboard".
+       * Players do not go to the dashboard: `landingScreenFor("player")`
+       * returns `/me`, the tab bar offers Today, Board, My card, Rules and
+       * Money, and nothing under `(player)` mentioned an announcement at all.
+       * So a frost delay posted from the screen built for reaching the field
+       * reached nobody.
+       *
+       * The same mistake the availability card was moved here to fix, on the
+       * same screen, for the same reason — and the dashboard's own comment
+       * about that fix sat one line above the query that had it next.
+       *
+       * High, under the expiry warning and above everything else: a notice is
+       * "tee times are back an hour", which is worth less the further down it
+       * is. The banner above it still leads, because that one has a deadline.
+       */}
+      <AnnouncementList items={announcements} />
 
       {!me.playerId && (
         <p style={{ marginTop: 16, fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>

@@ -30,6 +30,8 @@ import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor } from "@/lib/services/organization";
 import { placesWithin } from "@/lib/domain/flight-places";
+import { announcementsFor } from "@/lib/services/announcements";
+import { AnnouncementList } from "@/components/AnnouncementList";
 import { orgSetupState } from "@/lib/domain/org-setup";
 import { Icon } from "@/components/Icon";
 import { CasualRoundPanel } from "@/components/CasualRoundPanel";
@@ -407,11 +409,9 @@ export default async function DashboardPage() {
   // one screen players actually land on never showed it.
   const availability = await availabilityFor(state, session.email);
 
-  const announcements = await prisma.announcement.findMany({
-    where: { eventId: session.eventId },
-    orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
-    take: 3,
-  });
+  // Through the service the player screen also calls, so the organizer
+  // previewing a notice here sees what the field sees. See `announcementsFor`.
+  const announcements = await announcementsFor(session.eventId);
 
   return (
     <>
@@ -589,28 +589,7 @@ export default async function DashboardPage() {
         />
       )}
 
-      {announcements.length > 0 && (
-        <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-          {announcements.map((a) => (
-            <div
-              key={a.id}
-              className="card elev-sm"
-              style={{ gap: 4, borderColor: a.pinned ? "var(--color-accent-700)" : undefined }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <Icon name="megaphone" style={{ color: "var(--color-accent-300)" }} />
-                {a.pinned && (
-                  <span className="tag tag-accent"><Icon name="push-pin" /> Pinned</span>
-                )}
-                <span style={{ fontWeight: 600, fontSize: 14 }}>{a.title}</span>
-              </div>
-              {a.body && (
-                <p className="text-muted" style={{ fontSize: 13, margin: 0, whiteSpace: "pre-wrap" }}>{a.body}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <AnnouncementList items={announcements} />
 
       {/* Ahead of the shortcuts, because "what next" outranks "where to". */}
       {unstarted && (
