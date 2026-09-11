@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
 import { weekViewFor } from "@/lib/services/week-view";
@@ -11,6 +12,8 @@ import { WeekClient } from "@/components/WeekClient";
  * reports the week and edits it would give a member with a read-only role a
  * door that bounces them, or worse, a captain a control they should not have.
  */
+export const metadata = screenMetadata("/week");
+
 export default async function WeekPage({
   searchParams,
 }: {

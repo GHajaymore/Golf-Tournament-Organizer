@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
 import { clubCourses } from "@/lib/services/courses";
@@ -33,6 +34,8 @@ import { usesStandardBoard } from "@/lib/formats";
 import type { VoiceContext } from "@/lib/domain/voice-query";
 import { courseModeOf, needsVenue } from "@/lib/domain/venue";
 import { resolveTeamEntry, teamEntryNote } from "@/lib/domain/team-entry";
+
+export const metadata = screenMetadata("/entry");
 
 export default async function EntryPage() {
   const session = await requireScreen("entry");

@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { organizationsForOrganizer } from "@/lib/services/organization";
 import { roundLabelWith } from "@/lib/domain/round-label";
@@ -20,6 +21,8 @@ import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { isMatch } from "@/lib/tournament-shape";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 
+
+export const metadata = screenMetadata("/event");
 
 export default async function EventPage({
   searchParams,

@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { settingsOf } from "@/lib/services/tournament";
 import { tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
@@ -12,6 +13,8 @@ import { FlightBoard } from "@/components/FlightBoard";
 import { unratedFlightWarning, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import type { FormationRule } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
+
+export const metadata = screenMetadata("/grouping");
 
 export default async function GroupingPage() {
   const session = await requireScreen("grouping");

@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { teesForEvent, roundTeeId } from "@/lib/services/handicaps";
@@ -9,6 +10,8 @@ import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
+
+export const metadata = screenMetadata("/registration");
 
 export default async function RegistrationPage() {
   const session = await requireScreen("registration");

@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel } from "@/lib/domain/round-label";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
@@ -16,6 +17,8 @@ import { MoneySetup } from "@/components/MoneySetup";
 import { FloatClient } from "@/components/FloatClient";
 import { OrganizerLedger } from "@/components/OrganizerLedger";
 import { moneyFor } from "@/lib/services/expenses";
+
+export const metadata = screenMetadata("/prizes");
 
 export default async function PrizesPage({
   searchParams,

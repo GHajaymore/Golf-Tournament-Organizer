@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
@@ -6,6 +7,8 @@ import { AccessClient } from "@/components/AccessClient";
 import { emailConfig } from "@/lib/email";
 import { emailTroubleFor } from "@/lib/services/email-trouble";
 import { Icon } from "@/components/Icon";
+
+export const metadata = screenMetadata("/access");
 
 export default async function AccessPage() {
   await requireScreen("access");
@@ -20,7 +23,12 @@ export default async function AccessPage() {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Access control</h1>
+        {/* The sidebar's own words. Eighteen of the twenty-one console screens
+            already head themselves with the label on the link that reaches
+            them; this one said "Access control", so the door and the room had
+            different names and the browser tab was about to be a third. See
+            screen-metadata.ts. */}
+        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Access &amp; staff</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Organizers get full admin access. Players get read-only leaderboard/stats plus score entry for their own
           matches.

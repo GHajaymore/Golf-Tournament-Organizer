@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard } from "@/lib/tournament-settings";
@@ -7,6 +8,8 @@ import { BracketClient } from "@/components/BracketClient";
 import { BracketModePicker } from "@/components/BracketModePicker";
 import { QualificationPanel } from "@/components/QualificationPanel";
 import { isBracketMode, drawBrackets, type BracketMode } from "@/lib/domain";
+
+export const metadata = screenMetadata("/bracket");
 
 export default async function BracketPage() {
   const session = await requireScreen("bracket");

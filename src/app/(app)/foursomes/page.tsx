@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
 import { teeNamesForRound, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
@@ -17,6 +18,8 @@ import { resolveCourse } from "@/lib/courses";
 import { cardForStage, courseForRound } from "@/lib/services/course-resolution";
 import { brandForEvent } from "@/lib/services/organization";
 import { Icon } from "@/components/Icon";
+
+export const metadata = screenMetadata("/foursomes");
 
 export default async function FoursomesPage({
   searchParams,

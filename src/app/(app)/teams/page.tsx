@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { screenName } from "@/lib/nav";
 import { roundLabelWith } from "@/lib/domain/round-label";
@@ -14,6 +15,8 @@ import { holesPlayed } from "@/lib/domain/handicap";
  * format — a multi-day member-guest can play four-ball on Saturday and
  * foursomes on Sunday off the same pairings, and a society can redraw weekly.
  */
+export const metadata = screenMetadata("/teams");
+
 export default async function TeamsPage({
   searchParams,
 }: {

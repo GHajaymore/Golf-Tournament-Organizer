@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -8,6 +9,8 @@ import { unlinkedPlayers, memberEntryFor, fieldSizeOf } from "@/lib/domain/roste
 // /roster used to be the per-event player list, which now lives inside
 // Registration & field. The path now means what it says: the club's standing
 // member roster, which every tournament draws from.
+export const metadata = screenMetadata("/roster");
+
 export default async function RosterPage() {
   const session = await requireScreen("roster");
 

@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { requireState } from "@/lib/page-helpers";
 import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
@@ -28,6 +29,8 @@ function ago(d: Date): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
+
+export const metadata = screenMetadata("/leaderboard");
 
 export default async function LeaderboardPage() {
   const { session, state } = await requireState();
