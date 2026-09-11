@@ -391,9 +391,30 @@ async function standingsWithMovement(
     );
     const after = chained[idx] ?? [];
     const before = idx > 0 ? chained[idx - 1] ?? [] : [];
+    /**
+     * THE RANK COMES WITH THE ROW, not from the points column.
+     *
+     * The comment above is right that this is the leaderboard's math — and
+     * then only `totalPoints` was handed on, so the place was worked out
+     * again downstream from that one number and the tiebreak was thrown
+     * away. Demo Cup, 2026-09-11: four players level on 10.5 were 3/4/5/6 on
+     * the leaderboard and 3/3/3/3 here, in that order, on the same night.
+     *
+     * `rankPlayers` shares a place when nothing separates two players and
+     * splits them when the club's chain does. Carrying its answer is the only
+     * way the two screens can keep the promise this function already made.
+     *
+     * Both weeks, because movement is the difference between two positions
+     * and one of them derived a different way would invent an arrow.
+     */
     return movementBetween(
-      after.map((r) => ({ playerId: r.player.id, name: nameOf.get(r.player.id) ?? r.player.name, value: r.stats.totalPoints })),
-      before.map((r) => ({ playerId: r.player.id, value: r.stats.totalPoints })),
+      after.map((r) => ({
+        playerId: r.player.id,
+        name: nameOf.get(r.player.id) ?? r.player.name,
+        value: r.stats.totalPoints,
+        rank: r.rank,
+      })),
+      before.map((r) => ({ playerId: r.player.id, value: r.stats.totalPoints, rank: r.rank })),
       "desc",
     );
   }
