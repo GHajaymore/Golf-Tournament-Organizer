@@ -1,4 +1,4 @@
-import { screenMetadataForShape } from "@/lib/screen-metadata";
+import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
 import { requireState } from "@/lib/page-helpers";
@@ -77,7 +77,7 @@ const QUICK_ACTIONS = [
   { href: "/reports", icon: "ph ph-export", staff: true },
 ];
 
-export const generateMetadata = () => screenMetadataForShape("/dashboard");
+export const generateMetadata = () => screenMetadataForEvent("/dashboard");
 
 export default async function DashboardPage() {
   const { session, state } = await requireState();

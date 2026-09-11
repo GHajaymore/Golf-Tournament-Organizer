@@ -1,9 +1,9 @@
 import "server-only";
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
-import { ACTIVE_COOKIE, verify } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { screenName } from "@/lib/nav";
+import { isOrgKind } from "@/lib/domain/org-profile";
 import { isMatch } from "@/lib/tournament-shape";
 
 /**
@@ -43,29 +43,45 @@ export function screenMetadata(href: string): Metadata {
 }
 
 /**
- * The two screens a casual round calls something else.
+ * The three screens whose name depends on the tournament open in front of you.
  *
- * `MATCH_ITEM_LABEL` relabels exactly two keys — `dashboard` becomes "This
- * round" and `reports` becomes "Export this round" — because a Sunday fourball
- * has no desk and nothing to export but its own card. Titling those two
- * statically would put "Dashboard" and "Reports & export" back into a casual
- * round's browser tab, which is the tournament wording that was deliberately
- * taken out of its sidebar. A screen naming itself one thing in the sidebar and
- * another in the tab is the disagreement `screenName` exists to prevent, so the
- * two readers stay in step.
+ * Two move for a CASUAL ROUND: `MATCH_ITEM_LABEL` turns `dashboard` into "This
+ * round" and `reports` into "Export this round", because a Sunday fourball has
+ * no desk and nothing to export but its own card. One moves for the ORGANIZATION
+ * — `/organization` is "Club settings", "Society settings" or "Outing settings"
+ * depending on what the outfit is.
  *
- * ONE PRIMARY-KEY LOOKUP, and only on these two routes. Every other console
- * screen is static. Resolving the full session here would be correct and
- * costs an `accessibleEvents` fan-out per request for a string; the active-event
- * cookie is what `getSession` prefers anyway, and a tournament is the right
- * answer when there is no cookie to read — a casual round always sets one
- * (`setActiveEvent` runs when the round is created), and the fallback for a
- * signed-in organizer with no cookie is their newest TOURNAMENT.
+ * `/organization` is here because the first cut of this got it wrong and the
+ * walk showed it: a society's sidebar read "Society settings" and its browser
+ * tab read "Club settings". Titling from `NAV`'s constant was only half the
+ * job — `screenName` did not know about either relabel, which was invisible for
+ * as long as the sidebar was the only thing reading it. Both now resolve a
+ * label through `itemLabel`, so they cannot drift again.
+ *
+ * THE SAME EVENT THE SIDEBAR IS LOOKING AT, resolved the same way.
+ *
+ * Written first to read the `ng_active_event` cookie directly, which is
+ * cheaper and is what `getSession` prefers — and it was wrong in the one case
+ * that matters. That cookie is set when somebody creates or switches
+ * tournament; a staff member who signs in and lands on a colleague's event has
+ * never set it, and `getSession` then falls back to their newest accessible
+ * event. The sidebar would read "Society settings" off that fallback while the
+ * tab read "Club settings" off no cookie at all — the same two-names-for-one-
+ * screen fault, moved rather than fixed.
+ *
+ * So this asks the session, and then one primary-key lookup, on three routes.
+ * Every other console screen is static.
  */
-export async function screenMetadataForShape(href: string): Promise<Metadata> {
-  const eventId = verify((await cookies()).get(ACTIVE_COOKIE)?.value);
-  const event = eventId
-    ? await prisma.event.findUnique({ where: { id: eventId }, select: { shape: true } })
+export async function screenMetadataForEvent(href: string): Promise<Metadata> {
+  const session = await getSession();
+  const event = session?.eventId
+    ? await prisma.event.findUnique({
+        where: { id: session.eventId },
+        select: { shape: true, organization: { select: { kind: true } } },
+      })
     : null;
-  return { title: screenName(href, isMatch(event?.shape)) };
+  const kind = event?.organization.kind ?? "";
+  return {
+    title: screenName(href, isMatch(event?.shape), isOrgKind(kind) ? kind : undefined),
+  };
 }

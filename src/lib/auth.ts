@@ -11,11 +11,7 @@ import { accessibleEvents, effectiveAccess } from "./services/access";
 
 const COOKIE = "ng_session";
 const PREVIEW_COOKIE = "ng_preview_player";
-/**
- * Exported because `screen-metadata.ts` reads it too, and a cookie name
- * written out twice is a cookie name that can be renamed in one place.
- */
-export const ACTIVE_COOKIE = "ng_active_event";
+const ACTIVE_COOKIE = "ng_active_event";
 const DEV_SECRET = "dev-secret";
 
 /**

@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource } from "./source";
-import { allNavItems, screenName } from "../nav";
+import { allNavItems, navForRole, screenName } from "../nav";
+import { ORG_KINDS } from "../domain/org-profile";
 
 /**
  * EVERY CONSOLE SCREEN READ THE SAME THING IN THE BROWSER TAB.
@@ -93,7 +94,7 @@ describe("every console screen names itself", () => {
        * the href is pinned whole rather than searched for.
        */
       expect(src).toMatch(
-        new RegExp(`screenMetadata(ForShape)?\\("/${dir}"\\)`),
+        new RegExp(`screenMetadata(ForEvent)?\\("/${dir}"\\)`),
       );
       expect(src).toMatch(/export const (metadata|generateMetadata) =/);
     });
@@ -143,10 +144,10 @@ describe("the names themselves", () => {
 
   it("gives the two screens a casual round renames their own name", () => {
     /**
-     * `MATCH_ITEM_LABEL` relabels exactly these two, and they are the reason
-     * `screenMetadataForShape` exists at all. If a third is added there and
-     * this stays green, the tab and the sidebar have drifted — which is the
-     * disagreement `screenName` was written to stop.
+     * `MATCH_ITEM_LABEL` relabels exactly these two, and they are two of the
+     * three reasons `screenMetadataForEvent` exists. If a third is added there
+     * and this stays green, the tab and the sidebar have drifted — which is
+     * the disagreement `screenName` was written to stop.
      */
     expect(screenName("/dashboard", true)).toBe("This round");
     expect(screenName("/reports", true)).toBe("Export this round");
@@ -156,15 +157,61 @@ describe("the names themselves", () => {
     expect(screenName("/reports", false)).toBe("Reports & export");
   });
 
-  it("routes the shape-aware helper at exactly those two", () => {
-    // The counterpart to the test above, on the other side of the boundary: a
-    // third relabelled screen must also be wired to the shape-aware helper,
-    // and a static title on one of these two is the bug this PR fixed.
+  it("calls the settings screen what the outfit actually is", () => {
+    /**
+     * THE ONE THIS PR'S FIRST CUT GOT WRONG, and the walk caught.
+     *
+     * Titling every screen from `NAV`'s constant left a society looking at a
+     * sidebar reading "Society settings" and a browser tab reading "Club
+     * settings" — a second name for one screen, introduced by the change that
+     * was meant to stop exactly that. `screenName` did not know about the
+     * organization relabel, which nothing could see while the sidebar was its
+     * only reader.
+     *
+     * All three kinds asserted, and asserted to DIFFER, so this cannot pass on
+     * `orgProfile` returning one word for everybody.
+     */
+    const named = ORG_KINDS.map((kind) => screenName("/organization", false, kind));
+    expect(new Set(named).size).toBe(ORG_KINDS.length);
+    expect(screenName("/organization", false, "club")).toBe("Club settings");
+    expect(screenName("/organization", false, "community")).toBe("Society settings");
+    // Unasked stays the club wording, which is what every caller saw before.
+    expect(screenName("/organization")).toBe("Club settings");
+  });
+
+  it("the sidebar and the tab resolve a label the same way", () => {
+    /**
+     * The two readers, side by side, over every kind and both shapes. This is
+     * what `itemLabel` was extracted for: the sidebar applied two relabels and
+     * `screenName` applied one, and nothing compared them.
+     */
+    for (const kind of ORG_KINDS) {
+      for (const isMatch of [false, true]) {
+        const sidebar = new Map(
+          navForRole("admin", undefined, { orgKind: kind, isMatch, isLeague: true, hasKnockout: true })
+            .flatMap((s) => s.items)
+            .map((i) => [i.href, i.label]),
+        );
+        expect(sidebar.size).toBeGreaterThan(5);
+        for (const [href, label] of sidebar) {
+          expect(screenName(href, isMatch, kind), `${href} as ${kind}${isMatch ? " (casual)" : ""}`).toBe(label);
+        }
+      }
+    }
+  });
+
+  it("routes the event-aware helper at exactly the screens that move", () => {
+    // The counterpart on the other side of the boundary: a newly relabelled
+    // screen must also be wired to the event-aware helper, and a static title
+    // on one of these three is the bug this PR fixed.
     for (const dir of TITLED) {
       const src = readSource(APP_DIR, dir, "page.tsx");
-      const shapeAware = /screenMetadataForShape\(/.test(src);
-      const renamed = screenName(`/${dir}`, true) !== screenName(`/${dir}`, false);
-      expect(shapeAware, `/${dir}`).toBe(renamed);
+      const eventAware = /screenMetadataForEvent\(/.test(src);
+      const href = `/${dir}`;
+      const moves =
+        screenName(href, true) !== screenName(href, false) ||
+        ORG_KINDS.some((k) => screenName(href, false, k) !== screenName(href));
+      expect(eventAware, href).toBe(moves);
     }
   });
 });
