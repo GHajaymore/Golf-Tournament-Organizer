@@ -57,10 +57,29 @@ const DEFAULT_SI = Array.from({ length: 18 }, (_, i) => i + 1);
  * the selection together — an organizer picking venues wants to see what else
  * the club has on file, not just what's already chosen.
  */
-export async function clubCourses(organizationId: string, eventId: string): Promise<ClubCourse[]> {
+export async function clubCourses(
+  /**
+   * One organization, or several.
+   *
+   * Several is for a CASUAL ROUND, which belongs to the person rather than to
+   * any club — so scoping its course library to the event's own organization
+   * returns a personal organization's courses, which is usually none. A club
+   * secretary setting up a Sunday fourball at their own course found the
+   * venue picker empty of it.
+   *
+   * `/match/new` has always read the person's memberships for exactly this,
+   * and the two screens disagreeing about which courses exist is the split
+   * worth avoiding. A golf course is a physical place, not club apparatus:
+   * offering it is a convenience, not the club taking the round over.
+   */
+  organizationId: string | string[],
+  eventId: string,
+): Promise<ClubCourse[]> {
   const [courses, links] = await Promise.all([
     prisma.course.findMany({
-      where: { organizationId },
+      where: {
+        organizationId: Array.isArray(organizationId) ? { in: organizationId } : organizationId,
+      },
       orderBy: { name: "asc" },
       include: { tees: { orderBy: [{ position: "asc" }, { name: "asc" }] } },
     }),
