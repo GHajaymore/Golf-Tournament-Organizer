@@ -45,12 +45,21 @@ export function CasualRoundPanel({
   holes,
   scoringBasis,
   players,
+  accessCode = "",
 }: {
   stageId: string;
   holes: number;
   /** "gross" plays level; anything else gives shots. */
   scoringBasis: string;
   players: CasualPlayer[];
+  /**
+   * The round's code, so everybody can score their own card.
+   *
+   * Empty renders nothing — an older round created before codes were issued
+   * with the round has none, and inventing one here would be a code the
+   * database has never heard of.
+   */
+  accessCode?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -203,6 +212,46 @@ export function CasualRoundPanel({
           Handicaps save when you tap away. A plus handicap is written &ldquo;+2&rdquo;.
         </p>
       </div>
+
+      {/* THE ROUND CODE, so this is not one phone doing four cards.
+          Until it was issued with the round, the only way to a card was an
+          account — and a guest is by definition somebody without one. The
+          code opens the play shell as a player of this round and nothing
+          else; it is exactly as strong as handing somebody your phone, which
+          is what it replaces. It goes when the round does, a day later. */}
+      {accessCode && (
+        <div style={{ borderTop: "1px solid var(--color-divider)", paddingTop: 12 }}>
+          <div className="card-kicker">Everyone scores their own card</div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 6,
+            }}
+          >
+            <code
+              style={{
+                fontSize: 21,
+                fontWeight: 700,
+                letterSpacing: "0.14em",
+                fontFamily: "var(--font-heading)",
+                padding: "6px 12px",
+                borderRadius: 9,
+                background: "color-mix(in srgb, var(--color-accent) 12%, transparent)",
+              }}
+            >
+              {accessCode}
+            </code>
+            <span className="text-muted" style={{ fontSize: 12.5, lineHeight: 1.5, minWidth: 0 }}>
+              Read it out to the others. They open the app, tap{" "}
+              <b>Playing today?</b> and put it in — no account needed, and they pick
+              their own name from the list.
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
