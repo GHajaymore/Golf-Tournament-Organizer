@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
+import { placesWithin } from "@/lib/domain/flight-places";
 
 /**
  * Leaderboard with an Overall / By-flight toggle. "By flight" splits the field
@@ -31,7 +32,10 @@ export function LeaderboardBoard({
       const nb = parseInt(b.replace(/\D/g, ""), 10) || 0;
       return na - nb;
     });
-  const ungrouped = rows.filter((r) => r.flight === "—").map((r, i) => ({ ...r, rank: i + 1 }));
+  // Renumbered from one, ties intact — see `placesWithin`. This list is the
+  // players with no flight yet, and they are as entitled to a dead heat as
+  // anybody in one.
+  const ungrouped = placesWithin(rows.filter((r) => r.flight === "—"));
 
   return (
     <>
@@ -70,7 +74,10 @@ export function LeaderboardBoard({
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {flights.map((f) => {
-            const fr = rows.filter((r) => r.flight === f).map((r, i) => ({ ...r, rank: i + 1 }));
+            // 1..n within the flight, sharing a place wherever the overall
+            // ranking shared one. `i + 1` printed two players nothing could
+            // separate as 1 and 2, on the table a club pays a flight prize from.
+            const fr = placesWithin(rows.filter((r) => r.flight === f));
             return (
               <div key={f}>
                 <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{f}</div>
