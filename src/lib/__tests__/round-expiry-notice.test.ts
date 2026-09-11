@@ -100,3 +100,88 @@ describe("the expiry rule itself", () => {
     expect(hoursLeft({ expiresAt: new Date("2026-06-02T12:00:00Z") }, now)).toBe(QUICK_ROUND_TTL_HOURS);
   });
 });
+
+/**
+ * AND THE PLAY SHELL, which became the important one last.
+ *
+ * A casual round deletes itself about a day after it is set up, and the whole
+ * justification is that the people it belongs to are told first. The warning
+ * reached /dashboard, then /me — and `/play` was still silent.
+ *
+ * That was defensible while a guest could not reach a card at all. It stopped
+ * being defensible the moment a quick round started issuing a Round Code: a
+ * fourball's other three players now score here, with no account, and they
+ * were scoring a round that vanished overnight with nothing said.
+ */
+describe("the play shell tells a code-redeemed player too", () => {
+  const play = () => readSource("src/components/PlayClient.tsx");
+
+  it("renders the warning in the shell, not in each surface", () => {
+    /**
+     * In `Shell`, so a surface added later carries it without anybody
+     * remembering — and there are four of them already (the picker, the match,
+     * the no-match note and the card). Adding it four times is how three of
+     * them end up right and one does not.
+     */
+    const src = play();
+    const shell = src.slice(src.indexOf("function Shell("), src.indexOf("export function PlayClient"));
+    expect(shell).toMatch(/\{notice && \(/);
+    // And every surface passes it.
+    expect(src.split("<Shell brand={props.brand} notice={props.expiryNotice}>").length - 1).toBeGreaterThanOrEqual(4);
+    expect(src).not.toMatch(/<Shell brand=\{props\.brand\}>/);
+  });
+
+  it("is worded for somebody who cannot keep the round", () => {
+    // `keepRound` is staff-only and the people on this surface are exactly the
+    // ones who are not staff.
+    const page = readSource("src", "app", "play", "page.tsx");
+    expect(page).toMatch(/expiryNotice\(hoursLeft\(event\), false\)/);
+    /**
+     * EVERY surface, counted — not "it appears somewhere".
+     *
+     * There are three `PlayClient` renders with an event behind them: the
+     * card, the no-match note and the match itself. Asserting the prop is
+     * merely present left unwiring one of the three green, which mutation
+     * caught: two right and one silently not is exactly the shape this file
+     * keeps finding.
+     */
+    expect(page.split("expiryNotice={expiry}").length - 1).toBe(3);
+  });
+
+  it("says nothing on the screen that has no round yet", () => {
+    // The two `stage="code"` returns come before the event is even loaded —
+    // there is nothing to be temporary until a code has been redeemed.
+    const page = readSource("src", "app", "play", "page.tsx");
+    expect(page).toMatch(/if \(!session\) return <PlayClient stage="code" \/>;/);
+    expect(page).toMatch(/if \(!event\) return <PlayClient stage="code" \/>;/);
+  });
+});
+
+/**
+ * And the code screen speaks to both kinds of round.
+ *
+ * It cannot know which it is: the code has not been entered, so there is no
+ * event to ask about its shape. The wording therefore has to be true of a club
+ * medal and a Sunday fourball at once.
+ */
+describe("what the code screen says it is asking for", () => {
+  it("does not send a casual golfer looking for a tee sheet", () => {
+    /**
+     * It read "the round code your organizer gave you — it's on the tee
+     * sheet". A quick round has neither, and since one started issuing codes
+     * this is the screen its players arrive on.
+     */
+    const src = readSource("src/components/PlayClient.tsx");
+    const screen = src.slice(src.indexOf("Type the round code"), src.indexOf("Type the round code") + 240);
+    expect(screen).not.toMatch(/your organizer gave you/);
+    expect(screen).toMatch(/whoever set the round up/i);
+  });
+
+  it("still tells a tournament player where to look", () => {
+    // The tee sheet is kept as an example rather than dropped — a club medal's
+    // players really do read it off one.
+    const src = readSource("src/components/PlayClient.tsx");
+    const screen = src.slice(src.indexOf("Type the round code"), src.indexOf("Type the round code") + 240);
+    expect(screen).toMatch(/tee sheet/);
+  });
+});

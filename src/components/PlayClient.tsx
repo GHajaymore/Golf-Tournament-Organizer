@@ -58,9 +58,46 @@ interface Props {
    * round somebody entered at the turn.
    */
   card?: (number | null)[];
+  /**
+   * That this round is temporary, in words, or "" for a tournament.
+   *
+   * A casual round deletes itself about a day after it is set up, and the
+   * whole justification for that being acceptable is that the people it
+   * belongs to are told BEFORE it happens. This surface was the last place
+   * they were not.
+   *
+   * It became the important one the moment a casual round started issuing a
+   * Round Code: before that a guest could not reach a card at all and the
+   * warning on /me covered everybody who could. Now a fourball's other three
+   * players score here, with no account, and they were scoring a round that
+   * vanished overnight with nothing said.
+   *
+   * They cannot keep it — `keepRound` is staff-only and refuses everybody else
+   * by name — so the sentence names the remedy they actually have, which is to
+   * ask whoever set it up. Already worded by `expiryNotice`; empty renders
+   * nothing.
+   */
+  expiryNotice?: string;
 }
 
-function Shell({ brand, children }: { brand?: Brand | null; children: React.ReactNode }) {
+/**
+ * The play shell, and the one thing every stage inside it has to say.
+ *
+ * `notice` renders here rather than in each stage so a surface added later
+ * carries the warning without anybody remembering to add it — the shape this
+ * codebase keeps arriving at, and the reason the /me banner had to be added by
+ * hand in the first place.
+ */
+function Shell({
+  brand,
+  notice,
+  children,
+}: {
+  brand?: Brand | null;
+  /** Already-worded, from `expiryNotice`. Empty renders nothing. */
+  notice?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div
       style={{
@@ -75,6 +112,22 @@ function Shell({ brand, children }: { brand?: Brand | null; children: React.Reac
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22 }}>
           <OrgBrand brand={brand} />
         </div>
+        {notice && (
+          <div
+            className="card elev-sm"
+            style={{
+              marginBottom: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+              borderColor: "var(--color-warning, var(--color-divider))",
+            }}
+          >
+            <Icon name="clock" style={{ flex: "none" }} />
+            <span style={{ fontSize: 12.5, lineHeight: 1.5, minWidth: 0, flex: 1 }}>{notice}</span>
+          </div>
+        )}
         {children}
       </div>
     </div>
@@ -129,7 +182,7 @@ export function PlayClient(props: Props) {
 
     if (players && context) {
       return (
-        <Shell brand={props.brand}>
+        <Shell brand={props.brand} notice={props.expiryNotice}>
           <div style={{ marginBottom: 16 }}>
             <div className="page-kicker">{context.roundLabel}</div>
             <h1 style={{ fontSize: 24, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
@@ -237,12 +290,24 @@ export function PlayClient(props: Props) {
     }
 
     return (
-      <Shell brand={props.brand}>
+      <Shell brand={props.brand} notice={props.expiryNotice}>
         <div style={{ marginBottom: 16 }}>
           <h1 style={{ fontSize: 24, margin: 0, fontFamily: "var(--font-heading)" }}>Enter your score</h1>
+          {/* TRUE FOR BOTH KINDS OF ROUND, because this screen cannot know
+              which it is: the code has not been entered yet, so there is no
+              event to ask about its shape.
+
+              It read "the round code your organizer gave you — it's on the tee
+              sheet". A casual round has no organizer and no tee sheet, and
+              since a quick round started issuing codes this is the screen its
+              players arrive on — somebody whose mate read them eight letters
+              on the first tee, being told to look for a tee sheet that does
+              not exist. "Whoever set the round up" covers a club secretary and
+              a mate equally, and the tee sheet is kept as the second half,
+              where it is an example rather than the instruction. */}
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            Type the round code your organizer gave you — it&rsquo;s on the tee sheet, or they&rsquo;ll have
-            read it out on the first tee.
+            Type the round code you were given — whoever set the round up will have read it out, or
+            it may be on the tee sheet.
           </p>
         </div>
 
@@ -341,7 +406,7 @@ export function PlayClient(props: Props) {
     };
 
     return (
-      <Shell brand={props.brand}>
+      <Shell brand={props.brand} notice={props.expiryNotice}>
         <div style={{ marginBottom: 14 }}>
           <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
           <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
@@ -452,7 +517,7 @@ export function PlayClient(props: Props) {
 
   if (props.stage === "no-match") {
     return (
-      <Shell brand={props.brand}>
+      <Shell brand={props.brand} notice={props.expiryNotice}>
         <div className="card elev-sm">
           <span className="card-title">No match for you in {props.roundLabel}</span>
           <p className="text-muted" style={{ fontSize: 13, margin: "8px 0 0" }}>
@@ -528,7 +593,7 @@ export function PlayClient(props: Props) {
   const halved = holes.filter((h) => h === "H").length;
 
   return (
-    <Shell brand={props.brand}>
+    <Shell brand={props.brand} notice={props.expiryNotice}>
       <div style={{ marginBottom: 14 }}>
         <div className="page-kicker">{props.roundLabel} · {props.eventName}</div>
         <h1 style={{ fontSize: 22, margin: "5px 0 0", fontFamily: "var(--font-heading)" }}>
