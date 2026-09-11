@@ -258,3 +258,50 @@ describe("the card screen on a casual round", () => {
     expect(page).toMatch(/casualRound \? await organizationIdsFor\(session\.email\) : state\.event\.organizationId/);
   });
 });
+
+/**
+ * THE SAME SCOPE MISTAKE, THREE TIMES.
+ *
+ * Once a quick round stopped belonging to a club, every read scoped to the
+ * EVENT's organization started asking a personal organization for a club's
+ * data and getting nothing. It was found three times by reading:
+ *
+ *   - the venue picker on the card screen, which lost the club's courses;
+ *   - `createMatch`'s member re-read, which turned every club member into a
+ *     guest and cut their handicap loose from the club's own record;
+ *   - the course-setup prompt, whose entire job is to offer a course and which
+ *     offered an empty library.
+ *
+ * Three is enough to stop finding them one at a time. This pins the rule at
+ * the only screen a casual round can reach that reads a club list at all —
+ * `/event` is tournament-only, and the sidebar test above is what keeps it so.
+ */
+describe("reading a club's lists from a casual round", () => {
+  it("scopes every club-course read to the person, not to the round's organization", () => {
+    const page = readSource("src", "app", "(app)", "entry", "page.tsx");
+    const calls = page.split("clubCourses(").slice(1);
+    // Both of them: the setup prompt and the venue picker.
+    expect(calls.length).toBe(2);
+    for (const [i, call] of calls.entries()) {
+      const args = call.slice(0, 160);
+      expect(args, `clubCourses call ${i + 1}`).toMatch(
+        /casualRound \? await organizationIdsFor\(session\.email\) : state\.event\.organizationId/,
+      );
+    }
+  });
+
+  it("re-reads a claimed member id against the person's clubs", () => {
+    // Wider than the round's organization, and still a re-read: an id from a
+    // form is never believed. See casual-round-member-link.audit.test.ts.
+    const setup = readSource("src/app/actions/match-setup.ts");
+    expect(setup).toMatch(/organizationId: \{ in: await organizationIdsFor\(session\.email\) \}/);
+    expect(setup).toMatch(/realMembers\.has\(p\.memberId\) \? p\.memberId : null/);
+  });
+
+  it("still creates the round in the person's own organization", () => {
+    // The line all of this sits on: the club's lists may be READ, and the club
+    // gets no ownership of the round.
+    const setup = readSource("src/app/actions/match-setup.ts");
+    expect(setup).toMatch(/personalOrganizationFor\(session\.email, session\.name\)/);
+  });
+});

@@ -85,9 +85,22 @@ export default async function EntryPage() {
   // the venue is named per match, at scoring time, by whoever was there.
   const courseKnown = hasCourseData(state.event) || cardedVenues.length > 0 || courseMode === "open";
   if (scoringNeedsCourse && !courseKnown) {
-    // The club's own courses, so an organizer picks one instead of pasting a
-    // card the app is already holding.
-    const saved = await clubCourses(state.event.organizationId, session.eventId);
+    /**
+     * The club's own courses, so an organizer picks one instead of pasting a
+     * card the app is already holding.
+     *
+     * Scoped the same way as the venue picker below, and for the same reason:
+     * a casual round is in the person's own organization, which has no courses
+     * in it, so asking the EVENT's organization offers an empty library to the
+     * one screen whose entire job is to offer a course. This is the third
+     * place that scope was wrong after a quick round stopped belonging to a
+     * club, which is why it is `organizationIdsFor` everywhere rather than a
+     * third judgement call.
+     */
+    const saved = await clubCourses(
+      casualRound ? await organizationIdsFor(session.email) : state.event.organizationId,
+      session.eventId,
+    );
     return (
       <CourseSetupPrompt
         eventCourse={state.event.course}
