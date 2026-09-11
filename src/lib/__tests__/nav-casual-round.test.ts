@@ -207,6 +207,31 @@ describe("the card screen on a casual round", () => {
     expect(entry()).toMatch(/\{!casual && \(/);
   });
 
+  it("does not offer a committee step to a round that has no committee", () => {
+    /**
+     * A CONTRADICTION, not clutter.
+     *
+     * `createMatch` sets a quick round to player confirmation and says why in
+     * its own words: "there is no committee to approve a card that both
+     * players just agreed on standing on the 18th green". #281 made the
+     * player's own screens say exactly that — a signed card reads "Certified
+     * — that's your card", toned done, and `/play` tells them nobody else has
+     * to accept it.
+     *
+     * `RoundApproval` was still telling the same person, one screen away,
+     * that "only accepted cards are results". Both were shown to whoever set
+     * the round up, because they are staff of their own personal organization
+     * and `isStaff` is therefore true for a fourball of two.
+     */
+    expect(entry()).toMatch(/mode === "stroke" && isStaff && !casual && \(/);
+  });
+
+  it("still gives a tournament its committee step", () => {
+    // The control, and the more important half: a club medal's cards are not
+    // results until somebody accepts them, and that panel is where.
+    expect(entry()).toMatch(/<RoundApproval/);
+  });
+
   it("keeps all three for a tournament, which is what they are for", () => {
     // The control. A club typing up Saturday's cards on Monday is exactly who
     // the import exists for.
