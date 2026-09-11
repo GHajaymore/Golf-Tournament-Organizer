@@ -5656,16 +5656,23 @@ describe("the setup rail", () => {
     /**
      * The gap: the rail used to render nothing at all the moment the last step
      * went green, at the exact moment the tournament became real. Nothing said
-     * the organizer was finished, and nothing said the thing that matters —
-     * that the field cannot see any of it until it is launched. The existing
-     * warning about that fires only once a score has been entered.
+     * the organizer was finished, and nothing said what was left to do.
+     *
+     * REWORDED, NOT RELAXED. It used to pin "Nobody in the field can see any
+     * of it yet", which was false — measured on 2026-09-11 as a player on a
+     * `draft` tournament, where the board and the card both rendered.
+     * `launchTournament` writes status, launchedAt and configUnlocked and
+     * nothing else. The banner now says what launching does do, from the one
+     * string both it and the dashboard warning read.
      */
     const html = rail({ ...done, launched: false });
     expect(html).toContain("Setup is done");
-    expect(html).toContain("Nobody in the field can see any of it yet");
+    expect(html).toContain("locks the configuration");
     expect(html).toContain("/dashboard");
+    // And it does not re-acquire the claim it just lost.
+    expect(html).not.toContain("Nobody in the field can see any of it yet");
     // It offers the launch; it does not perform one. Launching locks
-    // configuration and hands out player access, which is a decision.
+    // configuration, which is a decision.
     expect(html).toContain("Go to the dashboard");
     /**
      * And it names the SCREEN, not a button on it.
