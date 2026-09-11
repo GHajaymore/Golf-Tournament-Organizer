@@ -275,3 +275,61 @@ describe("a match is not offered the apparatus of running a field", () => {
     expect(screenAppliesToMatch("group-games")).toBe(true);
   });
 });
+
+/**
+ * AND THE GUIDE'S FIRST STEP LANDS ON THE FIELDS IT ASKED FOR.
+ *
+ * `/event` is two screens in one and says so: "Manage your tournaments, or
+ * configure the one you're running." The manager half — every tournament you
+ * have, a form to create another, and a link to set up a casual round — sat
+ * directly under the heading, and the half the screen is NAMED after sat below
+ * all three.
+ *
+ * Who that catches is the point. The rail's first step points here and
+ * describes it as "Say where it is played, or what day". Walked on 2026-09-11
+ * with a tournament created a minute earlier: a table of tournaments, then
+ * "Create a new tournament", then "Just playing a round?", and the dates and
+ * venue fields fourth. An organizer following the guide to fill in a date is
+ * met with a form for making another tournament — which is not merely
+ * confusing, it is one click from a duplicate.
+ */
+describe("what the first setup step puts in front of you", () => {
+  const page = () => readSource("src", "app", "(app)", "event", "page.tsx");
+
+  it("puts the tournament's own fields above the tournament manager", () => {
+    const src = page();
+    const setupForm = src.indexOf("<EventSetupClient");
+    // The switcher renders twice, in two branches; the one that leads is the
+    // one guarded by `!railSpeaks`.
+    // Regex rather than a literal: `readSource` strips comments, so the exact
+    // whitespace between the guard and the element is not stable.
+    const leading = src.search(/\{!railSpeaks\(flow\) && \(\s*<EventSwitcher/);
+    const trailing = src.search(/\{railSpeaks\(flow\) && \(\s*<div[^>]*>\s*<EventSwitcher/);
+    expect(setupForm, "<EventSetupClient not found").toBeGreaterThan(-1);
+    expect(leading, "leading switcher branch not found").toBeGreaterThan(-1);
+    expect(trailing, "trailing switcher branch not found").toBeGreaterThan(-1);
+    // While the guide is running the switcher is after the form; only the
+    // guarded copy is before it.
+    expect(trailing).toBeGreaterThan(setupForm);
+  });
+
+  it("keeps the switcher on the screen either way", () => {
+    /**
+     * Moved, not removed. Switching tournament from the screen you configure
+     * one on is a perfectly ordinary thing to want, and a guide that hides the
+     * way out is worse than one that leads with it.
+     */
+    expect(page().split("<EventSwitcher").length - 1).toBe(2);
+  });
+
+  it("uses the same predicate the checklist already uses, not a new one", () => {
+    /**
+     * `railSpeaks` is the existing answer to "is the ordered guide talking".
+     * A second predicate meaning almost the same thing is how the three
+     * disagreeing setup orders at the top of this file happened.
+     */
+    const src = page();
+    expect(src).toMatch(/import \{ railSpeaks \} from "@\/lib\/domain\/setup-flow"/);
+    expect(src.split("railSpeaks(flow)").length - 1).toBe(3);
+  });
+});
