@@ -581,3 +581,61 @@ export async function themeForEvent(eventId: string): Promise<ClubTheme> {
     appearance: isAppearance(appearance) ? appearance : DEFAULT_APPEARANCE,
   };
 }
+
+/**
+ * THE LIBRARY A COURSE THIS PERSON PICKS BELONGS IN.
+ *
+ * `courses.ts` has one answer to "which club am I curating" —
+ * `requireOrganizerOrg`, the club that owns the tournament I have open. That
+ * is right for every screen in the console and is no answer at all for the one
+ * flow that has neither a tournament nor a club.
+ *
+ * `NewMatchForm` says so itself, where it switches the directory search on:
+ * "the club's library is read from the organizations this person belongs to,
+ * and somebody who has just signed up to play their mate on Sunday belongs to
+ * none — so requiring a course while offering only a list that is empty for a
+ * new user would be a wall rather than a question."
+ *
+ * It was a wall. The search switched on for exactly that person asked
+ * `requireOrganizerOrg`, which refuses them twice over — not an `admin`, and
+ * no `eventId` — so the lookup threw and the picker fell through to its last
+ * line: "None of your courses match that. Try fewer letters, or add the course
+ * to your library first." Advice about a library that does not exist, on a
+ * field whose own hint reads "needed before any score can go down", above a
+ * button that stays disabled for good.
+ *
+ * Walked on 2026-09-11 with a fresh account: a new user could not start a
+ * quick round at all, which is the whole of the free tier.
+ *
+ * So: the tournament's club when this person is actually running one, and
+ * their OWN organization otherwise — the same personal organization
+ * `createMatch` already puts the round into, so their second round finds the
+ * course waiting in "your courses" rather than asking again.
+ *
+ * Here rather than in the action because it is the sort of thing that is only
+ * provable against real rows, and because a second caller must not be able to
+ * answer it differently. Compare `organizationIdsFor` directly above: that one
+ * says whose lists may be READ, this one says where a new row is WRITTEN, and
+ * conflating them is how a player's pick would land in their club's library.
+ */
+export async function libraryOrganizationFor(session: {
+  email: string;
+  name: string;
+  eventId: string;
+  role: string;
+}): Promise<string> {
+  const event = session.eventId
+    ? await prisma.event.findUnique({
+        where: { id: session.eventId },
+        select: { organizationId: true },
+      })
+    : null;
+  /**
+   * Unchanged for every caller that already had an answer: an organizer with a
+   * tournament open still curates that tournament's club library, and the role
+   * is checked as well as the event so a PLAYER in somebody's tournament
+   * cannot write a course into that club by picking a venue.
+   */
+  if (event && session.role === "admin") return event.organizationId;
+  return personalOrganizationFor(session.email, session.name);
+}

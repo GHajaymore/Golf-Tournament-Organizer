@@ -23,6 +23,7 @@ import {
 } from "@/lib/domain/course-directory";
 import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
 import { matchCourse, teeProblems } from "@/lib/domain/venue";
+import { libraryOrganizationFor, organizationIdsFor } from "@/lib/services/organization";
 
 /**
  * The club's course library, and which venue a round or match was played on.
@@ -809,7 +810,20 @@ export async function searchCourseDirectory(
   query: string,
   localOnly = false,
 ): Promise<DirectorySearchResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  /**
+   * THE REMOTE LOOKUP IS THE PART THAT COSTS SOMETHING, and it is the only
+   * part that stays organizer-only.
+   *
+   * `localOnly` reads the stored catalogue — a public list of golf courses,
+   * nobody's data — and is what the quick-round picker asks for. The other
+   * branch spends the shared API allowance, 500 requests a day for the whole
+   * app, and a `"use server"` export is a public HTTP endpoint that will be
+   * called with whatever the caller likes. So the spend keeps the guard that
+   * was on it and the free read loses one it never needed.
+   */
+  if (!localOnly && session.role !== "admin") throw new Error("Organizer access required");
   const hits = await searchDirectory(query, localOnly);
 
   /**
@@ -820,10 +834,33 @@ export async function searchCourseDirectory(
    * it. `Course.sourceUrl` already carries the directory id it came from, so
    * this is a lookup rather than a new column.
    */
-  const mine = await prisma.course.findMany({
-    where: { organizationId },
-    select: { sourceUrl: true },
-  });
+  /**
+   * THE SAME SCOPE THE PICKER'S OWN LIST IS BUILT FROM.
+   *
+   * `inLibrary` exists for one job: stop the picker offering "Add to library"
+   * for a course already sitting in the list above it. So it has to ask the
+   * question that list asked, and that list — `/match/new`, `CourseLibrary`,
+   * the round's venue picker — is built from the caller's MEMBERSHIPS.
+   * `organizationIdsFor` is that scope named once, and says so: "this is that
+   * scope named once so the other readers ask the same question."
+   *
+   * Asking the EVENT's organization instead is how a course disappears from
+   * both lists at once. Walked on 2026-09-11: the session carried an event
+   * whose club owns Blue Ash, the caller belonged to no organization, so the
+   * hit came back `inLibrary: true` and the picker filtered it out — while
+   * `options`, scoped to memberships, was empty. Marked as already held, and
+   * held by nobody.
+   *
+   * Read-only, and deliberately NOT `libraryOrgFor`: decorating a search
+   * result must never create an organization as a side effect of typing.
+   */
+  const organizationIds = await organizationIdsFor(session.email);
+  const mine = organizationIds.length
+    ? await prisma.course.findMany({
+        where: { organizationId: { in: organizationIds } },
+        select: { sourceUrl: true },
+      })
+    : [];
   const have = new Set(mine.map((c) => directoryIdFrom(c.sourceUrl)).filter(Boolean));
   return { ok: true, hits: hits.map((h) => ({ ...h, inLibrary: have.has(h.id) })) };
 }
@@ -857,7 +894,16 @@ export interface DirectoryImportResult extends CourseResult {
  * exists and already renders as untrusted; this adds no second flag.
  */
 export async function importCourseFromDirectory(directoryId: string): Promise<DirectoryImportResult> {
-  const { organizationId } = await requireOrganizerOrg();
+  const session = await getSession();
+  if (!session) throw new Error("Not authenticated");
+  /**
+   * Where it goes. The club's library for an organizer running a tournament,
+   * the person's own for somebody setting up a Sunday fourball — see
+   * `libraryOrgFor`. Fixing the search alone would have moved the wall one
+   * click along: the picker adds the course on the way past, so picking a hit
+   * called the same refused guard.
+   */
+  const organizationId = await libraryOrganizationFor(session);
 
   const course = await fetchDirectoryCourse(directoryId);
   if (!course) {
