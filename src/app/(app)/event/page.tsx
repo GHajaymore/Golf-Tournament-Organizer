@@ -4,6 +4,7 @@ import { organizationsForOrganizer } from "@/lib/services/organization";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
 import { hasKnockoutStage } from "@/lib/stage-types";
+import { enteredCardCount } from "@/lib/services/round-cards";
 import { PlaySettings } from "@/components/PlaySettings";
 import { teesForEvent } from "@/lib/services/handicaps";
 import { CourseLibrary } from "@/components/CourseLibrary";
@@ -198,6 +199,9 @@ export default async function EventPage({
         key={e.id}
         isMatch={matchEvent}
         hasBracket={hasKnockoutStage(state.stages)}
+        setup={flow ? { doneCount: flow.doneCount, total: flow.steps.length, complete: flow.complete } : null}
+        launched={e.status === "live" || e.status === "completed"}
+        scored={await enteredCardCount(state.event.id) > 0}
         initial={{
           name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,
           address: e.address, regDeadline: e.regDeadline, capacity: e.capacity,

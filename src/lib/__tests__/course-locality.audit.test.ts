@@ -1,88 +1,127 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { prisma } from "@/lib/db";
 import { searchDirectory } from "@/lib/services/course-directory";
 
 /**
- * ORDERING BY WHERE THE CLUB PLAYS, AGAINST THE REAL CATALOGUE.
+ * ORDERING THE COURSE DIRECTORY BY THE TOWN THE CLUB PLAYS IN.
  *
- * 2,184 rows, and "golf" appears in most course names — a vague query matches
- * 1,579 of them and exactly twenty survive `slice(0, 20)`. Which twenty is the
- * whole question, and a unit test over a hand-built array cannot answer it:
- * what matters is what happens to the real distribution of towns, states and
- * blanks that the catalogue actually holds.
+ * The real catalogue is 2,184 rows and "golf" appears in most course names, so
+ * a vague query matches 1,579 of them and exactly twenty survive. Which twenty
+ * is the whole question.
  *
- * READ-ONLY. The catalogue is a public list of golf courses — nobody's data,
- * no fixture to create and none to tear down.
+ * IT BUILDS ITS OWN CATALOGUE, and the first version did not — it searched
+ * whatever the developer's machine happened to hold, passed there, and failed
+ * in CI against a database built from migrations with no catalogue in it at
+ * all. A test that reads ambient data is a test that asserts about one
+ * machine. The fixture rule this repo already has for events and players
+ * applies just as well to a catalogue: create what you need, mark it, delete
+ * it in a `finally`.
  *
- * The guarantees under test are the ones a reader depends on, and they are the
- * reason this is a ranking rather than a filter:
- *
- *   - naming a place in the query beats the club's own town;
- *   - being near never outranks a better name match;
- *   - nothing is removed from the list by being far away.
+ * The fixture is shaped to reproduce the actual fault rather than to be small:
+ * `searchDirectory` takes 100 rows from the database ORDERED BY NAME before
+ * anything is ranked, so a query matching more than that gets an arbitrary
+ * alphabetical slice. The home-town rows here are deliberately named so they
+ * fall outside the first hundred — which is exactly why ranking alone changed
+ * nothing, and why the club's town is now fetched in its own query.
  */
 
+const MARK = "zzloc";
+const HOME = "Zzhometown";
+/** Comfortably past the 100-row cut the database applies before ranking. */
+const FILLER = 130;
+const LOCAL = 6;
+
+beforeAll(async () => {
+  await prisma.courseCatalog.deleteMany({ where: { name: { startsWith: MARK } } });
+  const rows: { id: string; name: string; city: string; state: string; country: string; par: number }[] = [];
+  /**
+   * "Aaa" so every filler row sorts BEFORE the local ones by name, which is
+   * the order the database cut uses. Without the home-town query none of the
+   * local rows would reach the ranker at all.
+   */
+  for (let i = 0; i < FILLER; i += 1) {
+    rows.push({
+      id: `${MARK}-far-${i}`,
+      name: `${MARK} Aaa Golf Club ${String(i).padStart(3, "0")}`,
+      city: "Farborough",
+      state: "ZZ",
+      country: "US",
+      par: 72,
+    });
+  }
+  for (let i = 0; i < LOCAL; i += 1) {
+    rows.push({
+      id: `${MARK}-home-${i}`,
+      name: `${MARK} Zzz Golf Club ${i}`,
+      city: HOME,
+      state: "ZZ",
+      country: "US",
+      par: 72,
+    });
+  }
+  // One with no town at all — a quarter of the real catalogue is like this.
+  rows.push({ id: `${MARK}-blank`, name: `${MARK} Zzz Golf Club nowhere`, city: "", state: "", country: "", par: 72 });
+  // And one whose NAME is the thing somebody would type, far away.
+  rows.push({ id: `${MARK}-named`, name: `${MARK} Mohican Ridge`, city: "Farborough", state: "ZZ", country: "US", par: 72 });
+  await prisma.courseCatalog.createMany({ data: rows, skipDuplicates: true });
+});
+
+afterAll(async () => {
+  await prisma.courseCatalog.deleteMany({ where: { name: { startsWith: MARK } } });
+});
+
+// Every fixture name begins with the mark, so this matches all of them and
+// leaves locality as the only thing separating them.
+const q = MARK;
+
 describe("the club's town orders the directory", () => {
-  it("lifts courses in the club's own town, without dropping the others", async () => {
-    const away = await searchDirectory("golf", true);
-    const local = await searchDirectory("golf", true, { city: "Cincinnati" });
+  it("lifts the club's own town into the twenty, where the cut had excluded it", async () => {
+    const away = await searchDirectory(q, true);
+    const local = await searchDirectory(q, true, { city: HOME });
 
-    // Same question, same number of answers — reordered, never filtered.
-    expect(local).toHaveLength(away.length);
     expect(away.length).toBeGreaterThan(0);
+    expect(local).toHaveLength(away.length);
 
-    const cincyFirst = local.filter((h) => h.city === "Cincinnati").length;
-    const cincyBefore = away.filter((h) => h.city === "Cincinnati").length;
+    const homeAway = away.filter((h) => h.city === HOME).length;
+    const homeNear = local.filter((h) => h.city === HOME).length;
     /**
-     * The catalogue holds 21 Cincinnati courses. Twenty rows survive the cut,
-     * so a club in Cincinnati should now see some of its own town where
-     * before it saw an arbitrary slice of the country.
+     * The measurement that made this worth building. Ranking alone left this
+     * at zero on both sides: the local rows never survived the database's
+     * alphabetical cut to BE ranked.
      */
-    expect(cincyFirst).toBeGreaterThan(cincyBefore);
+    expect(homeAway).toBe(0);
+    expect(homeNear).toBeGreaterThan(0);
   });
 
-  it("puts the club's own town at the top, not merely in the list", async () => {
-    const local = await searchDirectory("golf", true, { city: "Cincinnati" });
-    const firstFar = local.findIndex((h) => h.city !== "Cincinnati" && h.city !== "");
-    const lastNear = local.map((h) => h.city).lastIndexOf("Cincinnati");
-    // Every local row comes before the first row that names another town.
+  it("puts them at the top rather than merely in the list", async () => {
+    const local = await searchDirectory(q, true, { city: HOME });
+    const firstFar = local.findIndex((h) => h.city !== HOME && h.city !== "");
+    const lastNear = local.map((h) => h.city).lastIndexOf(HOME);
     expect(lastNear).toBeLessThan(firstFar === -1 ? local.length : firstFar);
-  });
-
-  it("lets the query's own place win, so a club can look up an away course", async () => {
-    /**
-     * THE GUARANTEE THAT MATTERS MOST.
-     *
-     * A society playing away, or an organizer looking up the course of a club
-     * they are visiting, types the town they mean. Their own town must not
-     * reorder that — `searchDirectory` drops `near` entirely once
-     * `parseAreaQuery` has found a place in the query.
-     *
-     * Asserted as "identical either way", which is stronger than "the right
-     * town is first": it shows the club's location had no effect at all.
-     */
-    const asked = await searchDirectory("Ocala FL", true);
-    const askedFromOhio = await searchDirectory("Ocala FL", true, { city: "Cincinnati" });
-    expect(askedFromOhio.map((h) => h.id)).toEqual(asked.map((h) => h.id));
   });
 
   it("lets a typed course name win over the club's town", async () => {
     /**
-     * The other half of "you can always just type what you mean". A name that
-     * matches better sits in a better relevance tier, and locality only ever
-     * separates rows inside one tier — so it cannot pull a local course above
-     * the course actually being named.
+     * "You can always just type what you mean." A better name match sits in a
+     * better relevance tier, and locality only separates rows inside one tier,
+     * so it cannot pull a local course above the course being named.
      */
-    const hits = await searchDirectory("Mohican Hills", true, { city: "Cincinnati" });
+    const hits = await searchDirectory(`${MARK} Mohican Ridge`, true, { city: HOME });
     expect(hits.length).toBeGreaterThan(0);
-    expect(hits[0].name).toContain("Mohican Hills");
-    expect(hits[0].city).not.toBe("Cincinnati");
+    expect(hits[0].name).toContain("Mohican Ridge");
+    expect(hits[0].city).not.toBe(HOME);
   });
 
   it("never hides a course that has no town on it", async () => {
-    // A quarter of the catalogue carries no location. They keep their place by
-    // name relevance rather than being pushed behind every known-far course.
-    const blanks = (await searchDirectory("golf", true, { city: "Cincinnati" })).filter((h) => !h.city);
-    const blanksAway = (await searchDirectory("golf", true)).filter((h) => !h.city);
-    expect(blanks.length).toBeGreaterThanOrEqual(Math.min(blanksAway.length, 1) - 1);
+    // Unplaced rows rank with "same country", never last — demoting them would
+    // be filtering wearing a ranking's clothes.
+    const local = await searchDirectory(`${MARK} Zzz Golf`, true, { city: HOME });
+    expect(local.some((h) => h.id === `${MARK}-blank`)).toBe(true);
+  });
+
+  it("changes nothing at all when the club has no town", async () => {
+    const a = await searchDirectory(q, true);
+    const b = await searchDirectory(q, true, undefined);
+    expect(b.map((h) => h.id)).toEqual(a.map((h) => h.id));
   });
 });

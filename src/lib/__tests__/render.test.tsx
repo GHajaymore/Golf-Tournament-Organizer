@@ -4805,7 +4805,7 @@ describe("tournament details", () => {
       "Target player count", "Apply",
       // The save button reads "Saved" until something is dirty, which on a
       // fresh render is always.
-      "Summary", "Recommended flow", "Saved",
+      "Summary", "How a tournament runs", "Saved",
     ]) {
       expect(html, `missing control: ${control}`).toContain(control);
     }
@@ -4827,26 +4827,26 @@ describe("tournament details", () => {
      * reading "Champion TBD".
      */
     const league = await setup({}, { hasBracket: false });
-    expect(league).toContain("Recommended flow");
-    expect(league).not.toContain("who qualified, and who plays whom");
+    expect(league).toContain("How a tournament runs");
+    expect(league).not.toContain('href="/bracket"');
     // The steps either side of it stay, so this cannot pass off the card
     // having failed to render at all.
-    expect(league).toContain("Tee sheet");
-    expect(league).toContain("Reports &amp; export");
+    expect(league).toContain('href="/foursomes"');
+    expect(league).toContain('href="/reports"');
   });
 
   it("still walks a knockout to its bracket", async () => {
     // The control. Removing the line unconditionally would satisfy the test
     // above, and would take the step away from the tournaments that need it.
     const knockout = await setup({}, { hasBracket: true });
-    expect(knockout).toContain("who qualified, and who plays whom");
+    expect(knockout).toContain('href="/bracket"');
   });
 
   it("offers the step by default, so an untaught caller loses nothing", async () => {
     // `hasBracket` defaults to true for the same reason ReportsClient's does:
     // a caller that has not been taught must offer exactly what it did before.
     const untaught = await setup();
-    expect(untaught).toContain("who qualified, and who plays whom");
+    expect(untaught).toContain('href="/bracket"');
   });
 
   it("does not file the scoring questions under Tournament identity", async () => {
