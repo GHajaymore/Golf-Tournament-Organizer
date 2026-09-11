@@ -9,6 +9,7 @@ import type { HoleResult } from "@/lib/domain";
 import { NOINDEX } from "@/lib/site";
 import { isNetBasis } from "@/lib/domain/match-entry";
 import { isHeadToHead } from "@/lib/stage-types";
+import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
 
 /**
  * The Round Code surface.
@@ -42,6 +43,19 @@ export default async function PlayPage() {
 
   const settings = settingsOf(event);
   const brand = await brandForEvent(event.id);
+  /**
+   * That this round is temporary, worded for somebody who cannot keep it.
+   *
+   * `keepRound` is staff-only, and the people on this surface are precisely
+   * the ones who are not staff — a fourball's other three players, here on a
+   * Round Code with no account. So the sentence names the remedy they have,
+   * which is to ask whoever set the round up.
+   *
+   * `hoursLeft` is null for every tournament that has ever existed, and
+   * `expiryNotice` returns "" on null, so nothing mounts outside a casual
+   * round.
+   */
+  const expiry = expiryNotice(hoursLeft(event), false);
 
   if (!match) {
     /**
@@ -92,6 +106,7 @@ export default async function PlayPage() {
 
       return (
         <PlayClient
+          expiryNotice={expiry}
           stage="card"
           brand={brand}
           playerName={session.playerName}
@@ -109,6 +124,7 @@ export default async function PlayPage() {
 
     return (
       <PlayClient
+        expiryNotice={expiry}
         stage="no-match"
         brand={brand}
         playerName={session.playerName}
@@ -166,6 +182,7 @@ export default async function PlayPage() {
 
   return (
     <PlayClient
+      expiryNotice={expiry}
       stage="score"
       brand={brand}
       playerName={session.playerName}
