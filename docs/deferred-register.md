@@ -162,6 +162,41 @@ complaint the console had in eight places. The setup FLOW is identical for all
 three; only the word differs. Worth deciding whether one fixed name is wanted
 instead, and what it should be, before more screens grow the per-kind wording.
 
+### "Society" is a British word, and the app says it worldwide
+Asked for on 2026-09-11: should the wording follow the user's country?
+
+**Yes — and `kind` is only half of it.** The three kinds describe how the golf
+is ORGANISED and they travel fine; what does not travel is the noun for
+`community`. The same outfit is a *society* in Britain and Ireland, a *golf
+league* or *golf association* or *men's club* in the United States, and often
+just a *club* in Australia. `club` and `outing` are understood everywhere, so
+this is one noun set on one kind — narrow, not a rewrite.
+
+**Not off the login country, though.** That is a fact about a PERSON and the
+word describes an OUTFIT: an Irish secretary living in Boston still runs a
+society, and a US league secretary on holiday in Dublin does not become one.
+`Organization.country` already exists (`schema.prisma`, beside `city` and
+`region`, collected so "courses near us" has a region to search) and is the
+club's own answer about itself.
+
+**So: the country as the DEFAULT, the organizer as the AUTHORITY.** Preselect
+the local word from `country` and let it be changed on the settings screen —
+the same shape the app already uses for `currencySymbol`, whose comment says
+why: *"Not a locale — clubs write their own currency and this is the shortest
+honest way to let them."*
+
+Two things to get right before building it:
+
+- `country` is **free text and defaults to `""`**, so the resolver must fall
+  back to today's wording on empty and must not try to tell "United States"
+  from "USA" from "US". Either normalise on the way in or store a code — there
+  is precedent for the latter in `scripts/backfill-country-codes.ts`, which did
+  this for courses.
+- The noun is read in more places than `noun` — `label`, `settingsLabel`,
+  `groupLabel` and `blurb` all spell the outfit out. They must all come from
+  one resolver or they will drift, which is the defect `orgProfile` exists to
+  prevent. Extend `orgProfile` to take the country; do not add a second table.
+
 ## 4. Environment and ops
 
 ### `CRON_SECRET` is not set on the Vercel project
