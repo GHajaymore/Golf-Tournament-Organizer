@@ -256,7 +256,7 @@ export function SingleMatchRulePicker({
       </div>
 
       {stale && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)", lineHeight: 1.55 }}>
+        <p className="form-error" style={{ lineHeight: 1.55 }}>
           <Icon name="warning-circle" /> The match already created for this round is between different
           players than the rule now gives. Results have changed since it was made — clear the match and create
           it again if the rule is the one you want.
@@ -286,7 +286,7 @@ export function SingleMatchRulePicker({
       )}
 
       {error && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
+        <p className="form-error">
           <Icon name="warning-circle" /> {error}
         </p>
       )}

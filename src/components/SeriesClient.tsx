@@ -109,7 +109,7 @@ export function SeriesClient({
             </button>
           </div>
         )}
-        {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
+        {error && <p className="form-error">{error}</p>}
       </div>
     );
   }
@@ -295,7 +295,7 @@ export function SeriesClient({
           </div>
         )}
 
-        {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
+        {error && <p className="form-error">{error}</p>}
       </div>
 
       <div className="card elev-sm">

@@ -54,7 +54,7 @@ export function BracketModePicker({
       </div>
       <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{current.blurb}</p>
 
-      {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
+      {error && <p className="form-error">{error}</p>}
 
       {open && !readOnly && (
         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", marginTop: 4 }}>

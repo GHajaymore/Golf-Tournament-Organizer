@@ -423,7 +423,7 @@ export function ThemePicker({
         </div>
       )}
 
-      {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
+      {error && <p className="form-error">{error}</p>}
 
       {/* The button row wraps, because it holds up to three buttons and one of
           them says "Back to default (Sunset + Fairway)" — 241px that will not

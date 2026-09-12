@@ -210,7 +210,7 @@ export function CardPhotoReader({
         </p>
       )}
       {error && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)", lineHeight: 1.5 }}>
+        <p className="form-error" style={{ lineHeight: 1.5 }}>
           <Icon name="warning-circle" /> {error}
         </p>
       )}

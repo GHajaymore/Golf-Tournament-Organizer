@@ -181,6 +181,13 @@ figcaption {
   color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
 .text-muted { color: color-mix(in srgb, var(--color-text) 62%, transparent); }
+/* What went wrong, under the control it went wrong on.
+ *
+ * Twenty-eight of these were written inline, always on a `<p>`, always with the
+ * same three declarations. An error message is the one piece of text on a form
+ * that has to look identical everywhere — a refusal that renders a size
+ * different from the last one reads as a different KIND of refusal. */
+.form-error { font-size: 12px; margin: 0; color: var(--color-danger); }
 :focus { outline: none; }
 /* A ring rather than a bare outline: the halo keeps the indicator visible
    where the accent happens to sit close to whatever is behind it. */
