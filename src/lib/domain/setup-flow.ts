@@ -69,6 +69,28 @@ export interface SetupFacts {
   /** Somewhere to play — the event's own course, or a venue attached to it. */
   venued: boolean;
   /**
+   * Whether anybody has said how THIS tournament's money works.
+   *
+   * True when the tournament has chosen a mode of its own, and true when the
+   * club has one to inherit — `resolveMoneyMode` is event → club → kind, so a
+   * club that has answered has answered for every tournament it runs and
+   * asking again would be the app forgetting.
+   *
+   * FALSE ONLY WHEN NOBODY HAS EVER BEEN ASKED, which is the state the last
+   * fallback covers: `orgProfile(kind).ledger` guesses "split" for a society
+   * and "none" for a club. That guess is right often enough to ship and it is
+   * still a guess, and the cost of it landing wrong is the worst kind — a
+   * settle-up telling a player they owe thirty pounds they paid at signup, or
+   * a society's minibus money quietly not tracked anywhere.
+   *
+   * So this is the one step that exists to convert a guess into an answer, and
+   * it is satisfied by one click on a screen that is always reachable. That
+   * matters more than it looks: `readyToLaunch` requires every step, and a
+   * step that cannot be finished pins the guide for ever — see
+   * `drawsPairings`, which is that bug written down.
+   */
+  moneyAnswered: boolean;
+  /**
    * Whether the tournament has been launched.
    *
    * Not a step, and deliberately not one: launching is not part of setting a
@@ -186,6 +208,37 @@ const STEPS: ReadonlyArray<{
       f.groups === 0 ? "No flights yet." : "Flights are made, but no pairings are drawn.",
     done: (f) => f.groups > 0 && (!f.drawsPairings || f.matches > 0),
   },
+  {
+    key: "money",
+    href: "/prizes",
+    /**
+     * LAST, AND A STEP RATHER THAN A SETTING LEFT LYING ABOUT.
+     *
+     * The club's own chain has asked this since it was written — "Decide how
+     * money works", on `/organization` — and its blurb ends "Changeable per
+     * tournament later" without ever saying WHERE. The answer was the last
+     * card on the Prizes screen, below the ledger it governs, so keeping that
+     * promise meant scrolling past everything the decision decides. An
+     * organizer read a settle-up and then found out whether the settle-up
+     * applied.
+     *
+     * Last of the five because it is the only one that is not golf. The other
+     * four are what has to be true before anybody can tee off; this is what
+     * has to be true before anybody is asked for money, and it is the natural
+     * hand-off into launching — what it costs and what is at stake is the last
+     * thing you settle before the field can see any of it.
+     *
+     * WHY `/prizes` AND NOT A SCREEN OF ITS OWN. The prize list, the purse,
+     * the pots and the mode are one subject and already one screen, and a new
+     * route carrying a single radio group would be a screen an organizer has
+     * to learn in order to answer one question. The screen states the mode at
+     * the top now — see `MoneyModeLine` — so arriving here from the guide
+     * answers the question before anything else on it is read.
+     */
+    question: "What does it cost, and who handles the money?",
+    missing: () => "Nobody has said how money works here.",
+    done: (f) => f.moneyAnswered,
+  },
 ];
 
 /**
@@ -202,7 +255,16 @@ const STEPS: ReadonlyArray<{
  * is right, an app that states three cannot be teaching any of them — so they
  * read this now, and a test asserts they agree.
  */
-export const SETUP_ORDER: readonly string[] = ["/event", "/stages", "/registration", "/grouping"];
+export const SETUP_ORDER: readonly string[] = [
+  "/event",
+  "/stages",
+  "/registration",
+  "/grouping",
+  // The money, last — see the step. It is the only one of the five that is not
+  // a precondition of playing golf, and the one the club chain promised was
+  // "changeable per tournament later" without saying where.
+  "/prizes",
+];
 
 /** Sort anything carrying an `href` into `SETUP_ORDER`, unknown hrefs last. */
 export function bySetupOrder<T extends { href: string }>(items: readonly T[]): T[] {

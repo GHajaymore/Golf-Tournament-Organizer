@@ -5,6 +5,7 @@ import { setupFlow, type SetupFlow, type SetupFacts } from "../domain/setup-flow
 import { isMatch } from "../tournament-shape";
 import { generatesPairings } from "../stage-types";
 import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
+import { isMoneyMode } from "../domain/money-mode";
 
 /**
  * The setup flow for one tournament, read once per screen.
@@ -15,19 +16,27 @@ import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
  *
  * Returns NULL for a match. Two people playing each other have no tournament
  * to set up — the match screen created the whole thing in one step — so
- * putting a four-step progress rail over it would invent work that does not
+ * putting a progress rail over it would invent work that does not
  * exist. Answered from the event's shape, so it cannot drift from the sidebar,
  * which hides the same screens for the same reason.
  */
 export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { name: true, dates: true, course: true, shape: true, status: true },
+    select: {
+      name: true,
+      dates: true,
+      course: true,
+      shape: true,
+      status: true,
+      moneyMode: true,
+      organizationId: true,
+    },
   });
   if (!event) return null;
   if (isMatch(event.shape)) return null;
 
-  const [confirmed, stageRows, groups, matches, venues] = await Promise.all([
+  const [confirmed, stageRows, groups, matches, venues, org] = await Promise.all([
     prisma.player.count({ where: { eventId, status: "confirmed" } }),
     // The TYPES, not just how many. The last step of setup asks for fixtures,
     // and only some kinds of round have any — see `drawsPairings`.
@@ -35,6 +44,13 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
     prisma.group.count({ where: { eventId } }),
     prisma.match.count({ where: { eventId } }),
     prisma.eventCourse.count({ where: { eventId } }),
+    // The club's default, which the tournament inherits unless it says
+    // otherwise. Read so the guide does not ask a question the club has
+    // already answered — see `moneyAnswered`.
+    prisma.organization.findUnique({
+      where: { id: event.organizationId },
+      select: { moneyMode: true },
+    }),
   ]);
   const stages = stageRows.length;
 
@@ -57,6 +73,16 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
     // that rotates venues names none on the event itself and is not therefore
     // venue-less.
     venued: !!event.course.trim() || venues > 0,
+    /**
+     * Answered here, or answered by the club and inherited.
+     *
+     * `isMoneyMode` rather than a truthiness test, for the reason the money
+     * screens already give of a stored mode: it is free text in the database,
+     * and a value nothing recognises is not an answer — it resolves through
+     * the same fallback an empty string does. Treating it as one would tick
+     * the step off on a typo.
+     */
+    moneyAnswered: isMoneyMode(event.moneyMode.trim()) || isMoneyMode((org?.moneyMode ?? "").trim()),
     /**
      * Launched, read through the same list `lifecycleMismatch` uses rather
      * than by comparing to "live" here.

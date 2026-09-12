@@ -34,6 +34,7 @@ const NOTHING_DONE: SetupFacts = {
   named: false,
   dated: false,
   venued: false,
+  moneyAnswered: false,
   launched: false,
 };
 
@@ -50,10 +51,17 @@ const sidebarSetupHrefs = () => {
 describe("the sidebar and the setup guide agree about order", () => {
   it("lists the guided steps in the guide's own sequence", () => {
     /**
-     * A SUBSEQUENCE, not an equality. The sidebar carries screens the guide
-     * does not — Flights, Teams & pairs, Access & staff are reachable whenever
-     * they are wanted and have no place in a first-run sequence — so what has
-     * to hold is that the ones the guide DOES order appear in that order.
+     * A SUBSEQUENCE, not an equality, and it has to run BOTH ways now.
+     *
+     * The sidebar carries screens the guide does not — Teams & pairs, Access &
+     * staff are reachable whenever they are wanted and have no place in a
+     * first-run sequence. And the guide carries one the Set up section does
+     * not: its last step is Prizes & payouts, which lives under Money because
+     * that is what it is for the rest of the season. A tournament visits it
+     * twice, and the sidebar names screens rather than visits.
+     *
+     * So what has to hold is that the screens they SHARE appear in the same
+     * order in both.
      */
     const guide = flowHrefs();
     const sidebar = sidebarSetupHrefs();

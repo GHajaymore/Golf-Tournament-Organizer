@@ -14,9 +14,12 @@ import { isHeadToHead } from "@/lib/stage-types";
 import { potMembership, isPotEntryMode } from "@/lib/domain/pot-entry";
 import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { MoneySetup } from "@/components/MoneySetup";
+import { MoneyModeLine } from "@/components/MoneyModeLine";
 import { FloatClient } from "@/components/FloatClient";
 import { OrganizerLedger } from "@/components/OrganizerLedger";
 import { moneyFor } from "@/lib/services/expenses";
+import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
+import { setupFlowFor } from "@/lib/services/setup-flow";
 
 export const metadata = screenMetadata("/prizes");
 
@@ -163,16 +166,40 @@ export default async function PrizesPage({
         })
       : [];
 
+  /**
+   * The last step of setting up, which is why this screen carries the rail.
+   *
+   * Staff only: the guide is an organizer's, and the rail's Back and Next walk
+   * screens a player cannot open. Null for everybody else, which is exactly
+   * what `SetupFlowRail` renders nothing for — see its first line.
+   */
+  const flow = isStaff ? await setupFlowFor(session.eventId) : null;
+
   return (
     <>
+      <SetupFlowRail flow={flow} href="/prizes" />
       <div style={{ marginBottom: 20 }}>
-        <div className="page-kicker">Results</div>
+        {/* "Set up" while the guide is still running, because that is what
+            this screen is then: the last question before the tournament can
+            be handed over. It goes back to being a results screen the moment
+            setup is finished. */}
+        <div className="page-kicker">{flow && !flow.complete ? "Set up" : "Results"}</div>
         <h1 className="page-title">Prizes &amp; payouts</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Define the prize list and purse, then award winners. Flight winners, skins, closest-to-pin,
           long drive and any specials.
         </p>
       </div>
+      {/* Before any of the money, because it decides what all of it means —
+          see the note on the component. The picker itself stays at the foot of
+          the screen with the other settings; this is the statement. */}
+      <MoneyModeLine
+        eventMode={state.event.moneyMode}
+        orgMode={org?.moneyMode ?? ""}
+        orgKind={org?.kind ?? ""}
+        clubName={org?.shortName || org?.name || ""}
+        href={isStaff ? "#money-setup" : undefined}
+      />
       <PrizesClient
         prizes={prizes.map((p) => ({
           id: p.id,
@@ -283,8 +310,12 @@ export default async function PrizesPage({
       {ledger && <OrganizerLedger view={ledger} />}
 
       {/* How money is handled at all, last: it is a setting, and a setting
-          belongs under the thing it configures rather than above it. */}
+          belongs under the thing it configures rather than above it. What was
+          missing is the other half — the screen never SAID which mode was in
+          force until you had scrolled past everything it governs. That is
+          `MoneyModeLine` at the top, and this is where it jumps to. */}
       {isStaff && (
+        <div id="money-setup" style={{ scrollMarginTop: 16 }}>
         <MoneySetup
           mode="tournament"
           eventMode={state.event.moneyMode}
@@ -292,7 +323,9 @@ export default async function PrizesPage({
           orgKind={org?.kind ?? ""}
           clubName={org?.shortName || org?.name || ""}
         />
+        </div>
       )}
+      <SetupFlowFooter flow={flow} href="/prizes" />
     </>
   );
 }

@@ -14,13 +14,17 @@ const BLANK: SetupFacts = {
   named: false,
   dated: false,
   venued: false,
+  // Nobody has been asked about money either — not the tournament and not the
+  // club it belongs to — so the last step is genuinely outstanding rather than
+  // inherited and already ticked.
+  moneyAnswered: false,
   launched: false,
 };
 
 const flowOf = (over: Partial<SetupFacts> = {}) => setupFlow({ ...BLANK, ...over }, screenName);
 
 describe("the order setup is guided in", () => {
-  it("asks what the tournament is, then what is played, then who plays, then how they are divided", () => {
+  it("asks what it is, what is played, who plays, how they divide, then the money", () => {
     // The order IS the product decision, so it is asserted rather than left to
     // whatever the array happens to contain. It is deliberately not the
     // checklist's order: deciding the field before deciding whether this is a
@@ -31,6 +35,9 @@ describe("the order setup is guided in", () => {
       "/stages",
       "/registration",
       "/grouping",
+      // And the money last, because it is the only one of the five that is not
+      // a precondition of playing golf — see the step.
+      "/prizes",
     ]);
   });
 
@@ -44,8 +51,63 @@ describe("the order setup is guided in", () => {
       screenName("/stages"),
       screenName("/registration"),
       screenName("/grouping"),
+      screenName("/prizes"),
     ]);
     expect(labels).not.toContain("/event");
+  });
+});
+
+describe("the money step", () => {
+  /**
+   * THE QUESTION THE GUIDE NEVER ASKED, AND THE CLUB CHAIN PROMISED.
+   *
+   * "Decide how money works" is a club step, and its blurb ends "Changeable
+   * per tournament later" — without saying where. The answer was the last card
+   * on the Prizes screen, below the settle-up it governs, so keeping that
+   * promise meant scrolling past everything the decision decides.
+   */
+  const allButMoney = { named: true, venued: true, stages: 1, confirmed: 2, groups: 1, matches: 1 };
+
+  it("is the last thing asked, after the golf is arranged", () => {
+    const flow = flowOf(allButMoney);
+    expect(flow.current?.href).toBe("/prizes");
+    expect(flow.doneCount).toBe(4);
+    expect(flow.complete).toBe(false);
+  });
+
+  it("is finished by one answer, so the guide cannot be pinned on it", () => {
+    /**
+     * THE FAILURE MODE THIS IS GUARDING. `readyToLaunch` requires every step,
+     * so a step that cannot be finished holds the one banner that says setup
+     * is done and the field still cannot see any of it — which is exactly what
+     * `drawsPairings` is a scar from. This step is satisfied by a single
+     * choice on a screen that is always reachable.
+     */
+    const answered = flowOf({ ...allButMoney, moneyAnswered: true });
+    expect(answered.complete).toBe(true);
+    expect(answered.readyToLaunch).toBe(true);
+  });
+
+  it("says what is outstanding in words, not a blank", () => {
+    // The rail prints `missing` against the current step and nothing else, so
+    // an empty string here is a step that asks for something and does not say
+    // what.
+    const step = flowOf(allButMoney).current!;
+    expect(step.missing.trim().length).toBeGreaterThan(0);
+    expect(step.question).toMatch(/money/i);
+  });
+
+  it("does not hold up the four steps that are actually golf", () => {
+    /**
+     * The control. Without it, a change that made the money step block its
+     * predecessors — or that reordered it to the front — would pass every
+     * assertion above while stopping an organizer entering a field until they
+     * had answered a question about entry fees.
+     */
+    const flow = flowOf(allButMoney);
+    for (const href of ["/event", "/stages", "/registration", "/grouping"]) {
+      expect(flow.steps.find((s) => s.href === href)!.done, href).toBe(true);
+    }
   });
 });
 
@@ -71,7 +133,12 @@ describe("what counts as done", () => {
 
     const drawn = flowOf({ named: true, dated: true, stages: 1, confirmed: 4, groups: 1, matches: 6 });
     expect(drawn.steps[3].done).toBe(true);
-    expect(drawn.complete).toBe(true);
+    // NOT complete: the money step is still outstanding. Said here rather than
+    // quietly dropped, because "the draw is finished" and "setup is finished"
+    // stopped being the same sentence the moment a fifth step was added.
+    expect(drawn.complete).toBe(false);
+    const andPaid = { named: true, dated: true, stages: 1, confirmed: 4, groups: 1, matches: 6, moneyAnswered: true };
+    expect(flowOf(andPaid).complete).toBe(true);
   });
 
   it("counts what is finished rather than how far along you are", () => {
@@ -97,7 +164,7 @@ describe("where the guide points", () => {
   });
 
   it("has no current step once everything is done", () => {
-    const done = flowOf({ named: true, venued: true, stages: 1, confirmed: 2, groups: 1, matches: 1 });
+    const done = flowOf({ named: true, venued: true, stages: 1, confirmed: 2, groups: 1, matches: 1, moneyAnswered: true });
     expect(done.complete).toBe(true);
     expect(done.current).toBeNull();
   });
@@ -105,7 +172,7 @@ describe("where the guide points", () => {
   it("marks exactly one step as current", () => {
     const states = flowOf({ named: true, dated: true }).steps.map((s) => s.state);
     expect(states.filter((s) => s === "current")).toHaveLength(1);
-    expect(states).toEqual(["done", "current", "todo", "todo"]);
+    expect(states).toEqual(["done", "current", "todo", "todo", "todo"]);
   });
 });
 
@@ -116,12 +183,14 @@ describe("moving between steps", () => {
     expect(positionOf(flow, "/event").next?.href).toBe("/stages");
     expect(positionOf(flow, "/registration").back?.href).toBe("/stages");
     expect(positionOf(flow, "/registration").next?.href).toBe("/grouping");
-    expect(positionOf(flow, "/grouping").next).toBeNull();
+    expect(positionOf(flow, "/grouping").next?.href).toBe("/prizes");
+    expect(positionOf(flow, "/prizes").back?.href).toBe("/grouping");
+    expect(positionOf(flow, "/prizes").next).toBeNull();
   });
 
   it("says nothing about a screen that is not part of setup", () => {
-    // The rail renders on four screens; asked about a fifth it must decline
-    // rather than guess an index.
+    // The rail renders on the setup screens; asked about any other one it
+    // must decline rather than guess an index.
     const at = positionOf(flowOf(), "/leaderboard");
     expect(at.step).toBeNull();
     expect(at.back).toBeNull();
@@ -152,7 +221,7 @@ describe("moving between steps", () => {
 });
 
 describe("the hand-off from setting up to running", () => {
-  const finished = { named: true, venued: true, stages: 1, confirmed: 2, groups: 1, matches: 1 };
+  const finished = { named: true, venued: true, stages: 1, confirmed: 2, groups: 1, matches: 1, moneyAnswered: true };
 
   it("says setup is done while the field still cannot see any of it", () => {
     /**
@@ -210,6 +279,10 @@ describe("a tournament that draws no pairings", () => {
     // The whole point: none, and none are coming.
     matches: 0,
     drawsPairings: false,
+    // Answered, because this block is about the FIXTURES half of the flights
+    // step. Leaving the money outstanding would have every assertion in it
+    // pass or fail for a reason the block is not about.
+    moneyAnswered: true,
     launched: false,
   };
 
@@ -218,7 +291,7 @@ describe("a tournament that draws no pairings", () => {
     const grouping = flow.steps.find((s) => s.href === "/grouping")!;
     expect(grouping.done, "flights are all this tournament has to divide").toBe(true);
     expect(flow.complete).toBe(true);
-    expect(flow.doneCount).toBe(4);
+    expect(flow.doneCount).toBe(5);
   });
 
   it("and is then told the field still cannot see it", () => {

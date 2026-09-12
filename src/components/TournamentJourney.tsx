@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Icon } from "./Icon";
 import { screenName } from "@/lib/nav";
+import { SETUP_ORDER } from "@/lib/domain/setup-flow";
 
 /**
  * THE WHOLE OF RUNNING A TOURNAMENT, ON ONE CARD.
@@ -52,8 +53,18 @@ export function TournamentJourney({ setup, launched, scored, hasBracket }: Tourn
       key: "setup",
       title: "Set up",
       icon: "sliders",
-      blurb: "The name and venue, the rounds, the field, and how it divides.",
-      screens: ["/event", "/stages", "/registration", "/grouping"],
+      blurb: "The name and venue, the rounds, the field, how it divides, and what it costs.",
+      /**
+       * `SETUP_ORDER`, not a hand-written copy of it.
+       *
+       * It was a literal four-element array, and the test below this file had
+       * to read it out of the source as prose to check it agreed with the
+       * rail. That is the third-list problem this whole order exists to fix,
+       * one layer down: adding the money step to the guide would have left
+       * this card silently describing four steps while the rail walked five,
+       * with a count under it reading "0 of 5".
+       */
+      screens: [...SETUP_ORDER],
     },
     {
       key: "launch",
@@ -74,6 +85,10 @@ export function TournamentJourney({ setup, launched, scored, hasBracket }: Tourn
       title: "Finish",
       icon: "trophy",
       blurb: "Settle the money, then send everyone the result.",
+      /* Prizes & payouts appears here AND in Set up, deliberately: the mode is
+         decided before anybody is asked for money and the pots are settled
+         after they have played. Two visits to one screen, which is what a
+         card about phases should say rather than hide. */
       screens: ["/prizes", "/reports"],
     },
   ];
