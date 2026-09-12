@@ -166,7 +166,7 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
 
       <div style={{ marginBottom: 18 }}>
         <div className="page-kicker">League</div>
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>
+        <h1 className="page-title">
           {view.label}
           {view.date && (
             // The night a member recognises. "Week 4" is the app's word for it;

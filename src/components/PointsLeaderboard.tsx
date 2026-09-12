@@ -15,7 +15,7 @@ export function SkinsLeaderboard({ board, net }: { board: SkinsBoard; net: boole
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Overview</div>
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h1>
+        <h1 className="page-title">Live leaderboard</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Skins · {net ? "net, off stroke index" : "gross"} · a hole must be won outright.
         </p>
@@ -102,7 +102,7 @@ export function NassauLeaderboard({ rows }: { rows: NassauMatchRow[] }) {
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Overview</div>
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h1>
+        <h1 className="page-title">Live leaderboard</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Nassau · three bets on one card: front nine, back nine, and the full eighteen.
         </p>
@@ -162,7 +162,7 @@ export function ModifiedStablefordLeaderboard({ rows }: { rows: ModStablefordRow
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Overview</div>
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h1>
+        <h1 className="page-title">Live leaderboard</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Modified Stableford · highest points wins. Eagle 5, birdie 2, par 0, bogey −1, worse −3.
         </p>

@@ -135,7 +135,7 @@ export default async function EventPage({
       <SetupFlowRail flow={flow} href="/event" />
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Tournament details</h1>
+        <h1 className="page-title">Tournament details</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Manage your tournaments, or configure the one you're running.
         </p>

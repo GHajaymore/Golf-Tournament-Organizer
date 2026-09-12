@@ -22,7 +22,7 @@ export function TeamLeaderboard({
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Overview</div>
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h1>
+        <h1 className="page-title">Live leaderboard</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           {format} · {rows.length} {rows.length === 1 ? "side" : "sides"}
           {stableford ? " · Stableford points (higher is better)." : " · lowest net wins."}

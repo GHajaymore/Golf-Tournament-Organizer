@@ -62,7 +62,7 @@ export default async function GroupingPage() {
       <SetupFlowRail flow={flow} href="/grouping" />
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Set up</div>
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Flights</h1>
+        <h1 className="page-title">Flights</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Divide the field into flights. Pick a formation rule, preview the result, then generate.
         </p>

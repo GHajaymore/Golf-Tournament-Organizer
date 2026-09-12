@@ -881,7 +881,7 @@ export function ScoreEntryClient({
       {!hideHeader && (
         <div style={{ marginBottom: 20 }}>
           <div className="page-kicker">Manage</div>
-          <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Score entry</h1>
+          <h1 className="page-title">Score entry</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             Tap each hole: home wins, halved, or away wins. Standings update live.
           </p>

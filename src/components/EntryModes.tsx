@@ -181,7 +181,7 @@ export function EntryModes({
               screen "Score entry" on every shape, and a heading that said
               something else would be the one-name rule broken on the page
               that has it open — see `screenName`. */}
-          <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Score entry</h1>
+          <h1 className="page-title">Score entry</h1>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {rounds.length > 1 && (
               <select

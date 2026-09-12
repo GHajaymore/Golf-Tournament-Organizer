@@ -171,7 +171,7 @@ export default async function LeaderboardPage() {
       >
         <div>
           <div className="page-kicker">Overview</div>
-          <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Live leaderboard</h1>
+          <h1 className="page-title">Live leaderboard</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {boardIntro(boardCopy)}
           </p>

@@ -23,7 +23,7 @@ export function PageHeader({
     >
       <div>
         <div className="page-kicker">{kicker}</div>
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>{title}</h1>
+        <h1 className="page-title">{title}</h1>
         {subtitle && (
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {subtitle}

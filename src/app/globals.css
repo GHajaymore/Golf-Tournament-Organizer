@@ -242,8 +242,26 @@ body {
   color: var(--color-accent-400);
   margin: 0 0 2px;
 }
+/* The title of a console screen.
+ *
+ * This class used to set `letter-spacing: -0.024em` and nothing else — which
+ * is EXACTLY what the `h1` rule in design-system.css already sets, so it was a
+ * no-op, and the five screens using it got the plain `h1`: 28px with the
+ * default bottom margin.
+ *
+ * Meanwhile twenty-four screens wrote `style={{ fontSize: 27, margin: "5px 0
+ * 0" }}` by hand, and so does `PageHeader` — the component the rest of the
+ * console goes through. So a page title was 27px or 28px, with a top margin or
+ * a bottom one, depending which screen you were on. The size is a pixel nobody
+ * would notice; the margins are not.
+ *
+ * The majority treatment wins, and it is the one `PageHeader` already uses.
+ * Letter-spacing is not repeated here: the `h1` rule sets the same value, and
+ * every use of this class is on an h1.
+ */
 .page-title {
-  letter-spacing: -0.024em;
+  font-size: 27px;
+  margin: 5px 0 0;
 }
 
 .stat-grid {
