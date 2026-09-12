@@ -707,7 +707,11 @@ describe("a round code obeys the tournament's score-entry setting", () => {
       const body = actions("play.ts").find((a) => a.name === fn)!.body;
       const gate = body.indexOf("canEnterScores(");
       expect(gate, fn).toBeGreaterThan(-1);
-      for (const write of ["match.update", "auditLog.create"]) {
+      // `logAudit(` rather than `auditLog.create`: the write moved behind one
+      // shared helper on 2026-09-12. The ORDER is what this guard is about —
+      // nothing may be written before the permission check — and that is
+      // unchanged by which function does the writing.
+      for (const write of ["match.update", "logAudit("]) {
         expect(body.indexOf(write), `${fn} / ${write}`).toBeGreaterThan(gate);
       }
     }
@@ -901,8 +905,12 @@ describe("an accepted result is only undone by someone entitled to undo it", () 
     // match-play counterpart has written a row since it existed, and the
     // scorecard family wrote none. A result that vanishes with nothing naming
     // who removed it is one a committee cannot defend.
-    expect(fn("clearMatch")).toMatch(/logAudit\(eventId, matchId, "match\.clear"/);
-    expect(fn("disputeScorecard")).toMatch(/logAudit\(eventId, null, "card\.dispute"/);
+    // `matchId` moved into an options object when the six audit writers became
+    // one on 2026-09-12, and a row about a whole round no longer passes an
+    // explicit `null` for it. The assertion is still that these two NAME
+    // themselves in the log, which is the part a committee needs.
+    expect(fn("clearMatch")).toMatch(/logAudit\(eventId, "match\.clear"/);
+    expect(fn("disputeScorecard")).toMatch(/logAudit\(eventId, "card\.dispute"/);
   });
 });
 
@@ -2491,4 +2499,72 @@ describe("an audit fixture can always be collected by its mark", () => {
       ).toBe(true);
     });
   }
+});
+
+describe("the audit log has one writer, and locking has one guard", () => {
+  /**
+   * BOTH WERE COPIED INSTEAD OF SHARED, and the copies had already drifted.
+   *
+   * `assertUnlocked` was in three action files, byte-identical except the last
+   * clause of its message. The audit write was in six: four `logMoney` copies
+   * (three identical, one with a different signature), a `logAudit` in
+   * `tournament.ts`, and two files writing `prisma.auditLog.create` inline.
+   *
+   * The audit log is the RECORD. This app calculates money and never moves it,
+   * so the record is the whole of what it promises — and six ways of writing it
+   * is six ways for one of them to stop.
+   *
+   * Both live in `services/`, not in `actions/`, for the reason
+   * `audit-idor.test.ts` already gives: a "use server" file cannot export a
+   * helper without publishing it as an HTTP endpoint.
+   */
+  const sourceFilesUnder = (dir: string): string[] => {
+    const out: string[] = [];
+    const walk = (d: string) => {
+      for (const entry of readdirSync(join(process.cwd(), d), { withFileTypes: true })) {
+        const rel = join(d, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === "__tests__") continue;
+          walk(rel);
+        } else if (/\.tsx?$/.test(entry.name)) out.push(rel);
+      }
+    };
+    walk(dir);
+    return out;
+  };
+
+  it("is written in exactly one place", () => {
+    const offenders = sourceFilesUnder("src").filter(
+      (f) =>
+        !f.endsWith(join("services", "action-shared.ts")) &&
+        /prisma\.auditLog\.create/.test(readSource(f)),
+    );
+    expect(
+      offenders,
+      `use logAudit() instead of writing the audit log directly: ${offenders.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("refuses a locked tournament in exactly one place", () => {
+    const offenders = sourceFilesUnder("src").filter(
+      (f) =>
+        !f.endsWith(join("services", "action-shared.ts")) &&
+        /(async )?function assertUnlocked/.test(readSource(f)),
+    );
+    expect(
+      offenders,
+      `import assertUnlocked instead of redefining it: ${offenders.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("still says which tournament and who", () => {
+    /**
+     * The presence half. A writer that quietly stopped recording the actor —
+     * or the event — would pass both sweeps above, because they only count
+     * copies.
+     */
+    const shared = readSource(join("src", "lib", "services", "action-shared.ts"));
+    expect(shared).toMatch(/actor = opts\.actor \|\| \(await getSession\(\)\)\?\.name \|\| "system"/);
+    expect(shared).toMatch(/data: \{ eventId, matchId: opts\.matchId \?\? null, actor, action, detail \}/);
+  });
 });

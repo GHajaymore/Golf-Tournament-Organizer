@@ -14,6 +14,7 @@ import { money as fmtMoney } from "@/lib/domain/money-format";
 import { currencyForEvent } from "@/lib/services/organization";
 import { moneyFor } from "@/lib/services/expenses";
 import { moneyRulesVersion } from "@/lib/domain/money-rules-version";
+import { logAudit } from "@/lib/services/action-shared";
 
 /**
  * Shared-expense actions.
@@ -100,12 +101,6 @@ async function callerPlayer(eventId: string, email: string) {
   });
 }
 
-async function logMoney(eventId: string, action: string, detail: string) {
-  const session = await getSession();
-  await prisma.auditLog.create({
-    data: { eventId, matchId: null, actor: session?.name ?? "system", action, detail },
-  });
-}
 
 /**
  * An amount, in the CLUB'S currency.
@@ -390,7 +385,7 @@ export async function addExpense(input: ExpenseInput): Promise<ExpenseResult> {
     },
   });
 
-  await logMoney(
+  await logAudit(
     eventId,
     "expense.add",
     `${clean.data.description} ${money(clean.data.amountCents, clean.currency)} paid by ${clean.data.paidBy}, split ${clean.shares.length} ways`,
@@ -446,7 +441,7 @@ export async function updateExpense(expenseId: string, input: ExpenseInput): Pro
     }),
   ]);
 
-  await logMoney(
+  await logAudit(
     eventId,
     "expense.update",
     `${existing.description} ${money(existing.amountCents, clean.currency)} → ${clean.data.description} ${money(clean.data.amountCents, clean.currency)}`,
@@ -471,7 +466,7 @@ export async function removeExpense(expenseId: string): Promise<ExpenseResult> {
   // Shares cascade with the expense.
   const currency = await currencyForEvent(eventId);
   await prisma.expense.delete({ where: { id: expenseId } });
-  await logMoney(
+  await logAudit(
     eventId,
     "expense.remove",
     `Removed ${existing.description} ${money(existing.amountCents, currency)}`,
@@ -568,7 +563,7 @@ export async function recordSettlement(
     },
   });
 
-  await logMoney(
+  await logAudit(
     eventId,
     "expense.settle",
     `${nameOf(fromPlayerId)} → ${nameOf(toPlayerId)} ${money(amount, currency)}`,
@@ -616,7 +611,7 @@ export async function removeSettlement(settlementId: string): Promise<ExpenseRes
 
   const currency = await currencyForEvent(eventId);
   await prisma.settlement.delete({ where: { id: settlementId } });
-  await logMoney(
+  await logAudit(
     eventId,
     "expense.settle.undo",
     `Removed settlement ${money(existing.cents, currency)} (${existing.fromPlayerId} → ${existing.toPlayerId})`,

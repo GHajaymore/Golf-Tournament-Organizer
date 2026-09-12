@@ -8,6 +8,7 @@ import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { requirePotAccess } from "@/lib/services/game-access";
 import { potAudience } from "@/lib/domain/pot-audience";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
+import { logAudit } from "@/lib/services/action-shared";
 
 /**
  * The side bets the cards settle: low gross, low net, birdies, eagles, Nassau.
@@ -99,12 +100,6 @@ async function requireGameAccess(sideGameId: string): Promise<GameAccess> {
   };
 }
 
-async function logMoney(eventId: string, action: string, detail: string) {
-  const session = await getSession();
-  await prisma.auditLog.create({
-    data: { eventId, matchId: null, actor: session?.name ?? "system", action, detail },
-  });
-}
 
 const money = (cents: number) => `${(cents / 100).toFixed(2)}`;
 
@@ -194,7 +189,7 @@ export async function saveSideGame(
     create: { eventId, stageId, kind, groupKey, buyInCents: cents, stakeNote: note, createdBy: name },
   });
 
-  await logMoney(
+  await logAudit(
     eventId,
     "sidegame.save",
     // The audit line says what was actually agreed. "at £0.00" for a game
@@ -314,7 +309,7 @@ export async function setSideGameEntrants(
     }),
   ]);
 
-  await logMoney(eventId, "sidegame.entrants", `${game.kind}: ${rows.length} in`);
+  await logAudit(eventId, "sidegame.entrants", `${game.kind}: ${rows.length} in`);
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -377,7 +372,7 @@ export async function requestSideGameEntry(
     if (join) {
       if (existing?.excluded) {
         await prisma.sideGameEntry.delete({ where: { id: existing.id } });
-        await logMoney(session.eventId, "sidegame.request", `${me.name} opted back into ${game.kind}`);
+        await logAudit(session.eventId, "sidegame.request", `${me.name} opted back into ${game.kind}`);
       }
       revalidatePath("/", "layout");
       return { ok: true };
@@ -390,7 +385,7 @@ export async function requestSideGameEntry(
       update: { excluded: true, confirmed: false },
       create: { sideGameId, playerId: me.id, excluded: true, confirmed: false },
     });
-    await logMoney(session.eventId, "sidegame.request", `${me.name} opted out of ${game.kind}`);
+    await logAudit(session.eventId, "sidegame.request", `${me.name} opted out of ${game.kind}`);
     revalidatePath("/", "layout");
     return { ok: true };
   }
@@ -408,7 +403,7 @@ export async function requestSideGameEntry(
   await prisma.sideGameEntry.create({
     data: { sideGameId, playerId: me.id, confirmed: false },
   });
-  await logMoney(session.eventId, "sidegame.request", `${me.name} asked to join ${game.kind}`);
+  await logAudit(session.eventId, "sidegame.request", `${me.name} asked to join ${game.kind}`);
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -435,7 +430,7 @@ export async function confirmSideGameEntry(
   if (!entry) return { ok: false, error: "They haven't put their name down." };
 
   await prisma.sideGameEntry.update({ where: { id: entry.id }, data: { confirmed: paid } });
-  await logMoney(eventId, "sidegame.confirm", `${game.kind}: ${paid ? "took" : "un-took"} a stake`);
+  await logAudit(eventId, "sidegame.confirm", `${game.kind}: ${paid ? "took" : "un-took"} a stake`);
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -446,7 +441,7 @@ export async function removeSideGame(sideGameId: string): Promise<SideGameResult
   const { game, eventId } = found;
 
   await prisma.sideGame.delete({ where: { id: game.id } });
-  await logMoney(eventId, "sidegame.remove", `Removed ${game.kind}`);
+  await logAudit(eventId, "sidegame.remove", `Removed ${game.kind}`);
   revalidatePath("/", "layout");
   return { ok: true };
 }

@@ -12,6 +12,7 @@ import { roundLabel } from "@/lib/domain/round-label";
 import { marginToHoles } from "@/lib/domain";
 import { writeScorecard, certifyCard } from "@/lib/services/scorecard-write";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { logAudit } from "@/lib/services/action-shared";
 
 /**
  * Redeeming a Round Code.
@@ -236,15 +237,7 @@ export async function savePlayMatchHoles(
       attestedBy: "[]",
     },
   });
-  await prisma.auditLog.create({
-    data: {
-      eventId: session.eventId,
-      matchId,
-      actor: session.playerName,
-      action: "score",
-      detail: "Entered via round code",
-    },
-  });
+  await logAudit(session.eventId, "score", "Entered via round code", { matchId, actor: session.playerName });
 
   // The standings just moved, so the crowd watching the public board should
   // see it now rather than when its sixty-second backstop expires.
@@ -346,15 +339,7 @@ export async function savePlayMatchResult(
       confirmedById: null,
     },
   });
-  await prisma.auditLog.create({
-    data: {
-      eventId: session.eventId,
-      matchId,
-      actor: session.playerName,
-      action: "score",
-      detail: `Result entered via round code: ${winner === "H" ? "halved" : margin || "1 UP"}`,
-    },
-  });
+  await logAudit(session.eventId, "score", `Result entered via round code: ${winner === "H" ? "halved" : margin || "1 UP"}`, { matchId, actor: session.playerName });
   return { ok: true };
 }
 
@@ -439,15 +424,7 @@ export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimRes
     return { ok: false, error: e instanceof Error ? e.message : "Couldn't save that card." };
   }
 
-  await prisma.auditLog.create({
-    data: {
-      eventId: session.eventId,
-      matchId: null,
-      actor: session.playerName,
-      action: "score",
-      detail: "Card entered via round code",
-    },
-  });
+  await logAudit(session.eventId, "score", "Card entered via round code", { actor: session.playerName });
   boardChanged(session.eventId);
   revalidatePath("/", "layout");
   return { ok: true };
@@ -502,15 +479,7 @@ export async function certifyPlayCard(): Promise<ClaimResult> {
     return { ok: false, error: e instanceof Error ? e.message : "Couldn't certify that card." };
   }
 
-  await prisma.auditLog.create({
-    data: {
-      eventId: session.eventId,
-      matchId: null,
-      actor: session.playerName,
-      action: "card.certify",
-      detail: "Card certified via round code",
-    },
-  });
+  await logAudit(session.eventId, "card.certify", "Card certified via round code", { actor: session.playerName });
   boardChanged(session.eventId);
   revalidatePath("/", "layout");
   return { ok: true };

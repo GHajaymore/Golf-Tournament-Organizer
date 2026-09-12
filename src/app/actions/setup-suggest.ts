@@ -9,6 +9,7 @@ import { PLAYABLE_FORMAT_NAMES } from "@/lib/formats";
 import { STAGE_TYPES } from "@/lib/stage-types";
 import { extractReadingJson } from "@/lib/domain/card-reading";
 import { parseSetupProposal, setupPrompt, type SetupProposal } from "@/lib/domain/setup-proposal";
+import { assertUnlocked } from "@/lib/services/action-shared";
 
 /**
  * Everything on this screen changed — and so did the public board.
@@ -59,15 +60,6 @@ const MAX_DESCRIPTION = 600;
  * has explicitly unlocked it. The same rule and the same words as `addStage`,
  * because this writes the rows `addStage` writes.
  */
-async function assertUnlocked(eventId: string): Promise<void> {
-  const e = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: { status: true, configUnlocked: true },
-  });
-  if (e && (e.status === "live" || e.status === "completed") && !e.configUnlocked) {
-    throw new Error("Configuration is locked. Unlock the tournament to make structural changes.");
-  }
-}
 
 async function requireStaff(): Promise<{ eventId: string; who: string }> {
   const session = await getSession();

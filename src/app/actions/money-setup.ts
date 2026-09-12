@@ -9,6 +9,7 @@ import { isMoneyMode } from "@/lib/domain/money-mode";
 import { isPotEntryMode } from "@/lib/domain/pot-entry";
 import { isValidAmount, MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { isIsoDate } from "@/lib/deadline";
+import { logAudit } from "@/lib/services/action-shared";
 
 /**
  * Choosing how a tournament handles money, and running the kitty.
@@ -42,11 +43,6 @@ function refresh() {
 }
 
 /** Log a money change, the way the expense actions do. */
-async function logMoney(eventId: string, actor: string, action: string, detail: string) {
-  await prisma.auditLog.create({
-    data: { eventId, matchId: null, actor: actor || "system", action, detail },
-  });
-}
 
 /**
  * What THIS tournament does with money.
@@ -62,7 +58,7 @@ export async function setEventMoneyMode(mode: string): Promise<MoneyResult> {
   if (clean !== "" && !isMoneyMode(clean)) return { ok: false, error: "Unknown money setting." };
 
   await prisma.event.update({ where: { id: who.eventId }, data: { moneyMode: clean } });
-  await logMoney(who.eventId, who.name, "money.mode", `${who.name} set this tournament to ${clean || "follow the club"}`);
+  await logAudit(who.eventId, "money.mode", `${who.name} set this tournament to ${clean || "follow the club"}`, { actor: who.name });
   refresh();
   return { ok: true };
 }
@@ -99,7 +95,7 @@ export async function setOrgMoneyMode(mode: string): Promise<MoneyResult> {
   }
 
   await prisma.organization.update({ where: { id: access.organizationId }, data: { moneyMode: clean } });
-  await logMoney(who.eventId, who.name, "money.mode.club", `${who.name} set the club default to ${clean || "follow the kind"}`);
+  await logAudit(who.eventId, "money.mode.club", `${who.name} set the club default to ${clean || "follow the kind"}`, { actor: who.name });
   refresh();
   return { ok: true };
 }
@@ -133,7 +129,7 @@ export async function setPotEntryMode(
     if (r.count === 0) return { ok: false, error: "That side game isn't in this tournament." };
   }
 
-  await logMoney(who.eventId, who.name, "pot.entry-mode", `${who.name} set a pot to ${mode}`);
+  await logAudit(who.eventId, "pot.entry-mode", `${who.name} set a pot to ${mode}`, { actor: who.name });
   refresh();
   return { ok: true };
 }
@@ -194,11 +190,11 @@ export async function setPotExcluded(
     }
   }
 
-  await logMoney(
+  await logAudit(
     who.eventId,
-    who.name,
     "pot.excluded",
     `${who.name} ${excluded ? "took" : "put"} ${player.name} ${excluded ? "out of" : "back in"} a pot`,
+    { actor: who.name },
   );
   refresh();
   return { ok: true };
@@ -265,11 +261,11 @@ export async function addFundLine(input: FundInput): Promise<MoneyResult> {
       createdBy: who.name,
     },
   });
-  await logMoney(
+  await logAudit(
     who.eventId,
-    who.name,
     "fund.add",
     `${who.name} recorded ${direction === "in" ? "money in" : "money out"}: ${description}`,
+    { actor: who.name },
   );
   refresh();
   return { ok: true };
@@ -282,7 +278,7 @@ export async function removeFundLine(lineId: string): Promise<MoneyResult> {
   const r = await prisma.tournamentFund.deleteMany({ where: { id: lineId, eventId: who.eventId } });
   if (r.count === 0) return { ok: false, error: "That line isn't in this tournament." };
 
-  await logMoney(who.eventId, who.name, "fund.remove", `${who.name} removed a kitty line`);
+  await logAudit(who.eventId, "fund.remove", `${who.name} removed a kitty line`, { actor: who.name });
   refresh();
   return { ok: true };
 }
