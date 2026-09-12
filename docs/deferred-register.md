@@ -192,6 +192,41 @@ What is now true, so nobody has to re-derive it:
   `/choose`. Adding a screen to it means making that screen work without an event
   first; `nav-without-a-tournament.test.ts` holds both directions.
 
+### The club's house DEFAULTS could follow its kind, and don't
+Asked for on 2026-09-11: *"make the app more PGA driven but room for
+customizations like we have now… Club can be more PGA related but
+Communities/societies can have custom configurations. We can provide the custom
+options to club as well."*
+
+**Half of it is done.** `startFromGroups` now orders the starting points by the
+kind of outfit — a club leads with the forms the Rules of Golf name, a society
+with the social ones — and it ORDERS rather than filters, so nothing is hidden
+from anybody. That is the "room for customization" half, and it is the half
+that needed no schema change.
+
+**The half not done is the SETTINGS.** `Organization` already carries seven
+house defaults (`defaultLeaderboardVisibility`, `defaultScoreEntryBy`,
+`defaultScoreEntryWindow`, `defaultVoiceEntry`, `defaultPlayerAccess`,
+`defaultScoreApproval`, `defaultMaxPerMatch`) and every one of them is a column
+default today, identical for a championship club and four friends. The
+PGA-standard answers for a club — committee scoring, staff approval,
+attestation by marker, one set of tees — and the flexible ones for a society —
+players score themselves, the board moves live, own tees — are genuinely
+different, and the app already knows which outfit it is talking to at sign-up.
+
+Not built, deliberately, and the reason is worth keeping: seeding those columns
+from `kind` at sign-up is a one-line change that silently decides seven things
+for somebody, and getting it wrong is worse than the flat default because they
+will not know it happened. It wants:
+
+- the two sets written down and **checked against what a club actually does**,
+  the way the course-card guards had to be judged against the real catalogue;
+- a screen that shows what was chosen and why, so the first tournament does not
+  arrive with settings nobody picked;
+- and a decision on **existing organizations**, which all carry the flat
+  defaults — almost certainly leave them alone, the same call `eventCount > 0`
+  makes for the club-first gate.
+
 ### "Society" is a British word, and the app says it worldwide
 Asked for on 2026-09-11: should the wording follow the user's country?
 
