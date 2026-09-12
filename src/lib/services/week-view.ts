@@ -224,7 +224,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    * Seen on the Demo Cup on 2026-09-12: week 2 is a Stroke Play Round with
    * seven cards returned, and the strip wore the "no scores yet" dot.
    */
-  const played = roundIsStroke(stage.type)
+  const played = roundIsStroke(stage.type, stage.format)
     ? cards.some((c) => c.stageId === stage.id)
     : state.matches.some((m) => m.stageId === stage.id && matchSettled(m));
 
@@ -340,7 +340,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
       // is scored: one value for every week in it. A league with a medal week
       // among its match nights wore the "no scores yet" dot on that week for
       // ever, because it went looking for matches on it.
-      played: roundIsStroke(s.type)
+      played: roundIsStroke(s.type, s.format)
         ? cards.some((c) => c.stageId === s.id)
         : state.matches.some((m) => m.stageId === s.id && matchSettled(m)),
     })),

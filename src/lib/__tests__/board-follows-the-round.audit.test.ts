@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { loadEventState } from "@/lib/services/tournament";
+import { loadEventState, standingRows } from "@/lib/services/tournament";
 import { readSource } from "./source";
 
 /**
@@ -34,6 +34,7 @@ let strokeInMatch = "";
 let matchInStroke = "";
 let matchInMatch = "";
 let strokeInStroke = "";
+let legacyMedal = "";
 let noRounds = "";
 
 async function scrub() {
@@ -41,8 +42,21 @@ async function scrub() {
   await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
 }
 
-/** An event of `eventFormat` holding one round of `stageType`, or none. */
-async function tournament(name: string, eventFormat: string, stageType?: string, stageFormat?: string) {
+/**
+ * An event of `eventFormat` holding one round of `stageType`, or none.
+ *
+ * `grosses` seeds a player per score and a full eighteen-hole card for each,
+ * which is what it takes to assert that a board prints a NUMBER rather than
+ * only that it thinks it should. Pass none and the event has no field, which
+ * is all the `boardIsStroke` cells below need.
+ */
+async function tournament(
+  name: string,
+  eventFormat: string,
+  stageType?: string,
+  stageFormat?: string,
+  grosses: number[] = [],
+) {
   const org = await prisma.organization.create({
     data: { name: `${TAG} ${name} club`, kind: "club" },
     select: { id: true },
@@ -62,8 +76,9 @@ async function tournament(name: string, eventFormat: string, stageType?: string,
     },
     select: { id: true },
   });
+  let stageId = "";
   if (stageType) {
-    await prisma.stage.create({
+    const stage = await prisma.stage.create({
       data: {
         eventId: event.id,
         position: 1,
@@ -72,6 +87,28 @@ async function tournament(name: string, eventFormat: string, stageType?: string,
         scoringBasis: "gross",
         holes: 18,
       },
+      select: { id: true },
+    });
+    stageId = stage.id;
+  }
+  for (const [i, gross] of grosses.entries()) {
+    const player = await prisma.player.create({
+      data: {
+        eventId: event.id,
+        name: `${TAG} P${i + 1}`,
+        email: `${TAG}-${name}-${i}@example.invalid`.toLowerCase(),
+        seed: i + 1,
+        status: "confirmed",
+        handicap: 0,
+      },
+      select: { id: true },
+    });
+    if (!stageId) continue;
+    // A whole round, so nothing downstream can call the card part-played. The
+    // last hole carries the remainder, which is what makes the totals differ.
+    const holes = [...new Array(17).fill(4), gross - 68];
+    await prisma.scorecard.create({
+      data: { eventId: event.id, stageId, playerId: player.id, strokes: JSON.stringify(holes) },
     });
   }
   return event.id;
@@ -88,6 +125,9 @@ beforeAll(async () => {
   // The two that already agreed, as controls.
   matchInMatch = await tournament("plain-league", "match", "Round Robin", "Match Play");
   strokeInStroke = await tournament("plain-medal", "stroke", "Stroke Play Round", "Stroke Play");
+  // THE LEGACY MEDAL. A Round Robin set to Stroke Play, with a field and real
+  // cards on it, because this one asserts what the board PRINTS.
+  legacyMedal = await tournament("legacy-medal", "stroke", "Round Robin", "Stroke Play", [72, 75, 79]);
   noRounds = await tournament("nothing-set-up-yet", "stroke");
 });
 
@@ -173,6 +213,60 @@ describe("when they agree, nothing moves", () => {
     const state = await stateOf(noRounds);
     expect(state.boardStage).toBeNull();
     expect(state.boardIsStroke).toBe(state.isStroke);
+  });
+});
+
+describe("a round robin that is really a medal", () => {
+  /**
+   * THE REGRESSION THIS FILE'S OWN FIX SHIPPED, and the reason it is asserted
+   * against printed numbers rather than a boolean.
+   *
+   * `boardIsStroke` was first derived from the stage TYPE alone, on the
+   * reasoning — written into `stage-types.ts` and believed — that the type is
+   * what says whether anybody is playing anybody. It is, and it is not the
+   * whole question. `stage-types.ts` also records that a **Round Robin set to
+   * Stroke Play** was "the only way to run" a medal before `Stroke Play Round`
+   * existed. Those rounds are still in the database.
+   *
+   * So the type says head-to-head, the round is a medal, and the board went
+   * looking for a win-loss-halved record on a player who had shot 72. There
+   * isn't one. It printed an empty cell, on the player board, the console
+   * leaderboard, `/live` and `/me` — every screen a score is read on.
+   *
+   * Live for a day. Caught on 2026-09-12 by MEASURING both directions on a
+   * fixture of this shape rather than reasoning about the types again, which
+   * is the only reason it was caught at all: the boolean looked defensible and
+   * the output did not.
+   */
+  it("prints the scores, rather than a record it has not got", async () => {
+    const state = await stateOf(legacyMedal);
+    expect(state.boardIsStroke, "a medal round presented as match play").toBe(true);
+
+    const rows = standingRows(state).filter((r) => r.ranked);
+    expect(rows.length, "no ranked rows at all").toBe(3);
+
+    // The assertion that a boolean cannot make. What the player SEES is
+    // `gross` when the board is stroke and `record` when it is not, and the
+    // shipped defect left `record` empty with the scores sitting unread.
+    expect(rows.map((r) => r.gross), "the cards were not counted").toEqual([72, 75, 79]);
+    expect(rows.map((r) => r.rank)).toEqual([1, 2, 3]);
+    for (const r of rows) {
+      expect(r.started, `${r.name} had a full card and was called unstarted`).toBe(true);
+      // And the match columns are empty, because there are no matches — which
+      // is exactly what the board was trying to print.
+      expect(r.record, "a medal round handed out a win-loss-halved record").toBe("");
+    }
+  });
+
+  it("still calls a round robin of MATCH play match play", async () => {
+    /**
+     * THE CONTROL, and it is not decoration: the obvious over-correction is to
+     * read the format and forget the type, which turns every real round robin
+     * into a medal and blanks the other board instead. Both halves are needed
+     * — `matrix.test.ts` asserts the same pair on the function itself.
+     */
+    const state = await stateOf(matchInMatch);
+    expect(state.boardIsStroke).toBe(false);
   });
 });
 

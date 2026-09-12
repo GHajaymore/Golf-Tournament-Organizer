@@ -1,3 +1,5 @@
+import { isStrokeScored } from "./formats";
+
 /**
  * The kinds of round a tournament can be made of.
  *
@@ -315,12 +317,10 @@ export function isHeadToHead(type: string): boolean {
 }
 
 /**
- * Whether a round of this type produces STROKES rather than a match result.
+ * Whether a round produces STROKES rather than a match result.
  *
- * The complement of `isHeadToHead`, named because the call sites read better
- * for it and because the rule deserved a name: it is what decides whether a
- * board prints a score or a win-loss-halved record, and whether the column is
- * headed with strokes or "match points".
+ * What decides whether a board prints a score or a win-loss-halved record, and
+ * whether the column is headed with strokes or "match points".
  *
  * IT IS A FACT ABOUT THE ROUND, and that is the whole point. Every board used
  * to ask `event.format` — one value for a whole tournament — while each round
@@ -328,19 +328,31 @@ export function isHeadToHead(type: string): boolean {
  * stroke tried to print strokes for a result that is "3&2". That is the second
  * half of an ordinary club championship, qualifier then bracket.
  *
- * Read off the TYPE rather than the format string, because the type is what
- * says whether anybody is playing anybody. Asking the format would have to
- * know that "Four-Ball" is match play in a bracket and stroke play in a medal
- * — the same trap `template-shapes.test.ts` records against matching on the
- * literal "Match Play".
+ * IT TAKES BOTH THE TYPE AND THE FORMAT, and the first version took only the
+ * type. That was wrong, and it shipped: a **Round Robin set to Stroke Play** is
+ * head-to-head by type and a MEDAL in fact — it is what this file's own header
+ * calls the shape the app had before `Stroke Play Round` existed, "the only way
+ * to run one". Those rounds are still in the database and still scored off
+ * cards, and calling them match play blanked every score on the board. Caught
+ * on 2026-09-12 by measuring the shape rather than reasoning about it, after
+ * three audit fixtures using it went red.
  *
- * An unknown type answers true, inheriting `isHeadToHead`'s safe default: a
- * type nobody has taught the app about must not be handed an opponent, and a
- * board that shows a score for it is a milder wrong than one that invents a
- * record.
+ * So: a round is MATCH-scored only when somebody is drawn against somebody AND
+ * the format is one the match engine scores. Anything else is strokes, which
+ * is the safe direction — a card has a number to show, and a match played
+ * without pairings has nothing.
+ *
+ * Neither half alone is enough, and it is worth saying why each is needed. The
+ * TYPE is what makes a Four-Ball bracket match play and a Four-Ball medal not,
+ * which no format string can tell you. The FORMAT is what makes a Round Robin
+ * set to Stroke Play a medal, which no type can.
  */
-export function roundIsStroke(type: string): boolean {
-  return !isHeadToHead(type);
+export function roundIsStroke(type: string, format?: string): boolean {
+  if (!isHeadToHead(type)) return true;
+  // No format given: the type is the whole answer, which is right for a bare
+  // type check and is what a caller with no stage in hand can ask.
+  if (format === undefined) return false;
+  return isStrokeScored(format);
 }
 
 /** Rounds the field actually plays, in play order. */

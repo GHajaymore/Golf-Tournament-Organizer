@@ -569,6 +569,29 @@ export function isManualFormat(formatName: string): boolean {
   return findFormat(formatName).manual === true;
 }
 
+/**
+ * Whether this format's result is a SCORE off a card, rather than a match.
+ *
+ * The engines that count strokes or points and rank the field on them. Not
+ * `entryModeFor`, which answers a different question and returns "team" for
+ * anything played in pairs — a four-ball medal is still scored off cards.
+ *
+ * WHAT IT IS FOR: `roundIsStroke` reads it to settle a Round Robin set to
+ * Stroke Play, which is head-to-head by TYPE and a medal in fact — the shape
+ * the app had before `Stroke Play Round` existed, and still in the database.
+ * Judging that round by its type alone called it match play and blanked every
+ * score on the board.
+ *
+ * Skins and Nassau are deliberately absent. They are side bets rather than a
+ * ranking, `boardKind` routes them away from the standard board entirely, and
+ * a round whose format is one of them has no finishing order to print either
+ * way.
+ */
+export function isStrokeScored(formatName: string): boolean {
+  const engine = findFormat(formatName).engine;
+  return engine === "stroke" || engine === "stableford" || engine === "modified-stableford";
+}
+
 /** True when this format needs teams to exist before a round can be scheduled. */
 export function needsTeams(formatName: string): boolean {
   return findFormat(formatName).sideSize > 1;
