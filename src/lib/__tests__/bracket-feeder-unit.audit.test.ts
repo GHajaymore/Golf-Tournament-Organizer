@@ -243,6 +243,51 @@ describe("a feeder that has not been played reads unplayed", () => {
     expect(tile(p), "a draw off an unplayed qualifier was badged Set").toBe("hidden");
   });
 
+  it("counts the BOARD's round in the same unit, and says which", async () => {
+    /**
+     * ONE RULE, THREE READERS. `roundProgress` answers "how far along is this
+     * round, in the unit it keeps its results in" — and the bracket's feeders,
+     * the dashboard's "Current round" card, and the cards-in / matches-complete
+     * pair on the dashboard and Reports all asked it separately before. Each
+     * chose the unit from `event.format`; each was wrong in a mixed tournament.
+     *
+     * `unit` is on `boardProgress` so a screen never derives the wording from
+     * the format again: "7/33 scorecards in" and "12/24 matches complete" are
+     * the same fact about two kinds of round, and a ternary over the event's
+     * format is how they came to disagree with the round named beside them.
+     */
+    const medal = (await loadEventState(medalInStroke))!;
+    expect(medal.boardProgress.unit).toBe("cards");
+    // A medal is measured against the FIELD. Counting the cards that happen to
+    // exist would read 100% off one card in.
+    expect(medal.boardProgress.total).toBe(medal.confirmed.length);
+    expect(medal.boardProgress.done).toBe(4);
+    expect(medal.boardProgress.pct).toBe(100);
+
+    const robin = (await loadEventState(robinInStroke))!;
+    expect(robin.boardProgress.unit).toBe("matches");
+    /**
+     * THE DISCRIMINATOR, and it is the same four players. A round robin is
+     * measured against its own DRAW — two fixtures — not against the entry
+     * list, because a flight of four plays fewer matches than it has members
+     * here and more than it has in a full round robin. A rule that counted the
+     * field for both would read 2/4 with the round finished.
+     */
+    expect(robin.confirmed.length).toBe(4);
+    expect(robin.boardProgress.total).toBe(2);
+    expect(robin.boardProgress.done).toBe(2);
+    expect(robin.boardProgress.pct).toBe(100);
+  });
+
+  it("says nothing rather than dividing by nothing", async () => {
+    // A straight knockout has no board round with results and no fixtures to
+    // count. `pct` must be 0 rather than NaN — a stat card prints whatever it
+    // is handed.
+    const p = (await loadEventState(straightKnockout))!.boardProgress;
+    expect(Number.isFinite(p.pct)).toBe(true);
+    expect(p.pct).toBe(0);
+  });
+
   it("still shows a straight knockout from the first day", async () => {
     /**
      * And the case `null` is FOR. Nothing feeds this bracket — the draw is the
