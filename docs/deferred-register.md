@@ -121,10 +121,16 @@ moment somebody changes one dropdown, and neither the action nor the screen
 mentions it. Read off `src/app/actions/settings.ts` on 2026-09-11.
 
 Not data loss — entries and scores are intact — but it is a silent dead end
-reachable in one click. The fix is probably a refusal, or a warning naming how
-many entrants have no address, in the same shape as the existing "this is the
-only Organizer on this event" refusal. Not built, because the right answer
-depends on whether a club should be *stopped* or merely *told*.
+reachable in one click. The answer settled on is a REFUSAL, in the same shape as
+the existing "this is the only Organizer on this event" — the organizer cannot
+see who this would strand, the damage lands on other people, and the remedy is
+cheap and obvious once named.
+
+`src/lib/domain/access-lockout.ts` is that rule, written and **wired to nothing**
+as of 2026-09-11. It is narrow on purpose: it fires only when codes are actually
+being switched off AND somebody would be stranded, so a tournament whose entrants
+all have addresses switches freely, which is the ordinary case. What is left is
+calling it from `saveTournamentSettings` and saying so on the screen.
 
 ### Duplicate rows created before de-duplication was fixed are not cleaned up
 The entry CSV importer de-duplicated on email alone and, for address-less rows,
@@ -161,6 +167,30 @@ organization kind today — "Club", "Society", "Outing" — from
 complaint the console had in eight places. The setup FLOW is identical for all
 three; only the word differs. Worth deciding whether one fixed name is wanted
 instead, and what it should be, before more screens grow the per-kind wording.
+
+### The tournament step is a gate now, and only the first one
+Recorded because it REVERSES a rule this repo argued for at length. `org-setup.ts`
+said "a checklist, not a gate", on the sound grounds that organizers do not work
+in order and a hard gate invites a placeholder member to unlock the next step.
+
+Asked for on 2026-09-11 — *"how come create your first tournament is complete and
+enabled when club settings are not complete?"* — and the reasoning that changed it
+is that the club and the tournament are not peers on one list: a club is set up
+once and its tournaments are many.
+
+What is now true, so nobody has to re-derive it:
+
+- The gate is `blockedByClubSetup`, and `eventCount > 0` turns it off for ever.
+  It can never fire twice for anybody and never touches an existing club.
+- It waits on `required` steps only — the name and the members. **The course card
+  and the money setting are deliberately NOT prerequisites**, and leaving money
+  out is also what keeps a standalone organizer free without a `kind === "personal"`
+  special case. Making either one required would break that escape.
+- `/roster` works without a tournament now, which is what made members askable at
+  all. `/event` still does not and never will: it IS a tournament's own screen.
+- The eventless sidebar is CLOSED to the club's own screens plus a link back to
+  `/choose`. Adding a screen to it means making that screen work without an event
+  first; `nav-without-a-tournament.test.ts` holds both directions.
 
 ### "Society" is a British word, and the app says it worldwide
 Asked for on 2026-09-11: should the wording follow the user's country?
