@@ -6,6 +6,7 @@ import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
 import { CoursePicker } from "@/components/CoursePicker";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
+import { TournamentJourney } from "./TournamentJourney";
 
 interface EventForm {
   name: string;
@@ -64,6 +65,9 @@ export function EventSetupClient({
   courses,
   isMatch = false,
   hasBracket = true,
+  setup = null,
+  launched = false,
+  scored = false,
 }: {
   initial: EventForm;
   playersCount: number;
@@ -89,6 +93,10 @@ export function EventSetupClient({
    * before, so this cannot quietly remove the step from a real knockout.
    */
   hasBracket?: boolean;
+  /** Progress through setting up, for the journey card. Null for a match. */
+  setup?: { doneCount: number; total: number; complete: boolean } | null;
+  launched?: boolean;
+  scored?: boolean;
 }) {
   const [f, setF] = useState<EventForm>(initial);
   const [manualTarget, setManualTarget] = useState(initial.manualPlayerCount);
@@ -639,57 +647,12 @@ export function EventSetupClient({
           ))}
         </div>
         {!isMatch && (
-        <div className="card elev-sm">
-          <span className="card-title" style={{ fontSize: 15 }}>Recommended flow</span>
-          {/* Every name here is a screen, so every name has to be the one in
-              the sidebar. "Rounds & format" is called Rounds & formats;
-              "Prizes & Reports" is two screens, Prizes & payouts and Reports &
-              export; and "(Match Points, Qualification)" ran a SETTING on
-              Rounds & formats together with the Qualification SCREEN, in one
-              parenthesis. A guide that half-remembers the names sends people
-              hunting for a screen that is not in the list. */}
-          {/* THE SAME ORDER AS THE RAIL AT THE TOP OF THIS PAGE.
-
-              It ran "Registration & field → Flights" and then "Rounds &
-              formats", directly underneath a rail reading details → rounds →
-              field → flights. Two orders, one screen, for the same four
-              screens — and the dashboard the organizer had just come from
-              stated a third. `SETUP_ORDER` is the one answer now, and a test
-              asserts this list and the checklist both follow it.
-
-              The steps AFTER setup are this card's own and stay: the rail
-              stops at flights because launching is not setting up. */}
-          <ol style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.9, color: "var(--color-text)" }}>
-            <li>Tournament details — the name, and where or when</li>
-            <li>Rounds &amp; formats — the rounds, and how each is scored</li>
-            <li>Registration &amp; field → Flights</li>
-            <li>Launch → setup locks</li>
-            <li>Tee sheet → Score entry</li>
-            {/* One step, not two. Qualification was a screen of its own and is
-                now the audit under the draw it seeds — so naming both here
-                would send somebody looking for a sidebar entry that is not
-                there, which is the exact fault this list has already had
-                twice. */}
-            {/* AND ONLY WHERE THERE IS A BRACKET, which is the third finding of
-                that same fault rather than the fourth avoidance of it.
-
-                The sidebar hides `/bracket` unless the tournament has a
-                knockout round in it — without that gate "every tournament
-                carried a permanent door to an empty screen" — and `/reports`
-                had the identical door closed on 2026-09-10, where it offered
-                "Bracket sheet · Open the bracket, then print to PDF" on a
-                one-round charity day. This list was the reader nobody had
-                told, so a society league and a club medal were each walked to
-                a bracket they will never have.
-
-                Read off a round-robin league on 2026-09-11: no Bracket entry
-                in the sidebar, this card still listing it, and `/bracket`
-                itself rendering a manager that reads "Champion TBD" for a
-                tournament which ends at its last round. */}
-            {hasBracket && <li>Bracket — who qualified, and who plays whom</li>}
-            <li>Prizes &amp; payouts → Reports &amp; export</li>
-          </ol>
-        </div>
+        <TournamentJourney
+          setup={setup}
+          launched={launched}
+          scored={scored}
+          hasBracket={hasBracket}
+        />
         )}
       </div>
     </div>

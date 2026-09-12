@@ -1,5 +1,9 @@
 import { canAccessScreen, type Role } from "./roles";
 import { orgProfile, type OrgKind } from "@/lib/domain/org-profile";
+// The one href this file does not own. `/choose?stay=1` is the setup
+// checklist's tournament step, and the sidebar's way out of an eventless
+// session is the same door — a literal here would be a second copy of it.
+import { SETUP_HREF } from "@/lib/domain/org-setup";
 import { canSeeLeaderboard, canEnterScores, type TournamentSettings } from "./tournament-settings";
 
 /**
@@ -352,11 +356,60 @@ export function navForRole(
      * because of who is running it.
      */
     orgKind?: OrgKind;
+    /**
+     * This person runs a club and has no tournament open — see `allowed`.
+     *
+     * Named for the whole condition rather than "isOrgAdmin", because it is
+     * the PAIR that matters: with a tournament open the ordinary role check is
+     * the right one and must keep applying.
+     */
+    orgAdminWithoutEvent?: boolean;
   } = {},
 ): NavSection[] {
   const TOURNAMENT_ONLY = TOURNAMENT_ONLY_SCREENS;
 
   const allowed = (key: string): boolean => {
+    /**
+     * THE CLUB'S OWN SCREEN, FOR A CLUB WITH NO TOURNAMENT YET.
+     *
+     * `viewRole` is derived from EVENT access — `getSession` returns "player"
+     * when `accessibleEvents` is empty — so the secretary who has just created
+     * a society and not yet a tournament is typed as a player, and the whole
+     * Club section vanishes from their sidebar. They could reach Club settings
+     * by typing the URL and not by any link on the screen.
+     *
+     * `organization` and `roster` are opened, and only in that state. Both
+     * answer from `requireOrgScreen` now, which prefers the open tournament's
+     * club and falls back to the one this person owns — so the link goes
+     * somewhere rather than bouncing.
+     *
+     * MEMBERS BELONGS HERE for the same reason Club settings does, and it is
+     * the half that was asked for: the member list outlives any one tournament
+     * and the club-first setup asks for it BEFORE the first one exists, so a
+     * sidebar that hid it until a tournament existed made a prerequisite
+     * unreachable. It was excluded when this was written because `/roster`
+     * genuinely did still read the active event; that is no longer true.
+     *
+     * Season standings still does, and stays out. `nav-without-a-tournament.
+     * test.ts` holds this list to the screens that really work without an
+     * event, in both directions, so the next screen to be freed is added here
+     * and nowhere else.
+     *
+     * AND IT IS AN EXCLUSION, NOT AN ADDITION. Every other console screen
+     * resolves its data from the selected event, so `requireEventSession`
+     * sends it straight back to `/choose`: read off the rendered sidebar on
+     * 2026-09-11 while signed in as a brand-new society, which offered
+     * Dashboard, Live leaderboard, Rules reference, Score entry, Messages and
+     * Group games — and every one of the six bounced. That is the same fault
+     * the org setup rail was fixed for, and worse in a sidebar, which is
+     * present on every screen and is the thing somebody navigates by. It also
+     * defeats the point of the club having its own section: a section is only
+     * separate if what surrounds it is not a wall of dead ends.
+     *
+     * The way back to a tournament is added below rather than allowed here,
+     * because `/choose` is not a console screen and has no `NAV` entry.
+     */
+    if (opts.orgAdminWithoutEvent) return key === "organization" || key === "roster";
     if (!canAccessScreen(viewRole, key)) return false;
     if (opts.isMatch && TOURNAMENT_ONLY.has(key)) return false;
     // Teams only matter to a tournament that has a team round in it. Most
@@ -449,9 +502,46 @@ export function navForRole(
           items: s.items.map((i) => ({ ...i, label: itemLabel(i, true, opts.orgKind) })),
         };
 
-  return NAV.map((s) =>
+  const sections = NAV.map((s) =>
     forMatch(relabel({ ...s, items: s.items.filter((i) => allowed(i.key)) })),
   ).filter((s) => s.items.length > 0);
+
+  /**
+   * THE WAY OUT, for the one state where the sidebar is otherwise a cul-de-sac.
+   *
+   * Closing the list above to the club's own screens is right — every other
+   * console screen bounces without a tournament — but on its own it left a
+   * society secretary on Members with no link anywhere else at all, which is a
+   * worse dead end than the dead links it replaced: a dead link at least tells
+   * you the app has more in it. Read off the rendered sidebar on 2026-09-11,
+   * one change after causing it.
+   *
+   * `/choose` is the answer and the only possible one: it is the single screen
+   * that works with no tournament selected, it is where the create form lives,
+   * and it is where an eventless session is sent from everywhere else. Added
+   * here rather than to `NAV` because `NAV` is the console's own map and this
+   * row exists only while there is no console to map — with a tournament open
+   * the switcher at the top of the shell does this job, which is why the test
+   * asserts this entry is ABSENT in that case.
+   */
+  if (opts.orgAdminWithoutEvent) {
+    sections.push({
+      label: "Tournaments",
+      items: [
+        {
+          key: "choose",
+          label: "Your tournaments",
+          href: SETUP_HREF.tournament,
+          icon: "trophy",
+          // Desk work by definition: it is where a tournament is created, and
+          // nobody picks one from a list standing on the first tee.
+          tier: "at-desk",
+        },
+      ],
+    });
+  }
+
+  return sections;
 }
 
 /**

@@ -4,6 +4,7 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { cleanSettings, usesAccessCodes, type TournamentSettings } from "@/lib/tournament-settings";
+import { lockoutRefusal, revokesCodes } from "@/lib/domain/access-lockout";
 import { generateAccessCode } from "@/lib/codes";
 import { organizationAccess } from "@/lib/services/org-access";
 
@@ -88,6 +89,36 @@ export async function saveTournamentSettings(input: Partial<TournamentSettings>)
   const next = cleanSettings({ ...event, ...input });
   const wasUsingCodes = usesAccessCodes(cleanSettings(event));
   const nowUsingCodes = usesAccessCodes(next);
+
+  /**
+   * TURNING ROUND CODES OFF CAN LOCK A FIELD OUT OF ITS OWN ROUND.
+   *
+   * Entries may be made without an email address on a tournament that signs
+   * players in by Round Code — `entryNeedsEmail` decides that, and the society
+   * and charity templates ship exactly that setting. Those players are
+   * perfectly well identified: `createPlaySession` signs
+   * `stageId:playerId:expiry:code` and never reads an address. What they do
+   * not have is an `Account`, because `syncPlayerAccount` returns early on a
+   * blank address.
+   *
+   * So this one dropdown does three things at once: `revokeRoundCodes` below
+   * blanks every stage's code, `getPlaySession` then refuses a session whose
+   * stage has no code — signing out players who are out on the course — and
+   * email sign-in cannot let them back in, because they have no address.
+   *
+   * BEFORE THE UPDATE, not after. Everything below this line is the change
+   * itself; refusing afterwards would mean the settings had already been
+   * written and the codes already revoked.
+   *
+   * Counted rather than trusted from the client: this is a `"use server"`
+   * export and the count has to come from the rows. Only entrants still IN the
+   * field — a withdrawn player has no card to be locked out of.
+   */
+  const strandedCount = revokesCodes({ wasUsingCodes, nowUsingCodes })
+    ? await prisma.player.count({ where: { eventId, email: "", status: { not: "withdrawn" } } })
+    : 0;
+  const refusal = lockoutRefusal({ wasUsingCodes, nowUsingCodes, strandedCount });
+  if (refusal) return { ok: false, error: refusal };
 
   await prisma.event.update({ where: { id: eventId }, data: next });
 

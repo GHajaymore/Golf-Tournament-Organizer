@@ -292,6 +292,19 @@ export default async function ChooseTournamentPage({
              Every organization has a name from birth, so this is the derived
              one, not the presence of a string. */
           organizationNamed={facts?.named ?? false}
+          /* The club answers the first tournament waits on — see the prop.
+             The same list the checklist above renders, from the same call, so
+             a step cannot be outstanding in one and satisfied in the other. */
+          clubSteps={(setup?.outstanding ?? []).map((s) => ({
+            key: s.key,
+            title: s.title,
+            href: s.href,
+          }))}
+          /* Names the outfit in the app's own words wherever this screen
+             mentions it — "Name your society", "Change it later on Society
+             settings". Empty resolves to `personal`, which is what somebody
+             with no organization yet is about to be given. */
+          orgKind={facts?.kind ?? ""}
           /* Only asked when there is more than one — see the prop. Each one
              carries its own plan, so the retention warning follows the pick. */
           organizations={await organizationsForOrganizer(session.email)}

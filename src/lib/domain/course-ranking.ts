@@ -36,6 +36,7 @@ export const enum Tier {
   NoMatch = 5,
 }
 
+
 const norm = (s: string): string =>
   s
     .normalize("NFD")
@@ -50,6 +51,77 @@ const norm = (s: string): string =>
 /** Does any word of `text` begin with `q`? */
 const wordStarts = (text: string, q: string): boolean =>
   text.split(" ").some((w) => w.startsWith(q));
+
+/**
+ * Where the club plays, as much of it as is known.
+ *
+ * Every field optional, because every one of them is optional on the rows too:
+ * 74% of the 2,184 catalogue rows carry a city and the rest carry nothing, and
+ * a course outside the US has no `state` at all.
+ */
+export interface Near {
+  city?: string;
+  state?: string;
+  country?: string;
+}
+
+/**
+ * HOW CLOSE THIS ROW IS TO THE CLUB, ON THE DATA THAT ACTUALLY EXISTS.
+ *
+ * The catalogue is 2,184 courses and "golf" appears in most course names, so a
+ * vague query genuinely matches 1,579 of them — and the picker then shows an
+ * arbitrary fifty. A club almost always plays near itself, and the app already
+ * knows where that is: the tournament's town, and the towns of the courses the
+ * club has already saved. No browser permission, no coordinates, no API
+ * allowance spent.
+ *
+ * DELIBERATELY NOT DISTANCE. There is no latitude or longitude on `Course` or
+ * `CourseCatalog`, so real distance would mean backfilling coordinates for
+ * 2,184 rows against an API capped at 500 requests a day, plus a geolocation
+ * prompt on a setup screen. A declined prompt would leave the organizer with
+ * the same 1,579 rows and no explanation, which is worse than not offering it.
+ *
+ * AND DELIBERATELY A RANKING, NEVER A FILTER. A quarter of the catalogue has
+ * no town at all; filtering on this would make those courses unreachable while
+ * looking like a tidier list. That is the shape `CLAUDE.md` devotes a section
+ * to — four plausible course-card guards that would each have thrown away real
+ * golf courses, and a re-validation pass that destroyed 33 good cards. So an
+ * unknown town ranks with the same country rather than last: not ruled in, and
+ * never ruled out.
+ */
+export const enum Locality {
+  SameCity = 0,
+  SameState = 1,
+  /** Same country, or nothing on the row to say otherwise. */
+  Unplaced = 2,
+  Elsewhere = 3,
+}
+
+export function localityOf(
+  row: { city?: string; state?: string; country?: string },
+  near?: Near,
+): Locality {
+  if (!near) return Locality.Unplaced;
+  const city = norm(near.city ?? "");
+  const state = norm(near.state ?? "");
+  const country = norm(near.country ?? "");
+  const rowCity = norm(row.city ?? "");
+  const rowState = norm(row.state ?? "");
+  const rowCountry = norm(row.country ?? "");
+
+  if (city && rowCity && city === rowCity) return Locality.SameCity;
+  if (state && rowState && state === rowState) return Locality.SameState;
+  // Nothing on the row places it, so nothing about it is wrong either.
+  if (!rowCity && !rowState && !rowCountry) return Locality.Unplaced;
+  if (country && rowCountry) return country === rowCountry ? Locality.Unplaced : Locality.Elsewhere;
+  /**
+   * The row says where it is and it is not here. Only a claim we can check
+   * demotes anything: a row naming a different town in a country neither side
+   * states is still evidence, and a row naming nothing is not.
+   */
+  if ((city && rowCity) || (state && rowState)) return Locality.Elsewhere;
+  return Locality.Unplaced;
+}
 
 /**
  * How well one course answers this query.
@@ -97,18 +169,30 @@ export function tierOf(hit: { name: string; city: string }, query: string): Tier
  * round on today outranks one that still needs its card typed in. Callers
  * that have no such distinction pass nothing.
  */
-export function rankCourses<T extends { name: string; city?: string }>(
+export function rankCourses<T extends { name: string; city?: string; state?: string; country?: string }>(
   items: readonly T[],
   query: string,
   hasCard: (item: T) => boolean = () => false,
+  near?: Near,
 ): T[] {
   const scored = items.map((item) => ({
     item,
     tier: tierOf({ name: item.name, city: item.city ?? "" }, query),
     card: hasCard(item),
+    where: localityOf(item, near),
   }));
   scored.sort((a, b) => {
     if (a.tier !== b.tier) return a.tier - b.tier;
+    /**
+     * WHERE, BEFORE WHETHER IT CAN BE SCORED ON.
+     *
+     * Both are tiebreaks inside one relevance tier, so the question they are
+     * settling is "which Hillcrest did you mean" — and the answer to that is
+     * the one down the road, not the one with its card typed in. A card can be
+     * added in a minute; a club playing the wrong county's course is a wrong
+     * tee sheet.
+     */
+    if (a.where !== b.where) return a.where - b.where;
     if (a.card !== b.card) return a.card ? -1 : 1;
     const byLength = a.item.name.length - b.item.name.length;
     if (byLength !== 0) return byLength;
@@ -125,6 +209,10 @@ export function rankCourses<T extends { name: string; city?: string }>(
  * are the same act, and a list that sorted differently between the two would
  * be the app disagreeing with itself about which course you meant.
  */
-export function rankCourseHits<T extends DirectoryHit>(hits: readonly T[], query: string): T[] {
-  return rankCourses(hits, query, (h) => h.par > 0);
+export function rankCourseHits<T extends DirectoryHit>(
+  hits: readonly T[],
+  query: string,
+  near?: Near,
+): T[] {
+  return rankCourses(hits, query, (h) => h.par > 0, near);
 }

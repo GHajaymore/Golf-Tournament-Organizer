@@ -1,5 +1,5 @@
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
-import { requireScreen } from "@/lib/page-helpers";
+import { requireOrgScreen } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { OrganizationClient } from "@/components/OrganizationClient";
@@ -20,16 +20,23 @@ import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/comp
 export const generateMetadata = () => screenMetadataForEvent("/organization");
 
 export default async function OrganizationPage() {
-  const session = await requireScreen("organization");
-
-  const event = await prisma.event.findUnique({
-    where: { id: session.eventId },
-    select: { organizationId: true },
-  });
-  if (!event) redirect("/choose");
+  /**
+   * THE CLUB, NOT THE TOURNAMENT THAT HAPPENS TO BE OPEN.
+   *
+   * This read the active event purely to learn its `organizationId` — the club
+   * was reached by standing inside one of its tournaments. So a brand-new club
+   * could not name itself, set its colours or choose its handicap policy until
+   * it had invented a tournament, which is the second thing, done first.
+   *
+   * `primaryOrganizationFor` still prefers the open tournament's club, so an
+   * organizer who has one sees exactly what they saw before and switching
+   * tournament still switches this screen. It only falls back when there is no
+   * tournament at all — which is precisely the new club this screen is for.
+   */
+  const { session, organizationId } = await requireOrgScreen("organization");
 
   const org = await prisma.organization.findUnique({
-    where: { id: event.organizationId },
+    where: { id: organizationId },
     include: {
       subscription: true,
       /**

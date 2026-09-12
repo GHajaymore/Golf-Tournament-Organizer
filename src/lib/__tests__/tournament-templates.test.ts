@@ -41,10 +41,24 @@ describe("template catalogue", () => {
     }
   });
 
-  it("every template starts at least one round", () => {
-    // A tournament with no rounds has nowhere to enter a score, and the
-    // creation path builds exactly what the template lists.
+  it("every template that applies anything starts at least one round", () => {
+    /**
+     * A tournament with no rounds has nowhere to enter a score, and the
+     * creation path builds exactly what the template lists.
+     *
+     * EXCEPT THE BLANK ONE, which applies nothing by definition:
+     * `createTournament` reads `templated?.rounds ?? []` and `templated` is
+     * null for a blank template, so its rounds were never used. "Set it up
+     * yourself" carried a Round Robin in that dead array — a scoring decision
+     * sitting inside the one entry whose whole promise is that no decisions
+     * are made for you. It is empty now, and this asserts the rule the
+     * creation path actually follows rather than one it does not.
+     */
     for (const t of TOURNAMENT_TEMPLATES) {
+      if (t.blank) {
+        expect(t.rounds, `${t.key} is blank and must apply nothing`).toEqual([]);
+        continue;
+      }
       expect(t.rounds.length, `${t.key} starts no rounds`).toBeGreaterThan(0);
     }
   });

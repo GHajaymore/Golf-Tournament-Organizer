@@ -685,6 +685,47 @@ export async function themeForEvent(eventId: string): Promise<ClubTheme> {
  * says whose lists may be READ, this one says where a new row is WRITTEN, and
  * conflating them is how a player's pick would land in their club's library.
  */
+/**
+ * THE CLUB THIS PERSON RUNS, WITHOUT ASKING WHICH TOURNAMENT IS OPEN.
+ *
+ * The club's own screens — Members, Season standings, Club settings — resolved
+ * their organization through the active EVENT: `organizationIdForEvent(
+ * session.eventId)`. So the roster that outlives every tournament, the
+ * branding that goes on every scorecard and the handicap policy the whole club
+ * plays under were all reachable only by first having a tournament to stand
+ * in. The org setup rail said so in its own words: "Opens once you have a
+ * tournament — your society's own screens live inside one."
+ *
+ * That is the wrong way round for a club. A secretary's first act is to set
+ * the club up; inventing a tournament in order to reach the members list is
+ * the app making them do the second thing first.
+ *
+ * PREFERS THE OPEN TOURNAMENT'S CLUB, so nothing changes for an organizer who
+ * has one — switching tournament still switches which club these screens show,
+ * which is what every existing caller does today. Only when there is no
+ * tournament does it fall back to the organization this person actually runs,
+ * in the same order `organizationsForOrganizer` offers them, so "which club"
+ * gets one answer across the app.
+ *
+ * Null when they run none. That is a real state — somebody invited as a player
+ * has no club of their own — and the caller sends them somewhere useful rather
+ * than inventing a tenant for them.
+ */
+export async function primaryOrganizationFor(session: {
+  email: string;
+  eventId: string;
+}): Promise<string | null> {
+  if (session.eventId) {
+    const event = await prisma.event.findUnique({
+      where: { id: session.eventId },
+      select: { organizationId: true },
+    });
+    if (event) return event.organizationId;
+  }
+  const owned = await organizationsForOrganizer(session.email);
+  return owned[0]?.id ?? null;
+}
+
 export async function libraryOrganizationFor(session: {
   email: string;
   name: string;

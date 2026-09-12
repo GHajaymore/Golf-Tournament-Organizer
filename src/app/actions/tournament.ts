@@ -75,7 +75,10 @@ import { resolveThirdPlace } from "@/lib/domain/third-place";
 import { looksLikePhone } from "@/lib/domain/registration-intake";
 import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
-import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
+import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
+import { orgSetupState } from "@/lib/domain/org-setup";
+import { organizationWasNamed } from "@/lib/org-naming";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { isCutScope } from "@/lib/domain/cut";
 import { isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
@@ -3036,6 +3039,48 @@ export async function createEvent(
     orgName,
     chosenOrganizationId,
   );
+  /**
+   * THE CLUB IS NAMED BEFORE ITS FIRST TOURNAMENT EXISTS.
+   *
+   * Checked here rather than only on the screen, because a `"use server"`
+   * export is a public HTTP endpoint and a disabled button stops nobody. It
+   * fires once in an organization's life at most — see `orgSetupState` for why
+   * an existing club and a standalone organizer are never asked.
+   *
+   * THE SAME RULE THE CHECKLIST DRAWS, read from the same function. There was
+   * briefly a second one, `clubFirstRefusal`, which knew only about the name;
+   * two rules deciding one thing is this codebase's most-repeated defect and
+   * the checklist would have shown a step as outstanding while the action let
+   * it through. `blockedByClubSetup` is the whole answer and carries its own
+   * wording, so the screen and the endpoint cannot say different things.
+   *
+   * After `organizationForNewEvent`, deliberately: that call is what CREATES
+   * the organization on a first event, and `orgName` passed from the picker
+   * names it on the way through. So somebody who answers "Who's running this?"
+   * in the same breath has already satisfied that half by the time it is read,
+   * and is not stopped to do a thing they just did.
+   */
+  const owner = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      name: true,
+      kind: true,
+      moneyMode: true,
+      _count: { select: { roster: true, events: true, courses: true } },
+    },
+  });
+  if (owner) {
+    const setup = orgSetupState({
+      kind: owner.kind,
+      named: organizationWasNamed(owner.name, session.name, session.email),
+      hasCourse: owner._count.courses > 0,
+      memberCount: owner._count.roster,
+      eventCount: owner._count.events,
+      moneyAnswered: owner.moneyMode.trim() !== "",
+    });
+    if (setup.blockedByClubSetup) return { ok: false, error: setup.blockedByClubSetup };
+  }
+
   // Plan limits bite only once billing is connected — see services/limits.ts.
   const refusal = await refusalFor(organizationId, "activeEvents");
   if (refusal) return { ok: false, error: refusal };
@@ -3218,9 +3263,25 @@ export async function deleteEvent(eventId: string) {
 
 const STATUS_FLOW = ["draft", "registration", "ready", "live", "completed"];
 
-export async function setEventStatus(status: string) {
+export async function setEventStatus(status: string): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
   const s = STATUS_FLOW.includes(status) ? status : "draft";
+  /**
+   * FINISHING IS A STATEMENT, not a tidy-up.
+   *
+   * It publishes the standings as final and, on a free plan, starts the clock
+   * the retention window runs on. Doing it with cards still waiting to be
+   * signed off declares a winner from scores nobody has agreed.
+   *
+   * Only in the completing direction: re-opening a finished tournament is how
+   * a club fixes exactly this, and a gate on the way back would be the app
+   * refusing the remedy it just asked for.
+   */
+  if (s === "completed") {
+    const state = await loadEventState(eventId);
+    const refusal = state ? finishRefusal({ pendingConfirmations: state.pendingConfirmations }) : null;
+    if (refusal) return { ok: false, error: refusal };
+  }
   // Stamp the completion time, because on a free plan it starts the clock the
   // retention window runs on. Reopening a tournament clears it: a club that
   // un-completes an event has said the result isn't final, and the countdown
@@ -3230,10 +3291,29 @@ export async function setEventStatus(status: string) {
     data: { status: s, completedAt: s === "completed" ? new Date() : null },
   });
   await refresh();
+  return { ok: true };
 }
 
-export async function launchTournament() {
+export async function launchTournament(): Promise<{ ok: boolean; error?: string }> {
   const eventId = await requireAdminEvent();
+  /**
+   * NOTHING USED TO STOP THIS, and launching is not a small act: it publishes
+   * the tournament to its field and clears `configUnlocked`, so a tournament
+   * with no rounds and nobody in it went live AND locked. The organizer's next
+   * move was to unlock the thing they had just locked, in order to build the
+   * tournament they had just published.
+   *
+   * The two conditions are in `launchRefusal` with the reasoning. Guided
+   * inside setting up, gated between phases — see phase-gate.ts.
+   */
+  const [stages, confirmed] = await Promise.all([
+    prisma.stage.findMany({ where: { eventId }, select: { type: true } }),
+    prisma.player.count({ where: { eventId, status: "confirmed" } }),
+  ]);
+  const playingRounds = stages.filter((s) => isPlayingRound(s.type)).length;
+  const refusal = launchRefusal({ playingRounds, confirmed });
+  if (refusal) return { ok: false, error: refusal };
+
   // On launch, every non-staff account receives the Player role. Once registration
   // collects player emails (Phase 4), this also provisions their logins.
   await prisma.account.updateMany({
@@ -3245,6 +3325,7 @@ export async function launchTournament() {
     data: { status: "live", launchedAt: new Date(), configUnlocked: false },
   });
   await refresh();
+  return { ok: true };
 }
 
 export async function setConfigUnlocked(unlocked: boolean) {

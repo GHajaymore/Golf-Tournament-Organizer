@@ -106,11 +106,21 @@ describe("who reads it", () => {
     expect(page).toMatch(/hasBracket=\{hasKnockoutStage\(state\.stages\)\}/);
   });
 
-  it("has the flow card gate the step on it", () => {
-    const card = readSource("src", "components", "EventSetupClient.tsx");
-    // Anchored on the brace so a mention of `hasBracket` in a prop list cannot
-    // satisfy this — the gate is what is being pinned, not the name.
-    expect(card).toMatch(/\{hasBracket && <li>Bracket/);
+  it("has the journey card gate the bracket on it", () => {
+    /**
+     * The card is `TournamentJourney` now — a phased map rather than a flat
+     * list — but the rule it has to keep is unchanged: a tournament with no
+     * knockout is never walked to a bracket.
+     *
+     * Pinned as the conditional that builds the "Play" phase's screens, so a
+     * mention of `hasBracket` in a prop list cannot satisfy it.
+     */
+    const card = readSource("src", "components", "TournamentJourney.tsx");
+    expect(card).toMatch(/hasBracket \?[\s\S]{0,120}"\/bracket"/);
+    // And the un-braced branch has no bracket in it at all.
+    const play = card.slice(card.indexOf("hasBracket ?"));
+    const branches = play.slice(0, play.indexOf("\n    },"));
+    expect(branches.match(/"\/bracket"/g) ?? []).toHaveLength(1);
   });
 
   it("leaves the screens that were already taught still asking", () => {

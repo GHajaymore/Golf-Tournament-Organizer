@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { rankCourses, tierOf, Tier } from "@/lib/domain/course-ranking";
 import { Icon } from "./Icon";
 import {
@@ -38,6 +38,88 @@ export interface CourseOption {
   /** False when the course still needs its card typed in. Shown, never hidden:
    *  it is pickable, it just cannot be scored on yet. */
   hasCard?: boolean;
+}
+
+/**
+ * One row of the open list.
+ *
+ * A union rather than five render blocks, so "what is in the list" and "what
+ * the arrow keys can reach" are the same question with one answer.
+ */
+type PickerRow =
+  | { kind: "none"; label: string }
+  | { kind: "extra"; id: string; label: string }
+  | { kind: "course"; course: CourseOption }
+  | { kind: "directory"; hit: DirectorySearchHit }
+  | { kind: "new"; name: string };
+
+/** Stable across a re-render, and distinct between row kinds that can share an id. */
+function rowKey(row: PickerRow, i: number): string {
+  switch (row.kind) {
+    case "none":
+      return "row-none";
+    case "extra":
+      return `row-extra-${row.id}`;
+    case "course":
+      return `row-course-${row.course.id}`;
+    case "directory":
+      return `row-directory-${row.hit.id}`;
+    case "new":
+      return `row-new-${i}`;
+  }
+}
+
+/**
+ * What a row reads as.
+ *
+ * The secondary line is the whole reason this is a list of buttons rather than
+ * a native `<select>`: a club with a Cincinnati and a Columbus "Hillcrest"
+ * needs to see which is which, and a native option cannot carry the town.
+ */
+function rowLabel(
+  row: PickerRow,
+  describe: (o: CourseOption) => string,
+  adding: string,
+): React.ReactNode {
+  const muted = (text: string) => (
+    <span className="text-muted" style={{ marginLeft: 6, fontSize: 11.5 }}>
+      {text}
+    </span>
+  );
+  switch (row.kind) {
+    case "none":
+      return row.label;
+    case "extra":
+      return row.label;
+    case "course":
+      return (
+        <>
+          {row.course.name}
+          {/* Said here rather than discovered at scoring time, when the round
+              is already under way and the card is missing. */}
+          {muted(`${describe(row.course)}${row.course.hasCard === false ? " · no card yet" : ""}`)}
+        </>
+      );
+    case "directory":
+      return (
+        <>
+          {row.hit.name}
+          {muted(
+            [
+              [row.hit.city, row.hit.state, row.hit.country].filter(Boolean).join(", "),
+              row.hit.par > 0 ? "" : " · no card yet",
+              adding === row.hit.id ? " · adding…" : "",
+            ].join(""),
+          )}
+        </>
+      );
+    case "new":
+      return (
+        <>
+          <Icon name="plus" /> Use &ldquo;{row.name}&rdquo;
+        </>
+      );
+  }
 }
 
 export interface CoursePickerProps {
@@ -188,6 +270,43 @@ export function CoursePicker({
     return () => clearTimeout(t);
   }, [query, searchDirectory, shown.length]);
 
+  /**
+   * EVERY ROW IN THE LIST, IN THE ORDER IT IS SHOWN — one list, not five.
+   *
+   * The listbox used to be assembled from five separate renderings: the
+   * "none" row, the `extras`, the club's own courses, the directory hits and
+   * the "Use «what you typed»" row. Only the third of those carried an
+   * `id`, was counted by the arrow keys, or could be reached by Enter — so
+   * `aria-activedescendant` could only ever name a course the club already
+   * owned.
+   *
+   * That contradicted this component's own opening paragraph, which promises
+   * "type to narrow, arrows to move, Enter to take it, Escape to back out",
+   * and it broke worst in the commonest state there is: a club with no
+   * courses saved yet has `shown.length === 0`, so the arrow handler returned
+   * immediately and the keyboard did NOTHING while three choices sat visibly
+   * open on the screen. Walked on 2026-09-11 on a brand-new club.
+   *
+   * The directory results are the sharper half. "Results appear as you type"
+   * is the assistance this control exists to give, and reaching them needed a
+   * mouse.
+   *
+   * So the rows are built once, here, and everything downstream — the arrow
+   * keys, Enter, the ids, the highlight — reads this one array. A row kind
+   * added later is navigable because it is in the list, rather than because
+   * somebody remembered to wire it up.
+   */
+  const rows = useMemo(() => {
+    const out: PickerRow[] = [];
+    if (noneLabel) out.push({ kind: "none", label: noneLabel });
+    for (const x of extras) out.push({ kind: "extra", id: x.id, label: x.label });
+    for (const o of shown) out.push({ kind: "course", course: o });
+    for (const h of found) out.push({ kind: "directory", hit: h });
+    const typed = query.trim();
+    if (onEnterNew && typed.length >= 3) out.push({ kind: "new", name: typed });
+    return out;
+  }, [noneLabel, extras, shown, found, onEnterNew, query]);
+
   const pick = (id: string) => {
     onChange(id);
     setQuery("");
@@ -195,6 +314,7 @@ export function CoursePicker({
     setActive(-1);
     inputRef.current?.blur();
   };
+
 
   /**
    * Add a directory course to the library, then choose it.
@@ -234,6 +354,37 @@ export function CoursePicker({
     });
   };
 
+  /**
+   * Taking whichever row is under the cursor or the keyboard.
+   *
+   * The one place a row's meaning turns into an action, so the mouse and the
+   * keyboard cannot come to disagree about what a row does — which is how the
+   * directory rows ended up clickable and un-pressable.
+   */
+  const choose = (row: PickerRow) => {
+    switch (row.kind) {
+      case "none":
+        pick("");
+        return;
+      case "extra":
+        pick(row.id);
+        return;
+      case "course":
+        pick(row.course.id);
+        return;
+      case "directory":
+        // Guarded, or Enter on a row already importing would start a second.
+        if (adding === "") takeFromDirectory(row.hit);
+        return;
+      case "new":
+        onEnterNew?.(row.name);
+        setOpen(false);
+        setQuery("");
+        setActive(-1);
+        return;
+    }
+  };
+
   const describe = (o: CourseOption): string =>
     [o.city, o.country && o.country !== "US" ? o.country : ""].filter(Boolean).join(", ");
 
@@ -264,17 +415,18 @@ export function CoursePicker({
         }}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-            if (shown.length === 0) return;
+            // Every row, not only the club's own courses — see `rows`.
+            if (rows.length === 0) return;
             e.preventDefault();
             setOpen(true);
             const step = e.key === "ArrowDown" ? 1 : -1;
-            setActive((i) => (i + step + shown.length) % shown.length);
+            setActive((i) => (i + step + rows.length) % rows.length);
             return;
           }
           if (e.key === "Enter") {
             e.preventDefault();
-            const row = shown[active];
-            if (row) pick(row.id);
+            const row = rows[active];
+            if (row) choose(row);
             return;
           }
           if (e.key === "Escape") {
@@ -287,6 +439,9 @@ export function CoursePicker({
           }
         }}
         role="combobox"
+        // The list is filtered by what is typed, which a screen reader should be
+        // told before the reader wonders why the options keep changing.
+        aria-autocomplete="list"
         aria-expanded={open}
         aria-controls="course-picker-list"
         aria-activedescendant={active >= 0 ? `course-option-${active}` : undefined}
@@ -313,82 +468,41 @@ export function CoursePicker({
           // Keeps the blur from firing before the click registers.
           onMouseDown={() => blurTimer.current && clearTimeout(blurTimer.current)}
         >
-          {noneLabel && (
-            <button
-              type="button"
-              role="option"
-              aria-selected={value === ""}
-              className="btn btn-ghost"
-              style={{ width: "100%", justifyContent: "flex-start", fontSize: 13 }}
-              onClick={() => pick("")}
-            >
-              {noneLabel}
-            </button>
-          )}
-          {extras.map((x) => (
-            <button
-              key={x.id}
-              type="button"
-              role="option"
-              aria-selected={x.id === value}
-              className="btn btn-ghost"
-              style={{ width: "100%", justifyContent: "flex-start", fontSize: 13 }}
-              onClick={() => pick(x.id)}
-            >
-              {x.label}
-            </button>
-          ))}
-          {shown.map((o, i) => (
-            <button
-              key={o.id}
-              id={`course-option-${i}`}
-              type="button"
-              role="option"
-              aria-selected={o.id === value}
-              onMouseEnter={() => setActive(i)}
-              onClick={() => pick(o.id)}
-              style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                padding: "7px 10px",
-                fontSize: 13,
-                border: "none",
-                borderLeft:
-                  i === active ? "2px solid var(--color-accent)" : "2px solid transparent",
-                background: i === active ? "var(--color-bg)" : "transparent",
-                color: "var(--color-text)",
-                cursor: "pointer",
-              }}
-            >
-              {o.name}
-              <span className="text-muted" style={{ marginLeft: 6, fontSize: 11.5 }}>
-                {describe(o)}
-                {/* Said here rather than discovered at scoring time, when the
-                    round is already under way and the card is missing. */}
-                {o.hasCard === false && " · no card yet"}
-              </span>
-            </button>
-          ))}
-          {/* Everything the app knows about, that this club does not own yet.
-              Labelled, because adding a course to the library is a different
-              act from choosing one already in it, and the row does both. */}
-          {found.length > 0 && (
-            <>
-              <p
-                className="text-muted"
-                style={{ fontSize: 11, margin: 0, padding: "6px 10px 2px", lineHeight: 1.4 }}
-              >
-                Not in your courses yet — from the course directory
-              </p>
-              {found.map((h) => (
+          {rows.map((row, i) => {
+            const on = i === active;
+            /* The directory's own heading, printed once, before the first row
+               that came from it. Adding a course to the library is a different
+               act from choosing one already in it, and the row does both. */
+            const heading =
+              row.kind === "directory" && rows[i - 1]?.kind !== "directory" ? (
+                <p
+                  className="text-muted"
+                  style={{ fontSize: 11, margin: 0, padding: "6px 10px 2px", lineHeight: 1.4 }}
+                >
+                  Not in your courses yet — from the course directory
+                </p>
+              ) : null;
+
+            const selected =
+              row.kind === "none"
+                ? value === ""
+                : row.kind === "extra"
+                  ? row.id === value
+                  : row.kind === "course"
+                    ? row.course.id === value
+                    : false;
+
+            return (
+              <Fragment key={rowKey(row, i)}>
+                {heading}
                 <button
-                  key={h.id}
+                  id={`course-option-${i}`}
                   type="button"
                   role="option"
-                  aria-selected={false}
-                  onClick={() => takeFromDirectory(h)}
-                  disabled={adding !== ""}
+                  aria-selected={selected}
+                  disabled={row.kind === "directory" && adding !== ""}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => choose(row)}
                   style={{
                     display: "block",
                     width: "100%",
@@ -396,44 +510,17 @@ export function CoursePicker({
                     padding: "7px 10px",
                     fontSize: 13,
                     border: "none",
-                    borderLeft: "2px solid transparent",
-                    background: "transparent",
+                    borderLeft: on ? "2px solid var(--color-accent)" : "2px solid transparent",
+                    background: on ? "var(--color-bg)" : "transparent",
                     color: "var(--color-text)",
                     cursor: "pointer",
                   }}
                 >
-                  {h.name}
-                  <span className="text-muted" style={{ marginLeft: 6, fontSize: 11.5 }}>
-                    {[h.city, h.state, h.country].filter(Boolean).join(", ")}
-                    {h.par > 0 ? "" : " · no card yet"}
-                    {adding === h.id ? " · adding…" : ""}
-                  </span>
+                  {rowLabel(row, describe, adding)}
                 </button>
-              ))}
-            </>
-          )}
-
-          {/* The last rung. A club playing somewhere nobody has catalogued must
-              still be able to say where they played — a picker whose final
-              answer is "not found" makes the app the obstacle. */}
-          {onEnterNew && query.trim().length >= 3 && (
-            <button
-              type="button"
-              role="option"
-              aria-selected={false}
-              className="btn btn-ghost"
-              style={{ width: "100%", justifyContent: "flex-start", fontSize: 13 }}
-              onClick={() => {
-                const name = query.trim();
-                onEnterNew(name);
-                setOpen(false);
-                setQuery("");
-                setActive(-1);
-              }}
-            >
-              <Icon name="plus" /> Use &ldquo;{query.trim()}&rdquo;
-            </button>
-          )}
+              </Fragment>
+            );
+          })}
 
           {shown.length === 0 && found.length === 0 && !onEnterNew && (
             <p className="text-muted" style={{ fontSize: 12, margin: 0, padding: "8px 10px", lineHeight: 1.5 }}>

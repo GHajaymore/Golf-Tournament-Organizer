@@ -69,6 +69,20 @@ interface Props {
    * looking at the shared list.
    */
   orgKind: string;
+  /**
+   * The tournament currently open, or "" when there is none.
+   *
+   * EMPTY IS A REAL STATE NOW. The roster is the club's standing member list
+   * and stopped needing a tournament to open — that is the whole point of it
+   * outliving them, and the club-first setup asks for members BEFORE the first
+   * one exists. So every part of this screen that talks about a tournament —
+   * the "In <tournament>" count, the entry filter, "add these to the field" —
+   * is hidden rather than rendered around a blank, which is how "In " and
+   * "Add 3 to " would otherwise reach the screen.
+   *
+   * The counts need no such guard: with no tournament nobody is entered, so
+   * `fieldSize` and `unlinkedCount` are 0 and their cards already fall away.
+   */
   eventName: string;
   fieldLocked: boolean;
   members: RosterRow[];
@@ -122,6 +136,8 @@ export function RosterClient({
   const [pending, startTransition] = useTransition();
   const summary = fieldRosterSummary(fieldSize, unlinkedCount);
   const profile = orgProfile(orgKind);
+  /** Whether there is a tournament to talk about at all — see the prop. */
+  const hasTournament = eventName !== "";
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -330,20 +346,22 @@ export function RosterClient({
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{inactiveCount}</div>
           <div className="text-muted" style={{ fontSize: 12 }}>kept for past results</div>
         </div>
-        <div className="card elev-sm" style={{ gap: 2 }}>
-          <span className="card-kicker">In {eventName}</span>
-          {/* "of N" rather than a bare count. The number alone answers "how
-              many of my members are playing" while being read as "how many
-              people are playing", which is how an empty roster beside a full
-              field produced a 0 that flatly contradicted Registration. */}
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>
-            {summary.linked}
-            {summary.fieldSize > 0 && (
-              <span className="text-muted" style={{ fontSize: 15 }}> of {summary.fieldSize}</span>
-            )}
+        {hasTournament && (
+          <div className="card elev-sm" style={{ gap: 2 }}>
+            <span className="card-kicker">In {eventName}</span>
+            {/* "of N" rather than a bare count. The number alone answers "how
+                many of my members are playing" while being read as "how many
+                people are playing", which is how an empty roster beside a full
+                field produced a 0 that flatly contradicted Registration. */}
+            <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>
+              {summary.linked}
+              {summary.fieldSize > 0 && (
+                <span className="text-muted" style={{ fontSize: 15 }}> of {summary.fieldSize}</span>
+              )}
+            </div>
+            <div className="text-muted" style={{ fontSize: 12 }}>{summary.note}</div>
           </div>
-          <div className="text-muted" style={{ fontSize: 12 }}>{summary.note}</div>
-        </div>
+        )}
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Type</span>
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{profile.label}</div>
@@ -508,19 +526,21 @@ export function RosterClient({
               outlives any one event and most of it is usually not playing, so
               signing a field up means looking at the people who are not in it
               yet — and searching one name at a time was the only way. */}
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }} className="text-muted">
-            <span>Show</span>
-            <select
-              className="input"
-              style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
-              value={entryFilter}
-              onChange={(e) => setEntryFilter(e.target.value as "all" | "in" | "out")}
-            >
-              <option value="all">everyone</option>
-              <option value="in">only those in {eventName}</option>
-              <option value="out">only those not in it</option>
-            </select>
-          </label>
+          {hasTournament && (
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }} className="text-muted">
+              <span>Show</span>
+              <select
+                className="input"
+                style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
+                value={entryFilter}
+                onChange={(e) => setEntryFilter(e.target.value as "all" | "in" | "out")}
+              >
+                <option value="all">everyone</option>
+                <option value="in">only those in {eventName}</option>
+                <option value="out">only those not in it</option>
+              </select>
+            </label>
+          )}
           {!adding && !editing && (
             <>
               <button
@@ -586,15 +606,17 @@ export function RosterClient({
                 </span>
               )}
             </span>
-            <button
-              type="button"
-              className="btn btn-primary"
-              style={{ marginLeft: "auto" }}
-              disabled={pending || fieldLocked || addable.length === 0}
-              onClick={addSelectedToEvent}
-            >
-              <Icon name="user-plus" /> Add {addable.length} to {eventName}
-            </button>
+            {hasTournament && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ marginLeft: "auto" }}
+                disabled={pending || fieldLocked || addable.length === 0}
+                onClick={addSelectedToEvent}
+              >
+                <Icon name="user-plus" /> Add {addable.length} to {eventName}
+              </button>
+            )}
             {fieldLocked && (
               // Was a `title` only, which never appears on a phone and is not
               // announced to a screen reader — the exact weak pattern called

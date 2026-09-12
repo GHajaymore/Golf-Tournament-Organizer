@@ -88,15 +88,27 @@ describe("the setup sequence is stated once", () => {
      * Asserted as relative position rather than exact strings: the wording of
      * a step is allowed to change, the sequence is not.
      */
-    const src = readSource("src", "components", "EventSetupClient.tsx");
-    const flow = src.slice(src.indexOf("Recommended flow"));
-    const at = (s: string) => flow.indexOf(s);
+    /**
+     * READ AS HREFS NOW, not as prose.
+     *
+     * The card was a flat `<ol>` of hand-written step names, and this test had
+     * to match those strings — which is why it carried "Rounds &amp; formats"
+     * with its entity escape. `TournamentJourney` names every screen through
+     * `screenName`, so the card can no longer call a screen something the
+     * sidebar does not, and the thing left to pin here is the SEQUENCE.
+     */
+    const src = readSource("src", "components", "TournamentJourney.tsx");
+    const at = (s: string) => src.indexOf(s);
 
-    expect(at("Tournament details"), "details missing from the card").toBeGreaterThan(-1);
-    expect(at("Tournament details")).toBeLessThan(at("Rounds &amp; formats"));
-    expect(at("Rounds &amp; formats")).toBeLessThan(at("Registration &amp; field"));
+    expect(at('"/event"'), "details missing from the card").toBeGreaterThan(-1);
+    expect(at('"/event"')).toBeLessThan(at('"/stages"'));
+    expect(at('"/stages"')).toBeLessThan(at('"/registration"'));
+    expect(at('"/registration"')).toBeLessThan(at('"/grouping"'));
     // And setup still finishes before the tournament is handed to the field.
-    expect(at("Registration &amp; field")).toBeLessThan(at("Launch"));
+    expect(at('"/grouping"')).toBeLessThan(at('title: "Launch"'));
+    // Which in turn comes before playing it and before settling up.
+    expect(at('title: "Launch"')).toBeLessThan(at('title: "Play"'));
+    expect(at('title: "Play"')).toBeLessThan(at('title: "Finish"'));
   });
 });
 

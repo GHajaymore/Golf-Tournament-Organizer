@@ -21,6 +21,7 @@ export function LifecycleBar({
   configUnlocked,
   summary,
   matchesScored = 0,
+  blockedReason,
 }: {
   status: string;
   isAdmin: boolean;
@@ -28,9 +29,28 @@ export function LifecycleBar({
   summary: LifecycleSummary;
   /** Results recorded so far, so the status can be checked against reality. */
   matchesScored?: number;
+  /**
+   * Why the next phase cannot be entered yet, or undefined when it can.
+   *
+   * Computed on the server from `phase-gate.ts`, so the button and the action
+   * refuse for the same reason in the same words. The action refuses anyway —
+   * a disabled button stops nobody, and a `"use server"` export is a public
+   * HTTP endpoint — but an organizer should not have to press a thing to find
+   * out it will not work.
+   */
+  blockedReason?: string;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
+  /**
+   * What the server said when it refused.
+   *
+   * Kept even though the button is disabled ahead of time: the two are
+   * computed from separate reads a moment apart, so a card submitted while the
+   * page sat open is exactly the case where the button is live and the answer
+   * is still no. Silence there would read as a click that did nothing.
+   */
+  const [refused, setRefused] = useState("");
   const meta = STATUS_META[status] ?? STATUS_META.draft;
   const locked = (status === "live" || status === "completed") && !configUnlocked;
   const mismatch = lifecycleMismatch({ status, matchesScored, playersEntered: summary.players });
@@ -80,10 +100,22 @@ export function LifecycleBar({
           <button
             type="button"
             className="btn btn-primary"
-            disabled={pending}
-            onClick={() =>
-              action.run ? startTransition(action.run) : setConfirming(true)
-            }
+            disabled={pending || !!blockedReason}
+            // The reason travels with the control, so a disabled button is
+            // never a dead end somebody has to guess at.
+            title={blockedReason}
+            onClick={() => {
+              setRefused("");
+              if (!action.run) {
+                setConfirming(true);
+                return;
+              }
+              const run = action.run;
+              startTransition(async () => {
+                const res = await run();
+                if (res && !res.ok) setRefused(res.error ?? "That could not be done.");
+              });
+            }}
           >
             {status === "ready" && <Icon name="rocket-launch" />} {action.label}
           </button>
@@ -100,6 +132,31 @@ export function LifecycleBar({
           </button>
         )}
       </div>
+
+      {/**
+       * WHY THE NEXT STEP IS NOT AVAILABLE, said in full and in place.
+       *
+       * A greyed-out button with no explanation is the worst of both: it stops
+       * the organizer and tells them nothing, so they go looking for a bug.
+       * Both messages name the screen that fixes it, because a refusal that
+       * does not say what to do next makes the app the obstacle.
+       *
+       * `refused` takes precedence: if the server said no, that is the newer
+       * and more specific answer.
+       */}
+      {isAdmin && (refused || blockedReason) && (
+        <div
+          className="card elev-sm"
+          style={{ marginBottom: 16, borderLeft: "3px solid var(--color-accent)", gap: 6 }}
+        >
+          <span className="card-title" style={{ fontSize: 14 }}>
+            <Icon name="warning-circle" /> Not yet — {action?.label.toLowerCase()}
+          </span>
+          <p className="text-muted" style={{ fontSize: 12.5, margin: 0, lineHeight: 1.6 }}>
+            {refused || blockedReason}
+          </p>
+        </div>
+      )}
 
       {/* The status is the organizer's to set, so this reports the
           disagreement rather than quietly correcting it — launching locks

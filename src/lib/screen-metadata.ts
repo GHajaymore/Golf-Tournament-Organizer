@@ -1,6 +1,7 @@
 import "server-only";
 import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
+import { primaryOrganizationFor } from "@/lib/services/organization";
 import { prisma } from "@/lib/db";
 import { screenName } from "@/lib/nav";
 import { isOrgKind } from "@/lib/domain/org-profile";
@@ -80,7 +81,20 @@ export async function screenMetadataForEvent(href: string): Promise<Metadata> {
         select: { shape: true, organization: { select: { kind: true } } },
       })
     : null;
-  const kind = event?.organization.kind ?? "";
+  /**
+   * THE CLUB'S OWN KIND, EVEN WITH NO TOURNAMENT OPEN.
+   *
+   * Club settings is reachable before a club has any tournament now, and this
+   * resolved the kind through the event — so a brand-new SOCIETY got a browser
+   * tab reading "Club settings" over a heading reading "Society settings". The
+   * same two-names-for-one-screen fault this file was written to fix, in the
+   * one case it could not previously reach.
+   */
+  const fallback = session && !event ? await primaryOrganizationFor(session) : null;
+  const orgKind = fallback
+    ? (await prisma.organization.findUnique({ where: { id: fallback }, select: { kind: true } }))?.kind
+    : null;
+  const kind = event?.organization.kind ?? orgKind ?? "";
   return {
     title: screenName(href, isMatch(event?.shape), isOrgKind(kind) ? kind : undefined),
   };

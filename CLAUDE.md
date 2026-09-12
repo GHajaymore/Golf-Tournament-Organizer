@@ -100,31 +100,52 @@ npx vitest run --config vitest.audit.config.ts
 Use `NEXT_DIST_DIR=.next-ci` for builds while a dev server is running; sharing `.next` between
 them corrupts it.
 
-**And PLAYWRIGHT STARTS A BUILD YOU DID NOT TYPE.** The rule above reads as being about the build
-command you run, so the obvious way to follow it — pass `NEXT_DIST_DIR` to your own `next build`
-and think no more about it — leaves the trap wide open. `playwright.config.ts` sets
-`webServer.command` to `npm run build && npx next start --port 3101`, and that build goes to the
-default `.next`, which is exactly where the dev server lives.
+**And PLAYWRIGHT STARTS A BUILD YOU DID NOT TYPE.** `playwright.config.ts` sets
+`webServer.command` to `npm run build && npx next start --port 3101`, so running the e2e suite
+runs a build whether or not you asked for one.
 
-On 2026-09-11 that produced two runs that were not evidence about anything. The first exited 0
-with an EMPTY log. The second went red — and read like a real regression: five `offline.spec`
-tests failing together, then the whole of `organizer.spec` behind them.
+**It does NOT collide with the dev server.** That build goes to `.next-e2e` —
+`webServer.env` sets `NEXT_DIST_DIR` — so the rule above is already satisfied and you do not need
+to stop the preview or delete `.next` first. This file used to say the opposite, in detail, and
+it was wrong: read `webServer.env` before believing any claim about which directory it writes.
 
-The tells are worth knowing, because the failures name spec files your change never touched:
+**The trap that IS real is `reuseExistingServer`.** It is `!process.env.CI`, so locally Playwright
+will happily attach to whatever is already listening on 3101 and skip the build entirely. And a
+Playwright run killed part-way does not take its `next start` down with it — the wrapper dies, the
+server keeps listening.
 
-- every failure takes the SAME time (2.6s here), which is a timeout rather than an assertion;
+So the shape to recognise is: kill a run, edit code, run again, and the second run **tests the
+first run's build**. It passes or fails on code you have changed since, and nothing in the output
+says so. On 2026-09-11 a run sat green-looking for six minutes against a build twenty-five minutes
+older than the branch.
+
+Two checks settle it in seconds, and are worth making before believing any local e2e result:
+
+```bash
+ls -la --time-style=full-iso .next-e2e/BUILD_ID   # older than your last edit? stale.
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3101/   # 200 before you start? stale.
+```
+
+The cleanup is to kill the listener and delete the directory, then run:
+
+```bash
+powershell -c "Get-NetTCPConnection -LocalPort 3101 -State Listen | %{ Stop-Process -Id \$_.OwningProcess -Force }"
+rm -rf .next-e2e
+```
+
+An earlier entry here blamed a red run — five `offline.spec` tests failing together, then the
+whole of `organizer.spec` behind them — on dist-directory contention. The diagnosis was wrong; the
+READING of the failure is still right and still worth keeping, because it is how you tell a dead
+server from a real regression:
+
+- every failure takes the SAME time (2.6s there), which is a timeout rather than an assertion;
 - they CASCADE — everything from test 92 onward, not a scattered few;
 - they take out WHOLE FILES, including ones unrelated to each other.
 
 An assertion failure has an expected and a received value, and it does not bring its neighbours
 down with it. So read that shape as "the server under it died", the same way `FAIL 0` is read
-above — and note it looks nothing like either of the two intermittent e2e failures below, which
-is why it is easy to start debugging the wrong thing.
-
-The fix is not another dist directory: `next start` has to serve the build Playwright just made.
-**Stop the dev server, delete `.next`, then run Playwright.** A clean run on the same commit is
-the answer — here it was 388 passed, 0 failed, on the tree that had "failed" five offline tests
-twenty minutes earlier.
+above — and note it looks nothing like any of the three intermittent e2e failures below, which is
+why it is easy to start debugging the wrong thing.
 
 **A build can still take the dev server down with it, and the smoke scripts then blame your
 change.** Separate dist directories stop the two corrupting each other's output; they do not stop
