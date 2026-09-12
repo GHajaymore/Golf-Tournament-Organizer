@@ -3,7 +3,7 @@ import Link from "next/link";
 import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
 import { requireState } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
-import { StatCard } from "@/components/PageHeader";
+import { StatCard, FactCard } from "@/components/PageHeader";
 import { LifecycleBar } from "@/components/LifecycleBar";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { settingsOf } from "@/lib/services/tournament";
@@ -870,7 +870,7 @@ export default async function DashboardPage() {
 
             {showBracketTile && (
             <div className="card elev-sm">
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div className="card-head">
                 <span className="card-title">Bracket status</span>
                 <span className="tag tag-neutral">{bracketTileBadge}</span>
               </div>
@@ -897,35 +897,35 @@ export default async function DashboardPage() {
                 live read on the standings — in a blind event it would give away
                 exactly what the leaderboard hides, hence the showStandings gate. */}
             {hasKnockout && showStandings && (
-              <div className="card elev-sm">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span className="card-title">Qualification cutoff</span>
-                  {/*
-                    THE RULE THIS TOURNAMENT ACTUALLY USES. This printed
-                    "Top {qualifyPerGroup}/flight" whatever `qualifyMode` said,
-                    so an event qualifying OVERALL was badged with a per-flight
-                    rule it does not apply — and the count beside it contradicted
-                    the badge in the same card. On the Demo Cup, which takes the
-                    top four overall across eight flights: "Top 2/flight" over
-                    "4 of 33 advancing".
+              <FactCard
+                title="Qualification cutoff"
+                /*
+                  THE RULE THIS TOURNAMENT ACTUALLY USES. This printed
+                  "Top {qualifyPerGroup}/flight" whatever `qualifyMode` said, so
+                  an event qualifying OVERALL was badged with a per-flight rule
+                  it does not apply — and the count beside it contradicted the
+                  badge in the same card. On the Demo Cup, which takes the top
+                  four overall across eight flights: "Top 2/flight" over "4 of
+                  33 advancing".
 
-                    The same sentence `/bracket` has always built from the same
-                    two fields; it is only this card that had one of them
-                    hard-coded.
-                  */}
-                  <span className="tag tag-accent">
-                    {event.qualifyMode === "overall"
-                      ? `Top ${event.qualifyOverall} overall`
-                      : `Top ${event.qualifyPerGroup}/flight`}
-                  </span>
-                </div>
-                <div style={{ fontFamily: "var(--font-heading)", fontSize: 22, marginTop: 2 }}>
-                  {advancingCount} <span className="text-muted" style={{ fontSize: 14 }}>of {state.confirmed.length} advancing</span>
-                </div>
-                <div className="text-muted" style={{ fontSize: 12 }}>
-                  Cutoff line ≈ {overallCutoff === null ? "—" : pts(overallCutoff)} pts · updates live with scores
-                </div>
-              </div>
+                  The same sentence `/bracket` has always built from the same
+                  two fields; it is only this card that had one hard-coded.
+                */
+                badge={
+                  event.qualifyMode === "overall"
+                    ? `Top ${event.qualifyOverall} overall`
+                    : `Top ${event.qualifyPerGroup}/flight`
+                }
+                figure={
+                  <>
+                    {advancingCount}{" "}
+                    <span className="text-muted" style={{ fontSize: 14 }}>
+                      of {state.confirmed.length} advancing
+                    </span>
+                  </>
+                }
+                note={`Cutoff line ≈ ${overallCutoff === null ? "—" : pts(overallCutoff)} pts · updates live with scores`}
+              />
             )}
 
             {/* No knockout, but the current round cuts into the next: show that
@@ -933,18 +933,14 @@ export default async function DashboardPage() {
                 is a configured "top N advance", not a standings read, so it
                 needs no showStandings gate — it reveals nothing about who leads. */}
             {!hasKnockout && roundCut && (
-              <div className="card elev-sm">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span className="card-title">Round cut</span>
-                  <span className="tag tag-accent">Round {roundCut.fromRound} → {roundCut.toRound}</span>
-                </div>
-                <div style={{ fontFamily: "var(--font-heading)", fontSize: 20, marginTop: 2, textTransform: "capitalize" }}>
-                  {roundCut.advance}
-                </div>
-                <div className="text-muted" style={{ fontSize: 12 }}>
-                  Survivors of Round {roundCut.fromRound} play Round {roundCut.toRound}.
-                </div>
-              </div>
+              <FactCard
+                title="Round cut"
+                badge={`Round ${roundCut.fromRound} → ${roundCut.toRound}`}
+                // `roundCut.advance` is stored lower-case ("top 8 advance"), so
+                // the capital comes from CSS rather than from the data.
+                figure={<span style={{ textTransform: "capitalize" }}>{roundCut.advance}</span>}
+                note={`Survivors of Round ${roundCut.fromRound} play Round ${roundCut.toRound}.`}
+              />
             )}
           </div>
         </div>
@@ -960,7 +956,7 @@ export default async function DashboardPage() {
           under a heading about flights. */}
       {showStandings && !unstarted && !matchEvent && (
       <div className="card elev-sm" style={{ marginTop: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="card-head">
           <span className="card-title">Flight standings</span>
           <span className="text-muted" style={{ fontSize: 12 }}>Advancing rows highlighted</span>
         </div>

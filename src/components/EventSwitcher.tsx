@@ -134,7 +134,7 @@ export function EventSwitcher({
 
   return (
     <div className="card elev-sm" style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="card-head">
         <span className="card-title" style={{ fontSize: 15 }}>Your tournaments</span>
         {/* Counts TOURNAMENTS. It counted `events.length`, so a club with one
             championship and three Sunday fourballs was told it had four
