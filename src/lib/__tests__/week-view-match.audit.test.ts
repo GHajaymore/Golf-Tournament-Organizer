@@ -29,6 +29,7 @@ const TAG = "ZZ-AUDIT-WEEK-MATCH";
 
 let eventId = "";
 let stageId = "";
+let medalWeekId = "";
 
 async function cleanup() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -99,6 +100,39 @@ beforeAll(async () => {
       holes: JSON.stringify(["A", "A", "H", "B", "A", ...new Array(13).fill(null)]),
     },
   });
+
+  /**
+   * WEEK 2 IS A MEDAL, inside the same match-format league.
+   *
+   * WEEKLY_ROUND_TYPES is Round Robin AND Stroke Play Round, so this is an
+   * ordinary league that plays one medal night — not an exotic setup. It is
+   * the MIRROR of the fixture above, and the strip got it wrong the same way
+   * round: it asked event.format, which says "match" for the whole season, so
+   * it went looking for matches on a week that keeps its result on cards.
+   */
+  const medal = await prisma.stage.create({
+    data: {
+      eventId,
+      position: 1,
+      description: "Week 2",
+      type: "Stroke Play Round",
+      format: "Stroke Play",
+      scoringBasis: "gross",
+      holes: 18,
+    },
+  });
+  medalWeekId = medal.id;
+
+  // One card, and NOT A SINGLE MATCH on it — the absence is the fixture, just
+  // as the missing scorecard was above.
+  await prisma.scorecard.create({
+    data: {
+      eventId,
+      stageId: medalWeekId,
+      playerId: a.id,
+      strokes: JSON.stringify([4, 5, 4, 3, 5, ...new Array(13).fill(null)]),
+    },
+  });
 });
 
 afterAll(async () => {
@@ -138,6 +172,38 @@ describe("a match-play league night", () => {
     const view = await weekViewFor(eventId, stageId);
     expect(view!.hasScoreTable).toBe(false);
     expect(view!.results).toEqual([]);
+  });
+
+  it("marks a MEDAL week in the same league as played too", async () => {
+    /**
+     * THE MIRROR, and the one this file did not have. The strip asked
+     * event.format — one value for a whole season — so a league that plays one
+     * medal night looked for MATCHES on it and found none, however many cards
+     * were in. Seen on the Demo Cup on 2026-09-12: week 2 is a Stroke Play
+     * Round with seven cards returned and it wore the "no scores yet" dot.
+     *
+     * It reads the WEEK’S OWN TYPE now — roundIsStroke — which is the same
+     * correction the boards got.
+     */
+    const view = await weekViewFor(eventId, medalWeekId);
+    const week = view!.weeks.find((w) => w.stageId === medalWeekId);
+    expect(week, "the medal week is missing from the strip").toBeTruthy();
+    expect(week!.played, "a medal week with a card was marked unplayed").toBe(true);
+    // And the match week beside it is still right, which is the half a fix
+    // keyed on the wrong thing would have broken.
+    expect(view!.weeks.find((w) => w.stageId === stageId)!.played).toBe(true);
+
+    /**
+     * THE SAME QUESTION ASKED TWICE, AND BOTH HAD TO BE FIXED. The strip's dot
+     * and the sheet's own `empty` are separate computations of "has this week
+     * been played" — and `empty` is the one that blanks the whole screen,
+     * including the season table beneath it.
+     *
+     * Asserted because a mutation proved it had to be: reverting the strip
+     * alone went red here and reverting `empty` alone did not, so without this
+     * line half the fix was untested.
+     */
+    expect(view!.empty, "the medal week blanked the whole sheet").toBe(false);
   });
 
   it("marks the week as played in the strip", async () => {
