@@ -34,7 +34,11 @@ export default async function PrizesPage({
   // payout, and this is where a club already comes to settle up. Per round,
   // because a league runs one a week.
   const weeks = playingStages(state.stages);
-  const week = weeks.find((s) => s.id === params.round) ?? state.activeStage ?? weeks[0] ?? null;
+  // `boardStage` — the round whose money there is anything to settle for. The
+  // player's own `/me/money` resolves it the same way, and two money screens
+  // defaulting to different rounds is the worst place for them to disagree.
+  // Only the default; the round picker still wins.
+  const week = weeks.find((s) => s.id === params.round) ?? state.boardStage ?? weeks[0] ?? null;
   /**
    * Every game this round runs, not a fixed gross-and-net pair.
    *

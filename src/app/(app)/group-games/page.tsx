@@ -42,7 +42,10 @@ export default async function GroupGamesPage({
   const params = await searchParams;
 
   const weeks = playingStages(state.stages);
-  const week = weeks.find((s) => s.id === params.round) ?? state.activeStage ?? weeks[0] ?? null;
+  // `boardStage`, the same default as `/prizes` and the player's `/me/money`.
+  // A side game belongs to the round it was played in. Only the default; the
+  // round picker still wins.
+  const week = weeks.find((s) => s.id === params.round) ?? state.boardStage ?? weeks[0] ?? null;
   const rounds = weeks.map((s) => ({ stageId: s.id, label: roundLabel(weeks, s.id) }));
 
   /**

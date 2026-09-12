@@ -148,7 +148,19 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
   if (!state) return null;
 
   const weeks = playingStages(state.stages);
-  const stage = weeks.find((s) => s.id === wantedStageId) ?? state.activeStage ?? weeks[0] ?? null;
+  /**
+   * THE NIGHT JUST PLAYED, which is this file's own opening premise.
+   *
+   * The header above says a league member "asks 'what happened last night'"
+   * first — and the default here was `activeStage`, the match-points chain's
+   * position, which for any league holding a Round Robin is a Round Robin. On
+   * the Demo Cup the sheet opened on Week 1 with Week 2 played and its cards
+   * in.
+   *
+   * Only the DEFAULT. An explicit `wantedStageId` still wins, which is the
+   * whole of the week strip.
+   */
+  const stage = weeks.find((s) => s.id === wantedStageId) ?? state.boardStage ?? weeks[0] ?? null;
   if (!stage) return null;
 
   const cards = await prisma.scorecard.findMany({ where: { eventId } });
