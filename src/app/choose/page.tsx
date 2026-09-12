@@ -339,13 +339,27 @@ export default async function ChooseTournamentPage({
             }}
           >
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Given a round code?</div>
+              {/* SAYS WHAT IT IS, BECAUSE THE READER IS ALREADY SIGNED IN.
+                  "Given a round code? … Join with a round code" reads as a
+                  second way to sign in, which is baffling to somebody who just
+                  did — raised on 2026-09-11 from this screen, and a fair
+                  reading of what it said.
+
+                  It is not a sign-in at all. `/play` runs on a PLAY SESSION,
+                  minted by `createPlaySession` from the code itself and
+                  entirely separate from the account cookie — which is the
+                  whole point of it: a code puts somebody on one round's card
+                  without an organizer having added them by email. So the words
+                  now name the situation ("someone else's round") and say
+                  plainly that the account is not what gets you there. */}
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Playing in someone else&rsquo;s round?</div>
               <div className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>
-                Playing today but not on the list yet — enter the code from your organizer.
+                A round code from their organizer puts you straight onto that round&rsquo;s card. It works on
+                its own — you don&rsquo;t need to be on the roster, and it has nothing to do with this account.
               </div>
             </div>
             <Link href="/play" className="btn btn-secondary" style={{ flex: "none" }}>
-              <Icon name="flag" /> Join with a round code
+              <Icon name="flag" /> Enter a round code
             </Link>
           </div>
         )}
