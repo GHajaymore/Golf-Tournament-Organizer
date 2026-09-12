@@ -11,6 +11,7 @@ import { generatesPairings, isPlayingRound, seededFromQualifiers } from "../stag
 import { courseHandicapMap } from "../domain";
 import { resolveCourse } from "../courses";
 import { chainRoundStandings, scoringFrom, parseMatchTiebreakers, roundRobinStages } from "./tournament";
+import { holesPlayed } from "../domain/handicap";
 
 /**
  * Re-form flights for an event from its confirmed players using the stored rule
@@ -129,7 +130,7 @@ export async function repairPlayerPairings(eventId: string, playerId: string): P
         mark(m.playerBId, m.round);
       }
 
-      const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
+      const emptyHoles = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
       for (const mate of flightMates) {
         let round = 1;
         while (busy.get(playerId)?.has(round) || busy.get(mate.id)?.has(round)) round += 1;
@@ -181,7 +182,7 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
       orderBy: [{ position: "asc" }],
     }),
   ]);
-  const activeHoles = allStages.filter((s) => isPlayingRound(s.type))[0]?.holes === 9 ? 9 : 18;
+  const activeHoles = holesPlayed(allStages.filter((s) => isPlayingRound(s.type))[0]?.holes);
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
@@ -330,7 +331,7 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
       // count toward the standings — the same failure the team skip above
       // exists to prevent.
       if (!generatesPairings(rrStage.type)) continue;
-      const emptyHoles = JSON.stringify(new Array(rrStage.holes === 9 ? 9 : 18).fill(null));
+      const emptyHoles = JSON.stringify(new Array(holesPlayed(rrStage.holes)).fill(null));
       for (const g of groups) {
         const dbGroupId = groupIdByEngineId.get(g.id)!;
         const schedule = roundRobinSchedule(g.playerIds);
@@ -556,7 +557,7 @@ export async function generateCutRound(
   }
 
   const survivorPlayers = domainPlayers.filter((p) => survivorIds.has(p.id));
-  const holeCount = stage.holes === 9 ? 9 : 18;
+  const holeCount = holesPlayed(stage.holes);
 
   // A stroke or medal round draws no pairings — the survivors advance into it
   // by each being given an empty, playable card. Non-survivors get none, so the

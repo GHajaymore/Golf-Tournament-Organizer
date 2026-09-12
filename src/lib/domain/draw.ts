@@ -20,6 +20,7 @@
 
 import { flightCountFor, flightSizes } from "./grouping";
 import type { Group, Player } from "./types";
+import { holesPlayed } from "./handicap";
 
 /** Where a player stands, 1 = leading. */
 export interface Standing {
@@ -226,7 +227,7 @@ export function startSlots(
 ): StartSlot[] {
   const firstTee = opts.firstTee ?? "08:00";
   const interval = Math.max(1, opts.interval ?? 10);
-  const holes = opts.holes === 9 ? 9 : 18;
+  const holes = holesPlayed(opts.holes);
 
   if (style === "shotgun") {
     return groups.map((g, i) => {

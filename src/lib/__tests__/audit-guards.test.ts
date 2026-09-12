@@ -411,7 +411,10 @@ describe("flight naming and sign-off", () => {
     );
     expect(regroup).toMatch(/courseHandicapMap\(/);
     expect(regroup).toMatch(/handicap: courseHcp\.get\(p\.id\) \?\? p\.handicap/);
-    expect(regroup).toMatch(/\?\.holes === 9 \? 9 : 18/);
+    // `holesPlayed` rather than the ternary this used to pin: the rule moved
+    // into one helper on 2026-09-12 and `holes-normalised-once.test.ts` now
+    // stops it being written out again anywhere.
+    expect(regroup).toMatch(/holesPlayed\(.*\?\.holes\)/);
   });
 });
 
@@ -1393,7 +1396,7 @@ describe("no match is created without a group", () => {
     const all = actions("tournament.ts");
     for (const name of ["createSingleMatch", "createThirdPlaceMatch"]) {
       const body = all.find((a) => a.name === name)!.body;
-      expect(body).toMatch(/stage\.holes === 9 \? 9 : 18/);
+      expect(body).toMatch(/holesPlayed\(stage\.holes\)/);
       expect(body).not.toMatch(/holes: "\[\]"/);
     }
   });
@@ -2142,7 +2145,7 @@ describe("the tee sheet is drawn for the selected round", () => {
   const page = readSource("src", "app", "(app)", "foursomes", "page.tsx");
 
   it("takes its hole count from the selected round, not the first one", () => {
-    expect(page).toMatch(/const holes = stage\?\.holes === 9 \? 9 : 18;/);
+    expect(page).toMatch(/const holes = holesPlayed\(stage\?\.holes\);/);
   });
 
   it("never derives a hole count from the first playing round", () => {

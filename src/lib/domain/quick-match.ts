@@ -1,3 +1,4 @@
+import { holesPlayed } from "./handicap";
 /**
  * A match between two people, planned from the little the two of them know.
  *
@@ -622,7 +623,7 @@ function clampHandicap(n: number): number {
 
 /** 18 unless nine was actually asked for. */
 function planHoles(raw: number | string | null | undefined): 9 | 18 {
-  return Number(raw) === 9 ? 9 : 18;
+  return holesPlayed(Number(raw));
 }
 
 /**

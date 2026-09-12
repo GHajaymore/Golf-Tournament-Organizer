@@ -7,6 +7,7 @@ import { loadEventState, scoringFrom } from "@/lib/services/tournament";
 import { RULES, RULE_SOURCE_LABEL, TIER_LABEL, tournamentTerms, ruleFor } from "@/lib/rules";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 /**
  * The three tiers a competition is actually played under.
@@ -45,7 +46,7 @@ export default async function RulesPage() {
       ? tournamentTerms({
           format: stage.format,
           type: stage.type,
-          holes: stage.holes === 9 ? 9 : 18,
+          holes: holesPlayed(stage.holes),
           scoringBasis: stage.scoringBasis,
           handicapAllowance: stage.handicapAllowance,
           countBest: stage.countBest,

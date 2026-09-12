@@ -25,6 +25,7 @@ import {
 import { MIN_SLOPE, MAX_SLOPE } from "@/lib/domain/handicap";
 import { matchCourse, teeProblems } from "@/lib/domain/venue";
 import { libraryOrganizationFor, organizationIdsFor } from "@/lib/services/organization";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 /**
  * The club's course library, and which venue a round or match was played on.
@@ -145,7 +146,7 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
    * course into eighteen the moment anybody opened it in the editor and
    * pressed save.
    */
-  const holes = input.pars.length === 9 ? 9 : 18;
+  const holes = holesPlayed(input.pars.length);
   const siProblem = strokeIndexProblem(input.strokeIndex, holes);
   if (siProblem) return { ok: false, error: siProblem };
 
@@ -747,7 +748,7 @@ export async function importClubCourseCard(input: {
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Enter a course name." };
 
-  const holes = input.holes === 9 ? 9 : 18;
+  const holes = holesPlayed(input.holes);
   const card = parseCard(
     { pars: input.pars, yards: input.yards, strokeIndex: input.strokeIndex },
     holes,

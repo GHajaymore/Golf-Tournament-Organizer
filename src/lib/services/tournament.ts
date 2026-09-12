@@ -43,6 +43,7 @@ import {
 } from "../domain";
 import type { Event, Player as DbPlayer, Group as DbGroup, Stage as DbStage, Match as DbMatch } from "@prisma/client";
 import { cleanSettings, allowsAutoConfirm, type TournamentSettings } from "../tournament-settings";
+import { holesPlayed } from "../domain/handicap";
 
 export type HoleResultArr = DomainMatch["holes"];
 
@@ -671,7 +672,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // missed site silently reinstates the original bug with no visible symptom.
   // With no rated tees the map is the raw indexes, which is exactly how the
   // app behaved before ratings existed.
-  const activeHoles = playingStages(stages)[0]?.holes === 9 ? 9 : 18;
+  const activeHoles = holesPlayed(playingStages(stages)[0]?.holes);
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
@@ -961,7 +962,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     // Narrowed to the nine actually played, the same way the match path does
     // it: nine holes of an eighteen-hole card carry stroke indexes scattered
     // through 1..18, and allocating off those gives the wrong holes.
-    const holes = stage?.holes === 9 ? 9 : 18;
+    const holes = holesPlayed(stage?.holes);
     const applied = applyNine(resolved, cleanNine(stage?.nine), holes);
     const value = { pars: applied.pars, holeDifficulty: applied.strokeIndex };
     roundCards.set(stageId, value);
@@ -1085,7 +1086,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * hands the prize to exactly the low handicapper a countback exists to stop.
    */
   const lastStrokeRound = strokeRounds[strokeRounds.length - 1] ?? null;
-  const lastRoundHoles = lastStrokeRound?.holes === 9 ? 9 : 18;
+  const lastRoundHoles = holesPlayed(lastStrokeRound?.holes);
   const cbCard = (playerId: string) => {
     const perStage = strokeAgg.get(playerId)?.holesByStage;
     const card = lastStrokeRound ? perStage?.get(lastStrokeRound.id) : undefined;

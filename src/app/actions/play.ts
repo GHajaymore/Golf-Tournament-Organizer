@@ -11,6 +11,7 @@ import { cleanHoleResults } from "@/lib/domain/score-payload";
 import { roundLabel } from "@/lib/domain/round-label";
 import { marginToHoles } from "@/lib/domain";
 import { writeScorecard, certifyCard } from "@/lib/services/scorecard-write";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 /**
  * Redeeming a Round Code.
@@ -207,7 +208,7 @@ export async function savePlayMatchHoles(
     where: { id: match.stageId },
     select: { holes: true },
   });
-  const clean = cleanHoleResults(holes, stage?.holes === 9 ? 9 : 18);
+  const clean = cleanHoleResults(holes, holesPlayed(stage?.holes));
   if (!clean) {
     return { ok: false, error: "Those scores aren't valid. Reload the round and try again." };
   }

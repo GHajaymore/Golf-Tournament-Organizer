@@ -15,6 +15,7 @@ import { teamStandings } from "@/lib/services/teams";
 import { resolveCourse } from "@/lib/courses";
 import { cardForStage } from "@/lib/services/course-resolution";
 import { toParText } from "@/lib/domain";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 /**
  * D8 of the 2026-08-12 audit. This page called `standingRows` unconditionally
@@ -58,7 +59,7 @@ export default async function ReportsPage() {
   // exactly how they came to disagree about which round was on screen.
   const activeStage = state.boardStage;
   const kind = boardKind(activeStage?.format);
-  const holes = activeStage?.holes === 9 ? 9 : 18;
+  const holes = holesPlayed(activeStage?.holes);
   // The nine actually played, re-ranked — Reports has to agree with the
   // leaderboard about which holes a stroke lands on.
   const course = cardForStage(resolveCourse(event), activeStage);

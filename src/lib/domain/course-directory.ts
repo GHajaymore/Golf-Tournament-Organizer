@@ -1,5 +1,6 @@
 import { cardProblems } from "./venue";
 import { implausibleCard } from "./scorecard-parse";
+import { holesPlayed } from "./handicap";
 
 /**
  * Reading a course card out of a public course directory.
@@ -204,7 +205,7 @@ export function cardFrom(holes: unknown): DirectoryCard {
   >;
   const ordered = withoutPhantomHoles(sorted);
 
-  const holeCount = ordered.length === 9 ? 9 : 18;
+  const holeCount = holesPlayed(ordered.length);
   if (ordered.length !== holeCount) {
     return {
       usable: false,

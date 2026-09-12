@@ -11,6 +11,7 @@ import { positionLabel } from "@/lib/domain/shared-position";
 import { roundLabel } from "@/lib/domain/round-label";
 import { myMatchView, type MyMatchView } from "@/lib/domain/my-match";
 import type { HoleResult } from "@/lib/domain/types";
+import { holesPlayed } from "../domain/handicap";
 
 /**
  * Everything the player-facing screens need about *this* person, in one place.
@@ -238,7 +239,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
     return { playerId, name: player?.name ?? "", standing: null, round: null };
   }
 
-  const holes = stage.holes === 9 ? 9 : 18;
+  const holes = holesPlayed(stage.holes);
 
   /**
    * Who I am playing with — from the PUBLISHED sheet only.

@@ -1,3 +1,4 @@
+import { holesPlayed } from "./handicap";
 // Stroke-play scoring: gross/net/to-par from per-hole gross strokes.
 
 export interface StrokeCard {
@@ -26,7 +27,7 @@ export interface StrokeCard {
  */
 export function holeStrokesReceived(courseHandicap: number, strokeIndex: number, holeCount = 18): number {
   const h = Math.round(courseHandicap);
-  const n = holeCount === 9 ? 9 : 18;
+  const n = holesPlayed(holeCount);
 
   /**
    * A PLUS HANDICAP GIVES STROKES BACK, and the arithmetic above cannot say so.
@@ -69,7 +70,7 @@ export function holeStrokesReceived(courseHandicap: number, strokeIndex: number,
  * on one hole, which is not a competition anyone has played.
  */
 export function allocationHoles(strokeIndexLength: number): 9 | 18 {
-  return strokeIndexLength === 9 ? 9 : 18;
+  return holesPlayed(strokeIndexLength);
 }
 
 /**
