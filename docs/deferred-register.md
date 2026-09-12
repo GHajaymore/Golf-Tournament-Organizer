@@ -107,6 +107,56 @@ and a mechanical 20-file change was judged scope expansion at the time.
 
 ## 3. Hazards created by recent changes, not yet addressed
 
+### `isStroke` is the EVENT's format, and every board reads it as the ROUND's
+**Found 2026-09-11 by walking the player app. Confirmed in both directions with
+a throwaway audit test. Not fixed — it is 33 readers across 14 files.**
+
+`loadEventState` sets `isStroke` from `event.format`, which is ONE value for a
+whole tournament. Every round carries its own format, and `setStageFormat`
+changes a round's without touching the event's, so the two disagree by design.
+
+The player's board reads it for two things: whether to print a score or a
+win-loss-halved record, and whether to head the column with strokes or "match
+points". So:
+
+- a **Stroke Play round in a match-format event** — a league playing one medal
+  week — shows the player `0-0-0` under "Ranked by match points". A player who
+  shot 75 is told nothing about their round.
+- a **Match Play round in a stroke-format event** — *the second half of an
+  ordinary club championship*, qualifier then bracket — tries to print strokes
+  for a round whose result is "3&2".
+
+The second is the one that matters: stroke-play qualifier into a match-play
+bracket is the commonest championship format there is.
+
+**Why it is not fixed here.** `state.isStroke` has 33 readers across 14 files,
+including the public `/live` board, the organizer leaderboard, reports, the
+week view and finish order. Changing it at the source is a scoring-presentation
+change across the whole product, and CLAUDE.md's combination sweep exists for
+exactly this shape — format × stage type is what `matrix.test.ts` enumerates.
+
+**The shape the fix probably wants** is not to change `isStroke` but to admit
+there are TWO questions that were conflated: what format the EVENT is, and what
+format the ROUND being shown is. Adding the second to the state — computed once,
+in `loadEventState`, beside the first — lets each reader ask what it actually
+means, and is the "enforce at the sink" shape this repo prefers over a guard
+each caller must remember.
+
+**The reproduction**, so nobody has to find it again:
+
+```ts
+// src/lib/__tests__/…audit.test.ts — needs the audit config, for the alias
+const event = await prisma.event.create({ data: { …, format: "stroke" } });
+await prisma.stage.create({
+  data: { eventId: event.id, position: 1, type: "Bracket Stage", format: "Match Play", … },
+});
+const state = await loadEventState(event.id);
+expect(state!.isStroke, "a Match Play round is presented as stroke play").toBe(false);
+// fails: isStroke is true, because the EVENT says stroke
+```
+
+
+
 ### A tournament that entered email-less players and later switches to email sign-in
 After #296, an organizer using Round Codes can enter a field with no addresses.
 Nothing stops them **later changing `playerAccess` to "email"** — at which point
