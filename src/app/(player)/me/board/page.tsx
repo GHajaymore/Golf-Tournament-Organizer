@@ -6,6 +6,7 @@ import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { boardKind } from "@/lib/formats";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 export const metadata = screenMetadata("/me/board");
 
@@ -40,7 +41,7 @@ export default async function PlayBoardPage() {
   // from the state, which is where the four screens that used to work this
   // out for themselves now agree. See `boardIsStroke`.
   const stage = state.boardStage;
-  const holes = stage?.holes === 9 ? 9 : 18;
+  const holes = holesPlayed(stage?.holes);
 
   // The same branch the console leaderboard, Reports and /live make (D8). A
   // player looking at their own board is the last person who should be shown a

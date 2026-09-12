@@ -1,4 +1,5 @@
 import { parseHoleArray } from "../courses";
+import { holesPlayed } from "../domain/handicap";
 
 /**
  * Which course a round or a match was actually played on.
@@ -291,7 +292,7 @@ export function applyNine<
 export function cardForStage<
   T extends { name: string; pars: number[]; yards: number[]; strokeIndex: number[] },
 >(course: T, stage: { holes?: number | null; nine?: string | null } | null | undefined): T {
-  return applyNine(course, cleanNine(stage?.nine), stage?.holes === 9 ? 9 : 18);
+  return applyNine(course, cleanNine(stage?.nine), holesPlayed(stage?.holes));
 }
 
 /**
@@ -334,5 +335,5 @@ export function cardForMatch<
   match: { nine?: string | null } | null | undefined,
   stage: { holes?: number | null; nine?: string | null } | null | undefined,
 ): T {
-  return applyNine(course, nineForMatch(match, stage), stage?.holes === 9 ? 9 : 18);
+  return applyNine(course, nineForMatch(match, stage), holesPlayed(stage?.holes));
 }

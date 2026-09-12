@@ -34,6 +34,7 @@ import { usesStandardBoard } from "@/lib/formats";
 import type { VoiceContext } from "@/lib/domain/voice-query";
 import { courseModeOf, needsVenue } from "@/lib/domain/venue";
 import { resolveTeamEntry, teamEntryNote } from "@/lib/domain/team-entry";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 export const metadata = screenMetadata("/entry");
 
@@ -144,7 +145,7 @@ export default async function EntryPage() {
     const sideOnly =
       resolveTeamEntry(activeStage.format, activeStage.scoreInput, activeStage.scoringBasis) ===
       "side-only";
-    const holeCount = activeStage.holes === 9 ? 9 : 18;
+    const holeCount = holesPlayed(activeStage.holes);
     const teams = await teamsForStage(session.eventId, activeStage.id, activeStage.format, activeStage.handicapAllowance, holeCount, activeStage.allowanceWeights);
     const teamById = new Map(teams.map((t) => [t.id, t]));
     const stageMatches = state.matches.filter(
@@ -411,7 +412,7 @@ export default async function EntryPage() {
    */
   const rounds: EntryRound[] = await Promise.all(
     rrStages.map(async (stage) => {
-      const holeCount = stage.holes === 9 ? 9 : 18;
+      const holeCount = holesPlayed(stage.holes);
       /**
        * Whether this round is played off handicap — the SAME question the
        * server asks, through the same function.

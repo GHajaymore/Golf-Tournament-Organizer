@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "../db";
 import { COURSE_REF, courseForRound, applyNine, cleanNine } from "./course-resolution";
 import { teeRatingFor } from "./handicaps";
-import { courseHandicap, teeIdFor, indexForHoles } from "../domain/handicap";
+import { courseHandicap, holesPlayed, teeIdFor, indexForHoles } from "../domain/handicap";
 import { resolveRoundHandicap } from "../domain/round-handicap";
 import {
   handicapRecordFrom,
@@ -164,7 +164,7 @@ export async function memberHandicapRecord(
     const event = eventById.get(stage.eventId);
     if (!event) continue;
 
-    const holes = stage.holes === 9 ? 9 : 18;
+    const holes = holesPlayed(stage.holes);
     const venue = stage.courseId ? venueById.get(stage.courseId) ?? null : null;
     const resolved = courseForRound(venue, event);
     if (!resolved) continue;

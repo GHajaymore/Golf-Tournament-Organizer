@@ -6,6 +6,7 @@ import { isCardLocked, statusAfterEdit, LOCKED_CARD_REFUSAL } from "@/lib/domain
 import { mayReportPartialCard, type TournamentSettings } from "@/lib/tournament-settings";
 import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
 import { isReturnedCard } from "@/lib/domain/round-handicap";
+import { holesPlayed } from "../domain/handicap";
 
 /**
  * Writing one player's stroke card — everything except who is allowed to.
@@ -83,7 +84,7 @@ export async function writeScorecard(input: {
   // gross, net and Stableford totals — so an out-of-range value does not sit
   // in a column, it lands on the leaderboard.
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { holes: true } });
-  const roundHoles = stage?.holes === 9 ? 9 : 18;
+  const roundHoles = holesPlayed(stage?.holes);
   const clean = cleanStrokes(strokes, roundHoles);
   if (!clean) throw new Error("Those scores aren't valid. Reload the round and try again.");
 

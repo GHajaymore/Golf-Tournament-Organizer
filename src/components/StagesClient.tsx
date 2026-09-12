@@ -59,6 +59,7 @@ import { RoundDeadlineControl } from "./RoundDeadlineControl";
 import { setStageOptDeadline } from "@/app/actions/attendance";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "./Icon";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 export interface StageView {
   id: string;
@@ -2039,7 +2040,7 @@ export function StagesClient({
               className="input"
               value={bulkHoles}
               disabled={pending}
-              onChange={(e) => setBulkHoles(parseInt(e.target.value, 10) === 9 ? 9 : 18)}
+              onChange={(e) => setBulkHoles(holesPlayed(parseInt(e.target.value, 10)))}
               style={{ width: 82 }}
               aria-label="Holes for every round added"
             >

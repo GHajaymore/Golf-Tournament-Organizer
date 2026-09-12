@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import { sideSizeRange, needsTeams, findFormat } from "@/lib/formats";
 import { snakeDraw } from "@/lib/services/teams";
 import { roundRobinSchedule } from "@/lib/domain";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 export interface TeamResult {
   ok: boolean;
@@ -218,7 +219,7 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
     });
   }
 
-  const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
+  const emptyHoles = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
   const schedule = roundRobinSchedule(use.map((t) => t.id));
   for (const pairing of schedule) {
     await prisma.match.create({

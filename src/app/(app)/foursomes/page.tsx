@@ -18,6 +18,7 @@ import { resolveCourse } from "@/lib/courses";
 import { cardForStage, courseForRound } from "@/lib/services/course-resolution";
 import { brandForEvent } from "@/lib/services/organization";
 import { Icon } from "@/components/Icon";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 export const metadata = screenMetadata("/foursomes");
 
@@ -88,7 +89,7 @@ export default async function FoursomesPage({
    * — so it printed a nine-column card for an eighteen-hole round and players
    * had nowhere to write holes 10 to 18.
    */
-  const holes = stage?.holes === 9 ? 9 : 18;
+  const holes = holesPlayed(stage?.holes);
 
   // Printed cards come from the SAVED sheet, never the on-screen preview —
   // the preview reshuffles on every visit, and a card has to match what was
@@ -190,7 +191,7 @@ export default async function FoursomesPage({
   const eventTees = await teesForEvent(session.eventId);
   const teeNames = await teeNamesForRound(
     session.eventId,
-    stage?.holes === 9 ? 9 : 18,
+    holesPlayed(stage?.holes),
     roundTeeId(eventTees, state.event.defaultTeeId),
   );
   const printGroups = (savedSheet?.groups ?? []).map((g) => ({

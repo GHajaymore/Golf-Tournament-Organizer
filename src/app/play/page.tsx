@@ -12,6 +12,7 @@ import { isNetBasis } from "@/lib/domain/match-entry";
 import { holeStrokesReceived } from "@/lib/domain/stroke";
 import { isHeadToHead } from "@/lib/stage-types";
 import { expiryNotice, hoursLeft } from "@/lib/domain/round-expiry";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 /**
  * The Round Code surface.
@@ -128,7 +129,7 @@ export default async function PlayPage() {
        * in somebody's hand agreeing with the board they are on.
        */
       const cardState = await loadEventState(event.id);
-      const holeCount = cardStage.holes === 9 ? 9 : 18;
+      const holeCount = holesPlayed(cardStage.holes);
       const playing = cardState?.strokeHandicapFor(session.playerId, cardStage.id) ?? 0;
       const shots = roundCard
         ? Array.from({ length: holeCount }, (_, h) =>
@@ -186,7 +187,7 @@ export default async function PlayPage() {
     }),
   ]);
 
-  const holeCount = stage?.holes === 9 ? 9 : 18;
+  const holeCount = holesPlayed(stage?.holes);
 
   /**
    * The card this match is played on, narrowed to the holes it is played over.

@@ -11,6 +11,7 @@ import { skinsBoard, nassauBoard, modifiedStablefordBoard } from "./points-stand
 import { resolveCourse } from "../courses";
 import { brandForEvent, themeForEvent } from "./organization";
 import { themeCss, playerColorScheme } from "../themes";
+import { holesPlayed } from "../domain/handicap";
 
 /**
  * Everything the public board shows, computed once and shared by the crowd.
@@ -122,7 +123,7 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
   const activeStage = state.boardStage;
   const kind = boardKind(activeStage?.format);
   const teamRound = kind === "team" && !!activeStage;
-  const holeCount = activeStage?.holes === 9 ? 9 : 18;
+  const holeCount = holesPlayed(activeStage?.holes);
   // Narrowed to the nine actually played and re-ranked, so the public board
   // allocates the same strokes the console does.
   const liveCourse = cardForStage(resolveCourse(event), activeStage);

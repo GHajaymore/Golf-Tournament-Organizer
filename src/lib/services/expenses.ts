@@ -36,6 +36,7 @@ import { resolveCourse } from "../courses";
 import { cardForStage, courseForRound } from "./course-resolution";
 import { holeStrokesReceived, allocationHoles } from "../domain";
 import { roundStrokes } from "./round-cards";
+import { holesPlayed } from "../domain/handicap";
 
 /**
  * The outing's money, gathered in the order somebody actually asks for it.
@@ -476,7 +477,7 @@ async function gameNets(
       for (const game of sideGames) {
         const stage = stageById.get(game.stageId);
         if (!stage) continue;
-        const holes = stage.holes === 9 ? 9 : 18;
+        const holes = holesPlayed(stage.holes);
         /**
          * The nine actually played, re-ranked — the same card the board uses.
          *
@@ -1416,7 +1417,7 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
   let stakeCents = 0;
 
   for (const stage of stages) {
-    const holeCount = stage.holes === 9 ? 9 : 18;
+    const holeCount = holesPlayed(stage.holes);
     // How much of the round is in. A hole counts as returned once anybody has
     // posted it — the pot is decided by the field, not by one card.
     const forStage = cards.filter((c) => c.stageId === stage.id);

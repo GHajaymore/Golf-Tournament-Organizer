@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { RULES, RULE_SOURCE_LABEL, tournamentTerms, ruleFor } from "@/lib/rules";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 export const metadata = screenMetadata("/me/rules");
 
@@ -52,7 +53,7 @@ export default async function PlayRulesPage() {
     ? tournamentTerms({
         format: stage.format,
         type: stage.type,
-        holes: stage.holes === 9 ? 9 : 18,
+        holes: holesPlayed(stage.holes),
         scoringBasis: stage.scoringBasis,
         handicapAllowance: stage.handicapAllowance,
         countBest: stage.countBest,

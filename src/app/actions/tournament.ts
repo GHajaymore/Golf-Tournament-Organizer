@@ -106,6 +106,7 @@ import { findFormat, inputChoices, isPlayable } from "@/lib/formats";
 import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 async function requireEvent(): Promise<string> {
   const session = await getSession();
@@ -1389,7 +1390,7 @@ export async function setStageHoles(stageId: string, holes: number) {
   await assertUnlocked(eventId);
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
-    data: { holes: holes === 9 ? 9 : 18 },
+    data: { holes: holesPlayed(holes) },
   });
   await refresh();
 }
@@ -2064,7 +2065,7 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     where: { id: match.stageId },
     select: { holes: true },
   });
-  const clean = cleanStrokes(strokes, cardStage?.holes === 9 ? 9 : 18);
+  const clean = cleanStrokes(strokes, holesPlayed(cardStage?.holes));
   if (!clean) throw new Error("Those scores aren't valid. Reload the round and try again.");
 
   if (!mayReportPartialCard(settings, session.role)) {
@@ -2133,7 +2134,7 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
   // Net match play allocates off Course Handicaps, not roster Indexes. Two
   // players on the same index but different tees are owed different strokes,
   // and deriveNetHoles works from the difference between them.
-  const holeCount = stage?.holes === 9 ? 9 : 18;
+  const holeCount = holesPlayed(stage?.holes);
   const netTees = await prisma.tee.findMany({
     where: { course: { events: { some: { eventId } } } },
     orderBy: [{ position: "asc" }],
@@ -2298,7 +2299,7 @@ export async function saveTeamScorecard(
   // the team's score — best ball, combined, best N of four — so an
   // out-of-range stroke does not affect one player, it decides the side's
   // result and the match with it. `stage.holes` is already loaded above.
-  const cleanCard = cleanStrokes(strokes, stage.holes === 9 ? 9 : 18);
+  const cleanCard = cleanStrokes(strokes, holesPlayed(stage.holes));
   if (!cleanCard) {
     return { ok: false, error: "Those scores aren't valid. Reload the round and try again." };
   }
@@ -2322,7 +2323,7 @@ export async function saveTeamScorecard(
   // Team match play: recompute the match from both sides' cards, so the same
   // resolveMatch that decides singles decides this too.
   if (match) {
-    await recomputeTeamMatch(eventId, match, stage.format, stage.holes === 9 ? 9 : 18);
+    await recomputeTeamMatch(eventId, match, stage.format, holesPlayed(stage.holes));
   }
 
   await refresh();
@@ -3704,7 +3705,7 @@ export async function importScores(
       }),
     ]);
     if (!event) return { ok: false, written: 0, error: "Tournament not found." };
-    const holes = stage.holes === 9 ? 9 : 18;
+    const holes = holesPlayed(stage.holes);
     const teeRatings = new Map(
       tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
     );
@@ -4134,7 +4135,7 @@ export async function approveRound(stageId: string) {
     where: { id: stageId, eventId },
     select: { holes: true },
   });
-  const holes = stage?.holes === 9 ? 9 : 18;
+  const holes = holesPlayed(stage?.holes);
 
   const rows = await prisma.scorecard.findMany({
     where: { eventId, stageId },
@@ -4390,7 +4391,7 @@ export async function createSingleMatch(stageId: string): Promise<{ ok: boolean;
   // Sized to the round, like every other match this app creates. An empty
   // array is not "no holes yet" to the entry screen — it falls back to
   // `holes.length || 18`, which would offer eighteen holes on a nine-hole round.
-  const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
+  const emptyHoles = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
 
   await prisma.match.create({
     data: { eventId, stageId, groupId, round: 1, playerAId, playerBId, holes: emptyHoles },
@@ -4467,7 +4468,7 @@ export async function createThirdPlaceMatch(stageId: string): Promise<{ ok: bool
   if (both.length !== 2) return { ok: false, error: "Those players aren't both in this tournament." };
 
   const groupId = await matchCarrierGroup(eventId, `Play-off for third — Round ${stage.position + 1}`);
-  const emptyHoles = JSON.stringify(new Array(stage.holes === 9 ? 9 : 18).fill(null));
+  const emptyHoles = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
 
   await prisma.match.create({
     data: { eventId, stageId, groupId, round: 0, playerAId: a.playerId, playerBId: b.playerId, holes: emptyHoles },

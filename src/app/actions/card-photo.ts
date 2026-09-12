@@ -369,7 +369,7 @@ export async function readCourseCardPhoto(
     };
   }
 
-  const holes = holeCount === 9 ? 9 : 18;
+  const holes = holesPlayed(holeCount);
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

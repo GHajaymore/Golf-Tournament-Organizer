@@ -1,3 +1,4 @@
+import { holesPlayed } from "./handicap";
 // Turning a sentence into a tournament's configuration.
 //
 // "Two-round member-guest, 24 pairs, four-ball 90%, cut top 8 after round 1"
@@ -98,7 +99,7 @@ export function parseSetupProposal(
       }
       continue;
     }
-    const holes = asInt(o.holes, 1, 18) === 9 ? 9 : 18;
+    const holes = holesPlayed(asInt(o.holes, 1, 18));
     rounds.push({
       type,
       format,

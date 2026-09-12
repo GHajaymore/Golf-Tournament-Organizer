@@ -198,6 +198,18 @@ export interface IndexHolder {
  *
  * Naming it makes the intent testable and gives the mistake somewhere to be
  * caught once rather than eighteen times.
+ *
+ * IT WAS NAMED AND THEN NOT ADOPTED, which is the part worth recording. The
+ * paragraph above was written when this was extracted, and afterwards five
+ * files used it while **forty-two call sites went on writing the ternary by
+ * hand** — across every layer: server actions, services, domain helpers and a
+ * dozen screens. A helper you must remember to reach for is the same shape as
+ * a guard you must remember to call, and CLAUDE.md says what happens to those.
+ *
+ * All forty-two were converted on 2026-09-12 and
+ * `holes-normalised-once.test.ts` now sweeps `src` for the literal, so the
+ * forty-third cannot be written without going red. That test is the reason
+ * this comment can stop worrying about it.
  */
 export function holesPlayed(holes: number | null | undefined): 9 | 18 {
   return holes === 9 ? 9 : 18;

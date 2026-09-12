@@ -21,6 +21,7 @@ import { ManualRoundBoard } from "@/components/ManualRoundBoard";
 import { teamStandings } from "@/lib/services/teams";
 import { resolveCourse } from "@/lib/courses";
 import { cardForStage } from "@/lib/services/course-resolution";
+import { holesPlayed } from "@/lib/domain/handicap";
 
 function ago(d: Date): string {
   const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
@@ -81,7 +82,7 @@ export default async function LeaderboardPage() {
   // its scores where the standard boards keep them — a skins game is a stroke
   // card, a Nassau is a match card — so these only change the reading.
   if (activeStage) {
-    const holes = activeStage.holes === 9 ? 9 : 18;
+    const holes = holesPlayed(activeStage.holes);
     const c = cardForStage(resolveCourse(event), activeStage);
 
     if (kind === "skins") {

@@ -1,7 +1,7 @@
 import "server-only";
 import { teeSetupFor, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
-import { courseHandicapMap } from "../domain/handicap";
+import { courseHandicapMap, holesPlayed } from "../domain/handicap";
 import {
   acceptsHandicapChange,
   handicapToFreeze,
@@ -77,7 +77,7 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
     where: { course: { events: { some: { eventId } } } },
     orderBy: [{ position: "asc" }],
   });
-  const holes = stage.holes === 9 ? 9 : 18;
+  const holes = holesPlayed(stage.holes);
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
@@ -238,7 +238,7 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
     }),
   ]);
 
-  const holes = stage.holes === 9 ? 9 : 18;
+  const holes = holesPlayed(stage.holes);
   const teeRatings = new Map(
     tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
   );
