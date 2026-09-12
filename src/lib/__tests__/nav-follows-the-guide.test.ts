@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { navForRole } from "../nav";
-import { setupFlow } from "../domain/setup-flow";
+import { setupFlow, type SetupFacts } from "../domain/setup-flow";
 
 /**
  * THE SIDEBAR LISTS THE SET-UP SCREENS IN THE ORDER THE GUIDE WALKS THEM.
@@ -24,17 +24,24 @@ import { setupFlow } from "../domain/setup-flow";
  * following, and the sidebar cannot be reordered at all without this going red.
  */
 
-const flowHrefs = () => {
-  const flow = setupFlow(
-    { named: false, dated: false, venued: false, stages: 0, confirmed: 0, grouped: false },
-    (href) => href,
-  );
-  return flow.steps.map((s) => s.href);
+/** A tournament with nothing done yet: every step is ahead, in order. */
+const NOTHING_DONE: SetupFacts = {
+  confirmed: 0,
+  stages: 0,
+  groups: 0,
+  matches: 0,
+  drawsPairings: false,
+  named: false,
+  dated: false,
+  venued: false,
+  launched: false,
 };
+
+const flowHrefs = () => setupFlow(NOTHING_DONE, (href) => href).steps.map((s) => s.href);
 
 /** Every Set-up item the sidebar shows an organizer, in the order shown. */
 const sidebarSetupHrefs = () => {
-  const nav = navForRole("admin", { orgKind: "club" });
+  const nav = navForRole("admin");
   const section = nav.find((s) => s.label === "Set up");
   expect(section, "the Set up section is gone from the sidebar").toBeTruthy();
   return section!.items.map((i) => i.href);
