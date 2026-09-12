@@ -1,7 +1,7 @@
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import { hasKnockoutStage } from "@/lib/stage-types";
 import { requireScreen } from "@/lib/page-helpers";
-import { loadEventState, matchProgress, standingRows } from "@/lib/services/tournament";
+import { loadEventState, standingRows } from "@/lib/services/tournament";
 import { redirect } from "next/navigation";
 import { ReportsClient } from "@/components/ReportsClient";
 import { StatCard } from "@/components/PageHeader";
@@ -36,7 +36,6 @@ export default async function ReportsPage() {
   const brand = await brandForEvent(session.eventId);
 
   const { event } = state;
-  const progress = matchProgress(state);
   const rows = standingRows(state);
   /**
    * THE ROUND ON SCREEN, not the event around it.
@@ -53,7 +52,6 @@ export default async function ReportsPage() {
    * `state.isStroke` after the fourth one shipped a blank score to production.
    */
   const isStroke = state.boardIsStroke;
-  const cardsIn = state.strokeStandings.filter((s) => s.thru > 0).length;
 
   // `boardStage` rather than this screen's own `activeStage ?? stages[0]`,
   // which is the expression four boards each wrote for themselves and is
@@ -196,11 +194,14 @@ export default async function ReportsPage() {
       </div>
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <StatCard label="Players" value={state.confirmed.length} icon="ph ph-users-three" />
-        {isStroke ? (
-          <StatCard label="Cards in" value={`${cardsIn}/${state.confirmed.length}`} icon="ph ph-check-circle" />
-        ) : (
-          <StatCard label="Matches complete" value={`${progress.done}/${progress.total}`} icon="ph ph-check-circle" />
-        )}
+        {/* One fact, counted once. This was a ternary on the event's format
+            over two hand-built numbers; `boardProgress` already knows both the
+            count and what it is counting. */}
+        <StatCard
+          label={state.boardProgress.unit === "cards" ? "Cards in" : "Matches complete"}
+          value={`${state.boardProgress.done}/${state.boardProgress.total}`}
+          icon="ph ph-check-circle"
+        />
         <StatCard label="Flights" value={state.groups.length} icon="ph ph-squares-four" />
         <StatCard label="Advancing" value={state.advancingCount} icon="ph ph-flag-checkered" />
       </div>

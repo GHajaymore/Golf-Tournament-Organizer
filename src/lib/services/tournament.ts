@@ -402,6 +402,16 @@ export interface EventState {
    * in its own unit now. See the derivation for the measurements.
    */
   bracketFeederProgress: number | null;
+  /**
+   * How far along the round on the board is, in the unit THAT round keeps its
+   * results in — cards returned for a medal, fixtures decided for a match.
+   *
+   * One sentence, written once. The dashboard and Reports each held their own
+   * copy of it and each chose the unit from `event.format`, so a mixed
+   * tournament counted the wrong things and named them wrongly too. `unit`
+   * says which, so a screen never works it out from the format again.
+   */
+  boardProgress: { done: number; total: number; pct: number; unit: "cards" | "matches" };
   strokeStandings: StrokeStanding[];
   /**
    * What `strokeStandings` measures, and which rounds went into it.
@@ -850,28 +860,66 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * shape as `boardIsStroke` directly above, and for the same reason: a rule
    * enforced where the data is built cannot be forgotten by a caller.
    */
+  /**
+   * ONE ROUND'S PROGRESS, in the unit that round keeps its results in.
+   *
+   * Written once because three readers need it and every one of them used to
+   * choose the unit for itself: the bracket's feeders below, the "Current
+   * round" card on the dashboard, and the cards-in/matches-complete pair on
+   * the dashboard and Reports. All three chose it from `event.format` and all
+   * three were wrong in a mixed tournament.
+   *
+   * A MEDAL is measured against the FIELD, not against the cards that happen
+   * to exist — otherwise one card in reads 100%. A MATCH round is measured
+   * against its own fixtures, because a round robin's size is the draw rather
+   * than the entry list.
+   */
+  const roundProgress = (s: DbStage) => {
+    if (roundIsStroke(s.type, s.format)) {
+      return {
+        done: scorecards.filter((c) => c.stageId === s.id && hasAnyHole(c.strokes)).length,
+        total: confirmed.length,
+      };
+    }
+    const own = matches.filter((m) => m.stageId === s.id);
+    return { done: own.filter((m) => matchSettled(m)).length, total: own.length };
+  };
+
   const bracketIdx = stages.findIndex((s) => isKnockoutRound(s.type));
   const feeders = bracketIdx >= 0 ? stages.slice(0, bracketIdx) : [];
   let feederDone = 0;
   let feederTotal = 0;
   for (const f of feeders) {
-    if (roundIsStroke(f.type, f.format)) {
-      // A medal round is decided by the field returning cards, so the target
-      // is the field — not the cards that happen to exist, which would read
-      // 100% off one card in.
-      feederDone += scorecards.filter((c) => c.stageId === f.id && hasAnyHole(c.strokes)).length;
-      feederTotal += confirmed.length;
-    } else {
-      const own = matches.filter((m) => m.stageId === f.id);
-      feederDone += own.filter((m) => matchSettled(m)).length;
-      feederTotal += own.length;
-    }
+    const p = roundProgress(f);
+    feederDone += p.done;
+    feederTotal += p.total;
   }
   // Null still means "nothing feeds it", which the rule reads as "show the
   // draw" — right for a straight knockout, and now reached only when there
   // genuinely is no feeder rather than when the unit was the wrong one.
   const bracketFeederProgress =
     bracketIdx < 0 || feeders.length === 0 ? null : feederTotal <= 0 ? null : Math.min(1, feederDone / feederTotal);
+
+  /**
+   * THE ROUND ON THE BOARD, counted the same way.
+   *
+   * The dashboard and Reports each wrote this pair for themselves —
+   * `strokeStandings.filter(thru > 0).length` against the field, or
+   * `matchProgress` — and chose between them on the EVENT's format. Two copies
+   * of one sentence, in two files, both asking the wrong question.
+   *
+   * `unit` so a screen can name what it is counting without working it out
+   * again from the format. "7/33 scorecards in" and "12/24 matches complete"
+   * are the same fact about two kinds of round.
+   */
+  const bp = boardStage ? roundProgress(boardStage) : { done: 0, total: 0 };
+  const boardProgress = {
+    done: bp.done,
+    total: bp.total,
+    pct: bp.total > 0 ? Math.round((bp.done / bp.total) * 100) : 0,
+    unit: (boardStage && !boardIsStroke ? "matches" : "cards") as "cards" | "matches",
+  };
+
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const roundHandicapBy = new Map(
     roundHandicaps.map((r) => [roundHandicapKey(r.stageId, r.playerId), { frozen: r.frozen, override: r.override }]),
@@ -1349,6 +1397,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     boardStage,
     boardIsStroke,
     bracketFeederProgress,
+    boardProgress,
     strokeStandings,
     strokeUnit,
     strokeRounds,

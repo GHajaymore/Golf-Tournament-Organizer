@@ -313,7 +313,6 @@ export default async function DashboardPage() {
    * as a list. It went red on this file the first time it ran.
    */
   const isStroke = state.boardIsStroke;
-  const cardsIn = state.strokeStandings.filter((s) => s.thru > 0).length;
 
   /**
    * What decides the bracket differs by tournament: a round robin decides it
@@ -757,15 +756,30 @@ export default async function DashboardPage() {
             }
             icon="ph ph-users-three"
           />
-          {isStroke ? (
-            <StatCard label="Cards in" value={`${cardsIn}/${state.confirmed.length}`} sub={`${state.confirmed.length ? Math.round((cardsIn / state.confirmed.length) * 100) : 0}% submitted`} icon="ph ph-cards" />
+          {/* TWO PEOPLE PLAYING EACH OTHER IS STILL ITS OWN SENTENCE. A quick
+              match has no schedule to be half way through, so it says whether
+              it is finished rather than how much of it is. Everything else
+              counts `boardProgress`, which knows both the number and what it
+              is counting. */}
+          {matchEvent ? (
+            <StatCard
+              label="Match"
+              value={state.boardProgress.done > 0 ? "Finished" : "Not finished"}
+              sub="hole by hole"
+              icon="ph ph-check-circle"
+            />
+          ) : state.boardProgress.unit === "cards" ? (
+            <StatCard
+              label="Cards in"
+              value={`${state.boardProgress.done}/${state.boardProgress.total}`}
+              sub={`${state.boardProgress.pct}% submitted`}
+              icon="ph ph-cards"
+            />
           ) : (
             <StatCard
-              label={matchEvent ? "Match" : "Matches complete"}
-              value={matchEvent ? (progress.done > 0 ? "Finished" : "Not finished") : `${progress.done}/${progress.total}`}
-              // "50% of round robin" is a sentence about a schedule. One match
-              // has no schedule to be half way through.
-              sub={matchEvent ? "hole by hole" : `${progress.pct}% of round robin`}
+              label="Matches complete"
+              value={`${state.boardProgress.done}/${state.boardProgress.total}`}
+              sub={`${state.boardProgress.pct}% of round robin`}
               icon="ph ph-check-circle"
             />
           )}
@@ -842,11 +856,15 @@ export default async function DashboardPage() {
                   <div className="text-muted" style={{ fontSize: 12 }}>{currentRoundDesc}</div>
                 </div>
               </div>
+              {/* The bar and the caption are one fact, and `boardProgress`
+                  already holds it — counted for the round this card NAMES,
+                  which is the whole of what went wrong here. */}
               <div style={{ marginTop: 12, height: 8, borderRadius: 6, background: "var(--color-neutral-800)", overflow: "hidden" }}>
-                <div style={{ height: "100%", background: "var(--color-accent)", width: `${isStroke ? (state.confirmed.length ? Math.round((cardsIn / state.confirmed.length) * 100) : 0) : progress.pct}%` }} />
+                <div style={{ height: "100%", background: "var(--color-accent)", width: `${state.boardProgress.pct}%` }} />
               </div>
               <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
-                {isStroke ? `${cardsIn}/${state.confirmed.length} scorecards in` : `${progress.done}/${progress.total} matches complete`}
+                {state.boardProgress.done}/{state.boardProgress.total}{" "}
+                {state.boardProgress.unit === "cards" ? "scorecards in" : "matches complete"}
               </div>
             </div>
 
