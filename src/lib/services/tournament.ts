@@ -1,6 +1,6 @@
 import "server-only";
 import { roundTeeId } from "./handicaps";
-import { hasKnockoutStage, isPlayingRound, isHeadToHead } from "../stage-types";
+import { hasKnockoutStage, isPlayingRound, roundIsStroke } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { isManualFormat, stablefordTableFor } from "../formats";
@@ -773,7 +773,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * The fallback existed for the one type the field never played.
    */
   const boardStage = activeStage;
-  const boardIsStroke = boardStage ? !isHeadToHead(boardStage.type) : isStroke;
+  const boardIsStroke = boardStage ? roundIsStroke(boardStage.type) : isStroke;
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const roundHandicapBy = new Map(
     roundHandicaps.map((r) => [roundHandicapKey(r.stageId, r.playerId), { frozen: r.frozen, override: r.override }]),

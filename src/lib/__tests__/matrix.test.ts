@@ -12,7 +12,7 @@ import {
   resolveScoreInput,
   sideSizeRange,
 } from "@/lib/formats";
-import { STAGE_TYPES, generatesPairings, isPlayingRound, stageTypeInfo } from "@/lib/stage-types";
+import { STAGE_TYPES, generatesPairings, isPlayingRound, stageTypeInfo, roundIsStroke, isHeadToHead } from "@/lib/stage-types";
 import {
   LEADERBOARD_VISIBILITY,
   SCORE_ENTRY_BY,
@@ -182,6 +182,48 @@ describe("every format, on every stage type", () => {
       // for a round nobody plays is meaningless.
       if (pairs) expect(playing).toBe(true);
     }
+  });
+
+  /**
+   * HOW A ROUND IS SCORED IS A FACT ABOUT THE ROUND, NOT THE TOURNAMENT.
+   *
+   * The cell this file was missing, and the defect it would have caught. Every
+   * board asked `event.format` — ONE value for a whole tournament — while each
+   * round carries its own, so a match-play bracket inside an event whose
+   * format said stroke tried to print strokes for a result that is "3&2".
+   * That is the second half of an ordinary club championship, and it was found
+   * by walking the player app rather than by any sweep.
+   *
+   * This file already enumerates format x stage type, which is the right axis
+   * for "does anything throw". What it had no notion of is the EVENT around
+   * them — so the assertion is that `roundIsStroke` depends on the type and
+   * nothing else, which is the property whose absence was the bug.
+   */
+  it("answers how a round is scored from the round alone", () => {
+    for (const type of STAGE_TYPES) {
+      const answer = roundIsStroke(type);
+      expect(typeof answer, type).toBe("boolean");
+      // The complement of head-to-head, in every cell. A round where somebody
+      // plays somebody has a match result; one where they do not has strokes.
+      expect(answer, type).toBe(!isHeadToHead(type));
+      // And the same answer whatever format is set on it — a Four-Ball is
+      // match play in a bracket and stroke play in a medal, which is exactly
+      // why the format string is the wrong thing to read.
+      for (const format of FORMAT_NAMES) {
+        expect(roundIsStroke(type), `${format} on a ${type}`).toBe(answer);
+      }
+    }
+  });
+
+  it("gives a definite answer for a type it has never heard of", () => {
+    /**
+     * A stage row written by an older build, or by a hand-edited database. It
+     * must not crash a board, and the safe default is the milder wrong: a
+     * score for a round with no opponent, rather than an invented
+     * win-loss-halved record.
+     */
+    expect(roundIsStroke("Retired Stage Type")).toBe(true);
+    expect(roundIsStroke("")).toBe(true);
   });
 });
 
