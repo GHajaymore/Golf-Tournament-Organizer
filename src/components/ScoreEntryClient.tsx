@@ -42,6 +42,7 @@ import {
 import { setMatchCourse } from "@/app/actions/courses";
 import { VenuePrompt, type VenueCourse } from "./VenuePrompt";
 import { Icon } from "./Icon";
+import { startDictation, type Dictation } from "@/lib/dictation";
 
 /**
  * The three ways a match gets written down, as the screen offers them.
@@ -468,7 +469,7 @@ export function ScoreEntryClient({
    * whichever mic just ran.
    */
   const [listenHint, setListenHint] = useState("");
-  const recognitionRef = useRef<unknown>(null);
+  const recognitionRef = useRef<Dictation | null>(null);
   const entryRef = useRef<HTMLDivElement>(null);
   const [, startTransition] = useTransition();
   // This card saves on every keystroke and has no Save button, so without
@@ -731,36 +732,28 @@ export function ScoreEntryClient({
     key: string,
     onTranscript: (transcript: string) => void,
   ) => {
-    const SpeechRecognition =
-      (window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown })
-        .SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setListenHint("Voice entry isn’t supported in this browser — type it instead.");
-      return;
-    }
     if (listening === key) {
       setListening(null);
       return;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rec: any = new (SpeechRecognition as any)();
-    recognitionRef.current = rec;
-    rec.lang = "en-US";
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
+    const started = startDictation({
+      onTranscript: (transcript) => {
+        onTranscript(transcript);
+        setListening(null);
+      },
+      onError: () => {
+        setListenHint("Didn’t catch that — try again or type it.");
+        setListening(null);
+      },
+      onEnd: () => setListening(null),
+    });
+    if (!started) {
+      setListenHint("Voice entry isn’t supported in this browser — type it instead.");
+      return;
+    }
+    recognitionRef.current = started;
     setListening(key);
     setListenHint("Listening…");
-    rec.onresult = (e: { results: { 0: { 0: { transcript: string } } } }) => {
-      onTranscript(e.results[0][0].transcript);
-      setListening(null);
-    };
-    rec.onerror = () => {
-      setListenHint("Didn’t catch that — try again or type it.");
-      setListening(null);
-    };
-    rec.onend = () => setListening(null);
-    rec.start();
   };
 
   const toggleListenResult = () =>

@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { parseVoiceQuery, answerVoiceQuery, type VoiceContext } from "@/lib/domain/voice-query";
 import { Icon } from "./Icon";
+import { startDictation, type Dictation } from "@/lib/dictation";
 
 /**
  * Ask the round a question out loud.
@@ -19,44 +20,36 @@ export function VoiceAsk({ context }: { context: VoiceContext }) {
   const [listening, setListening] = useState(false);
   const [answer, setAnswer] = useState<string | null>(null);
   const [heard, setHeard] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<Dictation | null>(null);
 
   const toggle = () => {
-    const SpeechRecognition =
-      (window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown })
-        .SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    setAnswer(null);
+    setHeard(null);
+    const started = startDictation({
+      onTranscript: (transcript) => {
+        setHeard(transcript);
+        setAnswer(answerVoiceQuery(parseVoiceQuery(transcript), context));
+        setListening(false);
+      },
+      onError: () => {
+        setAnswer("Didn’t catch that — try again.");
+        setListening(false);
+      },
+      onEnd: () => setListening(false),
+    });
+    // The wording is this screen's: a player asking a question is told voice
+    // is unavailable, not told to type the scores.
+    if (!started) {
       setAnswer("Voice isn’t supported in this browser.");
       return;
     }
-    if (listening) {
-      recognitionRef.current?.stop?.();
-      setListening(false);
-      return;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rec: any = new (SpeechRecognition as any)();
-    recognitionRef.current = rec;
-    rec.lang = "en-US";
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
+    recognitionRef.current = started;
     setListening(true);
-    setAnswer(null);
-    setHeard(null);
-    rec.onresult = (e: { results: { 0: { 0: { transcript: string } } } }) => {
-      const transcript = e.results[0][0].transcript;
-      setHeard(transcript);
-      setAnswer(answerVoiceQuery(parseVoiceQuery(transcript), context));
-      setListening(false);
-    };
-    rec.onerror = () => {
-      setAnswer("Didn’t catch that — try again.");
-      setListening(false);
-    };
-    rec.onend = () => setListening(false);
-    rec.start();
   };
 
   return (
