@@ -15,6 +15,7 @@ export function CreateFirstTournament({
   first,
   plan = "free",
   organizationNamed = false,
+  clubNameRequired = false,
   organizations = [],
 }: {
   first: boolean;
@@ -38,6 +39,18 @@ export function CreateFirstTournament({
    * dead one; see the field.
    */
   organizationNamed?: boolean;
+  /**
+   * Whether this club must be named before its first tournament exists.
+   *
+   * From `clubFirstRefusal`: true only for a brand-new club or society that
+   * has not named itself. Never for an existing one, and never for somebody
+   * who said at sign-up that they are running a one-off outing with friends.
+   *
+   * Typing a name in the field below SATISFIES it — the organization is named
+   * on the way through creation — so this makes a field required rather than
+   * sending anybody to another screen and back.
+   */
+  clubNameRequired?: boolean;
   /**
    * The organizations this person may create in — see
    * `organizationsForOrganizer`.
@@ -277,9 +290,20 @@ export function CreateFirstTournament({
           "Name your society" FIRST and "Create your first tournament" LAST, so
           working through it in the order offered lands here every time. Walked
           on 2026-09-10 as a new society secretary, which is how it was found. */}
-      {first && !organizationNamed && (
+      {(first || clubNameRequired) && !organizationNamed && (
         <div className="field">
-          <label>Who&rsquo;s running this? <span className="text-muted" style={{ fontWeight: 400 }}>— club, society or company (optional)</span></label>
+          {/* REQUIRED once the club-first gate applies, and optional otherwise.
+              A club is set up once and its tournaments are many, so naming it
+              comes before the first one — but the name is collected HERE
+              rather than by sending somebody to Club settings and back,
+              because typing it satisfies the rule outright: the organization
+              is named on the way through creation. */}
+          <label>
+            Who&rsquo;s running this?{" "}
+            <span className="text-muted" style={{ fontWeight: 400 }}>
+              {clubNameRequired ? "— your club or society, set once for every tournament" : "— club, society or company (optional)"}
+            </span>
+          </label>
           <input
             className="input"
             value={orgName}
@@ -326,7 +350,7 @@ export function CreateFirstTournament({
       )}
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="button" className="btn btn-primary" disabled={pending || !name.trim() || !shape} onClick={submit}>
+        <button type="button" className="btn btn-primary" disabled={pending || !name.trim() || !shape || (clubNameRequired && !orgName.trim())} onClick={submit}>
           {pending ? "Creating…" : "Create tournament"} <Icon name="arrow-right" />
         </button>
         {!first && (

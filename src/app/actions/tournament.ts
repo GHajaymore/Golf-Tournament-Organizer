@@ -77,6 +77,8 @@ import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
+import { clubFirstRefusal } from "@/lib/domain/club-first";
+import { organizationWasNamed } from "@/lib/org-naming";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { isCutScope } from "@/lib/domain/cut";
 import { isStrokeShape, type ScoreImportShape } from "@/lib/domain/score-import";
@@ -3037,6 +3039,33 @@ export async function createEvent(
     orgName,
     chosenOrganizationId,
   );
+  /**
+   * THE CLUB IS NAMED BEFORE ITS FIRST TOURNAMENT EXISTS.
+   *
+   * Checked here rather than only on the screen, because a `"use server"`
+   * export is a public HTTP endpoint and a disabled button stops nobody. It
+   * fires once in an organization's life at most — see `clubFirstRefusal` for
+   * why an existing club and a standalone organizer are never asked.
+   *
+   * After `organizationForNewEvent`, deliberately: that call is what CREATES
+   * the organization on a first event, and `orgName` passed from the picker
+   * names it on the way through. So somebody who answers "Who's running this?"
+   * in the same breath has already satisfied this by the time it is read, and
+   * is not stopped to do a thing they just did.
+   */
+  const owner = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { name: true, kind: true, _count: { select: { events: true } } },
+  });
+  if (owner) {
+    const clubFirst = clubFirstRefusal({
+      eventCount: owner._count.events,
+      named: organizationWasNamed(owner.name, session.name, session.email),
+      kind: owner.kind,
+    });
+    if (clubFirst) return { ok: false, error: clubFirst };
+  }
+
   // Plan limits bite only once billing is connected — see services/limits.ts.
   const refusal = await refusalFor(organizationId, "activeEvents");
   if (refusal) return { ok: false, error: refusal };

@@ -13,6 +13,7 @@ export const metadata = { title: "Choose a tournament", robots: NOINDEX };
 import { ROLE_LABEL } from "@/lib/roles";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
+import { clubFirstRefusal } from "@/lib/domain/club-first";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
@@ -292,6 +293,10 @@ export default async function ChooseTournamentPage({
              Every organization has a name from birth, so this is the derived
              one, not the presence of a string. */
           organizationNamed={facts?.named ?? false}
+          clubNameRequired={
+            !!facts &&
+            !!clubFirstRefusal({ eventCount: facts.eventCount, named: facts.named, kind: facts.kind ?? "" })
+          }
           /* Only asked when there is more than one — see the prop. Each one
              carries its own plan, so the retention warning follows the pick. */
           organizations={await organizationsForOrganizer(session.email)}
