@@ -18,14 +18,49 @@
 
 import { splitExactly } from "./money";
 
-export const CONTEST_KINDS = ["closest-pin", "long-drive", "other"] as const;
+export const CONTEST_KINDS = ["closest-pin", "long-drive", "off-course", "other"] as const;
 export type ContestKind = (typeof CONTEST_KINDS)[number];
 
 export const CONTEST_LABEL: Record<ContestKind, string> = {
   "closest-pin": "Closest to the pin",
   "long-drive": "Long drive",
+  /**
+   * POKER, CARDS, DARTS, THE QUIZ — the games an outing plays off the course.
+   *
+   * A trip is two days of golf and an evening of something else, and the
+   * something else is played for money exactly like the long drive is. The
+   * arithmetic above is already the right arithmetic and knows nothing about
+   * golf: everybody puts in, the winners share the pot, split to the cent.
+   * There was simply nothing to call it, so it went under "Side bet" — where
+   * it looked like a bet on the round — or, worse, into the expense ledger,
+   * which is the wrong book entirely.
+   *
+   * THAT IS THE DISTINCTION WORTH HOLDING. A pot is money players staked
+   * AGAINST EACH OTHER and the app decides who gets it. A shared cost is money
+   * one person fronted FOR THE GROUP and the app decides who owes them. Poker
+   * is unambiguously the first, however far it is from a golf course — and
+   * green fees are unambiguously the second, however close.
+   *
+   * The free-text `name` carries what it actually was, so the ledger reads
+   * "Saturday poker" rather than a category. The hole is meaningless here and
+   * the form does not ask for it.
+   */
+  "off-course": "Off-course game (poker, cards, darts)",
   other: "Side bet",
 };
+
+/**
+ * Whether this kind happens on a golf hole.
+ *
+ * Asked by the form so it can stop demanding a hole number for the poker
+ * school, and stated here rather than in the component so a kind added later
+ * has one place to declare itself. Closest to the pin without a hole is a
+ * contest somebody forgot to finish describing; poker without a hole is
+ * simply poker.
+ */
+export function contestHasHole(kind: ContestKind): boolean {
+  return kind !== "off-course";
+}
 
 export function isContestKind(v: string): v is ContestKind {
   return (CONTEST_KINDS as readonly string[]).includes(v);

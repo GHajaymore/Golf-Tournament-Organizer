@@ -71,6 +71,12 @@ export const CLONED_EVENT_FIELDS = [
   // the same outing runs its money the same way — and an empty value here
   // means "follow the club", which is exactly what a copy should inherit too.
   "moneyMode",
+  // And who may write a shared cost down, which travels with it for the same
+  // reason. It is a fact about the SHAPE of the trip — a treasurer keeps the
+  // book on a society day, nine people keep it between them on an away
+  // weekend — and next year's running of the same outing is the same shape.
+  // Empty means "anyone playing", which a copy should inherit as readily.
+  "expenseEntry",
   "scoreApproval",
   // Travels with scoreApproval — a club that wants every player in the match
   // to sign off wants that next year too.

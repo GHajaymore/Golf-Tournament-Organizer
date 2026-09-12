@@ -7,6 +7,7 @@ import { minorUnitsFrom, money } from "@/lib/domain/money-format";
 import { revalidatePath } from "next/cache";
 import { isMoneyMode } from "@/lib/domain/money-mode";
 import { isPotEntryMode } from "@/lib/domain/pot-entry";
+import { isExpenseEntry, resolveExpenseEntry } from "@/lib/domain/expense-entry";
 import { isValidAmount, MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
 import { isIsoDate } from "@/lib/deadline";
 import { logAudit } from "@/lib/services/action-shared";
@@ -59,6 +60,33 @@ export async function setEventMoneyMode(mode: string): Promise<MoneyResult> {
 
   await prisma.event.update({ where: { id: who.eventId }, data: { moneyMode: clean } });
   await logAudit(who.eventId, "money.mode", `${who.name} set this tournament to ${clean || "follow the club"}`, { actor: who.name });
+  refresh();
+  return { ok: true };
+}
+
+/**
+ * Who may WRITE a shared cost down — see `domain/expense-entry.ts`.
+ *
+ * A qualifier on `split`, not a fourth money mode, and stored per tournament
+ * rather than per club because the same society's roll-up and its away day
+ * want opposite answers.
+ *
+ * An empty string is a real value here for the same reason it is on the mode:
+ * it is the way back to the default, which is "anyone playing".
+ */
+export async function setExpenseEntry(entry: string): Promise<MoneyResult> {
+  const who = await requireOrganizer();
+  if (!who) return { ok: false, error: "An organizer decides who can add a cost." };
+  const clean = (entry ?? "").trim();
+  if (clean !== "" && !isExpenseEntry(clean)) return { ok: false, error: "Unknown entry setting." };
+
+  await prisma.event.update({ where: { id: who.eventId }, data: { expenseEntry: clean } });
+  await logAudit(
+    who.eventId,
+    "money.expense-entry",
+    `${who.name} set shared costs to be added by ${resolveExpenseEntry({ eventEntry: clean }) === "staff" ? "organizers only" : "anyone playing"}`,
+    { actor: who.name },
+  );
   refresh();
   return { ok: true };
 }

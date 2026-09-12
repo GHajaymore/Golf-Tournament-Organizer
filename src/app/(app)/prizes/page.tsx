@@ -322,6 +322,7 @@ export default async function PrizesPage({
           orgMode={org?.moneyMode ?? ""}
           orgKind={org?.kind ?? ""}
           clubName={org?.shortName || org?.name || ""}
+          eventEntry={state.event.expenseEntry}
         />
         </div>
       )}

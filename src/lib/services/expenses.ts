@@ -37,6 +37,7 @@ import { cardForStage, courseForRound } from "./course-resolution";
 import { holeStrokesReceived, allocationHoles } from "../domain";
 import { roundStrokes } from "./round-cards";
 import { holesPlayed } from "../domain/handicap";
+import { canAddExpense, resolveExpenseEntry } from "../domain/expense-entry";
 
 /**
  * The outing's money, gathered in the order somebody actually asks for it.
@@ -213,6 +214,16 @@ export interface MoneyView {
   gameLines: Array<{ label: string; detail: string; cents: number }>;
   /** True when this tournament has any money recorded at all. */
   used: boolean;
+  /**
+   * Whether THIS viewer may write a new shared cost down.
+   *
+   * On the view rather than worked out by each screen, because two screens
+   * show the same form — the player's `/me/money` and the organizer's ledger
+   * on Prizes & payouts — and a rule computed twice is a rule that comes to
+   * disagree. `addExpense` re-checks it regardless; this is what decides
+   * whether a button is offered, not whether a write is allowed.
+   */
+  canAddExpense: boolean;
 }
 
 /**
@@ -780,7 +791,7 @@ export async function moneyFor(
   const moneyFieldIds = confirmedField.map((p) => p.id);
   const moneyStakeholderIds = moneyStakeholders.map((p) => p.id);
 
-  const [rows, settlements, players, stages, contestRows, sideGameRows, skinsRows] = await Promise.all([
+  const [rows, settlements, players, stages, contestRows, sideGameRows, skinsRows, eventRow] = await Promise.all([
     prisma.expense.findMany({
       where: { eventId },
       orderBy: [{ spentOn: "desc" }, { createdAt: "desc" }],
@@ -836,6 +847,9 @@ export async function moneyFor(
         entrants: { select: { playerId: true, confirmed: true } },
       },
     }),
+    // Who this tournament lets write a shared cost down. One column, in the
+    // batch the rest of the screen already pays for.
+    prisma.event.findUnique({ where: { id: eventId }, select: { expenseEntry: true } }),
   ]);
 
   const nameOf = new Map(players.map((p) => [p.id, p.name]));
@@ -1156,6 +1170,14 @@ export async function moneyFor(
       settlements.length > 0 ||
       contestRows.length > 0 ||
       sideGameRows.length > 0,
+    // The tournament's own answer, through the one rule both screens and the
+    // action read. `viewer.isStaff` defaults to false here, which is the safe
+    // direction this function already documents: a missing button is a smaller
+    // failure than a refused one.
+    canAddExpense: canAddExpense({
+      entry: resolveExpenseEntry({ eventEntry: eventRow?.expenseEntry }),
+      isStaff: !!viewer.isStaff,
+    }),
   };
 }
 
