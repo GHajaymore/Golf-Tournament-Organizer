@@ -107,6 +107,7 @@ import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { assertUnlocked, logAudit } from "@/lib/services/action-shared";
 
 async function requireEvent(): Promise<string> {
   const session = await getSession();
@@ -225,15 +226,6 @@ async function assertEventPlayer(eventId: string, playerId: string): Promise<voi
 }
 
 /** Block structural changes once the tournament is live/completed, unless unlocked. */
-async function assertUnlocked(eventId: string): Promise<void> {
-  const e = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: { status: true, configUnlocked: true },
-  });
-  if (e && (e.status === "live" || e.status === "completed") && !e.configUnlocked) {
-    throw new Error("Configuration is locked. Unlock the tournament to make structural changes.");
-  }
-}
 
 /**
  * Everything on this screen changed — and so did the public board.
@@ -1006,7 +998,7 @@ export async function applyManualCount(target: number, force = false): Promise<R
     data: { playerCountMode: "manual", manualPlayerCount: t },
   });
   if (scored > 0) {
-    await logAudit(eventId, null, "resize-field", `Resized field to ${t}, discarding ${scored} scored matches`);
+    await logAudit(eventId, "resize-field", `Resized field to ${t}, discarding ${scored} scored matches`);
   }
   await regenerateGroupsAndSchedule(eventId);
   await refresh();
@@ -1152,7 +1144,7 @@ export async function regenGroups(
     },
   });
   if (scored > 0) {
-    await logAudit(eventId, null, "regenerate-flights", `Rebuilt flights, discarding ${scored} scored matches`);
+    await logAudit(eventId, "regenerate-flights", `Rebuilt flights, discarding ${scored} scored matches`);
   }
   await regenerateGroupsAndSchedule(eventId);
   await refresh();
@@ -1716,12 +1708,6 @@ export async function removeStage(stageId: string, force = false) {
 
 /* ── Match score entry ────────────────────────────────────────────────── */
 
-async function logAudit(eventId: string, matchId: string | null, action: string, detail: string) {
-  const session = await getSession();
-  await prisma.auditLog.create({
-    data: { eventId, matchId, actor: session?.name ?? "system", action, detail },
-  });
-}
 
 export async function saveMatchHoles(matchId: string, holes: HoleResult[]) {
   const { eventId, session, settings } = await requireScoreEntry();
@@ -1878,9 +1864,9 @@ export async function forfeitMatch(matchId: string, forfeitedBy: string) {
   });
   await logAudit(
     eventId,
-    matchId,
     forfeitedBy ? "match.forfeit" : "match.forfeit.undo",
     forfeitedBy ? `Forfeited by ${forfeitedBy}` : `Forfeit removed (was ${match.forfeitedBy || "none"})`,
+    { matchId },
   );
   await refresh();
   return { ok: true };
@@ -1926,7 +1912,7 @@ export async function clearMatch(matchId: string): Promise<{ ok: boolean; error?
   // Erasing a card is not a smaller act than entering one, and every other
   // path that ends a result — forfeit, reopen, confirm, dispute — has left a
   // row since it was written.
-  await logAudit(eventId, matchId, "match.clear", "Score cleared");
+  await logAudit(eventId, "match.clear", "Score cleared", { matchId });
   await refresh();
   return { ok: true };
 }
@@ -2573,11 +2559,11 @@ export async function confirmMatch(matchId: string): Promise<ConfirmResult> {
     });
     await logAudit(
       eventId,
-      matchId,
       "confirm",
       outcome.status === "confirmed"
         ? `Confirmed by ${session.name}`
         : `Signed by ${session.name}; ${outcome.outstanding.length} still to sign`,
+      { matchId },
     );
     await refresh();
     return { ok: true, status: outcome.status, outstanding: outcome.outstanding.length };
@@ -2587,7 +2573,7 @@ export async function confirmMatch(matchId: string): Promise<ConfirmResult> {
     where: { id: matchId, eventId },
     data: { scoreStatus: "confirmed", confirmedById: session.accountId || null, confirmedBy: session.name },
   });
-  await logAudit(eventId, matchId, "confirm", "Approved by organizer");
+  await logAudit(eventId, "confirm", "Approved by organizer", { matchId });
   await refresh();
   return { ok: true, status: "confirmed", outstanding: 0 };
 }
@@ -2640,7 +2626,7 @@ export async function confirmMatches(
     // One audit line for the batch, not one per match. The question this log
     // answers is "who signed these off and when", and 48 identical rows a
     // second apart buries that rather than recording it.
-    await logAudit(eventId, null, "confirm-batch", `Approved ${result.count} results by organizer`);
+    await logAudit(eventId, "confirm-batch", `Approved ${result.count} results by organizer`);
     await refresh();
   }
   return { ok: true, confirmed: result.count };
@@ -2655,7 +2641,7 @@ export async function disputeMatch(matchId: string) {
     where: { id: matchId, eventId },
     data: { scoreStatus: "disputed" },
   });
-  await logAudit(eventId, matchId, "dispute", "Result disputed");
+  await logAudit(eventId, "dispute", "Result disputed", { matchId });
   await refresh();
 }
 
@@ -2673,7 +2659,7 @@ export async function reopenMatch(matchId: string) {
     where: { id: matchId, eventId },
     data: { scoreStatus: "pending", scoredAt: new Date(), confirmedById: null, confirmedBy: "" },
   });
-  await logAudit(eventId, matchId, "reopen", "Organizer reopened the scorecard");
+  await logAudit(eventId, "reopen", "Organizer reopened the scorecard", { matchId });
   await refresh();
 }
 
@@ -4006,7 +3992,6 @@ export async function clearRoundScores(
   if (cleared > 0) {
     await logAudit(
       eventId,
-      null,
       "clear-round-scores",
       scoped.length
         ? `Cleared ${cleared} score${cleared === 1 ? "" : "s"} for ${scoped.length} player${scoped.length === 1 ? "" : "s"} in round "${stage.description?.trim() || stage.type}"`
@@ -4085,7 +4070,7 @@ export async function disputeScorecard(stageId: string, playerId: string) {
   // no matchId to hang the row on. The match-play counterpart has logged its
   // disputes since it existed and stroke play logged nothing at all — the
   // format where one person enters three other people's rounds.
-  await logAudit(eventId, null, "card.dispute", `Card disputed — round ${stageId}, player ${playerId}`);
+  await logAudit(eventId, "card.dispute", `Card disputed — round ${stageId}, player ${playerId}`);
   await refresh();
   return { ok: true };
 }
@@ -4262,7 +4247,6 @@ export async function rotatePublicToken(
     await prisma.event.update({ where: { id: eventId }, data: { shareToken: token } });
     await logAudit(
       eventId,
-      null,
       "rotate-share-token",
       `${session?.name ?? "An organizer"} replaced the live leaderboard link`,
     );
@@ -4273,7 +4257,6 @@ export async function rotatePublicToken(
     await prisma.event.update({ where: { id: eventId }, data: { registrationToken: token } });
     await logAudit(
       eventId,
-      null,
       "rotate-registration-token",
       `${session?.name ?? "An organizer"} replaced the sign-up link`,
     );
@@ -4396,7 +4379,7 @@ export async function createSingleMatch(stageId: string): Promise<{ ok: boolean;
   await prisma.match.create({
     data: { eventId, stageId, groupId, round: 1, playerAId, playerBId, holes: emptyHoles },
   });
-  await logAudit(eventId, null, "single-match", `Created the match for this round: ${view.aName} v ${view.bName}`);
+  await logAudit(eventId, "single-match", `Created the match for this round: ${view.aName} v ${view.bName}`);
   await refresh();
   return { ok: true };
 }
@@ -4473,7 +4456,7 @@ export async function createThirdPlaceMatch(stageId: string): Promise<{ ok: bool
   await prisma.match.create({
     data: { eventId, stageId, groupId, round: 0, playerAId: a.playerId, playerBId: b.playerId, holes: emptyHoles },
   });
-  await logAudit(eventId, null, "third-place", `Created the play-off for third: ${a.name} v ${b.name}`);
+  await logAudit(eventId, "third-place", `Created the play-off for third: ${a.name} v ${b.name}`);
   await refresh();
   return { ok: true };
 }

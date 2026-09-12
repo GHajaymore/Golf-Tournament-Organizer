@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { isContestKind, CONTEST_LABEL } from "@/lib/domain/contests";
 import { MAX_EXPENSE_CENTS } from "@/lib/domain/expenses";
+import { logAudit } from "@/lib/services/action-shared";
 
 /**
  * Side bets: closest to the pin, long drive, and whatever the first tee
@@ -34,12 +35,6 @@ async function requireStaff(): Promise<{ eventId: string; name: string }> {
   return { eventId: session.eventId, name: session.name || session.email };
 }
 
-async function logMoney(eventId: string, action: string, detail: string) {
-  const session = await getSession();
-  await prisma.auditLog.create({
-    data: { eventId, matchId: null, actor: session?.name ?? "system", action, detail },
-  });
-}
 
 const money = (cents: number) => `${(cents / 100).toFixed(2)}`;
 
@@ -100,7 +95,7 @@ export async function addContest(input: {
     },
   });
 
-  await logMoney(eventId, "contest.add", `${name} at ${money(buyInCents)} a player`);
+  await logAudit(eventId, "contest.add", `${name} at ${money(buyInCents)} a player`);
   revalidatePath("/", "layout");
   return { ok: true, id: contest.id };
 }
@@ -159,7 +154,7 @@ export async function setContestEntrants(contestId: string, playerIds: string[])
     }),
   ]);
 
-  await logMoney(eventId, "contest.entrants", `${contest.name}: ${ids.length} in`);
+  await logAudit(eventId, "contest.entrants", `${contest.name}: ${ids.length} in`);
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -223,7 +218,7 @@ export async function setContestWinners(contestId: string, winnerIds: string[]):
     });
   }
 
-  await logMoney(
+  await logAudit(
     eventId,
     "contest.winners",
     winners.size ? `${contest.name}: ${winners.size} winner(s)` : `${contest.name}: reopened`,
@@ -286,7 +281,7 @@ export async function requestContestEntry(contestId: string, join: boolean): Pro
       // exclusion, so clear it. Nothing else to write.
       if (existing?.excluded) {
         await prisma.contestEntry.delete({ where: { id: existing.id } });
-        await logMoney(session.eventId, "contest.request", `${me.name} opted back into ${contest.name}`);
+        await logAudit(session.eventId, "contest.request", `${me.name} opted back into ${contest.name}`);
       }
       revalidatePath("/", "layout");
       return { ok: true };
@@ -299,7 +294,7 @@ export async function requestContestEntry(contestId: string, join: boolean): Pro
       update: { excluded: true, confirmed: false },
       create: { contestId, playerId: me.id, excluded: true, confirmed: false },
     });
-    await logMoney(session.eventId, "contest.request", `${me.name} opted out of ${contest.name}`);
+    await logAudit(session.eventId, "contest.request", `${me.name} opted out of ${contest.name}`);
     revalidatePath("/", "layout");
     return { ok: true };
   }
@@ -317,7 +312,7 @@ export async function requestContestEntry(contestId: string, join: boolean): Pro
   await prisma.contestEntry.create({
     data: { contestId, playerId: me.id, confirmed: false },
   });
-  await logMoney(session.eventId, "contest.request", `${me.name} asked to join ${contest.name}`);
+  await logAudit(session.eventId, "contest.request", `${me.name} asked to join ${contest.name}`);
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -337,7 +332,7 @@ export async function confirmContestEntry(
   if (!entry) return { ok: false, error: "They haven't put their name down." };
 
   await prisma.contestEntry.update({ where: { id: entry.id }, data: { confirmed: paid } });
-  await logMoney(
+  await logAudit(
     eventId,
     "contest.confirm",
     `${contest.name}: ${paid ? "took" : "un-took"} ${playerId}'s stake`,
@@ -352,7 +347,7 @@ export async function removeContest(contestId: string): Promise<ContestResult> {
 
   // Entries cascade with the contest.
   await prisma.contest.delete({ where: { id: contest.id } });
-  await logMoney(eventId, "contest.remove", `Removed ${contest.name}`);
+  await logAudit(eventId, "contest.remove", `Removed ${contest.name}`);
   revalidatePath("/", "layout");
   return { ok: true };
 }

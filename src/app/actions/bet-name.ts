@@ -1,8 +1,8 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
 import { requirePotAccess, AD_HOC_NAME_MAX } from "@/lib/services/game-access";
+import { logAudit } from "@/lib/services/action-shared";
 
 /**
  * Renaming a side bet.
@@ -110,16 +110,7 @@ export async function renameBet(
     prisma.sideGame.updateMany({ where: { stageId, groupKey: from }, data: { groupKey: to } }),
   ]);
 
-  const session = await getSession();
-  await prisma.auditLog.create({
-    data: {
-      eventId,
-      matchId: null,
-      actor: session?.name ?? "system",
-      action: "bet.rename",
-      detail: `${from} is now ${to} (${pots.length + games.length} game(s))`,
-    },
-  });
+  await logAudit(eventId, "bet.rename", `${from} is now ${to} (${pots.length + games.length} game(s))`);
 
   revalidatePath("/", "layout");
   return { ok: true };
