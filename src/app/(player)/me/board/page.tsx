@@ -36,7 +36,10 @@ export default async function PlayBoardPage() {
     );
   }
 
-  const stage = state.activeStage ?? state.stages[0] ?? null;
+  // The round this board shows, and whether IT is stroke-scored — both
+  // from the state, which is where the four screens that used to work this
+  // out for themselves now agree. See `boardIsStroke`.
+  const stage = state.boardStage;
   const holes = stage?.holes === 9 ? 9 : 18;
 
   // The same branch the console leaderboard, Reports and /live make (D8). A
@@ -95,14 +98,14 @@ export default async function PlayBoardPage() {
       </h1>
 
       <PlayerLeaderboard
-        isStroke={state.isStroke}
+        isStroke={state.boardIsStroke}
         isStableford={stage?.scoringBasis === "stableford"}
         rows={rows}
         holes={holes}
         youId={me?.id ?? ""}
         // What the column actually measures, from the same place the board
         // totals it — the state now says, rather than the screen assuming.
-        unit={state.isStroke ? state.strokeUnit : "match points"}
+        unit={state.boardIsStroke ? state.strokeUnit : "match points"}
         // Why the cut line falls where it does. The player on the wrong side
         // of it is the one person who most needs that sentence, and it was
         // rendered only on the organizer's console.

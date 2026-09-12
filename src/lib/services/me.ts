@@ -233,7 +233,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
   const playerId = [...ids][0] ?? null;
   const player = playerId ? state.confirmed.find((p) => p.id === playerId) ?? null : null;
 
-  const stage = state.activeStage ?? state.stages[0] ?? null;
+  const stage = state.boardStage;
   if (!playerId || !stage) {
     return { playerId, name: player?.name ?? "", standing: null, round: null };
   }
@@ -371,12 +371,12 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
           // Through the one reader, so this screen and the board cannot
           // disagree about what number a player is ranked on.
           scoreText: rankedScore(standing, {
-            isStroke: state.isStroke,
+            isStroke: state.boardIsStroke,
             isStableford: stage.scoringBasis === "stableford",
           }).text,
-          record: state.isStroke ? "" : standing.record,
+          record: state.boardIsStroke ? "" : standing.record,
           scoreLabel: rankedScore(standing, {
-            isStroke: state.isStroke,
+            isStroke: state.boardIsStroke,
             isStableford: stage.scoringBasis === "stableford",
           }).label,
         }
