@@ -270,7 +270,12 @@ Error: locator.click: Test timeout of 30000ms exceeded.
 Note what it is NOT: the dialog is found and visible, so this is not a screen that failed to
 render, and there is no expected-versus-received anywhere in it. It is the click.
 
-**Desktop only** — `phone` and `small-phone` run the same test and passed it in the same run.
+**NOT desktop only**, which this entry claimed for a day. It was written off two desktop
+samples where `phone` and `small-phone` passed in the same run, and the obvious reading — a
+1280x900 viewport problem — was wrong. On 2026-09-11 it failed on **`small-phone`** with the
+identical signature, and passed on a re-run of the same commit. So the viewport is not the
+variable; do not go looking for a desktop layout fault on the strength of this note.
+
 **It is on `main`**, measured 2026-09-11 rather than assumed: five runs of that spec at the
 desktop viewport, three green and two red, across `main` and a branch whose new files nothing
 in `src/app` or `src/components` imports.
@@ -281,9 +286,15 @@ runs on `main` to see the coin land the other way. **One run of each is not a co
 this fails on a change that cannot reach the player card, re-run the same spec on `main` two or
 three times before believing it.
 
-Unlike the SEGV, this one may be worth fixing rather than tolerating: pointer events being
-intercepted by the section nav at 1280x900 is also what a person would experience, so it may be
-a real desktop layout fault wearing a flake's clothes. Nobody has looked yet.
+Unlike the SEGV, this one may still be worth fixing rather than tolerating — but the reason has
+changed with the evidence. It used to read "pointer events intercepted by the section nav at
+1280x900, so it may be a real desktop layout fault". The small-phone failure kills that theory:
+the section nav and the viewport are different at 375px and it happens anyway.
+
+What the two logs DO share is the sequence `element is not stable` → `outside of the viewport` →
+`element was detached from the DOM, retrying`. That is a dialog still animating or re-rendering
+under the click, at any width — so the thing to look at is what re-renders the card chooser
+after it opens, not where the nav sits. Nobody has looked yet.
 
 ## What gates a merge, and what gates a deploy
 
