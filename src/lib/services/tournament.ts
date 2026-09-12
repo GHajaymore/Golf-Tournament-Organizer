@@ -413,6 +413,15 @@ export interface EventState {
    * says which, so a screen never works it out from the format again.
    */
   boardProgress: { done: number; total: number; pct: number; unit: "cards" | "matches" };
+  /**
+   * The first round the field has not started, in play order — or null once
+   * every round has something on it.
+   *
+   * A third question from `boardStage` (the newest results) and `activeStage`
+   * (the match-points chain). A tee sheet is drawn for a round nobody has
+   * played yet, and `/foursomes` had no way to ask for one.
+   */
+  nextUnplayedRound: DbStage | null;
   strokeStandings: StrokeStanding[];
   /**
    * What `strokeStandings` measures, and which rounds went into it.
@@ -921,6 +930,29 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     unit: (boardStage && !boardIsStroke ? "matches" : "cards") as "cards" | "matches",
   };
 
+  /**
+   * THE ROUND NOBODY HAS STARTED, which is what a tee sheet is drawn FOR.
+   *
+   * `boardStage` is the round with the newest results and `activeStage` is the
+   * match-points chain's position; neither is "the one to draw next", and
+   * `/foursomes` had no third answer to reach for. Its own note says the
+   * screen exists so "next week's sheet could be drawn ahead", and it opened
+   * on `activeStage` — which on the Demo Cup is Round 1, with Rounds 1 and 2
+   * behind the field.
+   *
+   * The FIRST round with nothing on it, in play order, so a tournament part
+   * way through offers the next one rather than the last. Counted through
+   * `roundProgress`, which already knows that a medal's results are cards and
+   * a match round's are fixtures — a round robin drawn but unplayed has
+   * `done: 0` and is correctly still the next one to draw.
+   *
+   * Null once every round has something on it. That is a real state — the
+   * tournament is over, there is nothing left to draw — and callers fall back
+   * to the round on the board, which is the one somebody reopening a finished
+   * sheet wants.
+   */
+  const nextUnplayedRound = playRounds.find((s) => roundProgress(s).done === 0) ?? null;
+
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const roundHandicapBy = new Map(
     roundHandicaps.map((r) => [roundHandicapKey(r.stageId, r.playerId), { frozen: r.frozen, override: r.override }]),
@@ -1399,6 +1431,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     boardIsStroke,
     bracketFeederProgress,
     boardProgress,
+    nextUnplayedRound,
     strokeStandings,
     strokeUnit,
     strokeRounds,

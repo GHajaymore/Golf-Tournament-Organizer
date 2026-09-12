@@ -475,9 +475,26 @@ there are several of different kinds. On the Demo Cup the last feeder before
 the bracket is a Single Match Stage while the substantive qualifier is the
 medal two rounds earlier, and no rule in the app prefers one.
 
-### `/foursomes` defaults to a round nobody is about to play
-**Left alone 2026-09-12, because it wants a THIRD answer nothing in the app
-holds.** Every other screen that defaults a round was moved onto `boardStage`
+### `/foursomes` defaults to a round nobody is about to play — FIXED 2026-09-12
+**`nextUnplayedRound` is that third answer and it is on `EventState` now**: the
+first playing round with nothing on it, counted through the same
+`roundProgress` that already knows a medal's results are cards and a match
+round's are fixtures. Null once every round has something, where the screen
+falls back to `boardStage` — what somebody reopening a finished sheet wants.
+
+The entry stands below because the reasoning is what produced the fix: the tee
+sheet wants a question neither of the other two asks, and the answer was to add
+one rather than to pick the least wrong of the two.
+
+Worth keeping from the testing of it: every fixture in
+`board-shows-the-latest-round.audit.test.ts` had two of the three answers
+coinciding, so `nextUnplayedRound = boardStage` passed two cells out of three.
+It took a fixture where all three differ — the Demo Cup's own shape, a decided
+match night, a medal with cards in, and an untouched third round — to tell them
+apart. Measured rather than assumed: that mutation was run first and only the
+everything-played case caught it.
+
+**Original entry:** Every other screen that defaults a round was moved onto `boardStage`
 — the round with the newest results — because each of them is about a round
 that has been played: the boards, the week sheet, `/prizes`, `/group-games`,
 `/me/money`.

@@ -43,6 +43,8 @@ let league = "";
 let leagueWeek3 = "";
 let drawnNotPlayed = "";
 let drawnNotPlayedWeek2 = "";
+let threeAnswers = "";
+let threeAnswersWeek3 = "";
 
 async function scrub() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -178,6 +180,49 @@ beforeAll(async () => {
       },
     });
   }
+  /**
+   * THE SHAPE WHERE ALL THREE ANSWERS DIFFER, and the only fixture that can
+   * tell them apart. It is the Demo Cup's own shape.
+   *
+   *   Week 1  Round Robin, decided        activeStage        (the chain)
+   *   Week 2  medal, cards in             boardStage         (newest results)
+   *   Week 3  Round Robin, nothing on it  nextUnplayedRound  (the sheet)
+   *
+   * Without it, `nextUnplayedRound = boardStage` passes two of the three cells
+   * below — measured, not assumed: that mutation was run and only the
+   * everything-played case caught it, because in the other fixture the board's
+   * round happens to BE the next unplayed one.
+   */
+  {
+    const { eventId, groupId, players } = await makeEvent("three-answers");
+    threeAnswers = eventId;
+    const w1 = await stage(eventId, 0, "Week 1", "Round Robin", "Match Play");
+    await prisma.match.create({
+      data: {
+        eventId,
+        stageId: w1.id,
+        groupId,
+        round: 1,
+        playerAId: players[0].id,
+        playerBId: players[1].id,
+        holes: JSON.stringify(["A", "A", "A", "A", "A", ...new Array(13).fill(null)]),
+      },
+    });
+    const w2 = await stage(eventId, 1, "Week 2", "Stroke Play Round", "Stroke Play");
+    for (const [i, p] of players.entries()) {
+      await prisma.scorecard.create({
+        data: {
+          eventId,
+          stageId: w2.id,
+          playerId: p.id,
+          strokes: JSON.stringify([...new Array(17).fill(4), 4 + i * 3]),
+        },
+      });
+    }
+    // Nothing at all on week 3 — not even a draw.
+    const w3 = await stage(eventId, 2, "Week 3", "Round Robin", "Match Play");
+    threeAnswersWeek3 = w3.id;
+  }
 }, 120_000);
 
 afterAll(async () => {
@@ -263,6 +308,66 @@ describe("the board follows the field", () => {
     const state = await stateOf(league);
     expect(state.activeStage?.description, "the chain followed the board").toBe("Week 1");
     expect(state.boardStage).not.toBe(state.activeStage);
+  });
+});
+
+describe("the round a tee sheet is drawn for", () => {
+  /**
+   * A THIRD QUESTION, and the reason `/foursomes` sat in the deferred register
+   * while every other round default was swept onto `boardStage`.
+   *
+   * `boardStage` is the newest results and `activeStage` is the match-points
+   * chain's position. A tee sheet is drawn for a round NOBODY HAS PLAYED —
+   * that screen's own note says it exists so "next week's sheet could be drawn
+   * ahead" — and neither of the other two is ever that. On the Demo Cup it
+   * opened on Round 1 with Rounds 1 and 2 behind the field: the worst of the
+   * three answers the app held, and `boardStage` would only have made it the
+   * second worst.
+   */
+  it("is none of the other two, on a tournament that has all three", async () => {
+    /**
+     * THE DISCRIMINATING CELL. Every other fixture here has at least two of
+     * the three answers coinciding, so a `nextUnplayedRound` that quietly
+     * returned `boardStage` — or `activeStage` — passes them. This one cannot
+     * be satisfied by either.
+     */
+    const state = await stateOf(threeAnswers);
+    expect(state.activeStage?.description, "the chain moved").toBe("Week 1");
+    expect(state.boardStage?.description, "the board moved").toBe("Week 2");
+    expect(state.nextUnplayedRound?.id, "the sheet is drawn for a round already played").toBe(
+      threeAnswersWeek3,
+    );
+  });
+
+  it("is the first round with nothing on it", async () => {
+    const state = await stateOf(drawnNotPlayed);
+    // Week 1 is played out; week 2 is drawn and untouched. The sheet to draw
+    // is week 2 — and note this is the case where `activeStage` agrees and
+    // `boardStage` does NOT, so it is not simply following either.
+    expect(state.nextUnplayedRound?.id).toBe(drawnNotPlayedWeek2);
+  });
+
+  it("is null once every round has something on it", async () => {
+    /**
+     * A real state rather than a missing answer: the tournament is over and
+     * there is nothing left to draw. `/foursomes` falls back to the board's
+     * round, which is what somebody reopening a finished sheet wants.
+     */
+    const state = await stateOf(league);
+    expect(state.nextUnplayedRound).toBeNull();
+  });
+
+  it("counts a DRAWN round robin as unplayed, because a draw is not a result", async () => {
+    /**
+     * The distinction `roundProgress` already makes, reused here rather than
+     * re-derived. Week 2 has its fixtures and not a hole on them, so `done` is
+     * 0 and it is still the round to draw — which is right: re-pairing a
+     * scheduled-but-unplayed night is exactly what this screen is for.
+     */
+    const state = await stateOf(drawnNotPlayed);
+    const week2 = state.playRounds.find((s) => s.id === drawnNotPlayedWeek2)!;
+    expect(state.matches.some((m) => m.stageId === week2.id), "the fixture has no draw").toBe(true);
+    expect(state.nextUnplayedRound?.id).toBe(week2.id);
   });
 });
 
