@@ -117,26 +117,33 @@ is the right question for deciding which engine runs.
 `services/me` — the four that print a per-player result, and the four that each
 wrote `state.activeStage ?? state.stages[0] ?? null` for themselves.
 
-**Open, and each needs its own judgement about which of the two questions it
-means.** Listed so nobody has to find them again:
+**UPDATE 2026-09-12.** The sweep was walked, and it turned up a fifth board, two
+more defects and one of my own regressions. Verdicts below — the value here is
+the JUDGEMENT on each, because working it out again costs a fixture apiece.
 
-| reader | what it decides |
+| reader | verdict |
 |---|---|
-| `(app)/dashboard/page.tsx:163` | which columns a flight table gets |
-| `(app)/dashboard/page.tsx:263` | passed down to the dashboard cards |
-| `(app)/foursomes/page.tsx:60` | which standings feed the tee sheet |
-| `(app)/reports/page.tsx:41` | what the export contains |
-| `services/draft-facts.ts:72` | whether stroke standings seed the draft |
-| `services/finish-order.ts:80` | how the finishing order is derived |
-| `services/single-match.ts:114` | which standings a single match reads |
-| `services/tournament.ts:1315, 1338, 1447` | the cut ranking, twice over |
-| `services/week-view.ts:214, 327, 381` | what "played" means on the week sheet |
+| `(app)/reports/page.tsx:41` | **was wrong, FIXED.** The fifth board: same `LeaderboardTable`, same `standingRows` as the leaderboard, and it writes the CSV. It is in the `BOARDS` sweep now, so a sixth cannot appear without one. |
+| `(app)/dashboard/page.tsx:263` | **was wrong, FIXED.** Not the cards — the bracket's FEEDER, which `bracket-visibility.ts` explicitly says is measured in the feeder's own unit. See the next entry. |
+| `services/week-view.ts:227, 343` | **was wrong, FIXED** (with the legacy-medal shape, below). |
+| `services/tournament.ts:1315, 1338, 1447` | **EVENT, correctly.** Tried moving them onto `boardIsStroke` and three audit fixtures went red. The ROWS come from the engine the event runs; only the DISPLAY follows the round. Do not try again without reading those three. |
+| `services/finish-order.ts:80` | **EVENT, correctly.** An event's finishing order is decided one way, and a bracket short-circuits it before this line. |
+| `(app)/foursomes/page.tsx:60`, `services/single-match.ts:114` | **EVENT, correctly.** Both ask "what standing is this competition ranked on" to draw or seed off it — a season question, not a round one. |
+| `services/draft-facts.ts:72` | **EVENT, correctly.** It narrates the tournament. |
+| `(app)/dashboard/page.tsx:163` | **EVENT, and left alone deliberately.** A flight table on a match league chains points across weeks, which is the season. Genuinely arguable; nobody has a complaint to point at, and a change here wants a real one first. |
+| `services/week-view.ts:397` | **EVENT, and left alone deliberately.** It picks the SEASON table's engine, which is an event-level question. Open: `chainRoundStandings` walks `rrStages`, which includes a Round Robin set to Stroke Play — a legacy medal week may award nobody anything in the season table. Not measured. |
 
-Some of these genuinely want the EVENT — the cut ranking probably does, because
-a cut is about the tournament rather than one round. Others almost certainly
-want the ROUND. **Do not sweep them in one pass**: this is format × stage type,
-which is exactly what `matrix.test.ts` enumerates, and CLAUDE.md's combination
-sweep exists for it.
+**The lesson that cost the most.** The board fix first derived `roundIsStroke`
+from the stage TYPE alone, on reasoning written into `stage-types.ts` and
+believed by me. It is half right. A **Round Robin set to Stroke Play** is
+head-to-head by type and a medal in fact — `stage-types.ts` itself calls it the
+only way to run one before `Stroke Play Round` existed, and those rows are still
+in the database. Judging them on the type alone printed a blank cell where a 72
+should be, on every board at once, and it was live for a day.
+
+It was caught by MEASURING both directions on a fixture of that shape. The
+boolean looked defensible and the printed row did not. Whatever else is taken
+from this entry: on this axis, assert the output, not the flag.
 
 `loadEventState` sets `isStroke` from `event.format`, which is ONE value for a
 whole tournament. Every round carries its own format, and `setStageFormat`

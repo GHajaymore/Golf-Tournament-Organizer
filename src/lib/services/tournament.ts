@@ -786,7 +786,39 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * `activeStage` is non-null whenever the tournament has any stage at all.
    * The fallback existed for the one type the field never played.
    */
-  const boardStage = activeStage;
+  /**
+   * THE ROUND THE FIELD HAS MOST RECENTLY PLAYED, which is not always
+   * `activeStage`.
+   *
+   * `activeStage` is `rrStages[...] ?? rrStages[last] ?? playRounds[playedIdx]`,
+   * and the second fallback beats the third UNCONDITIONALLY. So an event
+   * holding any Round Robin at all can never put a medal round on the board:
+   * the group phase wins even after the field has finished a Stroke Play Round
+   * with every card in.
+   *
+   * Measured on 2026-09-12 on a league of three weeks — a match night, a legacy
+   * medal and a Stroke Play Round, cards in on both medals:
+   *
+   *   playRounds  = Week 1, Week 2, Week 3
+   *   activeStage = Week 1          <- what every board showed
+   *   last played = Week 3
+   *
+   * That predates `boardStage` — the four boards each wrote
+   * `activeStage ?? stages[0]` and had the same answer — but centralising it
+   * made it one line to fix instead of five.
+   *
+   * ONLY A LATER ROUND WINS, deliberately. `activeStage` is also the
+   * match-points chain's position and it has a rule of its own worth keeping:
+   * `currentRoundIndex` prefers the round still IN PROGRESS, so a week whose
+   * matches are drawn but unplayed is current, while `currentPlayedRoundIndex`
+   * would fall back to the week before. Taking the later of the two keeps that
+   * for a plain league — nothing moves unless the field has genuinely gone
+   * past the chain — and lets a medal round reach the board, which is the
+   * defect.
+   */
+  const playedStage = playRounds[playedIdx] ?? null;
+  const orderOf = (s: DbStage | null) => (s ? playRounds.findIndex((r) => r.id === s.id) : -1);
+  const boardStage = orderOf(playedStage) > orderOf(activeStage) ? playedStage : activeStage;
   const boardIsStroke = boardStage ? roundIsStroke(boardStage.type, boardStage.format) : isStroke;
 
   /**
