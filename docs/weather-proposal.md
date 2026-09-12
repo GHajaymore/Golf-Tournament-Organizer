@@ -67,12 +67,46 @@ temperature. Three numbers, one line.
 
 ---
 
+## When there is no forecast, say why
+
+Added 2026-09-11, and it corrects the first draft of this document, which said
+silence was the answer: *"if not available, ask user to add missing information
+(except geolocation) or provide some kind of supporting info explaining why the
+weather is not available."*
+
+That is right, and it is the rule this repo already applies everywhere else — a
+control that does not say why is a dead end, which is why the draw button
+explains the empty field instead of disappearing. Silence on a weather card
+reads as a broken feature.
+
+But **who can act on it decides what to say**, and the two audiences are not the
+same person:
+
+| why there is no forecast | the member sees | the organizer sees |
+|---|---|---|
+| the course has no town on it | "No forecast — this course has no location set yet." | the ask, on the course form: add the town, and say it is what a forecast needs |
+| the round has no date | "No forecast until the round has a date." | the ask, on the round: set the day it is played |
+| too far out | "Too far out for a forecast — check back nearer the day." | nothing; this is not a fault |
+| we could not place the course | "No forecast — we couldn't place this course." | the town field again, with what we tried |
+| the service is down | "Forecast unavailable right now." | nothing |
+
+**Never ask the member to fix the organizer's data.** A player opening their
+card cannot edit a course record, and a message telling them to is worse than
+silence — it is an instruction they cannot follow. They get the reason; the ask
+goes where the field lives.
+
+**And never ask anyone for coordinates or for their device location.** Excluded
+explicitly. Coordinates are the wrong question for a golf secretary — the
+schema already says so — and a browser geolocation prompt asks a player where
+*they* are, which is not where the round is and is a permission dialog nobody
+opened the app for.
+
 ## Five things it must never do
 
 1. **Never break the card.** A forecast is decoration on a screen whose job is
-   scoring. Failure — no coordinates, no network, the API down, the round
-   beyond the forecast horizon — renders nothing at all, never an error and
-   never an empty box. Same shape as `expiryNotice` returning `""`.
+   scoring. Every failure above renders one quiet line of text saying why —
+   never an error, never a broken box, and never a retry the player has to
+   drive.
 
 2. **Never look like scoring data.** It sits on a screen full of numbers that
    decide money, and a temperature rendered in the same weight as a to-par is

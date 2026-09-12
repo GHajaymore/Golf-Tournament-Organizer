@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { needsTeams } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
@@ -14,6 +15,8 @@ import { cardBrand } from "@/lib/services/organization";
 import { NO_CARD_REVISION } from "@/lib/domain/pending-card";
 import { PlayerCard } from "@/components/PlayerCard";
 import { Icon } from "@/components/Icon";
+
+export const metadata = screenMetadata("/me/card");
 
 /**
  * My card — one player, one round, one hole at a time.

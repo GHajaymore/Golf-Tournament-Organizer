@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, scoringFrom } from "@/lib/services/tournament";
@@ -5,6 +6,8 @@ import { prisma } from "@/lib/db";
 import { RULES, RULE_SOURCE_LABEL, tournamentTerms, ruleFor } from "@/lib/rules";
 import type { TiebreakerKey } from "@/lib/domain";
 import { Icon } from "@/components/Icon";
+
+export const metadata = screenMetadata("/me/rules");
 
 /**
  * The rules, for a player standing on the course.
