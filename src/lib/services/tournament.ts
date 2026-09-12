@@ -352,8 +352,7 @@ export interface EventState {
    */
   isStroke: boolean;
   /**
-   * The round every board shows: the active one, or the first if play has not
-   * started.
+   * The round every board shows.
    *
    * The console leaderboard, the player's board, `/live` and `services/me`
    * each wrote `state.activeStage ?? state.stages[0] ?? null` for themselves —
@@ -380,7 +379,7 @@ export interface EventState {
    * Derived from the round's TYPE rather than its format string, because the
    * type is what says whether anybody is playing anybody: `isHeadToHead` is
    * true for a Round Robin, a Single Match and a Bracket, and false for a
-   * Stroke Play Round and a Qualification Stage. Asking the format instead
+   * Stroke Play Round. Asking the format instead
    * would have to know that "Four-Ball" is match play in a bracket and stroke
    * play in a medal — the same trap `template-shapes.test.ts` records against
    * matching on the literal string "Match Play".
@@ -765,7 +764,15 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * this stage expression for themselves and then all four asked the wrong
    * question about it.
    */
-  const boardStage = activeStage ?? stages[0] ?? null;
+  /**
+   * No `?? stages[0]` any more, and that is a consequence of removing the
+   * "Qualification Stage" rather than a shortcut. Every remaining type is a
+   * PLAYING round, so `playRounds` holds every stage, and
+   * `currentPlayedRoundIndex` returns -1 only for an empty list — which means
+   * `activeStage` is non-null whenever the tournament has any stage at all.
+   * The fallback existed for the one type the field never played.
+   */
+  const boardStage = activeStage;
   const boardIsStroke = boardStage ? !isHeadToHead(boardStage.type) : isStroke;
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const roundHandicapBy = new Map(

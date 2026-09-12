@@ -2,7 +2,7 @@ import { screenMetadata } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { scoringMismatch } from "@/lib/domain/scoring-mismatch";
-import { isHeadToHead, isPlayingRound } from "@/lib/stage-types";
+import { isHeadToHead, isPlayingRound, hasKnockoutStage } from "@/lib/stage-types";
 import { loadEventState, parseMatchTiebreakers, playingStages, settingsOf } from "@/lib/services/tournament";
 import { roundHandicapsFor, type RoundHandicapView } from "@/lib/services/round-handicap";
 import { playersAnswer, resolveAttendance, tracksPerRound, type AttendanceMode } from "@/lib/domain/attendance";
@@ -78,8 +78,10 @@ export default async function StagesPage() {
   /**
    * Whether the event's Scoring can rank what these rounds produce.
    *
-   * Playing rounds only — a Qualification Stage is a cut, not a round, and
-   * counting it would report a mismatch on a tournament with nothing wrong.
+   * Playing rounds only. Every stage type is one now — the "Qualification
+   * Stage", a cut rather than a round, was removed on 2026-09-11 — but the
+   * filter stays: a type that is not played must never be scored against, and
+   * that rule should outlive any one type.
    */
   const scoring = scoringMismatch(
     state.event.format,
@@ -287,7 +289,11 @@ export default async function StagesPage() {
         chainsRounds={
           effectiveCapabilities(shapeOf(state.event.shape), {
             roundCount: state.stages.length,
-            hasBracketStage: state.stages.some((s) => s.type === "Bracket Stage"),
+            // "Does this tournament have a knockout", which is the question
+            // `hasKnockoutStage` answers for every other reader. Spelling the
+            // type out here was the fifth copy `knockout-readers.test.ts`
+            // exists to catch, and it caught it.
+            hasBracketStage: hasKnockoutStage(state.stages),
           }).chainsRounds
         }
         matchTiebreakers={parseMatchTiebreakers(state.event.matchTiebreakers)}

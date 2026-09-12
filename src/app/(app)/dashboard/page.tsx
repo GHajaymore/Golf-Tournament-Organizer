@@ -282,9 +282,21 @@ export default async function DashboardPage() {
     bracketStarted:
       !!brackets.winners.champion ||
       brackets.winners.rounds.some((r) => r.matches.some((m) => !!m.winnerId)),
-    // A qualification stage resolves the field outright — that is its job.
-    qualificationDecided:
-      feeders.some((s) => s.type === "Qualification Stage") && advancingCount > 0,
+    /**
+     * FALSE, since the "Qualification Stage" type was removed on 2026-09-11.
+     *
+     * It used to be the one thing that could settle a bracket's field outright
+     * — a stage the field never played, whose only control wrote the event's
+     * own `qualifyPerGroup`. With it gone, what feeds a bracket is the round
+     * the field actually plays, and that is measured by `feederProgress` two
+     * lines up.
+     *
+     * Passed explicitly rather than dropped from `BracketProgress`: the
+     * question it asks is still a real one — a field CAN be decided outright
+     * rather than progressively — and leaving the input there means whoever
+     * adds that back has somewhere to say so, instead of re-deriving the rule.
+     */
+    qualificationDecided: false,
   };
   const showBracketTile = showStandings && showBracket(bracketProgress);
   const bracketTileBadge = bracketBadge(bracketProgress);

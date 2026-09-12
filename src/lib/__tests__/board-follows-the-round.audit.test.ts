@@ -34,7 +34,6 @@ let strokeInMatch = "";
 let matchInStroke = "";
 let matchInMatch = "";
 let strokeInStroke = "";
-let qualifierOnly = "";
 let noRounds = "";
 
 async function scrub() {
@@ -89,9 +88,6 @@ beforeAll(async () => {
   // The two that already agreed, as controls.
   matchInMatch = await tournament("plain-league", "match", "Round Robin", "Match Play");
   strokeInStroke = await tournament("plain-medal", "stroke", "Stroke Play Round", "Stroke Play");
-  // The one type that is not a PLAYING round, so `activeStage` is null and
-  // only the `?? stages[0]` fallback finds it.
-  qualifierOnly = await tournament("qualifier-only", "match", "Qualification Stage", "Stroke Play");
   noRounds = await tournament("nothing-set-up-yet", "stroke");
 });
 
@@ -149,30 +145,25 @@ describe("when they agree, nothing moves", () => {
     expect(state.isStroke).toBe(false);
   });
 
-  it("still finds a stage when the only one is not a round at all", async () => {
+  it("always finds the round, now that every stage type is one", async () => {
     /**
-     * THE FALLBACK, AND IT IS NOT DEAD CODE — which is what a mutation
-     * suggested before this case existed.
+     * THE PROPERTY THAT LET THE FALLBACK GO. `boardStage` used to read
+     * `activeStage ?? stages[0] ?? null`, and the `?? stages[0]` existed for
+     * the one type the field never played — the "Qualification Stage", which
+     * was a cut rather than a round and so appeared in no `playRounds` list.
      *
-     * A QUALIFICATION STAGE IS A CUT, NOT A ROUND. `leaderboard/page.tsx`,
-     * `stages/page.tsx` and `round-label.ts` all say so in those words, and
-     * that is why it is the one type with `isPlayingRound: false` — nobody
-     * plays it. `activeStage` is resolved from the Round Robin stages and then
-     * from `playRounds`, so a tournament whose only stage is a cut has none,
-     * and without `?? stages[0]` its board would fall back to the event's
-     * format — the very thing this change is about.
-     *
-     * This fixture is therefore a DEGENERATE tournament: a cut with nothing
-     * either side of it, which nobody sets up on purpose. It is here because
-     * the fallback has to hold for it, not because it describes real golf.
-     * What `boardIsStroke` says about a cut matters only in the sense that it
-     * must not read the event instead.
+     * With that type removed, `playRounds` holds every stage and
+     * `currentPlayedRoundIndex` returns -1 only for an empty list, so
+     * `activeStage` is non-null whenever the tournament has any stage at all.
+     * Asserted across every remaining type rather than the one that happened
+     * to be convenient: if a future type is added with `isPlayingRound: false`
+     * this goes red, which is exactly when the fallback would be needed again.
      */
-    const state = await stateOf(qualifierOnly);
-    expect(state.activeStage, "the premise: a cut is not a playing round").toBeNull();
-    expect(state.boardStage, "the fallback did not find it").not.toBeNull();
-    expect(state.boardIsStroke, "read the event instead of the stage").toBe(true);
-    expect(state.isStroke, "and the event around it says match").toBe(false);
+    for (const id of [strokeInStroke, matchInMatch, strokeInMatch, matchInStroke]) {
+      const state = await stateOf(id);
+      expect(state.activeStage, "a stage exists but no active round was found").not.toBeNull();
+      expect(state.boardStage).toBe(state.activeStage);
+    }
   });
 
   it("falls back to the event when there is no round at all", async () => {

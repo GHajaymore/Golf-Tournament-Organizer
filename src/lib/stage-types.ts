@@ -21,10 +21,42 @@
  * nothing implements is worse than a picker that offers fewer.
  */
 
+/**
+ * THERE WAS A FIFTH, AND IT WAS NOT A ROUND.
+ *
+ * "Qualification Stage" was removed on 2026-09-11. Three things were true of
+ * it at once, and together they made it the odd one out in a list of rounds:
+ *
+ * It was the only type the field does not PLAY — `isPlayingRound: false`, and
+ * three separate files had to say "a Qualification Stage is a cut, not a
+ * round" to stop readers counting it as one. Every sweep in the app carried
+ * that exception.
+ *
+ * It DECIDED nothing on its own. Its one control wrote the EVENT's
+ * `qualifyPerGroup`, and what actually selects a bracket's field is
+ * `selectQualifiers(groups, qualifyPerGroup)` reading the group standings. The
+ * stage row was a place to put a setting, not a step in the competition.
+ *
+ * And the app already had two better ways to say the same thing, which is the
+ * point Ajay made when he asked for it to go: a round-to-round cut is a
+ * property of the round it feeds (`cutEnabled`, and `cut.ts` calls itself "the
+ * single source of truth" for it), and a bracket's qualifier is simply the
+ * round the field plays before it — `bracket-visibility.ts` has always handled
+ * "a stroke-play qualifier decides it by cards returned". *Let the organizer
+ * decide which round that is*, rather than the app asking them to add a step
+ * that is not golf.
+ *
+ * The qualification cut moved to the BRACKET's own settings, which is where it
+ * belongs: how many players a bracket takes is the bracket's business.
+ *
+ * A consequence worth knowing: every remaining type is a playing round, so
+ * `activeStage` is now non-null whenever a tournament has any stage at all.
+ * Code that carried a `?? stages[0]` fallback for the qualification case no
+ * longer needs it.
+ */
 export const STAGE_TYPES = [
   "Round Robin",
   "Stroke Play Round",
-  "Qualification Stage",
   "Single Match Stage",
   "Bracket Stage",
 ] as const;
@@ -121,18 +153,6 @@ export const STAGE_TYPE_INFO: StageTypeInfo[] = [
     headToHead: false,
   },
   {
-    key: "Qualification Stage",
-    label: "Qualification",
-    blurb: "Cut the field — the top players carry on.",
-    description: "Cut the field — top players per flight advance.",
-    icon: "ph ph-funnel",
-    generatesPairings: false,
-    isPlayingRound: false,
-    chainsMatchPoints: false,
-    seededFromQualifiers: false,
-    headToHead: false,
-  },
-  {
     key: "Single Match Stage",
     label: "Single match",
     blurb: "One match — a play-off, a play-in, or a seeding decider.",
@@ -189,10 +209,42 @@ export const WEEKLY_ROUND_TYPES: readonly StageTypeKey[] = ["Round Robin", "Stro
  * same door reopened one screen along. `/reports` had the identical fault
  * closed on 2026-09-10 and the sidebar before that; this is the third time.
  *
- * A Qualification Stage counts because it is a knockout's front half — it
- * exists to seed a bracket, and `/bracket` is where its audit now lives.
+ * ONE TYPE, NOW. There used to be two: a "Qualification Stage" counted as a
+ * knockout's front half. It was removed on 2026-09-11 — see `STAGE_TYPES` —
+ * and what seeds a bracket is the round the field actually plays, plus the
+ * event's own `qualifyPerGroup`. Kept as a list rather than collapsed to a
+ * comparison because a second knockout structure is a plausible thing to add
+ * and every reader already asks this question through `hasKnockoutStage`.
  */
-export const KNOCKOUT_STAGE_TYPES: readonly StageTypeKey[] = ["Bracket Stage", "Qualification Stage"];
+export const KNOCKOUT_STAGE_TYPES: readonly StageTypeKey[] = ["Bracket Stage"];
+
+/**
+ * STRUCTURE rather than a round the whole field plays.
+ *
+ * The type picker shows two groups — "Rounds the field plays" and "Structure" —
+ * because nearly every round an organizer adds is the first kind, and showing
+ * five peers made the common choice a five-way decision every time.
+ *
+ * It used to split on `isPlayingRound`, with the two structural types named as
+ * exceptions on BOTH sides: `t.isPlayingRound && t.key !== "Single Match Stage"
+ * && t.key !== "Bracket Stage"` for one group and the exact inverse for the
+ * other. Two conditions that must stay opposite is the drift shape this
+ * codebase keeps unwinding — invert one and a type lands in both groups or
+ * neither.
+ *
+ * And after the "Qualification Stage" was removed on 2026-09-11 the
+ * `isPlayingRound` half was dead: every remaining type is played, so the flag
+ * decided nothing and only the names did.
+ *
+ * So the set is declared once and both groups read it. A single match is two
+ * players and a bracket is a draw; neither is a round the field turns up for.
+ */
+export const STRUCTURAL_STAGE_TYPES: readonly StageTypeKey[] = ["Single Match Stage", "Bracket Stage"];
+
+/** Whether this type is structure rather than a round the whole field plays. */
+export function isStructuralStage(type: string): boolean {
+  return (STRUCTURAL_STAGE_TYPES as readonly string[]).includes(type);
+}
 
 /**
  * The most rounds one click may create.

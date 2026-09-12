@@ -106,9 +106,11 @@ export default async function LeaderboardPage() {
   /**
    * Whether the event's Scoring can rank what its rounds produce.
    *
-   * Only the rounds the field PLAYS — a Qualification Stage is a cut, not a
-   * round, and counting it would report a mismatch on a tournament that has
-   * nothing wrong with it.
+   * Only the rounds the field PLAYS. Every stage type is one now — the
+   * "Qualification Stage", which was a cut rather than a round and would have
+   * reported a mismatch on a tournament with nothing wrong with it, was
+   * removed on 2026-09-11. The filter stays because the DISTINCTION is the
+   * point: a type that is not played must never be scored against.
    */
   const mismatch = scoringMismatch(
     state.event.format,

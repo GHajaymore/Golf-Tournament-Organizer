@@ -75,7 +75,7 @@ async function tournament(opts: { withEmail: number; withoutEmail: number; withd
   // `position` and `type` are Stage's only required scalars; the code is what
   // this file is about and everything else takes its default.
   await prisma.stage.create({
-    data: { eventId, position: 1, type: "Qualification Stage", accessCode: `${TAG}CODE` },
+    data: { eventId, position: 1, type: "Stroke Play Round", accessCode: `${TAG}CODE` },
   });
 
   let seed = 0;

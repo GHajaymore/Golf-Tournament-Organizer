@@ -110,7 +110,7 @@ async function main() {
     // 2. A committee decision on the first player of the first playing round.
     // An UNSCORED round, so the override is one the screen should still offer.
     const round =
-      stages.find((s) => s.type !== "Qualification Stage" && !scored.includes(s.position + 1)) ??
+      stages.find((s) => !scored.includes(s.position + 1)) ??
       stages[0];
     const who = players[0];
     const row = await prisma.roundHandicap.create({

@@ -11,10 +11,19 @@ import { isPlayingRound } from "@/lib/stage-types";
 
 const stage = (id: string, type: string): NumberedStage => ({ id, type });
 
-/** Round Robin, a cut, then the bracket. The shape the two counts disagree on. */
+/**
+ * Round Robin, a stage nobody plays, then the bracket — the shape the two
+ * counts disagree on.
+ *
+ * The middle one used to be a "Qualification Stage", the one type with
+ * `isPlayingRound: false`. That type was removed on 2026-09-11 (see
+ * `STAGE_TYPES`), so a RETIRED type is now the only way a stage row can fail to
+ * be a playing round — which is exactly the case this rule has to survive, and
+ * is what a row written by an older build looks like.
+ */
 const WITH_CUT: NumberedStage[] = [
   stage("rr", "Round Robin"),
-  stage("cut", "Qualification Stage"),
+  stage("cut", "Retired Stage Type"),
   stage("bracket", "Bracket Stage"),
 ];
 
@@ -22,7 +31,7 @@ describe("the fixture really is the case the two counts disagree on", () => {
   it("has a stage in the middle that nobody plays", () => {
     // Every assertion below is vacuous if this stops being true — the counts
     // agree on a tournament with no cut in it.
-    expect(isPlayingRound("Qualification Stage")).toBe(false);
+    expect(isPlayingRound("Retired Stage Type")).toBe(false);
     expect(isPlayingRound("Round Robin")).toBe(true);
     expect(isPlayingRound("Bracket Stage")).toBe(true);
   });
@@ -56,9 +65,9 @@ describe("counting the rounds of golf", () => {
   it("counts several cuts without losing its place", () => {
     const long: NumberedStage[] = [
       stage("r1", "Stroke Play Round"),
-      stage("c1", "Qualification Stage"),
+      stage("c1", "Retired Stage Type"),
       stage("r2", "Stroke Play Round"),
-      stage("c2", "Qualification Stage"),
+      stage("c2", "Retired Stage Type"),
       stage("r3", "Bracket Stage"),
     ];
     expect(["r1", "r2", "r3"].map((id) => roundLabel(long, id))).toEqual([
@@ -113,7 +122,8 @@ describe("a round labelled with something after it", () => {
   });
 
   it("falls back to the suffix alone for a stage with no number", () => {
-    // A cut has a type worth showing and no round number to show with it.
-    expect(roundLabelWith(WITH_CUT, "cut", "Qualification Stage")).toBe("Qualification Stage");
+    // A stage nobody plays has a type worth showing and no round number to
+    // show with it.
+    expect(roundLabelWith(WITH_CUT, "cut", "Retired Stage Type")).toBe("Retired Stage Type");
   });
 });

@@ -312,6 +312,22 @@ Two things to get right before building it:
   one resolver or they will drift, which is the defect `orgProfile` exists to
   prevent. Extend `orgProfile` to take the country; do not add a second table.
 
+### `verify-round-handicaps.mjs` cannot run against the dev database
+Not one of CI's four smoke scripts, so nothing is gated on it — but it is in
+`scripts/` and it does not work, which is worse than absent because the next
+person runs it and believes the failure.
+
+It picks the first unscored round of the Demo Cup and creates a `roundHandicap`
+row, and the dev database already holds **66** of them — frozen handicaps from
+rounds that have been played, `override: null`. So the create hits
+`Unique constraint failed on the fields: (stageId, playerId)` every time.
+
+Verified as PRE-EXISTING on 2026-09-11 by running the committed version
+unchanged, after an edit to the same file was suspected: it fails identically.
+The fix is for the script to upsert, or to pick a (stage, player) pair that has
+no row — not to clear the frozen handicaps, which are real data about rounds
+that were really played.
+
 ## 4. Environment and ops
 
 ### `CRON_SECRET` is not set on the Vercel project
