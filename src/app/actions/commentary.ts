@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { loadEventState, computeHighlights } from "@/lib/services/tournament";
 import { entitlementForEvent } from "@/lib/services/entitlements";
+import { askClaude } from "@/lib/services/claude";
 
 async function requireStaff() {
   const session = await getSession();
@@ -68,24 +69,13 @@ export async function suggestCommentary(): Promise<{ text: string; configured: b
 
   const prompt = `You are a golf tournament commentator for "${state.event.name}". Write ONE short, punchy live-update line (max 30 words), energetic but factual, no hashtags. Use this data:\n\nStandings:\n${top}\n\nHighlights:\n${highlights}`;
 
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-5",
-        max_tokens: 120,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    if (!res.ok) return { text: `Claude API error (${res.status}). Check the key.`, configured: true };
-    const data = (await res.json()) as { content?: Array<{ text?: string }> };
-    return { text: (data.content?.[0]?.text ?? "").trim(), configured: true };
-  } catch {
-    return { text: "Could not reach the Claude API.", configured: true };
-  }
+  const answer = await askClaude({ model: "claude-sonnet-5", maxTokens: 120, content: prompt });
+  if (answer.ok) return { text: answer.text, configured: true };
+  if (answer.reason === "unreachable") return { text: "Could not reach the Claude API.", configured: true };
+  // An empty reply is not an error to show a commentator — there is simply
+  // nothing to say yet, and a line reading "nothing came back" on a public
+  // board is worse than no line.
+  if (answer.reason === "empty") return { text: "", configured: true };
+  if (answer.reason === "not-configured") return { text: "", configured: false };
+  return { text: `Claude API error (${answer.status}). Check the key.`, configured: true };
 }

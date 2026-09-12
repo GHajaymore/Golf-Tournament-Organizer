@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { askClaude } from "@/lib/services/claude";
 import {
   parseCardReading,
   extractReadingJson,
@@ -121,62 +122,50 @@ export async function readScorecardPhoto(
   const entitled = await entitlementForEvent(eventId, "cardScan");
   if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
-    return {
-      ok: false,
-      configured: false,
-      error: "Reading cards from a photo is not switched on. Enter the scores by hand.",
-    };
+  const holes = holesPlayed(stage.holes);
+
+  const answer = await askClaude({
+    // Haiku rather than Sonnet, and this is the one action where that is
+    // clearly right. Reading a grid of two-digit numbers off a photograph is
+    // narrow extraction, not judgement — and it is the highest-volume model
+    // call in the product, one per card rather than one per round, so it
+    // dominates the AI bill at any real scale. Haiku is a third of Sonnet's
+    // price per token on both sides.
+    //
+    // The accuracy trade is bounded by the design above: this action NEVER
+    // SAVES ANYTHING. Every number comes back for the person holding the card
+    // to check and correct before it goes through the ordinary entry path. A
+    // misread here costs a correction, not a wrong result — which is exactly
+    // the shape of task where the cheaper model belongs.
+    model: "claude-haiku-4-5",
+    maxTokens: 400,
+    content: [
+      { type: "image", source: { type: "base64", media_type: image.media, data: image.base64 } },
+      { type: "text", text: cardReadingPrompt(holes, player.name) },
+    ],
+  });
+  if (!answer.ok) {
+    if (answer.reason === "not-configured") {
+      return {
+        ok: false,
+        configured: false,
+        error: "Reading cards from a photo is not switched on. Enter the scores by hand.",
+      };
+    }
+    if (answer.reason === "unreachable") {
+      return { ok: false, configured: true, error: "Could not reach the reader. Enter the scores by hand." };
+    }
+    if (answer.reason === "empty") {
+      return { ok: false, configured: true, error: "Nothing came back from the card. Enter the scores by hand." };
+    }
+    // The status, never the body: an upstream error message can carry details
+    // of the request, and this one contained a photograph. `askClaude` holds
+    // that for every caller now; this line only chooses the words.
+    return { ok: false, configured: true, error: `Could not read the card (${answer.status}).` };
   }
 
-  const holes = holesPlayed(stage.holes);
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        // Haiku rather than Sonnet, and this is the one action where that is
-        // clearly right. Reading a grid of two-digit numbers off a photograph
-        // is narrow extraction, not judgement — and it is the highest-volume
-        // model call in the product, one per card rather than one per round,
-        // so it dominates the AI bill at any real scale. Haiku is a third of
-        // Sonnet's price per token on both sides.
-        //
-        // The accuracy trade is bounded by the design above: this action NEVER
-        // SAVES ANYTHING. Every number comes back for the person holding the
-        // card to check and correct before it goes through the ordinary entry
-        // path. A misread here costs a correction, not a wrong result — which
-        // is exactly the shape of task where the cheaper model belongs.
-        model: "claude-haiku-4-5",
-        max_tokens: 400,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: image.media, data: image.base64 } },
-              { type: "text", text: cardReadingPrompt(holes, player.name) },
-            ],
-          },
-        ],
-      }),
-    });
-    if (!res.ok) {
-      // The status, never the body: an upstream error message can carry
-      // details of the request, and this one contained a photograph.
-      return { ok: false, configured: true, error: `Could not read the card (${res.status}).` };
-    }
-    const data = (await res.json()) as { content?: Array<{ text?: string }> };
-    const reply = data.content?.[0]?.text ?? "";
-    // Untrusted from here: shape, length and every value are checked.
-    return { ok: true, configured: true, reading: parseCardReading(extractReadingJson(reply), holes) };
-  } catch {
-    return { ok: false, configured: true, error: "Could not reach the reader. Enter the scores by hand." };
-  }
+  // Untrusted from here: shape, length and every value are checked.
+  return { ok: true, configured: true, reading: parseCardReading(extractReadingJson(answer.text), holes) };
 }
 
 export interface GroupPhotoResult {
@@ -252,49 +241,42 @@ export async function readGroupCardPhoto(
   const entitled = await entitlementForEvent(eventId, "cardScan");
   if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
-    return {
-      ok: false,
-      configured: false,
-      error: "Reading cards from a photo is not switched on. Enter the scores by hand.",
-    };
-  }
-
   const holes = holesPlayed(stage.holes);
   const roster = group.map((p) => ({ playerId: p.id, name: p.name }));
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        // Haiku, for the reasons on readScorecardPhoto — narrow extraction
-        // rather than judgement, and nothing here is saved without a person
-        // checking it. The token budget rises with the number of rows.
-        model: "claude-haiku-4-5",
-        max_tokens: 250 * Math.max(1, roster.length),
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: image.media, data: image.base64 } },
-              { type: "text", text: groupCardPrompt(holes, roster.map((p) => p.name)) },
-            ],
-          },
-        ],
-      }),
-    });
-    if (!res.ok) {
-      // The status, never the body — an upstream error can quote the request,
-      // and this one contained a photograph of somebody's card.
-      return { ok: false, configured: true, error: `Could not read the card (${res.status}).` };
+
+  const answer = await askClaude({
+    // Haiku, for the reasons on readScorecardPhoto — narrow extraction rather
+    // than judgement, and nothing here is saved without a person checking it.
+    // The token budget rises with the number of rows.
+    model: "claude-haiku-4-5",
+    maxTokens: 250 * Math.max(1, roster.length),
+    content: [
+      { type: "image", source: { type: "base64", media_type: image.media, data: image.base64 } },
+      { type: "text", text: groupCardPrompt(holes, roster.map((p) => p.name)) },
+    ],
+  });
+  if (!answer.ok) {
+    if (answer.reason === "not-configured") {
+      return {
+        ok: false,
+        configured: false,
+        error: "Reading cards from a photo is not switched on. Enter the scores by hand.",
+      };
     }
-    const data = (await res.json()) as { content?: Array<{ text?: string }> };
-    const reply = data.content?.[0]?.text ?? "";
+    if (answer.reason === "unreachable") {
+      return { ok: false, configured: true, error: "Could not reach the reader. Enter the scores by hand." };
+    }
+    if (answer.reason === "empty") {
+      return { ok: false, configured: true, error: "Nothing came back from the card. Enter the scores by hand." };
+    }
+    // The status, never the body — an upstream error can quote the request,
+    // and this one contained a photograph of somebody's card. `askClaude`
+    // enforces that for every caller now; this line only chooses the words.
+    return { ok: false, configured: true, error: `Could not read the card (${answer.status}).` };
+  }
+
+  try {
+    const reply = answer.text;
     return {
       ok: true,
       configured: true,
@@ -360,48 +342,40 @@ export async function readCourseCardPhoto(
   const entitled = await entitlementForEvent(session.eventId, "cardScan");
   if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
-    return {
-      ok: false,
-      configured: false,
-      error: "Reading cards from a photo is not switched on. Type the card in below.",
-    };
+  const holes = holesPlayed(holeCount);
+
+  const answer = await askClaude({
+    // Haiku, as everywhere in this file. Lower volume than the other two — a
+    // course is read once, not once a round — and the review screen in front
+    // of it is stricter than either.
+    model: "claude-haiku-4-5",
+    // Three rows rather than one, and yardages are three digits.
+    maxTokens: 700,
+    content: [
+      { type: "image", source: { type: "base64", media_type: image.media, data: image.base64 } },
+      { type: "text", text: courseCardPrompt(holes) },
+    ],
+  });
+  if (!answer.ok) {
+    if (answer.reason === "not-configured") {
+      return {
+        ok: false,
+        configured: false,
+        error: "Reading cards from a photo is not switched on. Type the card in below.",
+      };
+    }
+    if (answer.reason === "unreachable") {
+      return { ok: false, configured: true, error: "Could not reach the reader. Type the card in below." };
+    }
+    if (answer.reason === "empty") {
+      return { ok: false, configured: true, error: "Nothing came back from the card. Type it in below." };
+    }
+    // The status, never the body.
+    return { ok: false, configured: true, error: `Could not read the card (${answer.status}).` };
   }
 
-  const holes = holesPlayed(holeCount);
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        // Haiku, as everywhere in this file. Lower volume than the other two —
-        // a course is read once, not once a round — and the review screen in
-        // front of it is stricter than either.
-        model: "claude-haiku-4-5",
-        // Three rows rather than one, and yardages are three digits.
-        max_tokens: 700,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: image.media, data: image.base64 } },
-              { type: "text", text: courseCardPrompt(holes) },
-            ],
-          },
-        ],
-      }),
-    });
-    if (!res.ok) {
-      // The status, never the body.
-      return { ok: false, configured: true, error: `Could not read the card (${res.status}).` };
-    }
-    const data = (await res.json()) as { content?: Array<{ text?: string }> };
-    const reply = data.content?.[0]?.text ?? "";
+    const reply = answer.text;
     // Untrusted from here: shape and every value are checked, and whether the
     // card is fit to save is decided afterwards by validateCard.
     return { ok: true, configured: true, reading: parseCourseCardReading(extractReadingJson(reply), holes) };
