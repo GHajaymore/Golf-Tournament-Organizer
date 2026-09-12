@@ -185,11 +185,40 @@ export default async function DashboardPage() {
         })),
       }));
 
-  /** Whether the round being played is scored by SIDES rather than players. */
-  const teamRound = TEAM_FORMAT_NAMES.includes(state.activeStage?.format ?? "");
+  /**
+   * Whether the round ON THE BOARD is scored by SIDES rather than players.
+   *
+   * `boardStage`, because its one reader is the empty note under
+   * `LeaderboardTable` — which is showing the board's rows. Asked of
+   * `activeStage` it explained the absence of rows by describing a different
+   * round's format.
+   */
+  const teamRound = TEAM_FORMAT_NAMES.includes(state.boardStage?.format ?? "");
 
   const progress = matchProgress(state);
-  const currentStage = state.activeStage ?? state.stages[0];
+  /**
+   * THE ROUND THE "CURRENT ROUND" CARD IS ABOUT, and it has to be the one the
+   * progress bar under it counts.
+   *
+   * This was `state.activeStage ?? state.stages[0]` — the expression
+   * `boardStage` exists to replace — while the bar and the caption beneath it
+   * read `boardIsStroke` and `cardsIn`. On the Demo Cup that printed
+   *
+   *     Current round
+   *     Round 1 · Round Robin
+   *     Every player meets everyone in their flight.
+   *     7/33 scorecards in
+   *
+   * — the NAME of the group phase over the CARD COUNT of the medal round, in
+   * one card, with the leaderboard directly above it ranking the medal. A
+   * round robin has no scorecards at all.
+   *
+   * Half of that is mine: before the boards were moved onto `boardIsStroke`
+   * the bar said "matches complete", which was coherent about the wrong round
+   * rather than incoherent about two. Found by reading the rendered dashboard
+   * on 2026-09-12 rather than by any test.
+   */
+  const currentStage = state.boardStage ?? state.stages[0];
   /**
    * Two people playing each other, rather than a tournament.
    *
@@ -207,7 +236,12 @@ export default async function DashboardPage() {
   // A casual round has exactly one round in it, which is what makes a single
   // panel the whole of its settings. The active stage rather than stages[0]:
   // same reader every other screen uses.
-  const casualStage = matchEvent ? state.activeStage ?? state.stages[0] ?? null : null;
+  // `boardStage`, which for a casual round is the SAME stage — there is only
+  // one — so this is not a behaviour change. It is written this way so the
+  // guard in `board-follows-the-round.audit.test.ts` needs no exception here:
+  // an allowance for "the one place that is fine" is how the next one that is
+  // not fine gets written.
+  const casualStage = matchEvent ? state.boardStage ?? state.stages[0] ?? null : null;
   // Counted over the rounds the field plays, not over the Round Robins: those
   // two lists are the same only in a tournament that is nothing but round
   // robins, and this screen sits beside others that always counted rounds.
@@ -761,7 +795,11 @@ export default async function DashboardPage() {
                 </div>
                 <LeaderboardTable
                   isStroke={isStroke}
-                  isStableford={state.activeStage?.scoringBasis === "stableford"}
+                  /* `boardStage`, like the two props either side of it. All
+                     three describe the round these ROWS came from, and asking
+                     `activeStage` headed one round's scores with another
+                     round's basis. */
+                  isStableford={state.boardStage?.scoringBasis === "stableford"}
                   rows={rows}
                   compact
                   /* `standingRows` is per PLAYER, and a team round's result
@@ -844,7 +882,24 @@ export default async function DashboardPage() {
               <div className="card elev-sm">
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span className="card-title">Qualification cutoff</span>
-                  <span className="tag tag-accent">Top {event.qualifyPerGroup}/flight</span>
+                  {/*
+                    THE RULE THIS TOURNAMENT ACTUALLY USES. This printed
+                    "Top {qualifyPerGroup}/flight" whatever `qualifyMode` said,
+                    so an event qualifying OVERALL was badged with a per-flight
+                    rule it does not apply — and the count beside it contradicted
+                    the badge in the same card. On the Demo Cup, which takes the
+                    top four overall across eight flights: "Top 2/flight" over
+                    "4 of 33 advancing".
+
+                    The same sentence `/bracket` has always built from the same
+                    two fields; it is only this card that had one of them
+                    hard-coded.
+                  */}
+                  <span className="tag tag-accent">
+                    {event.qualifyMode === "overall"
+                      ? `Top ${event.qualifyOverall} overall`
+                      : `Top ${event.qualifyPerGroup}/flight`}
+                  </span>
                 </div>
                 <div style={{ fontFamily: "var(--font-heading)", fontSize: 22, marginTop: 2 }}>
                   {advancingCount} <span className="text-muted" style={{ fontSize: 14 }}>of {state.confirmed.length} advancing</span>

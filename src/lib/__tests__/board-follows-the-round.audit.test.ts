@@ -367,4 +367,60 @@ describe("every board reads the round's answer", () => {
       `these build board rows and ask the EVENT how to read them: ${offenders.join(", ")}`,
     ).toEqual([]);
   });
+
+  it("and none of them works out the round for itself either", () => {
+    /**
+     * THE OTHER HALF OF THE SAME RULE, swept for the same reason.
+     *
+     * `state.activeStage ?? state.stages[0]` is the expression `boardStage`
+     * exists to replace, and the hand-listed check above it only covered the
+     * files somebody remembered to list. The dashboard still wrote it, and on
+     * 2026-09-12 the rendered page said:
+     *
+     *     Current round
+     *     Round 1 · Round Robin
+     *     7/33 scorecards in
+     *
+     * The NAME of the group phase over the CARD COUNT of the medal round, in
+     * one card, with the leaderboard directly above it ranking the medal — and
+     * a round robin has no scorecards at all. Two more props on that same
+     * table, `isStableford` and the team-round empty note, read `activeStage`
+     * for a question about the rows beside them.
+     *
+     * `activeStage` itself is NOT banned and must not be: it is the
+     * match-points chain's position and score entry's default round, and the
+     * dashboard still reads it for the round cut. What is banned is one file
+     * re-deriving the BOARD's round when `boardStage` already holds it.
+     */
+    /**
+     * ONE LINE, NOT ONE FILE — the objection `knockout-readers.test.ts` makes
+     * to file-level exemptions applies here too: a file allowance permits
+     * everything in that file for ever, including the exact thing being
+     * guarded against.
+     *
+     * `/entry` is the SCORE ENTRY screen. It resolves a stage to decide which
+     * round a scorer is typing into, and `activeStage` is the right answer for
+     * that — its own doc says it is "what score entry and `current round`
+     * default to", and it prefers the round IN PROGRESS, which is what you
+     * want to type into and is not always the latest round with results. That
+     * screen appears here only because it also calls `standingRows` once, for
+     * the spoken "where am I?" — and that call already asks `boardStage`.
+     */
+    const ALLOWED = new Set([`const activeStage = state.activeStage ?? state.stages[0] ?? null;`]);
+    const offenders: string[] = [];
+    for (const f of sourceFiles()) {
+      if (f.endsWith(join("services", "tournament.ts"))) continue;
+      const src = readSource(f);
+      if (!/standingRows\s*\(/.test(src)) continue;
+      for (const line of src.split("\n")) {
+        const t = line.trim();
+        if (!/state\.activeStage\s*\?\?\s*state\.stages\[0\]/.test(t)) continue;
+        if (!ALLOWED.has(t)) offenders.push(`${f}: ${t}`);
+      }
+    }
+    expect(
+      offenders,
+      `these build board rows and then resolve their own stage: ${offenders.join(", ")}`,
+    ).toEqual([]);
+  });
 });
