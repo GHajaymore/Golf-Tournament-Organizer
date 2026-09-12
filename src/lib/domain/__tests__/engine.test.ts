@@ -242,6 +242,55 @@ describe("qualification bubble", () => {
     expect(bubble.gap).toBe(3);
   });
 
+  it("refuses to call the LEADER a near-miss", () => {
+    /**
+     * A NEGATIVE GAP IS NOT A BUBBLE, and `Bubble.gap` is documented as "never
+     * negative". The reasoning for that — a flight's qualifiers are by
+     * definition its better scores — holds only while `advancing` was decided
+     * on the SAME ranking as `score`, and it is not always.
+     *
+     * Read off the seeded Demo Cup's PUBLIC board on 2026-09-12. It qualifies
+     * into a bracket, so its advancing set comes from the match-points chain,
+     * while the board beside it was ranking the medal round the field had just
+     * played. The leader, at six under, had played no matches:
+     *
+     *     "Walkthrough Player is -12 shots outside qualification."
+     *
+     * Told they were outside, by a negative margin, on a screen anybody with
+     * the link can open — and "-12 shots outside" is not a sentence about
+     * anything, exactly as this file's own note says of "0 shots outside".
+     */
+    const field: BubblePlayer[] = [
+      // Six under and NOT advancing, because the set was chosen on something
+      // else. This is the shape, not a contrivance.
+      { id: "leader", score: 66, groupId: null, advancing: false },
+      { id: "in1", score: 74, groupId: null, advancing: true },
+      { id: "in2", score: 78, groupId: null, advancing: true },
+    ];
+    expect(qualificationBubble(field, "overall", false)).toBeNull();
+  });
+
+  it("still reports a real race in another flight", () => {
+    /**
+     * Skipping the bucket rather than giving up. `tightest` takes the SMALLEST
+     * gap, so one incoherent flight would otherwise always win and hide every
+     * genuine race behind it — which is a worse outcome than the sentence this
+     * is suppressing.
+     */
+    const field: BubblePlayer[] = [
+      // Flight A is incoherent, as above.
+      { id: "a-leader", score: 66, groupId: "A", advancing: false },
+      { id: "a-in", score: 74, groupId: "A", advancing: true },
+      // Flight B is an ordinary two-shot race.
+      { id: "b-in", score: 71, groupId: "B", advancing: true },
+      { id: "b-out", score: 73, groupId: "B", advancing: false },
+    ];
+    const bubble = qualificationBubble(field, "perFlight", false);
+    expect(bubble, "one incoherent flight silenced a real race").not.toBeNull();
+    expect(bubble!.firstOut.id).toBe("b-out");
+    expect(bubble!.gap).toBe(2);
+  });
+
   it("has no bubble when nobody is cut", () => {
     const allIn: BubblePlayer[] = [
       { id: "p", score: 5, advancing: true },

@@ -706,6 +706,35 @@ export function qualificationBubble(
     }
     if (!lastIn || !firstOut) continue;
     const gap = gapOf(lastIn, firstOut);
+    /**
+     * A NEGATIVE GAP IS NOT A BUBBLE, and the invariant above says so: "the
+     * last-in always outranks the first-out and the gap is never negative".
+     *
+     * Its reasoning — a flight's qualifiers are by definition its better
+     * scores — holds only while `advancing` was decided on the SAME ranking as
+     * `score`. It is not always. Seen on the seeded Demo Cup's public board on
+     * 2026-09-12, which qualifies into a bracket and so takes its advancing set
+     * from the match-points chain, while the board beside it was ranking the
+     * medal round the field had just played:
+     *
+     *     "Walkthrough Player is -12 shots outside qualification."
+     *
+     * The LEADER, told they were outside, by a negative margin, on a screen
+     * anybody with the link can open. And `-12` is not a sentence about
+     * anything, exactly as the note above says of `0`.
+     *
+     * Skipping the bucket rather than returning null: another flight may have
+     * a perfectly coherent bubble, and this one has nothing to say. `tightest`
+     * takes the SMALLEST gap, so a negative would otherwise always win and hide
+     * every real race behind it.
+     *
+     * This is a symptom, not the disease — which is that a bracket's field can
+     * be chosen on a different ranking from the one on screen. That is a
+     * product question about which round seeds a bracket and it is in
+     * `docs/deferred-register.md`, deliberately unanswered here. What is not a
+     * product question is whether to print this sentence.
+     */
+    if (gap < 0) continue;
     if (!tightest || gap < tightest.gap) tightest = { lastIn, firstOut, gap };
   }
   return tightest;

@@ -131,7 +131,31 @@ the JUDGEMENT on each, because working it out again costs a fixture apiece.
 | `(app)/foursomes/page.tsx:60`, `services/single-match.ts:114` | **EVENT, correctly.** Both ask "what standing is this competition ranked on" to draw or seed off it — a season question, not a round one. |
 | `services/draft-facts.ts:72` | **EVENT, correctly.** It narrates the tournament. |
 | `(app)/dashboard/page.tsx:163` | **EVENT, and left alone deliberately.** A flight table on a match league chains points across weeks, which is the season. Genuinely arguable; nobody has a complaint to point at, and a change here wants a real one first. |
-| `services/week-view.ts:397` | **EVENT, and left alone deliberately.** It picks the SEASON table's engine, which is an event-level question. Open: `chainRoundStandings` walks `rrStages`, which includes a Round Robin set to Stroke Play — a legacy medal week may award nobody anything in the season table. Not measured. |
+| `services/week-view.ts:397` | **EVENT, correctly** — it picks the SEASON table's engine, which is an event-level question. The two worries recorded beside it have now been MEASURED rather than left open, and one of them was real: see below. |
+
+**The two things measured at `week-view.ts:397`, so nobody re-opens them.**
+
+*A legacy medal inside the match-points chain does NOT corrupt the season.*
+`roundRobinStages` filters by TYPE, so a Round Robin set to Stroke Play is in
+`rrStages` while a Stroke Play Round is not — which looks like it should zero
+the carried points on that week. It does not: `overall` holds the LAST
+iteration of the chain, and `currentRoundIndex` skips matchless stages when
+choosing where the chain stops. Four fixtures — no medal, a Stroke Play Round,
+a legacy medal, a legacy medal with carry off — all give the identical season
+table. No change made, and none wanted.
+
+*The season table was under the wrong week, and that WAS real.* Fixed 2026-09-12.
+`chainRoundStandings` is parallel to `rrStages`; the sheet read it at the index
+of the WEEK, which counts Stroke Play Rounds too. Medal night first:
+
+```
+week 1 (the MEDAL)  -> standings 2.5/0   <- week 2's match points
+week 2 (the MATCH)  -> standings (none)  <- its own, missing
+```
+
+Counted by stage now. It survived because every earlier fixture put the medal
+week LAST, where the off-by-one has nothing after it to expose — which is the
+transferable part: **an index bug hides wherever the odd row is at the end.**
 
 **The lesson that cost the most.** The board fix first derived `roundIsStroke`
 from the stage TYPE alone, on reasoning written into `stage-types.ts` and
@@ -392,6 +416,64 @@ board — the latest round with results — and a club championship has three. A
 round selector is still the shape if the answer is yes, and it is still a
 product question. What has changed is that the default is no longer a round the
 field finished three weeks ago.
+
+### Which round seeds a bracket, when the tournament has several kinds
+**Found 2026-09-12 on the seeded Demo Cup's PUBLIC board, and NOT fixed — it
+decides who plays in a knockout, which is not a 4am call.**
+
+The symptom was a sentence:
+
+> Walkthrough Player is **-12 shots** outside qualification.
+
+The LEADER, at six under, told they were outside, by a negative margin, on a
+screen anybody with the link can open. That sentence is suppressed now —
+`qualificationBubble` refuses a negative gap, because `Bubble.gap` is
+documented as "never negative" and "-12 shots outside" is not a statement about
+anything. **The sentence was the bug that was fixed. What follows was not.**
+
+`qualifierIds` branches on `isStroke` — the EVENT's format. The Demo Cup is a
+match-format event whose rounds are a Round Robin, then a Stroke Play Round,
+then a Single Match, then a Bracket. So the bracket's field is chosen from the
+MATCH-POINTS chain while the round the field has actually just played is a
+medal with seven cards in it. The leader of that medal has played no matches,
+so `stillIn` drops him and he can never qualify.
+
+The same family as everything else fixed on 2026-09-11/12, and the highest
+stakes of any of them — which is exactly why it is here rather than done:
+
+- **It is a product question first.** With a round robin AND a medal AND a
+  single match before the bracket, which one decides the field? The app has no
+  answer beyond `qualifyMode` applied to "the standings", and which standings is
+  the whole question.
+- `boardIsStroke` is NOT obviously the right substitute. The board shows the
+  latest round with results; a bracket's feeder is the round before the bracket.
+  They coincide today and need not.
+- A wrong answer reseeds a knockout — the same reasoning as "a guard that
+  refuses a real golf course is worse than no guard".
+
+**MEASURED 2026-09-12, so nobody has to start by arguing.** Three shapes, eight
+players, six cards, and — the part that matters — **the card order reversed
+against the seed order**, because seeded the same way round a qualifier chosen
+off seed order looks identical to one chosen off the cards. The first version
+of this fixture passed all three and proved nothing:
+
+| shape | picks the four best cards? |
+|---|---|
+| stroke event, Stroke Play Round qualifier (**the club championship**) | **YES** |
+| stroke event, legacy medal qualifier (Round Robin/Stroke Play) | **YES** |
+| **match** event, Stroke Play Round qualifier | **NO** |
+
+So the common path is safe and this is ONE shape: a bracket qualified out of a
+medal inside an event whose format says match. With no matches played,
+`overall` is still its zero-point initialiser, `anyPlayed` is false, and the
+top four by SEED are seeded into the knockout while six cards sit unread.
+
+That narrows the product question rather than answering it. The obvious fix —
+ask the round that feeds the bracket, in its own unit, exactly as
+`bracketFeederProgress` now does — still has to say WHICH feeder wins when
+there are several of different kinds. On the Demo Cup the last feeder before
+the bracket is a Single Match Stage while the substantive qualifier is the
+medal two rounds earlier, and no rule in the app prefers one.
 
 ## 4. Environment and ops
 
