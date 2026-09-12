@@ -924,6 +924,14 @@ model Event {
    */
   moneyMode             String  @default("")
   /**
+   * anyone | staff — who may WRITE a shared cost down, when the mode is split.
+   * Empty means anyone, which is what every tournament does today and is the
+   * only default that does not silently remove a capability people are using.
+   * Not inherited from the club: the same society's roll-up and its away day
+   * want opposite answers. See domain/expense-entry.ts.
+   */
+  expenseEntry          String  @default("")
+  /**
    * Who locks a result: "staff" holds every submitted card for organizer
    * review; "players" keeps the two-player confirmation with a 24h
    * auto-confirm. Defaults to staff — auto-confirming an unreviewed score is

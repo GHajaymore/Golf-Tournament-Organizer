@@ -9,7 +9,7 @@ import {
   POT_MODE_HELP,
   isPotEntryMode,
 } from "@/lib/domain/pot-entry";
-import { CONTEST_KINDS, CONTEST_LABEL, type ContestKind } from "@/lib/domain/contests";
+import { CONTEST_KINDS, CONTEST_LABEL, contestHasHole, type ContestKind } from "@/lib/domain/contests";
 import { DERIVED_KINDS, DERIVED_LABEL, DERIVED_HELP } from "@/lib/domain/derived-games";
 import { PersonChip } from "@/components/PersonChip";
 import FieldInfo from "@/components/FieldInfo";
@@ -231,7 +231,10 @@ export function ContestsClient({
         name: name.trim() || CONTEST_LABEL[kind],
         buyInCents: cents,
         stageId,
-        hole: Number(hole) || 0,
+        // Never carried for a kind that has no hole: a stale "7" left in the
+        // box from a previous long-drive entry would file the poker night on
+        // the 7th.
+        hole: contestHasHole(kind) ? Number(hole) || 0 : 0,
       });
       if (res.ok) {
         setAdding(false);
@@ -283,15 +286,31 @@ export function ContestsClient({
                 ))}
               </select>
             </div>
-            <div className="field">
-              <label htmlFor="c-hole">Hole (optional)</label>
-              <input id="c-hole" className="input" inputMode="numeric" value={hole} placeholder="7" onChange={(e) => setHole(e.target.value)} />
-            </div>
+            {/* A poker school has no hole, and a field asking for one is the
+                form telling somebody they have picked the wrong thing. Which
+                kinds happen on a hole is declared on the kind — see
+                `contestHasHole` — rather than tested here, so one added later
+                does not have to remember this line exists. */}
+            {contestHasHole(kind) && (
+              <div className="field">
+                <label htmlFor="c-hole">Hole (optional)</label>
+                <input id="c-hole" className="input" inputMode="numeric" value={hole} placeholder="7" onChange={(e) => setHole(e.target.value)} />
+              </div>
+            )}
           </div>
           <div className="pair-grid">
             <div className="field">
               <label htmlFor="c-name">Name</label>
-              <input id="c-name" className="input" value={name} placeholder={CONTEST_LABEL[kind]} onChange={(e) => setName(e.target.value)} />
+              <input
+                id="c-name"
+                className="input"
+                value={name}
+                /* What it actually was — "Saturday poker", "the quiz" — rather
+                   than the category. For an off-course game the name is the
+                   only thing distinguishing two pots on one trip. */
+                placeholder={contestHasHole(kind) ? CONTEST_LABEL[kind] : "Saturday poker"}
+                onChange={(e) => setName(e.target.value)}
+              />
             </div>
             <div className="field">
               <label htmlFor="c-stake">Stake per player</label>

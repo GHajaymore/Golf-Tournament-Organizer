@@ -334,7 +334,27 @@ export function MoneyClient({ view }: { view: MoneyView }) {
 
 
       {/* Add — the common case is an amount and a label. */}
-      {!adding ? (
+      {!view.canAddExpense ? (
+        /**
+         * THE ORGANIZERS KEEP THIS BOOK, so say so rather than showing nothing.
+         *
+         * A button that has silently vanished reads as a bug, and the person
+         * reading this is holding a receipt for the minibus. Naming who to
+         * hand it to is the whole difference between a closed door and a
+         * locked one — the same idiom as the draw button, which explains and
+         * links rather than greying out.
+         *
+         * `addExpense` refuses the same case with the same sentence. This only
+         * decides whether a control is offered.
+         */
+        <p
+          className="text-muted"
+          style={{ fontSize: 12.5, margin: "12px 0 0", lineHeight: 1.6 }}
+        >
+          <Icon name="info" /> The organizers add the shared costs for this one — send them
+          what you paid for and it will appear here.
+        </p>
+      ) : !adding ? (
         <button
           type="button"
           className="btn btn-primary"

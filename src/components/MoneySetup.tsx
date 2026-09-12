@@ -1,5 +1,12 @@
 "use client";
-import { setEventMoneyMode, setOrgMoneyMode } from "@/app/actions/money-setup";
+import { setEventMoneyMode, setOrgMoneyMode, setExpenseEntry } from "@/app/actions/money-setup";
+import {
+  EXPENSE_ENTRY_MODES,
+  EXPENSE_ENTRY_LABEL,
+  EXPENSE_ENTRY_HELP,
+  resolveExpenseEntry,
+  type ExpenseEntry,
+} from "@/lib/domain/expense-entry";
 import {
   MONEY_MODES,
   MONEY_MODE_LABEL,
@@ -43,6 +50,7 @@ export function MoneySetup({
   orgMode,
   orgKind,
   clubName,
+  eventEntry = "",
   canEdit = true,
 }: {
   /** Which level this instance sets. */
@@ -52,6 +60,8 @@ export function MoneySetup({
   orgMode: string;
   orgKind: string;
   clubName: string;
+  /** Tournament mode only — who may add a shared cost. "" means anyone. */
+  eventEntry?: string;
   /** Organization mode only — whether this person may change the club default. */
   canEdit?: boolean;
 }) {
@@ -61,6 +71,7 @@ export function MoneySetup({
   const inherited = resolveMoneyMode({ eventMode: "", orgMode, orgKind });
   const active = resolveMoneyMode({ eventMode, orgMode, orgKind });
   const profile = orgProfile(orgKind);
+  const activeEntry = resolveExpenseEntry({ eventEntry });
   const locked = !isTournament && !canEdit;
 
   const option = (value: MoneyMode | "", label: string, help: string, checked: boolean) => (
@@ -91,6 +102,46 @@ export function MoneySetup({
       <span style={{ minWidth: 0 }}>
         <span style={{ display: "block", fontSize: 13.5, fontWeight: 550 }}>{label}</span>
         <span className="text-muted" style={{ display: "block", fontSize: 12, lineHeight: 1.6 }}>
+          {help}
+        </span>
+      </span>
+    </label>
+  );
+
+  /**
+   * The same radio, for the question under `split`.
+   *
+   * Its own renderer rather than a second argument to `option`, because that
+   * one is keyed and named off the MODE — `name={money-mode-${mode}}` — and
+   * two radio groups sharing a name is one group, which would have choosing
+   * "Only the organizers" silently clear the money mode.
+   */
+  const entryOption = (value: ExpenseEntry, label: string, help: string, checked: boolean) => (
+    <label
+      key={value}
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 10,
+        padding: "7px 10px",
+        borderRadius: "var(--radius-md)",
+        border: `1px solid ${checked ? "var(--color-accent)" : "var(--color-divider)"}`,
+        background: checked ? "color-mix(in srgb, var(--color-accent) 7%, transparent)" : "transparent",
+        cursor: pending ? "default" : "pointer",
+        marginBottom: 6,
+      }}
+    >
+      <input
+        type="radio"
+        name="expense-entry"
+        checked={checked}
+        disabled={pending}
+        onChange={() => run(() => setExpenseEntry(value))}
+        style={{ marginTop: 3, accentColor: "var(--color-accent)" }}
+      />
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 13, fontWeight: 550 }}>{label}</span>
+        <span className="text-muted" style={{ display: "block", fontSize: 11.5, lineHeight: 1.6 }}>
           {help}
         </span>
       </span>
@@ -159,6 +210,35 @@ export function MoneySetup({
       )}
 
       {MONEY_MODES.map((m) => option(m, MONEY_MODE_LABEL[m], MONEY_MODE_HELP[m], eventMode === m))}
+
+      {/**
+        * WHO MAY WRITE A SHARED COST DOWN — only when there are shared costs.
+        *
+        * Rendered under the mode it qualifies and nowhere else, which is what
+        * keeps it a qualifier rather than a fourth mode. `split` has always
+        * let anybody in the field add a line and that is right for an away
+        * trip where nine people front nine different things; it is wrong for
+        * a society day with a treasurer who wants one book with one hand in
+        * it, and there was no way to say so.
+        *
+        * Read off `active`, not `eventMode`: a tournament following a club
+        * that is set to split HAS shared costs, and hiding this behind an
+        * explicit choice would leave exactly those tournaments unable to
+        * answer the question.
+        */}
+      {active === "split" && (
+        <div style={{ marginTop: 2, paddingLeft: 12, borderLeft: "2px solid var(--color-divider)" }}>
+          <span
+            className="card-kicker"
+            style={{ display: "block", marginBottom: 6 }}
+          >
+            Who adds a shared cost
+          </span>
+          {EXPENSE_ENTRY_MODES.map((e) =>
+            entryOption(e, EXPENSE_ENTRY_LABEL[e], EXPENSE_ENTRY_HELP[e], activeEntry === e),
+          )}
+        </div>
+      )}
 
       {error && (
         <p className="form-error">

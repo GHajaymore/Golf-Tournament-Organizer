@@ -15,6 +15,7 @@ import { currencyForEvent } from "@/lib/services/organization";
 import { moneyFor } from "@/lib/services/expenses";
 import { moneyRulesVersion } from "@/lib/domain/money-rules-version";
 import { logAudit } from "@/lib/services/action-shared";
+import { canAddExpense, resolveExpenseEntry } from "@/lib/domain/expense-entry";
 
 /**
  * Shared-expense actions.
@@ -357,7 +358,31 @@ async function cleanInput(
 }
 
 export async function addExpense(input: ExpenseInput): Promise<ExpenseResult> {
-  const { session, eventId } = await requireEventSession();
+  const { session, isStaff, eventId } = await requireEventSession();
+  /**
+   * WHO MAY WRITE ONE DOWN, checked HERE and not only on the form.
+   *
+   * A `"use server"` export is a public HTTP endpoint — this file's own header
+   * says so — and a form that hides its button stops nobody. The tournament's
+   * setting is read fresh on every call rather than passed in, for the same
+   * reason the shares are re-queried rather than trusted.
+   *
+   * The refusal NAMES who can, which is this codebase's idiom for a closed
+   * door: `resolveThirdPlace` and the draw button both explain rather than
+   * disappear. "Not allowed" would leave a player who fronted the minibus with
+   * nowhere to go and no idea who to hand the receipt to.
+   */
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { expenseEntry: true },
+  });
+  if (!canAddExpense({ entry: resolveExpenseEntry({ eventEntry: event?.expenseEntry }), isStaff })) {
+    return {
+      ok: false,
+      error: "The organizers add the shared costs for this one — send them what you paid for.",
+    };
+  }
+
   const clean = await cleanInput(eventId, input);
   if (!clean.ok) return { ok: false, error: clean.error };
 
