@@ -314,6 +314,35 @@ export function isHeadToHead(type: string): boolean {
   return lookupStageType(type)?.headToHead ?? false;
 }
 
+/**
+ * Whether a round of this type produces STROKES rather than a match result.
+ *
+ * The complement of `isHeadToHead`, named because the call sites read better
+ * for it and because the rule deserved a name: it is what decides whether a
+ * board prints a score or a win-loss-halved record, and whether the column is
+ * headed with strokes or "match points".
+ *
+ * IT IS A FACT ABOUT THE ROUND, and that is the whole point. Every board used
+ * to ask `event.format` — one value for a whole tournament — while each round
+ * carries its own, so a match-play bracket inside an event whose format said
+ * stroke tried to print strokes for a result that is "3&2". That is the second
+ * half of an ordinary club championship, qualifier then bracket.
+ *
+ * Read off the TYPE rather than the format string, because the type is what
+ * says whether anybody is playing anybody. Asking the format would have to
+ * know that "Four-Ball" is match play in a bracket and stroke play in a medal
+ * — the same trap `template-shapes.test.ts` records against matching on the
+ * literal "Match Play".
+ *
+ * An unknown type answers true, inheriting `isHeadToHead`'s safe default: a
+ * type nobody has taught the app about must not be handed an opponent, and a
+ * board that shows a score for it is a milder wrong than one that invents a
+ * record.
+ */
+export function roundIsStroke(type: string): boolean {
+  return !isHeadToHead(type);
+}
+
 /** Rounds the field actually plays, in play order. */
 export function isPlayingRound(type: string): boolean {
   return lookupStageType(type)?.isPlayingRound ?? false;
