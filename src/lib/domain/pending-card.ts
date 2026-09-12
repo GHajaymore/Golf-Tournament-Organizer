@@ -200,6 +200,42 @@ export function shouldRetry(s: {
 }
 
 /**
+ * Is the screen's clock worth running at all?
+ *
+ * The hook polls on a timer to do two things, and in most states NEITHER
+ * applies:
+ *
+ *   - retry a send — `shouldRetry` returns false on its first three lines for
+ *     `held`, `holding` and `!queued`;
+ *   - re-render so the label ages — and `syncStatus` reads the clock in
+ *     exactly ONE branch, `waitingMs >= NAG_AFTER_MS`, which is reached only
+ *     while the card is queued and not held. Every other label it returns is a
+ *     pure function of booleans, so a tick produces the identical string.
+ *
+ * It ran every five seconds regardless, for the life of the page, and the two
+ * states it is worst in are the two that last longest:
+ *
+ *   - A WHOLE-CARD round holds the card on purpose until the eighteenth hole.
+ *     `shouldRetry`'s note on `holding` already says the timer must not "fire
+ *     every fifteen seconds for the length of a round" — that was fixed for
+ *     the retry and left in place for the re-render, which is the expensive
+ *     half on a phone in a pocket.
+ *   - A CONFLICT is waiting on a PERSON. The chooser is on screen asking which
+ *     card to keep, and the subtree holding it re-rendered under their finger
+ *     every five seconds.
+ *
+ * Deliberately NOT a function of `online` or `sending`, though both make the
+ * next tick a no-op. Those flip in the ordinary course of sending and would
+ * have the timer stopping and starting for a second at a time; these three are
+ * the states a card SITS in.
+ */
+export function shouldPoll(s: { queued: boolean; held?: boolean; holding?: boolean }): boolean {
+  if (s.held) return false;
+  if (s.holding) return false;
+  return s.queued;
+}
+
+/**
  * A card's revision — derived from its CONTENT, not from a clock.
  *
  * The obvious choice is a timestamp, and `Scorecard` does not carry one, which

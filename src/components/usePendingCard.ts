@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   pendingKey,
   RETRY_EVERY_MS,
+  shouldPoll,
   shouldRetry,
   syncStatus,
   type SyncStatus,
@@ -187,8 +188,51 @@ export function usePendingCard<T>({
       setOnline(up);
       if (up) void attempt();
     };
+    /**
+     * NAMED, so it can be removed again.
+     *
+     * This was `() => setOnline(false)` written inline, which cannot be passed
+     * to `removeEventListener` — and the cleanup below never tried. The effect
+     * re-runs on every change to `attempt`, `queued`, `sending`, `held` and
+     * `holding`, which on a scoring screen is every hole, so the listeners
+     * accumulated for the life of the page: eighteen holes of typing left a
+     * stack of them all calling `setOnline(false)` on one `offline` event.
+     *
+     * Harmless in its effect — they all set the same flag to the same value —
+     * and a leak either way, which is enough reason for a screen a phone sits
+     * on for four hours.
+     */
+    const sleep = () => setOnline(false);
     window.addEventListener("online", wake);
-    window.addEventListener("offline", () => setOnline(false));
+    window.addEventListener("offline", sleep);
+
+    /**
+     * NOTHING BELOW CAN CHANGE ANYTHING UNLESS A SEND IS OUTSTANDING.
+     *
+     * The DECISION is `shouldPoll`, beside `shouldRetry` and `syncStatus`,
+     * which is where this file's rules live and the only place they can be
+     * unit-tested. Read it for why: in short, the timer re-tried and
+     * re-rendered every five seconds for the life of the page, and in the two
+     * states a card SITS in — a whole-card round waiting for the eighteenth
+     * hole, and a conflict waiting on a person — neither job applies.
+     *
+     * The second is the one that shows. The chooser is on screen asking which
+     * card to keep, and the subtree holding it was re-rendering under the
+     * scorer's finger. CLAUDE.md records `offline.spec.ts:245` as intermittent
+     * on all three viewports with the signature "element is not stable …
+     * element was detached from the DOM, retrying", and says the thing to look
+     * at is "what re-renders the card chooser after it opens, not where the
+     * nav sits". This is what.
+     *
+     * Every flag it reads is in the dependency array, so the timer starts
+     * again the moment a send is outstanding.
+     */
+    if (!shouldPoll({ queued, held, holding })) {
+      return () => {
+        window.removeEventListener("online", wake);
+        window.removeEventListener("offline", sleep);
+      };
+    }
 
     const t = setInterval(() => {
       // Re-render so the "waiting" wording ages honestly even when nothing
@@ -210,6 +254,7 @@ export function usePendingCard<T>({
 
     return () => {
       window.removeEventListener("online", wake);
+      window.removeEventListener("offline", sleep);
       clearInterval(t);
     };
   }, [attempt, queued, sending, held, holding]);

@@ -316,7 +316,26 @@ section nav and the viewport are both different there and it happens anyway.
 What every log DOES share is the sequence `element is not stable` → `outside of the viewport` →
 `element was detached from the DOM, retrying`. That is a dialog still animating or re-rendering
 under the click, at any width — so the thing to look at is what re-renders the card chooser
-after it opens, not where the nav sits. Nobody has looked yet.
+after it opens, not where the nav sits.
+
+**Somebody has now looked, and there WAS something re-rendering it** (2026-09-12).
+`usePendingCard` ran a `setInterval` every five seconds that called `tick()`
+unconditionally — a forced re-render of the whole scoring screen, including the
+open chooser — for the life of the page. It did two jobs and in this state
+neither applied: `shouldRetry` already refuses a `held` card, and `syncStatus`
+reads the clock in exactly one branch, which `held` never reaches. So while the
+dialog sat waiting on a person, its subtree re-rendered under their finger every
+five seconds.
+
+That is removed — the timer now runs only when `shouldPoll` says a send is
+outstanding — and it is the mechanism the log describes. **It is not a confirmed
+fix.** The failure is intermittent and was never reproduced on demand, so
+"60 consecutive passes of `offline.spec` across all three projects" is evidence
+and not proof. If it recurs, the next thing to look at is what else changes
+identity under the chooser: the two `CardConflict` call sites in `PlayerCard`
+sit at different JSX positions, so a `conflict`/`recovered` flip unmounts one
+and mounts the other, which would explain "element was detached from the DOM"
+exactly.
 
 ## What gates a merge, and what gates a deploy
 
