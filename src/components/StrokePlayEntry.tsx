@@ -17,6 +17,7 @@ import { isCardLocked } from "@/lib/domain/card-approval";
 import { visibleSaveNote, type SavedNote } from "@/lib/domain/save-note";
 import { saveScorecard } from "@/app/actions/tournament";
 import { Icon } from "./Icon";
+import { startDictation, type Dictation } from "@/lib/dictation";
 
 interface StrokePlayer {
   id: string;
@@ -144,7 +145,7 @@ export function StrokePlayEntry({
 
   const [listening, setListening] = useState(false);
   const [listenHint, setListenHint] = useState("Tap the mic and read scores in order, e.g. “four, par, birdie, six”.");
-  const recognitionRef = useRef<unknown>(null);
+  const recognitionRef = useRef<Dictation | null>(null);
   const [pending, startTransition] = useTransition();
   /**
    * "SAVED." HAS TO BELONG TO THE CARD IT IS SITTING UNDER.
@@ -271,46 +272,37 @@ export function StrokePlayEntry({
     });
 
   const toggleListen = () => {
-    const SpeechRecognition =
-      (window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown })
-        .SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setListenHint("Voice entry isn’t supported in this browser — type the scores instead.");
-      return;
-    }
     if (listening) {
       setListening(false);
       return;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rec: any = new (SpeechRecognition as any)();
-    recognitionRef.current = rec;
-    rec.lang = "en-US";
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
+    const started = startDictation({
+      onTranscript: (transcript) => {
+        const startIndex = Math.max(0, strokes.findIndex((s) => s == null));
+        const parsed = parseStrokesTranscript(transcript, pars.slice(0, holes), startIndex === -1 ? 0 : startIndex);
+        if (parsed.length) {
+          const next = [...strokes];
+          parsed.forEach((v, i) => { next[startIndex + i] = v; });
+          setCards((prev) => ({ ...prev, [playerId]: next }));
+          setListenHint(`Heard: “${transcript}” — filled ${parsed.length} hole${parsed.length === 1 ? "" : "s"}. Review and Save.`);
+        } else {
+          setListenHint(`Heard: “${transcript}” — didn’t catch any scores, try again.`);
+        }
+        setListening(false);
+      },
+      onError: () => {
+        setListenHint("Didn’t catch that — try again or type it.");
+        setListening(false);
+      },
+      onEnd: () => setListening(false),
+    });
+    if (!started) {
+      setListenHint("Voice entry isn’t supported in this browser — type the scores instead.");
+      return;
+    }
+    recognitionRef.current = started;
     setListening(true);
     setListenHint("Listening…");
-    rec.onresult = (e: { results: { 0: { 0: { transcript: string } } } }) => {
-      const transcript = e.results[0][0].transcript;
-      const startIndex = Math.max(0, strokes.findIndex((s) => s == null));
-      const parsed = parseStrokesTranscript(transcript, pars.slice(0, holes), startIndex === -1 ? 0 : startIndex);
-      if (parsed.length) {
-        const next = [...strokes];
-        parsed.forEach((v, i) => { next[startIndex + i] = v; });
-        setCards((prev) => ({ ...prev, [playerId]: next }));
-        setListenHint(`Heard: “${transcript}” — filled ${parsed.length} hole${parsed.length === 1 ? "" : "s"}. Review and Save.`);
-      } else {
-        setListenHint(`Heard: “${transcript}” — didn’t catch any scores, try again.`);
-      }
-      setListening(false);
-    };
-    rec.onerror = () => {
-      setListenHint("Didn’t catch that — try again or type it.");
-      setListening(false);
-    };
-    rec.onend = () => setListening(false);
-    rec.start();
   };
 
   if (!player) {
