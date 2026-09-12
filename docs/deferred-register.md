@@ -339,6 +339,32 @@ Two things to get right before building it:
   one resolver or they will drift, which is the defect `orgProfile` exists to
   prevent. Extend `orgProfile` to take the country; do not add a second table.
 
+### A mixed tournament may never show its stroke round’s board
+Observed on the Demo Cup 2026-09-11, which is a Round Robin, then a Stroke Play
+Round, then a Single Match, then a Bracket — and has **7 cards returned on the
+stroke round**.
+
+`activeStage` is `rrStages[activeRrIdx] ?? rrStages[last] ?? playRounds[...]`, so
+a tournament with ANY Round Robin resolves it to one for ever. Every board reads
+`boardStage`, which is `activeStage` — so those 7 cards are on a round no board
+will display, and the leaderboard still reads "match points breakdown".
+
+**This is not an accident**, and that is why it is an entry rather than a bug.
+`activeStage`’s own doc says what it is: "the current/most recent Round Robin
+round — what score entry and `current round` default to". Score entry reaches
+every round through `playRounds`, so the cards can be ENTERED; it is the boards
+that cannot follow.
+
+So the question is a product one: **should an organizer be able to look at the
+board for a round other than the active one?** A club championship with a
+qualifier, a medal and a bracket has three boards and the app shows one. If the
+answer is yes, the shape is probably a round selector on the board rather than a
+change to `activeStage`, which is load-bearing for score entry and for "which
+round are we on" across the app.
+
+Noted while verifying `boardIsStroke` against real data: the fix is correct and
+does not fire here, because `activeStage` never reaches the stroke round.
+
 ## 4. Environment and ops
 
 ### `CRON_SECRET` is not set on the Vercel project
