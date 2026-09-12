@@ -423,4 +423,40 @@ describe("every board reads the round's answer", () => {
       `these build board rows and then resolve their own stage: ${offenders.join(", ")}`,
     ).toEqual([]);
   });
+
+  it("and the PLAYER app never asks which round it is on", () => {
+    /**
+     * THE WHOLE `(player)` TREE, and it needs no allowances at all.
+     *
+     * A player has one round: the one in their hand. There is no screen in
+     * that tree for which "the match-points chain's position" is the right
+     * answer — no score-entry default to preserve, no chain to walk — so the
+     * rule here is absolute where the console's has to make exceptions.
+     *
+     * Two screens were asking anyway, and one of them states RULES. Read off
+     * the Demo Cup on 2026-09-12 with the field playing a Stroke Play Round
+     * and the Board tab beside it saying "Ranked by strokes":
+     *
+     *     Format   Match Play · Round Robin under Rules of Golf 3.2
+     *     Ties     Head-to-head result, then Hole differential …
+     *
+     * The wrong Rule of Golf for the round in the player's hand, and a
+     * tiebreak chain that cannot apply to a card. `/me/money` had the same
+     * fault under a comment reading "the round in front of you" — it offered a
+     * side bet on the group phase to somebody standing on a medal tee.
+     *
+     * Neither screen calls `standingRows`, so the sweep above could not see
+     * them. Found by reading the rendered player app.
+     */
+    const offenders: string[] = [];
+    for (const f of sourceFiles()) {
+      if (!f.includes(join("app", "(player)"))) continue;
+      const src = readSource(f);
+      if (/state\??\.activeStage/.test(src)) offenders.push(f);
+    }
+    expect(
+      offenders,
+      `a player screen resolving its own round: ${offenders.join(", ")}`,
+    ).toEqual([]);
+  });
 });

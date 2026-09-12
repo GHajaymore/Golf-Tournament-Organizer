@@ -1,5 +1,5 @@
 import { tiebreakerLabel, type TiebreakerKey } from "@/lib/domain/types";
-import { seededFromQualifiers } from "@/lib/stage-types";
+import { roundIsStroke, seededFromQualifiers } from "@/lib/stage-types";
 
 /**
  * The rules a competition actually runs under, in the three tiers a golfer
@@ -228,7 +228,43 @@ export function tournamentTerms(input: TermsInput): TermItem[] {
     });
   }
 
-  if (input.tiebreakers.length) {
+  /**
+   * TIES ARE BROKEN DIFFERENTLY ON A CARD AND IN A MATCH, and this printed the
+   * match chain for both.
+   *
+   * `tiebreakers` is the EVENT's configured chain and every key in it is a
+   * match-play concept — head-to-head, most wins, holes-won ratio, fewest
+   * holes lost. `computeStandings` is the only thing that applies them. A
+   * STROKE round is separated by `stroke-countback.ts` instead, which is not
+   * configurable and does not consult that list at all.
+   *
+   * So on a medal this was stating rules the app does not use, and could not:
+   * "head-to-head result" between two players who are not playing each other
+   * is not a tiebreak, it is a category error. Read off `/me/rules` on the
+   * Demo Cup on 2026-09-12, on a Stroke Play Round:
+   *
+   *     Ties  Head-to-head result, then Hole differential (won − lost),
+   *           then Fewest holes lost, then Lower handicap, …
+   *
+   * This is the sheet a club publishes and the screen a player checks before
+   * signing. Both rules screens build it from here, so deciding it here is
+   * what stops them disagreeing.
+   *
+   * The countback ladder is quoted from `stroke-countback.ts` rather than
+   * invented: last nine, last six, last three, final hole — starting at the
+   * last six for a nine-hole round, because a "last nine" of a nine is the
+   * number that was already equal.
+   */
+  if (roundIsStroke(input.type, input.format)) {
+    out.push({
+      label: "Ties",
+      value:
+        input.holes === 9
+          ? "Countback: last 6 holes, then last 3, then the final hole. A tie that survives shares the place."
+          : "Countback: last 9 holes, then last 6, then last 3, then the final hole. A tie that survives shares the place.",
+      rule: "decidingTies",
+    });
+  } else if (input.tiebreakers.length) {
     out.push({
       label: "Ties",
       value: input.tiebreakers.map((t) => tiebreakerLabel(t)).join(", then "),
