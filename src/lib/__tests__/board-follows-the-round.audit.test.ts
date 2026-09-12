@@ -1,8 +1,24 @@
 import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { loadEventState, standingRows } from "@/lib/services/tournament";
 import { readSource } from "./source";
+
+/** Every source file under `src`, tests excluded. Swept, not listed — see below. */
+function sourceFiles(dir = "src", out: string[] = []): string[] {
+  for (const entry of readdirSync(join(process.cwd(), dir), { withFileTypes: true })) {
+    const rel = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === "__tests__") continue;
+      sourceFiles(rel, out);
+    } else if (/\.tsx?$/.test(entry.name) && statSync(join(process.cwd(), rel)).isFile()) {
+      out.push(rel);
+    }
+  }
+  return out;
+}
 
 /**
  * THE BOARD DESCRIBES THE ROUND IN FRONT OF YOU, NOT THE EVENT AROUND IT.
@@ -321,5 +337,34 @@ describe("every board reads the round's answer", () => {
       const src = readSource(...path);
       expect(src, `${path.join("/")} does not use boardIsStroke`).toMatch(/boardIsStroke/);
     }
+  });
+
+  it("and so does anything else that builds these rows", () => {
+    /**
+     * SWEPT FROM THE FILESYSTEM, because the list above is a list and a list
+     * gets out of date. Reports was the fifth board and was missed for a day;
+     * `layout.spec.ts` was rewritten from a hand list to a sweep for the same
+     * reason, and CLAUDE.md records that the hand list covered 14 of 22 routes.
+     *
+     * THE RULE: if you call `standingRows`, the rows you get back are the
+     * BOARD's — `standingRows` itself branches on `boardIsStroke` — so asking
+     * `state.isStroke` about them is asking about a different round. That is
+     * the whole of the defect this file exists for, restated as something a
+     * sixth board cannot get wrong without going red.
+     *
+     * `tournament.ts` is exempt because it DEFINES both, and its own uses are
+     * asserted by the fixtures at the top of this file rather than by grep.
+     */
+    const offenders: string[] = [];
+    for (const f of sourceFiles()) {
+      if (f.endsWith(join("services", "tournament.ts"))) continue;
+      const src = readSource(f);
+      if (!/standingRows\s*\(/.test(src)) continue;
+      if (/state\.isStroke/.test(src)) offenders.push(f);
+    }
+    expect(
+      offenders,
+      `these build board rows and ask the EVENT how to read them: ${offenders.join(", ")}`,
+    ).toEqual([]);
   });
 });
