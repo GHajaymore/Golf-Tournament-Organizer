@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { orgProfile } from "@/lib/domain/org-profile";
 import {
   addOrganizationMember,
@@ -9,6 +9,7 @@ import {
 import type { AccessReport } from "@/lib/services/access";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 
 /**
  * "Commissioner", not "Owner". Ajay's call, 2026-08-21 — a considered choice,
@@ -73,20 +74,7 @@ export function OrganizationAccess({
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState("member");
-  const [error, setError] = useState("");
-  const [pending, startTransition] = useTransition();
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => {
-    setError("");
-    startTransition(async () => {
-      const result = await fn();
-      if (!result.ok) {
-        setError(result.error ?? "Something went wrong.");
-        return;
-      }
-      after?.();
-    });
-  };
+  const { pending, error, run } = useAction();
 
   const staff = report.people.filter((p) => p.orgRole);
   const eventOnly = report.people.filter((p) => !p.orgRole);

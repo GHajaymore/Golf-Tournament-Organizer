@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { addContest, setContestEntrants, setContestWinners, removeContest, confirmContestEntry } from "@/app/actions/contests";
 import { saveSideGame, setSideGameEntrants, confirmSideGameEntry } from "@/app/actions/side-games";
 import { setPotEntryMode } from "@/app/actions/money-setup";
@@ -16,6 +16,7 @@ import FieldInfo from "@/components/FieldInfo";
 import { useMoney } from "@/components/CurrencyProvider";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 
 /**
  * The derived pots, in the order a club would read them. Nassau is last and
@@ -170,21 +171,13 @@ export function ContestsClient({
   contestsApply?: boolean;
 }) {
   const { money, plain, parse } = useMoney();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState("");
+  const { pending, error, setError, run } = useAction();
   const [adding, setAdding] = useState(false);
   const [kind, setKind] = useState<ContestKind>("closest-pin");
   const [name, setName] = useState("");
   const [hole, setHole] = useState("");
   const [stake, setStake] = useState("5");
 
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
-    startTransition(async () => {
-      setError("");
-      const res = await fn();
-      if (!res.ok) setError(res.error ?? "Couldn't save that.");
-    });
 
   /**
    * Opt-in or opt-out, on one pot.

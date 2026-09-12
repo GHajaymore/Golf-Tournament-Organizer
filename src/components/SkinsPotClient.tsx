@@ -1,6 +1,6 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
 import { saveSkinsPot, setSkinsEntrants, removeSkinsPot, confirmSkinsEntry } from "@/app/actions/skins";
@@ -9,6 +9,7 @@ import FieldInfo from "@/components/FieldInfo";
 import { SCOPE_LABEL, type SkinsScope } from "@/lib/domain/skins-pot";
 import { useMoney } from "@/components/CurrencyProvider";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 
 /**
  * The skins pot on one week of a league.
@@ -94,8 +95,7 @@ export function SkinsPotClient({
   // A society is not a club, and this screen says so. See OrgProfileProvider.
   const org = useOrgProfile();
   const { plain: money, parse: parseBuyIn } = useMoney();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState("");
+  const { pending, error, run } = useAction();
   const [buyIn, setBuyIn] = useState(money(view.buyInCents));
   const [scope, setScope] = useState<SkinsScope>(view.scope);
   const [picking, setPicking] = useState(false);
@@ -106,14 +106,6 @@ export function SkinsPotClient({
   const [chosen, setChosen] = useState<string[]>(() =>
     view.entrantIds.length > 0 ? view.entrantIds : view.field.filter((f) => f.playing).map((f) => f.id),
   );
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
-    setError("");
-    startTransition(async () => {
-      const res = await fn();
-      if (!res.ok && res.error) setError(res.error);
-    });
-  };
 
   const saveSetup = () =>
     run(() =>

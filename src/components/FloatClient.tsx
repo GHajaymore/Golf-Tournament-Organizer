@@ -1,10 +1,11 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { addFundLine, removeFundLine } from "@/app/actions/money-setup";
 import { floatSummary, type FundLine } from "@/lib/domain/money-mode";
 import { useMoney } from "@/components/CurrencyProvider";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 
 /**
  * The tournament's kitty.
@@ -49,8 +50,7 @@ export function FloatClient({
   canEdit: boolean;
 }) {
   const { money } = useMoney();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState("");
+  const { pending, error, run } = useAction();
   const [direction, setDirection] = useState<"in" | "out">("in");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
@@ -60,17 +60,6 @@ export function FloatClient({
   const summary = floatSummary(lines as FundLine[]);
   const inLines = lines.filter((l) => l.direction === "in");
   const outLines = lines.filter((l) => l.direction === "out");
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) =>
-    startTransition(async () => {
-      setError("");
-      const res = await fn();
-      if (!res.ok) {
-        setError(res.error ?? "Couldn't save that.");
-        return;
-      }
-      after?.();
-    });
 
   const submit = () =>
     run(

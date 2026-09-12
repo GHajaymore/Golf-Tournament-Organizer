@@ -1,10 +1,11 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { TEAM_ENTRY_MODES, type TeamEntryMode } from "@/lib/domain/team-entry";
 import { setStageAllowance, setStageAllowanceWeights, setStageCountBest } from "@/app/actions/teams";
 import { setStageScoreInput } from "@/app/actions/tournament";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 
 /**
  * How a team round prices its sides: the handicap allowance, the split where
@@ -52,22 +53,13 @@ export interface RoundScoringInfo {
 }
 
 export function RoundTeamScoring({ stageId, info }: { stageId: string; info: RoundScoringInfo }) {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState("");
+  const { pending, error, run } = useAction();
   const [editingAllowance, setEditingAllowance] = useState(false);
   const [allowance, setAllowance] = useState("");
   const [editingShares, setEditingShares] = useState(false);
   const [shares, setShares] = useState<string[]>([]);
   const [editingCount, setEditingCount] = useState(false);
   const [countBest, setCountBest] = useState("");
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
-    setError("");
-    startTransition(async () => {
-      const res = await fn();
-      if (!res.ok && res.error) setError(res.error);
-    });
-  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

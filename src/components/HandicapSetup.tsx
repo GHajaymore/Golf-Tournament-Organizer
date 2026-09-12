@@ -1,9 +1,8 @@
 "use client";
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { saveHandicapPolicy, saveScoreReporting } from "@/app/actions/handicap-policy";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 
 /**
  * Where this club's handicaps come from, and whether rounds go back.
@@ -40,18 +39,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function HandicapSetup({ view }: { view: HandicapSetupView }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState("");
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
-    setError("");
-    startTransition(async () => {
-      const res = await fn();
-      if (!res.ok) setError(res.error ?? "Couldn't save that.");
-      else router.refresh();
-    });
-  };
+  const { pending, error, run } = useAction({ refresh: true });
 
   // Shown for hybrid as well: a hybrid club still needs the connection for
   // the half of its roster that has numbers.

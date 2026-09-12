@@ -80,7 +80,7 @@ export function TeeEditor({
         },
         editing && editing !== "new" ? editing : undefined,
       );
-      if (!res.ok && res.error) setError(res.error);
+      if (!res.ok) setError(res.error ?? "Couldn't save that.");
       else setEditing(null);
     });
   };
@@ -89,7 +89,7 @@ export function TeeEditor({
     setError("");
     startTransition(async () => {
       const res = await deleteTee(id);
-      if (!res.ok && res.error) setError(res.error);
+      if (!res.ok) setError(res.error ?? "Couldn't save that.");
     });
   };
 

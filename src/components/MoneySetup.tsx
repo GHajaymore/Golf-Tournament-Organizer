@@ -1,5 +1,4 @@
 "use client";
-import { useState, useTransition } from "react";
 import { setEventMoneyMode, setOrgMoneyMode } from "@/app/actions/money-setup";
 import {
   MONEY_MODES,
@@ -10,6 +9,7 @@ import {
 } from "@/lib/domain/money-mode";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 
 /**
  * How money is handled — for ONE TOURNAMENT, or for the whole club.
@@ -55,21 +55,13 @@ export function MoneySetup({
   /** Organization mode only — whether this person may change the club default. */
   canEdit?: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState("");
+  const { pending, error, run } = useAction();
   const isTournament = mode === "tournament";
 
   const inherited = resolveMoneyMode({ eventMode: "", orgMode, orgKind });
   const active = resolveMoneyMode({ eventMode, orgMode, orgKind });
   const profile = orgProfile(orgKind);
   const locked = !isTournament && !canEdit;
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
-    startTransition(async () => {
-      setError("");
-      const res = await fn();
-      if (!res.ok) setError(res.error ?? "Couldn't save that.");
-    });
 
   const option = (value: MoneyMode | "", label: string, help: string, checked: boolean) => (
     <label
