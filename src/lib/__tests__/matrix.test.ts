@@ -8,6 +8,7 @@ import {
   inputChoices,
   isManualFormat,
   isPlayable,
+  isStrokeScored,
   needsTeams,
   resolveScoreInput,
   sideSizeRange,
@@ -196,23 +197,77 @@ describe("every format, on every stage type", () => {
    *
    * This file already enumerates format x stage type, which is the right axis
    * for "does anything throw". What it had no notion of is the EVENT around
-   * them — so the assertion is that `roundIsStroke` depends on the type and
-   * nothing else, which is the property whose absence was the bug.
+   * them — so the assertion is that `roundIsStroke` answers from the ROUND,
+   * which is the property whose absence was the bug.
+   *
+   * WHAT THIS BLOCK ITSELF GOT WRONG, recorded because the correction is the
+   * more useful half. It used to assert that the answer depends on the type
+   * and NOTHING ELSE, and it "proved" that by looping over every format and
+   * calling `roundIsStroke(type)` — the same call, with no format in it, once
+   * per format name. Every iteration was the first one. It could not have
+   * failed, and the rule it claimed to pin was itself false: a Round Robin set
+   * to Stroke Play is head-to-head by type and a MEDAL in fact, and judging it
+   * on the type alone blanked every score on its board in production.
    */
   it("answers how a round is scored from the round alone", () => {
     for (const type of STAGE_TYPES) {
-      const answer = roundIsStroke(type);
-      expect(typeof answer, type).toBe("boolean");
-      // The complement of head-to-head, in every cell. A round where somebody
-      // plays somebody has a match result; one where they do not has strokes.
-      expect(answer, type).toBe(!isHeadToHead(type));
-      // And the same answer whatever format is set on it — a Four-Ball is
-      // match play in a bracket and stroke play in a medal, which is exactly
-      // why the format string is the wrong thing to read.
+      const bare = roundIsStroke(type);
+      expect(typeof bare, type).toBe("boolean");
+      // With no format to go on, the type is the whole answer — a round where
+      // somebody plays somebody has a match result; one where they do not has
+      // strokes.
+      expect(bare, type).toBe(!isHeadToHead(type));
+
       for (const format of FORMAT_NAMES) {
-        expect(roundIsStroke(type), `${format} on a ${type}`).toBe(answer);
+        const answer = roundIsStroke(type, format);
+        expect(typeof answer, `${format} on a ${type}`).toBe("boolean");
+        // A round that is not head-to-head is strokes whatever is set on it.
+        // This is the half the TYPE has to decide: a Four-Ball is match play
+        // in a bracket and stroke play in a medal, and no format string can
+        // tell you which.
+        if (!isHeadToHead(type)) {
+          expect(answer, `${format} on a ${type}`).toBe(true);
+        } else {
+          // And this is the half the FORMAT has to decide, which is the one
+          // that shipped wrong. Head-to-head by type, scored off cards in
+          // fact.
+          expect(answer, `${format} on a ${type}`).toBe(isStrokeScored(format));
+        }
+      }
+
+      /**
+       * AND THE FORMAT ACTUALLY MOVES IT, for the types where it should.
+       *
+       * The loop above computes its expectation with the same helper the
+       * implementation calls, so on its own it would pass a `roundIsStroke`
+       * that ignored the format entirely — which is precisely the code that
+       * shipped. This line is what it cannot survive: on a head-to-head type,
+       * the catalogue must contain a format that answers each way.
+       */
+      if (isHeadToHead(type)) {
+        const answers = new Set(FORMAT_NAMES.map((f) => roundIsStroke(type, f)));
+        expect(answers, `the format changes nothing on a ${type}`).toEqual(new Set([true, false]));
       }
     }
+  });
+
+  it("calls a head-to-head round set to a medal format a medal", () => {
+    /**
+     * THE SHAPE THAT SHIPPED BLANK, named rather than left to the sweep above,
+     * because it is a real tournament and not a corner: `stage-types.ts` calls
+     * a Round Robin set to Stroke Play "the only way to run one" before
+     * `Stroke Play Round` existed. Those rows are still in the database.
+     *
+     * Judged on its type it is match play, the board printed a
+     * win-loss-halved record for it, and a player who had just shot 72 saw an
+     * empty cell.
+     */
+    expect(roundIsStroke("Round Robin", "Stroke Play")).toBe(true);
+    expect(roundIsStroke("Round Robin", "Stableford")).toBe(true);
+    // And the ordinary case is untouched, which is what keeps the line above
+    // from being a regression wearing a bug report.
+    expect(roundIsStroke("Round Robin", "Match Play")).toBe(false);
+    expect(roundIsStroke("Bracket Stage", "Match Play")).toBe(false);
   });
 
   it("gives a definite answer for a type it has never heard of", () => {

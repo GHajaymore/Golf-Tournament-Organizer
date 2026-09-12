@@ -773,7 +773,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * The fallback existed for the one type the field never played.
    */
   const boardStage = activeStage;
-  const boardIsStroke = boardStage ? roundIsStroke(boardStage.type) : isStroke;
+  const boardIsStroke = boardStage ? roundIsStroke(boardStage.type, boardStage.format) : isStroke;
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const roundHandicapBy = new Map(
     roundHandicaps.map((r) => [roundHandicapKey(r.stageId, r.playerId), { frozen: r.frozen, override: r.override }]),

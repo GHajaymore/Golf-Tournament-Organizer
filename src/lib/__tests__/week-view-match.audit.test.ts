@@ -30,6 +30,7 @@ const TAG = "ZZ-AUDIT-WEEK-MATCH";
 let eventId = "";
 let stageId = "";
 let medalWeekId = "";
+let legacyWeekId = "";
 
 async function cleanup() {
   await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
@@ -133,6 +134,40 @@ beforeAll(async () => {
       strokes: JSON.stringify([4, 5, 4, 3, 5, ...new Array(13).fill(null)]),
     },
   });
+
+  /**
+   * WEEK 3 IS THE LEGACY MEDAL: a Round Robin whose FORMAT is Stroke Play.
+   *
+   * Before `Stroke Play Round` existed that was the only way to run a medal
+   * night, so a league of any age has weeks of this shape and they are still
+   * scored off cards. `roundIsStroke` first read the TYPE alone, which calls
+   * this one head-to-head — so the strip went looking for matches on a week
+   * that has none, and `empty` blanked the sheet under it.
+   *
+   * The board hit the identical fault on the identical day; this is the week
+   * sheet's half of it.
+   */
+  const legacy = await prisma.stage.create({
+    data: {
+      eventId,
+      position: 2,
+      description: "Week 3",
+      type: "Round Robin",
+      format: "Stroke Play",
+      scoringBasis: "gross",
+      holes: 18,
+    },
+  });
+  legacyWeekId = legacy.id;
+
+  await prisma.scorecard.create({
+    data: {
+      eventId,
+      stageId: legacyWeekId,
+      playerId: b.id,
+      strokes: JSON.stringify([5, 4, 4, 4, 5, ...new Array(13).fill(null)]),
+    },
+  });
 });
 
 afterAll(async () => {
@@ -204,6 +239,24 @@ describe("a match-play league night", () => {
      * line half the fix was untested.
      */
     expect(view!.empty, "the medal week blanked the whole sheet").toBe(false);
+  });
+
+  it("marks a ROUND ROBIN SET TO STROKE PLAY as played too", async () => {
+    /**
+     * The shape the type alone gets wrong. Head-to-head by type, a medal in
+     * fact, one card in and no matches at all — so reading the type sent the
+     * strip after matches and it found none.
+     */
+    const view = await weekViewFor(eventId, legacyWeekId);
+    const week = view!.weeks.find((w) => w.stageId === legacyWeekId);
+    expect(week, "the legacy medal week is missing from the strip").toBeTruthy();
+    expect(week!.played, "a medal week with a card was marked unplayed").toBe(true);
+    // The sheet's own copy of the same question, which is the one that blanks
+    // the screen. Both had to be fixed for the board; both have to be here.
+    expect(view!.empty, "the legacy medal week blanked the whole sheet").toBe(false);
+    // And it has a real score table, because it is genuinely scored off cards.
+    expect(view!.hasScoreTable).toBe(true);
+    expect(view!.results.length).toBeGreaterThan(0);
   });
 
   it("marks the week as played in the strip", async () => {
