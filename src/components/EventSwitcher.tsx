@@ -2,13 +2,11 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { switchEvent, createEvent, cloneEvent, deleteEvent } from "@/app/actions/tournament";
-import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
+import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
+import { startFromGroups, copiedEventId } from "@/lib/domain/start-from";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { Icon } from "./Icon";
-
-/** Marks a "Start from" value as an event id rather than a template key, so the
- *  two namespaces can share one select without ever colliding. */
-const COPY_PREFIX = "copy:";
+import { useOrgProfile } from "./OrgProfileProvider";
 
 export interface EventRow {
   id: string;
@@ -59,6 +57,7 @@ export function EventSwitcher({
    */
   organizations?: Array<{ id: string; name: string; kind: string }>;
 }) {
+  const consoleOutfit = useOrgProfile();
   const [name, setName] = useState("");
   const [confirmingId, setConfirmingId] = useState("");
   // Deliberately defaults to a blank tournament even though copying is listed
@@ -118,9 +117,17 @@ export function EventSwitcher({
    */
   const tournaments = events.filter((e) => !e.isCasual);
   const casual = events.filter((e) => e.isCasual);
-  const copyFrom = source.startsWith(COPY_PREFIX)
-    ? copyable.find((e) => e.id === source.slice(COPY_PREFIX.length))
-    : undefined;
+  const copyFrom = copyable.find((e) => e.id === copiedEventId(source));
+  /**
+   * WHOSE GOLF THE LIST SHOULD LEAD WITH — see `startFromGroups`.
+   *
+   * The SELECTED organization first, because somebody who runs a club and a
+   * society is creating this one for exactly one of them, and the list should
+   * follow the answer they just gave rather than the console they happen to
+   * be standing in. Falls back to that console’s own outfit, which is the
+   * only answer there is when they run one.
+   */
+  const listFor = organizations.find((o) => o.id === organizationId)?.kind ?? consoleOutfit.kind;
   const blurb = copyFrom
     ? `Copies the settings, rounds and courses from ${copyFrom.name || "that tournament"} — never its players, scores or access codes. Dates start empty and everything stays editable.`
     : templateFor(source).blurb + " Every setting stays editable afterwards.";
@@ -302,19 +309,20 @@ export function EventSwitcher({
         </div>
         <div className="field" style={{ flex: 1, minWidth: 220 }}>
           <label>Start from</label>
+          {/* ONE SOURCE, SHARED WITH THE PICKER'S FORM — see `startFromGroups`.
+              This built its own list and `CreateFirstTournament` built another,
+              and the two had drifted into different answers to the same
+              question: this one offered a copy and no suggestions, that one
+              offered suggestions and no copy. */}
           <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>
-            {copyable.length > 0 && (
-              <optgroup label="Copy an existing tournament">
-                {copyable.map((e) => (
-                  <option key={e.id} value={`${COPY_PREFIX}${e.id}`}>{e.name || "Untitled"}</option>
-                ))}
-              </optgroup>
-            )}
-            <optgroup label="Start from a template">
-              {TOURNAMENT_TEMPLATES.map((t) => (
-                <option key={t.key} value={t.key}>{t.name}</option>
-              ))}
-            </optgroup>
+            {startFromGroups({ copyable, shape, orgKind: listFor }).map((group) => {
+              const options = group.options.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ));
+              return group.label === "" ? options : (
+                <optgroup key={group.label} label={group.label}>{options}</optgroup>
+              );
+            })}
           </select>
         </div>
         {/* WHOSE, when this person runs more than one outfit.
@@ -358,7 +366,7 @@ export function EventSwitcher({
           className="btn btn-primary"
           disabled={pending || !name.trim() || (!copyFrom && !shape)}
           onClick={() => {
-            const copyId = source.startsWith(COPY_PREFIX) ? source.slice(COPY_PREFIX.length) : "";
+            const copyId = copiedEventId(source);
             setError("");
             startTransition(async () => {
               const res = copyId

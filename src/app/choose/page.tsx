@@ -18,6 +18,7 @@ import { orgProfile } from "@/lib/domain/org-profile";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor, organizationsForOrganizer } from "@/lib/services/organization";
 import { orgSetupState } from "@/lib/domain/org-setup";
+import { isMatch } from "@/lib/tournament-shape";
 import { Icon } from "@/components/Icon";
 
 export default async function ChooseTournamentPage({
@@ -305,6 +306,15 @@ export default async function ChooseTournamentPage({
              settings". Empty resolves to `personal`, which is what somebody
              with no organization yet is about to be given. */
           orgKind={facts?.kind ?? ""}
+          /* THE BEST STARTING POINT A CLUB HAS IS ONE OF ITS OWN — see the
+             prop. Only ones this person ORGANIZES, because `cloneEvent`
+             refuses anything else and a list must not offer what the action
+             will refuse; and never a casual round, which is a game of golf
+             rather than a template for a competition. Newest first, because
+             the tournament somebody repeats is nearly always the last one. */
+          copyable={accounts
+            .filter((a) => a.role === "admin" && !isMatch(a.event.shape))
+            .map((a) => ({ id: a.event.id, name: a.event.name }))}
           /* Only asked when there is more than one — see the prop. Each one
              carries its own plan, so the retention warning follows the pick. */
           organizations={await organizationsForOrganizer(session.email)}

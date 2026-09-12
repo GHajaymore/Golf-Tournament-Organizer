@@ -8,6 +8,7 @@ import {
 import { GOLF_FORMATS } from "../formats";
 import { isHeadToHead } from "../stage-types";
 import { readSource } from "./source";
+import { startFromGroups } from "../domain/start-from";
 
 /**
  * TEMPLATES NAMED FOR THE SHAPE, NOT FOR THE AUDIENCE.
@@ -148,12 +149,26 @@ describe("what is suggested first", () => {
      * A knockout organizer who wants to start from a medal and add a bracket
      * is not doing anything wrong. The suggested group is a shortcut to the
      * top of the list, never a gate on the rest of it.
+     *
+     * ASSERTED AGAINST THE DATA, not the markup. This used to read
+     * `CreateFirstTournament.tsx` for the three expressions that built its
+     * `<select>` — which pinned one component's JSX to one shape, and went red
+     * the day the list moved into `startFromGroups` to stop the two create
+     * forms drifting apart. The claim was still true; only the place it lived
+     * had changed, which is exactly the failure mode of a test that reads
+     * source when it could read behaviour.
+     *
+     * `start-from.test.ts` now holds the same property across every shape AND
+     * every kind of outfit, which the markup check could never have done.
      */
-    const src = readSource("src", "components", "CreateFirstTournament.tsx");
-    expect(src).toMatch(/suggested\.length > 0 && \(/);
-    // The full grouped list is rendered unconditionally beside it.
-    expect(src).toMatch(/TEMPLATE_GROUPS\.map\(/);
-    expect(src).toMatch(/TOURNAMENT_TEMPLATES\.filter\(\(t\) => templateGroup\(t\) === group\)/);
+    for (const shape of ["", "single", "series", "knockout"]) {
+      const offered = new Set(
+        startFromGroups({ shape }).flatMap((g) => g.options.map((o) => o.value)),
+      );
+      for (const t of TOURNAMENT_TEMPLATES) {
+        expect(offered.has(t.key), `${shape || "(unanswered)"} hides ${t.key}`).toBe(true);
+      }
+    }
   });
 });
 

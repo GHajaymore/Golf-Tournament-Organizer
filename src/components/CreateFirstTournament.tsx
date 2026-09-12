@@ -1,11 +1,12 @@
 "use client";
 import { useState, useTransition } from "react";
-import { createEvent } from "@/app/actions/tournament";
-import { TOURNAMENT_TEMPLATES, templateFor, templateGroup, TEMPLATE_GROUPS, suggestedFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
+import { createEvent, cloneEvent } from "@/app/actions/tournament";
+import { templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { retentionNotice, planFor } from "@/lib/plans";
 import { Icon } from "./Icon";
 import { orgProfile } from "@/lib/domain/org-profile";
+import { startFromGroups, copiedEventId, type CopyableEvent } from "@/lib/domain/start-from";
 
 /**
  * Create-a-tournament step on the picker screen. Shown prominently when
@@ -18,6 +19,7 @@ export function CreateFirstTournament({
   organizationNamed = false,
   clubSteps = [],
   orgKind = "",
+  copyable = [],
   organizations = [],
 }: {
   first: boolean;
@@ -70,6 +72,21 @@ export function CreateFirstTournament({
    */
   orgKind?: string;
   /**
+   * This organizer's own tournaments, NEWEST FIRST, that they may copy.
+   *
+   * THE BEST STARTING POINT A CLUB HAS IS ONE OF ITS OWN. Last year's
+   * championship carries this club's rounds, formats, courses and settings,
+   * decided by somebody who knows the golf — which no template can. The
+   * dashboard's form has offered this for a long time and this one never did,
+   * so an organizer creating their second tournament from the picker got
+   * eleven generic templates and no sight of the event they were plainly
+   * repeating.
+   *
+   * Empty on a genuinely first tournament, which is the case this component
+   * was built for — so nothing changes there.
+   */
+  copyable?: CopyableEvent[];
+  /**
    * The organizations this person may create in — see
    * `organizationsForOrganizer`.
    *
@@ -109,11 +126,13 @@ export function CreateFirstTournament({
   const [organizationId, setOrganizationId] = useState(organizations[0]?.id ?? "");
   const [pending, startTransition] = useTransition();
   /**
-   * The starting points that fit the shape just chosen. Empty until the shape
-   * question is answered, which is why the group below simply does not render
-   * rather than showing a heading over nothing.
+   * The tournament being copied, when "Start from" names one.
+   *
+   * Derived from the select's own value rather than held in a second piece of
+   * state: one control, one answer, and `copiedEventId` is what tells a
+   * template key from an event id. Declared here because it reads `template`.
    */
-  const suggested = suggestedFor(shape);
+  const copyFrom = copyable.find((e) => e.id === copiedEventId(template));
 
   /**
    * THE PLAN OF THE ORGANIZATION THIS IS ACTUALLY FOR.
@@ -134,9 +153,12 @@ export function CreateFirstTournament({
   const planName = planFor(activePlan).name;
 
   const submit = () => {
-    if (!name.trim() || !shape) return;
+    // A COPY NEEDS NO SHAPE. It is played the way its source was, and asking
+    // would let the two disagree — the same rule `EventSwitcher` states.
+    if (!name.trim() || (!copyFrom && !shape)) return;
     startTransition(async () => {
-      await createEvent(name, template, shape, orgName, organizationId || undefined);
+      if (copyFrom) await cloneEvent(copyFrom.id, name);
+      else await createEvent(name, template, shape, orgName, organizationId || undefined);
     });
   };
 
@@ -209,7 +231,13 @@ export function CreateFirstTournament({
           typing a name and pressing Create made a league without ever reading
           the three. It is the same fault as the defaulted Round Robin one
           screen along, in the one place the app has a person to ask. Create
-          stays disabled until this is answered. */}
+          stays disabled until this is answered.
+
+          NOT ASKED WHEN COPYING. A copy is played the way its source was, so
+          offering the question would let the two disagree — and answering it
+          would do nothing, which is worse. The same rule the dashboard's form
+          already states. */}
+      {!copyFrom && (
       <div className="field">
         <label>How is it played?</label>
         <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
@@ -250,6 +278,7 @@ export function CreateFirstTournament({
           })}
         </div>
       </div>
+      )}
 
       {/**
        * "START FROM", NOT "WHAT KIND OF TOURNAMENT?".
@@ -269,37 +298,33 @@ export function CreateFirstTournament({
        */}
       <div className="field">
         <label>Start from</label>
+        {/* ONE SOURCE, SHARED WITH THE DASHBOARD'S FORM. This built its own
+            list and `EventSwitcher` built another, and the two had drifted
+            into different answers to the same question: that one offered a
+            copy of an existing tournament and no suggestions, this one offered
+            suggestions and no copy — and listed seven of its eleven entries
+            TWICE, once under "Suits a single round" and again under its side
+            size. Seventeen options for eleven starting points.
+
+            `startFromGroups` is now the only place that decides, so they
+            cannot diverge again. */}
         <select className="input" value={template} onChange={(e) => setTemplate(e.target.value)}>
-          {/* What fits the answer they gave one question ago, first — and
-              still listed below in its own group, because these are
-              suggestions rather than a filter. */}
-          {suggested.length > 0 && (
-            <optgroup label={`Suits ${TOURNAMENT_SHAPES.find((s) => s.key === shape)?.label.toLowerCase() ?? "this"}`}>
-              {suggested.map((t) => (
-                <option key={`suggested-${t.key}`} value={t.key}>{t.name}</option>
-              ))}
-            </optgroup>
-          )}
-          {TEMPLATE_GROUPS.map((group) => {
-            const inGroup = TOURNAMENT_TEMPLATES.filter((t) => templateGroup(t) === group);
-            if (inGroup.length === 0) return null;
-            const options = inGroup.map((t) => (
-              <option key={t.key} value={t.key}>{t.name}</option>
+          {startFromGroups({ copyable, shape, orgKind }).map((group) => {
+            const options = group.options.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
             ));
-            // The blank one has no heading — "set it up yourself" is not a
-            // kind of golf, and putting it under one would say it was.
-            return group === "" ? (
-              options
-            ) : (
-              <optgroup key={group} label={group}>
-                {options}
-              </optgroup>
+            // A group with no label renders its options bare — "set it up
+            // yourself" is not a kind of golf, and putting it under a heading
+            // would say it was.
+            return group.label === "" ? options : (
+              <optgroup key={group.label} label={group.label}>{options}</optgroup>
             );
           })}
         </select>
         <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
-          {templateFor(template).blurb} A starting point only — every setting, format and round
-          stays editable afterwards.
+          {copyFrom
+            ? `Copies the settings, rounds and courses from ${copyFrom.name.trim() || "that tournament"} — never its players, scores or access codes. Dates start empty and everything stays editable.`
+            : `${templateFor(template).blurb} A starting point only — every setting, format and round stays editable afterwards.`}
         </p>
       </div>
       {/* Names the organization created for this organizer's first tournament,
@@ -391,7 +416,8 @@ export function CreateFirstTournament({
           disabled={
             pending ||
             !name.trim() ||
-            !shape ||
+            /* A copy needs no shape: it is played the way its source was. */
+            (!copyFrom && !shape) ||
             (clubNameRequired && !orgName.trim()) ||
             /* Steps with their own screen — the member list, today. Not
                answerable here, so the button waits rather than pretending. */
@@ -417,15 +443,19 @@ export function CreateFirstTournament({
           they were plainly in the middle of filling in. Found by walking this
           screen as a new society secretary — with a name and a shape chosen
           and the club still unnamed, the button was dead and said nothing. */}
-      {!pending && (!name.trim() || !shape || (clubNameRequired && !orgName.trim())) && elsewhere.length === 0 && (
-        <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
-          {!name.trim()
-            ? "Give it a name, then say how it's played."
-            : !shape
-              ? "Say how it's played — that decides what the rest of setup asks."
-              : `Name your ${outfit.noun} above — it is set once, for every tournament you will ever run.`}
-        </p>
-      )}
+      {!pending &&
+        (!name.trim() || (!copyFrom && !shape) || (clubNameRequired && !orgName.trim())) &&
+        elsewhere.length === 0 && (
+          <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+            {!name.trim()
+              ? copyFrom
+                ? "Give the new one a name — the rest comes across with it."
+                : "Give it a name, then say how it's played."
+              : !copyFrom && !shape
+                ? "Say how it's played — that decides what the rest of setup asks."
+                : `Name your ${outfit.noun} above — it is set once, for every tournament you will ever run.`}
+          </p>
+        )}
 
       {/* THE STEPS THAT ARE NOT ANSWERABLE HERE, as links to where they are.
           A sentence saying "finish setting up your society first" would leave
