@@ -4,6 +4,7 @@ import { orgProfile, type OrgKind } from "@/lib/domain/org-profile";
 // checklist's tournament step, and the sidebar's way out of an eventless
 // session is the same door — a literal here would be a second copy of it.
 import { SETUP_HREF } from "@/lib/domain/org-setup";
+import { ALL_PLAYER_SCREENS } from "@/lib/player-nav";
 import { canSeeLeaderboard, canEnterScores, type TournamentSettings } from "./tournament-settings";
 
 /**
@@ -622,6 +623,25 @@ export function screenName(href: string, isMatch = false, orgKind?: OrgKind): st
       }
     }
   }
+  /**
+   * THE PLAYER'S SCREENS, WHICH ARE NOT IN `NAV`.
+   *
+   * Five of the six had no browser-tab title at all — the board, the card, the
+   * money, the rules and messages all read the root layout's marketing
+   * sentence, because their names lived inside a `"use client"` tab bar where
+   * no server component could reach them. Walked as a player on 2026-09-11.
+   *
+   * Searched AFTER `NAV`, which settles the one href in both: `/me` is "My
+   * round" in the console sidebar and "Today" on the player's tab bar, and the
+   * browser tab keeps "My round". A tab is read as "which of my windows is
+   * this", and "Today" answers that far less well than the words an organizer
+   * who also plays clicked to get here — while "Today" is exactly right on a
+   * five-item bar at the bottom of a phone, where the context is obvious and
+   * the space is 80px. Same deliberate exception the mobile tab bar already
+   * has, for the same reason.
+   */
+  const player = ALL_PLAYER_SCREENS.find((s) => s.href === path);
+  if (player) return player.label;
   return path;
 }
 

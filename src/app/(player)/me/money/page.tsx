@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
 import { moneyFor, roundMoneyFor, usesExpenses } from "@/lib/services/expenses";
@@ -8,6 +9,8 @@ import { resolveMoneyMode } from "@/lib/domain/money-mode";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { SideBetStart } from "@/components/SideBetStart";
 import { parseTeeSheet } from "@/lib/domain/tee-sheet";
+
+export const metadata = screenMetadata("/me/money");
 
 /**
  * The player's money.

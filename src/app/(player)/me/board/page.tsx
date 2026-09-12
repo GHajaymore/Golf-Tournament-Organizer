@@ -1,3 +1,4 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
 import { loadEventState, standingRows, settingsOf, cutLineNote } from "@/lib/services/tournament";
@@ -5,6 +6,8 @@ import { canSeeLeaderboard } from "@/lib/tournament-settings";
 import { PlayerLeaderboard } from "@/components/PlayerLeaderboard";
 import { boardKind } from "@/lib/formats";
 import { roundKicker, roundLabel } from "@/lib/domain/round-label";
+
+export const metadata = screenMetadata("/me/board");
 
 /**
  * The board, as a player reads it.

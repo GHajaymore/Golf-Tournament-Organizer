@@ -2,41 +2,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "./Icon";
+import { PLAYER_TABS, PLAYER_MONEY_TAB } from "@/lib/player-nav";
 
 /**
- * Four tabs, and deliberately only four.
- *
- * The console's sidebar has fifteen entries because an organizer genuinely
- * does fifteen things. A player does four, and every extra one is something
- * to read past while standing on a tee. If a fifth is ever needed, something
- * here should have to leave.
- *
- * Money is the exception, and it earns it by being CONDITIONAL: it appears
- * only for a tournament that is actually splitting costs, so a Wednesday
- * league that never buys a round together still has four. Nothing had to
- * leave, and nobody is asked to read past a tab their event does not use.
- *
- * MESSAGES is the other player destination and is deliberately NOT here. It
- * lives as an icon in the header (`(player)/layout.tsx`), with an unread badge
- * — which is where a chat icon belongs and how every phone already does it. It
- * is also the one screen a player opens because something arrived rather than
- * because they chose to go there, and a badge answers that better than a tab.
- * Recorded because this comment used to say "four, and deliberately only four"
- * while a fifth screen existed one tap away, which reads as an oversight
- * rather than a decision.
+ * The four tabs, and the conditional fifth, come from `player-nav.ts` — the
+ * same list `screenName` titles these screens from. They used to live here as
+ * a constant in a "use client" component, which is unreachable from a server
+ * component, which is why five of the six player screens had no browser-tab
+ * title at all and read the marketing sentence instead.
  */
-const TABS = [
-  { href: "/me", label: "Today", icon: "ph ph-flag", iconActive: "ph-fill ph-flag" },
-  { href: "/me/board", label: "Board", icon: "ph ph-ranking", iconActive: "ph-fill ph-ranking" },
-  { href: "/me/card", label: "My card", icon: "ph ph-cards", iconActive: "ph-fill ph-cards" },
-  { href: "/me/rules", label: "Rules", icon: "ph ph-book-open", iconActive: "ph-fill ph-book-open" },
-];
-
-const MONEY_TAB = { href: "/me/money", label: "Money", icon: "ph ph-receipt", iconActive: "ph-fill ph-receipt" };
 
 export function PlayTabs({ showMoney = false }: { showMoney?: boolean }) {
   const path = usePathname();
-  const tabs = showMoney ? [...TABS, MONEY_TAB] : TABS;
+  const tabs = showMoney ? [...PLAYER_TABS, PLAYER_MONEY_TAB] : PLAYER_TABS;
 
   return (
     <nav
@@ -81,7 +59,11 @@ export function PlayTabs({ showMoney = false }: { showMoney?: boolean }) {
               fontWeight: active ? 700 : 500,
             }}
           >
-            <Icon name={active ? t.iconActive : t.icon} style={{ fontSize: 21 }} />
+            {/* Falls back to the outline for a screen with no filled variant.
+                Every TAB has one; the fallback is for a screen that reaches
+                this bar without being one, where drawing nothing would be a
+                silent empty box. */}
+            <Icon name={active ? (t.iconActive ?? t.icon) : t.icon} style={{ fontSize: 21 }} />
             {t.label}
           </Link>
         );

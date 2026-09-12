@@ -1,8 +1,11 @@
+import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/page-helpers";
 import { membershipFor, threadsFor, composableScopes, messageableField, messagesOptOutFor } from "@/lib/services/messaging";
 import { prisma } from "@/lib/db";
 import { MessagesClient } from "@/components/MessagesClient";
+
+export const metadata = screenMetadata("/me/messages");
 
 /**
  * Messages, in the player's app.
