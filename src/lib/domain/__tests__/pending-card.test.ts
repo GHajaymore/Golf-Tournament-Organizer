@@ -4,6 +4,7 @@ import {
   NAG_AFTER_MS,
   pendingKey,
   RETRY_EVERY_MS,
+  shouldPoll,
   shouldRetry,
   staleAgainst,
   syncStatus,
@@ -308,5 +309,89 @@ describe("retrying a held card", () => {
   it("still happens for an ordinary queued card", () => {
     expect(shouldRetry({ ...args, held: false })).toBe(true);
     expect(shouldRetry(args)).toBe(true);
+  });
+});
+
+describe("whether the screen's clock is worth running", () => {
+  /**
+   * THE TIMER RAN EVERY FIVE SECONDS FOR THE LIFE OF THE PAGE.
+   *
+   * It does two jobs — retry a send, and re-render so the label ages — and in
+   * the states a card SITS in, neither applies. `shouldRetry` already refuses
+   * `held`, `holding` and `!queued`; and `syncStatus` reads the clock in
+   * exactly one branch, so everywhere else a tick produces the identical
+   * string at the cost of re-rendering the whole scoring screen.
+   *
+   * The visible cost is the card chooser. It is on screen asking a person
+   * which card to keep, and the subtree holding it was re-rendering under
+   * their finger. CLAUDE.md records `offline.spec.ts:245` as intermittent on
+   * all three viewports, with the signature "element is not stable … element
+   * was detached from the DOM, retrying", and says the thing to look for is
+   * what re-renders the chooser after it opens rather than where the nav sits.
+   */
+  it("does not run while a conflict waits on a person", () => {
+    expect(shouldPoll({ queued: true, held: true })).toBe(false);
+  });
+
+  it("does not run through a whole-card round", () => {
+    /**
+     * `shouldRetry`'s own note on `holding` says the timer must not "fire every
+     * fifteen seconds for the length of a round". That was true of the retry
+     * and not of the re-render, which is the half a phone in a pocket pays for.
+     */
+    expect(shouldPoll({ queued: true, holding: true })).toBe(false);
+  });
+
+  it("does not run when there is nothing outstanding", () => {
+    // The commonest state of all: everything saved, the label a constant
+    // "Saved", and a timer waking the page up for ever to say so again.
+    expect(shouldPoll({ queued: false })).toBe(false);
+  });
+
+  it("DOES run for an ordinary queued card", () => {
+    /**
+     * The half that must not be lost. This is the one state where the label
+     * genuinely ages — `waitingMs >= NAG_AFTER_MS` turns "Saving…" into "Still
+     * trying to send your holes" — and where a retry is due. Stopping the
+     * timer here would leave a spinner up for ever.
+     */
+    expect(shouldPoll({ queued: true })).toBe(true);
+    expect(shouldPoll({ queued: true, held: false, holding: false })).toBe(true);
+  });
+
+  it("agrees with the label it exists to age", () => {
+    /**
+     * Measured against `syncStatus` rather than asserted twice. For each state
+     * this refuses to poll, the label must be the SAME before and after the nag
+     * threshold — which is the property that makes the tick pointless there. If
+     * a future label starts reading the clock in one of these states this goes
+     * red, which is exactly when the timer would be needed again.
+     */
+    const base: PendingState = {
+      queued: true,
+      sending: false,
+      online: true,
+      waitingMs: 0,
+      refused: false,
+      held: false,
+      holding: false,
+    };
+    for (const state of [
+      { ...base, held: true },
+      { ...base, holding: true },
+      { ...base, queued: false },
+    ]) {
+      expect(shouldPoll(state), "polls a state this loop assumes it skips").toBe(false);
+      const young = syncStatus({ ...state, waitingMs: 0 });
+      const old = syncStatus({ ...state, waitingMs: NAG_AFTER_MS * 3 });
+      expect(old, `the label ages in a state the timer no longer runs in`).toEqual(young);
+    }
+
+    // And the control: the state it DOES poll is the state where the label
+    // changes, or none of the above means anything.
+    expect(shouldPoll(base)).toBe(true);
+    expect(syncStatus({ ...base, waitingMs: NAG_AFTER_MS * 3 })).not.toEqual(
+      syncStatus({ ...base, waitingMs: 0 }),
+    );
   });
 });
