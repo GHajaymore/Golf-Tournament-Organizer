@@ -255,6 +255,27 @@ this announces itself as YOUR BUG. So when a layout or heading assertion fails o
 your change did not touch, **search the log for `Client Manifest` before believing it** — and
 confirm the same way as the SEGV, by re-running the commit rather than editing the page.
 
+**IT ALSO COMES FROM A BAD BUILD, and then re-running the commit does NOT clear it.** On
+2026-09-12 a local run went red on **fifteen** tests across all three viewports, every one of
+them `/prizes`, with `Application error: a server-side exception` on the page and this in the
+server log:
+
+```
+⨯ Error: Could not find the module ".../ContestsClient.tsx#ContestsClient"
+in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+```
+
+Same class, different component — and this was `next start` on a production build, not the dev
+server. So the manifest written into `.next-e2e` was genuinely missing an entry, and it stayed
+missing: re-running the failing spec reproduced it EXACTLY, because `reuseExistingServer`
+attached to the same bad build. A deterministic repeat reads like a real bug, which is the trap.
+
+**Delete `.next-e2e` and run again.** That took fifteen failures to zero on the same commit.
+
+Two tells separate this from a real regression: every failure names ONE screen (or one client
+component's screens) across every project, and the smoke pass on the dev server renders the same
+route 200 — a build-local fault cannot reproduce against a different build.
+
 **And a THIRD, which is a click that never lands.** `offline.spec.ts:245` — "taking their
 card clears the queue without sending anything" — times out on the desktop project trying to
 press the card chooser's button:
@@ -272,9 +293,10 @@ render, and there is no expected-versus-received anywhere in it. It is the click
 
 **NOT desktop only**, which this entry claimed for a day. It was written off two desktop
 samples where `phone` and `small-phone` passed in the same run, and the obvious reading — a
-1280x900 viewport problem — was wrong. On 2026-09-11 it failed on **`small-phone`** with the
-identical signature, and passed on a re-run of the same commit. So the viewport is not the
-variable; do not go looking for a desktop layout fault on the strength of this note.
+1280x900 viewport problem — was wrong. It has now been seen on **all three projects**:
+`small-phone` on 2026-09-11 and `phone` on 2026-09-12, both with the identical signature, both
+passing on a re-run. The viewport is not the variable; do not go looking for a layout fault at
+any particular width on the strength of this note.
 
 **It is on `main`**, measured 2026-09-11 rather than assumed: five runs of that spec at the
 desktop viewport, three green and two red, across `main` and a branch whose new files nothing
@@ -288,10 +310,10 @@ three times before believing it.
 
 Unlike the SEGV, this one may still be worth fixing rather than tolerating — but the reason has
 changed with the evidence. It used to read "pointer events intercepted by the section nav at
-1280x900, so it may be a real desktop layout fault". The small-phone failure kills that theory:
-the section nav and the viewport are different at 375px and it happens anyway.
+1280x900, so it may be a real desktop layout fault". Failures at 375px kill that theory: the
+section nav and the viewport are both different there and it happens anyway.
 
-What the two logs DO share is the sequence `element is not stable` → `outside of the viewport` →
+What every log DOES share is the sequence `element is not stable` → `outside of the viewport` →
 `element was detached from the DOM, retrying`. That is a dialog still animating or re-rendering
 under the click, at any width — so the thing to look at is what re-renders the card chooser
 after it opens, not where the nav sits. Nobody has looked yet.
