@@ -45,8 +45,30 @@ export default async function FoursomesPage({
    * the page silently changed which round it was editing, with nothing on
    * screen to say so.
    */
+  /**
+   * THE ROUND NOBODY HAS STARTED, because that is what a sheet is drawn for.
+   *
+   * The note above says this screen exists so next week's sheet can be drawn
+   * ahead — and it opened on `activeStage`, the match-points chain's position,
+   * which on a tournament part way through is a round already played. On the
+   * Demo Cup that is Round 1, with Rounds 1 and 2 behind the field: the worst
+   * of the three answers the app holds.
+   *
+   * `boardStage` would only have made it the second worst, which is why this
+   * sat in the deferred register rather than being swept along with the other
+   * round defaults — the tee sheet wants a THIRD question, and now there is
+   * one to ask.
+   *
+   * Falling back to the board's round once everything has been played, which
+   * is what somebody reopening a finished sheet is looking for.
+   */
   const rounds = playingStages(state.stages);
-  const stage = rounds.find((s) => s.id === params.round) ?? state.activeStage ?? rounds[0] ?? null;
+  const stage =
+    rounds.find((s) => s.id === params.round) ??
+    state.nextUnplayedRound ??
+    state.boardStage ??
+    rounds[0] ??
+    null;
 
   /**
    * The current leaderboard, for re-pairing and for drawing the leaders out
