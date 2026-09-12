@@ -10,6 +10,7 @@ import { STAGE_TYPES } from "@/lib/stage-types";
 import { extractReadingJson } from "@/lib/domain/card-reading";
 import { parseSetupProposal, setupPrompt, type SetupProposal } from "@/lib/domain/setup-proposal";
 import { assertUnlocked } from "@/lib/services/action-shared";
+import { askClaude } from "@/lib/services/claude";
 
 /**
  * Everything on this screen changed — and so did the public board.
@@ -93,36 +94,32 @@ export async function suggestSetup(description: string): Promise<SetupSuggestRes
   const entitled = await entitlementForEvent(eventId, "aiAssist");
   if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
-    return {
-      ok: false,
-      configured: false,
-      error: "Describing a tournament in words isn't switched on. Build it with the controls instead.",
-    };
+  const answer = await askClaude({
+    model: "claude-sonnet-5",
+    maxTokens: 700,
+    content: setupPrompt(text, PLAYABLE_FORMAT_NAMES, STAGE_TYPES),
+  });
+  if (!answer.ok) {
+    if (answer.reason === "not-configured") {
+      return {
+        ok: false,
+        configured: false,
+        error: "Describing a tournament in words isn't switched on. Build it with the controls instead.",
+      };
+    }
+    if (answer.reason === "unreachable") {
+      return { ok: false, configured: true, error: "Couldn't reach the assistant. Build it with the controls instead." };
+    }
+    // An empty reply and a refusal read the same to an organizer here: there
+    // is no suggestion either way, and the controls are still there.
+    if (answer.reason === "empty") {
+      return { ok: false, configured: true, error: "Nothing came back. Try describing it again." };
+    }
+    return { ok: false, configured: true, error: `Couldn't work that out (${answer.status}).` };
   }
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-5",
-        max_tokens: 700,
-        messages: [
-          { role: "user", content: setupPrompt(text, PLAYABLE_FORMAT_NAMES, STAGE_TYPES) },
-        ],
-      }),
-    });
-    // The status, never the body: an upstream error can echo the request.
-    if (!res.ok) return { ok: false, configured: true, error: `Couldn't work that out (${res.status}).` };
-
-    const data = (await res.json()) as { content?: Array<{ text?: string }> };
-    const reply = data.content?.[0]?.text ?? "";
+    const reply = answer.text;
     // extractReadingJson finds the first bracketed value in a reply; the
     // object form is what this one returns, so look for braces too.
     const start = reply.indexOf("{");

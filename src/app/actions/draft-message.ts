@@ -4,6 +4,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { entitlementForEvent } from "@/lib/services/entitlements";
 import { draftFactsFor } from "@/lib/services/draft-facts";
 import { checkDraft, draftPrompt, DRAFT_KINDS, type DraftKind } from "@/lib/domain/draft-check";
+import { askClaude } from "@/lib/services/claude";
 
 /**
  * Draft a message an organizer is about to send, from the event's own data.
@@ -71,60 +72,41 @@ export async function draftMessage(kind: string, extra: string): Promise<DraftRe
   const entitled = await entitlementForEvent(session.eventId, "aiAssist");
   if (!entitled.allowed) return { ok: false, configured: false, error: entitled.reason };
 
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
-    return {
-      ok: false,
-      configured: false,
-      error: "Drafting isn't switched on. You can still write and send from Communications.",
-    };
-  }
+  const answer = await askClaude({
+    model: "claude-sonnet-5",
+    maxTokens: 800,
+    content: draftPrompt(DRAFT_KINDS[kind as DraftKind], facts.eventName, facts.text, note),
+  });
 
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-5",
-        max_tokens: 800,
-        messages: [
-          {
-            role: "user",
-            content: draftPrompt(
-              DRAFT_KINDS[kind as DraftKind],
-              facts.eventName,
-              facts.text,
-              note,
-            ),
-          },
-        ],
-      }),
-    });
-    // The status, never the body: an upstream error can echo the request back,
-    // and the request contains the field's names.
-    if (!res.ok) {
-      return { ok: false, configured: true, error: `Couldn't draft that (${res.status}).` };
+  // The wording stays here because it is this screen's: a draft nobody can
+  // write is a different disappointment from a card nobody can read. What has
+  // moved is the RULE — `askClaude` returns a status and never the response
+  // body, so an upstream error that echoes the field's names back cannot reach
+  // a screen through this path.
+  if (!answer.ok) {
+    if (answer.reason === "not-configured") {
+      return {
+        ok: false,
+        configured: false,
+        error: "Drafting isn't switched on. You can still write and send from Communications.",
+      };
     }
-
-    const data = (await res.json()) as { content?: Array<{ text?: string }> };
-    const draft = (data.content?.[0]?.text ?? "").trim();
-    if (!draft) {
+    if (answer.reason === "unreachable") {
+      return { ok: false, configured: true, error: "Couldn't reach the assistant. Write it yourself in Communications." };
+    }
+    if (answer.reason === "empty") {
       return { ok: false, configured: true, error: "Nothing came back. Try again." };
     }
-
-    const checked = checkDraft(draft, facts.names);
-    return {
-      ok: true,
-      configured: true,
-      draft,
-      unknownNames: checked.unknownNames,
-      facts: facts.text,
-    };
-  } catch {
-    return { ok: false, configured: true, error: "Couldn't reach the assistant. Write it yourself in Communications." };
+    return { ok: false, configured: true, error: `Couldn't draft that (${answer.status}).` };
   }
+
+  const draft = answer.text;
+  const checked = checkDraft(draft, facts.names);
+  return {
+    ok: true,
+    configured: true,
+    draft,
+    unknownNames: checked.unknownNames,
+    facts: facts.text,
+  };
 }
