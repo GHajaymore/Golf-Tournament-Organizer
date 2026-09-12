@@ -107,7 +107,7 @@ export function BracketClient({
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
           <div className="page-kicker">Manage</div>
-          <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>{readOnly ? "Live bracket" : "Bracket manager"}</h1>
+          <h1 className="page-title">{readOnly ? "Live bracket" : "Bracket manager"}</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {readOnly
               ? "Seeded from qualification. Winners advance automatically as results come in."

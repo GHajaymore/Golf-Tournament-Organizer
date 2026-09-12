@@ -602,7 +602,7 @@ export default async function DashboardPage() {
           {/* A match is not a tournament, and calling its one screen a
               "Tournament dashboard" is the app telling two friends they have
               set up the wrong thing. */}
-          <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>{matchEvent ? "The match" : "Tournament dashboard"}</h1>
+          <h1 className="page-title">{matchEvent ? "The match" : "Tournament dashboard"}</h1>
           <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
             {/* The library's venues stand in for the free-text course when
                 there is none — see `attachedVenues`. Named rather than

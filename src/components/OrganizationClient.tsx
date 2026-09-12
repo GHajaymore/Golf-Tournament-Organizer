@@ -209,7 +209,7 @@ export function OrganizationClient(props: Props) {
             already reads "Personal · a single organizer" off the same profile,
             so a heading hard-coded to "Club settings" made the page disagree
             with itself in one eyeful. */}
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>{orgProfile(props.kind).settingsLabel}</h1>
+        <h1 className="page-title">{orgProfile(props.kind).settingsLabel}</h1>
         {/* Described the branding card and nothing else, on a page that also
             holds the theme, the house play settings, the money default and
             staff access. An intro naming one of five cards reads as a

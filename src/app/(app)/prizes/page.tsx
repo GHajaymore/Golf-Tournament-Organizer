@@ -167,7 +167,7 @@ export default async function PrizesPage({
     <>
       <div style={{ marginBottom: 20 }}>
         <div className="page-kicker">Results</div>
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Prizes &amp; payouts</h1>
+        <h1 className="page-title">Prizes &amp; payouts</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Define the prize list and purse, then award winners. Flight winners, skins, closest-to-pin,
           long drive and any specials.

@@ -28,7 +28,7 @@ export default async function AccessPage() {
             them; this one said "Access control", so the door and the room had
             different names and the browser tab was about to be a third. See
             screen-metadata.ts. */}
-        <h1 style={{ fontSize: 27, margin: "5px 0 0" }}>Access &amp; staff</h1>
+        <h1 className="page-title">Access &amp; staff</h1>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
           Organizers get full admin access. Players get read-only leaderboard/stats plus score entry for their own
           matches.
