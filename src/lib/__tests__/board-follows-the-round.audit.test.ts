@@ -283,6 +283,20 @@ describe("every board reads the round's answer", () => {
     ["src", "app", "(app)", "leaderboard", "page.tsx"],
     ["src", "lib", "services", "live-board.ts"],
     ["src", "lib", "services", "me.ts"],
+    /**
+     * THE FIFTH, and it was missed the first time round.
+     *
+     * Reports renders the same `LeaderboardTable` off the same `standingRows`
+     * as the console leaderboard, so leaving it on `event.format` had the two
+     * screens printing one round two ways. It also writes the CSV, where the
+     * column set follows the same flag — so the export somebody reads to award
+     * a prize disagreed with the board on the wall.
+     *
+     * Added 2026-09-12, by sweeping the readers of `state.isStroke` rather
+     * than waiting to be told. That is the cheap half of the lesson from the
+     * regression this file's own fix shipped.
+     */
+    ["src", "app", "(app)", "reports", "page.tsx"],
   ];
 
   it("none of them asks the event", () => {

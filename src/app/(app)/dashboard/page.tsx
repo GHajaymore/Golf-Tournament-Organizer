@@ -8,7 +8,7 @@ import { LifecycleBar } from "@/components/LifecycleBar";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
-import { showBracket, bracketBadge, feederFraction } from "@/lib/bracket-visibility";
+import { showBracket, bracketBadge } from "@/lib/bracket-visibility";
 import { matchProgress, standingRows } from "@/lib/services/tournament";
 import { usesStandardBoard } from "@/lib/formats";
 import { pts, shortName, distinctLabels } from "@/lib/format";
@@ -263,22 +263,26 @@ export default async function DashboardPage() {
   const isStroke = state.isStroke;
   const cardsIn = state.strokeStandings.filter((s) => s.thru > 0).length;
 
-  // What decides the bracket differs by tournament: a round robin decides it
-  // by matches, a stroke qualifier by cards returned, a straight knockout by
-  // nothing at all. Measure whichever this tournament actually uses rather
-  // than assuming one shape.
-  const bracketIndex = state.stages.findIndex((s) => s.type === "Bracket Stage");
-  const feeders = bracketIndex >= 0 ? state.stages.slice(0, bracketIndex) : [];
-  const feederProgress =
-    feeders.length === 0
-      ? null // straight knockout — the draw is the tournament, known from entry
-      : isStroke
-        ? feederFraction(cardsIn, state.confirmed.length)
-        : feederFraction(progress.done, progress.total);
-
+  /**
+   * What decides the bracket differs by tournament: a round robin decides it
+   * by matches, a stroke qualifier by cards returned, a straight knockout by
+   * nothing at all.
+   *
+   * This screen used to work that out, and the comment here said to "measure
+   * whichever this tournament actually uses rather than assuming one shape"
+   * — above a line that asked `state.isStroke`, which is one value for a whole
+   * tournament and so assumes exactly one shape. With a round robin inside a
+   * stroke-format event it counted cards, found none however many matches were
+   * decided, and hid the draw for good.
+   *
+   * `bracketFeederProgress` asks each feeder in its own unit, beside the data.
+   */
   const bracketProgress = {
-    hasBracketStage: bracketIndex >= 0,
-    feederProgress,
+    // `hasKnockoutStage` now that the feeder slice has moved, which is the
+    // question this line was always really asking — and one fewer place
+    // comparing the type to a literal.
+    hasBracketStage: hasKnockoutStage(state.stages),
+    feederProgress: state.bracketFeederProgress,
     bracketStarted:
       !!brackets.winners.champion ||
       brackets.winners.rounds.some((r) => r.matches.some((m) => !!m.winnerId)),

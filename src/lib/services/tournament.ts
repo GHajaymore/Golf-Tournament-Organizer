@@ -1,6 +1,6 @@
 import "server-only";
 import { roundTeeId } from "./handicaps";
-import { hasKnockoutStage, isPlayingRound, roundIsStroke } from "../stage-types";
+import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { isManualFormat, stablefordTableFor } from "../formats";
@@ -376,18 +376,32 @@ export interface EventState {
    * second half of an ordinary club championship, and the app got it wrong.
    * Found by walking the player app on 2026-09-11.
    *
-   * Derived from the round's TYPE rather than its format string, because the
-   * type is what says whether anybody is playing anybody: `isHeadToHead` is
-   * true for a Round Robin, a Single Match and a Bracket, and false for a
-   * Stroke Play Round. Asking the format instead
-   * would have to know that "Four-Ball" is match play in a bracket and stroke
-   * play in a medal — the same trap `template-shapes.test.ts` records against
-   * matching on the literal string "Match Play".
+   * Derived from the round's TYPE **and** its format, and the second half was
+   * missing at first. The reasoning for type-only is in `roundIsStroke` and it
+   * is genuinely half right — the type is what makes a Four-Ball bracket match
+   * play and a Four-Ball medal not, which no format string can tell you. What
+   * it misses is the other direction: a **Round Robin set to Stroke Play** is
+   * head-to-head by type and a medal in fact, it was the only way to run one
+   * before `Stroke Play Round` existed, and those rows are still here. Judging
+   * them on the type alone printed an empty record cell where a 72 should be,
+   * on every board at once, and it was live for a day.
    *
    * Falls back to the event's answer when there is no round at all, which is
    * the only honest answer then and is exactly what every reader did before.
    */
   boardIsStroke: boolean;
+  /**
+   * How far along the rounds that decide the bracket are, 0 to 1 — or null
+   * when nothing feeds it, as in a straight knockout seeded from entry.
+   *
+   * The same distinction as `boardIsStroke` directly above, applied to a
+   * different question. `bracket-visibility.ts` asks its caller for a fraction
+   * "in the feeder's own unit"; the dashboard chose that unit from
+   * `event.format`, so a round robin inside a stroke-format event reported 0
+   * with every match decided and the draw never appeared. Each feeder answers
+   * in its own unit now. See the derivation for the measurements.
+   */
+  bracketFeederProgress: number | null;
   strokeStandings: StrokeStanding[];
   /**
    * What `strokeStandings` measures, and which rounds went into it.
@@ -757,8 +771,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const isStroke = event.format === "stroke";
   /**
    * The round the boards show, and whether IT is scored in strokes — see the
-   * two fields on `EventState` for the defect this closes and why the answer
-   * comes from the round's type rather than its format string.
+   * two fields on `EventState` for the defect this closes, and why the answer
+   * needs the round's format as well as its type.
    *
    * Computed here, once, beside the event's own answer: four screens wrote
    * this stage expression for themselves and then all four asked the wrong
@@ -774,6 +788,58 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    */
   const boardStage = activeStage;
   const boardIsStroke = boardStage ? roundIsStroke(boardStage.type, boardStage.format) : isStroke;
+
+  /**
+   * HOW FAR ALONG THE ROUNDS THAT DECIDE THE BRACKET ARE.
+   *
+   * `bracket-visibility.ts` is explicit that its caller "passes counts in the
+   * feeder's own unit, so a stroke qualifier can pass cards returned and a
+   * round robin can pass matches" — and its one caller, the dashboard, chose
+   * that unit from `event.format`. One value for a whole tournament, picking
+   * the unit for rounds that each carry their own.
+   *
+   * Measured on 2026-09-12 rather than argued about, and it is wrong in both
+   * directions with the feeder FULLY PLAYED:
+   *
+   *   round robin inside a stroke-format event  cards 0/4 -> 0    -> HIDDEN
+   *   medal qualifier inside a match event      matches 0/0 -> null -> SET
+   *
+   * The first is the one an organizer feels: the group phase is over, every
+   * match decided, and the knockout draw is not on the dashboard at all. The
+   * second is the one that misleads — `null` means "nothing feeds this", so
+   * the draw reads "Set" whether or not the qualifier has been played.
+   *
+   * So ask each feeder in ITS unit and add them up. The two units are not the
+   * same thing, and summing them is deliberate rather than sloppy: the rule
+   * downstream only ever asks "what fraction of what has to happen has", and
+   * for a mixed run-up the honest answer is all of it over all of it.
+   *
+   * Computed here because the dashboard had no business deciding it. Same
+   * shape as `boardIsStroke` directly above, and for the same reason: a rule
+   * enforced where the data is built cannot be forgotten by a caller.
+   */
+  const bracketIdx = stages.findIndex((s) => isKnockoutRound(s.type));
+  const feeders = bracketIdx >= 0 ? stages.slice(0, bracketIdx) : [];
+  let feederDone = 0;
+  let feederTotal = 0;
+  for (const f of feeders) {
+    if (roundIsStroke(f.type, f.format)) {
+      // A medal round is decided by the field returning cards, so the target
+      // is the field — not the cards that happen to exist, which would read
+      // 100% off one card in.
+      feederDone += scorecards.filter((c) => c.stageId === f.id && hasAnyHole(c.strokes)).length;
+      feederTotal += confirmed.length;
+    } else {
+      const own = matches.filter((m) => m.stageId === f.id);
+      feederDone += own.filter((m) => matchSettled(m)).length;
+      feederTotal += own.length;
+    }
+  }
+  // Null still means "nothing feeds it", which the rule reads as "show the
+  // draw" — right for a straight knockout, and now reached only when there
+  // genuinely is no feeder rather than when the unit was the wrong one.
+  const bracketFeederProgress =
+    bracketIdx < 0 || feeders.length === 0 ? null : feederTotal <= 0 ? null : Math.min(1, feederDone / feederTotal);
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const roundHandicapBy = new Map(
     roundHandicaps.map((r) => [roundHandicapKey(r.stageId, r.playerId), { frozen: r.frozen, override: r.override }]),
@@ -1231,6 +1297,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     isStroke,
     boardStage,
     boardIsStroke,
+    bracketFeederProgress,
     strokeStandings,
     strokeUnit,
     strokeRounds,
