@@ -18,6 +18,7 @@ import { orgProfile } from "@/lib/domain/org-profile";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { orgSetupFactsFor, organizationsForOrganizer } from "@/lib/services/organization";
 import { orgSetupState } from "@/lib/domain/org-setup";
+import { isMatch } from "@/lib/tournament-shape";
 import { Icon } from "@/components/Icon";
 
 export default async function ChooseTournamentPage({
@@ -305,6 +306,15 @@ export default async function ChooseTournamentPage({
              settings". Empty resolves to `personal`, which is what somebody
              with no organization yet is about to be given. */
           orgKind={facts?.kind ?? ""}
+          /* THE BEST STARTING POINT A CLUB HAS IS ONE OF ITS OWN — see the
+             prop. Only ones this person ORGANIZES, because `cloneEvent`
+             refuses anything else and a list must not offer what the action
+             will refuse; and never a casual round, which is a game of golf
+             rather than a template for a competition. Newest first, because
+             the tournament somebody repeats is nearly always the last one. */
+          copyable={accounts
+            .filter((a) => a.role === "admin" && !isMatch(a.event.shape))
+            .map((a) => ({ id: a.event.id, name: a.event.name }))}
           /* Only asked when there is more than one — see the prop. Each one
              carries its own plan, so the retention warning follows the pick. */
           organizations={await organizationsForOrganizer(session.email)}
@@ -329,13 +339,27 @@ export default async function ChooseTournamentPage({
             }}
           >
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Given a round code?</div>
+              {/* SAYS WHAT IT IS, BECAUSE THE READER IS ALREADY SIGNED IN.
+                  "Given a round code? … Join with a round code" reads as a
+                  second way to sign in, which is baffling to somebody who just
+                  did — raised on 2026-09-11 from this screen, and a fair
+                  reading of what it said.
+
+                  It is not a sign-in at all. `/play` runs on a PLAY SESSION,
+                  minted by `createPlaySession` from the code itself and
+                  entirely separate from the account cookie — which is the
+                  whole point of it: a code puts somebody on one round's card
+                  without an organizer having added them by email. So the words
+                  now name the situation ("someone else's round") and say
+                  plainly that the account is not what gets you there. */}
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Playing in someone else&rsquo;s round?</div>
               <div className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>
-                Playing today but not on the list yet — enter the code from your organizer.
+                A round code from their organizer puts you straight onto that round&rsquo;s card. It works on
+                its own — you don&rsquo;t need to be on the roster, and it has nothing to do with this account.
               </div>
             </div>
             <Link href="/play" className="btn btn-secondary" style={{ flex: "none" }}>
-              <Icon name="flag" /> Join with a round code
+              <Icon name="flag" /> Enter a round code
             </Link>
           </div>
         )}

@@ -62,7 +62,32 @@ export interface TemplateRound {
  */
 export interface TournamentTemplate {
   key: string;
-  /** What this produces, in golf's own words. A shape, never an audience. */
+  /**
+   * What this produces, in golf's own words. A shape, never an audience.
+   *
+   * AND IN THE RULES OF GOLF'S WORDS SPECIFICALLY, not the app's. Asked for on
+   * 2026-09-11: *"organizer can name anything but we need to standardize the
+   * list according to the PGA namings."* The two halves of that are separate
+   * and both matter — a tournament's NAME is the organizer's ("Spring
+   * Meeting", "The Captain's Day"), and it is never touched by this; what has
+   * to be standard is the FORM OF PLAY, because that is a term of art and
+   * getting it wrong tells somebody the app does not know golf.
+   *
+   * So these are the USGA/R&A names, which are what the PGA uses: Stroke Play
+   * and Match Play (Rules 3.2, 3.3), Four-Ball (Rule 23), Foursomes (Rule 22),
+   * Stableford (Rule 21.1). Scramble and Skins are not in the Rules and have
+   * no competing formal name.
+   *
+   * "Medal — stroke play" was the one that had to go, and it is worth knowing
+   * why rather than just that it did: *medal play* is the British colloquial
+   * for stroke play, so the entry carried both names for one thing — which is
+   * this codebase's oldest defect in miniature. The rest gained precision:
+   * "Pairs match play" is FOUR-BALL match play, and a reader who does not know
+   * which pairs format was meant is exactly who the list is for.
+   *
+   * `format-names.test.ts` holds each of these to the format the template
+   * actually starts, so a name and the golf behind it cannot drift.
+   */
   name: string;
   /** What it sets up, including the settings worth knowing before choosing. */
   blurb: string;
@@ -109,7 +134,7 @@ const ROUND_ROBIN_GROSS = {
 export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
   {
     key: "club-championship",
-    name: "Medal — stroke play",
+    name: "Stroke Play",
     blurb: "Everyone plays their own ball against the course. Committee-scored and blind — standings stay hidden until you publish, and every card is signed off.",
     settings: {
       // Blind: the field doesn't watch itself. Cards come to the committee,
@@ -140,7 +165,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
   },
   {
     key: "league-round",
-    name: "Match-play round robin",
+    name: "Match Play — round robin",
     blurb: "Everyone meets everyone, head to head. One round of a season — players score themselves and the board moves live.",
     settings: {
       leaderboardVisibility: "participants",
@@ -163,7 +188,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
   },
   {
     key: "member-guest",
-    name: "Pairs match play",
+    name: "Four-Ball Match Play",
     blurb: "Two a side, net. Public leaderboard with the clubhouse watching, and players report their own results.",
     settings: {
       leaderboardVisibility: "public",
@@ -195,7 +220,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
   },
   {
     key: "member-guest-rr",
-    name: "Pairs round robin — five 9-hole matches",
+    name: "Four-Ball Match Play — round robin",
     blurb:
       "The classic invitational: pairs in flights of six, five nine-hole matches, everyone plays everyone.",
     settings: {
@@ -233,7 +258,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
   },
   {
     key: "charity-day",
-    name: "Individual Stableford",
+    name: "Stableford",
     /**
      * The society outing, the charity day and the company day are all THIS —
      * which is why it is named for the shape. Under its old name, "Charity or
@@ -279,7 +304,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
   },
   {
     key: "foursomes",
-    name: "Foursomes — pairs, one ball",
+    name: "Foursomes — alternate shot",
     /**
      * ONE BALL, ALTERNATE SHOTS, and the format the rest of the world plays
      * far more than America does.
@@ -306,7 +331,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
   },
   {
     key: "greensomes",
-    name: "Greensomes — pairs",
+    name: "Greensomes — modified alternate shot",
     blurb:
       "Both drive, take the better drive, then alternate to the hole. Kinder than foursomes and the usual choice for a mixed day.",
     settings: {
@@ -324,7 +349,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
   },
   {
     key: "four-ball",
-    name: "Four-ball better ball — pairs",
+    name: "Four-Ball",
     /**
      * The commonest pairs event in golf, and it had no starting point.
      *
@@ -374,7 +399,7 @@ export const TOURNAMENT_TEMPLATES: TournamentTemplate[] = [
   },
   {
     key: "scramble-day",
-    name: "Scramble — four a side",
+    name: "Scramble",
     /**
      * THE FORMAT AMERICAN CHARITY GOLF ACTUALLY PLAYS, and it was missing.
      *
