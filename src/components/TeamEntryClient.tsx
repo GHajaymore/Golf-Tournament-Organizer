@@ -121,7 +121,7 @@ export function TeamEntryClient({
     setError("");
     startTransition(async () => {
       const res = await saveTeamScorecard(teamId, playerId, matchId, strokes);
-      if (!res.ok && res.error) setError(res.error);
+      if (!res.ok) setError(res.error ?? "Couldn't save that.");
     });
   };
 

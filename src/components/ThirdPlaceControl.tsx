@@ -1,8 +1,8 @@
 "use client";
-import { useState, useTransition } from "react";
 import { setThirdPlace, createThirdPlaceMatch } from "@/app/actions/tournament";
 import { THIRD_PLACE_HELP } from "@/lib/domain/third-place";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 
 /**
  * Whether this knockout plays off for third, and making the match.
@@ -32,15 +32,7 @@ export function ThirdPlaceControl({
   /** The play-off has already been created. */
   made: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState("");
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
-    startTransition(async () => {
-      setError("");
-      const res = await fn();
-      if (!res.ok) setError(res.error ?? "Couldn't do that.");
-    });
+  const { pending, error, run } = useAction();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

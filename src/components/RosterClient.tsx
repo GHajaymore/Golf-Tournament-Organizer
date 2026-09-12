@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { ClubHandicapPanel } from "@/components/ClubHandicapPanel";
 import { listNames } from "@/lib/format";
 import { fieldRosterSummary } from "@/lib/domain/roster-link";
@@ -7,6 +7,7 @@ import { csvSizeRefusal } from "@/lib/csv";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { rosterSelection } from "@/lib/domain/roster-selection";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 import {
   addMember,
   updateMember,
@@ -131,9 +132,21 @@ export function RosterClient({
   const [recordFor, setRecordFor] = useState<string | null>(null);
   const [form, setForm] = useState<MemberInput>(BLANK);
   const [adding, setAdding] = useState(false);
-  const [error, setError] = useState("");
+  const { pending, error, setError, run: runAction, startTransition } = useAction();
   const [notice, setNotice] = useState("");
-  const [pending, startTransition] = useTransition();
+
+  /**
+   * A thin wrapper, not a second copy of the logic.
+   *
+   * This screen has a NOTICE as well as an error — "Ann added to the roster."
+   * — and it has to go when the next thing is attempted, or a failed edit sits
+   * under a green line saying the last one worked. `useAction` clears the
+   * error; the notice is this screen's own and is cleared here.
+   */
+  const run = (fn: Parameters<typeof runAction>[0], after?: () => void) => {
+    setNotice("");
+    return runAction(fn, after);
+  };
   const summary = fieldRosterSummary(fieldSize, unlinkedCount);
   const profile = orgProfile(orgKind);
   /** Whether there is a tournament to talk about at all — see the prop. */
@@ -168,19 +181,6 @@ export function RosterClient({
   // decided in the domain, because a static render cannot tick a checkbox and
   // a refusal no test can reach is a refusal nobody checks.
   const pick = rosterSelection(chosen, eventName);
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => {
-    setError("");
-    setNotice("");
-    startTransition(async () => {
-      const result = await fn();
-      if (!result.ok) {
-        setError(result.error ?? "Something went wrong.");
-        return;
-      }
-      after?.();
-    });
-  };
 
   const toggle = (id: string) => {
     setSelected((prev) => {

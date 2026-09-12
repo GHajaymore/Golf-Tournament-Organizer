@@ -1,8 +1,9 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { setRoundHandicapOverride, applyRoundHandicapToRest } from "@/app/actions/tournament";
 import FieldInfo from "@/components/FieldInfo";
 import type { RoundHandicapView } from "@/lib/services/round-handicap";
+import { useAction } from "./useAction";
 
 /**
  * What each player plays off in THIS round.
@@ -28,9 +29,8 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState("");
   const [value, setValue] = useState("");
-  const [error, setError] = useState("");
+  const { pending, error, setError, run: runAction } = useAction();
   const [note, setNote] = useState("");
-  const [pending, startTransition] = useTransition();
 
   const overridden = rows.filter((r) => r.source === "override");
   const differing = rows.filter((r) => r.differsFromCurrent !== null);
@@ -45,16 +45,19 @@ export function RoundHandicaps({ stageId, rows }: { stageId: string; rows: Round
    */
   const isFrozen = rows.length > 0 && rows.every((r) => !r.editable);
 
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, said = "") => {
-    setError("");
+  /**
+   * A thin wrapper, not a second copy of the logic.
+   *
+   * `said` is this screen's confirmation line — "Frozen for this round." — and
+   * it is posted only on success, which is what `useAction`'s `after` is for.
+   * Closing the editor belongs there too: an editor that closes on a rejected
+   * save has thrown away the number somebody just typed.
+   */
+  const run = (fn: Parameters<typeof runAction>[0], said = "") => {
     setNote("");
-    startTransition(async () => {
-      const res = await fn();
-      if (!res.ok) setError(res.error ?? "That didn't save. Try again.");
-      else {
-        setEditing("");
-        if (said) setNote(said);
-      }
+    return runAction(fn, () => {
+      setEditing("");
+      if (said) setNote(said);
     });
   };
 

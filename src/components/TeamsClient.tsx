@@ -1,9 +1,10 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { sideDrawReadiness, sideAddBlock } from "@/lib/domain/draw-readiness";
 import { ConfirmButton } from "./ConfirmButton";
 import { RoundPicker } from "./RoundPicker";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 import {
   createTeam,
   deleteTeam,
@@ -83,9 +84,8 @@ export function TeamsClient({
   /** Matches already generated for this round. */
   matchCount: number;
 }) {
-  const [pending, startTransition] = useTransition();
+  const { pending, error, setError, run, startTransition } = useAction();
   const [newName, setNewName] = useState("");
-  const [error, setError] = useState("");
   const [confirmDraw, setConfirmDraw] = useState(false);
   const [confirmMatches, setConfirmMatches] = useState(false);
   const [addingTo, setAddingTo] = useState("");
@@ -93,14 +93,6 @@ export function TeamsClient({
   // Why matches cannot be drawn yet, or null. Rendered under the button rather
   // than hidden in a `title`.
   const sideBlock = sideDrawReadiness({ sideCount: teams.length });
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
-    setError("");
-    startTransition(async () => {
-      const res = await fn();
-      if (!res.ok && res.error) setError(res.error);
-    });
-  };
 
   const makeMatches = (replace: boolean) => {
     setError("");
@@ -111,7 +103,7 @@ export function TeamsClient({
         return;
       }
       setConfirmMatches(false);
-      if (!res.ok && res.error) setError(res.error);
+      if (!res.ok) setError(res.error ?? "Couldn't save that.");
     });
   };
 
@@ -124,7 +116,7 @@ export function TeamsClient({
         return;
       }
       setConfirmDraw(false);
-      if (!res.ok && res.error) setError(res.error);
+      if (!res.ok) setError(res.error ?? "Couldn't save that.");
     });
   };
 

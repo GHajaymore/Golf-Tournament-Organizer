@@ -1,10 +1,11 @@
 "use client";
-import { Fragment, useState, useTransition } from "react";
+import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSeries, updateSeries, deleteSeries, setEventSeries } from "@/app/actions/series";
 import { describeTable, type SeriesStanding } from "@/lib/domain/series";
 import { ConfirmButton } from "./ConfirmButton";
 import { Icon } from "./Icon";
+import { useAction } from "./useAction";
 
 export interface SeriesSummary {
   id: string;
@@ -52,8 +53,7 @@ export function SeriesClient({
   canEdit: boolean;
 }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState("");
+  const { pending, error, run } = useAction();
   const [newName, setNewName] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -64,14 +64,6 @@ export function SeriesClient({
     bestOf: active ? String(active.bestOf) : "0",
     minEvents: active ? String(active.minEvents) : "0",
   });
-
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
-    setError("");
-    startTransition(async () => {
-      const res = await fn();
-      if (!res.ok && res.error) setError(res.error);
-    });
-  };
 
   const counted = events.filter((e) => e.counted).length;
 

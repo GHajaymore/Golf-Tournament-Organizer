@@ -31,7 +31,7 @@ export function BracketModePicker({
     setError("");
     startTransition(async () => {
       const res = await setBracketMode(next);
-      if (!res.ok && res.error) setError(res.error);
+      if (!res.ok) setError(res.error ?? "Couldn't save that.");
     });
   };
 
