@@ -492,6 +492,53 @@ The fix is a `nextUnplayedRound`, which is a small addition to
 `loadEventState` and wants somebody to decide what it does at the end of a
 tournament (the last round? none?). Not guessed at here.
 
+### Server actions disagree about which ROLE authorizes them
+**Found 2026-09-12 while consolidating twelve near-identical auth preambles.
+Measured and pinned, NOT decided — either answer changes who may do what.**
+
+A session carries two roles:
+
+| | |
+|---|---|
+| `role` | the account's real standing in this tournament |
+| `viewRole` | the same, unless an admin has switched the dashboard's "Viewing as — Organizer / Assistant / Player" toggle |
+
+So an organizer previewing as a player has `role: "admin"` and
+`viewRole: "player"`, and the two checks give **opposite answers** for them.
+
+The actions disagree about which to ask: **fifteen checks across twelve files
+ask `role`; four across four files ask `viewRole`**. The four are all the newer
+AI features — card reading, contests, drafting, setup suggestion.
+
+`card-photo.ts` asks BOTH, in three sibling actions that all read a photograph
+with the model:
+
+```
+readScorecardPhoto    viewRole, admin or assistant
+readGroupCardPhoto    viewRole, admin or assistant
+readCourseCardPhoto   role,     admin ONLY   <- also excludes assistants
+```
+
+**Neither is a hole**, and that is why this is an entry rather than a bug. The
+person is an admin either way and switches the toggle back in one click. But
+the same organizer, mid-preview, is refused by four actions and allowed by
+fifteen, and nothing on screen explains why.
+
+**What each answer costs.** Settling on `viewRole` makes the preview a real
+role switch — safer, consistent with the UI hiding organizer controls in
+preview, and it newly REFUSES fifteen actions to an organizer who forgot they
+were previewing. Settling on `role` makes the preview purely visual and newly
+ALLOWS four actions that are refused today, which is a check being loosened and
+wants saying out loud.
+
+`readCourseCardPhoto` being admin-only is a third question and may well be
+deliberate — a course card defines par and stroke index for every future round,
+which is club configuration rather than a day's scoring. Nothing says so.
+
+`which-role-an-action-asks.test.ts` pins the split in both directions so it
+cannot drift further while this is open, and so that whoever settles it has a
+list rather than a search. Delete that test when it is settled.
+
 ## 4. Environment and ops
 
 ### `CRON_SECRET` is not set on the Vercel project
