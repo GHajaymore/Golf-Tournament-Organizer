@@ -119,7 +119,7 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
   const state = await loadEventState(eventId);
   if (!state) return null;
 
-  const activeStage = state.activeStage ?? state.stages[0] ?? null;
+  const activeStage = state.boardStage;
   const kind = boardKind(activeStage?.format);
   const teamRound = kind === "team" && !!activeStage;
   const holeCount = activeStage?.holes === 9 ? 9 : 18;
@@ -263,7 +263,7 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
     skinsNet,
     kind,
     teamRound,
-    isStroke: state.isStroke,
+    isStroke: state.boardIsStroke,
     isStableford: activeStage?.scoringBasis === "stableford",
     holeCount,
     // Cached WITH the rows, deliberately: it describes this exact standing,
@@ -272,7 +272,7 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
     cutNote: cutLineNote(state) ?? "",
     // The same expression `(player)/me/board` uses, so the two boards built
     // from one component cannot label the same column differently.
-    unit: state.isStroke ? state.strokeUnit : "match points",
+    unit: state.boardIsStroke ? state.strokeUnit : "match points",
     manualFormat: kind === "manual",
     allIn,
     roundLabel: activeStage?.description?.trim() || activeStage?.type || "",

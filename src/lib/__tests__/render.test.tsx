@@ -978,10 +978,17 @@ describe("rounds and format", () => {
       closedPanel(html);
     });
 
-    it("shows the qualification cut on a Qualification Stage", () => {
+    it("shows the qualification cut on the BRACKET it feeds", () => {
+      /**
+       * It used to live on a "Qualification Stage" — a stage the field never
+       * played, whose only job was to host this control and whose settings
+       * were the event's anyway. That type was removed on 2026-09-11; the
+       * question it asked is real and moved to the bracket, which is whose
+       * field it decides.
+       */
       const html = render(
         <StagesClient {...base}
-          stages={[stage({ id: "q1", position: 0, type: "Qualification Stage" })]} />,
+          stages={[stage({ id: "b1", position: 0, type: "Bracket Stage" })]} />,
       );
       expect(html).toContain("Qualification cut");
       closedPanel(html);
@@ -1100,7 +1107,6 @@ describe("rounds and format", () => {
         stages={[
           stage({ id: "r1", position: 0 }),
           stage({ id: "b1", position: 1, type: "Bracket Stage" }),
-          stage({ id: "q1", position: 2, type: "Qualification Stage" }),
         ]}
         thirdPlaces={{ b1: { on: true, problem: "waiting on the semi-finals", aName: "", bName: "", made: false } }} />,
     );

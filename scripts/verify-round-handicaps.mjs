@@ -109,10 +109,46 @@ async function main() {
 
     // 2. A committee decision on the first player of the first playing round.
     // An UNSCORED round, so the override is one the screen should still offer.
-    const round =
-      stages.find((s) => s.type !== "Qualification Stage" && !scored.includes(s.position + 1)) ??
-      stages[0];
-    const who = players[0];
+    /**
+     * A (round, player) pair that has NO roundHandicap row yet.
+     *
+     * This used to take the first unscored round and the first player and
+     * `create` — and the demo database holds 66 of these already, frozen
+     * handicaps written when rounds were played. So it hit
+     * `Unique constraint failed on (stageId, playerId)` every time and the
+     * script had not run for some while. Confirmed on 2026-09-11 by running
+     * the committed version unchanged.
+     *
+     * The fix is to find a free pair rather than to upsert, and the reason is
+     * the teardown below: it DELETES the row it made. Upserting onto an
+     * existing frozen handicap would mean deleting real data about a round
+     * that was really played, to tidy up after a check.
+     */
+    const taken = new Set(
+      (
+        await prisma.roundHandicap.findMany({
+          where: { eventId: event.id },
+          select: { stageId: true, playerId: true },
+        })
+      ).map((r) => `${r.stageId}:${r.playerId}`),
+    );
+    const unscored = stages.filter((s) => !scored.includes(s.position + 1));
+    let round = null;
+    let who = null;
+    for (const s of unscored.length ? unscored : stages) {
+      who = players.find((p) => !taken.has(`${s.id}:${p.id}`)) ?? null;
+      if (who) {
+        round = s;
+        break;
+      }
+    }
+    if (!round || !who) {
+      // Said plainly rather than crashing: every pair already carries a
+      // handicap, which is a fact about the demo data and not a defect.
+      console.log("\nSKIPPED the override checks — every round already has a handicap for every player.");
+      console.log(`\n${failures === 0 ? "All checks passed." : `${failures} check(s) FAILED.`}`);
+      return;
+    }
     const row = await prisma.roundHandicap.create({
       data: { eventId: event.id, stageId: round.id, playerId: who.id, override: 12 },
     });

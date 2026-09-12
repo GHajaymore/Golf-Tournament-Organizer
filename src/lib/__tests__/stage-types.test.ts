@@ -10,6 +10,8 @@ import {
   generatesPairings,
   isPlayingRound,
   nextPlayingStage,
+  isStructuralStage,
+  STRUCTURAL_STAGE_TYPES,
 } from "../stage-types";
 
 /**
@@ -28,14 +30,17 @@ describe("the next round the field plays", () => {
   // round reported "No round after this yet" and could not be cut into.
   const stages = [
     { position: 0, type: "Round Robin" },
-    { position: 1, type: "Qualification Stage" }, // a marker, not a playing round
+    // An unknown type, which is what a stage row written by an older build
+    // looks like once a type is retired — "Qualification Stage" was one until
+    // 2026-09-11. nextPlayingStage must step over it rather than stop at it.
+    { position: 1, type: "Retired Stage Type" },
     { position: 2, type: "Stroke Play Round" },
     { position: 3, type: "Bracket Stage" },
   ];
 
   it("finds a following round of a different format", () => {
-    // Skips the qualification marker (not a playing round) and lands on the
-    // stroke-play final.
+    // Steps over the retired type (unknown, so not a playing round) and lands
+    // on the stroke-play final.
     expect(nextPlayingStage(stages, 0)?.type).toBe("Stroke Play Round");
   });
 
@@ -77,16 +82,66 @@ describe("the catalogue", () => {
     // The whole reason the type exists. A medal round has no opponents, and a
     // qualification marker is not played at all.
     expect(generatesPairings("Round Robin")).toBe(true);
-    for (const key of ["Stroke Play Round", "Qualification Stage", "Single Match Stage", "Bracket Stage"]) {
+    for (const key of ["Stroke Play Round", "Single Match Stage", "Bracket Stage"]) {
       expect(generatesPairings(key), key).toBe(false);
     }
   });
 
-  it("treats a qualification cut as structural, not as a round the field plays", () => {
-    expect(isPlayingRound("Qualification Stage")).toBe(false);
-    for (const key of ["Round Robin", "Stroke Play Round", "Single Match Stage", "Bracket Stage"]) {
-      expect(isPlayingRound(key), key).toBe(true);
+  it("counts every type as a round the field plays", () => {
+    /**
+     * TRUE OF ALL FOUR SINCE 2026-09-11, and it was not before. A
+     * "Qualification Stage" was a cut rather than a round — the one type with
+     * `isPlayingRound: false` — and every sweep in the app carried that
+     * exception. It was removed (see `STAGE_TYPES` for why) and a good deal of
+     * code got simpler with it, including the fallback `loadEventState` needed
+     * for the case where no stage was a playing round.
+     *
+     * The FLAG stays, and so does this test, because another structural stage
+     * is a plausible thing to add. What must not happen is one being added
+     * without every reader learning about it — this goes red on the day.
+     */
+    for (const t of STAGE_TYPE_INFO) {
+      expect(isPlayingRound(t.key), t.key).toBe(true);
     }
+    // And a type nobody has taught the app about is never played, which is the
+    // safe direction for a stage row written by an older build.
+    expect(isPlayingRound("Qualification Stage")).toBe(false);
+    expect(isPlayingRound("Shotgun")).toBe(false);
+  });
+
+  it("puts every type in exactly one group of the picker", () => {
+    /**
+     * THE FAILURE THIS CATCHES is a type appearing in BOTH groups of the "add a
+     * round" picker, or in neither — which is what the old code invited: the
+     * two groups were inverse conditions naming the same two types twice, and
+     * editing one without the other silently duplicates or loses a type.
+     *
+     * One set decides both now. This asserts the partition rather than the
+     * membership, so it holds however the set changes — and it is what a
+     * mutation dropping Bracket Stage from `STRUCTURAL_STAGE_TYPES` failed to
+     * trip before it existed.
+     */
+    const structural = STAGE_TYPE_INFO.filter((t) => isStructuralStage(t.key)).map((t) => t.key);
+    const plays = STAGE_TYPE_INFO.filter((t) => !isStructuralStage(t.key)).map((t) => t.key);
+    expect([...structural, ...plays].sort()).toEqual([...STAGE_TYPES].sort());
+    expect(structural.filter((k) => plays.includes(k)), "in both groups").toEqual([]);
+    // And neither group is empty, or the picker shows a heading over nothing.
+    expect(structural.length).toBeGreaterThan(0);
+    expect(plays.length).toBeGreaterThan(0);
+  });
+
+  it("counts a single match and a bracket as structure, and the rest as rounds", () => {
+    /**
+     * The membership itself, stated once. A single match is two players and a
+     * bracket is a draw; neither is a round the whole field turns up for, which
+     * is the distinction the picker's two headings make.
+     */
+    expect([...STRUCTURAL_STAGE_TYPES].sort()).toEqual(["Bracket Stage", "Single Match Stage"]);
+    expect(isStructuralStage("Round Robin")).toBe(false);
+    expect(isStructuralStage("Stroke Play Round")).toBe(false);
+    // An unknown type is an ordinary round, which keeps a legacy row in the
+    // group an organizer is actually looking at rather than hiding it.
+    expect(isStructuralStage("Shotgun")).toBe(false);
   });
 
   it("chains match points only where there are match points", () => {

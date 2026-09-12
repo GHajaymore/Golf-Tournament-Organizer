@@ -8,7 +8,6 @@
  *
  *   - A round robin feeding a bracket decides it by matches played.
  *   - A stroke-play qualifier decides it by cards returned.
- *   - A Qualification Stage decides it outright, the moment it resolves.
  *   - A straight knockout has nothing feeding it at all: the bracket is the
  *     tournament, seeded from entry, and is meaningful from the first day.
  *
@@ -42,7 +41,16 @@ export interface BracketProgress {
   feederProgress: number | null;
   /** True once any bracket match has a recorded result. */
   bracketStarted: boolean;
-  /** True once qualification has resolved who advances. */
+  /**
+   * True once qualification has resolved who advances.
+   *
+   * Kept after the "Qualification Stage" type was removed on 2026-09-11, and
+   * that is deliberate: the QUESTION is real — a field can be decided outright
+   * rather than progressively — and this rule is the one place the app answers
+   * "is the bracket worth showing". What went is the stage that used to be the
+   * only thing setting it; a caller that can prove the field is settled still
+   * has somewhere to say so. Its one caller passes false today.
+   */
   qualificationDecided: boolean;
 }
 
@@ -52,8 +60,8 @@ export function bracketVisibility(p: BracketProgress): BracketVisibility {
   // Being played beats every other consideration: it's the live competition.
   if (p.bracketStarted) return "set";
 
-  // Qualification resolving is the whole point of a qualification stage —
-  // the field is decided whatever fraction of anything else has happened.
+  // A field that is settled outright beats any fraction of progress: there is
+  // nothing left for the feeder to change.
   if (p.qualificationDecided) return "set";
 
   // Nothing feeds it: a straight knockout seeded from entry. The draw is known

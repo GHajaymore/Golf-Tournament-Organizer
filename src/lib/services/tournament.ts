@@ -1,6 +1,6 @@
 import "server-only";
 import { roundTeeId } from "./handicaps";
-import { hasKnockoutStage, isPlayingRound } from "../stage-types";
+import { hasKnockoutStage, isPlayingRound, isHeadToHead } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
 import { isManualFormat, stablefordTableFor } from "../formats";
@@ -341,7 +341,53 @@ export interface EventState {
   /** Final standings after the full Round Robin sequence, chaining carried points stage to stage. */
   overall: RankedPlayer[];
   groupStandings: GroupStanding[];
+  /**
+   * What the EVENT is, coarsely — `event.format`, "match" or "stroke".
+   *
+   * ONE VALUE FOR A WHOLE TOURNAMENT, and that is the thing to remember about
+   * it. It decides which engine runs and whether stroke standings are computed
+   * at all, and it is the right question for that. It is the WRONG question
+   * for "what should this board print", which is what `boardIsStroke` is for —
+   * see below, and see the defect that made the distinction necessary.
+   */
   isStroke: boolean;
+  /**
+   * The round every board shows.
+   *
+   * The console leaderboard, the player's board, `/live` and `services/me`
+   * each wrote `state.activeStage ?? state.stages[0] ?? null` for themselves —
+   * the same expression four times, which is four chances for one of them to
+   * come to disagree about which round is on screen.
+   */
+  boardStage: DbStage | null;
+  /**
+   * Whether THAT ROUND is scored in strokes.
+   *
+   * THE DEFECT THIS EXISTS FOR. Every board read `isStroke` — the EVENT's
+   * format — to decide whether to print a score or a win-loss-halved record,
+   * and whether to head the column with strokes or "match points". But a round
+   * carries its own format and `setStageFormat` changes it without touching
+   * the event's, so the two disagree by design.
+   *
+   * Which meant a stroke-play round inside a match-format event showed a
+   * player who had just shot 75 a row reading `0-0-0` under "Ranked by match
+   * points" — and, worse, the reverse: a match-play bracket inside an event
+   * whose format says stroke, because the qualifier came first. That is the
+   * second half of an ordinary club championship, and the app got it wrong.
+   * Found by walking the player app on 2026-09-11.
+   *
+   * Derived from the round's TYPE rather than its format string, because the
+   * type is what says whether anybody is playing anybody: `isHeadToHead` is
+   * true for a Round Robin, a Single Match and a Bracket, and false for a
+   * Stroke Play Round. Asking the format instead
+   * would have to know that "Four-Ball" is match play in a bracket and stroke
+   * play in a medal — the same trap `template-shapes.test.ts` records against
+   * matching on the literal string "Match Play".
+   *
+   * Falls back to the event's answer when there is no round at all, which is
+   * the only honest answer then and is exactly what every reader did before.
+   */
+  boardIsStroke: boolean;
   strokeStandings: StrokeStanding[];
   /**
    * What `strokeStandings` measures, and which rounds went into it.
@@ -709,6 +755,25 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // Par and stroke index are now resolved per round by `courseFor` below —
   // the event's card is only the fallback for a round that names no venue.
   const isStroke = event.format === "stroke";
+  /**
+   * The round the boards show, and whether IT is scored in strokes — see the
+   * two fields on `EventState` for the defect this closes and why the answer
+   * comes from the round's type rather than its format string.
+   *
+   * Computed here, once, beside the event's own answer: four screens wrote
+   * this stage expression for themselves and then all four asked the wrong
+   * question about it.
+   */
+  /**
+   * No `?? stages[0]` any more, and that is a consequence of removing the
+   * "Qualification Stage" rather than a shortcut. Every remaining type is a
+   * PLAYING round, so `playRounds` holds every stage, and
+   * `currentPlayedRoundIndex` returns -1 only for an empty list — which means
+   * `activeStage` is non-null whenever the tournament has any stage at all.
+   * The fallback existed for the one type the field never played.
+   */
+  const boardStage = activeStage;
+  const boardIsStroke = boardStage ? !isHeadToHead(boardStage.type) : isStroke;
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const roundHandicapBy = new Map(
     roundHandicaps.map((r) => [roundHandicapKey(r.stageId, r.playerId), { frozen: r.frozen, override: r.override }]),
@@ -1164,6 +1229,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     overall,
     groupStandings,
     isStroke,
+    boardStage,
+    boardIsStroke,
     strokeStandings,
     strokeUnit,
     strokeRounds,

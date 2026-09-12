@@ -107,9 +107,36 @@ and a mechanical 20-file change was judged scope expansion at the time.
 
 ## 3. Hazards created by recent changes, not yet addressed
 
-### `isStroke` is the EVENT's format, and every board reads it as the ROUND's
-**Found 2026-09-11 by walking the player app. Confirmed in both directions with
-a throwaway audit test. Not fixed — it is 33 readers across 14 files.**
+### `isStroke` is the EVENT's format — the BOARDS are fixed, ten readers are not
+**Found 2026-09-11 by walking the player app. The four boards are fixed; the
+rest of the sweep is open.** `state.boardIsStroke` now answers "what is the
+ROUND on screen" and `state.isStroke` still answers "what is the EVENT", which
+is the right question for deciding which engine runs.
+
+**Fixed:** the player's board, the console leaderboard, `/live` and
+`services/me` — the four that print a per-player result, and the four that each
+wrote `state.activeStage ?? state.stages[0] ?? null` for themselves.
+
+**Open, and each needs its own judgement about which of the two questions it
+means.** Listed so nobody has to find them again:
+
+| reader | what it decides |
+|---|---|
+| `(app)/dashboard/page.tsx:163` | which columns a flight table gets |
+| `(app)/dashboard/page.tsx:263` | passed down to the dashboard cards |
+| `(app)/foursomes/page.tsx:60` | which standings feed the tee sheet |
+| `(app)/reports/page.tsx:41` | what the export contains |
+| `services/draft-facts.ts:72` | whether stroke standings seed the draft |
+| `services/finish-order.ts:80` | how the finishing order is derived |
+| `services/single-match.ts:114` | which standings a single match reads |
+| `services/tournament.ts:1315, 1338, 1447` | the cut ranking, twice over |
+| `services/week-view.ts:214, 327, 381` | what "played" means on the week sheet |
+
+Some of these genuinely want the EVENT — the cut ranking probably does, because
+a cut is about the tournament rather than one round. Others almost certainly
+want the ROUND. **Do not sweep them in one pass**: this is format × stage type,
+which is exactly what `matrix.test.ts` enumerates, and CLAUDE.md's combination
+sweep exists for it.
 
 `loadEventState` sets `isStroke` from `event.format`, which is ONE value for a
 whole tournament. Every round carries its own format, and `setStageFormat`

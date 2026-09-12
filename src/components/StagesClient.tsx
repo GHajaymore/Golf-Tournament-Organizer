@@ -33,6 +33,7 @@ import {
   generatesPairings,
   seededFromQualifiers,
   nextPlayingStage,
+  isStructuralStage,
   MAX_ROUNDS_AT_ONCE,
   type StageTypeKey,
 } from "@/lib/stage-types";
@@ -779,7 +780,7 @@ function StageCard({
   // "Standard settings" when closed — so the two settings hardest to reach on
   // this screen were also the only two the summary never mentioned.
   const decidesParts: string[] = [];
-  if (stage.type === "Qualification Stage") {
+  if (stage.type === "Bracket Stage") {
     decidesParts.push(qual.mode === "overall" ? `Top ${qual.overall} overall` : `Top ${qual.perFlight} per flight`);
   }
   if (stage.type === "Single Match Stage" && singleMatch) {
@@ -1291,7 +1292,12 @@ function StageCard({
           </div>
         )}
 
-        {stage.type === "Qualification Stage" && (
+        {/* ON THE BRACKET, because how many players a bracket takes is the
+            bracket’s own business. This used to sit on a "Qualification Stage" —
+            a stage the field never played, whose only job was to host this
+            control and whose settings were the EVENT’s anyway. The stage went;
+            the question it asked is real and stayed. */}
+        {stage.type === "Bracket Stage" && (
           <div>
             <SectionLabel>
               Qualification cut
@@ -1301,7 +1307,7 @@ function StageCard({
               </FieldInfo>
             </SectionLabel>
             <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px" }}>
-              How many players advance from this cut — top N per flight, or top N overall.
+              How many players come through into this bracket — top N per flight, or top N overall.
             </p>
             <QualControl mode={qual.mode} perFlight={qual.perFlight} overall={qual.overall} />
           </div>
@@ -1896,12 +1902,12 @@ export function StagesClient({
         </div>
 
         {/* Two groups rather than five equal cards. Nearly every round an
-            organizer adds is one the field plays; a cut and a bracket are
+            organizer adds is one the field plays; a single match and a bracket are
             structure, added once if at all. Showing them as peers made the
             common choice a five-way decision every time. */}
         <span className="card-kicker">Rounds the field plays</span>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 8 }}>
-          {STAGE_TYPE_INFO.filter((t) => t.isPlayingRound && t.key !== "Single Match Stage" && t.key !== "Bracket Stage").map((t) => {
+          {STAGE_TYPE_INFO.filter((t) => !isStructuralStage(t.key)).map((t) => {
             const selected = newType === t.key;
             return (
               <button
@@ -1935,7 +1941,7 @@ export function StagesClient({
 
         <span className="card-kicker" style={{ marginTop: 4 }}>Structure</span>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))", gap: 8 }}>
-          {STAGE_TYPE_INFO.filter((t) => !t.isPlayingRound || t.key === "Single Match Stage" || t.key === "Bracket Stage").map((t) => {
+          {STAGE_TYPE_INFO.filter((t) => isStructuralStage(t.key)).map((t) => {
             const selected = newType === t.key;
             return (
               <button

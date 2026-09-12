@@ -41,14 +41,21 @@ function sourceFiles(dir = SRC, out: string[] = []): string[] {
 }
 
 describe("what counts as a knockout", () => {
-  it("is both halves of one, and nothing else", () => {
-    // A Qualification Stage is a knockout's front half: it exists to seed a
-    // bracket, and /bracket is where its audit lives. A round robin and a
-    // medal round are what a league and a club championship are made of, and
-    // neither ends in a draw.
-    expect([...KNOCKOUT_STAGE_TYPES].sort()).toEqual(["Bracket Stage", "Qualification Stage"]);
+  it("is the bracket, and nothing else", () => {
+    /**
+     * ONE TYPE SINCE 2026-09-11. A "Qualification Stage" used to count as a
+     * knockout's front half — it existed to seed a bracket — and it was
+     * removed: it was the only type the field never played, its one control
+     * wrote the EVENT's `qualifyPerGroup`, and what actually feeds a bracket
+     * is the round the field plays before it. See `STAGE_TYPES`.
+     *
+     * A round robin and a medal round are what a league and a club
+     * championship are made of, and neither ends in a draw.
+     */
+    expect([...KNOCKOUT_STAGE_TYPES].sort()).toEqual(["Bracket Stage"]);
     expect(isKnockoutRound("Bracket Stage")).toBe(true);
-    expect(isKnockoutRound("Qualification Stage")).toBe(true);
+    // The removed type must not linger as a knockout by some other route.
+    expect(isKnockoutRound("Qualification Stage")).toBe(false);
     expect(isKnockoutRound("Round Robin")).toBe(false);
     expect(isKnockoutRound("Stroke Play Round")).toBe(false);
     expect(isKnockoutRound("Single Match Stage")).toBe(false);
@@ -68,22 +75,64 @@ describe("what counts as a knockout", () => {
 });
 
 describe("who reads it", () => {
-  it("keeps the pair of type names in one file", () => {
+  it("keeps the question in one file, however many types answer it", () => {
     /**
      * Absence, which is the safe direction and comment-proof under
-     * `readSource` — the prose above `KNOCKOUT_STAGE_TYPES` names both types
-     * and would satisfy a positive assertion happily.
+     * `readSource` — the prose above `KNOCKOUT_STAGE_TYPES` names the types and
+     * would satisfy a positive assertion happily.
      *
-     * A file that spells the pair out again is a fifth copy, and the fifth
-     * copy is the one that gets missed.
+     * WHAT IT GUARDS CHANGED WHEN THE LIST SHRANK. It used to look for a file
+     * spelling out the PAIR — "Bracket Stage", "Qualification Stage" — which
+     * was the shape of a fifth copy while there were two. The Qualification
+     * Stage was removed on 2026-09-11, so that pair can no longer be written
+     * and the old check could never fail again: a test that cannot go red is
+     * decoration, however true its claim.
+     *
+     * The live risk with ONE type is a bare `=== "Bracket Stage"` standing in
+     * for "is this a knockout", which is how the rule gets forgotten the day a
+     * second type comes back. So that is what is banned — except where the
+     * branch is genuinely ABOUT the bracket itself rather than about knockouts
+     * in general, which is what `ALLOWED` records and why each entry says so.
      */
-    const offenders = sourceFiles().filter((f) => {
-      if (f.endsWith(join("lib", "stage-types.ts"))) return false;
-      const src = readSource(f);
-      return /"Bracket Stage"\s*,\s*"Qualification Stage"/.test(src)
-        || /"Bracket Stage"\s*(\|\||,)[\s\S]{0,60}"Qualification Stage"/.test(src);
-    });
-    expect(offenders, `spell out the knockout pair: ${offenders.join(", ")}`).toEqual([]);
+    /**
+     * ALLOWED BY EXPRESSION, NOT BY FILE.
+     *
+     * The first cut of this exempted whole FILES, and a mutation walked
+     * straight through it: putting `some((s) => s.type === "Bracket Stage")`
+     * back into an exempted file left the test green. A file-level exemption
+     * allows everything in that file for ever — including the exact thing the
+     * guard was written to catch, which is the one place it is most likely to
+     * reappear.
+     *
+     * Each entry is the exact line, and each is about THE BRACKET rather than
+     * about knockouts as a category.
+     */
+    const ALLOWED = new Set([
+      // Which stage this settings card is for: the play-off for third, and how
+      // many players qualify into it. Facts about a bracket.
+      `if (stage.type === "Bracket Stage") {`,
+      `if (stage.type === "Bracket Stage" && thirdPlace) {`,
+      `{stage.type === "Bracket Stage" && thirdPlace && (`,
+      `{stage.type === "Bracket Stage" && (`,
+      // WHERE the bracket sits, so the stages before it can be sliced off as
+      // its feeders. A question about position.
+      `const bracketIndex = state.stages.findIndex((s) => s.type === "Bracket Stage");`,
+      // One third-place view per bracket.
+      `for (const s of state.stages.filter((x) => x.type === "Bracket Stage")) {`,
+    ]);
+    const offenders: string[] = [];
+    for (const f of sourceFiles()) {
+      if (f.endsWith(join("lib", "stage-types.ts"))) continue;
+      for (const line of readSource(f).split("\n")) {
+        const t = line.trim();
+        if (!/===\s*"Bracket Stage"|"Bracket Stage"\s*===/.test(t)) continue;
+        if (!ALLOWED.has(t)) offenders.push(`${f}: ${t}`);
+      }
+    }
+    expect(
+      offenders,
+      `ask hasKnockoutStage/isKnockoutRound instead of comparing the type: ${offenders.join(", ")}`,
+    ).toEqual([]);
   });
 
   it("sweeps a real number of files, so an empty walk cannot pass the check above", () => {

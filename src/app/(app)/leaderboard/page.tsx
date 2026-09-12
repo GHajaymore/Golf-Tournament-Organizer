@@ -42,7 +42,7 @@ export default async function LeaderboardPage() {
   // A team round ranks sides, not players. In a scramble nobody has an
   // individual score to rank at all, and in a four-ball an individual score is
   // only half the story — so this is a different board, not a column change.
-  const activeStage = state.activeStage ?? state.stages[0] ?? null;
+  const activeStage = state.boardStage;
 
   // `boardKind` holds the order these are checked in — manual first, before
   // teams and before any engine — because Reports and /live have to make the
@@ -106,9 +106,11 @@ export default async function LeaderboardPage() {
   /**
    * Whether the event's Scoring can rank what its rounds produce.
    *
-   * Only the rounds the field PLAYS — a Qualification Stage is a cut, not a
-   * round, and counting it would report a mismatch on a tournament that has
-   * nothing wrong with it.
+   * Only the rounds the field PLAYS. Every stage type is one now — the
+   * "Qualification Stage", which was a cut rather than a round and would have
+   * reported a mismatch on a tournament with nothing wrong with it, was
+   * removed on 2026-09-11. The filter stays because the DISTINCTION is the
+   * point: a type that is not played must never be scored against.
    */
   const mismatch = scoringMismatch(
     state.event.format,
@@ -129,8 +131,11 @@ export default async function LeaderboardPage() {
    */
   const casualRound = isMatch(state.event.shape);
   const boardCopy = {
-    isStroke: state.isStroke,
-    stableford: state.activeStage?.scoringBasis === "stableford",
+    // The ROUND this board is showing, not the event around it — the
+    // footnote describes what is on screen. Its `stableford` neighbour has
+    // always read the stage, which is half of the same question.
+    isStroke: state.boardIsStroke,
+    stableford: activeStage?.scoringBasis === "stableford",
     casual: casualRound,
   };
   const commentary = await prisma.commentary.findMany({
@@ -235,7 +240,7 @@ export default async function LeaderboardPage() {
       )}
 
       <div className="card elev-sm">
-        <LeaderboardBoard isStroke={state.isStroke} isStableford={state.activeStage?.scoringBasis === "stableford"} rows={rows} isStaff={isStaff} />
+        <LeaderboardBoard isStroke={state.boardIsStroke} isStableford={activeStage?.scoringBasis === "stableford"} rows={rows} isStaff={isStaff} />
         <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>
           {boardFootnote(boardCopy)}
         </p>
