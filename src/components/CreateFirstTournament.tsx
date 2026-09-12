@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { createEvent } from "@/app/actions/tournament";
-import { TOURNAMENT_TEMPLATES, templateFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
+import { TOURNAMENT_TEMPLATES, templateFor, templateGroup, TEMPLATE_GROUPS, suggestedFor, DEFAULT_TEMPLATE_KEY } from "@/lib/tournament-templates";
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { retentionNotice, planFor } from "@/lib/plans";
 import { Icon } from "./Icon";
@@ -66,6 +66,12 @@ export function CreateFirstTournament({
    */
   const [organizationId, setOrganizationId] = useState(organizations[0]?.id ?? "");
   const [pending, startTransition] = useTransition();
+  /**
+   * The starting points that fit the shape just chosen. Empty until the shape
+   * question is answered, which is why the group below simply does not render
+   * rather than showing a heading over nothing.
+   */
+  const suggested = suggestedFor(shape);
 
   /**
    * THE PLAN OF THE ORGANIZATION THIS IS ACTUALLY FOR.
@@ -203,15 +209,55 @@ export function CreateFirstTournament({
         </div>
       </div>
 
+      {/**
+       * "START FROM", NOT "WHAT KIND OF TOURNAMENT?".
+       *
+       * The old label asked the newcomer to classify their event against a
+       * list of six — and a list that short cannot be a classification of
+       * golf. Somebody whose event was not on it had every reason to conclude
+       * the app does not run it. The organizer's own switcher, on `/event`,
+       * has always said "Start from" and meant it; the screen shown to the
+       * person least able to tell the difference was the one making the
+       * stronger claim.
+       *
+       * Grouped by how many play a side, from `templateGroup`, so eleven
+       * starting points read as three short lists instead of one long one —
+       * and so the group a template belongs to is derived from the format it
+       * starts rather than kept in a second list beside it.
+       */}
       <div className="field">
-        <label>What kind of tournament?</label>
+        <label>Start from</label>
         <select className="input" value={template} onChange={(e) => setTemplate(e.target.value)}>
-          {TOURNAMENT_TEMPLATES.map((t) => (
-            <option key={t.key} value={t.key}>{t.name}</option>
-          ))}
+          {/* What fits the answer they gave one question ago, first — and
+              still listed below in its own group, because these are
+              suggestions rather than a filter. */}
+          {suggested.length > 0 && (
+            <optgroup label={`Suits ${TOURNAMENT_SHAPES.find((s) => s.key === shape)?.label.toLowerCase() ?? "this"}`}>
+              {suggested.map((t) => (
+                <option key={`suggested-${t.key}`} value={t.key}>{t.name}</option>
+              ))}
+            </optgroup>
+          )}
+          {TEMPLATE_GROUPS.map((group) => {
+            const inGroup = TOURNAMENT_TEMPLATES.filter((t) => templateGroup(t) === group);
+            if (inGroup.length === 0) return null;
+            const options = inGroup.map((t) => (
+              <option key={t.key} value={t.key}>{t.name}</option>
+            ));
+            // The blank one has no heading — "set it up yourself" is not a
+            // kind of golf, and putting it under one would say it was.
+            return group === "" ? (
+              options
+            ) : (
+              <optgroup key={group} label={group}>
+                {options}
+              </optgroup>
+            );
+          })}
         </select>
         <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
-          {templateFor(template).blurb} Every setting stays editable afterwards.
+          {templateFor(template).blurb} A starting point only — every setting, format and round
+          stays editable afterwards.
         </p>
       </div>
       {/* Names the organization created for this organizer's first tournament,
