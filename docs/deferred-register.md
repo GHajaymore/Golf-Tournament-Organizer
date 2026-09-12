@@ -475,6 +475,23 @@ there are several of different kinds. On the Demo Cup the last feeder before
 the bracket is a Single Match Stage while the substantive qualifier is the
 medal two rounds earlier, and no rule in the app prefers one.
 
+### `/foursomes` defaults to a round nobody is about to play
+**Left alone 2026-09-12, because it wants a THIRD answer nothing in the app
+holds.** Every other screen that defaults a round was moved onto `boardStage`
+— the round with the newest results — because each of them is about a round
+that has been played: the boards, the week sheet, `/prizes`, `/group-games`,
+`/me/money`.
+
+`/foursomes` is not. It DRAWS a tee sheet, so the round it wants is the next
+one nobody has started, and neither `activeStage` (the chain's position) nor
+`boardStage` (the last one played) is that. On the Demo Cup it opens on Round 1
+with Rounds 1 and 2 behind the field, which is the worst of the three answers —
+but `boardStage` would only make it the second worst.
+
+The fix is a `nextUnplayedRound`, which is a small addition to
+`loadEventState` and wants somebody to decide what it does at the end of a
+tournament (the last round? none?). Not guessed at here.
+
 ## 4. Environment and ops
 
 ### `CRON_SECRET` is not set on the Vercel project
