@@ -24,7 +24,29 @@ export default async function PlayRulesPage() {
   const state = await loadEventState(session.eventId);
   if (!state) redirect("/");
 
-  const stage = state.activeStage ?? state.stages[0] ?? null;
+  /**
+   * THE ROUND THE PLAYER IS ON, which is the whole premise of this screen.
+   *
+   * The note above says a player is asking "what has THIS tournament decided"
+   * about today — and this resolved `state.activeStage ?? state.stages[0]`,
+   * which for any event holding a Round Robin is a Round Robin. Every line
+   * below comes off it: the format, the holes, the scoring basis, the
+   * handicap allowance, the tiebreak chain, the cut, the carry-forward.
+   *
+   * Read off the Demo Cup on 2026-09-12, with the field playing a Stroke Play
+   * Round and the Board tab beside this one saying "Round 2 · Ranked by
+   * strokes":
+   *
+   *     Format   Match Play · Round Robin under Rules of Golf 3.2
+   *     Ties     Head-to-head result, then Hole differential …
+   *
+   * A player was being told the wrong RULE OF GOLF for the round in their
+   * hand, and a tiebreak chain that cannot apply to a card — head-to-head
+   * between two people who are not playing each other. This app's own testing
+   * note says to assert against the Rules of Golf rather than against current
+   * behaviour, and this was the screen stating them.
+   */
+  const stage = state.boardStage ?? state.stages[0] ?? null;
   const tiebreakers: TiebreakerKey[] = scoringFrom(state.event).tiebreakers;
   const terms = stage
     ? tournamentTerms({

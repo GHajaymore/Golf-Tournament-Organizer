@@ -30,7 +30,10 @@ export default async function RulesPage() {
   if (!session) redirect("/");
   const state = await loadEventState(session.eventId);
 
-  const stage = state?.activeStage ?? state?.stages[0] ?? null;
+  // `boardStage`, so the terms an organizer publishes describe the round the
+  // field is playing — and so this screen and the player's `/me/rules` cannot
+  // state different rules for the same round. They are the same sheet.
+  const stage = state?.boardStage ?? state?.stages[0] ?? null;
   // Via scoringFrom rather than parsing the column here: it already carries the
   // default order for a malformed value, and a reference page that stated a
   // different tiebreak order from the engine would be worse than one that said

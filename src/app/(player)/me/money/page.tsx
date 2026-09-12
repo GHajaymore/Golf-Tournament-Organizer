@@ -99,7 +99,10 @@ export default async function MoneyPage() {
    * choice in the way of the one answer that is nearly always right. A bet on
    * a different round is set up from that round's own screen.
    */
-  const round = state?.activeStage ?? playing[playing.length - 1] ?? null;
+  // `boardStage` — "the round in front of you" is the round the field is
+  // playing, not the match-points chain's position. A league that has moved on
+  // to a medal night offered a bet on the group phase.
+  const round = state?.boardStage ?? playing[playing.length - 1] ?? null;
   const bettable = round && playing.some((s) => s.id === round.id) ? round : null;
 
   /**
