@@ -38,10 +38,27 @@ export default async function ReportsPage() {
   const { event } = state;
   const progress = matchProgress(state);
   const rows = standingRows(state);
-  const isStroke = state.isStroke;
+  /**
+   * THE ROUND ON SCREEN, not the event around it.
+   *
+   * Reports renders the SAME `LeaderboardTable` the console leaderboard does,
+   * off the same `standingRows`. The leaderboard was moved onto `boardIsStroke`
+   * when a stroke round inside a match event was found showing a player who had
+   * shot 75 a row reading "0-0-0"; this screen was not, so the two printed the
+   * same round differently — and this one also writes the CSV, where the column
+   * set follows the same flag. Whoever reads the export to award a prize was
+   * reading a different board from the one on the wall.
+   *
+   * The fifth board, found on 2026-09-12 by sweeping the readers of
+   * `state.isStroke` after the fourth one shipped a blank score to production.
+   */
+  const isStroke = state.boardIsStroke;
   const cardsIn = state.strokeStandings.filter((s) => s.thru > 0).length;
 
-  const activeStage = state.activeStage ?? state.stages[0] ?? null;
+  // `boardStage` rather than this screen's own `activeStage ?? stages[0]`,
+  // which is the expression four boards each wrote for themselves and is
+  // exactly how they came to disagree about which round was on screen.
+  const activeStage = state.boardStage;
   const kind = boardKind(activeStage?.format);
   const holes = activeStage?.holes === 9 ? 9 : 18;
   // The nine actually played, re-ranked — Reports has to agree with the

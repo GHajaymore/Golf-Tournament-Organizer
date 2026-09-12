@@ -114,9 +114,18 @@ describe("who reads it", () => {
       `if (stage.type === "Bracket Stage" && thirdPlace) {`,
       `{stage.type === "Bracket Stage" && thirdPlace && (`,
       `{stage.type === "Bracket Stage" && (`,
-      // WHERE the bracket sits, so the stages before it can be sliced off as
-      // its feeders. A question about position.
-      `const bracketIndex = state.stages.findIndex((s) => s.type === "Bracket Stage");`,
+      /**
+       * WHERE the bracket sits, so the stages before it can be sliced off as
+       * its feeders, USED TO BE ALLOWED HERE — on the dashboard, which worked
+       * the feeders out for itself.
+       *
+       * Withdrawn on 2026-09-12 rather than left lying about. The slice moved
+       * into `loadEventState` (where it asks `isKnockoutRound`, needing no
+       * exemption) and the dashboard now asks `hasKnockoutStage`, so nothing
+       * matches this line any more. An allowance whose subject has gone is a
+       * hole in the guard that nobody is watching — the same objection the
+       * paragraph above makes to exempting whole files.
+       */
       // One third-place view per bracket.
       `for (const s of state.stages.filter((x) => x.type === "Bracket Stage")) {`,
     ]);
