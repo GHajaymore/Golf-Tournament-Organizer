@@ -5,6 +5,7 @@ import { holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole
 import { aggregateStroke, emptyAgg, netOf } from "../domain/stroke-agg";
 import { skinsPotFor, type SkinsPotView } from "./skins-pot";
 import { isSkinsScope, skinsGameLabel, type SkinsScope } from "../domain/skins-pot";
+import { roundIsStroke } from "../stage-types";
 import {
   loadEventState,
   playingStages,
@@ -211,7 +212,19 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
    * whether to SHOW a screen, not whether to release money, and the round card
    * uses the same looseness for "which round are we on".
    */
-  const played = state.isStroke
+  /**
+   * THE WEEK'S OWN TYPE, not the tournament's format.
+   *
+   * `WEEKLY_ROUND_TYPES` is Round Robin AND Stroke Play Round, so a league's
+   * weeks can genuinely be of both kinds — and this asked `state.isStroke`,
+   * which is one value for the whole season. A match-play league that plays
+   * one medal week therefore looked for MATCHES on it and found none, however
+   * many cards were in.
+   *
+   * Seen on the Demo Cup on 2026-09-12: week 2 is a Stroke Play Round with
+   * seven cards returned, and the strip wore the "no scores yet" dot.
+   */
+  const played = roundIsStroke(stage.type)
     ? cards.some((c) => c.stageId === stage.id)
     : state.matches.some((m) => m.stageId === stage.id && matchSettled(m));
 
@@ -321,10 +334,13 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
       date: shortDate(cleanIsoDate(s.playedOn)),
       format: s.format,
       holes: s.holes,
-      // Asked the way that week is scored, same as `played` below — the strip's
-      // "no scores yet" dot read cards too, so every night of a match-play
-      // league wore it however many matches had been decided.
-      played: state.isStroke
+      // Asked the way THAT WEEK is scored, same as `played` above — and the
+      // emphasis is the correction. This already said "the way that week is
+      // scored" and then asked `state.isStroke`, which is the way the SEASON
+      // is scored: one value for every week in it. A league with a medal week
+      // among its match nights wore the "no scores yet" dot on that week for
+      // ever, because it went looking for matches on it.
+      played: roundIsStroke(s.type)
         ? cards.some((c) => c.stageId === s.id)
         : state.matches.some((m) => m.stageId === s.id && matchSettled(m)),
     })),
