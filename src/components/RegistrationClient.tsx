@@ -368,7 +368,7 @@ export function RegistrationClient({
     const anySelected = rows.some((r) => selected.has(r.id));
     return (
       <div className="card elev-sm">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="card-head">
           <span className="card-title" style={{ fontSize: 15 }}>{title} ({rows.length})</span>
           {anySelected && (
             <button type="button" className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} disabled={pending || locked} onClick={() => deleteSelected(rows)}>

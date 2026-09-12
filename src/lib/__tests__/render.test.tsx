@@ -8,6 +8,7 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/domain/password";
 import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlow } from "@/lib/domain/setup-flow";
 import { screenName } from "@/lib/nav";
+import { FactCard } from "@/components/PageHeader";
 
 /**
  * Do these screens actually render?
@@ -7175,5 +7176,70 @@ describe("what the play card says a signature leads to", () => {
       expect(html, String(staffApproves)).toContain("Certify once all 18 holes are in");
       expect(html, String(staffApproves)).not.toContain("committee");
     }
+  });
+});
+
+describe("a card that states one fact", () => {
+  /**
+   * `FactCard` replaced two hand-built cards on the dashboard — "Qualification
+   * cutoff" and "Round cut" — that had the same shape and had already drifted
+   * apart: two used `fontSize: 22` and one `20`, and only one capitalised its
+   * figure. Three cards in one column, a pixel apart, for no reason anybody
+   * chose.
+   *
+   * Tested at the COMPONENT, because only one of those two renders on the
+   * seeded demo — a tournament has either a knockout or a round cut, never
+   * both — so a screen snapshot proves half of it. The call sites are props
+   * from here on, which tsc checks.
+   */
+  const html = (el: React.ReactElement) => renderToStaticMarkup(el);
+
+  it("puts the name and the badge on one line, and the figure under it", () => {
+    const out = html(
+      <FactCard title="Round cut" badge="Round 1 → 2" figure="top 8 advance" note="Survivors play Round 2." />,
+    );
+    expect(out).toContain("card-head");
+    expect(out).toContain("Round cut");
+    expect(out).toContain("Round 1 → 2");
+    expect(out).toContain("top 8 advance");
+    expect(out).toContain("Survivors play Round 2.");
+  });
+
+  it("omits the badge, the figure and the note rather than printing empty ones", () => {
+    /**
+     * The reason each is optional. A card with an empty tag beside its title,
+     * or a blank line where a number should be, reads as a value the app
+     * failed to work out — which is a different statement from "this card has
+     * no badge".
+     */
+    const out = html(<FactCard title="Bracket status" />);
+    expect(out).toContain("Bracket status");
+    expect(out).not.toContain("tag-accent");
+    expect(out).not.toContain("text-muted");
+  });
+
+  it("takes a neutral badge as well as an accent one", () => {
+    // The bracket tile's badge is neutral — "Set" and "Provisional" are states,
+    // not achievements, and an accent tag on every card makes none of them read
+    // as important.
+    expect(html(<FactCard title="T" badge="Set" badgeTone="neutral" />)).toContain("tag-neutral");
+    expect(html(<FactCard title="T" badge="Set" />)).toContain("tag-accent");
+  });
+
+  it("puts a ZERO figure in the heading face like any other number", () => {
+    /**
+     * `figure={0}` is a real answer — nobody advancing yet — and this is the
+     * cell that stops somebody simplifying `figure !== undefined` back to
+     * `figure &&`.
+     *
+     * ASSERTED ON THE WRAPPER, not on the digit. `{0 && <div…>}` still renders
+     * the character "0", as a bare text node outside the styled div — so
+     * `toContain(">0<")` passes under the mutation and proves nothing. It did:
+     * that was the first version of this test, and swapping the guard left it
+     * green. What actually breaks is the number dropping out of the heading
+     * face and printing at body size beside cards whose figures are twice that.
+     */
+    const out = html(<FactCard title="Advancing" figure={0} />);
+    expect(out).toMatch(/font-family:var\(--font-heading\)[^"]*"[^>]*>0</);
   });
 });

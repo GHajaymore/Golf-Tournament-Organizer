@@ -375,6 +375,11 @@ textarea.input { min-height: 90px; resize: vertical; }
   font-family: var(--font-heading); font-weight: 600;
   font-size: 15px; line-height: 1.25; letter-spacing: -0.012em;
 }
+/* A card's top line: its name on the left, a badge or a control on the right.
+   Seven screens wrote this as the same inline style object, which is seven
+   chances for one of them to drift a pixel. `.card-title` and `.card-body`
+   were already here; this is the row that holds them. */
+.card-head { display: flex; align-items: center; justify-content: space-between; }
 .card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
 .card-meta {
   display: flex; align-items: center; gap: 6px; font-size: 11px;

@@ -35,7 +35,7 @@ export function CommentaryPanel({
 
   return (
     <div className="card elev-sm">
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="card-head">
         <span className="card-title" style={{ fontSize: 15 }}>
           <Icon name="megaphone" style={{ marginRight: 6, color: "var(--color-accent)" }} />
           Commentary
