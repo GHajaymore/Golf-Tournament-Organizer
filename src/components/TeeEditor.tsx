@@ -222,7 +222,7 @@ export function TeeEditor({
         </p>
       )}
 
-      {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
+      {error && <p className="form-error">{error}</p>}
 
       {editing && canEdit && (
         <div

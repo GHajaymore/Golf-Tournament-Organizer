@@ -98,7 +98,7 @@ export function ThirdPlaceControl({
       )}
 
       {error && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
+        <p className="form-error">
           <Icon name="warning-circle" /> {error}
         </p>
       )}

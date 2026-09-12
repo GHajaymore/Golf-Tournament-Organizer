@@ -328,7 +328,7 @@ export function SideBetStart({
       </div>
 
       {held && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
+        <p className="form-error">
           {held.kind === "*" ? (
             <>
               {held.name} is a group out on the course, and that game is theirs to run. Give yours

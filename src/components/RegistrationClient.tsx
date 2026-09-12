@@ -1000,7 +1000,7 @@ export function RegistrationClient({
           <div className="field"><label>Home club</label><input className="input" value={homeClub} onChange={(e) => setHomeClub(e.target.value)} placeholder="Optional" /></div>
           <button type="button" className="btn btn-primary btn-block" disabled={pending || !name.trim() || (needsEmail && !email.trim())} onClick={submitAdd}><Icon name="plus" /> Add to field</button>
           {addError && (
-            <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
+            <p className="form-error">
               <Icon name="warning-circle" /> {addError}
             </p>
           )}
@@ -1058,7 +1058,7 @@ export function RegistrationClient({
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {rowError && (
-            <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
+            <p className="form-error">
               <Icon name="warning-circle" /> {rowError}
             </p>
           )}

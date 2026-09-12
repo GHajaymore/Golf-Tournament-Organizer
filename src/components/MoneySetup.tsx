@@ -127,7 +127,7 @@ export function MoneySetup({
         {MONEY_MODES.map((m) => option(m, MONEY_MODE_LABEL[m], MONEY_MODE_HELP[m], orgMode === m))}
 
         {error && (
-          <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
+          <p className="form-error">
             <Icon name="warning-circle" /> {error}
           </p>
         )}
@@ -169,7 +169,7 @@ export function MoneySetup({
       {MONEY_MODES.map((m) => option(m, MONEY_MODE_LABEL[m], MONEY_MODE_HELP[m], eventMode === m))}
 
       {error && (
-        <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>
+        <p className="form-error">
           <Icon name="warning-circle" /> {error}
         </p>
       )}

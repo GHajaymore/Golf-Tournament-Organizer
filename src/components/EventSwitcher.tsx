@@ -391,7 +391,7 @@ export function EventSwitcher({
         </p>
       )}
       <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>{blurb}</p>
-      {error && <p style={{ fontSize: 12, margin: 0, color: "var(--color-danger)" }}>{error}</p>}
+      {error && <p className="form-error">{error}</p>}
 
       {/* THE OTHER THING SOMEBODY COMES HERE TO MAKE, and until now the only
           screen offering it was one they could no longer reach.
