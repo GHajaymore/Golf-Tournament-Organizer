@@ -160,7 +160,11 @@ export default async function DashboardPage() {
    * results CSV use. Unranked rows still report 0 — a player with no card has
    * no place, and that is a different statement from being last.
    */
-  const flightColumns = state.isStroke
+  // The board's answer, like the table beneath it. `placesWithin` is fed from
+  // `strokeStandings`, which now holds the cards of the round on the board —
+  // so a flight card headed by match points under a leaderboard ranked on
+  // strokes was the same screen contradicting itself.
+  const flightColumns = state.boardIsStroke
     ? state.groups.map((group) => ({
         group,
         ranked: placesWithin(state.strokeStandings.filter((s) => s.player.groupId === group.id))
@@ -260,7 +264,21 @@ export default async function DashboardPage() {
   const showStandings = canSeeLeaderboard(settings, session.viewRole);
   const showEntry = canEnterScores(settings, session.viewRole);
 
-  const isStroke = state.isStroke;
+  /**
+   * THE SIXTH BOARD, and it was found by a guard rather than by a person.
+   *
+   * This screen renders `LeaderboardTable` off `standingRows` — the same pair
+   * the console leaderboard and Reports do — and passed it `state.isStroke`,
+   * the EVENT's format, while `standingRows` itself now answers for the round
+   * on the board. In a mixed tournament that is a table ordered one way and
+   * headed the other.
+   *
+   * The four boards were fixed on 2026-09-11, Reports on 2026-09-12, and this
+   * one was still wrong after both — which is why the rule is now swept from
+   * the filesystem in `board-follows-the-round.audit.test.ts` instead of kept
+   * as a list. It went red on this file the first time it ran.
+   */
+  const isStroke = state.boardIsStroke;
   const cardsIn = state.strokeStandings.filter((s) => s.thru > 0).length;
 
   /**
@@ -397,7 +415,10 @@ export default async function DashboardPage() {
   // basis for. The dashboard's leaderboard card hides itself when there are no
   // rows, which is the honest thing here: the real board is one click away and
   // knows how to read this format.
-  const rows = usesStandardBoard(state.activeStage?.format) ? standingRows(state).slice(0, 8) : [];
+  // `boardStage`, because the rows beside it are the board's. Asking
+  // `activeStage` in a mixed tournament gates one round's rows on a different
+  // round's format. Same correction as `/entry`'s spoken position.
+  const rows = usesStandardBoard(state.boardStage?.format) ? standingRows(state).slice(0, 8) : [];
   const advancingIds = state.advancingIds;
 
   // With no knockout to qualify into, the field advances by a per-round cut

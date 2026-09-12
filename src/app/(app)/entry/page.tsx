@@ -770,7 +770,13 @@ export default async function EntryPage() {
       // does not cover (D8). This feeds a spoken answer to "where am I?", and
       // a confident wrong rank is worse than "I don't have that for this
       // round" — nothing on screen qualifies it.
-      const rows = usesStandardBoard(state.activeStage?.format) ? standingRows(state) : [];
+      // `boardStage`, because `standingRows` beside it is the BOARD's rows. This
+      // asked `activeStage`, which in a mixed tournament is a different round —
+      // so the gate could refuse a position for a medal the board was ranking,
+      // or allow one off a format the rows were never scored by. The whole
+      // point of the gate is that a confident wrong rank is worse than silence,
+      // and asking about the wrong round is how it becomes one.
+      const rows = usesStandardBoard(state.boardStage?.format) ? standingRows(state) : [];
       const idx = rows.findIndex((r) => r.id === myId);
       voice = {
         playerName: me.name,
