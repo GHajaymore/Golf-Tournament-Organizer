@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
-import { loadEventState } from "@/lib/services/tournament";
+import { loadEventState, standingRows } from "@/lib/services/tournament";
 
 /**
  * A MEDAL ROUND CAN REACH THE BOARD, EVEN IN AN EVENT THAT HAS A GROUP PHASE.
@@ -201,6 +201,56 @@ describe("the board follows the field", () => {
     expect(state.boardStage?.description).toBe("Week 3");
     // And it is scored as a medal, which is the whole reason the round matters.
     expect(state.boardIsStroke).toBe(true);
+  });
+
+  it("counts the medal rounds' cards at all", async () => {
+    /**
+     * THE DEEPER HALF, and the one moving the board exposed.
+     *
+     * `strokeRounds` is the set of rounds this board may add together, and the
+     * rule — rounds add up when they measure the same unit — is right. What was
+     * wrong is WHICH round set that unit: `activeStage`, which for any event
+     * holding a Round Robin is a Round Robin. So `carryUnitsCompatible`
+     * measured every round against MATCH PLAY and the medals were filtered out
+     * entirely. Their cards were counted nowhere.
+     *
+     * Read off the Demo Cup on 2026-09-12, read-only, before the fix:
+     *
+     *   strokeRounds = Round Robin | Single Match Stage | Bracket Stage
+     *   strokeUnit   = "match points"
+     *   cards on the medal round = 7, of which 0 were in strokeRounds
+     *
+     * Both medals here, and NOT the match night — which is the half that
+     * proves the unit rule still bites.
+     */
+    const state = await stateOf(league);
+    expect(state.strokeUnit).toBe("strokes");
+    expect(state.strokeRounds.map((s) => s.description)).toEqual(["Week 2", "Week 3"]);
+  });
+
+  it("ranks the board on what the board is showing", async () => {
+    /**
+     * `standingRows` branched on `state.isStroke` — the EVENT — while the board
+     * beside it printed whatever `boardIsStroke` said. When the two disagree
+     * the result is a board ordered by match points with a strokes column, and
+     * on the Demo Cup that read `rank1 gross0 thru0` for players who had never
+     * touched the medal round.
+     *
+     * This could not be fixed when it was first tried: three audit fixtures
+     * went red, because `boardIsStroke` was itself still wrong for a legacy
+     * medal. Reverting was right then. With that fixed the whole suite passes,
+     * which is the difference between a change being wrong and being early.
+     */
+    const state = await stateOf(league);
+    const rows = standingRows(state).filter((r) => r.ranked);
+    expect(rows.length).toBe(2);
+    // 72 and 75 twice over — the two medal weeks summed, which is the existing
+    // rule for rounds that measure the same thing.
+    expect(rows.map((r) => r.gross)).toEqual([144, 150]);
+    expect(rows.map((r) => r.thru)).toEqual([36, 36]);
+    // And no win-loss-halved record, because a medal has none. This is the
+    // exact cell that was blank the other way round on a legacy medal.
+    expect(rows.every((r) => r.record === "")).toBe(true);
   });
 
   it("leaves the match-points chain where it was", async () => {

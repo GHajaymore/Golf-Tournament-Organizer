@@ -935,7 +935,26 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * a hand-scored round has cards and adding them up produces a ranking the
    * club never played for.
    */
-  const strokeUnitStage = activeStage ?? playRounds[playRounds.length - 1] ?? null;
+  /**
+   * THE ROUND ON THE BOARD SETS THE UNIT, not the match-points chain's round.
+   *
+   * This read `activeStage`, which for any event holding a Round Robin is a
+   * Round Robin — so `carryUnitsCompatible` measured every other round against
+   * MATCH PLAY, and a Stroke Play Round in the same tournament was filtered
+   * out of `strokeRounds` entirely. Its cards were then counted nowhere.
+   *
+   * Read off the Demo Cup on 2026-09-12, read-only:
+   *
+   *   strokeRounds = Round Robin | Single Match Stage | Bracket Stage
+   *   strokeUnit   = "match points"
+   *   cards on the medal round = 7, of which 0 were in strokeRounds
+   *
+   * The RULE below is right and unchanged — rounds add up when they measure
+   * the same unit, and a hand-scored round is never added at all. It was the
+   * choice of WHICH round sets the unit that was wrong, and it is the same
+   * wrong question `boardIsStroke` exists for.
+   */
+  const strokeUnitStage = boardStage ?? playRounds[playRounds.length - 1] ?? null;
   const strokeRounds = playRounds.filter(
     (s) =>
       !isManualFormat(s.format) &&
@@ -1411,7 +1430,7 @@ export function standingRows(state: EventState): StandingRow[] {
    * LeaderboardTable and Reports already render could not fire on the format
    * where two players level on points is the ordinary case.
    */
-  const rankedForCut = state.isStroke
+  const rankedForCut = state.boardIsStroke
     ? state.strokeStandings.map((s) => ({
         id: s.player.id,
         rank: s.rank,
@@ -1434,7 +1453,7 @@ export function standingRows(state: EventState): StandingRow[] {
     ).flatMap((t) => t.playerIds),
   );
 
-  if (state.isStroke) {
+  if (state.boardIsStroke) {
     return state.strokeStandings.map((s) => ({
       id: s.player.id,
       rank: s.rank,
@@ -1543,7 +1562,7 @@ export function computeHighlights(state: EventState): Highlight[] {
   const out: Highlight[] = [];
   const fmt = (n: number) => (Math.round(n * 100) / 100).toString();
 
-  if (state.isStroke) {
+  if (state.boardIsStroke) {
     // Only players who hold a position. A leader is the top of a ranking, and a
     // card that stopped short is not in one.
     const scored = state.strokeStandings.filter((s) => s.ranked);

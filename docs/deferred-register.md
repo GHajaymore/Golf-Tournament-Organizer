@@ -346,7 +346,22 @@ Two things to get right before building it:
   one resolver or they will drift, which is the defect `orgProfile` exists to
   prevent. Extend `orgProfile` to take the country; do not add a second table.
 
-### A mixed tournament may never show its stroke round’s board
+### A mixed tournament may never show its stroke round’s board — FIXED 2026-09-12
+**The defect is closed; the product question below is still open.** `boardStage`
+now takes the later of the chain's round and the last round with results, so a
+medal can reach the board without moving `activeStage`, which is load-bearing.
+Verified against the Demo Cup itself, read-only:
+
+```
+playRounds    = Round Robin/Match Play | Stroke Play Round/Stroke Play
+                | Single Match Stage/Match Play | Bracket Stage/Match Play
+activeStage   = Round Robin/Match Play        (the chain, unmoved)
+boardStage    = Stroke Play Round/Stroke Play (the board, correct)
+boardIsStroke = true      cards on that round = 7
+```
+
+The original entry follows, because its reasoning is what found it.
+
 Observed on the Demo Cup 2026-09-11, which is a Round Robin, then a Stroke Play
 Round, then a Single Match, then a Bracket — and has **7 cards returned on the
 stroke round**.
@@ -371,6 +386,12 @@ round are we on" across the app.
 
 Noted while verifying `boardIsStroke` against real data: the fix is correct and
 does not fire here, because `activeStage` never reaches the stroke round.
+
+**What is still open, now that the board follows the field.** The app shows ONE
+board — the latest round with results — and a club championship has three. A
+round selector is still the shape if the answer is yes, and it is still a
+product question. What has changed is that the default is no longer a round the
+field finished three weeks ago.
 
 ## 4. Environment and ops
 
