@@ -230,12 +230,21 @@ describe("a brand-new organization with no tournament", () => {
      * tournament existed to stand inside, which is the second thing done
      * first.
      *
-     * `/organization` answers from `primaryOrganizationFor` now, so the two
-     * steps pointing at it are reachable on day one. `/roster` still reads the
-     * active event for "who is already in this field" and is still blocked —
-     * and the pair of tests below hold both halves of that claim to the code.
+     * `/organization` answers from `primaryOrganizationFor` now, and `/roster`
+     * from `requireOrgScreen`, so every club step is reachable on day one.
+     *
+     * THE MEMBER LIST WAS THE LAST ONE, and freeing it is what made the club
+     * steps a real prerequisite rather than a wish: a gate demanding members
+     * before the first tournament, while the members screen demanded a
+     * tournament, is a deadlock dressed as a checklist. What it shows without
+     * one is the roster and nothing else — the field count, the entry filter
+     * and "add these to the tournament" are simply absent.
+     *
+     * `/event` is still blocked and always will be: it IS a tournament's own
+     * screen. The pair of tests below hold both halves of that claim to the
+     * routes rather than to this list.
      */
-    const eventless = ["/choose", "/organization"];
+    const eventless = ["/choose", "/organization", "/roster"];
     for (const step of fresh().steps) {
       const free = eventless.some((h) => step.href.startsWith(h));
       expect(!!step.blocked, `${step.key} -> ${step.href}`).toBe(!free);
@@ -263,10 +272,10 @@ describe("a brand-new organization with no tournament", () => {
   });
 
   it("says why, rather than just going quiet", () => {
-    // The roster still reads the active event for "who is already in this
-    // field", so it is still blocked — and still has to say so.
-    const roster = fresh().steps.find((s) => s.key === "roster");
-    expect(roster?.blocked).toMatch(/tournament/i);
+    // The course step points at `/event`, which IS a tournament's own screen,
+    // so it is blocked — and still has to say so rather than going grey.
+    const course = fresh({ kind: "club" }).steps.find((s) => s.key === "course");
+    expect(course?.blocked).toMatch(/tournament/i);
   });
 
   it("blocks nothing at all once one tournament exists", () => {
@@ -281,7 +290,7 @@ describe("a brand-new organization with no tournament", () => {
   it("marks the same steps for every kind of organization", () => {
     // A society, a club and a one-off outing get different STEPS, and which of
     // them need a tournament does not depend on what the outfit is.
-    const eventless = ["/choose", "/organization"];
+    const eventless = ["/choose", "/organization", "/roster"];
     for (const kind of ["club", "community", "personal"]) {
       for (const step of fresh({ kind }).steps) {
         const free = eventless.some((h) => step.href.startsWith(h));
@@ -349,11 +358,84 @@ describe("what the checklist claims about a screen matches the screen", () => {
  */
 describe("the blocked note speaks each organization's own language", () => {
   it("says society to a society and club to a club", () => {
+    /**
+     * READ OFF `blockedByClubSetup` RATHER THAN `blocked`, because there is
+     * usually no blocked step left to read. Only `/event` still needs a
+     * tournament, and only a club has a course step pointing at it — so a
+     * society's checklist now has no blocked row at all, and the old version
+     * of this test crashed on a non-null assertion rather than failing.
+     *
+     * The prose that varies by outfit is the setup gate, which every kind
+     * with required steps gets, so that is what has to speak the language.
+     */
     const noteFor = (kind: string) =>
-      orgSetupState(facts({ kind, eventCount: 0 })).steps.find((s) => s.blocked)!.blocked;
+      orgSetupState(facts({ kind, eventCount: 0, named: false, memberCount: 0 })).blockedByClubSetup;
     expect(noteFor("community")).toContain("society");
     expect(noteFor("community")).not.toContain("club");
     expect(noteFor("club")).toContain("club");
+  });
+
+  it("says nothing at all to somebody running a one-off outing with friends", () => {
+    /**
+     * THE STANDALONE ESCAPE, and it is derived rather than written as a
+     * `kind === "personal"` special case anywhere. A personal organizer has no
+     * shared roster, so no members step exists for them; their name step is
+     * already done because nobody else ever sees the organization's name; and
+     * the money step is not a prerequisite. Nothing required is outstanding,
+     * so nothing is asked.
+     *
+     * `moneyAnswered: false` IS THE POINT, and leaving it out made this test
+     * decoration. The base fixture answers the money question, so without this
+     * line the assertion passed against a build where money WAS a prerequisite
+     * — proven by mutation on 2026-09-11, which stayed green. A personal
+     * organizer has `ledger: true`, so their money step is the one thing that
+     * would still be outstanding, and it is the only route by which this
+     * escape can break.
+     */
+    const s = orgSetupState(
+      facts({ kind: "personal", eventCount: 0, named: false, memberCount: 0, moneyAnswered: false }),
+    );
+    expect(s.steps.some((x) => x.key === "money" && !x.done), "the money step is genuinely undone").toBe(true);
+    expect(s.blockedByClubSetup).toBe("");
+    expect(s.outstanding).toEqual([]);
+  });
+
+  it("names the steps it is waiting for, rather than saying 'finish setup'", () => {
+    // Three club answers could be outstanding at once. "Complete your setup
+    // first" over three of them leaves somebody hunting for which.
+    const s = orgSetupState(facts({ kind: "community", eventCount: 0, named: false, memberCount: 0 }));
+    expect(s.blockedByClubSetup).toContain("name your society");
+    expect(s.blockedByClubSetup).toContain("add your members");
+    expect(s.outstanding.map((x) => x.key)).toEqual(["profile", "roster"]);
+  });
+
+  it("never waits on a convenience", () => {
+    /**
+     * The course card and the money question are both real steps and neither
+     * is a prerequisite: a tournament carries its own pars and stroke index,
+     * and `resolveMoneyMode` is event → club → kind, so a tournament answers
+     * the money question for itself. Gating on either is how a gate stops
+     * being believed.
+     */
+    const s = orgSetupState(
+      facts({ kind: "club", eventCount: 0, named: true, memberCount: 3, hasCourse: false, moneyAnswered: false }),
+    );
+    expect(s.steps.some((x) => x.key === "course" && !x.done), "the course step is genuinely undone").toBe(true);
+    expect(s.blockedByClubSetup).toBe("");
+  });
+
+  it("stops asking for ever once one tournament exists", () => {
+    /**
+     * THE ASSERTION THAT KEEPS THIS SAFE FOR EVERY EXISTING CUSTOMER. One
+     * tournament proves the club is a going concern, and a gate that stopped
+     * one mid-season to collect a field it had skipped would be the app
+     * interrupting real golf to tidy its own records.
+     */
+    const s = orgSetupState(facts({ kind: "community", eventCount: 1, named: false, memberCount: 0 }));
+    expect(s.blockedByClubSetup).toBe("");
+    expect(s.outstanding).toEqual([]);
+    // And the steps themselves are still honestly reported as undone.
+    expect(s.remaining.map((x) => x.key)).toContain("profile");
   });
 
   it("never says the raw kind, whatever kind it is handed", () => {

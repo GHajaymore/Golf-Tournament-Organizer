@@ -66,6 +66,20 @@ async function orgOwnedBy(name: string, kind: string, email: string) {
   await prisma.organizationMember.create({
     data: { organizationId: org.id, userId: user.id, role: "owner" },
   });
+  /**
+   * One member, because `createEvent` now refuses a first tournament for an
+   * outfit that has not set itself up — see `club-first.audit.test.ts` for the
+   * rule and `org-setup.ts` for why. Nothing in THIS file is about that gate:
+   * it is about WHICH organization a new tournament lands in when somebody
+   * runs two, so both fixtures are outfits that have done their setup.
+   */
+  await prisma.member.create({
+    data: {
+      organizationId: org.id,
+      name: `${TAG} ${name} member`,
+      email: `${TAG}-${name.replace(/\s+/g, "-")}-member@example.invalid`.toLowerCase(),
+    },
+  });
   return org.id;
 }
 

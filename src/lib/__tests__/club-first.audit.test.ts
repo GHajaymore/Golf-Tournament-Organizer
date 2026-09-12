@@ -3,19 +3,25 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 
 /**
- * A SOCIETY CANNOT CREATE ITS FIRST TOURNAMENT WHILE IT IS STILL CALLED AFTER
- * ITS SECRETARY.
+ * A CLUB IS SET UP BEFORE ITS FIRST TOURNAMENT, NOT ALONGSIDE IT.
  *
- * The name goes on every scorecard, the console header and the public
- * leaderboard, and it is set once for every tournament the outfit will ever
- * run. `CreateFirstTournament` disables its button, which is worth having and
- * proves nothing: a `"use server"` export is a public HTTP endpoint and will be
- * called with whatever the caller likes.
+ * A club is set up ONCE and its tournaments are MANY, so the club's answers —
+ * its name, who its members are — are the ground every tournament stands on.
+ * The setup checklist presented "Create your first tournament" as an equal
+ * fifth row, live beside three unanswered club questions, which invited
+ * exactly the order that produces a tournament called after its secretary with
+ * an empty roster. Raised on 2026-09-11 from the screen itself.
  *
- * So this drives the real `createEvent` against real rows, which is the only
- * place the question is settled. The three tests that matter are the ones
- * asserting it does NOT fire — a gate that stops somebody's actual golf is a
- * worse failure than the one it was built to prevent.
+ * `CreateFirstTournament` disables its button, which is worth having and
+ * proves nothing: a `"use server"` export is a public HTTP endpoint and will
+ * be called with whatever the caller likes. So this drives the real
+ * `createEvent` against real rows, which is the only place the question is
+ * settled.
+ *
+ * THE TESTS THAT MATTER ARE THE ONES ASSERTING IT DOES NOT FIRE — an existing
+ * club, a one-off outing with friends, a convenience step. A gate that stops
+ * somebody's actual golf is a worse failure than the one it was built to
+ * prevent.
  *
  *   npx vitest run --config vitest.audit.config.ts
  */
@@ -36,12 +42,12 @@ const { createEvent } = await import("@/app/actions/tournament");
  * Everything this file made, whatever it ended up called.
  *
  * TWO SWEEPS, and the order matters. The second is by OWNERSHIP, because this
- * file's subject is RENAMING an organization and a fixture the test under test
- * is expected to rename cannot be found again by the name it was given — ten
- * strays called "Bushwood Society" accumulated in the development database on
- * 2026-09-11 before that was noticed. Every name this file writes now carries
- * the mark, including the renamed one, so that sweep should find nothing; it
- * is the backstop for the next person who forgets.
+ * file's subject includes RENAMING an organization and a fixture the test
+ * under test is expected to rename cannot be found again by the name it was
+ * given — ten strays called "Bushwood Society" accumulated in the development
+ * database on 2026-09-11 before that was noticed. Every name this file writes
+ * now carries the mark, including the renamed one, so that sweep should find
+ * nothing; it is the backstop for the next person who forgets.
  *
  * The first is BY THE MARK, and it is not redundant. The ownership walk starts
  * from the user row, so a run that dies after the user is deleted — or that
@@ -69,9 +75,11 @@ async function scrub() {
 
 /**
  * One organization owned by the secretary, replacing whatever the last test
- * left. `unnamed` gives it exactly the name sign-up would have derived.
+ * left. `unnamed` gives it exactly the name sign-up would have derived;
+ * `members` is how many are on its roster.
  */
-async function outfit(kind: string, unnamed: boolean) {
+async function outfit(kind: string, opts: { unnamed?: boolean; members?: number } = {}) {
+  const { unnamed = true, members = 0 } = opts;
   await scrub();
   const user = await prisma.user.upsert({
     where: { email: SECRETARY },
@@ -86,11 +94,21 @@ async function outfit(kind: string, unnamed: boolean) {
   await prisma.organizationMember.create({
     data: { organizationId: org.id, userId: user.id, role: "owner" },
   });
+  for (let i = 0; i < members; i++) {
+    await prisma.member.create({
+      data: {
+        organizationId: org.id,
+        name: `${TAG} Member ${i + 1}`,
+        email: `${TAG}-member-${i + 1}@example.invalid`.toLowerCase(),
+      },
+    });
+  }
   return org.id;
 }
 
 /** Tournaments that actually landed in this organization. */
 const eventsIn = (organizationId: string) => prisma.event.count({ where: { organizationId } });
+const errorOf = (r: { ok: boolean; error?: string }) => (r.ok ? "" : (r.error ?? ""));
 
 beforeAll(scrub);
 afterAll(async () => {
@@ -101,45 +119,57 @@ afterAll(async () => {
   }
 });
 
-describe("a brand-new outfit that has not named itself", () => {
-  it("is refused, and told what to do and where", async () => {
-    const orgId = await outfit("community", true);
+describe("a brand-new outfit that has not set itself up", () => {
+  it("is refused, and told which answers are outstanding", async () => {
+    const orgId = await outfit("community");
     const res = await createEvent(`${TAG} spring meeting`, "custom", "single");
 
-    expect(res.ok, "created a tournament for an unnamed society").toBe(false);
-    // The refusal says the thing that makes it worth obeying — that this is a
-    // one-time decision with a long reach — and names the screen.
-    expect(res.ok ? "" : res.error).toMatch(/society/i);
-    expect(res.ok ? "" : res.error).toContain("Society settings");
+    expect(res.ok, "created a tournament for an unset-up society").toBe(false);
+    /**
+     * NAMES THE STEPS, rather than saying "finish your setup first". Two or
+     * three club answers can be outstanding at once, and a refusal that does
+     * not say which leaves somebody hunting — which is the same fault as a
+     * disabled control with no reason.
+     */
+    expect(errorOf(res)).toContain("name your society");
+    expect(errorOf(res)).toContain("add your members");
     expect(await eventsIn(orgId), "nothing was created").toBe(0);
   });
 
   it("calls a golf club a club", async () => {
-    await outfit("club", true);
-    const res = await createEvent(`${TAG} club medal`, "custom", "single");
-    expect(res.ok).toBe(false);
-    expect(res.ok ? "" : res.error).toContain("Club settings");
+    await outfit("club");
+    expect(errorOf(await createEvent(`${TAG} club medal`, "custom", "single"))).toContain("your club");
   });
 
-  it("and is let straight through once it answers in the same breath", async () => {
+  it("still refuses when only the members are missing", async () => {
     /**
-     * THE REASON THIS IS A REQUIRED FIELD AND NOT A REDIRECT. The picker's
+     * The half that cannot be answered on the picker. Naming the club is a
+     * field on the create form — see the next test — but the member list has
+     * its own screen, so this is the case where the organizer really is sent
+     * somewhere before coming back.
+     */
+    const orgId = await outfit("community", { unnamed: false });
+    const res = await createEvent(`${TAG} spring meeting`, "custom", "single");
+    expect(res.ok).toBe(false);
+    expect(errorOf(res)).toContain("add your members");
+    expect(errorOf(res), "does not ask for a name it already has").not.toContain("name your society");
+    expect(await eventsIn(orgId)).toBe(0);
+  });
+
+  it("lets the name be answered in the same breath", async () => {
+    /**
+     * THE REASON THE NAME IS A REQUIRED FIELD AND NOT A REDIRECT. The picker's
      * "Who's running this?" answer is passed as `orgName`, and
      * `organizationForNewEvent` names the organization with it on the way
      * through — so by the time the gate reads the row it is named, and nobody
      * is sent to another screen and back to do the thing they just did.
+     *
+     * MARKED, because this one is a RENAME and an unmarked name is one `scrub`
+     * no longer recognises.
      */
-    const orgId = await outfit("community", true);
-    /**
-     * MARKED, because this one is a RENAME. The name typed here replaces the
-     * derived one, so an unmarked "Bushwood Society" would be an organization
-     * `scrub` no longer recognises — ten of them accumulated in the
-     * development database on 2026-09-11 before this was noticed, which is
-     * exactly the "a fixture left in the database is a fixture someone will
-     * later mistake for real" that the house rule is about.
-     */
+    const orgId = await outfit("community", { members: 4 });
     const res = await createEvent(`${TAG} spring meeting`, "custom", "single", `${TAG} Bushwood Society`);
-    expect(res.ok, res.ok ? "" : res.error).toBe(true);
+    expect(res.ok, errorOf(res)).toBe(true);
     expect(await eventsIn(orgId)).toBe(1);
     expect(
       (await prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }))?.name,
@@ -148,50 +178,58 @@ describe("a brand-new outfit that has not named itself", () => {
 });
 
 describe("who is never stopped", () => {
-  it("never a society that already runs tournaments", async () => {
+  it("never an outfit that already runs tournaments", async () => {
     /**
      * THE ASSERTION THAT KEEPS THIS SAFE FOR EVERY EXISTING CUSTOMER. One
      * tournament is enough to prove an outfit is a going concern, and a gate
      * that stopped one mid-season to collect a field it had skipped would be
      * the app interrupting real golf to tidy its own records.
      *
-     * Note the organization here is STILL unnamed — so this is not passing
-     * because the name got filled in somewhere. It is the event count alone.
+     * The organization is put back to UNSET-UP afterwards — derived name, no
+     * members — so this cannot be passing because the setup got done. It is
+     * the event count alone.
      */
-    const orgId = await outfit("community", false);
-    // Last year's meeting, made the way a real one is — so this is a genuine
-    // going concern rather than a row assembled to look like one.
+    const orgId = await outfit("community", { unnamed: false, members: 2 });
     expect((await createEvent(`${TAG} last year's meeting`, "custom", "single")).ok).toBe(true);
-    // And now put the name back to the derived one, which is the state an
-    // outfit that never named itself is actually in.
     await prisma.organization.update({ where: { id: orgId }, data: { name: DERIVED } });
+    await prisma.member.deleteMany({ where: { organizationId: orgId } });
 
     const res = await createEvent(`${TAG} this year's meeting`, "custom", "single");
-    expect(res.ok, res.ok ? "" : res.error).toBe(true);
+    expect(res.ok, errorOf(res)).toBe(true);
     expect(await eventsIn(orgId), "the new one landed beside the old").toBe(2);
   });
 
   it("never somebody running a one-off outing with friends", async () => {
     /**
-     * The escape hatch, and it is not a new one: "A one-off outing with
-     * friends" is a real answer at sign-up and `kind = "personal"` is what it
-     * writes. There is no club to set up, so there is nothing to require.
+     * THE STANDALONE ESCAPE, and it is derived rather than a `kind ===
+     * "personal"` special case. A personal organizer has no shared roster, so
+     * no members step exists for them; their name step is already done,
+     * because nobody else ever sees the organization's name; and money is not
+     * a prerequisite. Nothing required is outstanding, so nothing is asked.
      *
      * It is also the kind a LAZILY created organization gets — the schema
      * default — so this is the path anybody who never answered the sign-up
      * question is on, and they must not be stopped by a question they were
      * never asked.
      */
-    const orgId = await outfit("personal", true);
+    const orgId = await outfit("personal");
     const res = await createEvent(`${TAG} saturday fourball`, "custom", "single");
-    expect(res.ok, res.ok ? "" : res.error).toBe(true);
+    expect(res.ok, errorOf(res)).toBe(true);
     expect(await eventsIn(orgId)).toBe(1);
   });
 
-  it("never a society that named itself earlier, on Society settings", async () => {
-    const orgId = await outfit("community", false);
-    const res = await createEvent(`${TAG} spring meeting`, "custom", "single");
-    expect(res.ok, res.ok ? "" : res.error).toBe(true);
+  it("never over a course card or a money setting", async () => {
+    /**
+     * NEITHER IS A PREREQUISITE, and both are real steps on the checklist. A
+     * tournament carries its own pars and stroke index, and `resolveMoneyMode`
+     * is event → club → kind, so a tournament answers the money question for
+     * itself. Gating on a convenience is how a gate stops being believed.
+     *
+     * A club, deliberately: it is the kind that gets a course step at all.
+     */
+    const orgId = await outfit("club", { unnamed: false, members: 1 });
+    const res = await createEvent(`${TAG} club medal`, "custom", "single");
+    expect(res.ok, errorOf(res)).toBe(true);
     expect(await eventsIn(orgId)).toBe(1);
   });
 });

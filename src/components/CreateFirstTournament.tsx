@@ -16,7 +16,7 @@ export function CreateFirstTournament({
   first,
   plan = "free",
   organizationNamed = false,
-  clubNameRequired = false,
+  clubSteps = [],
   orgKind = "",
   organizations = [],
 }: {
@@ -42,17 +42,22 @@ export function CreateFirstTournament({
    */
   organizationNamed?: boolean;
   /**
-   * Whether this club must be named before its first tournament exists.
+   * The club answers the first tournament is still waiting on.
    *
-   * From `clubFirstRefusal`: true only for a brand-new club or society that
-   * has not named itself. Never for an existing one, and never for somebody
-   * who said at sign-up that they are running a one-off outing with friends.
+   * From `orgSetupState().outstanding` — the required steps of the club's own
+   * setup, before its first tournament exists. Empty for an existing club (one
+   * tournament proves the questions are answered), empty for a one-off outing
+   * with friends (no shared roster, so no members step, and their name is
+   * their own), and empty once the club has worked through them.
    *
-   * Typing a name in the field below SATISFIES it — the organization is named
-   * on the way through creation — so this makes a field required rather than
-   * sending anybody to another screen and back.
+   * TWO KINDS OF STEP, and the difference is the whole design of this form.
+   * `profile` — naming the club — is answerable HERE, because `orgName` below
+   * is passed to `createEvent` and names the organization on the way through;
+   * so it becomes a required field rather than a redirect, and nobody is sent
+   * away to do a thing they could do in the same breath. Everything else has
+   * its own screen and is offered as a link.
    */
-  clubNameRequired?: boolean;
+  clubSteps?: Array<{ key: string; title: string; href: string }>;
   /**
    * What kind of outfit this organizer runs — club, community or personal.
    *
@@ -77,6 +82,15 @@ export function CreateFirstTournament({
 }) {
   /** Every word on this screen that names the outfit comes from here. */
   const outfit = orgProfile(orgKind);
+  /**
+   * Naming the club is answerable on this form; everything else is not.
+   *
+   * Split here rather than by the caller so the component that OWNS the name
+   * field is the one deciding it can satisfy that step — a caller deciding it
+   * would be a second place that has to know this form has an org-name box.
+   */
+  const clubNameRequired = clubSteps.some((s) => s.key === "profile");
+  const elsewhere = clubSteps.filter((s) => s.key !== "profile");
   const [name, setName] = useState("");
   const [orgName, setOrgName] = useState("");
   const [open, setOpen] = useState(first);
@@ -371,7 +385,20 @@ export function CreateFirstTournament({
       )}
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="button" className="btn btn-primary" disabled={pending || !name.trim() || !shape || (clubNameRequired && !orgName.trim())} onClick={submit}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={
+            pending ||
+            !name.trim() ||
+            !shape ||
+            (clubNameRequired && !orgName.trim()) ||
+            /* Steps with their own screen — the member list, today. Not
+               answerable here, so the button waits rather than pretending. */
+            elsewhere.length > 0
+          }
+          onClick={submit}
+        >
           {pending ? "Creating…" : "Create tournament"} <Icon name="arrow-right" />
         </button>
         {!first && (
@@ -390,7 +417,7 @@ export function CreateFirstTournament({
           they were plainly in the middle of filling in. Found by walking this
           screen as a new society secretary — with a name and a shape chosen
           and the club still unnamed, the button was dead and said nothing. */}
-      {!pending && (!name.trim() || !shape || (clubNameRequired && !orgName.trim())) && (
+      {!pending && (!name.trim() || !shape || (clubNameRequired && !orgName.trim())) && elsewhere.length === 0 && (
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
           {!name.trim()
             ? "Give it a name, then say how it's played."
@@ -398,6 +425,29 @@ export function CreateFirstTournament({
               ? "Say how it's played — that decides what the rest of setup asks."
               : `Name your ${outfit.noun} above — it is set once, for every tournament you will ever run.`}
         </p>
+      )}
+
+      {/* THE STEPS THAT ARE NOT ANSWERABLE HERE, as links to where they are.
+          A sentence saying "finish setting up your society first" would leave
+          somebody hunting for which part — and the checklist above already
+          names them, so the honest thing is to point at the same rows rather
+          than describe them a second time in different words.
+
+          Shown last, under the disabled button, because it is the answer to
+          "why can I not press that" and it is read after the press. */}
+      {!pending && elsewhere.length > 0 && (
+        <div style={{ fontSize: 12, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+          <Icon name="warning-circle" style={{ color: "var(--color-accent)" }} />
+          <span className="text-muted">
+            Set up your {outfit.noun} first — it is answered once, and every tournament you run is built on
+            it:
+          </span>
+          {elsewhere.map((s) => (
+            <a key={s.key} className="btn btn-secondary" style={{ fontSize: 12, padding: "3px 10px" }} href={s.href}>
+              {s.title}
+            </a>
+          ))}
+        </div>
       )}
     </div>
   );

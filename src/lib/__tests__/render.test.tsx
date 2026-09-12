@@ -5072,18 +5072,20 @@ describe("the setup checklist", () => {
         state={await state({ named: false, memberCount: 0, eventCount: 0, moneyAnswered: false })} />,
     );
     /**
-     * THE CLUB IS SET UP ONCE, AND THAT PART IS REACHABLE NOW.
+     * THE CLUB IS SET UP ONCE, AND THE WHOLE OF IT IS REACHABLE NOW.
      *
-     * `/organization` no longer stands inside a tournament — it answers from
-     * `primaryOrganizationFor` — so naming the club and choosing how its money
-     * works are live on day one, which is the order a secretary actually works
-     * in. `/roster` and `/event` still read the active event, so they are
-     * still honestly marked.
+     * `/organization` answers from `primaryOrganizationFor` and `/roster` from
+     * `requireOrgScreen`, so naming the club, adding its members and choosing
+     * how its money works are all live on day one — which is the order a
+     * secretary actually works in, and the order the club-setup gate now
+     * requires.
+     *
+     * `/event` is the last one still marked, and always will be: it IS a
+     * tournament's own screen, so the course card genuinely waits for one.
      */
-    for (const href of ["/roster", "/event"]) {
-      expect(html, href).not.toContain(`href="${href}"`);
-    }
+    expect(html, "/event").not.toContain('href="/event"');
     expect(html).toContain('href="/organization"');
+    expect(html).toContain('href="/roster"');
     // The rows are still THERE, and each blocked one says why it is not a link.
     expect(html).toContain("Add your members");
     expect(html).toContain("Opens once you have a tournament");
@@ -5117,31 +5119,75 @@ describe("the setup checklist", () => {
 
   it("does not say a step costs something it cannot yet be blamed for", async () => {
     /**
-     * "Pairings cannot be drawn from an empty field" is advice about a screen
-     * this organizer cannot open, on a row they cannot act on. A warning
-     * somebody is unable to do anything about is what teaches them to skip
-     * the next one — the same reasoning `org-setup.ts` records for not
-     * overstating the course step's consequence.
+     * A consequence is advice about a screen, and advice about a screen this
+     * organizer cannot open is a warning they are unable to act on — which is
+     * what teaches them to skip the next one. The same reasoning `org-setup.ts`
+     * records for not overstating the course step's consequence in the first
+     * place.
+     *
+     * READ OFF THE COURSE STEP, because the roster is no longer the example.
+     * "Pairings cannot be drawn from an empty field" used to be hidden for
+     * this reason and is now shown, correctly: `/roster` opens without a
+     * tournament, so a society with no members can act on it immediately, and
+     * the club-setup gate requires that they do. `/event` is the step still
+     * waiting for a tournament, so its consequence is the one to suppress.
      */
     const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
     const blocked = render(
-      <OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />,
+      <OrgSetupChecklist state={await state({ hasCourse: false, eventCount: 0 })} />,
     );
-    expect(blocked).not.toContain("empty field");
+    expect(blocked).not.toContain("re-entered on every tournament");
     // And it comes straight back the moment the step is reachable.
-    const open = render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 1 })} />);
-    expect(open).toContain("empty field");
+    const open = render(<OrgSetupChecklist state={await state({ hasCourse: false, eventCount: 1 })} />);
+    expect(open).toContain("re-entered on every tournament");
+
+    // The roster's own consequence is the control: it is shown now, on the
+    // same no-tournament render, because that step CAN be acted on.
+    expect(
+      render(<OrgSetupChecklist state={await state({ memberCount: 0, eventCount: 0 })} />),
+      "the members step can be acted on, so it keeps its consequence",
+    ).toContain("empty field");
   });
 
   it("still links it from anywhere else", async () => {
+    // A club that has done its setup and simply has no tournament yet — which
+    // is the state this link exists for. `memberCount: 0` used to be the
+    // fixture and is now a club that owes an answer, so the row is correctly
+    // inert; see the test below.
     const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
     const { SETUP_HREF } = await import("@/lib/domain/org-setup");
     const html = render(
-      <OrgSetupChecklist currentPath="/dashboard"
-        state={await state({ memberCount: 0, eventCount: 0 })} />,
+      <OrgSetupChecklist currentPath="/dashboard" state={await state({ eventCount: 0 })} />,
     );
     expect(html).toContain(`href="${SETUP_HREF.tournament}"`);
     expect(html).not.toContain("You do this one on this page");
+  });
+
+  it("does not link the tournament while the club still owes an answer", async () => {
+    /**
+     * THE ROW THE COMPLAINT WAS ABOUT. "How come create your first tournament
+     * is complete and enabled when club settings are not complete?" — raised
+     * 2026-09-11 off this screen, where it rendered as a live equal fifth row
+     * beside three unanswered club questions.
+     *
+     * Asserted from `/dashboard` rather than `/choose` so that "not a link"
+     * cannot be satisfied by the you-are-already-here rule, which is a
+     * different reason with a different sentence.
+     */
+    const { OrgSetupChecklist } = await import("@/components/OrgSetupChecklist");
+    const { SETUP_HREF } = await import("@/lib/domain/org-setup");
+    const html = render(
+      <OrgSetupChecklist
+        currentPath="/dashboard"
+        state={await state({ named: false, memberCount: 0, eventCount: 0 })}
+      />,
+    );
+    expect(html).not.toContain(`href="${SETUP_HREF.tournament}"`);
+    // And it says WHICH answers, rather than greying out in silence.
+    expect(html).toContain("name your club");
+    expect(html).toContain("add your members");
+    // The promise the header makes has to follow the rows it describes.
+    expect(html).not.toContain("nothing here is locked");
   });
 });
 

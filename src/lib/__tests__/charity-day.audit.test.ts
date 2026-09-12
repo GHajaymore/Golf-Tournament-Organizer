@@ -57,6 +57,20 @@ beforeAll(async () => {
   });
   organizationId = org.id;
   await prisma.organizationMember.create({ data: { organizationId, userId: user.id, role: "owner" } });
+  /**
+   * One member, because `createEvent` now refuses a first tournament for a
+   * society that has not set itself up — see `club-first.audit.test.ts` for
+   * the rule and `org-setup.ts` for why. Nothing in THIS file is about that
+   * gate: it is about what the templates start, so the fixture is a society
+   * that has done its setup and is getting on with the golf.
+   */
+  await prisma.member.create({
+    data: {
+      organizationId,
+      name: `${TAG} Member`,
+      email: `${TAG}-member@example.invalid`.toLowerCase(),
+    },
+  });
   session = { email: EMAIL, name: `${TAG} secretary`, eventId: "", role: "admin", viewRole: "admin" };
 });
 

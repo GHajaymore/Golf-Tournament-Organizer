@@ -77,7 +77,7 @@ import { planForEvent } from "@/lib/services/entitlements";
 import { phoneRequiredFor } from "@/lib/plans";
 import { STAGE_DESCRIPTIONS, isStageType, isHeadToHead, isPlayingRound, MAX_ROUNDS_AT_ONCE } from "@/lib/stage-types";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
-import { clubFirstRefusal } from "@/lib/domain/club-first";
+import { orgSetupState } from "@/lib/domain/org-setup";
 import { organizationWasNamed } from "@/lib/org-naming";
 import { cleanMatchTiebreakers, OFFERED_MATCH_TIEBREAKS } from "@/lib/domain/match-tiebreak";
 import { isCutScope } from "@/lib/domain/cut";
@@ -3044,26 +3044,41 @@ export async function createEvent(
    *
    * Checked here rather than only on the screen, because a `"use server"`
    * export is a public HTTP endpoint and a disabled button stops nobody. It
-   * fires once in an organization's life at most — see `clubFirstRefusal` for
-   * why an existing club and a standalone organizer are never asked.
+   * fires once in an organization's life at most — see `orgSetupState` for why
+   * an existing club and a standalone organizer are never asked.
+   *
+   * THE SAME RULE THE CHECKLIST DRAWS, read from the same function. There was
+   * briefly a second one, `clubFirstRefusal`, which knew only about the name;
+   * two rules deciding one thing is this codebase's most-repeated defect and
+   * the checklist would have shown a step as outstanding while the action let
+   * it through. `blockedByClubSetup` is the whole answer and carries its own
+   * wording, so the screen and the endpoint cannot say different things.
    *
    * After `organizationForNewEvent`, deliberately: that call is what CREATES
    * the organization on a first event, and `orgName` passed from the picker
    * names it on the way through. So somebody who answers "Who's running this?"
-   * in the same breath has already satisfied this by the time it is read, and
-   * is not stopped to do a thing they just did.
+   * in the same breath has already satisfied that half by the time it is read,
+   * and is not stopped to do a thing they just did.
    */
   const owner = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { name: true, kind: true, _count: { select: { events: true } } },
+    select: {
+      name: true,
+      kind: true,
+      moneyMode: true,
+      _count: { select: { roster: true, events: true, courses: true } },
+    },
   });
   if (owner) {
-    const clubFirst = clubFirstRefusal({
-      eventCount: owner._count.events,
-      named: organizationWasNamed(owner.name, session.name, session.email),
+    const setup = orgSetupState({
       kind: owner.kind,
+      named: organizationWasNamed(owner.name, session.name, session.email),
+      hasCourse: owner._count.courses > 0,
+      memberCount: owner._count.roster,
+      eventCount: owner._count.events,
+      moneyAnswered: owner.moneyMode.trim() !== "",
     });
-    if (clubFirst) return { ok: false, error: clubFirst };
+    if (setup.blockedByClubSetup) return { ok: false, error: setup.blockedByClubSetup };
   }
 
   // Plan limits bite only once billing is connected — see services/limits.ts.

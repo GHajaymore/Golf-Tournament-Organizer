@@ -13,7 +13,6 @@ export const metadata = { title: "Choose a tournament", robots: NOINDEX };
 import { ROLE_LABEL } from "@/lib/roles";
 import { Logo, LOGO_SIZE } from "@/components/Logo";
 import { BrandMark } from "@/components/BrandMark";
-import { clubFirstRefusal } from "@/lib/domain/club-first";
 import { CreateFirstTournament } from "@/components/CreateFirstTournament";
 import { orgProfile } from "@/lib/domain/org-profile";
 import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
@@ -293,10 +292,14 @@ export default async function ChooseTournamentPage({
              Every organization has a name from birth, so this is the derived
              one, not the presence of a string. */
           organizationNamed={facts?.named ?? false}
-          clubNameRequired={
-            !!facts &&
-            !!clubFirstRefusal({ eventCount: facts.eventCount, named: facts.named, kind: facts.kind ?? "" })
-          }
+          /* The club answers the first tournament waits on — see the prop.
+             The same list the checklist above renders, from the same call, so
+             a step cannot be outstanding in one and satisfied in the other. */
+          clubSteps={(setup?.outstanding ?? []).map((s) => ({
+            key: s.key,
+            title: s.title,
+            href: s.href,
+          }))}
           /* Names the outfit in the app's own words wherever this screen
              mentions it — "Name your society", "Change it later on Society
              settings". Empty resolves to `personal`, which is what somebody

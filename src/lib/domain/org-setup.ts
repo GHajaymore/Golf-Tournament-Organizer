@@ -10,18 +10,44 @@ import { orgProfile, type OrgProfile } from "./org-profile";
  * fetched with no ordering, and forfeit tiebreakers disagreeing with the
  * ranking comparator. One rule, read in one place.
  *
- * This is a CHECKLIST, not a gate. Every step stays reachable whether or not
- * the ones above it are done, because organizers do not work in order: a club
- * secretary creates the tournament the day the date is confirmed and loads the
- * roster over the following fortnight. Blocking that turns a normal sequence
- * into a blocked one, and the workaround — inventing a placeholder member to
- * unlock the next step — is worse data than the empty state it was protecting.
+ * THE CLUB STEPS ARE A CHECKLIST AMONG THEMSELVES, AND A GATE ON THE
+ * TOURNAMENT.
  *
- * Where an empty step genuinely CANNOT work, the refusal belongs at the point
- * of consequence and says why: pairings cannot be drawn from an empty field,
- * so the draw button explains that and links to the roster. That is already
- * the idiom here — see `resolveThirdPlace` and `resolveSingleMatch`, both of
- * which refuse with an explanation rather than disappearing.
+ * This file used to say "a checklist, not a gate", and the reasoning was
+ * sound as far as it went: organizers do not work in order, a secretary
+ * creates the tournament the day the date is confirmed and loads the roster
+ * over the following fortnight, and the workaround for a hard gate —
+ * inventing a placeholder member to unlock the next step — is worse data than
+ * the empty state it was protecting.
+ *
+ * What that reasoning missed is that the club and the tournament are not peers
+ * on one list. A club is set up ONCE and its tournaments are MANY, so the
+ * club's answers — its name, who its members are, how its money works — are
+ * the ground every tournament stands on, not a parallel task. Presenting
+ * "Create your first tournament" as an equal fifth row, live and unblocked
+ * beside three unanswered club questions, invited exactly the order that
+ * produces a tournament called "Ajay's golf" with an empty roster. Raised on
+ * 2026-09-11, having been observed on the screen.
+ *
+ * So the club steps keep the old freedom — any of them, in any order, none
+ * blocking another — and the tournament step waits for the ones that are
+ * genuinely required. `required` says which, per step, rather than a list of
+ * keys held somewhere else: "Add your course" is a real convenience and not a
+ * prerequisite, and saying so on the step is what keeps the gate honest.
+ *
+ * The gate is only ever a FIRST-TOURNAMENT gate. Once one exists nothing is
+ * blocked ever again — see `blockedByClubSetup` — because a club with a season
+ * behind it has proved everything this list was asking about, and a gate that
+ * interrupted it to collect a field it had skipped would be the app stopping
+ * real golf to tidy its own records.
+ *
+ * Where an empty step genuinely cannot work LATER, the refusal still belongs
+ * at the point of consequence and still says why: pairings cannot be drawn
+ * from an empty field, so the draw button explains that and links to the
+ * roster. That is the idiom here — see `resolveThirdPlace` and
+ * `resolveSingleMatch`, both of which refuse with an explanation rather than
+ * disappearing — and this gate is written the same way: it names what is
+ * outstanding and where to answer it, never just greys out.
  */
 
 export type SetupStepKey = "profile" | "course" | "roster" | "tournament" | "money";
@@ -41,12 +67,14 @@ export type SetupStepKey = "profile" | "course" | "roster" | "tournament" | "mon
  * five in one place and check them against `find src/app -name page.tsx`.
  *
  * Note what these say about the shape of the app. `/organization` and
- * `/roster` are inside the `(app)` shell, which `requireEventSession` gates on
- * an ACTIVE EVENT — so an organizer with no tournament yet cannot reach either
- * of them, and is bounced to `/choose`. This app is event-first: the club
- * settings hang off a tournament rather than the other way round. Until that
- * changes, the only step a brand-new organization can actually do is create
- * its first tournament, and the checklist must not pretend otherwise.
+ * `/roster` are inside the `(app)` shell, which `requireEventSession` gated on
+ * an ACTIVE EVENT — so an organizer with no tournament yet could reach neither,
+ * and was bounced to `/choose`. The app was event-first: the club settings hung
+ * off a tournament rather than the other way round.
+ *
+ * BOTH ARE FREE NOW, via `requireOrgScreen` — see `EVENTLESS_HREFS`. `/event`
+ * is not and never will be, because it IS a tournament's own screen, which is
+ * why the course step is the one that still reports as blocked.
  */
 /**
  * THE CLUB IS SET UP ONCE; THE TOURNAMENTS ARE MANY.
@@ -59,9 +87,9 @@ export type SetupStepKey = "profile" | "course" | "roster" | "tournament" | "mon
  *
  * This is the list of steps that no longer need one. It is a list rather than
  * "everything except the tournament step" because the two halves have to be
- * able to disagree: `/roster` still reads the active event for "who is already
- * in this field", so it is still blocked, and saying so honestly is better
- * than a blanket rule that would promise a screen which then bounces.
+ * able to disagree — and they still do: `/event` is a tournament's own screen
+ * and is not on it, so the course step honestly reports as blocked rather than
+ * promising a screen that would bounce.
  *
  * `org-setup.test.ts` holds this to account in both directions — every href
  * marked blocked must really require an event, and `/choose` must not. Add a
@@ -73,6 +101,18 @@ const EVENTLESS_HREFS: readonly string[] = [
   // Club settings: name, branding, theme, handicap policy, and the club's
   // money default. Two of the four setup steps point here.
   "/organization",
+  /**
+   * The member list, freed on 2026-09-11. It was the one step this file had to
+   * report as blocked, and the blockage was the relationship upside down: a
+   * list that explicitly OUTLIVES any one tournament could not be opened until
+   * one existed. `/roster` answers from `requireOrgScreen` now and shows the
+   * club's members with the tournament half of the screen simply absent.
+   *
+   * This is what makes the club steps a genuine prerequisite rather than a
+   * wish — until it was true, requiring members before the first tournament
+   * would have been a deadlock dressed as a checklist.
+   */
+  "/roster",
 ];
 
 function worksWithoutATournament(href: string): boolean {
@@ -110,6 +150,22 @@ export interface SetupStep {
   consequence: string;
   /** Where to go and do it. */
   href: string;
+  /**
+   * Whether the first tournament waits for this one.
+   *
+   * Declared on the step rather than as a list of keys elsewhere, so the
+   * answer sits beside the step it describes and a step added later has to
+   * state its own. The two must not be able to drift.
+   *
+   * "Add your course" is the one that is false, and deliberately: a tournament
+   * carries its own pars and stroke index, the demo club has run a whole event
+   * without a Course row, and its consequence says what it really costs —
+   * re-entering the card each time. Gating on a convenience is how a gate
+   * stops being believed.
+   *
+   * Meaningless on the tournament step itself, which is what waits.
+   */
+  required: boolean;
   /**
    * Why this step cannot be reached YET, or "" when it can.
    *
@@ -155,6 +211,22 @@ export interface OrgSetupState {
   ready: boolean;
   /** The one to do next, or null when there is nothing left. */
   next: SetupStep | null;
+  /**
+   * Required club steps still unanswered, before the first tournament exists.
+   *
+   * Empty once one does, for good — see `orgSetupState`. Exposed as the steps
+   * themselves rather than a count so a caller can link straight to them.
+   */
+  outstanding: SetupStep[];
+  /**
+   * Why the first tournament cannot be created yet, or "".
+   *
+   * The sentence rather than a boolean, so the rule and its wording stay
+   * together and every screen that enforces this says the same thing. `/choose`
+   * shows it under the disabled button; `createEvent` is where it is actually
+   * enforced, because a disabled button stops nobody.
+   */
+  blockedByClubSetup: string;
 }
 
 /**
@@ -193,6 +265,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
     done: facts.named || !profile.sharedRoster,
     consequence: "",
     href: SETUP_HREF.profile,
+    required: true,
   });
 
   if (profile.ownsCourse) {
@@ -211,6 +284,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
        */
       consequence: "Without one, par and stroke index have to be re-entered on every tournament.",
       href: SETUP_HREF.course,
+      required: false,
     });
   }
 
@@ -222,6 +296,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
       done: facts.memberCount > 0,
       consequence: "Pairings cannot be drawn from an empty field.",
       href: SETUP_HREF.roster,
+      required: true,
     });
   }
 
@@ -252,6 +327,21 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
     done: facts.moneyAnswered || !profile.ledger,
     consequence: "",
     href: SETUP_HREF.money,
+    /**
+     * NOT a prerequisite, and its own blurb says why: "Changeable per
+     * tournament later." `resolveMoneyMode` is event → club → kind, so every
+     * tournament can answer this for itself and the club default is a
+     * convenience. Gating the first tournament on a setting it can override is
+     * the same overreach as gating it on the course card.
+     *
+     * It is also what keeps the STANDALONE ORGANIZER free without a special
+     * case. A personal organizer has no shared roster, so no members step
+     * exists for them, and their name step is already done — so with money out,
+     * nothing is required and nobody running a one-off outing with friends is
+     * ever asked to set up a club they said they did not have. Derived, rather
+     * than a `kind === "personal"` escape hatch written somewhere else.
+     */
+    required: false,
   });
 
   steps.push({
@@ -261,6 +351,7 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
     done: facts.eventCount > 0,
     consequence: "",
     href: SETUP_HREF.tournament,
+    required: false,
   });
 
   /**
@@ -278,6 +369,50 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
    * nothing is blocked and the checklist is exactly what it was.
    */
   const noEventYet = facts.eventCount === 0;
+
+  /**
+   * The club answers the first tournament is still waiting on.
+   *
+   * ONLY BEFORE THE FIRST ONE. `noEventYet` is the whole condition, so a club
+   * with a season behind it is never gated whatever its list looks like — it
+   * has proved every question here by running golf, and stopping it to collect
+   * a field it had skipped would be the app interrupting real golf to tidy its
+   * own records. It also means this can never fire twice for anybody.
+   *
+   * `required`, read off the steps, so the two cannot drift and a step added
+   * later has to say for itself whether the tournament waits for it.
+   */
+  const outstanding = noEventYet ? steps.filter((s) => s.required && !s.done) : [];
+
+  /**
+   * Why the first tournament cannot be created yet, in the organizer's own
+   * words, or "".
+   *
+   * NAMES WHAT IS MISSING rather than saying "finish setup first". A disabled
+   * control that does not say which answer it is waiting for is the thing this
+   * file's own draw-button precedent exists to avoid, and with three possible
+   * steps outstanding "complete your setup" leaves somebody hunting.
+   */
+  const blockedByClubSetup = outstanding.length
+    ? `Finish setting up your ${profile.noun} first — ${listSteps(outstanding)}. ` +
+      `It is answered once, and every tournament you run is built on it.`
+    : "";
+
+  /**
+   * `blocked` MEANS ONE THING: the screen behind this row cannot be opened
+   * yet. Nothing else belongs in it.
+   *
+   * The club-setup gate was briefly written into this field on the tournament
+   * row, and it was the wrong home: `/choose` is perfectly reachable — it is
+   * the page the row is rendered on — so a reader taking `blocked` at its word
+   * would have been told a screen was shut while looking at it. Worse, the
+   * test that checks this marking is TRUE reads the page source for a
+   * `requireEventSession`, and `/choose` has none, so the lie would have been
+   * caught as a bug in the route rather than in the meaning.
+   *
+   * The gate is a fact about the ACTION, not the screen, and lives in
+   * `blockedByClubSetup` on the state.
+   */
   const blockedSteps = steps.map((s) => ({
     ...s,
     blocked:
@@ -308,5 +443,24 @@ export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
     remaining,
     ready: remaining.length === 0,
     next,
+    // Re-read off the finished list so callers get steps carrying `blocked`,
+    // rather than the half-built ones the sentence above was composed from.
+    outstanding: blockedSteps.filter((s) => outstanding.some((o) => o.key === s.key)),
+    blockedByClubSetup,
   };
+}
+
+/**
+ * "name your society and add your members", from the steps themselves.
+ *
+ * Lower-cased from the step titles rather than written out a second time: a
+ * hand-written list is a second set of words for the same five steps, and this
+ * file already carries a scar from exactly that — `label.toLowerCase()`
+ * produced "Name your personal" because a chip does not survive being dropped
+ * into a sentence. A title does, because a title is already a phrase.
+ */
+function listSteps(steps: { title: string }[]): string {
+  const words = steps.map((s) => s.title.charAt(0).toLowerCase() + s.title.slice(1));
+  if (words.length <= 1) return words[0] ?? "";
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
 }
