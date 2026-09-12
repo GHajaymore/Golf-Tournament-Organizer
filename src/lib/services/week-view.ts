@@ -405,8 +405,36 @@ async function standingsWithMovement(
       opts.holeDifficulty,
       parseMatchTiebreakers(state.event.matchTiebreakers),
     );
-    const after = chained[idx] ?? [];
-    const before = idx > 0 ? chained[idx - 1] ?? [] : [];
+    /**
+     * TWO LISTS, AND THEY ARE NOT THE SAME LIST.
+     *
+     * `chained` is parallel to `state.rrStages` — Round Robins only — and `idx`
+     * counts WEEKS, which is `WEEKLY_ROUND_TYPES`: Round Robin AND Stroke Play
+     * Round. They line up only in a league whose every week is a round robin,
+     * and silently slip by one the moment a medal night appears before a match
+     * night.
+     *
+     * Measured on 2026-09-12 on a two-week league, medal first:
+     *
+     *   week 1 (the MEDAL)  -> standings 2.5/0   <- week 2's match points
+     *   week 2 (the MATCH)  -> standings (none)  <- its own, missing
+     *
+     * A league's season table shown against the wrong night, and absent from
+     * the right one. Same family as `ranking-then-renumbering`: an answer that
+     * knows which row it belongs to, handed to a reader that re-derives it from
+     * a position.
+     *
+     * Counted by STAGE now. A medal week earns no match points, so it shows the
+     * season as it stands going INTO that night — which is the honest answer
+     * and the one a member reading the sheet wants — and a week before any
+     * round robin at all shows nothing, because nothing has been won yet.
+     */
+    const rrThroughHere = state.rrStages.filter((s) => {
+      const at = weeks.findIndex((w) => w.id === s.id);
+      return at >= 0 && at <= idx;
+    }).length;
+    const after = rrThroughHere > 0 ? chained[rrThroughHere - 1] ?? [] : [];
+    const before = rrThroughHere > 1 ? chained[rrThroughHere - 2] ?? [] : [];
     /**
      * THE RANK COMES WITH THE ROW, not from the points column.
      *
