@@ -5,6 +5,7 @@ import { TOURNAMENT_TEMPLATES, templateFor, templateGroup, TEMPLATE_GROUPS, sugg
 import { TOURNAMENT_SHAPES, type TournamentShape } from "@/lib/tournament-shape";
 import { retentionNotice, planFor } from "@/lib/plans";
 import { Icon } from "./Icon";
+import { orgProfile } from "@/lib/domain/org-profile";
 
 /**
  * Create-a-tournament step on the picker screen. Shown prominently when
@@ -16,6 +17,7 @@ export function CreateFirstTournament({
   plan = "free",
   organizationNamed = false,
   clubNameRequired = false,
+  orgKind = "",
   organizations = [],
 }: {
   first: boolean;
@@ -52,6 +54,17 @@ export function CreateFirstTournament({
    */
   clubNameRequired?: boolean;
   /**
+   * What kind of outfit this organizer runs — club, community or personal.
+   *
+   * Every word on this screen that names the outfit reads it through
+   * `orgProfile`, so a society is called a society and a solo organizer is
+   * never shown a screen about a club they do not have. Empty resolves to
+   * `personal`, which is both the schema default and the kind a lazily created
+   * organization gets — so somebody who has no organization yet is described
+   * exactly as they will be a moment later.
+   */
+  orgKind?: string;
+  /**
    * The organizations this person may create in — see
    * `organizationsForOrganizer`.
    *
@@ -62,6 +75,8 @@ export function CreateFirstTournament({
    */
   organizations?: Array<{ id: string; name: string; kind: string; plan: string }>;
 }) {
+  /** Every word on this screen that names the outfit comes from here. */
+  const outfit = orgProfile(orgKind);
   const [name, setName] = useState("");
   const [orgName, setOrgName] = useState("");
   const [open, setOpen] = useState(first);
@@ -311,18 +326,24 @@ export function CreateFirstTournament({
             placeholder="e.g. Cedar Dunes Golf Club"
           />
           <p className="text-muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
-            {/* NOT "Club settings". This field is on the FIRST tournament,
-                where the organization does not exist yet and is created as
-                `personal` — whose settings screen is called "Outing settings",
-                not a club's. `settingsLabel` was written for exactly this:
-                "a solo organizer came to be shown a screen about a club they
-                do not have".
+            {/* TWO READERS OF ONE RULE, AND THEY MUST NOT DISAGREE. The label
+                above now says "set once for every tournament" when the gate
+                applies, and this line went on saying "Leave blank" underneath
+                it — the same eyeful telling somebody the field is required and
+                optional at once, which is this codebase's most-repeated
+                defect. Both read `clubNameRequired`.
 
-                Named rather than looked up, because there is no organization
-                to look up yet — and the moment somebody types a name in the
-                box above, the screen they will find is that one. */}
-            Leave blank to run it under your own name. You can set this later in the
-            organization&rsquo;s own settings.
+                The screen is NAMED from the kind rather than hard-coded. It
+                used to say "the organization's own settings" because on a
+                first tournament the organization may not exist yet and is
+                created as `personal`, whose screen is "Outing settings" and
+                not a club's — `settingsLabel` was written for exactly that
+                case. `orgProfile("")` still answers `personal`, so the
+                fallback is the old wording's meaning, said in the app's own
+                words. */}
+            {clubNameRequired
+              ? `It goes on every scorecard, the console header and the public leaderboard. Change it later on ${outfit.settingsLabel}.`
+              : `Leave blank to run it under your own name. You can set this later on ${outfit.settingsLabel}.`}
           </p>
         </div>
       )}
@@ -360,14 +381,22 @@ export function CreateFirstTournament({
         )}
       </div>
       {/* A disabled button that does not say why is a dead end, and this one
-          is disabled for two different reasons. Naming the step that is
+          is disabled for THREE different reasons now. Naming the step that is
           actually outstanding is the difference between "the app is broken"
-          and "I have one more thing to answer". */}
-      {!pending && (!name.trim() || !shape) && (
+          and "I have one more thing to answer".
+
+          The club name is last because it is last on the form, and because it
+          is the one a newcomer will not guess: the other two are the fields
+          they were plainly in the middle of filling in. Found by walking this
+          screen as a new society secretary — with a name and a shape chosen
+          and the club still unnamed, the button was dead and said nothing. */}
+      {!pending && (!name.trim() || !shape || (clubNameRequired && !orgName.trim())) && (
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
           {!name.trim()
             ? "Give it a name, then say how it's played."
-            : "Say how it's played — that decides what the rest of setup asks."}
+            : !shape
+              ? "Say how it's played — that decides what the rest of setup asks."
+              : `Name your ${outfit.noun} above — it is set once, for every tournament you will ever run.`}
         </p>
       )}
     </div>

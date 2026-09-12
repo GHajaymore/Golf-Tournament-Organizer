@@ -297,6 +297,11 @@ export default async function ChooseTournamentPage({
             !!facts &&
             !!clubFirstRefusal({ eventCount: facts.eventCount, named: facts.named, kind: facts.kind ?? "" })
           }
+          /* Names the outfit in the app's own words wherever this screen
+             mentions it — "Name your society", "Change it later on Society
+             settings". Empty resolves to `personal`, which is what somebody
+             with no organization yet is about to be given. */
+          orgKind={facts?.kind ?? ""}
           /* Only asked when there is more than one — see the prop. Each one
              carries its own plan, so the retention warning follows the pick. */
           organizations={await organizationsForOrganizer(session.email)}
