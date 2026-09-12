@@ -241,8 +241,27 @@ export const NAV: NavSection[] = [
     label: "Set up",
     items: [
       { key: "event", label: "Tournament details", href: "/event", icon: "ph ph-gear-six", tier: "at-desk" },
-      { key: "registration", label: "Registration & field", href: "/registration", icon: "ph ph-user-plus", tier: "at-desk" },
+      /**
+       * ROUNDS BEFORE THE FIELD, matching the guided chain.
+       *
+       * This listed Registration first, which is the order `setup-flow.ts`
+       * deliberately rejected — and in its words: "Deciding the field before
+       * deciding whether it is a medal or a knockout is the wrong way round,
+       * and it is the way round that had somebody adding players before
+       * discovering the format was not the one they wanted."
+       *
+       * The same file says the guide exists so "the app cannot tell an
+       * organizer one order in the rail and a different one in the buttons".
+       * The sidebar was telling them a third one. An organizer following the
+       * rail went event → rounds → field while the list beside it read event →
+       * field → rounds, and nothing reconciled the two.
+       *
+       * The rest of this section is not in the chain at all — flights, teams
+       * and staff are reachable whenever they are wanted — so only these two
+       * had an order to disagree about.
+       */
       { key: "stages", label: "Rounds & formats", href: "/stages", icon: "ph ph-stack", tier: "at-desk" },
+      { key: "registration", label: "Registration & field", href: "/registration", icon: "ph ph-user-plus", tier: "at-desk" },
       // Bands across the field, which is what a flight is — and NOT
       // ph-squares-four, which is the Dashboard's icon. Two entries wearing the
       // same glyph is the sidebar losing the only thing an icon is for.
