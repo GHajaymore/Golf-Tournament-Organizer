@@ -434,12 +434,17 @@ export default async function DashboardPage() {
    */
   const flow = unstarted ? await setupFlowFor(session.eventId) : null;
   const detailStep = flow?.steps.find((s) => s.href === "/event");
+  // The money step's own answer, for the same reason: the flow decides whether
+  // it is finished and a second copy of that test here is how the rail and the
+  // dashboard would come to disagree about it.
+  const moneyStep = flow?.steps.find((s) => s.href === "/prizes");
   const checklist = unstarted
     ? setupChecklist({
         ...state,
         branding: clubBrandingState(brandingOrg),
         orgKind: brandingOrg?.kind,
         details: detailStep ? { done: detailStep.done, missing: detailStep.missing } : undefined,
+        money: moneyStep ? { done: moneyStep.done } : undefined,
       })
     : [];
 

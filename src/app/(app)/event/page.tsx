@@ -109,6 +109,10 @@ export default async function EventPage({
   // The details step comes from the FLOW this page already loaded for its
   // rail, so the two cannot disagree about whether step one is finished.
   const detailStep = flow?.steps.find((s) => s.href === "/event");
+  // The money step's own answer, for the same reason: the flow decides whether
+  // it is finished and a second copy of that test here is how the rail and the
+  // dashboard would come to disagree about it.
+  const moneyStep = flow?.steps.find((s) => s.href === "/prizes");
   /**
    * A match keeps the checklist honest about what it actually has.
    *
@@ -123,6 +127,7 @@ export default async function EventPage({
     branding: clubBrandingState(org),
     orgKind: org?.kind,
     details: detailStep ? { done: detailStep.done, missing: detailStep.missing } : undefined,
+    money: moneyStep ? { done: moneyStep.done } : undefined,
   });
 
   return (

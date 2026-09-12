@@ -75,6 +75,20 @@ export interface ChecklistState {
    */
   details?: { done: boolean; missing: string };
   /**
+   * The money step, taken from the setup flow for the same reason `details`
+   * is: it is the flow's answer, not a second opinion about it.
+   *
+   * Absent means "don't ask", the contract both the other opt-in fields use,
+   * so a caller that has not loaded the flow shows the list it always showed.
+   *
+   * NOT marked optional, deliberately, even though a tournament with nobody
+   * asked about money is perfectly playable — `resolveMoneyMode` falls back.
+   * The guide makes it a step, and a dashboard calling optional what the rail
+   * waits for is the same two-lists-disagree fault this file's own sort was
+   * written to end. Whichever is right, it has to be the same on both.
+   */
+  money?: { done: boolean };
+  /**
    * What kind of outfit this tournament belongs to — see `orgProfile`.
    *
    * Only the branding nudge reads it, and only to call the thing by its own
@@ -150,6 +164,18 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
       done: state.groups.length > 0 && hasSchedule,
       href: "/grouping",
     },
+    ...(state.money
+      ? [
+          {
+            label: screenName("/prizes"),
+            detail: state.money.done
+              ? "Decided — entry fees and shared costs, or neither."
+              : "Nobody has said how money works here.",
+            done: state.money.done,
+            href: "/prizes",
+          },
+        ]
+      : []),
     {
       label: screenName("/access"),
       detail:

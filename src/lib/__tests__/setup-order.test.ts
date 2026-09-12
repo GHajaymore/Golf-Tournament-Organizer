@@ -35,23 +35,29 @@ const empty: ChecklistState = {
 };
 
 describe("the setup sequence is stated once", () => {
-  it("runs details, then what is played, then who plays it, then the draw", () => {
+  it("runs details, what is played, who plays it, the draw, then the money", () => {
     /**
      * The product decision, pinned. `setup-flow.ts` explains it: deciding the
      * field before deciding whether it is a medal or a knockout is the way
      * round that "had somebody adding players before discovering the format
      * was not the one they wanted".
      */
-    expect(SETUP_ORDER).toEqual(["/event", "/stages", "/registration", "/grouping"]);
+    expect(SETUP_ORDER).toEqual(["/event", "/stages", "/registration", "/grouping", "/prizes"]);
   });
 
   it("orders the dashboard checklist by it", () => {
-    // The checklist does not carry a details step, so it is SETUP_ORDER with
-    // that one absent — not a different sequence.
+    /**
+     * Two of the five rows are opt-in — the caller passes the flow's own
+     * answer or nothing at all — so a caller that passes neither gets
+     * SETUP_ORDER with those two absent, which is a SUBSET of the sequence and
+     * not a different one. Asserted that way rather than by naming the two, so
+     * a third opt-in row added later does not silently pass.
+     */
     const hrefs = setupChecklist(empty)
       .map((i) => i.href)
       .filter((h) => SETUP_ORDER.includes(h));
-    expect(hrefs).toEqual(SETUP_ORDER.filter((h) => h !== "/event"));
+    expect(hrefs).toEqual(SETUP_ORDER.filter((h) => hrefs.includes(h)));
+    expect(hrefs.length, "the checklist has lost its guided steps").toBeGreaterThan(2);
   });
 
   it("keeps the optional steps after the required ones", () => {
@@ -78,7 +84,7 @@ describe("the setup sequence is stated once", () => {
     expect(sorted.map((x) => x.href)).toEqual(["/event", "/grouping", "/nowhere"]);
   });
 
-  it("says the same thing in the Recommended flow card", () => {
+  it("reads the order off SETUP_ORDER rather than restating it", () => {
     /**
      * The card is prose in JSX rather than a list this can import, so it is
      * read as source — and read through `readSource`, because the comment
@@ -100,12 +106,28 @@ describe("the setup sequence is stated once", () => {
     const src = readSource("src", "components", "TournamentJourney.tsx");
     const at = (s: string) => src.indexOf(s);
 
-    expect(at('"/event"'), "details missing from the card").toBeGreaterThan(-1);
-    expect(at('"/event"')).toBeLessThan(at('"/stages"'));
-    expect(at('"/stages"')).toBeLessThan(at('"/registration"'));
-    expect(at('"/registration"')).toBeLessThan(at('"/grouping"'));
+    /**
+     * IT NO LONGER HAS AN ORDER OF ITS OWN TO CHECK.
+     *
+     * The setup phase was a hand-written four-element array and this test
+     * pinned its sequence in source. That is a second copy of SETUP_ORDER
+     * however carefully it is asserted — and it proved it: adding the money
+     * step to the guide left this card describing four steps under a count
+     * reading "0 of 5".
+     *
+     * So what is pinned now is that the card SPREADS the order rather than
+     * listing it. A card with nothing of its own cannot disagree, which is the
+     * same shape as the dashboard's quick actions below.
+     */
+    expect(src).toContain("screens: [...SETUP_ORDER]");
+    expect(src).toContain('import { SETUP_ORDER } from "@/lib/domain/setup-flow"');
+    // And no href of its own in that phase — a literal is how the second copy
+    // came back last time.
+    const setupPhase = src.slice(src.indexOf('key: "setup"'), src.indexOf('key: "launch"'));
+    expect(setupPhase, "the setup phase named a screen itself").not.toMatch(/"\/[a-z]/);
     // And setup still finishes before the tournament is handed to the field.
-    expect(at('"/grouping"')).toBeLessThan(at('title: "Launch"'));
+    expect(at("SETUP_ORDER]"), "the setup phase is gone").toBeGreaterThan(-1);
+    expect(at("SETUP_ORDER]")).toBeLessThan(at('title: "Launch"'));
     // Which in turn comes before playing it and before settling up.
     expect(at('title: "Launch"')).toBeLessThan(at('title: "Play"'));
     expect(at('title: "Play"')).toBeLessThan(at('title: "Finish"'));
@@ -153,7 +175,11 @@ describe("the step the dashboard never had", () => {
   });
 
   it("still follows SETUP_ORDER with the step present", () => {
-    const hrefs = withDetails(false)
+    const hrefs = setupChecklist({
+      ...empty,
+      details: { done: false, missing: "It still needs a name." },
+      money: { done: false },
+    })
       .map((i) => i.href)
       .filter((h) => SETUP_ORDER.includes(h));
     expect(hrefs).toEqual([...SETUP_ORDER]);

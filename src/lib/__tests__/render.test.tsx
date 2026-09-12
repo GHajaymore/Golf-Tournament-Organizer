@@ -5824,18 +5824,18 @@ describe("the round-code card is drawn for the round's own holes", () => {
 describe("the setup rail", () => {
   const facts = {
     confirmed: 0, stages: 0, groups: 0, matches: 0, drawsPairings: true,
-    named: false, dated: false, venued: false, launched: false,
+    named: false, dated: false, venued: false, moneyAnswered: false, launched: false,
   };
   const rail = (over: Partial<typeof facts>) =>
     renderToStaticMarkup(
       <SetupFlowRail flow={setupFlow({ ...facts, ...over }, screenName)} href="/stages" />,
     );
-  const done = { named: true, venued: true, stages: 1, confirmed: 2, groups: 1, matches: 1 };
+  const done = { named: true, venued: true, stages: 1, confirmed: 2, groups: 1, matches: 1, moneyAnswered: true };
 
   it("guides while there is anything left to do", () => {
     const html = rail({ stages: 1 });
     expect(html).toContain("Setting up");
-    expect(html).toContain("1 of 4 done");
+    expect(html).toContain("1 of 5 done");
     // The screen being looked at is finished, so it says what still is not —
     // and calls it "still to do" rather than "next", because the outstanding
     // step is behind this one.
