@@ -25,7 +25,8 @@ export function ReportsClient({
   isStableford = false,
   eventName,
   brand,
-  snapshotTitle = "Final standings snapshot",
+  snapshotTitle = "Standings so far",
+  snapshotNote = "",
   extraCsv = [],
   board,
   scored = true,
@@ -40,6 +41,16 @@ export function ReportsClient({
   brand?: { name: string; logoUrl: string } | null;
   /** What the printable panel is called — a team round is not "standings". */
   snapshotTitle?: string;
+  /**
+   * The qualifier under the title, or "" once the tournament is closed.
+   *
+   * On the sheet itself rather than only on screen, because the sheet is the
+   * artefact: this panel is printed and pinned to a noticeboard, and a reader
+   * standing in front of it has no way to ask whether the round had finished.
+   * The default is empty so a caller that has not been taught prints exactly
+   * what it printed before.
+   */
+  snapshotNote?: string;
   /**
    * Exports for a round the standard board does not cover, built on the server
    * from that round's own engine. Replaces the two player-standings CSVs when
@@ -247,6 +258,14 @@ export function ReportsClient({
               <div className="text-muted" style={{ fontSize: 12 }}>
                 {[brand?.name, eventName].filter(Boolean).join(" · ")}
               </div>
+              {/* Under the club and the tournament, so the three lines read as
+                  one caption on the printed sheet rather than a warning bolted
+                  above the table. Empty once it is genuinely final. */}
+              {snapshotNote && (
+                <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                  {snapshotNote}
+                </div>
+              )}
             </div>
           </div>
           <button type="button" className="btn btn-secondary" onClick={() => window.print()}>
