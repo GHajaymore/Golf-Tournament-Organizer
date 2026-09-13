@@ -1,6 +1,6 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
-import { registrationStatus, formatDeadline, overCapacity } from "@/lib/registration";
+import { registrationStatus, formatDeadline, overCapacity, suggestedInvite } from "@/lib/registration";
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
@@ -337,7 +337,17 @@ export function RegistrationClient({
    * below, which stops the message going out at all until registration has
    * been opened once and a token exists.
    */
-  const fullMessage = `${invite}${signature}${registerUrl ? `\n\nSign up: ${registerUrl}` : ""}`;
+  /**
+   * What to offer when there is nothing saved, and what to SEND then too.
+   *
+   * The buttons below share `fullMessage`, so a blank box would put the club's
+   * signature and a bare link in front of a member with no sentence at all.
+   * The suggestion stands in for both, which is what makes the placeholder an
+   * offer rather than grey text nobody acts on.
+   */
+  const suggestion = suggestedInvite({ name: event.name, dates: event.dates, course: event.course });
+  const body = invite.trim() || suggestion;
+  const fullMessage = `${body}${signature}${registerUrl ? `\n\nSign up: ${registerUrl}` : ""}`;
 
   const sendWhatsApp = () => window.open(`https://wa.me/?text=${encodeURIComponent(fullMessage)}`, "_blank", "noopener");
   const sendSms = () => {
@@ -949,7 +959,19 @@ export function RegistrationClient({
         </p>
         <div className="field">
           <label>Message</label>
-          <textarea className="input" rows={3} value={invite} onChange={(e) => setInvite(e.target.value)} onBlur={() => startTransition(() => setInviteMessage(invite))} style={{ resize: "vertical", fontFamily: "inherit" }} />
+          {/* A PLACEHOLDER, never a stored value — see `suggestedInvite`. It is
+              rebuilt from the tournament on every render, so it cannot be wrong
+              about the date the way a saved sentence can; that is exactly what
+              went wrong with the one a copy used to inherit. */}
+          <textarea
+            className="input"
+            rows={3}
+            value={invite}
+            placeholder={suggestion}
+            onChange={(e) => setInvite(e.target.value)}
+            onBlur={() => startTransition(() => setInviteMessage(invite))}
+            style={{ resize: "vertical", fontFamily: "inherit" }}
+          />
         </div>
         {/* Nothing to send until a token exists. Every one of these buttons
             puts the link in front of a member, and a link with no token is a

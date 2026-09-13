@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { registrationStatus, overCapacity, type RegistrationInput } from "../registration";
+import { registrationStatus, overCapacity, suggestedInvite, type RegistrationInput } from "../registration";
+import { CLONED_EVENT_FIELDS, NOT_CLONED_EVENT_FIELDS } from "../services/clone";
 import { readSource } from "./source";
 
 /**
@@ -148,6 +149,83 @@ describe("a field over its cap", () => {
     // qualifies is "of 32 capacity", and separating them is how a reader ends
     // up doing the subtraction themselves.
     expect(src.indexOf("over} over")).toBeGreaterThan(src.indexOf("capacity`}"));
+  });
+});
+
+
+describe("the invite a copy used to inherit", () => {
+  it("is not carried to a copy any more", () => {
+    /**
+     * It was the one carried field with no reason written beside it, in a list
+     * where every other entry argues its case — and it is the field that gets
+     * SENT. `dates` is excluded because "last year's dates are not this
+     * year's"; the demo club's message names the dates, the venue AND the
+     * tournament, so it was carrying all three past that exclusion in prose.
+     */
+    expect(CLONED_EVENT_FIELDS as readonly string[]).not.toContain("inviteMessage");
+    expect(Object.keys(NOT_CLONED_EVENT_FIELDS)).toContain("inviteMessage");
+    // And the exclusion says why, like every other one. The sweep in
+    // clone.test.ts insists a field is classified; it cannot insist the reason
+    // is a reason.
+    expect(NOT_CLONED_EVENT_FIELDS.inviteMessage.length).toBeGreaterThan(40);
+  });
+
+  it("suggests one built from this tournament instead", () => {
+    const s = suggestedInvite({ name: "Spring Medal", dates: "May 14–16, 2026", course: "Blue Ash" });
+    expect(s).toContain("Spring Medal");
+    expect(s).toContain("May 14–16, 2026");
+    expect(s).toContain("Blue Ash");
+  });
+
+  it("drops the clause it has nothing to say for", () => {
+    /**
+     * A template built by plain concatenation produced "— at ." on a
+     * tournament with no date yet, which is worse than the blank box this
+     * replaces. Each clause appears only when it has a value.
+     */
+    const noDate = suggestedInvite({ name: "Spring Medal", dates: "", course: "Blue Ash" });
+    expect(noDate).toContain("at Blue Ash");
+    expect(noDate, "an empty clause left its preposition behind").not.toMatch(/\bon\s+at\b/);
+    expect(noDate).not.toMatch(/\s{2,}/);
+
+    const noVenue = suggestedInvite({ name: "Winter League", dates: "Tuesdays", course: "" });
+    expect(noVenue).toContain("on Tuesdays");
+    expect(noVenue).not.toContain(" at ");
+    expect(noVenue).not.toMatch(/\s{2,}/);
+
+    // Neither: still a sentence, not a fragment.
+    const bare = suggestedInvite({ name: "Roll-up", dates: "", course: "" });
+    expect(bare).toContain("Roll-up");
+    expect(bare.trim()).toBe(bare);
+  });
+
+  it("suggests nothing for a tournament with no name", () => {
+    // "You're invited to ." is the failure this guards. A blank suggestion
+    // renders as an empty placeholder, which is the honest empty state.
+    expect(suggestedInvite({ name: "", dates: "May", course: "Blue Ash" })).toBe("");
+    expect(suggestedInvite({ name: "   ", dates: "May", course: "Blue Ash" })).toBe("");
+  });
+
+  it("leaves the sign-up link to the sender", () => {
+    /**
+     * `fullMessage` appends the link itself. A copy of it in the body would go
+     * out twice in one message — and the body is also used when the link does
+     * not exist yet, where a URL would be a dead one.
+     */
+    const s = suggestedInvite({ name: "Spring Medal", dates: "May", course: "Blue Ash" });
+    expect(s).not.toMatch(/https?:\/\//);
+    expect(s).not.toContain("/register/");
+  });
+
+  it("is offered as a placeholder, and sent when the box is empty", () => {
+    const src = readSource("src", "components", "RegistrationClient.tsx");
+    // Grey text nobody can act on is not an offer: the same suggestion has to
+    // be what the WhatsApp and SMS buttons actually send.
+    expect(src).toContain("placeholder={suggestion}");
+    expect(src).toContain("invite.trim() || suggestion");
+    // And never written to the database by the placeholder path — only what
+    // the organizer typed is saved.
+    expect(src).toContain("setInviteMessage(invite)");
   });
 });
 

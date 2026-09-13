@@ -199,3 +199,42 @@ export function overCapacity(capacity: number, confirmedCount: number): number {
   if (capacity <= 0) return 0;
   return Math.max(0, confirmedCount - capacity);
 }
+
+/**
+ * A SUGGESTED invite, built from the tournament's own details.
+ *
+ * `inviteMessage` is free text an organizer types once, and it was the one
+ * field a copy carried that contains the things a copy does not: the demo
+ * club's reads "You're invited to the Demo Cup — May 14–16, 2026 at Ridgeline
+ * National, Aspen Falls." Next year's copy would have shipped that verbatim,
+ * to the whole membership, one WhatsApp button away.
+ *
+ * So the copy starts blank — see `NOT_CLONED_EVENT_FIELDS` — and this fills
+ * the gap as a PLACEHOLDER rather than a stored value. That distinction is the
+ * whole design: a placeholder is recomputed from the event on every render, so
+ * it cannot be wrong about the date the way a saved sentence can. Type over it
+ * and what you typed is yours; leave it and there is nothing stale to send.
+ *
+ * Deliberately does NOT include the sign-up link. `fullMessage` appends that
+ * separately, and a second copy of it in the body would go out twice.
+ */
+export function suggestedInvite(input: {
+  name: string;
+  /** Free text — "May 14–16, 2026", or "" for a tournament with no date yet. */
+  dates: string;
+  /** The course, or "" for a league that moves each week. */
+  course: string;
+}): string {
+  const name = input.name.trim();
+  if (!name) return "";
+  const dates = input.dates.trim();
+  const course = input.course.trim();
+  /**
+   * Each clause only when there is something to say. A tournament with no date
+   * yet produced "— at ." from a template built by concatenation, which is
+   * worse than the blank box this replaces.
+   */
+  const when = dates ? ` on ${dates}` : "";
+  const where = course ? ` at ${course}` : "";
+  return `You're invited to ${name}${when}${where}. Tap the link to claim a spot.`;
+}

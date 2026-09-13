@@ -55,7 +55,6 @@ export const CLONED_EVENT_FIELDS = [
   "maxPerMatch",
   "tiebreakers",
   "matchTiebreakers",
-  "inviteMessage",
   "leaderboardVisibility",
   "scoreEntryBy",
   "scoreEntryWindow",
@@ -115,6 +114,8 @@ export const NOT_CLONED_EVENT_FIELDS: Record<string, string> = {
   teePolicy:
     "a condition of THIS competition, decided for the tees and the field it had — a copy is a new competition and its committee sets it again rather than inheriting a restriction nobody in the room chose",
   dates: "always wrong on a copy — last year's dates are not this year's",
+  inviteMessage:
+    "the same reason as dates, in prose. It was carried, alone among these fields with no reason written beside it — and the demo club's own message reads \"You're invited to the Demo Cup — May 14–16, 2026 at Ridgeline National, Aspen Falls\", which names the tournament, the dates AND the venue, none of which a copy inherits. So the one field that carried them was the one nobody had thought about, and it is the field that gets SENT to the whole membership. A stale sentence sitting in a textarea is harmless; a stale sentence one WhatsApp button away from four hundred members is not. The screen suggests one built from this tournament's own details instead, as a placeholder — which cannot go stale because it is never stored",
   regDeadline: "same reason as dates",
   registrationOverride:
     "a decision about last year's deadline — a copy has a new deadline and starts following it",
