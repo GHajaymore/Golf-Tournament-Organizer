@@ -3036,6 +3036,53 @@ describe("the player's own card opens on what is already there", () => {
     );
     expect(html).toContain("approved by the committee");
     expect(html, "an approved card must not render an entry pad").not.toContain("Certify");
+
+    /**
+     * READ-ONLY, NOT INVISIBLE — and this branch was invisible.
+     *
+     * It rendered the sentence and nothing else, so the screen called "My
+     * card" showed no card. Read off the demo tournament on 2026-09-12 as a
+     * player whose round had been signed off: one line of grey text where
+     * eighteen holes had been.
+     *
+     * Approval is the committee accepting the card AS A RESULT — that is
+     * `isCardLocked`'s own word — and a result is the thing a player most
+     * wants to look at afterwards. There is nowhere else to see it: the board
+     * carries a total, and the paper card is at the club.
+     */
+    expect(html, "the approved card renders no card at all").toContain("S.I.");
+    expect(html).toContain("Yards");
+    // Every hole, not a summary of them.
+    expect((html.match(/>Tot</g) ?? []).length).toBeGreaterThan(0);
+
+    /**
+     * AND GENUINELY READ-ONLY. `ScorecardTable` "renders read-only by default
+     * and takes `onSet` to become editable", so the whole of this fix is one
+     * prop left off — and the way it could go wrong is passing it anyway,
+     * which would hand a player an editable copy of a card the committee has
+     * signed. An input in this markup is that bug.
+     */
+    expect(html, "an approved card offered an editable field").not.toContain("<input");
+  });
+
+  it("still lets an unapproved card be edited — the control", () => {
+    /**
+     * Without this, a change that rendered every card read-only would pass the
+     * test above and silently stop a player entering a score at all.
+     */
+    return (async () => {
+      const { PlayerCard } = await import("@/components/PlayerCard");
+      const html = render(
+        <PlayerCard
+          stageId="s1" playerId="p1" playerName="A. Moore" roundLabel="Round 1"
+          holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+          strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)}
+          status="entered" initialStrokes={new Array(18).fill(4)}
+        />,
+      );
+      expect(html).not.toContain("approved by the committee");
+      expect(html, "an open card lost its way to enter a score").toContain("Certify");
+    })();
   });
 
   it("shows where the round stands, without leaving for the board", async () => {

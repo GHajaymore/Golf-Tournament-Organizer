@@ -342,9 +342,42 @@ export function PlayerCard({
       </h1>
 
       {locked ? (
-        <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
-          This card has been approved by the committee. Ask an organizer if something needs changing.
-        </p>
+        /**
+         * APPROVED, AND THEREFORE READ-ONLY — NOT THEREFORE INVISIBLE.
+         *
+         * This branch was the sentence and nothing else, so the screen called
+         * "My card" showed no card. Read off the demo tournament on
+         * 2026-09-12 as a player whose round had been signed off: one line of
+         * grey text where eighteen holes had been.
+         *
+         * Approval is the committee accepting the card AS A RESULT —
+         * `isCardLocked` says so — and a result is the thing a player most
+         * wants to look at afterwards. It is theirs to stop changing, not
+         * theirs to stop seeing. There is nowhere else to see it either: the
+         * board carries a total, and the paper card is at the club.
+         *
+         * `ScorecardTable` "renders read-only by default and takes `onSet` to
+         * become editable", in its own words, so this is the same grid the
+         * editable branch below renders with the one prop left off. Not a
+         * second card that could come to disagree with it.
+         */
+        <>
+          <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--color-neutral-400)", marginTop: 0 }}>
+            This card has been approved by the committee. Ask an organizer if something needs changing.
+          </p>
+          <ScorecardTable
+            holes={holes}
+            pars={pars}
+            yards={yards}
+            strokeIndex={strokeIndex}
+            strokes={strokes}
+            shotsPerHole={shotsPerHole}
+            playingHandicap={playingHandicap}
+            brand={brand}
+            courseName={courseName}
+            venueIsHome={venueIsHome}
+          />
+        </>
       ) : (
         <>
           {/* Where I stand. Above the hole and never moving, because it is the
