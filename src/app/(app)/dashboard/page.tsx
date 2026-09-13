@@ -1,6 +1,7 @@
 import { screenMetadataForEvent } from "@/lib/screen-metadata";
 import Link from "next/link";
 import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
+import { reviewQueueDetail } from "@/lib/domain/review-queue";
 import { requireState } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
 import { StatCard, FactCard } from "@/components/PageHeader";
@@ -788,9 +789,22 @@ export default async function DashboardPage() {
               icon="ph ph-check-circle"
             />
           )}
-          {/* An organizer's review queue, not a player-facing number. */}
+          {/* An organizer's review queue, not a player-facing number.
+
+              The sub-line NAMES WHAT IS IN IT rather than calling everything a
+              "score". Read off the demo tournament: "36 scores to confirm"
+              sitting beside "Cards in 7/33" was thirty-six MATCH RESULTS, and
+              the two numbers were about different rounds. See
+              `domain/review-queue.ts` — it counts both sources over the whole
+              tournament now, so a round the organizer has moved on from cannot
+              take its unreviewed work off the screen with it. */}
           {isStaff && (
-            <StatCard label="Awaiting review" value={state.pendingConfirmations} sub={state.pendingConfirmations === 1 ? "score to confirm" : "scores to confirm"} icon="ph ph-seal-check" />
+            <StatCard
+              label="Awaiting review"
+              value={state.pendingConfirmations}
+              sub={reviewQueueDetail(state.reviewing)}
+              icon="ph ph-seal-check"
+            />
           )}
           {/* Who's advancing is a live read on the standings, so it follows them
               — and only counts when there's a knockout to advance into; a
