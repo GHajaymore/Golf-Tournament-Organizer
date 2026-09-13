@@ -440,6 +440,40 @@ export async function removeSideGame(sideGameId: string): Promise<SideGameResult
   if (!found.ok) return { ok: false, error: found.error };
   const { game, eventId } = found;
 
+  /**
+   * A POT WITH MONEY IN IT IS NOT DELETED, IT IS EMPTIED FIRST.
+   *
+   * `SideGameEntry.sideGameId` cascades, so removing the game removes every
+   * stake with it — including the confirmed ones, which are the record that
+   * somebody handed over cash. One tap and there is nothing left saying who
+   * paid what, on a screen four friends share.
+   *
+   * This action had no screen at all until now, so the hazard was theoretical.
+   * Giving it a button is what makes it real, and the guard belongs HERE
+   * rather than beside the button: the rule is about the data, and a caller
+   * written later cannot forget a rule it never has to remember. Same shape as
+   * `standingRows` returning [] on its first line for a manual format.
+   *
+   * The remedy is in the refusal and it is two taps away: un-tick whoever has
+   * paid — which is what actually returns their money — and the pot is then
+   * an empty one that can go. Making the destruction deliberate is the whole
+   * point, not an obstacle.
+   *
+   * An UNCONFIRMED entry is an intention rather than a stake, which this file
+   * and the pot screens already agree about, so it does not hold the pot open.
+   */
+  const staked = await prisma.sideGameEntry.count({
+    where: { sideGameId: game.id, confirmed: true, excluded: false },
+  });
+  if (staked > 0) {
+    return {
+      ok: false,
+      error:
+        `${staked} ${staked === 1 ? "player has" : "players have"} paid into this one. ` +
+        `Take them out of the pot first — that is what hands the money back — and then it can go.`,
+    };
+  }
+
   await prisma.sideGame.delete({ where: { id: game.id } });
   await logAudit(eventId, "sidegame.remove", `Removed ${game.kind}`);
   revalidatePath("/", "layout");

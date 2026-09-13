@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { addContest, setContestEntrants, setContestWinners, removeContest, confirmContestEntry } from "@/app/actions/contests";
-import { saveSideGame, setSideGameEntrants, confirmSideGameEntry } from "@/app/actions/side-games";
+import { saveSideGame, setSideGameEntrants, confirmSideGameEntry, removeSideGame } from "@/app/actions/side-games";
 import { setPotEntryMode, setPotExcluded } from "@/app/actions/money-setup";
 import {
   POT_ENTRY_MODES,
@@ -430,6 +430,34 @@ export function ContestsClient({
                     }}
                   />
                 </label>
+                {/* TAKING THE GAME OFF ALTOGETHER.
+                    `removeSideGame` has existed since the pots were written
+                    and was reachable from nothing, so a fourball that started
+                    a birdie pot they did not want was stuck with the row — the
+                    nearest thing to removing it was pricing it at zero, which
+                    leaves a game on the screen saying it is free rather than
+                    one that is gone.
+
+                    Only once the game EXISTS. A row with no game behind it is
+                    an offer, not a thing to delete.
+
+                    The action refuses a pot that has been paid into, and says
+                    how to empty it first — see `removeSideGame`. This button
+                    does not pre-judge that; the refusal is the honest place
+                    for it, and hiding the control would leave somebody unable
+                    to find out why. */}
+                {game && (
+                  <ConfirmButton
+                    className="btn btn-ghost"
+                    style={{ fontSize: 11.5 }}
+                    icon="trash"
+                    title={`Take ${row.label} off this round`}
+                    confirmLabel="Take it off"
+                    note="The game goes. Anybody who has paid in has to be taken out of the pot first."
+                    disabled={pending}
+                    onConfirm={() => run(() => removeSideGame(game.id))}
+                  />
+                )}
               </div>
 
               {/* PLAYED FOR SOMETHING THAT IS NOT MONEY, said where the money
