@@ -668,6 +668,56 @@ So when a script edits a file:
 
 A mutation you did not confirm applied is not evidence about anything.
 
+**AND THE SAME TRAP EATS REGEX ESCAPES, which is worse, because the result is
+a script that runs and lies.** The note above is about `\n` against CRLF. On
+2026-09-13 the same shell swallowed three more, each failing differently:
+
+- `\\b` inside a heredoc reached node as `\b`, which in a JS string is a
+  BACKSPACE. A sweep of 211 server actions for callers reported **211 of 211
+  unreachable** — every regex was `<0x08>name<0x08>` and matched nothing.
+  Believed for about a minute, because "nothing is called" is a plausible
+  answer to a question you have not asked before.
+- The same `\b`, written into a TEST FILE, put literal `0x08` bytes in the
+  source. `/\bon\s+at\b/` became `/<0x08>ons+at<0x08>/` — still a valid regex,
+  still passing, asserting nothing. It would have shipped as a green dud.
+- `\s` and `\(` were stripped outright, producing
+  `new RegExp("...(\"...")` — an unclosed group, which at least throws.
+
+Detect the middle one with a control-byte scan; it is invisible in a diff:
+
+```bash
+node -e 'const s=require("fs").readFileSync(process.argv[1],"utf8");console.log([...s].filter(c=>c.charCodeAt(0)<9||(c.charCodeAt(0)>13&&c.charCodeAt(0)<32)).length)' <file>
+```
+
+The rule that actually works: **anything containing a backslash goes through
+the Write or Edit tool, never through a heredoc or `node -e`.** Where a script
+must match text, prefer `indexOf` / `includes` / `split` — none of them need an
+escape, and a sweep built from them cannot be silently disarmed.
+
+**A SWEEP THAT FINDS NOTHING MAY BE BROKEN, so give every one a control.**
+This is the same discipline as proving a test can fail, applied to the
+instrument instead of the subject: assert that something you KNOW the sweep
+should catch is caught, in the same run that reports the count. Three sweeps on
+2026-09-13 were measuring nothing, and only the ones with controls said so —
+the reachability sweep now asserts `addExpense` reads as called, and the money
+sweep asserts four known money actions are found at all.
+
+A control also catches the quieter failure, which is a sweep that is merely
+NARROW. `money-leaves-a-trail` first used the model name `skinsPotEntry`; the
+schema says `SkinsEntry`, so it skipped the two actions writing a player's
+STAKE — the sharpest rows in the file it was aimed at — and reported the app
+cleaner than it was. It checks every model name against `schema.prisma` now.
+
+**SWEEP THE CLASS, NOT THE INSTANCE.** Walking screens and fixing what you see
+finds defects at a constant rate for ever; it never converges, because the pool
+is large and you are sampling it. Sweeping a whole class finds all of it at
+once and then the class is closed. On 2026-09-13, four classes swept in a day:
+links (22 of 22 fine), absolute claims against deliberately-incomplete data
+(nothing new), unreachable server actions (8 — five deleted, one real money
+bug, two missing features), and money writes with no audit line (ten, including
+the whole of `skins.ts`). The first two came back clean, which is itself the
+result worth having: it is how you learn a class is finished.
+
 ## Testing: the combination sweep
 
 The 2026-08-12 audit found ~80 defects against a suite of 1400 passing tests.
