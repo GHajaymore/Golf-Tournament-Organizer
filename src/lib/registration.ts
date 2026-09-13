@@ -33,8 +33,31 @@ export interface RegistrationStatus {
   waitlisting: boolean;
   /** Short label for a status chip. */
   label: string;
-  /** One line of explanation, or "" when the label says everything. */
+  /**
+   * One line of explanation, or "" when the label says everything.
+   *
+   * THE FULL SENTENCE, AND IT BELONGS ON ONE ELEMENT. `RegistrationClient`
+   * printed it in three places at once — the Status stat card, the banner
+   * directly beneath it, and the warning on the public sign-up link — so an
+   * organizer whose deadline had passed read "The May 7, 2026 deadline has
+   * passed. Reopen it if you're still taking entries." three times on one
+   * screen, twice within an inch of each other. Measured on the demo
+   * tournament, 2026-09-12.
+   *
+   * Nothing was wrong with any of the three; each had been added on its own
+   * and none knew about the others. Use `short` where the sentence is context
+   * rather than the point.
+   */
   detail: string;
+  /**
+   * The same state in a few words, for somewhere a whole sentence would repeat
+   * one already on screen.
+   *
+   * Not a truncation of `detail` — a sub-line under a heading that already
+   * reads "Closed" wants the REASON ("past the May 7, 2026 deadline"), not the
+   * remedy, and the remedy is the half that made the repeat grating.
+   */
+  short: string;
 }
 
 export interface RegistrationInput {
@@ -87,6 +110,7 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
       waitlisting: false,
       label: "Closed",
       detail: "This tournament has finished.",
+      short: "the tournament has finished",
     };
   }
 
@@ -97,6 +121,7 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
       waitlisting: false,
       label: "Closed",
       detail: "Closed by the organizer. Reopen it to take more entries.",
+      short: "closed by the organizer",
     };
   }
 
@@ -110,6 +135,7 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
       waitlisting: full,
       label: full ? "Extended — waitlist" : "Extended",
       detail: `Past the ${formatDeadline(deadline)} deadline, kept open by the organizer.`,
+      short: "kept open past the deadline",
     };
   }
 
@@ -120,6 +146,7 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
       waitlisting: false,
       label: "Closed",
       detail: `The ${formatDeadline(deadline)} deadline has passed. Reopen it if you're still taking entries.`,
+      short: `past the ${formatDeadline(deadline)} deadline`,
     };
   }
 
@@ -130,6 +157,7 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
       waitlisting: true,
       label: "Full — waitlist active",
       detail: `All ${capacity} places taken; further entries join the waitlist.`,
+      short: "further entries join the waitlist",
     };
   }
 
@@ -139,5 +167,35 @@ export function registrationStatus(input: RegistrationInput): RegistrationStatus
     waitlisting: false,
     label: unlimited ? "Open · unlimited" : "Open",
     detail: "",
+    // The one state whose label really does say everything. Both blank rather
+    // than inventing a phrase, so a caller rendering `short` on an open
+    // tournament prints nothing instead of a redundant "open".
+    short: "",
   };
+}
+
+/**
+ * How many confirmed entries there are BEYOND the cap, or 0.
+ *
+ * The field screen printed "Confirmed 33 · of 32 capacity" with nothing
+ * remarking on it, beside "Waitlisted 0 · bumped in if a spot opens" — which
+ * describes a spot that does not exist and will not. Read off the demo
+ * tournament on 2026-09-12.
+ *
+ * IT IS A REACHABLE AND LEGITIMATE STATE, which is why this reports rather
+ * than refuses. `RegistrationClient` says so of the deadline and the same is
+ * true here: "adding a player by hand is never blocked by this — that is how a
+ * closed event still takes a late entry, and it is the organizer's job."
+ * Lowering the cap after entries are in gets there too, and a committee that
+ * decides to squeeze two more in is making a decision, not a mistake.
+ *
+ * What it must not do is go unsaid. `spotsLeft` is clamped with `Math.max(0,
+ * …)`, so the screen reports "spots remaining: 0" whether the field is exactly
+ * full or three over — and an organizer drawing a tee sheet for thirty-two has
+ * thirty-three people turning up.
+ */
+export function overCapacity(capacity: number, confirmedCount: number): number {
+  // Unlimited cannot be exceeded; a cap of 0 or less means there is no cap.
+  if (capacity <= 0) return 0;
+  return Math.max(0, confirmedCount - capacity);
 }

@@ -1,6 +1,6 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
-import { registrationStatus, formatDeadline } from "@/lib/registration";
+import { registrationStatus, formatDeadline, overCapacity } from "@/lib/registration";
 import { parseHandicapInput } from "@/lib/domain/registration-intake";
 import { promotionState } from "@/lib/domain/promotion";
 import { setRegistrationOverride, setRegistrationOpen, setRegistrationApproval, setRequirePhone, approveSignup, rotatePublicToken } from "@/app/actions/tournament";
@@ -162,6 +162,8 @@ export function RegistrationClient({
 
   const unlimited = event.capacity <= 0;
   const spotsLeft = unlimited ? Infinity : Math.max(0, event.capacity - confirmed.length);
+  // And the other side of that clamp — see `overCapacity`.
+  const over = overCapacity(event.capacity, confirmed.length);
   // Was computed from capacity alone, so a tournament whose deadline passed a
   // week ago still read "Open · unlimited" — the screen stating something
   // false about the organizer's own event.
@@ -567,6 +569,17 @@ export function RegistrationClient({
           <div style={{ fontFamily: "var(--font-heading)", fontSize: 24 }}>{confirmed.length}</div>
           <div className="text-muted" style={{ fontSize: 12 }}>
             {unlimited ? "unlimited field" : `of ${event.capacity} capacity`}
+            {/* Said out loud, because nothing else on the screen can say it:
+                `spotsLeft` is clamped at zero, so "spots remaining: 0" reads
+                the same whether the field is exactly full or three over — and
+                the organizer drawing a tee sheet for thirty-two has
+                thirty-three people arriving. See `overCapacity`. */}
+            {over > 0 && (
+              <>
+                {" · "}
+                <span style={{ color: "var(--color-danger)" }}>{over} over</span>
+              </>
+            )}
             {" · "}
             <a href="/event">change on Tournament details</a>
           </div>
@@ -599,8 +612,11 @@ export function RegistrationClient({
           >
             {status}
           </div>
+          {/* The reason, not the remedy. This card sits an inch above a banner
+              that carries the full sentence, and printing it in both was the
+              same words twice on one screen — see `RegistrationStatus.short`. */}
           <div className="text-muted" style={{ fontSize: 12 }}>
-            {reg.acceptingEntries ? `spots remaining: ${unlimited ? "∞" : spotsLeft}` : reg.detail}
+            {reg.acceptingEntries ? `spots remaining: ${unlimited ? "∞" : spotsLeft}` : reg.short}
           </div>
         </div>
       </div>
@@ -794,8 +810,11 @@ export function RegistrationClient({
             "Closed" chip four inches apart and had nothing joining the two. */}
         {event.registrationOpen && !reg.acceptingEntries && (
           <p style={{ fontSize: 12.5, margin: 0, color: "var(--color-danger)" }}>
+            {/* The reason in a few words. The full sentence lives on the
+                banner above; a third copy of it down here was the one that
+                made the screen read as though the app were nagging. */}
             <Icon name="warning-circle" /> The link is live but this tournament is not taking
-            entries — anyone who follows it is turned away. {reg.detail}
+            entries — anyone who follows it is turned away{reg.short ? ` (${reg.short})` : ""}.
           </p>
         )}
 
