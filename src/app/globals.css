@@ -702,6 +702,24 @@ body {
     margin-top: -15px;
     margin-bottom: -15px;
   }
+  /* THE COURSE PICKER'S OPTION ROWS, which `touch.spec` structurally cannot
+     reach: they exist only while the list is OPEN, and a sweep that loads a
+     route and measures what is on it sees a closed combobox. Measured by hand
+     at 375px on 2026-09-13 — 29px a row, three rows deep, on the screen
+     somebody is using one-handed standing on a tee. Picking the wrong course
+     allocates every handicap stroke off the wrong stroke index.
+
+     A CUSTOM PROPERTY RATHER THAN A RULE ON THE ROW, and the distinction is
+     the trap the block above this one is about. Those rules win because they
+     set `min-height` against an inline `height` — a different property. These
+     rows carry an inline `padding`, and no stylesheet padding beats an inline
+     one, so the obvious rule here would be a dead rule that measures fine in
+     the file and changes nothing on the screen. The row's inline style reads
+     this variable instead, so the cascade is doing the arithmetic rather than
+     fighting it. */
+  #course-picker-list {
+    --picker-row-pad: 13px;
+  }
   /* A label wrapping a checkbox or radio IS the target: tapping anywhere in it
      toggles the control. Sized here rather than on the input, because inflating
      a native checkbox is how you get a 44px box beside 13px text. */

@@ -2292,6 +2292,30 @@ describe("where this round was played", () => {
     expect(present).toContain("Check par and stroke index");
   });
 
+  it("asks hardest when no course is set at all", async () => {
+    /**
+     * THE STATE EVERY CONDITION IN THIS PANEL ANSWERED "NOTHING TO CHOOSE" TO,
+     * and the one that most needed asking.
+     *
+     * Two venues, a club library, a venue whose card is missing — each is a
+     * reason to show the picker, and each is zero on a tournament nobody has
+     * set a course for. `missingCard` is the subtle one: it reads
+     * `!!venue && !venue.hasCard`, so a venue with no card raises a warning
+     * and NO VENUE AT ALL raises nothing.
+     *
+     * Every other fixture in this file passes `venue: carded`, which is why
+     * nine green tests said nothing about it. Measured against the
+     * development database on 2026-09-13: two of three tournaments were in
+     * exactly this state and could not be given a course from score entry.
+     *
+     * This picker is the only one in the app with `searchDirectory` on, so an
+     * empty library is precisely when it is the only way through.
+     */
+    const html = await venue({ venues: [], library: [], venue: null });
+    expect(html).toContain('role="combobox"');
+    expect(html).toContain("No course set for this round");
+  });
+
   it("shows none of it to someone who cannot edit the tournament", async () => {
     // A player entering their own card does not set the venue for the field.
     expect(await venue({ venues: twoVenues, canEdit: false })).toBe("");
@@ -2302,6 +2326,96 @@ describe("where this round was played", () => {
         venue: { name: "Bushwood", courseId: "c1", hasCard: false },
       }),
     ).toBe("");
+  });
+});
+
+describe("saying where a tournament is played, from score entry", () => {
+  /**
+   * THE WHOLE SCREEN, NOT THE PANEL — because the fault was which panel got
+   * rendered, and a test of `RoundVenue` alone cannot see that.
+   *
+   * `RoundVenue` was stroke-mode only, on a sound argument: match play asks
+   * the same question per match one screen down, and two pickers for one
+   * answer is worse than none. The argument holds while the tournament HAS a
+   * course. It does not hold when it has none — "where is this tournament"
+   * is one answer for the whole field, and the per-match picker cannot give
+   * it, because that picker offers only the tournament's venues and the
+   * club's library and both are empty in exactly that state.
+   *
+   * So a match-play tournament with no course had no route to one from score
+   * entry in either mode: the round-level panel was not rendered, and the
+   * per-match one hid itself.
+   */
+  const round = {
+    stageId: "st1",
+    label: "Round 1",
+    format: "Match Play",
+    drawsPairings: true,
+    matches: [],
+    netMode: false,
+    scoreInput: "",
+    scoringBasis: "gross",
+    courseId: "",
+    venue: null as { name: string; courseId: string; hasCard: boolean } | null,
+    card: { pars: [], yards: [], strokeIndex: [] },
+    stroke: {
+      holes: 18,
+      stageId: "st1",
+      cardsByPlayer: {},
+      cardStatus: {},
+      teeGroups: [],
+      shotsByPlayer: {},
+    },
+  };
+
+  const entry = async (over: Record<string, unknown> = {}, screen: Record<string, unknown> = {}) => {
+    const { EntryModes } = await import("@/components/EntryModes");
+    return render(
+      <EntryModes
+        rounds={[{ ...round, ...over }]}
+        activeIndex={0}
+        players={[{ id: "p1", name: "Alex Vaughn", handicap: 8 }]}
+        isStaff
+        defaultMode="match"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        {...(screen as any)}
+      />,
+    );
+  };
+
+  it("offers a course on a match-play round that has none", async () => {
+    const html = await entry();
+    expect(html).toContain("No course set for this round");
+    expect(html).toContain('role="combobox"');
+  });
+
+  it("stops offering it the moment the round has one", async () => {
+    /**
+     * The delegation rule, still holding where it was right. A match-play
+     * round with a venue asks per match, one screen down — otherwise this fix
+     * would leave every match-play tournament permanently showing two
+     * controls for one answer, which is the thing the original rule exists to
+     * prevent.
+     *
+     * TWO VENUES, DELIBERATELY, and the reason is the whole point of this
+     * line. The first version of this test passed a resolved venue and
+     * nothing else, so `RoundVenue` hid ITSELF — nothing to choose between —
+     * and the assertion held no matter what `EntryModes` decided. Replacing
+     * the mode check with `true` left it green, which is a fixture that
+     * cannot express the wrong answer rather than a test of anything. With a
+     * second venue the panel genuinely wants to render, so only the mode
+     * check can keep it off the screen.
+     *
+     * `matches: []` keeps this unambiguous: the per-match picker lives inside
+     * the selected match, so the only `combobox` this markup can contain is
+     * the round-level one.
+     */
+    const html = await entry(
+      { venue: { name: "Bushwood", courseId: "c1", hasCard: true } },
+      { venues: [{ id: "c1", name: "Bushwood" }, { id: "c2", name: "Ridgeline" }] },
+    );
+    expect(html).not.toContain("No course set for this round");
+    expect(html).not.toContain('role="combobox"');
   });
 });
 
