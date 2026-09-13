@@ -85,6 +85,23 @@ export interface WeekView {
   /** Standings after this week, with movement since the week before. */
   standings: WeekRow[];
   /**
+   * Whether THIS week's result is in the table above, or the table is the
+   * season as it stood walking into it.
+   *
+   * `standingsWithMovement` has known the difference since it was corrected on
+   * 2026-09-12 and says so in its own words — a medal night in a match league
+   * "earns no match points, so it shows the season as it stands going INTO
+   * that night". The heading over it did not know, and read "Standings after
+   * this week" regardless.
+   *
+   * Read off the demo league's Week 2, a Stroke Play Round in a match-play
+   * season: seven gross scores on the night, and beneath them a points table
+   * with a movement column reading "—" for all thirty-three. The numbers are
+   * right; the heading says the night has been counted and the dashes say it
+   * has not, and the natural reading is that the app lost a week.
+   */
+  standingsIncludeThisWeek: boolean;
+  /**
    * The skins games this round actually ran, in the order they are read.
    *
    * A list rather than a gross/net pair, because a league night runs four —
@@ -305,6 +322,19 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
         handicapFor,
         basis,
       });
+  /**
+   * Does this week's result reach the season table?
+   *
+   * Asked of the LIST THAT BUILDS THE TABLE rather than of the stage's type.
+   * A match league's table comes from `chainRoundStandings(state.rrStages, …)`,
+   * so membership of `rrStages` is the question exactly — and a second reading
+   * of it, phrased as `type === "Round Robin"`, is how the heading would come
+   * to disagree with the rows underneath it the next time either changes.
+   *
+   * A stroke league sums every counted week, so all of them feed it.
+   */
+  const standingsIncludeThisWeek =
+    state.isStroke || state.rrStages.some((s) => s.id === stage.id);
 
   /**
    * Every skins game this round actually ran, not a fixed gross-and-net pair.
@@ -364,6 +394,7 @@ export async function weekViewFor(eventId: string, wantedStageId?: string): Prom
     results,
     basis,
     standings,
+    standingsIncludeThisWeek,
     skins,
     // A manual week is not "empty" — it has a result, just not one this app
     // knows. The screen says which, and they read differently.

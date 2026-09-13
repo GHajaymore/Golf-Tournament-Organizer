@@ -274,12 +274,28 @@ export function WeekClient({ view, canManageMoney }: { view: WeekView; canManage
           </Section>
           )}
 
+          {/* THE HEADING FOLLOWS THE TABLE, rather than claiming for it.
+
+              A medal night in a match-play league earns no match points, so
+              what is shown is the season as it stood WALKING INTO the night —
+              `standingsWithMovement` says exactly that of itself. The heading
+              claimed otherwise, and the movement column full of dashes
+              underneath then read as a week the app had lost.
+
+              The aside goes with it: "movement since last week" over a column
+              that cannot move is the same claim in smaller type. */}
           <Section
             kicker="The table"
-            title="Standings after this week"
+            title={
+              view.standingsIncludeThisWeek
+                ? "Standings after this week"
+                : "Season standings going into this week"
+            }
             aside={
               <span className="text-muted" style={{ fontSize: 12 }}>
-                movement since last week
+                {view.standingsIncludeThisWeek
+                  ? "movement since last week"
+                  : "this night earns no league points"}
               </span>
             }
           >
