@@ -1,0 +1,112 @@
+import { describe, it, expect } from "vitest";
+import { snapshotStanding } from "../domain/lifecycle-state";
+import { readSource } from "./source";
+
+/**
+ * WHAT THE PLAYER'S OWN SCREENS CLAIM IS SETTLED.
+ *
+ * Two readings off the demo tournament on 2026-09-12, signed in as a player.
+ *
+ * "POSITION 5" BESIDE "FINAL". The label is honest — `rankedScore` says in its
+ * own words that "final" is "a claim about this player's own round, not about
+ * eighteen holes", and this player had returned every hole they owed. What
+ * nothing said is that twenty-six of the thirty-three cards were still out. A
+ * reader takes the card in as one thing and concludes they finished fifth.
+ *
+ * "YOU'RE DOWN OVER THE WHOLE TOURNAMENT −$10.00", with "Side bets −$15.00"
+ * four inches below it. Both figures are right. `roundMoneyFor` counts only
+ * rounds whose pots are final — deliberately, and `money-layout.ts` argues it
+ * at length — so the header excluded a closest-to-the-pin already won on a
+ * round still being played. The phrase was the part that could not be kept.
+ *
+ * NEITHER FIX CHANGES AN AMOUNT. Both are the app stopping short of a claim it
+ * cannot support, which is the same correction `/reports` took for its printed
+ * sheet — and the position note reads through that same rule rather than a
+ * second opinion about it.
+ */
+
+describe("the player's position says whether it can move", () => {
+  it("reads through the rule the printed sheet uses", () => {
+    /**
+     * ONE RULE, TWO READERS. A second opinion would have the organizer's
+     * noticeboard and the player's phone saying different things about one
+     * round — the split this codebase keeps rediscovering.
+     */
+    const me = readSource("src", "lib", "services", "me.ts");
+    expect(me).toContain("snapshotStanding(");
+    expect(me, "the player screen worked finality out for itself").not.toMatch(/status === "completed"/);
+  });
+
+  it("is measured against the board's own progress, not the round's hole count", () => {
+    // `boardProgress` is what "7 of 33 cards in" comes from, and it is the
+    // number the dashboard prints beside it. Reading anything else here would
+    // put two counts of one thing on two screens.
+    const me = readSource("src", "lib", "services", "me.ts");
+    const call = me.slice(me.indexOf("snapshotStanding("), me.indexOf("snapshotStanding(") + 320);
+    expect(call).toContain("state.boardProgress.done");
+    expect(call).toContain("state.boardProgress.total");
+    expect(call).toContain("state.event.status");
+  });
+
+  it("prints under the position, which is what it qualifies", () => {
+    /**
+     * Not beside "Final". That label belongs to the SCORE and is correct about
+     * it; moving the qualifier there would contradict a true statement instead
+     * of completing an incomplete one.
+     */
+    const page = readSource("src", "app", "(player)", "me", "page.tsx");
+    expect(page).toContain("me.standing.note");
+    expect(page.indexOf("me.standing.note")).toBeGreaterThan(page.indexOf("me.standing?.position"));
+    expect(page.indexOf("me.standing.note")).toBeLessThan(page.indexOf("me.standing?.scoreLabel"));
+  });
+
+  it("says nothing once the tournament is closed", () => {
+    // Self-clearing, so it is not furniture on every finished tournament for
+    // the rest of the season.
+    expect(snapshotStanding({ status: "completed", done: 7, total: 33, unit: "cards" }).note).toBe("");
+    expect(snapshotStanding({ status: "live", done: 7, total: 33, unit: "cards" }).note).toContain("7 of 33");
+  });
+});
+
+describe("what the money header is over", () => {
+  const client = () => readSource("src", "components", "RoundMoney.tsx");
+
+  it("stops claiming the whole tournament while a round is out", () => {
+    const src = client();
+    expect(src, "the unconditional claim is back").not.toContain('"You\'re down over the whole tournament"');
+    expect(src).toContain("on the rounds that have finished");
+  });
+
+  it("still says the whole tournament once nothing is outstanding", () => {
+    /**
+     * THE CONTROL. A change that simply deleted the phrase would pass the test
+     * above and would be a different understatement — a finished tournament's
+     * total really is over the whole thing, and hedging it forever is its own
+     * untruth.
+     */
+    expect(client()).toContain("over the whole tournament");
+  });
+
+  it("asks the same question the sentence below it asks", () => {
+    /**
+     * "Still being played: Round 1, Round 3…" is rendered from
+     * `view.rounds.some((r) => !r.final)`. The header reading anything else is
+     * how a card comes to hedge its total while telling the reader everything
+     * is in, or the reverse.
+     */
+    const src = client();
+    expect(src.split("view.rounds.some((r) => !r.final)").length - 1).toBeGreaterThan(1);
+  });
+
+  it("changes no arithmetic", () => {
+    /**
+     * The figure was never wrong. `roundMoneyFor` gates on finality for
+     * reasons `money-layout.ts` sets out — "a skins pot can carry to the last
+     * green, so a running total would only be a different number that looked
+     * like the answer" — and this must stay a wording fix.
+     */
+    const src = client();
+    expect(src).toContain("money(view.yourTotalCents)");
+    expect(src, "the header started doing sums of its own").not.toMatch(/yourTotalCents\s*[+\-*/]/);
+  });
+});
