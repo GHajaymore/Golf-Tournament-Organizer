@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { rankedScore } from "@/lib/domain/ranked-score";
+import { snapshotStanding } from "@/lib/domain/lifecycle-state";
 import { cardRevision } from "@/lib/domain/pending-card";
 import { needsTeams, ranksIndividuals } from "@/lib/formats";
 import { generatesPairings } from "@/lib/stage-types";
@@ -218,6 +219,26 @@ export interface Me {
     record: string;
     /** What the number means, for the label above it: "Match points", "Thru 4". */
     scoreLabel: string;
+    /**
+     * WHETHER THIS PLACE CAN STILL MOVE, or "" once it cannot.
+     *
+     * The card prints "Position 5" beside a label reading "Final", and the
+     * label is honest — `rankedScore` says in its own words that it is "a
+     * claim about this player's own round, not about eighteen holes", and this
+     * player has returned every hole they owe.
+     *
+     * What nothing said is that twenty-six of the thirty-three cards were
+     * still out. Read off the demo tournament on 2026-09-12: a player looking
+     * at "Position 5" and "Final" in the same two-inch card reads that they
+     * finished fifth. They are fifth of seven returned, in a draft.
+     *
+     * THE SAME RULE THE PRINTED SHEET USES, deliberately — `snapshotStanding`,
+     * which already answers "can this still change" for `/reports`. A second
+     * opinion about it would be the app telling the organizer's noticeboard one
+     * thing and the player's phone another about the same round, which is
+     * exactly the split this codebase keeps finding.
+     */
+    note: string;
   } | null;
   round: MyRound | null;
 }
@@ -380,6 +401,14 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
             isStroke: state.boardIsStroke,
             isStableford: stage.scoringBasis === "stableford",
           }).label,
+          // The board's own progress, through the rule `/reports` reads. See
+          // the note on the field.
+          note: snapshotStanding({
+            status: state.event.status,
+            done: state.boardProgress.done,
+            total: state.boardProgress.total,
+            unit: state.boardProgress.unit,
+          }).note,
         }
       : null,
     round: {

@@ -216,6 +216,25 @@ export default async function PlayTodayPage() {
                   {me.standing.record}
                 </div>
               )}
+              {/* WHETHER THE PLACE CAN STILL MOVE.
+
+                  The label on the right reads "Final", and it is honest —
+                  `rankedScore` means "final" about THIS player's card, and
+                  they have returned every hole they owe. But a reader takes in
+                  "Position 5" and "Final" as one card, and on the demo
+                  tournament twenty-six of thirty-three cards were still out.
+
+                  Under the position rather than beside the label, because it
+                  qualifies the PLACE and not the score — and through
+                  `snapshotStanding`, the same rule the printed standings sheet
+                  reads, so a player's phone and the organizer's noticeboard
+                  cannot say different things about one round. Empty once
+                  nothing can change it. */}
+              {me.standing?.note && (
+                <div style={{ fontSize: 11.5, color: "var(--color-neutral-400)", marginTop: 5, lineHeight: 1.5 }}>
+                  {me.standing.note}
+                </div>
+              )}
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 11.5, color: "var(--color-neutral-400)", fontWeight: 600 }}>

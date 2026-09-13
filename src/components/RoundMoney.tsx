@@ -28,6 +28,17 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
     cents > 0 ? "var(--color-accent-2-300)" : cents < 0 ? "var(--color-danger)" : "var(--color-text)";
 
   const played = view.rounds.filter((r) => r.final);
+  /**
+   * What the headline total is actually over.
+   *
+   * "the whole tournament" is only true once nothing is outstanding. Derived
+   * from the same test the "Still being played" line uses at the foot of this
+   * card, so the two cannot come to disagree about whether a round is still
+   * out — and so a tournament that finishes gets the fuller sentence back
+   * without anybody remembering to change it.
+   */
+  const outstanding = view.rounds.some((r) => !r.final);
+  const scope = outstanding ? " on the rounds that have finished" : " over the whole tournament";
 
   return (
     <section className="card elev-sm" style={{ gap: 10 }}>
@@ -105,12 +116,29 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
               background: "color-mix(in srgb, var(--color-accent) 8%, transparent)",
             }}
           >
+            {/* NOT "over the whole tournament" WHILE PART OF IT IS UNSETTLED.
+
+                The figure is right and the phrase was not. `roundMoneyFor`
+                counts only rounds whose pots are final — deliberately; see
+                `money-layout.ts` — so on a tournament with a round still out
+                this total excludes real, decided money. Read off the demo on
+                2026-09-12: the header said "You're down over the whole
+                tournament −$10.00" while the ledger four inches below said
+                "Side bets −$15.00", the difference being a closest-to-the-pin
+                already won on a round that has not finished.
+
+                Nothing about the arithmetic changes here. Two figures on one
+                screen claiming to answer the same question is the whole
+                defect, and the top one was the one making a claim it could not
+                keep. The same condition the "Still being played" line below
+                already uses, so the header and that sentence cannot disagree
+                about whether anything is outstanding. */}
             <span style={{ fontSize: 13 }}>
               {view.yourTotalCents > 0
-                ? "You're up over the whole tournament"
+                ? `You're up${scope}`
                 : view.yourTotalCents < 0
-                  ? "You're down over the whole tournament"
-                  : "You're square over the whole tournament"}
+                  ? `You're down${scope}`
+                  : `You're square${scope}`}
             </span>
             <span
               style={{
