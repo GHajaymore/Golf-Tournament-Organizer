@@ -62,7 +62,7 @@ vi.mock("@/app/actions/roster", actionModule);
 vi.mock("@/app/actions/messaging", actionModule);
 
 import { SeriesClient } from "@/components/SeriesClient";
-import { TeeEditor } from "@/components/TeeEditor";
+import { TeeEditor, PlaysExplainer } from "@/components/TeeEditor";
 import { NewMatchForm } from "@/components/NewMatchForm";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { type EventRow } from "@/components/EventSwitcher";
@@ -249,13 +249,32 @@ describe("tees and ratings", () => {
     expect(html).toContain(">15<");
     expect(html).toContain("no rating yet");
     /**
-     * AND WHAT THAT COLUMN IS, on the page. The heading reads "14.0 plays"
-     * and the sentence explaining it was in a `title`, which never appears on
-     * a touch device — on the one figure in this table that is not simply a
-     * number copied off the card, and the useful one: two sets of tees differ
-     * by exactly this.
+     * AND THE COLUMN IS STILL LABELLED, which is what this table owes.
+     *
+     * The SENTENCE explaining it moved out — `CourseLibrary` renders one of
+     * these per course, so the explanation appeared once per venue and a club
+     * with a dozen printed a dozen copies. It is `PlaysExplainer` now,
+     * rendered once under the whole library, and asserted below.
      */
+    expect(html).toContain("14.0 plays");
+    expect(html, "the explanation is back on every course's table").not.toContain(
+      "is the course handicap a 14.0 index gets off each set",
+    );
+  });
+
+  it("explains that column once, for the whole library", () => {
+    /**
+     * The other half of the move. Without this the sentence could simply have
+     * been deleted — and the heading "14.0 plays" is the one figure in the
+     * table that is not a number copied off the card, so an organizer typing
+     * a transposed slope has nothing to check it against.
+     *
+     * The `title` attribute it lived in before that never appeared on a touch
+     * device at all, which is why it is on the page rather than in a tooltip.
+     */
+    const html = render(<PlaysExplainer />);
     expect(html).toContain("is the course handicap a 14.0 index gets off each set");
+    expect(html).toContain("14.0 plays");
   });
 
   it("hides the controls from someone who can't edit", () => {

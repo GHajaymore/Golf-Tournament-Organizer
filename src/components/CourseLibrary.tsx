@@ -3,7 +3,7 @@ import { useOrgProfile, leadingNoun } from "@/components/OrgProfileProvider";
 import { CardImport } from "./CardImport";
 import { screenName } from "@/lib/nav";
 import { Fragment, useState, useTransition } from "react";
-import { TeeEditor } from "./TeeEditor";
+import { TeeEditor, PlaysExplainer } from "./TeeEditor";
 import {
   saveClubCourse,
   deleteClubCourse,
@@ -430,6 +430,9 @@ export function CourseLibrary({
               ))}
             </tbody>
           </table>
+          {/* Once, under the whole library — see `PlaysExplainer`. Per course
+              it was the same paragraph repeated for every venue the club has. */}
+          <PlaysExplainer />
         </div>
       )}
 

@@ -201,16 +201,6 @@ export function TeeEditor({
               ))}
             </tbody>
           </table>
-          {/* WHAT THE LAST COLUMN IS, on the page. It read "14.0 plays" with
-              the sentence in a `title`, which never appears on a touch device
-              — and this is the one figure on the table that is not simply a
-              number off the card. It is also the useful one: two sets of tees
-              differ by exactly this. */}
-          <p className="text-muted" style={{ fontSize: 11, margin: "8px 0 0", lineHeight: 1.5 }}>
-            <b>14.0 plays</b> is the course handicap a 14.0 index gets off each set — worked out
-            from that set&rsquo;s rating, slope and par. It is what the difference between two sets
-            of tees actually costs a player.
-          </p>
         </div>
       )}
 
@@ -315,5 +305,32 @@ export function TeeEditor({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * WHAT THE "14.0 plays" COLUMN IS — said once, by whoever lists the courses.
+ *
+ * It used to sit under each course's own tee table. That reads correctly for
+ * one course and badly for a club with several: `CourseLibrary` renders a
+ * `TeeEditor` per course, so the demo club's three venues printed this same
+ * paragraph three times down one screen, and a club with a dozen would print
+ * a dozen. Measured on `/event`, 2026-09-13.
+ *
+ * The column heading is identical on every one of those tables, so one
+ * explanation covers all of them — and the place that knows how many tables
+ * there are is the list, not the table.
+ *
+ * Exported as a component rather than a string so the wording and its styling
+ * travel together; a caller that renders the tables is the caller that should
+ * render this, and there is exactly one.
+ */
+export function PlaysExplainer() {
+  return (
+    <p className="text-muted" style={{ fontSize: 11, margin: "10px 0 0", lineHeight: 1.5 }}>
+      <b>14.0 plays</b> is the course handicap a 14.0 index gets off each set — worked out from
+      that set&rsquo;s rating, slope and par. It is what the difference between two sets of tees
+      actually costs a player.
+    </p>
   );
 }
