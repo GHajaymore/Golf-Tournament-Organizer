@@ -3323,6 +3323,17 @@ export async function setConfigUnlocked(unlocked: boolean) {
 
 /* ── Prizes & payouts ─────────────────────────────────────────────────── */
 
+/**
+ * THE PURSE IS MONEY, SO IT LEAVES A TRAIL.
+ *
+ * These four wrote `Prize` — what a club is putting up and who takes it — with
+ * nothing recording who changed it, while every other money action in the app
+ * audits. `setPrizeWinner` is the sharp end: it awards a named person a sum,
+ * and "who decided that" had no answer anywhere.
+ *
+ * Found by sweeping every server action that writes a money row for the audit
+ * line beside it, 2026-09-13. Same sweep, same day, as the whole of skins.ts.
+ */
 export async function addPrize(category: string, amount: number, detail = "") {
   const eventId = await requireStaffEvent();
   const clean = category.trim();
@@ -3337,6 +3348,7 @@ export async function addPrize(category: string, amount: number, detail = "") {
       position: (agg._max.position ?? 0) + 1,
     },
   });
+  await logAudit(eventId, "prize.add", `${clean}${amount > 0 ? ` — ${amount}` : ""}`);
   await refresh();
 }
 
@@ -3347,6 +3359,13 @@ export async function updatePrize(prizeId: string, data: { category?: string; de
   if (data.detail !== undefined) patch.detail = data.detail.trim();
   if (data.amount !== undefined) patch.amount = Number.isFinite(data.amount) && data.amount > 0 ? data.amount : 0;
   await prisma.prize.updateMany({ where: { id: prizeId, eventId }, data: patch });
+  // What actually changed, rather than "a prize was edited" — the amount is
+  // the half somebody would come back and ask about.
+  await logAudit(
+    eventId,
+    "prize.update",
+    Object.entries(patch).map(([k, v]) => `${k}: ${v}`).join(", ") || "no change",
+  );
   await refresh();
 }
 
@@ -3356,12 +3375,27 @@ export async function setPrizeWinner(prizeId: string, winnerId: string) {
     where: { id: prizeId, eventId },
     data: { winnerId: winnerId || null },
   });
+  await logAudit(
+    eventId,
+    "prize.winner",
+    winnerId ? `Awarded to player ${winnerId}` : "Winner cleared",
+  );
   await refresh();
 }
 
 export async function removePrize(prizeId: string) {
   const eventId = await requireStaffEvent();
+  // Read before it goes, or the line says nothing but an id nobody can look up.
+  const gone = await prisma.prize.findFirst({
+    where: { id: prizeId, eventId },
+    select: { category: true, amount: true },
+  });
   await prisma.prize.deleteMany({ where: { id: prizeId, eventId } });
+  await logAudit(
+    eventId,
+    "prize.remove",
+    gone ? `Removed ${gone.category}${gone.amount > 0 ? ` — ${gone.amount}` : ""}` : "Removed a prize",
+  );
   await refresh();
 }
 

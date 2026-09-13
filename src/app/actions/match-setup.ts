@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { getSession, setActiveEvent } from "@/lib/auth";
+import { logAudit } from "@/lib/services/action-shared";
 import { revalidatePath } from "next/cache";
 import { personalOrganizationFor, organizationIdsFor, settingsForNewEvent } from "@/lib/services/organization";
 import { syncPlayerAccount } from "@/lib/services/player-access";
@@ -596,6 +597,26 @@ export async function createMatch(input: MatchSetupInput): Promise<CreateMatchRe
       });
 
     }
+    /**
+     * THE ROUND'S MONEY, RECORDED WITH A NAME AGAINST IT.
+     *
+     * This branch creates a pot AND writes confirmed stakes for everybody in
+     * it — the comment above calls it "recording what the group just agreed
+     * standing on the tee" — and it did so with nothing saying who set it up
+     * or at what. Four friends coming back to "whose idea was the tenner"
+     * found nothing.
+     *
+     * One line for the whole agreement rather than one per player: it is a
+     * single act, and a row per stake would bury the act in its own
+     * consequences.
+     */
+    await logAudit(
+      event.id,
+      "match.money",
+      `${plan.money.game.pot === "skins" ? "Skins" : plan.money.game.kind ?? "Side game"} at ` +
+        `${plan.money.stakeCents > 0 ? `${plan.money.stakeCents}c a head` : plan.money.stakeNote || "no stake"}, ` +
+        `${playerIds.length} in`,
+    );
   }
 
   await setActiveEvent(event.id);
