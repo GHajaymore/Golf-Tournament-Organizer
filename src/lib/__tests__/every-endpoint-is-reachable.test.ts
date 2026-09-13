@@ -65,10 +65,19 @@ function allFiles(): string[] {
  * a reason to leave a door open.
  */
 const NO_CALLER_YET: Record<string, string> = {
-  removeSideGame:
-    "deletes a group's side game. The screen offers no delete for one yet — a fourball that priced a birdie pot wrongly has to re-price it rather than remove it. Kept because the authorization and the audit line are the hard half and are already right; the missing piece is a button.",
-  renameTeam:
-    "renames a side. Teams are created with a generated name and there is no rename control, so a club that wants 'The Wanderers' instead of 'Team 3' cannot have it. Same reason as above: the action is finished, the control is not.",
+  /**
+   * EMPTY, AND THAT IS THE POINT.
+   *
+   * It opened with four entries the day this guard was written. All four have
+   * since been wired to the screens they were waiting for — `forfeitMatch`
+   * (#340), `disputeScorecard` (#341), and `removeSideGame` and `renameTeam`
+   * here — so every `"use server"` export in the app is now reachable from
+   * product code.
+   *
+   * Adding an entry is allowed and is meant to be uncomfortable: it says a
+   * capability is built and nobody can use it, which is the state that
+   * produced every one of those four.
+   */
 };
 
 describe("no server action is unreachable", () => {

@@ -8,6 +8,7 @@ import { useAction } from "./useAction";
 import {
   createTeam,
   deleteTeam,
+  renameTeam,
   addTeamMember,
   removeTeamMember,
   autoDrawTeams,
@@ -297,7 +298,35 @@ export function TeamsClient({
           return (
             <div key={t.id} className="card elev-sm" style={{ gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span className="card-title" style={{ fontSize: 14, flex: 1 }}>{t.name}</span>
+                {/* THE NAME, EDITABLE IN PLACE.
+
+                    `renameTeam` was written with the rest of these and reached
+                    from nothing, so a club stuck with the generated "Team 3"
+                    had one way to get "The Wanderers": delete the side and
+                    build it again, re-adding every member. Found by the
+                    reachability guard (#339).
+
+                    An input rather than a button-and-dialog, because a name is
+                    a name — and committed on blur, like the stake box on the
+                    pots screen, so there is nothing extra to press. A blank is
+                    refused by the action and the old name stays on screen,
+                    which is the right way round: the side never loses its
+                    name to a stray keystroke. */}
+                <input
+                  className="input card-title"
+                  aria-label={`Name of ${t.name}`}
+                  defaultValue={t.name}
+                  disabled={pending}
+                  style={{ fontSize: 14, flex: 1, minHeight: 36, padding: "4px 8px" }}
+                  onBlur={(e) => {
+                    const next = e.target.value.trim();
+                    if (!next || next === t.name) {
+                      e.target.value = t.name;
+                      return;
+                    }
+                    run(() => renameTeam(t.id, next));
+                  }}
+                />
                 {/* Says what the number IS. It rendered as a bare "14" beside
                     the side's name with its meaning in a `title` — a number
                     with no label, on a screen whose whole subject is handicaps,
