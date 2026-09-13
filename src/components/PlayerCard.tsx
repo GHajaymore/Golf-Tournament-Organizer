@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { HoleByHoleCard } from "@/components/HoleByHoleCard";
 import { ScorecardTable, type CardBrand } from "@/components/ScorecardTable";
-import { saveScorecard, certifyScorecard } from "@/app/actions/tournament";
+import { saveScorecard, certifyScorecard, disputeScorecard } from "@/app/actions/tournament";
 import { usePendingCard } from "@/components/usePendingCard";
 import { CardConflict } from "@/components/CardConflict";
 import { RuleCite } from "@/components/RuleCite";
@@ -10,6 +10,7 @@ import { toParText } from "@/lib/domain";
 import { cardRevision } from "@/lib/domain/pending-card";
 import { certifyPrompt, certifiedNote } from "@/lib/domain/card-approval";
 import { Icon } from "./Icon";
+import { ConfirmButton } from "./ConfirmButton";
 
 /**
  * A player's own card, on a phone, outdoors, mid-round.
@@ -271,11 +272,42 @@ export function PlayerCard({
     });
   };
 
+  /**
+   * SAYING THE CARD IS WRONG.
+   *
+   * DELIBERATELY DOES NOT SAVE FIRST, unlike `certify` directly below. Certify
+   * sends the holes because signing is a statement that THESE numbers are
+   * right, so the server must have them. A dispute is the opposite statement —
+   * that whatever the server is holding should not be accepted — and writing
+   * this phone's version of the card on the way would be quietly correcting
+   * the very numbers being objected to.
+   *
+   * Optimistic on the label only. If the server refuses — an approved card is
+   * locked — the error line says so and the state is put back, because a
+   * player told their objection was recorded when it was not is worse than
+   * one told it failed.
+   */
+  const dispute = () =>
+    startTransition(async () => {
+      const before = state;
+      setError("");
+      setState("disputed");
+      try {
+        await disputeScorecard(stageId, playerId);
+        setNote("");
+      } catch (e) {
+        setState(before);
+        setError(e instanceof Error ? e.message : "Couldn't flag that card.");
+      }
+    });
+
   const certify = () =>
     startTransition(async () => {
       try {
         // Save first: certifying a card the server has not seen would certify
         // whatever was last written, which is not what is on this screen.
+        //
+        // (The dispute path below deliberately does NOT save first — see it.)
         //
         // Captured, not re-read after the await: `settle()` below has to know
         // whether THIS card is the one still outstanding.
@@ -611,6 +643,49 @@ export function PlayerCard({
           <p style={{ margin: "10px 0 0", fontSize: 12.5, lineHeight: 1.6, color: "var(--color-neutral-400)" }}>
             {certifyPrompt(complete, holes, staffApproves)}
           </p>
+
+          {/* SAYING THE CARD IS WRONG — the other answer to "is this right?".
+
+              Certify is a statement under Rule 3.3b that these scores ARE
+              right, and until now it was the only answer this screen took.
+              Match play has had the opposite since it was written —
+              `disputeMatch`, from score entry — and stroke play had no door,
+              so `disputeScorecard` existed, authorized and audited, and could
+              not be reached. The app could render a disputed card and never
+              produce one.
+
+              It matters most in the case this format is built around: one
+              person in a fourball enters three other people's rounds. A player
+              who opens a card somebody else filled in and finds a 6 where they
+              made a 4 should be able to SAY so — silently editing a card the
+              marker has already signed is the thing certification exists to
+              prevent.
+
+              Offered only while there is a card and it is still open. An
+              approved one is locked — `disputeScorecard` refuses it, so a
+              button here would be one that only ever errors — and a disputed
+              one is already said. */}
+          {state !== "disputed" && filled > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <ConfirmButton
+                className="btn btn-secondary"
+                style={{ width: "100%", minHeight: 44, fontSize: 13 }}
+                icon="warning"
+                label="Something on this card is wrong"
+                title="Dispute this card"
+                confirmLabel="Flag it"
+                note="Tells the committee not to accept it until it is sorted out. Your scores are kept."
+                disabled={pending}
+                onConfirm={dispute}
+              />
+            </div>
+          )}
+          {state === "disputed" && (
+            <p style={{ margin: "10px 0 0", fontSize: 12.5, lineHeight: 1.6, color: "var(--color-danger)" }}>
+              <Icon name="warning-circle" /> Flagged as wrong. The committee has been told and will
+              not accept it until it is sorted out.
+            </p>
+          )}
           <p style={{ margin: "6px 0 0" }}>
             <RuleCite rule="scorecardCertification" />
           </p>

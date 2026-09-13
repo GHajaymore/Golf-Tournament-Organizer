@@ -65,8 +65,6 @@ function allFiles(): string[] {
  * a reason to leave a door open.
  */
 const NO_CALLER_YET: Record<string, string> = {
-  disputeScorecard:
-    "a player saying their stroke-play card is wrong. The status is first-class everywhere else — `cardStanding` renders 'Disputed' with a problem tone, `reviewCards` refuses to blanket-approve one, `statusAfterEdit` deliberately will not clear it — and MATCH play has the equivalent wired: `disputeMatch` is called from score entry. Stroke play has no door, so the app can display a disputed card and never produce one. The asymmetry is the bug; the action is ready.",
   removeSideGame:
     "deletes a group's side game. The screen offers no delete for one yet — a fourball that priced a birdie pot wrongly has to re-price it rather than remove it. Kept because the authorization and the audit line are the hard half and are already right; the missing piece is a button.",
   renameTeam:
