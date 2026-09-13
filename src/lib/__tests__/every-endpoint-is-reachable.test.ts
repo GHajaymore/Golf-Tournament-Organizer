@@ -67,8 +67,6 @@ function allFiles(): string[] {
 const NO_CALLER_YET: Record<string, string> = {
   disputeScorecard:
     "a player saying their stroke-play card is wrong. The status is first-class everywhere else — `cardStanding` renders 'Disputed' with a problem tone, `reviewCards` refuses to blanket-approve one, `statusAfterEdit` deliberately will not clear it — and MATCH play has the equivalent wired: `disputeMatch` is called from score entry. Stroke play has no door, so the app can display a disputed card and never produce one. The asymmetry is the bug; the action is ready.",
-  forfeitMatch:
-    "records a concession, a no-show or a withdrawal — Rule 3.2b(1). The engine handles it, `Match.forfeitedBy` stores it, the matrix suite has a cell for it, and NO SCREEN OFFERS IT: nothing under src/components contains the word forfeit. So a conceded match still has to be entered as a fabricated scoreline, which is the exact thing the schema comment says this was added to end. The control is the missing half and is worth building on its own, because it decides a match.",
   removeSideGame:
     "deletes a group's side game. The screen offers no delete for one yet — a fourball that priced a birdie pot wrongly has to re-price it rather than remove it. Kept because the authorization and the audit line are the hard half and are already right; the missing piece is a button.",
   renameTeam:
