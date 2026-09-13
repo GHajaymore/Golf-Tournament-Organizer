@@ -5,20 +5,15 @@ import { prisma } from "@/lib/db";
 import { currencySymbol, DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import {
   membershipFor,
-  threadsFor,
   threadView,
   postToScope,
   markRead as markReadService,
   openDirectThread,
   staffBroadcast,
-  composableScopes,
-  unreadTotal,
-  messagesOptOutFor,
   setMessagesOptOut,
   planSmsBroadcast,
   broadcastWithSms,
   type SmsPlan,
-  type ThreadListItem,
   type ThreadView,
   type PostResult,
 } from "@/lib/services/messaging";
@@ -47,12 +42,6 @@ async function requireMembership() {
   const ctx = await membershipFor(session.eventId, session.email, session.role);
   if (!ctx) throw new Error("No tournament");
   return { session, ctx };
-}
-
-/** Every conversation the caller can see. */
-export async function listThreads(): Promise<ThreadListItem[]> {
-  const { ctx } = await requireMembership();
-  return threadsFor(ctx);
 }
 
 /**
@@ -108,24 +97,6 @@ export async function broadcastToScope(scope: string, body: string): Promise<Pos
   const res = await staffBroadcast(ctx, scope, body, session.name);
   if (res.ok) revalidatePath("/", "layout");
   return res;
-}
-
-/** Scopes the caller may start a conversation in, labelled for a picker. */
-export async function listComposableScopes() {
-  const { ctx } = await requireMembership();
-  return composableScopes(ctx);
-}
-
-/** Unread count for the nav badge. */
-export async function unreadMessageCount(): Promise<number> {
-  const { ctx } = await requireMembership();
-  return unreadTotal(ctx);
-}
-
-/** Whether the caller has turned off direct messages. */
-export async function myMessagesOptOut(): Promise<boolean> {
-  const { ctx } = await requireMembership();
-  return messagesOptOutFor(ctx);
 }
 
 /**
@@ -185,16 +156,6 @@ export async function broadcastWithText(
   const res = await broadcastWithSms(ctx, scope, body, session.name, org?.name ?? "");
   if (res.ok) revalidatePath("/", "layout");
   return res;
-}
-
-/** Whether the caller has agreed to receive texts. */
-export async function mySmsOptIn(): Promise<boolean> {
-  const { ctx } = await requireMembership();
-  const member = await prisma.member.findFirst({
-    where: { organizationId: ctx.organizationId, email: { equals: ctx.email, mode: "insensitive" } },
-    select: { smsOptIn: true },
-  });
-  return member?.smsOptIn ?? false;
 }
 
 /**

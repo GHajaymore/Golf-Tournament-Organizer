@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { addContest, setContestEntrants, setContestWinners, removeContest, confirmContestEntry } from "@/app/actions/contests";
 import { saveSideGame, setSideGameEntrants, confirmSideGameEntry } from "@/app/actions/side-games";
-import { setPotEntryMode } from "@/app/actions/money-setup";
+import { setPotEntryMode, setPotExcluded } from "@/app/actions/money-setup";
 import {
   POT_ENTRY_MODES,
   POT_MODE_LABEL,
@@ -186,6 +186,49 @@ export function ContestsClient({
    * club routinely runs both on the same day: the closest-to-the-pin is on
    * for everybody, and the £10 sweep is for whoever fancies it.
    */
+  /**
+   * TICKING SOMEBODY IN OR OUT OF A POT — WHICH IS TWO DIFFERENT WRITES.
+   *
+   * In an OPT-IN pot the entrant list IS the membership, so setting it is the
+   * whole job. In an OPT-OUT pot the membership is "everyone playing" and the
+   * only thing stored is who has been taken OUT — so removing somebody means
+   * writing an exclusion, and `setContestEntrants` cannot do it. Its own
+   * comment says why: an exclusion row "is the only record of that decision,
+   * and in an opt-out pot a player with no row is in and settled". Passing
+   * everyone-but-one leaves that one with no row, so they stay in.
+   *
+   * Which is exactly what happened. The chip called the entrant setter in both
+   * modes, so on an opt-out pot it appeared to work, changed nothing, and
+   * sprang back on the next render — and `setPotExcluded`, written for this,
+   * authorized, id-scoped and audited, was called from nowhere in the repo.
+   * Found on 2026-09-13 by sweeping every `"use server"` export for one no
+   * other file references; measured in
+   * `opt-out-pot-can-be-opted-out-of.audit.test.ts`, which asserts both that
+   * exclusion works and that the entrant setter does not do it.
+   *
+   * The DISPLAY was always right — `potMembership` already leaves an excluded
+   * player out of `entrantIds`, so the chip renders off. Only the write was
+   * going to the wrong place.
+   */
+  const togglePot = (
+    potType: "contest" | "sideGame",
+    potId: string,
+    mode: string,
+    playerId: string,
+    isIn: boolean,
+    entrantIds: string[],
+    setEntrants: (id: string, ids: string[]) => Promise<{ ok: boolean; error?: string }>,
+  ) => {
+    // An unrecognised stored mode reads as opt-in, the same fallback every
+    // other reader of this column uses.
+    if (isPotEntryMode(mode) && mode === "opt-out") {
+      run(() => setPotExcluded(potType, potId, playerId, isIn));
+      return;
+    }
+    const next = isIn ? entrantIds.filter((id) => id !== playerId) : [...entrantIds, playerId];
+    run(() => setEntrants(potId, next));
+  };
+
   const modeToggle = (potType: "contest" | "sideGame", potId: string, mode: string) => (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center", marginTop: 6 }}>
       {POT_ENTRY_MODES.map((m) => (
@@ -467,10 +510,7 @@ export function ContestsClient({
                             disabled={pending || !game}
                             onClick={() => {
                               if (!game) return;
-                              const next = isIn
-                                ? game.entrantIds.filter((id) => id !== p.id)
-                                : [...game.entrantIds, p.id];
-                              run(() => setSideGameEntrants(game.id, next));
+                              togglePot("sideGame", game.id, game.entryMode, p.id, isIn, game.entrantIds, setSideGameEntrants);
                             }}
                           />
                         );
@@ -574,12 +614,7 @@ export function ContestsClient({
                       on={on}
                       tone="in"
                       disabled={pending}
-                      onClick={() => {
-                        const next = on
-                          ? c.entrantIds.filter((id) => id !== p.id)
-                          : [...c.entrantIds, p.id];
-                        run(() => setContestEntrants(c.id, next));
-                      }}
+                      onClick={() => togglePot("contest", c.id, c.entryMode, p.id, on, c.entrantIds, setContestEntrants)}
                     />
                   );
                 })}
