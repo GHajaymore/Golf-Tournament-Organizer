@@ -15,6 +15,7 @@ import {
 import { CoursePicker } from "@/components/CoursePicker";
 import { firstName, distinctLabels, initials } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
+import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
 import { declaredInput, inputOverrideApplies, resolveScoreInput } from "@/lib/formats";
 import {
   matchStatusKey,
@@ -128,13 +129,6 @@ function holeMark(r: HoleResult, aLabel: string, bLabel: string): React.ReactNod
   return null;
 }
 
-/** Under par is ringed, over par is boxed — the marking a printed card uses,
- *  and the reason a mis-keyed score is visible at all in a row of eighteen. */
-function scoreMark(v: number | null | undefined, par: number | undefined): string {
-  if (v == null || !par) return "";
-  const d = v - par;
-  return d <= -2 ? " is-eagle" : d === -1 ? " is-under" : d === 1 ? " is-over" : d >= 2 ? " is-double" : "";
-}
 
 const ENTRY_MODES: Array<{ key: "holes" | "result" | "handicap"; domain: MatchEntryMode; label: string; blurb: string; icon: string }> = ([
   { key: "holes", domain: "hole-results", icon: "ph ph-flag", label: "Hole-by-hole result" },
@@ -768,8 +762,7 @@ export function ScoreEntryClient({
   };
 
   const setStroke = (slot: "A" | "B", i: number, val: string) => {
-    const n = parseInt(val, 10);
-    const value = Number.isFinite(n) && n > 0 ? n : null;
+    const value = parseStroke(val);
     const strokes = slot === "A" ? aStrokes : bStrokes;
     const next = [...strokes];
     next[i] = value;

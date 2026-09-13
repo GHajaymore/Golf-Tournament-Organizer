@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { toParText } from "@/lib/domain";
 import { distinctLabels } from "@/lib/format";
+import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
 import { Icon } from "./Icon";
 
 /**
@@ -43,15 +44,21 @@ export interface CardPlayer {
   shotsOn?: (hole: number) => number;
 }
 
-function markStyle(v: number | null, par: number | undefined): React.CSSProperties {
-  if (v == null || !par) return {};
-  const d = v - par;
-  if (d <= -2) return { borderRadius: "50%", boxShadow: "inset 0 0 0 2px var(--color-accent-2), inset 0 0 0 4px var(--color-surface), inset 0 0 0 6px var(--color-accent-2)" };
-  if (d === -1) return { borderRadius: "50%", boxShadow: "inset 0 0 0 2px var(--color-accent-2)" };
-  if (d === 1) return { borderRadius: 4, boxShadow: "inset 0 0 0 2px color-mix(in srgb, var(--color-danger) 65%, transparent)" };
-  if (d >= 2) return { borderRadius: 4, boxShadow: "inset 0 0 0 2px color-mix(in srgb, var(--color-danger) 65%, transparent), inset 0 0 0 4px var(--color-surface), inset 0 0 0 6px color-mix(in srgb, var(--color-danger) 65%, transparent)" };
-  return {};
-}
+/**
+ * THE MARKING IS NOT DRAWN HERE ANY MORE.
+ *
+ * This file used to hold a fourth copy of the under-par/over-par rule, and it
+ * was the only one that drew with INLINE STYLES rather than the `.sc-score`
+ * classes in design-system.css. Which is how its over-par corner came to be
+ * 4px where every other score box in the app draws 3px — nothing reported it,
+ * because copies of a rule agree right up until they do not, and a 1px corner
+ * is exactly the size of drift nobody notices and nobody can explain later.
+ *
+ * `scoreMark` returns the class suffix and `design-system.css` owns the
+ * drawing. Both boxes below carry `sc-score` for that reason; their own
+ * inline sizes stay, because those are about this screen's layout rather than
+ * about what the score means.
+ */
 
 /** What a golfer calls it, which is what belongs on the button. */
 function nameFor(rel: number, par: number | undefined): string {
@@ -285,6 +292,7 @@ export function HoleByHoleCard({
                     −
                   </button>
                   <span
+                    className={`sc-score${scoreMark(value, par)}`}
                     aria-label={`${p.name}, hole ${hole + 1}${value == null ? ", not scored" : `, ${value} strokes`}`}
                     style={{
                       minWidth: 44,
@@ -296,7 +304,6 @@ export function HoleByHoleCard({
                       fontWeight: 700,
                       fontVariantNumeric: "tabular-nums",
                       color: value == null ? "var(--color-neutral-400)" : "var(--color-text)",
-                      ...markStyle(value, par),
                     }}
                   >
                     {value ?? "–"}
@@ -397,15 +404,12 @@ function SoloPad({
         <label htmlFor="hbh-other" style={{ fontSize: 12.5, color: "var(--color-neutral-400)" }}>Other</label>
         <input
           id="hbh-other"
-          className="input"
+          className={`input sc-score${scoreMark(value, par)}`}
           inputMode="numeric"
           value={value ?? ""}
-          onChange={(e) => {
-            const n = parseInt(e.target.value, 10);
-            onPick(Number.isFinite(n) && n > 0 ? n : null);
-          }}
+          onChange={(e) => onPick(parseStroke(e.target.value))}
           aria-label={`Strokes on hole ${hole + 1}`}
-          style={{ width: 76, minHeight: 44, textAlign: "center", fontSize: 17, fontVariantNumeric: "tabular-nums", ...markStyle(value, par) }}
+          style={{ width: 76, minHeight: 44, textAlign: "center", fontSize: 17, fontVariantNumeric: "tabular-nums" }}
         />
       </div>
     </>

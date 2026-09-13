@@ -5,6 +5,7 @@ import { ScoreImport } from "@/components/ScoreImport";
 import FieldInfo from "@/components/FieldInfo";
 import { NOINDEX } from "@/lib/site";
 import { Icon } from "@/components/Icon";
+import { scoreMark } from "@/lib/domain/score-payload";
 
 // 404s in production already, so this is belt to that brace — and it keeps the
 // rule "every route that is not marketing says noindex" true without an
@@ -50,10 +51,12 @@ const CARD = [
 ] as const;
 
 /** Same rule the entry screens use: under par ringed, over par boxed. */
-function markFor(score: number, par: number): string {
-  const d = score - par;
-  return d <= -2 ? " is-eagle" : d === -1 ? " is-under" : d === 1 ? " is-over" : d >= 2 ? " is-double" : "";
-}
+/* The marking, from the same function the real score boxes use.
+   This page held a FIFTH copy of the thresholds, which is the worst place for
+   one: the styleguide is what somebody checks a design against, so a copy here
+   that drifted would make the app look wrong when it was right, or right when
+   it was wrong. */
+const markFor = scoreMark;
 
 const MATCHES = [
   { a: "Aj Moore", b: "Rob Ferris", flight: "Flight 1", on: true, tag: "2 up", tagClass: "tag-accent" },

@@ -1,6 +1,7 @@
 "use client";
 import { toParText } from "@/lib/domain";
 import { cardHeading } from "@/lib/domain/card-heading";
+import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
 
 /**
  * A scorecard, the way a scorecard looks.
@@ -125,17 +126,7 @@ export function ScorecardTable({
    * a wrong number is caught by its shape long before anybody adds the column
    * up — a birdie ring on a hole you know you bogeyed is spotted instantly.
    */
-  const markOf = (i: number): string => {
-    const v = strokes[i];
-    const par = pars[i];
-    if (v == null || !par) return "";
-    const d = v - par;
-    if (d <= -2) return " is-eagle";
-    if (d === -1) return " is-under";
-    if (d === 1) return " is-over";
-    if (d >= 2) return " is-double";
-    return "";
-  };
+  const markOf = (i: number): string => scoreMark(strokes[i], pars[i]);
 
   const cell = (i: number) => {
     const value = strokes[i] ?? null;
@@ -166,10 +157,7 @@ export function ScorecardTable({
           inputMode="numeric"
           aria-label={`Hole ${i + 1}${par ? `, par ${par}` : ""}`}
           value={value ?? ""}
-          onChange={(e) => {
-            const n = parseInt(e.target.value, 10);
-            onSet(i, Number.isFinite(n) && n > 0 ? n : null);
-          }}
+          onChange={(e) => onSet(i, parseStroke(e.target.value))}
         />
       </td>
     );

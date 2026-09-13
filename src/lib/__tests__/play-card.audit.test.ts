@@ -19,6 +19,7 @@ vi.mock("@/lib/play-auth", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 
 const { savePlayCard, certifyPlayCard } = await import("@/app/actions/play");
+const { strokeFault } = await import("@/lib/domain/score-payload");
 
 /**
  * A Round Code can score a MEDAL, not only a match.
@@ -229,8 +230,15 @@ describe("a round code on a medal round", () => {
      * came back through the same catch — so the mutation looked green and the
      * test read as proving a guard it was not touching. Naming the sentence is
      * what tells a refusal apart from a fall-over.
+     *
+     * Against `strokeFault` rather than against a PHRASE, which is what this
+     * line used to hold. The phrase was "aren't valid", and it went red the
+     * day the refusals were reworded to name the offending hole — a false
+     * alarm on a change that improved the very thing this test cares about.
+     * Comparing with the function that words it keeps the intent (a TypeError
+     * message cannot equal this) and survives the next rewording.
      */
-    expect(res.error, "refused, not crashed").toMatch(/aren't valid/i);
+    expect(res.error, "refused, not crashed").toBe(strokeFault("not a card", 18));
     const card = await prisma.scorecard.findFirst({
       where: { eventId, stageId, playerId: mine },
       select: { strokes: true },
