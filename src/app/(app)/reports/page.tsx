@@ -16,6 +16,7 @@ import { resolveCourse } from "@/lib/courses";
 import { cardForStage } from "@/lib/services/course-resolution";
 import { toParText } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { snapshotStanding } from "@/lib/domain/lifecycle-state";
 
 /**
  * D8 of the 2026-08-12 audit. This page called `standingRows` unconditionally
@@ -64,8 +65,28 @@ export default async function ReportsPage() {
   // leaderboard about which holes a stroke lands on.
   const course = cardForStage(resolveCourse(event), activeStage);
 
+  /**
+   * WHETHER THIS SHEET MAY CALL ITSELF FINAL.
+   *
+   * It always did — "Final standings snapshot" was a constant. Read off the
+   * demo tournament: a DRAFT, seven of thirty-three cards in, and twenty-six
+   * rows of dashes, under the word Final. See `snapshotStanding`, and note
+   * that this is the screen whose own comment calls itself "the one whose
+   * output gets printed and pinned up".
+   *
+   * The NOTE applies to every board below, not just the two whose titles come
+   * from here: a skins sheet printed mid-round is exactly as provisional, and
+   * naming it "Skins — net" says nothing about that either way.
+   */
+  const standing = snapshotStanding({
+    status: event.status,
+    done: state.boardProgress.done,
+    total: state.boardProgress.total,
+    unit: state.boardProgress.unit,
+  });
+
   let board: React.ReactNode = null;
-  let snapshotTitle = "Final standings snapshot";
+  let snapshotTitle = standing.title;
   let extraCsv: { label: string; desc: string; filename: string; rows: string[][] }[] = [];
 
   if (kind === "team" && activeStage) {
@@ -81,7 +102,15 @@ export default async function ReportsPage() {
       activeStage.countBest,
     );
     const stableford = activeStage.scoringBasis === "stableford";
-    snapshotTitle = "Team standings snapshot";
+    // The same rule, with the noun a team round needs — "Final standings" is
+    // wrong about a side the same way "Final" is wrong about the day.
+    snapshotTitle = snapshotStanding({
+      status: event.status,
+      done: state.boardProgress.done,
+      total: state.boardProgress.total,
+      unit: state.boardProgress.unit,
+      noun: "team standings",
+    }).title;
     board = <TeamLeaderboard format={activeStage.format} stableford={stableford} rows={teams} />;
     extraCsv = [
       {
@@ -245,6 +274,7 @@ export default async function ReportsPage() {
           }
         })}
         snapshotTitle={snapshotTitle}
+        snapshotNote={standing.note}
         board={board}
         extraCsv={extraCsv}
       />

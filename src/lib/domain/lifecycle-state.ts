@@ -110,3 +110,83 @@ export function lifecycleMismatch(facts: LifecycleFacts): LifecycleWarning | nul
 
   return null;
 }
+
+/**
+ * WHAT A PRINTED STANDINGS SHEET IS ALLOWED TO CALL ITSELF.
+ *
+ * `/reports` titled its printable panel "Final standings snapshot" — a
+ * constant, with no test of any kind behind the word "Final". Read off the
+ * demo tournament on 2026-09-12: a tournament in DRAFT, seven of thirty-three
+ * cards in, thirty-six match results unconfirmed, and twenty-six rows of the
+ * printed sheet reading "—". It said Final.
+ *
+ * That matters more here than anywhere else in the app, and the reports screen
+ * says so in its own comment: this is "the one whose output gets printed and
+ * pinned up". A wrong number on a screen is corrected by refreshing it. A
+ * wrong number on a noticeboard at prizegiving is argued about.
+ *
+ * THE TEST IS THE ONE THE MONEY RULES ALREADY USE, and it is worth restating
+ * because the instinct is the other one. Do not ask "has enough happened".
+ * Ask **can this still change** — `money-layout.ts` opens with exactly that
+ * distinction and the reason: a settled event with an unsettled amount is
+ * still unsettled. Standings behave the same way. Every card in for round one
+ * of three is not a final anything; a round nobody has finished is not either.
+ *
+ * So the only thing that earns the word is the organizer saying the
+ * tournament is over. That is a deliberate choice they make — `lifecycleMismatch`
+ * above exists precisely because this app reports the lifecycle rather than
+ * correcting it — and it is the one signal that cannot be produced by a score
+ * arriving early.
+ */
+export interface SnapshotStanding {
+  /** What to call the panel. */
+  title: string;
+  /**
+   * The qualifier printed under it, or "" once it is genuinely final.
+   *
+   * Self-clearing, which is what keeps it from being furniture: it says the
+   * one thing a reader of a pinned-up sheet needs and then stops saying it.
+   */
+  note: string;
+}
+
+export function snapshotStanding(input: {
+  /** draft | registration | ready | live | completed. */
+  status: string;
+  /** What the round on the board has returned, and out of how many. */
+  done: number;
+  total: number;
+  /** "cards" or "matches" — a round robin does not return scorecards. */
+  unit: string;
+  /** A team round is not "standings", and was already titled separately. */
+  noun?: string;
+}): SnapshotStanding {
+  const noun = input.noun ?? "standings";
+  if (input.status === "completed") {
+    return { title: `Final ${noun}`, note: "" };
+  }
+  /**
+   * NOT "Provisional standings" alone. The heading says the state and the note
+   * says the evidence, because "provisional" is a word a reader can discount
+   * and "7 of 33 cards in" is not.
+   *
+   * A round with nothing on it at all is named differently again: "0 of 33"
+   * under a table of dashes reads as a broken export rather than an empty one.
+   */
+  const title = `${noun.charAt(0).toUpperCase()}${noun.slice(1)} so far`;
+  if (input.total <= 0 || input.done <= 0) {
+    return { title, note: "Nothing returned for this round yet — these standings will change." };
+  }
+  if (input.done >= input.total) {
+    // Every card in and the tournament still open: honest, and a different
+    // sentence, because "7 of 33" and "33 of 33" are not the same warning.
+    return {
+      title,
+      note: "This round is all in, but the tournament has not been closed yet.",
+    };
+  }
+  return {
+    title,
+    note: `${input.done} of ${input.total} ${input.unit} in — these standings will change.`,
+  };
+}

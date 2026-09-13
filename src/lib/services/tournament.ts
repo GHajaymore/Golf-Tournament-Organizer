@@ -14,6 +14,7 @@ import {
 import { aggregateStroke, emptyAgg, isRanked, netOf, type StrokeCard } from "../domain/stroke-agg";
 import { matchStrokeCards, withoutSupersededStrokeCards } from "../domain/match-cards";
 import { countbackCompare } from "../domain/stroke-countback";
+import { reviewQueue, type ReviewQueue } from "../domain/review-queue";
 import { resolveCourse } from "../courses";
 import { todayIso } from "../deadline";
 import { cleanIsoDate } from "../domain/round-dates";
@@ -456,7 +457,16 @@ export interface EventState {
   strokeCourseFor: (stageId: string) => { pars: number[]; holeDifficulty: number[] };
   advancingCount: number;
   advancingIds: Set<string>;
+  /**
+   * How many results are waiting for a sign-off, across the whole tournament.
+   *
+   * The total; `reviewing` beside it says what it is made of, because "36" on
+   * its own was being read as thirty-six scorecards when it was thirty-six
+   * match results. See `domain/review-queue.ts`.
+   */
   pendingConfirmations: number;
+  /** The same queue, split by source, for the line under the number. */
+  reviewing: ReviewQueue;
   overallCutoff: number | null;
   brackets: { winners: BracketView; consolation: BracketView };
   qualifiers: Player[];
@@ -1343,18 +1353,36 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   }
   const advancingCount = advancingIds.size;
 
-  // Completed matches still awaiting sign-off. Under staff approval nothing
-  // auto-confirms, so this is the organizer's review queue.
+  /**
+   * The organizer's review queue — BOTH sources, over the WHOLE tournament.
+   *
+   * It was `rrMatches`: the active stage's matches and nothing else. See
+   * `domain/review-queue.ts` for the three faults that came out of that, all
+   * of them read off the demo tournament — a stroke round's certified cards
+   * counted as zero, thirty-six match results labelled "scores", and a number
+   * quietly about a different round than the card printed beside it.
+   */
   const autoConfirm = allowsAutoConfirm(settingsOf(event));
-  const pendingConfirmations = rrMatches.filter((m) => {
-    let holes: HoleResultArr;
-    try {
-      holes = JSON.parse(m.holes) as HoleResultArr;
-    } catch {
-      return false;
-    }
-    return resolveMatch(holes).complete && effectiveScoreStatus(m, autoConfirm) === "pending";
-  }).length;
+  const staffApproves = !autoConfirm;
+  const reviewing = reviewQueue({
+    matches: matches.map((m) => {
+      let holes: HoleResultArr;
+      try {
+        holes = JSON.parse(m.holes) as HoleResultArr;
+      } catch {
+        // Unreadable holes cannot be a finished match, so it is not in a queue
+        // anybody can clear — the same reading the card approval takes.
+        return { complete: false, status: "disputed" };
+      }
+      return {
+        complete: resolveMatch(holes).complete,
+        status: effectiveScoreStatus(m, autoConfirm),
+      };
+    }),
+    cards: scorecards,
+    staffApproves,
+  });
+  const pendingConfirmations = reviewing.total;
   const liveQualifiers = isStroke
     ? strokeStandings.filter((s) => qualifierIds.has(s.player.id)).map((s) => toDomainPlayer(s.player, hcpOf(s.player)))
     : overall.filter((rp) => qualifierIds.has(rp.player.id)).map((rp) => rp.player);
@@ -1440,6 +1468,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     advancingCount,
     advancingIds,
     pendingConfirmations,
+    reviewing,
     overallCutoff,
     brackets,
     qualifiers,
