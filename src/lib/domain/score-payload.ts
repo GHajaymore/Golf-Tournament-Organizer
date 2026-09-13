@@ -104,6 +104,87 @@ export function cleanStrokes(raw: unknown, expected: number): (number | null)[] 
   return out;
 }
 
+/**
+ * ONE HOLE'S WORTH OF TYPING, TURNED INTO A SCORE — for the browser, so that
+ * the number a person can put in a box and the number this file will accept
+ * are the same number.
+ *
+ * They were not. `cleanStrokes` above has refused anything over
+ * MAX_STROKES_PER_HOLE since it was written, and it refuses the WHOLE CARD
+ * rather than the hole — while every score box in the app parsed its own text
+ * with its own copy of `parseInt(...) > 0`, four of them, none aware of a
+ * ceiling. So a mis-keyed 99 was accepted into the card, added into the gross
+ * shown on screen (measured on 2026-09-13: a demo card reading GROSS 302), and
+ * then refused at the save, as a card.
+ *
+ * A rule enforced where the data is BUILT cannot be forgotten by a caller,
+ * which is this codebase's own conclusion about `isManualFormat` and the one
+ * it reaches again here. The bound now lives at the keystroke and at the
+ * boundary, and both read this file.
+ *
+ * Returns null for "not a score", which is what an empty box is. The caller
+ * decides what null means; nothing here invents a number.
+ */
+export function parseStroke(text: string): number | null {
+  const n = parseInt(text, 10);
+  if (!Number.isFinite(n)) return null;
+  if (n < 1 || n > MAX_STROKES_PER_HOLE) return null;
+  return n;
+}
+
+/**
+ * How a score is marked against par — under par ringed, over par boxed, the
+ * marking a printed card uses.
+ *
+ * Written FOUR times before this: `ScorecardTable.markOf`,
+ * `ScoreEntryClient.scoreMark`, an inline ternary in `TeamEntryClient`, and
+ * `HoleByHoleCard.markStyle`. All four agreed on the thresholds and two of
+ * them had already drifted on the drawing — the over-par corner was 3px in
+ * `design-system.css` and 4px in the inline copy — which is how four copies of
+ * a rule always end, and why the count matters more than the current
+ * agreement.
+ *
+ * Returns the CLASS SUFFIX rather than a style object, so `.sc-score.is-over`
+ * in `design-system.css` stays the one place the marking is drawn.
+ */
+export function scoreMark(v: number | null | undefined, par: number | null | undefined): string {
+  if (v == null || !par) return "";
+  const d = v - par;
+  if (d <= -2) return " is-eagle";
+  if (d === -1) return " is-under";
+  if (d === 1) return " is-over";
+  if (d >= 2) return " is-double";
+  return "";
+}
+
+/**
+ * WHICH hole a refused card was refused for, in a sentence a scorer can act on.
+ *
+ * `cleanStrokes` returns null and says nothing else, and all three callers
+ * turned that into "Those scores aren't valid. Reload the round and try
+ * again." Reloading DISCARDS the card and does not help — the fault is one
+ * number in one box, and the message named neither. Against this app's own
+ * rule that a refusal "names what is outstanding and where to answer it".
+ */
+export function strokeFault(raw: unknown, expected: number): string {
+  if (!Array.isArray(raw)) return "Those scores didn't arrive as a card. Reload the round and try again.";
+  const sized = fit<number | null>(raw, expected, null);
+  for (let i = 0; i < sized.length; i += 1) {
+    const v = sized[i];
+    if (v === null || v === undefined) continue;
+    if (typeof v !== "number" || !Number.isInteger(v)) {
+      return `Hole ${i + 1} doesn't have a whole number in it. Fix that hole and save again.`;
+    }
+    if (v < 1) {
+      return `Hole ${i + 1} reads ${v}. A score has to be at least 1 — leave it empty if it wasn't played.`;
+    }
+    if (v > MAX_STROKES_PER_HOLE) {
+      return `Hole ${i + 1} reads ${v}, and ${MAX_STROKES_PER_HOLE} is the most this will take on one hole. Fix that hole and save again.`;
+    }
+  }
+  return "Those scores aren't valid. Reload the round and try again.";
+}
+
 /** Who won a match, or null. Narrow enough that a typo cannot become a result. */
 export function cleanWinner(raw: unknown): "A" | "B" | "H" | null {
   return raw === "A" || raw === "B" || raw === "H" ? raw : null;

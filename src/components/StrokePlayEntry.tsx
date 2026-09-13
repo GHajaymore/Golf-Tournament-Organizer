@@ -256,13 +256,45 @@ export function StrokePlayEntry({
       // part-way through would drop the rounds of everyone after it in the
       // fourball, under a button that said Save.
       const locked = targets.filter((id) => isCardLocked(cardStatus[id] ?? ""));
+      /**
+       * ONE BAD CARD MUST NOT TAKE THE REST OF THE FOURBALL WITH IT.
+       *
+       * The note above guards the approved-card case and stops there, and the
+       * hazard it describes was live for every OTHER throw `saveScorecard`
+       * makes — a stroke the boundary refuses, a partial card, a revision
+       * conflict. The loop had no catch, so the throw escaped the transition:
+       * the cards before it were written, the cards after it were not, and
+       * `setSaved` never ran, so the screen said NOTHING AT ALL under a button
+       * that said Save. Two players' rounds silently missing is worse than the
+       * refusal it came from.
+       *
+       * So each card is saved on its own account and its failure is reported
+       * by name. `err.message` is the sentence the server wrote — `strokeFault`
+       * names the hole and the number — and the fallback covers a transport
+       * failure, which has no useful message of its own.
+       */
+      const failed: Array<{ id: string; why: string }> = [];
       for (const id of targets.filter((id) => !locked.includes(id))) {
-        await saveScorecard(stageId, id, cards[id] ?? new Array(holes).fill(null));
+        try {
+          await saveScorecard(stageId, id, cards[id] ?? new Array(holes).fill(null));
+        } catch (err) {
+          failed.push({
+            id,
+            why: err instanceof Error && err.message ? err.message : "It didn't save — try again.",
+          });
+        }
       }
+      const named = (id: string) => players.find((p) => p.id === id)?.name ?? "A card";
       setSaved({
-        text: locked.length
+        text: failed.length
+          ? `${failed.map((f) => `${named(f.id)}: ${f.why}`).join(" ")}${
+              targets.length - locked.length - failed.length > 0
+                ? ` The other ${targets.length - locked.length - failed.length === 1 ? "card" : "cards"} saved.`
+                : ""
+            }`
+          : locked.length
           ? `Saved. ${locked
-              .map((id) => players.find((p) => p.id === id)?.name ?? "A card")
+              .map((id) => named(id))
               .join(", ")} — already approved, so left unchanged. An organizer can reopen it below.`
           : "Saved.",
         // What was actually sent, and who was on screen when it was.

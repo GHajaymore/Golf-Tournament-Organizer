@@ -8,6 +8,7 @@ import {
   cleanWinner,
   cleanMargin,
   MAX_STROKES_PER_HOLE,
+  strokeFault,
 } from "../score-payload";
 
 /**
@@ -204,5 +205,61 @@ describe("no action stores a card it did not validate", () => {
   it("has a file walker that finds the action directory", () => {
     // Cheap sanity check: an empty walk would make any scan vacuously pass.
     expect(walk("src/app/actions").length).toBeGreaterThan(5);
+  });
+});
+
+describe("a refused card says which hole", () => {
+  /**
+   * `cleanStrokes` returns null and says nothing else, and all three callers
+   * turned that into "Those scores aren't valid. Reload the round and try
+   * again." — advice that DISCARDS the eighteen numbers the scorer has just
+   * typed, on a fault that is one box.
+   *
+   * Asserted on the number AND the hole, not merely on the shape of the
+   * sentence: a message that names hole 4 when hole 12 is wrong is worse than
+   * the vague one it replaced.
+   */
+  const nine = (v: number) => new Array(9).fill(v);
+
+  it("names the hole and the number that was refused", () => {
+    const card = nine(4);
+    card[6] = 99;
+    const msg = strokeFault(card, 9);
+    expect(msg).toContain("Hole 7");
+    expect(msg).toContain("99");
+    expect(msg).toContain(String(MAX_STROKES_PER_HOLE));
+    // The advice that made it worse.
+    expect(msg).not.toContain("Reload");
+  });
+
+  it("names the first fault when there is more than one", () => {
+    const card = nine(4);
+    card[2] = 0;
+    card[5] = 99;
+    expect(strokeFault(card, 9)).toContain("Hole 3");
+  });
+
+  it("says what a zero is, rather than calling it too big", () => {
+    const card = nine(4);
+    card[0] = 0;
+    const msg = strokeFault(card, 9);
+    expect(msg).toContain("Hole 1");
+    expect(msg).toContain("at least 1");
+  });
+
+  it("agrees with the cleaner about what is wrong", () => {
+    /**
+     * THE PAIR HAS TO STAY IN STEP. A `strokeFault` that described a fault
+     * `cleanStrokes` does not have would name a hole on a card that saved
+     * fine; a card refused with nothing to say is the state this replaced.
+     * Swept over the whole range rather than sampled.
+     */
+    for (let v = -2; v <= MAX_STROKES_PER_HOLE + 3; v += 1) {
+      const card = nine(4);
+      card[4] = v;
+      const refused = cleanStrokes(card, 9) === null;
+      const named = /Hole 5/.test(strokeFault(card, 9));
+      expect(named, `stroke ${v}: refused=${refused} but named=${named}`).toBe(refused);
+    }
   });
 });

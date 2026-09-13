@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { saveTeamScorecard } from "@/app/actions/tournament";
+import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
 
 export interface TeamCardRow {
   /** Empty where the side shares one ball. */
@@ -105,10 +106,9 @@ export function TeamEntryClient({
     `${teamId}:${matchId}:${playerId}`;
 
   const setHole = (key: string, hole: number, value: string) => {
-    const n = value === "" ? null : parseInt(value, 10);
     setDraft((d) => {
       const next = [...(d[key] ?? new Array(holes).fill(null))];
-      next[hole] = Number.isFinite(n as number) && (n as number) > 0 ? (n as number) : null;
+      next[hole] = parseStroke(value);
       return { ...d, [key]: next };
     });
   };
@@ -165,11 +165,8 @@ export function TeamEntryClient({
             const key = keyFor(t.teamId, t.matchId, c.playerId);
             const values = draft[key] ?? c.strokes;
             const scoreCell = (i: number) => {
-              const v = values[i];
               const par = pars[i];
-              const d = v != null && par ? v - par : null;
-              const mark =
-                d === null ? "" : d <= -2 ? " is-eagle" : d === -1 ? " is-under" : d === 1 ? " is-over" : d >= 2 ? " is-double" : "";
+              const mark = scoreMark(values[i], par);
               return (
                 <td key={i} style={{ padding: 2 }}>
                   <input

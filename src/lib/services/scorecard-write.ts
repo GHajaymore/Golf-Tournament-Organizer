@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { cardRevision, staleAgainst, NO_CARD_REVISION } from "@/lib/domain/pending-card";
-import { cleanStrokes } from "@/lib/domain/score-payload";
+import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
 import { isCardLocked, statusAfterEdit, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
 import { mayReportPartialCard, type TournamentSettings } from "@/lib/tournament-settings";
 import { freezeRoundHandicaps } from "@/lib/services/round-handicap";
@@ -86,7 +86,11 @@ export async function writeScorecard(input: {
   const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { holes: true } });
   const roundHoles = holesPlayed(stage?.holes);
   const clean = cleanStrokes(strokes, roundHoles);
-  if (!clean) throw new Error("Those scores aren't valid. Reload the round and try again.");
+  // Names the hole and the number. "Reload the round and try again" was the
+  // whole of it, and reloading DISCARDS the card — the advice was worse than
+  // no advice on the one screen where a person has just typed eighteen
+  // numbers. See `strokeFault`.
+  if (!clean) throw new Error(strokeFault(strokes, roundHoles));
 
   if (!mayReportPartialCard(settings, role)) {
     const filled = clean.filter((s) => typeof s === "number" && s > 0).length;

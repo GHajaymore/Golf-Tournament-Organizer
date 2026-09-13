@@ -51,7 +51,7 @@ import { templateFor } from "@/lib/tournament-templates";
 import { cleanSideStyle, defaultFormatFor } from "@/lib/side-style";
 import { cleanIsoDate, roundDates } from "@/lib/domain/round-dates";
 import { reviewCards, isCardLocked, LOCKED_CARD_REFUSAL } from "@/lib/domain/card-approval";
-import { cleanStrokes } from "@/lib/domain/score-payload";
+import { cleanStrokes, strokeFault } from "@/lib/domain/score-payload";
 import { writeScorecard, certifyCard, type SaveCardResult } from "@/lib/services/scorecard-write";
 import {
   freezeRoundHandicaps,
@@ -2052,7 +2052,9 @@ export async function saveMatchScorecard(matchId: string, slot: "A" | "B", strok
     select: { holes: true },
   });
   const clean = cleanStrokes(strokes, holesPlayed(cardStage?.holes));
-  if (!clean) throw new Error("Those scores aren't valid. Reload the round and try again.");
+  // Names the hole and the number — see `strokeFault`. The old sentence told a
+  // scorer to reload, which discards the card they have just typed.
+  if (!clean) throw new Error(strokeFault(strokes, holesPlayed(cardStage?.holes)));
 
   if (!mayReportPartialCard(settings, session.role)) {
     const filled = clean.filter((s) => typeof s === "number" && s > 0).length;
@@ -2287,7 +2289,7 @@ export async function saveTeamScorecard(
   // result and the match with it. `stage.holes` is already loaded above.
   const cleanCard = cleanStrokes(strokes, holesPlayed(stage.holes));
   if (!cleanCard) {
-    return { ok: false, error: "Those scores aren't valid. Reload the round and try again." };
+    return { ok: false, error: strokeFault(strokes, holesPlayed(stage.holes)) };
   }
 
   if (!mayReportPartialCard(settings, session.role)) {
