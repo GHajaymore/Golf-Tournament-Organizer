@@ -1113,9 +1113,18 @@ export function MoneyClient({ view }: { view: MoneyView }) {
                   shown here is a button that works — and a line somebody else
                   entered simply has no controls rather than controls that
                   refuse. */}
+              {/* WHO ENTERED IT, which varies. The advice about what to do
+                  about that is the same on every one of these lines and is
+                  said ONCE, under the list — see below.
+
+                  It used to be here in full, and every `<details>` on this
+                  screen is `open`, so a player reading their money on a trip
+                  with six lines somebody else had entered read "— ask them or
+                  an organizer to change it" six times on one screen. Measured
+                  on the demo tournament, 2026-09-13. */}
               {!e.canEdit && (
                 <p className="text-muted" style={{ fontSize: 11.5, margin: "8px 0 0" }}>
-                  Entered by {e.createdBy || "someone else"} — ask them or an organizer to change it.
+                  Entered by {e.createdBy || "someone else"}
                 </p>
               )}
               {e.canEdit && (
@@ -1160,6 +1169,18 @@ export function MoneyClient({ view }: { view: MoneyView }) {
             </div>
           </details>
         ))}
+        {/* THE ADVICE, ONCE, AND ONLY WHEN IT APPLIES.
+            One sentence about a rule that governs every line on the list, so
+            it belongs to the list rather than to each row — and the rows are
+            all expanded, so per-row it was six identical sentences down one
+            screen. Rendered only when there is at least one line this viewer
+            cannot change; somebody who entered all their own sees nothing. */}
+        {view.expenses.some((e) => !e.canEdit) && (
+          <p className="text-muted" style={{ fontSize: 11.5, margin: "10px 0 0", lineHeight: 1.55 }}>
+            You can change the lines you entered. For anyone else&rsquo;s, ask whoever entered it or
+            an organizer.
+          </p>
+        )}
       </section>
 
       {view.settlements.length > 0 && (
