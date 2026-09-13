@@ -68,21 +68,44 @@ export function RoundVenue({
   const [pending, startTransition] = useTransition();
 
   const missingCard = !!venue && !venue.hasCard;
-  // Nothing to say when there is one venue, it has a card, and the header
-  // already names it. A locked dropdown of one is furniture.
+  /**
+   * NO COURSE AT ALL — which is not a quieter version of "no card", it is the
+   * loudest state there is, and it was the one state this panel stayed silent
+   * in.
+   *
+   * Every condition below asks what there is to CHOOSE BETWEEN, and each
+   * answers zero on a tournament nobody has set a course for: no second
+   * venue, no library to look elsewhere in, and `missingCard` is
+   * `!!venue && !venue.hasCard`, which is false when there is no venue to
+   * have a card. So the panel returned null, `ScoreEntryClient`'s per-match
+   * picker was hidden by the same arithmetic one screen down, and score entry
+   * offered no way whatsoever to say where the round was played.
+   *
+   * Measured on 2026-09-13 against the development database: of three
+   * tournaments, TWO were in exactly this state — no venue row, no event
+   * course, an empty club library — and neither could be given one from the
+   * screen where the scores go in.
+   *
+   * It is the sharpest case because this picker is the only one in the app
+   * with `searchDirectory` on. An empty library is precisely when the
+   * directory is the ONLY possible answer, and precisely when the control
+   * that reaches it disappeared.
+   */
+  const noVenue = !venue;
   /**
    * Shown when there is a real choice to make.
    *
-   * Two venues is one. A card missing from the venue is another. And the
-   * club having OTHER courses is the third — that one used to be invisible,
-   * so a single-venue tournament could not have a round's venue corrected
-   * here at all, however many courses the club owned.
+   * Two venues is one. A card missing from the venue is another. The club
+   * having OTHER courses is the third — that one used to be invisible, so a
+   * single-venue tournament could not have a round's venue corrected here at
+   * all, however many courses the club owned. And no venue at all is the
+   * fourth; see above.
    *
-   * With none of the three it stays hidden: the venue is already named in
-   * the header beside the dates, and a dropdown of one is furniture.
+   * With none of the four it stays hidden: the venue is already named in the
+   * header beside the dates, and a dropdown of one is furniture.
    */
   const elsewhereToPlay = library.some((c) => !venues.some((v) => v.id === c.id));
-  if (!canEdit || (venues.length < 2 && !elsewhereToPlay && !missingCard)) return null;
+  if (!canEdit || (venues.length < 2 && !elsewhereToPlay && !missingCard && !noVenue)) return null;
 
   /**
    * The one card editor, opened on this course.
@@ -99,10 +122,17 @@ export function RoundVenue({
       style={{
         marginBottom: 16,
         gap: 8,
-        ...(missingCard ? { borderLeft: "3px solid var(--color-accent)" } : {}),
+        ...(missingCard || noVenue ? { borderLeft: "3px solid var(--color-accent)" } : {}),
       }}
     >
-      {(venues.length > 1 || library.length > 0) && (
+      {/* `noVenue` too, and it is the reason this gate exists at all rather
+          than the picker simply always rendering: with an empty library and
+          no venues there is nothing in `options`, which reads like a broken
+          control — until you remember `searchDirectory` is on here, so typing
+          three letters reaches the whole catalogue and adds what it finds to
+          the library on the way past. A picker with an empty local list is
+          the right control here; a hidden one is not. */}
+      {(venues.length > 1 || library.length > 0 || noVenue) && (
         <CoursePicker
           label="Played at"
           /* THIS is where a round's venue is chosen, so it reaches the whole
@@ -190,7 +220,23 @@ export function RoundVenue({
         </div>
       )}
 
-      {missingCard ? (
+      {noVenue ? (
+        <>
+          {/* Said here because here is where the scores are about to go in.
+              The card below this panel is already drawing hole numbers with
+              no par and no stroke index under them, which reads as a card
+              that has not loaded rather than a tournament with no course. */}
+          <span className="card-title" style={{ fontSize: 14 }}>
+            <Icon name="warning-circle" /> No course set for this round
+          </span>
+          <p className="text-muted" style={{ fontSize: 12, margin: 0, lineHeight: 1.6 }}>
+            Par and stroke index have nothing to come from, so net scores, Stableford points and
+            every &ldquo;±&rdquo; on the board have nothing to measure against. Find the course
+            above — it is added to your club&rsquo;s library on the way past, and every round
+            played there uses the same card.
+          </p>
+        </>
+      ) : missingCard ? (
         <>
           <span className="card-title" style={{ fontSize: 14 }}>
             <Icon name="warning-circle" /> {venue!.name} has no card yet

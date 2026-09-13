@@ -194,6 +194,14 @@ export function CoursePicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [found, setFound] = useState<DirectorySearchHit[]>([]);
+  /**
+   * A lookup is out.
+   *
+   * Without it the empty list says "Nothing matched" for the 300ms of debounce
+   * plus however long the catalogue takes — so the honest answer and the
+   * despairing one are shown in that order, and the despairing one first.
+   */
+  const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState("");
   const [, startAdd] = useTransition();
   const seq = useRef(0);
@@ -258,14 +266,17 @@ export function CoursePicker({
     const q = query.trim();
     if (!searchDirectory || q.length < 3 || shown.length > 0) {
       setFound([]);
+      setSearching(false);
       return;
     }
     const mine = (seq.current += 1);
+    setSearching(true);
     const t = setTimeout(async () => {
       const res = await searchCourseDirectory(q, true);
       // A query the reader has already typed past.
       if (mine !== seq.current) return;
       setFound(res.ok ? (res.hits ?? []).filter((h) => !h.inLibrary).slice(0, 8) : []);
+      setSearching(false);
     }, 300);
     return () => clearTimeout(t);
   }, [query, searchDirectory, shown.length]);
@@ -507,7 +518,13 @@ export function CoursePicker({
                     display: "block",
                     width: "100%",
                     textAlign: "left",
-                    padding: "7px 10px",
+                    /* 7px with a mouse; `globals.css` raises the variable to
+                       13px on a coarse pointer, which is what takes the row
+                       from 29px to the 44px touch minimum. These rows exist
+                       only while the list is open, so `touch.spec` — which
+                       loads a route and measures what is on it — cannot see
+                       them, and did not. */
+                    padding: "var(--picker-row-pad, 7px) 10px",
                     fontSize: 13,
                     border: "none",
                     borderLeft: on ? "2px solid var(--color-accent)" : "2px solid transparent",
@@ -524,8 +541,24 @@ export function CoursePicker({
 
           {shown.length === 0 && found.length === 0 && !onEnterNew && (
             <p className="text-muted" style={{ fontSize: 12, margin: 0, padding: "8px 10px", lineHeight: 1.5 }}>
-              None of your courses match that. Try fewer letters, or add the course to your library
-              first.
+              {/* THREE SENTENCES, BECAUSE THEY ARE THREE DIFFERENT FACTS, and
+                  the one message that used to cover all of them was false in
+                  two of them.
+
+                  "None of your courses match that" was printed with nothing
+                  typed and an empty library — a club that has entered no
+                  courses got told its courses did not match a query it had
+                  not written, followed by "add the course to your library
+                  first", which is the very thing this picker does when
+                  `searchDirectory` is on. Read on a tournament with no venue,
+                  which is now the commonest way to arrive here. */}
+              {searching
+                ? "Searching the course directory…"
+                : searchDirectory && query.trim().length < 3
+                  ? "Type three letters to search the course directory. Picking one adds it to your courses."
+                  : searchDirectory
+                    ? "Nothing matched, in your courses or the directory. Try fewer letters, or part of the town."
+                    : "None of your courses match that. Try fewer letters, or add the course to your library first."}
             </p>
           )}
         </div>

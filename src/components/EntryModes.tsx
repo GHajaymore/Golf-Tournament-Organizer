@@ -305,7 +305,20 @@ export function EntryModes({
           screen down, because two members of a league really do play their
           match wherever suits them. Two pickers for one answer is worse than
           none. */}
-      {mode === "stroke" && (
+      {/* ...UNLESS THERE IS NO VENUE AT ALL, in which case match play needs
+          this too. The delegation above is sound while the tournament has a
+          course: the per-match picker one screen down answers "did this pair
+          play somewhere else", which is a different question and rightly
+          asked per match. It is not sound when the answer to "where is this
+          tournament" is nowhere — that is one answer for the whole field, and
+          the per-match picker cannot give it. It offers only the tournament's
+          venues and the club's library, both empty in exactly this state, so
+          it hides itself by the same arithmetic and match play was left with
+          no route to a course from score entry at all.
+
+          Goes away again the moment a venue resolves, so the "two pickers for
+          one answer is worse than none" rule holds wherever it was true. */}
+      {(mode === "stroke" || !round.venue) && (
         <RoundVenue
           /* `venue-` prefixed, NOT the bare stage id.
              ScoreEntryClient and StrokePlayEntry are siblings of this in the
