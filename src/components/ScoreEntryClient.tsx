@@ -15,7 +15,7 @@ import {
 import { CoursePicker } from "@/components/CoursePicker";
 import { firstName, distinctLabels, initials } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
-import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
+import { ScoreCell } from "@/components/ScorecardTable";
 import { declaredInput, inputOverrideApplies, resolveScoreInput } from "@/lib/formats";
 import {
   matchStatusKey,
@@ -761,8 +761,16 @@ export function ScoreEntryClient({
     save(() => saveMatchScorecard(active.id, slot, next));
   };
 
-  const setStroke = (slot: "A" | "B", i: number, val: string) => {
-    const value = parseStroke(val);
+  /**
+   * One hole's score, already parsed.
+   *
+   * It used to take the raw input TEXT and parse it here, which is what made
+   * this file one of four places that decided what a stroke is. `ScoreCell`
+   * parses, through `parseStroke`, and hands over a number or a null — so this
+   * is left with the only job that is actually this screen's: putting it in
+   * the right player's row and re-deriving the match from it.
+   */
+  const applyStroke = (slot: "A" | "B", i: number, value: number | null) => {
     const strokes = slot === "A" ? aStrokes : bStrokes;
     const next = [...strokes];
     next[i] = value;
@@ -1629,61 +1637,29 @@ export function ScoreEntryClient({
                             </span>
                           </td>
                           {front.map((i) => (
-                            <td key={i} style={{ padding: 2, position: "relative" }}>
-                              <input
-                                className={`input sc-score${scoreMark(strokes[i], pars[i])}`}
-                                inputMode="numeric"
-                                value={strokes[i] ?? ""}
-                                onChange={(e) => setStroke(slot, i, e.target.value)}
-                                aria-label={`${name}, hole ${i + 1}${pars[i] ? `, par ${pars[i]}` : ""}`}
-                              />
-                              {given[i] > 0 && (
-                                <span
-                                  /* HOW MANY, not merely that there are some.
-                                     This printed one dot whatever the number,
-                                     so a player receiving TWO shots on the
-                                     stroke-index-1 hole — an ordinary
-                                     twenty-shot difference — saw the same mark
-                                     as somebody receiving one. The stroke
-                                     card's own Shots row has repeated the dot
-                                     since it was written; this is the match
-                                     card catching up with it. */
-                                  title={`${label} receives ${given[i]} shot${given[i] === 1 ? "" : "s"} here`}
-                                  style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1, letterSpacing: -1 }}
-                                >
-                                  {"•".repeat(given[i])}
-                                </span>
-                              )}
-                            </td>
+                            <ScoreCell
+                              key={i}
+                              hole={i}
+                              value={strokes[i] ?? null}
+                              par={pars[i]}
+                              shots={given[i]}
+                              who={name}
+                              shotsFor={label}
+                              onSet={(v) => applyStroke(slot, i, v)}
+                            />
                           ))}
                           {isEighteen && <td className="sc-tot">{sum(strokes.slice(0, 9).map((s) => s ?? 0), 0, 9) || "—"}</td>}
                           {back.map((i) => (
-                            <td key={i} style={{ padding: 2, position: "relative" }}>
-                              <input
-                                className={`input sc-score${scoreMark(strokes[i], pars[i])}`}
-                                inputMode="numeric"
-                                value={strokes[i] ?? ""}
-                                onChange={(e) => setStroke(slot, i, e.target.value)}
-                                aria-label={`${name}, hole ${i + 1}${pars[i] ? `, par ${pars[i]}` : ""}`}
-                              />
-                              {given[i] > 0 && (
-                                <span
-                                  /* HOW MANY, not merely that there are some.
-                                     This printed one dot whatever the number,
-                                     so a player receiving TWO shots on the
-                                     stroke-index-1 hole — an ordinary
-                                     twenty-shot difference — saw the same mark
-                                     as somebody receiving one. The stroke
-                                     card's own Shots row has repeated the dot
-                                     since it was written; this is the match
-                                     card catching up with it. */
-                                  title={`${label} receives ${given[i]} shot${given[i] === 1 ? "" : "s"} here`}
-                                  style={{ position: "absolute", top: 1, right: 3, color: "var(--color-accent)", fontSize: 11, lineHeight: 1, letterSpacing: -1 }}
-                                >
-                                  {"•".repeat(given[i])}
-                                </span>
-                              )}
-                            </td>
+                            <ScoreCell
+                              key={i}
+                              hole={i}
+                              value={strokes[i] ?? null}
+                              par={pars[i]}
+                              shots={given[i]}
+                              who={name}
+                              shotsFor={label}
+                              onSet={(v) => applyStroke(slot, i, v)}
+                            />
                           ))}
                           {isEighteen && <td className="sc-tot">{sum(strokes.slice(9, totalHoles).map((s) => s ?? 0), 0, totalHoles - 9) || "—"}</td>}
                           <td className="sc-tot">{gross || "—"}</td>
