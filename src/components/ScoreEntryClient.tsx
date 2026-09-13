@@ -36,12 +36,14 @@ import {
   clearMatch,
   confirmMatch,
   disputeMatch,
+  forfeitMatch,
   reopenMatch,
   saveMatchScorecard,
 } from "@/app/actions/tournament";
 import { setMatchCourse } from "@/app/actions/courses";
 import { VenuePrompt, type VenueCourse } from "./VenuePrompt";
 import { Icon } from "./Icon";
+import { ConfirmButton } from "./ConfirmButton";
 import { startDictation, type Dictation } from "@/lib/dictation";
 
 /**
@@ -197,6 +199,16 @@ export interface EntryMatch {
   /** Nothing up the match -> round -> event chain says where this was played,
    *  and the tournament has no fixed venue. Decided on the server. */
   venueNeeded?: boolean;
+  /**
+   * The side that conceded, withdrew or did not turn up — or "" for a match
+   * that was played out.
+   *
+   * A player id, never a team id: `forfeitMatch` refuses a team side outright
+   * because team results are not aggregated, so storing one "would be accepted
+   * and count for nothing — the worst of the three possible behaviours,
+   * because it is the one they will not check".
+   */
+  forfeitedBy?: string;
 }
 
 const CONFIRM_META: Record<string, { label: string; tag: string }> = {
@@ -666,6 +678,42 @@ export function ScoreEntryClient({
     if (!active) return;
     setStatus(active.id, "pending");
     startTransition(() => void reopenMatch(active.id));
+  };
+
+  /**
+   * A CONCESSION, A NO-SHOW OR A WITHDRAWAL — Rule 3.2b(1).
+   *
+   * `forfeitMatch` has existed, admin-only and audited, since the column was
+   * added, and no screen called it: nothing under src/components contained the
+   * word forfeit. So the three ordinary ways a match ends without a card had to
+   * be entered as a FABRICATED SCORELINE — which is the exact thing the schema
+   * comment says the column was added to end, and it leaves the leaderboard
+   * claiming holes nobody played.
+   *
+   * NOT OPTIMISTIC, for the reason `doClear` gives: the server can refuse this
+   * one. A team side is refused outright, and marking the card conceded before
+   * the answer comes back would show a scorer a settled match that is not.
+   */
+  const doForfeit = (playerId: string) => {
+    if (!active) return;
+    setSaveState("saving");
+    setSaveNote("");
+    startTransition(async () => {
+      try {
+        const res = await forfeitMatch(active.id, playerId);
+        if (!res.ok) {
+          setSaveState("failed");
+          setSaveNote(res.error ?? "");
+          return;
+        }
+        setSaveState("saved");
+        // Recording one settles the match; undoing restores whatever the card
+        // already said, so the status only moves in the one direction.
+        if (playerId) setStatus(active.id, "pending");
+      } catch {
+        setSaveState("failed");
+      }
+    });
   };
 
   const setHole = (index: number, value: "A" | "B" | "H") => {
@@ -1716,6 +1764,22 @@ export function ScoreEntryClient({
                     <Icon name="lock-key-open" /> Reopen
                   </button>
                 )}
+                {/* Same rule, same reason — `forfeitMatch` calls
+                    `requireAdminEvent`, so an assistant would get a button
+                    that only ever errors. Undo only; recording one is offered
+                    below, where there is room to say which side. */}
+                {isAdmin && active.forfeitedBy && (
+                  <ConfirmButton
+                    className="btn btn-secondary"
+                    icon="arrow-counter-clockwise"
+                    label="Undo concession"
+                    title="Undo the concession"
+                    confirmLabel="Undo it"
+                    note="Puts the match back to whatever the card says."
+                    disabled={saveState === "saving"}
+                    onConfirm={() => doForfeit("")}
+                  />
+                )}
               </div>
             </div>
           )}
@@ -1731,7 +1795,13 @@ export function ScoreEntryClient({
             }}
           >
             <span className="text-muted" style={{ fontSize: 12 }}>
-              Holes won — {aLabel} {holesWonA} · {bLabel} {holesWonB}
+              {/* What the match SAYS when nobody played it out. The holes-won
+                  line is meaningless on a conceded match — it reads 0 · 0 —
+                  and printing it there was the screen offering a statistic
+                  about a thing that did not happen. */}
+              {active.forfeitedBy
+                ? `Conceded by ${active.forfeitedBy === active.aId ? aLabel : bLabel}.`
+                : `Holes won — ${aLabel} ${holesWonA} · ${bLabel} ${holesWonB}`}
             </span>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" className="btn btn-secondary" onClick={doClear}>
@@ -1742,6 +1812,47 @@ export function ScoreEntryClient({
               </Link>
             </div>
           </div>
+
+          {/* RECORDING A CONCESSION — the three ordinary ways a match ends
+              without a card, and until now the app could record none of them.
+
+              Below the card rather than beside Confirm, deliberately: this is
+              not a verdict on what was played, it is a statement that it was
+              not. And it names the side explicitly — "forfeit" alone is the
+              one word an organizer could plausibly attach to the wrong player
+              in a hurry, which is why each button says whose concession it is
+              and asks again before writing.
+
+              Organizer-only, matching the action. Hidden once one is recorded;
+              the undo lives beside the status above, where the state is. */}
+          {isAdmin && !active.forfeitedBy && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--color-divider)" }}>
+              <span className="card-kicker">Not played out</span>
+              <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 8px", lineHeight: 1.55 }}>
+                A concession, a walkover or a withdrawal (Rule 3.2b(1)). The other player takes the
+                match, and no holes are invented to make it look played.
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { id: active.aId, label: aLabel },
+                  { id: active.bId, label: bLabel },
+                ].map((side) => (
+                  <ConfirmButton
+                    key={side.id}
+                    className="btn btn-secondary"
+                    style={{ fontSize: 12 }}
+                    icon="flag"
+                    label={`${side.label} concedes`}
+                    title={`Record that ${side.label} conceded`}
+                    confirmLabel="Record it"
+                    note="Settles the match without a card. It can be undone."
+                    disabled={saveState === "saving"}
+                    onConfirm={() => doForfeit(side.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         )}
       </div>

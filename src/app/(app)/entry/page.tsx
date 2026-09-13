@@ -538,6 +538,10 @@ export default async function EntryPage() {
             bHandicap: state.strokeHandicapFor(m.playerBId, stage.id),
             groupName: `Flight ${(groupById.get(m.groupId) ?? 0) + 1}`,
             round: m.round,
+            // Who conceded, so the screen can say so and offer to undo it.
+            // Stored on the match and read by `resolveMatch`; until now no
+            // screen carried it, so no screen could show or clear one.
+            forfeitedBy: m.forfeitedBy ?? "",
             holes,
             status: effectiveScoreStatus(m, allowsAutoConfirm(settings)),
             aStrokes: matchStrokesByKey[`${m.id}:A`] ?? new Array(holeCount).fill(null),
