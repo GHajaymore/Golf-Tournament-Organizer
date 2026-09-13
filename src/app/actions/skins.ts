@@ -7,6 +7,7 @@ import { requirePotAccess } from "@/lib/services/game-access";
 import { getSession } from "@/lib/auth";
 import { potAudience } from "@/lib/domain/pot-audience";
 import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
+import { logAudit } from "@/lib/services/action-shared";
 
 /**
  * The skins pot on a league round.
@@ -20,6 +21,18 @@ import { STAKE_NOTE_MAX } from "@/lib/domain/quick-match";
  * two different permissions, and one function answering both is what keeps a
  * caller from being asked the wrong question.
  *
+ * EVERY WRITE IS AUDITED, which this file did not do for the whole of its
+ * life. Its sibling says the rule in one line — "Every write is audited.
+ * Records money, never moves it." — and the expense actions say why: "Money
+ * actions in this app did not log, and the 2026-08-12 audit called that out. A
+ * number that changed with nobody's name against it is a number a group cannot
+ * resolve an argument about."
+ *
+ * Skins is the same money under a different name, and the commonest bet in
+ * club golf: a pot that ran every Saturday could be re-priced, emptied or
+ * deleted with nothing recording who did it. Found by sweeping every server
+ * action that writes a money row for the audit line beside it, 2026-09-13.
+ *
  * These actions record money. They never move it.
  */
 
@@ -30,6 +43,19 @@ export interface SkinsResult {
 
 function refresh() {
   revalidatePath("/", "layout");
+}
+
+/**
+ * The pot, named the way a person would name it.
+ *
+ * "net front 9" rather than a row id, and the group when there is one — a
+ * league night runs four of these and an audit line naming none of them is
+ * only marginally better than no line at all.
+ */
+function potName(net: boolean, scope: string, groupKey: string): string {
+  const holes = scope === "front" ? " front 9" : scope === "back" ? " back 9" : "";
+  const who = groupKey ? `${groupKey} ` : "";
+  return `${who}${net ? "net" : "gross"}${holes} skins`;
 }
 
 /**
@@ -88,6 +114,11 @@ export async function saveSkinsPot(
     create: { eventId, stageId, net: input.net, scope: input.scope, groupKey, ...data },
     update: data,
   });
+  await logAudit(
+    eventId,
+    "skins.pot",
+    `${potName(input.net, input.scope, groupKey)} set to ${buyIn > 0 ? `${buyIn}c a head` : note || "no stake"}`,
+  );
   refresh();
   return { ok: true };
 }
@@ -236,6 +267,7 @@ export async function setSkinsEntrants(
       skipDuplicates: true,
     }),
   ]);
+  await logAudit(eventId, "skins.entrants", `${potName(net, scope, key)}: ${ids.length} in`);
   refresh();
   return { ok: true };
 }
@@ -272,6 +304,7 @@ export async function removeSkinsPot(
   }
   // Exactly the pot named, and nothing beside it.
   await prisma.skinsPot.deleteMany({ where: { stageId, eventId, net, scope, groupKey: key } });
+  await logAudit(eventId, "skins.pot.remove", `Removed ${potName(net, scope, key)}`);
   refresh();
   return { ok: true };
 }
@@ -363,6 +396,7 @@ export async function requestSkinsEntry(
       return { ok: false, error: "Your money is in this one — ask somebody in it to take you out." };
     }
     if (existing) await prisma.skinsEntry.delete({ where: { id: existing.id } });
+    await logAudit(eventId, "skins.request", `Took their name out of ${potName(net, scope, key)}`);
     refresh();
     return { ok: true };
   }
@@ -371,6 +405,7 @@ export async function requestSkinsEntry(
   await prisma.skinsEntry.create({
     data: { potId: pot.id, playerId: me.id, confirmed: false },
   });
+  await logAudit(eventId, "skins.request", `Asked to join ${potName(net, scope, key)}`);
   refresh();
   return { ok: true };
 }
@@ -423,6 +458,17 @@ export async function confirmSkinsEntry(
   if (!entry) return { ok: false, error: "They haven't put their name down." };
 
   await prisma.skinsEntry.update({ where: { id: entry.id }, data: { confirmed: paid } });
+  /**
+   * The line that matters most in this file. This is somebody recording that
+   * cash did or did not change hands, and it decides whether that player is in
+   * the pot when it settles — so "who said they had paid" is precisely the
+   * question a group comes back to.
+   */
+  await logAudit(
+    access.eventId,
+    "skins.confirm",
+    `${paid ? "Took" : "Un-took"} a stake in ${potName(net, scope, key)} from player ${playerId}`,
+  );
   refresh();
   return { ok: true };
 }
