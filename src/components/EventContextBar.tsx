@@ -49,7 +49,26 @@ export function EventContextBar({
       <div style={{ flex: 1 }} />
       {canSwitch && (
         <Link
-          href="/event"
+          /**
+           * THE LIST, NOT THE TOP OF THE SCREEN THAT HOLDS IT.
+           *
+           * This pointed at `/event`, which is 6,330px of configuring ONE
+           * tournament with the switcher as 440px — 7% — of it. Worse, where
+           * that 7% sits depends on the lifecycle: the switcher leads once a
+           * tournament is launched and trails while the setup rail is still
+           * talking, which is a deliberate and good rule (an organizer
+           * following the guide to fill in a date should not be met with a
+           * form for creating another tournament). But it means this link
+           * landed somewhere different depending on state — on the demo
+           * tournament, 5,782px above the list it was asking for.
+           *
+           * Somebody pressing "Switch event" wants the list. The anchor is on
+           * the section in both of its positions, so this is right in either.
+           *
+           * `scrollMarginTop` on `SettingsSectionAnchor` keeps the heading
+           * clear of the sticky jump-to nav when it lands.
+           */
+          href="/event#tournaments"
           // `touch-target` gives it 44px of height on a coarse pointer without
           // changing how it looks: it is a navigational control, not a link
           // inside a sentence, and at 19px it was the last thing on the

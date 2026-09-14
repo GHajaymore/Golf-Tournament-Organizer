@@ -349,3 +349,38 @@ test("each form's save follows only its own form", async ({ page }) => {
   await page.waitForLoadState("networkidle");
   await expect(page.getByText("Unsaved changes to the tournament")).toHaveCount(0);
 });
+
+/**
+ * "SWITCH EVENT" LANDS ON THE LIST.
+ *
+ * `EventContextBar` is on every authenticated screen, so this is the most
+ * pressed link in the console — and it pointed at `/event`, which is 6,330px
+ * of configuring ONE tournament with the switcher as 7% of it. Where that 7%
+ * sits depends on the lifecycle: it leads once a tournament is launched and
+ * trails while the setup rail is still talking. So the link landed somewhere
+ * different depending on state, and never on what it asked for.
+ *
+ * The unit sweep checks the fragment matches an id. This checks the thing
+ * that actually has to be true for a reader: after the click, the section is
+ * ON SCREEN — which also depends on `scrollMarginTop` clearing the sticky
+ * jump-to nav, and is CSS that nothing else would catch.
+ */
+test("switch event lands on the tournament list, not the top of the form", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.waitForLoadState("networkidle");
+
+  const swap = page.getByRole("link", { name: /switch event/i });
+  await expect(swap).toHaveAttribute("href", "/event#tournaments");
+  await swap.click();
+  await page.waitForLoadState("networkidle");
+
+  const list = page.locator("#tournaments");
+  await expect(list).toContainText("Your tournaments");
+
+  const box = await list.boundingBox();
+  const height = page.viewportSize()?.height ?? 0;
+  expect(box, "the tournament list has no box").not.toBeNull();
+  // On screen: below the top edge, and starting before the fold.
+  expect(box!.y, "the list is scrolled off the top").toBeGreaterThanOrEqual(0);
+  expect(box!.y, "the list is below the fold — the link did not land").toBeLessThan(height);
+});
