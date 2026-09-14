@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { handicapsForRound, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
+import { handicapsForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { needsTeams } from "@/lib/formats";
@@ -145,7 +145,13 @@ export default async function PlayCardPage() {
     await handicapsForRound(
       session.eventId,
       holes,
-      roundTeeId(await teesForEvent(session.eventId), state.event.defaultTeeId),
+      // The round’s own set before the tournament’s, and a fallback scoped
+      // to the course this round is actually played on. See `teeForPlay`.
+      teeForPlay(
+        await teesForEvent(session.eventId),
+        { stageTeeId: stage?.teeId, eventDefaultTeeId: state.event.defaultTeeId },
+        stage?.courseId ?? state.event.courseId ?? null,
+      ),
     )
   ).find((r) => r.playerId === me.playerId);
   const tee = teeRow?.teeName ? { name: teeRow.teeName, rated: teeRow.rated } : null;

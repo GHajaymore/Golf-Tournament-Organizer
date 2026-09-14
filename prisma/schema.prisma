@@ -437,6 +437,10 @@ model Tee {
   /// CI refuses to go further — which is what it is for.
   defaultForEvents Event[]  @relation("EventDefaultTee")
   flights          Group[]  @relation("GroupTee")
+  /// Rounds and matches played from this set, so the tees walk the same
+  /// match -> round -> event chain the COURSE already walked.
+  rounds           Stage[]  @relation("StageTee")
+  matchesPlayed    Match[]  @relation("MatchTee")
 
   @@index([courseId])
 }
@@ -1244,6 +1248,21 @@ model Stage {
    */
   courseId String?
   /**
+   * The tees this round is played from. Null means fall back to the event's.
+   *
+   * It exists because the COURSE already walks match -> round -> event and
+   * the tees did not: they were an event-level answer only. A two-day
+   * member-guest at two clubs therefore had one `Event.defaultTeeId`, and
+   * `roundTeeId` filled the gap with the first tee by position across EVERY
+   * venue — so day two was scored off day one's slope and course rating,
+   * with nothing on any screen saying so.
+   *
+   * SetNull, like `courseId` directly above and for the same reason: deleting
+   * a set of tees must not delete a round.
+   */
+  teeId    String?
+  teeRef   Tee?    @relation("StageTee", fields: [teeId], references: [id], onDelete: SetNull)
+  /**
    * Which nine, when the round is 9 holes. full | front | back
    */
   nine     String  @default("full")
@@ -1438,6 +1457,18 @@ model Match {
    * of correcting.
    */
   courseId String?
+  /**
+   * The tees this match was played from. Null falls back to the round's.
+   *
+   * The match half of the same gap as `Stage.teeId`. In a league with no
+   * fixed venue a pair names their own course at scoring time — and until
+   * this existed there was nowhere to put the tees they played it off, so
+   * `nameMatchVenue` CREATED a Tee row from what the scorer typed and then
+   * nothing pointed at it. The rating was collected, stored, and never used
+   * to score the card it was collected for.
+   */
+  teeId    String?
+  teeRef   Tee?    @relation("MatchTee", fields: [teeId], references: [id], onDelete: SetNull)
   /**
    * Which nine, when the round is 9 holes. full | front | back
    */

@@ -1,5 +1,5 @@
 import "server-only";
-import { roundTeeId } from "./handicaps";
+import { roundTeeId, teeForPlay } from "./handicaps";
 import { hasKnockoutStage, isKnockoutRound, isPlayingRound, roundIsStroke } from "../stage-types";
 import { resolveRoundHandicap, roundHandicapKey } from "../domain/round-handicap";
 import { carryUnitsCompatible, standingsUnit, type StandingsUnit } from "../format-chain";
@@ -573,6 +573,17 @@ export function parseStrokeCards(
  */
 export function strokeHandicapResolver(ctx: {
   stageById: Map<string, DbStage>;
+  /**
+   * The Course Handicap each player is on FOR THAT ROUND — its tees, its hole
+   * count.
+   *
+   * Keyed by stage because the tees are, and they had not been: two event-wide
+   * maps priced every round off the tournament's one set, so a round played
+   * from another was scored off a slope and course rating it was never played
+   * on. A round with no entry here falls through to the event-wide pair below,
+   * which is exactly the behaviour every tournament had before this existed.
+   */
+  courseHcpByStage?: Map<string, Map<string, number>>;
   courseHcp9: Map<string, number>;
   courseHcp18: Map<string, number>;
   fallback: Map<string, number>;
@@ -603,7 +614,11 @@ export function strokeHandicapResolver(ctx: {
   return (playerId, stageId) => {
     const stage = ctx.stageById.get(stageId);
     const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance) : 100;
-    const byRound = stage?.holes === 9 ? ctx.courseHcp9 : ctx.courseHcp18;
+    // This round's own map first — its tees and its hole count. The pair
+    // below is the event-wide answer and stays as the fallback, so a caller
+    // that supplies no per-stage maps behaves exactly as it did.
+    const byRound =
+      ctx.courseHcpByStage?.get(stageId) ?? (stage?.holes === 9 ? ctx.courseHcp9 : ctx.courseHcp18);
     const member = byRound.get(playerId) ?? ctx.fallback.get(playerId) ?? 0;
     // One reader for the rule — `resolveRoundHandicap` — so the board, the
     // screen that shows the number and the freeze that writes it cannot
@@ -720,6 +735,39 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const courseHcp18 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 18, teePolicy);
   const courseHcp9 = courseHandicapMap(withFlightTee, teeRatings, defaultTeeId, 9, teePolicy);
   const courseHcp = activeHoles === 9 ? courseHcp9 : courseHcp18;
+  /**
+   * THE SAME ARITHMETIC, ONCE PER ROUND, because the tees are a per-round
+   * answer and these two maps are an event-wide one.
+   *
+   * `defaultTeeId` above is a single value for the whole tournament, so a
+   * round played from a different set — a member-guest whose second day is at
+   * another club, a medal off the whites when the roster sits on the blues —
+   * was priced off the tournament's set whatever the round said. Now each
+   * round resolves its own through `teeForPlay`, which walks round then event
+   * and falls back to the first set ON THAT ROUND'S COURSE rather than the
+   * first across every venue.
+   *
+   * Cheap: it is pure arithmetic over the confirmed field, and a tournament
+   * has rounds in single figures. Built eagerly rather than lazily so the
+   * resolver below stays a plain lookup.
+   *
+   * The event-wide maps above STAY, and are not merely a fallback. `hcpOf`
+   * reads them for flighting, seeding and the draw, which are deliberately
+   * roster-level questions — see the note directly below. Only where a CARD is
+   * priced does the round's own answer win.
+   */
+  const courseHcpByStage = new Map<string, Map<string, number>>();
+  for (const s of stages) {
+    const stageTee = teeForPlay(
+      tees,
+      { stageTeeId: s.teeId, eventDefaultTeeId: event?.defaultTeeId },
+      s.courseId ?? event?.courseId ?? null,
+    );
+    courseHcpByStage.set(
+      s.id,
+      courseHandicapMap(withFlightTee, teeRatings, stageTee, holesPlayed(s.holes), teePolicy),
+    );
+  }
   /**
    * A player's handicap for FLIGHTING and standings, which is deliberately the
    * roster's and not the round's.
@@ -978,6 +1026,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    */
   const handicapFor = strokeHandicapResolver({
     stageById,
+    courseHcpByStage,
     courseHcp9,
     courseHcp18,
     fallback: courseHcp,
