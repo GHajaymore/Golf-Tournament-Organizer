@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { saveTeamScorecard } from "@/app/actions/tournament";
-import { parseStroke, scoreMark } from "@/lib/domain/score-payload";
+import { ScoreCell } from "@/components/ScorecardTable";
 
 export interface TeamCardRow {
   /** Empty where the side shares one ball. */
@@ -105,10 +105,11 @@ export function TeamEntryClient({
   const keyFor = (teamId: string, matchId: string, playerId: string) =>
     `${teamId}:${matchId}:${playerId}`;
 
-  const setHole = (key: string, hole: number, value: string) => {
+  /** Already parsed — `ScoreCell` does that, through `parseStroke`. */
+  const setHole = (key: string, hole: number, value: number | null) => {
     setDraft((d) => {
       const next = [...(d[key] ?? new Array(holes).fill(null))];
-      next[hole] = parseStroke(value);
+      next[hole] = value;
       return { ...d, [key]: next };
     });
   };
@@ -164,21 +165,20 @@ export function TeamEntryClient({
           {t.cards.map((c) => {
             const key = keyFor(t.teamId, t.matchId, c.playerId);
             const values = draft[key] ?? c.strokes;
-            const scoreCell = (i: number) => {
-              const par = pars[i];
-              const mark = scoreMark(values[i], par);
-              return (
-                <td key={i} style={{ padding: 2 }}>
-                  <input
-                    className={`input sc-score${mark}`}
-                    inputMode="numeric"
-                    value={values[i] ?? ""}
-                    onChange={(e) => setHole(key, i, e.target.value)}
-                    aria-label={`${c.playerId ? c.playerName : t.teamName}, hole ${i + 1}${par ? `, par ${par}` : ""}`}
-                  />
-                </td>
-              );
-            };
+            /* The same cell the individual card and the match card use. A
+               team's card is still one player's eighteen numbers; that it is
+               summed with three others afterwards changes nothing about the
+               box they go in. */
+            const scoreCell = (i: number) => (
+              <ScoreCell
+                key={i}
+                hole={i}
+                value={values[i] ?? null}
+                par={pars[i]}
+                who={c.playerId ? c.playerName : t.teamName}
+                onSet={(v) => setHole(key, i, v)}
+              />
+            );
             return (
               <div key={key} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -39,6 +39,122 @@ export interface CardBrand {
   secondary?: string;
 }
 
+/**
+ * ONE HOLE ON A CARD — the box a score is read from or typed into.
+ *
+ * Exported because the match card in `ScoreEntryClient` is NOT this table and
+ * should not be made into it. That grid holds two players against one set of
+ * reference rows, which is what lets a match be read across; rendering it as
+ * two `ScorecardTable`s would give it two headings, two Par rows, two S.I.
+ * rows and two totals blocks, and the thing a referee actually does with it —
+ * compare the two rows hole by hole — would be gone. Merging the TABLES would
+ * be a worse card in service of a tidier file.
+ *
+ * The CELL is the part that was genuinely written twice, and the part that can
+ * drift without anybody seeing: the class, the mark, the parse and the name a
+ * screen reader is given. `scoreMark` and `parseStroke` already made two of
+ * those one; this makes the other two one as well.
+ *
+ * The read-only branch is a `span` rather than a disabled input, deliberately.
+ * A disabled input is skipped by screen readers and greyed by the browser, and
+ * an approved card is not a broken form — it is a record.
+ */
+export function ScoreCell({
+  hole,
+  value,
+  par,
+  shots = 0,
+  who = "",
+  shotsFor = "",
+  onSet,
+}: {
+  /** Zero-based, as the arrays are. The label says `hole + 1`. */
+  hole: number;
+  value: number | null;
+  par?: number;
+  /**
+   * Strokes this player receives here, drawn in the corner.
+   *
+   * For a card with no Shots row of its own — the match grid, where two
+   * players receive different numbers and a shared row could not say so.
+   * `ScorecardTable` passes nothing and keeps its Shots row.
+   */
+  shots?: number;
+  /** Named when one grid holds more than one player's row. */
+  who?: string;
+  /** What the shots tooltip calls the player — usually a short label. */
+  shotsFor?: string;
+  /** Provided when the card is being filled in rather than read. */
+  onSet?: (value: number | null) => void;
+}) {
+  /**
+   * The one name this control is given.
+   *
+   * A single-player card says "Hole 3, par 4" — its heading already says
+   * whose card it is. A grid with two rows in it has to say which row, or a
+   * screen reader hears eighteen identical boxes twice over.
+   */
+  const label = `${who ? `${who}, hole` : "Hole"} ${hole + 1}${par ? `, par ${par}` : ""}`;
+  const mark = scoreMark(value, par);
+
+  const dots =
+    shots > 0 ? (
+      <span
+        /* HOW MANY, not merely that there are some. This printed one dot
+           whatever the number, so a player receiving TWO shots on the
+           stroke-index-1 hole — an ordinary twenty-shot difference — saw the
+           same mark as somebody receiving one. */
+        title={`${shotsFor || who || "This player"} receives ${shots} shot${shots === 1 ? "" : "s"} here`}
+        style={{
+          position: "absolute",
+          top: 1,
+          right: 3,
+          color: "var(--color-accent)",
+          fontSize: 11,
+          lineHeight: 1,
+          letterSpacing: -1,
+        }}
+      >
+        {"•".repeat(shots)}
+      </span>
+    ) : null;
+
+  if (!onSet) {
+    return (
+      <td style={{ padding: 2, position: "relative" }}>
+        <span
+          className={`sc-score${mark}`}
+          aria-label={label}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minWidth: 30,
+            minHeight: 30,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {value ?? "–"}
+        </span>
+        {dots}
+      </td>
+    );
+  }
+
+  return (
+    <td style={{ padding: 2, position: "relative" }}>
+      <input
+        className={`input sc-score${mark}`}
+        inputMode="numeric"
+        aria-label={label}
+        value={value ?? ""}
+        onChange={(e) => onSet(parseStroke(e.target.value))}
+      />
+      {dots}
+    </td>
+  );
+}
+
 const sum = (arr: Array<number | null | undefined>, from: number, to: number): number => {
   let total = 0;
   for (let i = from; i < to; i += 1) {
@@ -121,47 +237,23 @@ export function ScorecardTable({
   const hasSi = strokeIndex.some((n) => typeof n === "number" && n > 0);
 
   /**
-   * The scorecard marks a golfer already reads: a ring for under par, a box
-   * for over. Kept from the console's grid when the two were merged, because
-   * a wrong number is caught by its shape long before anybody adds the column
-   * up — a birdie ring on a hole you know you bogeyed is spotted instantly.
+   * One hole, from the shared cell — see `ScoreCell` above.
+   *
+   * This used to be forty lines here and forty more in the match card, with
+   * the mark, the parse and the screen-reader name written out in both. The
+   * Shots row below is why nothing is passed for `shots`: a single-player
+   * card has room to show the allocation on its own row, which is clearer
+   * than a dot in the corner of a box.
    */
-  const markOf = (i: number): string => scoreMark(strokes[i], pars[i]);
-
-  const cell = (i: number) => {
-    const value = strokes[i] ?? null;
-    const par = pars[i];
-    if (!onSet) {
-      return (
-        <td key={i} style={{ padding: 2 }}>
-          <span
-            className={`sc-score${markOf(i)}`}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minWidth: 30,
-              minHeight: 30,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {value ?? "–"}
-          </span>
-        </td>
-      );
-    }
-    return (
-      <td key={i} style={{ padding: 2 }}>
-        <input
-          className={`input sc-score${markOf(i)}`}
-          inputMode="numeric"
-          aria-label={`Hole ${i + 1}${par ? `, par ${par}` : ""}`}
-          value={value ?? ""}
-          onChange={(e) => onSet(i, parseStroke(e.target.value))}
-        />
-      </td>
-    );
-  };
+  const cell = (i: number) => (
+    <ScoreCell
+      key={i}
+      hole={i}
+      value={strokes[i] ?? null}
+      par={pars[i]}
+      onSet={onSet ? (v) => onSet(i, v) : undefined}
+    />
+  );
 
   return (
     <div>

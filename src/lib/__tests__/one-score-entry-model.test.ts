@@ -88,17 +88,60 @@ describe("one score entry model", () => {
     /**
      * WITHOUT THIS THE FILE PASSES VACUOUSLY. A glob that stops matching, or a
      * rename, makes "no second copy found" true and meaningless.
+     *
+     * This control used to name four files. It named them because four files
+     * drew their own score box, and it went red the day `ScoreCell` was
+     * extracted and `ScoreEntryClient` stopped drawing one — which is the
+     * guard reporting the change rather than a fault. The list below is what
+     * is true now, and the rule underneath it is what keeps it true.
      */
-    expect(strokeBoxes.length, "no score boxes found — the sweep is broken").toBeGreaterThanOrEqual(4);
+    expect(strokeBoxes.length, "no score boxes found — the sweep is broken").toBeGreaterThanOrEqual(2);
     const names = strokeBoxes.map((f) => f.split(/[\\/]/).pop());
-    for (const known of [
-      "ScorecardTable.tsx",
-      "ScoreEntryClient.tsx",
-      "TeamEntryClient.tsx",
-      "HoleByHoleCard.tsx",
-    ]) {
+    for (const known of ["ScorecardTable.tsx", "HoleByHoleCard.tsx"]) {
       expect(names, `${known} draws a score box and the sweep missed it`).toContain(known);
     }
+  });
+
+  it("draws a score box in three places, and each one has a reason", () => {
+    /**
+     * ONE CELL, everywhere a score goes into a grid.
+     *
+     * `ScorecardTable` was one player's card, `ScoreEntryClient` was two
+     * players against shared reference rows, and `TeamEntryClient` was a
+     * side's cards — three tables, three hand-written `<td><input
+     * className="input sc-score">`, each with its own screen-reader name and
+     * its own idea of where the shots dot goes. The TABLES are genuinely
+     * different and merging them would make the match card worse; the CELL was
+     * the same cell three times, and is now `ScoreCell`.
+     *
+     * TWO EXEMPTIONS, and neither is "it was easier".
+     *
+     * `HoleByHoleCard`'s "Other" box is a single control on a
+     * one-hole-at-a-time screen, 76px wide and not inside a table row at all.
+     * `ScoreCell` renders a `<td>`. Forcing it through would mean a cell
+     * component that sometimes is not a cell.
+     *
+     * The `styleguide` page is DOCUMENTING `.sc-score` itself — the ring, the
+     * box, the two rings. It needs the raw class on a real input, and a
+     * read-only `ScoreCell` renders a `span` instead, so routing it through
+     * the component would show the reader something other than the thing being
+     * documented. (It is still swept by the marking rule above, which is where
+     * its fifth copy of the thresholds was found.)
+     *
+     * Adding a fourth is meant to be uncomfortable. If a new screen needs a
+     * score in a grid, it needs `ScoreCell`, and if `ScoreCell` cannot do it
+     * then `ScoreCell` should learn to — that is the change worth making,
+     * not another copy.
+     */
+    const drawsOwn = strokeBoxes
+      .filter((f) => /className=\{?[`"']?(?:input )?sc-score/.test(readSource(f)))
+      .map((f) => f.split(/[\\/]/).pop())
+      .sort();
+    expect(drawsOwn, "a score box drawn outside ScoreCell — use it instead").toEqual([
+      "HoleByHoleCard.tsx",
+      "ScorecardTable.tsx",
+      "page.tsx",
+    ]);
   });
 
   it("has exactly one implementation of the marking", () => {
