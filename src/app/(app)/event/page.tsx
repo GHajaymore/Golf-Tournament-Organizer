@@ -137,8 +137,25 @@ export default async function EventPage({
    *
    * Used on one screen until now. Second reader, same component.
    */
+  /**
+   * EACH LABEL NAMES THE SECTION, NEVER THE PAGE.
+   *
+   * `details` read "Tournament details", which is this screen's own `<h1>` and
+   * the sidebar's name for it — so the first thing in a control headed "On
+   * this page" was the page. It answered "where does this go?" with "here",
+   * and it matched no heading in the section it scrolls to, which is
+   * "Tournament identity".
+   *
+   * The other two were right and are the convention: `Courses` is
+   * `CourseLibrary`'s own card title and `Players & scoring` is
+   * `PlaySettings`'. A jump-to link is a promise about what you will see when
+   * you land, so it has to be the words that are actually there.
+   *
+   * `/organization`, the other screen with one of these, never had the fault —
+   * seven sections, not one of them called "Club settings".
+   */
   const sections: SettingsSection[] = [
-    { id: "details", label: "Tournament details" },
+    { id: "details", label: "Tournament identity" },
     { id: "courses", label: "Courses" },
     { id: "scoring", label: "Players & scoring" },
   ];

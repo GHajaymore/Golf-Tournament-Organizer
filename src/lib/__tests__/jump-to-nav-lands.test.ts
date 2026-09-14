@@ -80,6 +80,44 @@ describe("a jump-to nav lands on a real section", () => {
     expect(dead, "these are offered by the nav and exist nowhere on the page").toEqual([]);
   });
 
+  /**
+   * AND NO LINK OFFERS THE PAGE YOU ARE ALREADY ON.
+   *
+   * `SettingsNav` is headed "On this page", so every chip is a promise about
+   * what you will see when you land. A chip carrying the screen's OWN name
+   * breaks that twice over: it answers "where does this go?" with "here", and
+   * because the page title is not a heading inside any section, it names
+   * something the reader will not find when they arrive.
+   *
+   * `/event` had exactly this — `{ id: "details", label: "Tournament details" }`
+   * under an `<h1>` reading "Tournament details", scrolling to a card headed
+   * "Tournament identity". Reported 2026-09-14 by somebody looking at the
+   * screen; nothing in a 5,600-test suite could see it, because every id
+   * matched an anchor and the link worked perfectly.
+   *
+   * The screen's own name comes from `screenName`, which reads `NAV` — the one
+   * source for what a screen is called. So this compares the labels against
+   * the sidebar rather than against a second list of page titles, and a screen
+   * renamed in the sidebar is still covered.
+   */
+  it.each(screens)("%s offers no link named after the screen itself", async (screen) => {
+    const src = readSource(screen);
+    const labels = [...src.matchAll(/\{\s*id:\s*"[^"]+",\s*label:\s*"([^"]+)"/g)].map((m) => m[1]);
+    expect(labels.length, "no sections listed — nothing to check").toBeGreaterThan(1);
+
+    /** `src/app/(app)/event/page.tsx` -> `/event`, which is what NAV keys on. */
+    const route = "/" + screen.replace(/\\/g, "/").replace(/^src\/app\/\([a-z]+\)\//, "").replace(/\/page\.tsx$/, "");
+    const { screenName } = await import("@/lib/nav");
+    const pageName = screenName(route);
+    expect(pageName, `no NAV entry for ${route} — the comparison would be vacuous`).toBeTruthy();
+
+    expect(
+      labels,
+      `a jump-to link is named "${pageName}", which is this screen's own name — ` +
+        `it points at the page the reader is already on. Name the section instead.`,
+    ).not.toContain(pageName);
+  });
+
   it.each(screens)("%s anchors nothing the nav does not offer", (screen) => {
     /**
      * THE OTHER DIRECTION, which is the quieter fault. An anchored section
