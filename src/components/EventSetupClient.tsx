@@ -70,6 +70,7 @@ export function EventSetupClient({
   setup = null,
   launched = false,
   scored = false,
+  finished = false,
 }: {
   initial: EventForm;
   playersCount: number;
@@ -99,6 +100,13 @@ export function EventSetupClient({
   setup?: { doneCount: number; total: number; complete: boolean } | null;
   launched?: boolean;
   scored?: boolean;
+  /**
+   * Defaults FALSE, and the direction matters: a caller that forgets it gets
+   * a journey card stuck on Play, which understates. The value it replaced
+   * derived "finished" from a card count and overstated — it told an
+   * organizer to settle the money mid-round.
+   */
+  finished?: boolean;
 }) {
   const [f, setF] = useState<EventForm>(initial);
   const [manualTarget, setManualTarget] = useState(initial.manualPlayerCount);
@@ -689,6 +697,7 @@ export function EventSetupClient({
           setup={setup}
           launched={launched}
           scored={scored}
+          finished={finished}
           hasBracket={hasBracket}
         />
         )}

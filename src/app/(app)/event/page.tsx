@@ -202,6 +202,11 @@ export default async function EventPage({
         setup={flow ? { doneCount: flow.doneCount, total: flow.steps.length, complete: flow.complete } : null}
         launched={e.status === "live" || e.status === "completed"}
         scored={cardsIn > 0}
+        // The one thing a card count cannot tell you. `launched` folds "live"
+        // and "completed" into one boolean, so the journey card had no way to
+        // distinguish a tournament being played from one that is over, and
+        // used `scored` for it instead — see TournamentJourney's `current`.
+        finished={e.status === "completed"}
         initial={{
           name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,
           address: e.address, regDeadline: e.regDeadline, capacity: e.capacity,

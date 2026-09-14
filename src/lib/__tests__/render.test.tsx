@@ -380,6 +380,7 @@ describe("the journey card counts phases, not steps", () => {
         setup={{ doneCount: 5, total: 5, complete: true }}
         launched={false}
         scored={false}
+        finished={false}
         hasBracket
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {...(props as any)}
@@ -402,13 +403,61 @@ describe("the journey card counts phases, not steps", () => {
   });
 
   it("moves through them as the tournament does", async () => {
-    // Setup complete but not launched is phase 2; a returned card is phase 4.
-    expect(await journey()).toContain("phase 2 of 4");
-    expect(await journey({ launched: true })).toContain("phase 3 of 4");
-    expect(await journey({ launched: true, scored: true })).toContain("phase 4 of 4");
     expect(
       await journey({ setup: { doneCount: 2, total: 5, complete: false } }),
     ).toContain("phase 1 of 4");
+    expect(await journey()).toContain("phase 2 of 4");
+    expect(await journey({ launched: true })).toContain("phase 3 of 4");
+    expect(await journey({ finished: true })).toContain("phase 4 of 4");
+  });
+
+  /**
+   * A RETURNED CARD MEANS THEY ARE PLAYING, NOT THAT THEY HAVE FINISHED.
+   *
+   * The line above this used to read
+   * `journey({ launched: true, scored: true })` → "phase 4 of 4", which is a
+   * test asserting what the code did rather than what is true — the failure
+   * CLAUDE.md names, found here on 2026-09-14 by somebody reading the screen
+   * rather than the suite.
+   *
+   * What they were looking at was Demo Cup: four rounds, cards on the second
+   * one, and a card telling them they were on "Finish — settle the money,
+   * then send everyone the result". Two rounds of that tournament have not
+   * been played.
+   */
+  it("does not call a tournament finished because a card came in", async () => {
+    expect(
+      await journey({ launched: true, scored: true }),
+      "one card in round two of four is not 'settle the money'",
+    ).toContain("phase 3 of 4");
+  });
+
+  /**
+   * AND THE CASE AS IT WAS ACTUALLY FOUND, which is worse than the one above.
+   *
+   * Demo Cup's `status` is "draft", so `launched` was FALSE — and because
+   * `scored` was tested first, the card skipped Launch and Play entirely and
+   * reported a tournament finished that had never started. Both phases showed
+   * a tick.
+   *
+   * The evidence route stays: a card that has come in means somebody is out
+   * there whatever the status says. It just moves to Play, which is the only
+   * thing a card count can be right about.
+   */
+  it("reads a card on an unlaunched tournament as play, not as finished", async () => {
+    const html = await journey({ launched: false, scored: true });
+    expect(html, "a draft with cards is being played, not over").toContain("phase 3 of 4");
+  });
+
+  /**
+   * The control on both: `finished` must actually reach the card, or the two
+   * assertions above pass on a component that has simply stopped reaching
+   * phase 4 at all.
+   */
+  it("still reaches Finish when the organizer says it is over", async () => {
+    expect(await journey({ launched: true, scored: true, finished: true })).toContain(
+      "phase 4 of 4",
+    );
   });
 });
 
