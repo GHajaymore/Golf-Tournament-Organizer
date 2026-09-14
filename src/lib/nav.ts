@@ -81,6 +81,24 @@ export const TOURNAMENT_ONLY_SCREENS: ReadonlySet<string> = new Set([
   "roster",
   "series",
   /**
+   * The list of the club's TOURNAMENTS, which a casual round is not one of.
+   *
+   * This screen is new and the rule is not: the switcher it renders has always
+   * filtered casual rounds out of what it counts and out of "Start from",
+   * because a Sunday fourball is not something to build a championship from.
+   * It just had no key of its own to be excluded by while it lived on
+   * `/event`, which is already here.
+   *
+   * Caught by `nav-casual-round.test.ts` within a minute of the route being
+   * added — a fourball's sidebar grew an eighth item and the "Club" heading
+   * came back. That test is why this file has an exclusion set rather than a
+   * habit of remembering.
+   *
+   * Someone who runs tournaments AND plays a quick round still switches: the
+   * context bar renders for a match too, and it points here.
+   */
+  "tournaments",
+  /**
    * Messaging a field you do not have.
    *
    * `/messages` is threads, staff broadcasts and an SMS fan-out priced per
@@ -231,6 +249,16 @@ export const NAV: NavSection[] = [
     // opposed to "Set up", which only describes the event currently open.
     label: "Club",
     items: [
+      /**
+       * FIRST IN THE CLUB GROUP, because it is the one that answers "which
+       * one am I in" — and because until now nothing in the sidebar did.
+       *
+       * The switcher lived on `/event`, reachable only through the context
+       * bar's "Switch event" link, on a screen named for configuring the ONE
+       * tournament open. This group's own comment already drew the line it
+       * was on the wrong side of.
+       */
+      { key: "tournaments", label: "Tournaments", href: "/tournaments", icon: "ph ph-cards", tier: "at-desk" },
       { key: "roster", label: "Members", href: "/roster", icon: "ph ph-address-book", tier: "at-desk" },
       { key: "series", label: "Season standings", href: "/series", icon: "ph ph-trophy", tier: "at-desk" },
       { key: "organization", label: "Club settings", href: "/organization", icon: "ph ph-buildings", tier: "at-desk" },

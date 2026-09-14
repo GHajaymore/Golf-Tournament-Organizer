@@ -360,27 +360,34 @@ test("each form's save follows only its own form", async ({ page }) => {
  * trails while the setup rail is still talking. So the link landed somewhere
  * different depending on state, and never on what it asked for.
  *
- * The unit sweep checks the fragment matches an id. This checks the thing
- * that actually has to be true for a reader: after the click, the section is
- * ON SCREEN — which also depends on `scrollMarginTop` clearing the sticky
- * jump-to nav, and is CSS that nothing else would catch.
+ * A fragment (`/event#tournaments`) fixed the landing and left the screen
+ * still doing two jobs. The list has its own route now, so what this checks
+ * is simpler and stronger: the link goes to `/tournaments`, and the list is
+ * the FIRST thing on it rather than something to scroll to.
+ *
+ * That last part is why this is an e2e test and not a unit one. "Near the top
+ * of the page" is a measurement, and the whole defect being fixed was a
+ * reader arriving somewhere and not finding what they clicked for.
  */
 test("switch event lands on the tournament list, not the top of the form", async ({ page }) => {
   await page.goto("/dashboard");
   await page.waitForLoadState("networkidle");
 
   const swap = page.getByRole("link", { name: /switch event/i });
-  await expect(swap).toHaveAttribute("href", "/event#tournaments");
+  await expect(swap).toHaveAttribute("href", "/tournaments");
   await swap.click();
   await page.waitForLoadState("networkidle");
+  await expect(page).toHaveURL(/\/tournaments$/);
 
-  const list = page.locator("#tournaments");
-  await expect(list).toContainText("Your tournaments");
+  /* By its heading rather than by an id. It had one — the anchor a fragment
+     link needed — and an id kept only so a test can find it is an id that
+     drifts. The words are what a reader is looking for. */
+  const list = page.locator(".card", { hasText: "Your tournaments" }).first();
+  await expect(list).toBeVisible();
 
   const box = await list.boundingBox();
   const height = page.viewportSize()?.height ?? 0;
   expect(box, "the tournament list has no box").not.toBeNull();
-  // On screen: below the top edge, and starting before the fold.
   expect(box!.y, "the list is scrolled off the top").toBeGreaterThanOrEqual(0);
   expect(box!.y, "the list is below the fold — the link did not land").toBeLessThan(height);
 });

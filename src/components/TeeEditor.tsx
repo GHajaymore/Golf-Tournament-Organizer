@@ -213,7 +213,12 @@ export function TeeEditor({
                     instead — a column header has no room for a sentence, and
                     a tooltip has no reader on a phone. */}
                 <th style={{ textAlign: "right" }}>14.0 plays</th>
-                {canEdit && <th style={{ width: 70 }} />}
+                {/* 34px a button, 4px between them, and `--space-3` of cell
+                    padding each side: 92. It said 70, which is less than the
+                    two buttons alone, so the second one wrapped under the
+                    first and every row of the table grew to 85px to hold the
+                    stack. See the cell below. */}
+                {canEdit && <th style={{ width: 96 }} />}
               </tr>
             </thead>
             <tbody>
@@ -238,7 +243,32 @@ export function TeeEditor({
                       : "14"}
                   </td>
                   {canEdit && (
-                    <td style={{ textAlign: "right" }}>
+                    /**
+                     * EDIT AND REMOVE, SIDE BY SIDE, WHICH IS WHAT THE NOTE
+                     * BELOW ALREADY CLAIMED THEY WERE.
+                     *
+                     * They were two inline-flex buttons in a cell too narrow
+                     * for both, so the browser did the only thing it could and
+                     * broke the line. Remove sat under Edit, each row of the
+                     * tee table stood 85px tall, and a course with six sets —
+                     * an ordinary club — rendered a 510px column of stacked
+                     * icons whose pairs did not line up with the ratings they
+                     * belonged to.
+                     *
+                     * `whiteSpace: "nowrap"` is how the other five action
+                     * cells in this app already say it: CourseLibrary,
+                     * EventSwitcher, PlaySettings, RegistrationClient and
+                     * RosterClient, the first of which sits directly above
+                     * this table on the same screen and looked right while
+                     * this looked broken. Six such cells, five guarded — so
+                     * this was the instance, not the class.
+                     *
+                     * It belongs on the CELL rather than on a wrapper: the
+                     * armed state of `ConfirmButton` replaces the icon with
+                     * two labelled buttons and a note, and a wrapper would
+                     * have to be told how to hold those too.
+                     */
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                       <button
                         type="button"
                         className="btn btn-icon"
@@ -260,6 +290,10 @@ export function TeeEditor({
                           away, and a reassurance nobody checked is worse than
                           none. */}
                       <ConfirmButton
+                        // Air between two 34px icons that otherwise butt
+                        // together, the same 4-6px every other action cell
+                        // puts between its controls.
+                        style={{ marginLeft: 4 }}
                         title="Remove these tees"
                         confirmLabel="Remove them"
                         note="Nobody who played off them is removed — their tee reference is cleared."

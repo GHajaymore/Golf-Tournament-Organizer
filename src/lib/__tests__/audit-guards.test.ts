@@ -461,7 +461,9 @@ describe("the event switcher never lists another club's tournaments", () => {
     // saw every club's event names, dates, venues and field sizes, and the
     // switcher offered rows the actions then refused. The access list is the
     // single source of what appears, exactly as it is for what switches.
-    const src = readSource("src/app/(app)/event/page.tsx");
+    // Moved to `/tournaments` with the switcher; the guarantee is unchanged
+    // and the file it applies to is not.
+    const src = readSource("src/app/(app)/tournaments/page.tsx");
     /**
      * WHAT MATTERS IS THE SCOPE, not the expression that spells it.
      *
@@ -483,6 +485,41 @@ describe("the event switcher never lists another club's tournaments", () => {
       src.split("prisma.event.findMany").length - 1,
       "a second event query appeared — scope it the same way",
     ).toBe(1);
+  });
+
+  /**
+   * AND IT IS THE ONLY CONSOLE SCREEN THAT ASKS FOR EVENTS AT ALL.
+   *
+   * Sweeping the class rather than the instance, which is the lesson this
+   * codebase keeps relearning: the assertion above protects ONE file, and the
+   * original bug — an unscoped `findMany` handing every club's tournament
+   * names to every signed-in user — is available to any screen that writes the
+   * same six words.
+   *
+   * One reader today, and listing events is a club-level act with a screen of
+   * its own now, so a second one appearing is worth a conversation whether or
+   * not it is scoped. If a screen legitimately needs the set, give it
+   * `accessibleEvents` and add it here deliberately.
+   */
+  it("is the only screen in the console that queries events at all", () => {
+    const pages: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, entry.name);
+        if (entry.isDirectory()) walk(p);
+        else if (entry.name === "page.tsx") pages.push(p.replace(/\\/g, "/"));
+      }
+    };
+    walk(join("src", "app", "(app)"));
+
+    // The sweep's own control: if this ever finds no screens, "none of them
+    // query events" is true and says nothing.
+    expect(pages.length, "found no console screens — the sweep is broken").toBeGreaterThan(10);
+
+    const querying = pages.filter((p) => readSource(p).includes("prisma.event.findMany"));
+    expect(querying, "these screens read the event list; scope them or move the read").toEqual([
+      "src/app/(app)/tournaments/page.tsx",
+    ]);
   });
 });
 

@@ -32,8 +32,23 @@ export interface TournamentJourneyProps {
   setup: { doneCount: number; total: number; complete: boolean } | null;
   /** Whether the tournament has been launched — play has begun. */
   launched: boolean;
-  /** Whether any card has been returned, which is what "finishing" needs. */
+  /**
+   * Whether any card has been returned.
+   *
+   * This said "which is what 'finishing' needs", and the code below believed
+   * it. A returned card is evidence that play has STARTED — it is what the
+   * first phase of scoring looks like, not the last.
+   */
   scored: boolean;
+  /**
+   * Whether the organizer has declared it over.
+   *
+   * `launched` cannot answer this: it is `status === "live" || status ===
+   * "completed"`, so by the time it reaches here the two are the same value.
+   * Finishing is a decision somebody makes, not a threshold a card count
+   * crosses — see `current` below.
+   */
+  finished: boolean;
   /** Knockout tournaments only — see the bracket gate in EventSetupClient. */
   hasBracket: boolean;
 }
@@ -47,7 +62,13 @@ interface Phase {
   screens: string[];
 }
 
-export function TournamentJourney({ setup, launched, scored, hasBracket }: TournamentJourneyProps) {
+export function TournamentJourney({
+  setup,
+  launched,
+  scored,
+  finished,
+  hasBracket,
+}: TournamentJourneyProps) {
   const phases: Phase[] = [
     {
       key: "setup",
@@ -99,8 +120,39 @@ export function TournamentJourney({ setup, launched, scored, hasBracket }: Tourn
    * Read from what has happened rather than from a stored stage, so it cannot
    * disagree with the screens either side of it: setting up is finished when
    * the rail says so, playing has started when a card has been returned.
+   *
+   * THE FIRST TEST USED TO BE `scored`, AND IT ANSWERED THE WRONG QUESTION.
+   * One returned card sent the whole card to "Finish", so it ticked Launch and
+   * Play as done and told the organizer to settle the money and send everyone
+   * the result — on a tournament whose second round was in progress.
+   *
+   * Demo Cup on 2026-09-14 is the case it was reported from, and it is worse
+   * than it looks: `status` is "draft", so `launched` is FALSE. The card
+   * claimed a tournament had finished that had never started. `scored` was
+   * tested first, so the two phases it skipped were never consulted.
+   *
+   * The order is the fix, and so is what each test now means:
+   *
+   *   finished           a decision somebody made — `status === "completed"`.
+   *                      Nothing derived, because nothing derived can know:
+   *                      four rounds with one played and four rounds with
+   *                      four played both have cards.
+   *   launched || scored play has started. `launched` is the ordinary route;
+   *                      `scored` is the evidence route, kept because it was
+   *                      the sound half of the original idea — a card that has
+   *                      come in means somebody is out there whatever the
+   *                      status says.
+   *
+   * So a card count can now only ever move this FORWARD to Play, never to
+   * Finish, which is the direction it is capable of being right about.
    */
-  const current: JourneyPhase = scored ? "results" : launched ? "play" : setup?.complete ? "launch" : "setup";
+  const current: JourneyPhase = finished
+    ? "results"
+    : launched || scored
+      ? "play"
+      : setup?.complete
+        ? "launch"
+        : "setup";
   const order: JourneyPhase[] = ["setup", "launch", "play", "results"];
   const currentIndex = order.indexOf(current);
 

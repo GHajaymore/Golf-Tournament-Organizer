@@ -80,6 +80,44 @@ describe("a jump-to nav lands on a real section", () => {
     expect(dead, "these are offered by the nav and exist nowhere on the page").toEqual([]);
   });
 
+  /**
+   * AND NO LINK OFFERS THE PAGE YOU ARE ALREADY ON.
+   *
+   * `SettingsNav` is headed "On this page", so every chip is a promise about
+   * what you will see when you land. A chip carrying the screen's OWN name
+   * breaks that twice over: it answers "where does this go?" with "here", and
+   * because the page title is not a heading inside any section, it names
+   * something the reader will not find when they arrive.
+   *
+   * `/event` had exactly this — `{ id: "details", label: "Tournament details" }`
+   * under an `<h1>` reading "Tournament details", scrolling to a card headed
+   * "Tournament identity". Reported 2026-09-14 by somebody looking at the
+   * screen; nothing in a 5,600-test suite could see it, because every id
+   * matched an anchor and the link worked perfectly.
+   *
+   * The screen's own name comes from `screenName`, which reads `NAV` — the one
+   * source for what a screen is called. So this compares the labels against
+   * the sidebar rather than against a second list of page titles, and a screen
+   * renamed in the sidebar is still covered.
+   */
+  it.each(screens)("%s offers no link named after the screen itself", async (screen) => {
+    const src = readSource(screen);
+    const labels = [...src.matchAll(/\{\s*id:\s*"[^"]+",\s*label:\s*"([^"]+)"/g)].map((m) => m[1]);
+    expect(labels.length, "no sections listed — nothing to check").toBeGreaterThan(1);
+
+    /** `src/app/(app)/event/page.tsx` -> `/event`, which is what NAV keys on. */
+    const route = "/" + screen.replace(/\\/g, "/").replace(/^src\/app\/\([a-z]+\)\//, "").replace(/\/page\.tsx$/, "");
+    const { screenName } = await import("@/lib/nav");
+    const pageName = screenName(route);
+    expect(pageName, `no NAV entry for ${route} — the comparison would be vacuous`).toBeTruthy();
+
+    expect(
+      labels,
+      `a jump-to link is named "${pageName}", which is this screen's own name — ` +
+        `it points at the page the reader is already on. Name the section instead.`,
+    ).not.toContain(pageName);
+  });
+
   it.each(screens)("%s anchors nothing the nav does not offer", (screen) => {
     /**
      * THE OTHER DIRECTION, which is the quieter fault. An anchored section
@@ -98,19 +136,25 @@ describe("a jump-to nav lands on a real section", () => {
 /**
  * AND A LINK FROM ANOTHER SCREEN LANDS ON ONE TOO.
  *
- * `EventContextBar` sits on every authenticated screen and its "Switch event"
- * link points at `/event#tournaments` — the switcher, not the top of the
- * 6,330px configuration screen that holds it. That fragment is a string in one
- * file and an `id` in another, with nothing but a matching spelling between
- * them.
- *
  * A fragment that matches nothing does not throw and does not log. The browser
  * simply stays where it is, which reads as the link being broken or the app
- * being unresponsive — and this one is on EVERY screen, so it is the most
- * pressed link in the console.
+ * being unresponsive.
  *
  * Swept rather than listed, so the next cross-screen anchor is covered the day
  * somebody writes it.
+ *
+ * THERE ARE NONE TODAY, and that is not the sweep failing. The one instance
+ * this was written for — `EventContextBar`'s "Switch event" pointing at
+ * `/event#tournaments` — has become a plain `/tournaments` link, because the
+ * switcher got its own screen rather than a fragment on the configuration
+ * screen that happened to hold it.
+ *
+ * So the control below cannot name an instance, and a sweep with no instances
+ * and no control is decoration. It controls the INSTRUMENT instead: the same
+ * matcher is run over a sample that is known to contain one, in the same run
+ * that reports zero for `src`. If the pattern is ever broken — the escape
+ * trap this repo has been bitten by three times — that goes red while the
+ * count stays comfortingly at zero.
  */
 describe("a link to another screen's section lands on it", () => {
   /** `/event` -> the file that renders it, route groups and all. */
@@ -131,6 +175,15 @@ describe("a link to another screen's section lands on it", () => {
     return null;
   }
 
+  /** The matcher itself, so the control below can run it over a known sample. */
+  function linksIn(src: string, from: string): Array<{ from: string; route: string; id: string }> {
+    return [...src.matchAll(/href="\/([a-z-]+)#([A-Za-z0-9_-]+)"/g)].map((m) => ({
+      from,
+      route: m[1],
+      id: m[2],
+    }));
+  }
+
   function hashLinks(): Array<{ from: string; route: string; id: string }> {
     const out: Array<{ from: string; route: string; id: string }> = [];
     const walk = (dir: string) => {
@@ -139,9 +192,7 @@ describe("a link to another screen's section lands on it", () => {
         if (entry.isDirectory()) {
           if (entry.name !== "node_modules" && entry.name !== "__tests__") walk(p);
         } else if (/\.tsx?$/.test(p)) {
-          for (const m of readSource(p).matchAll(/href="\/([a-z-]+)#([A-Za-z0-9_-]+)"/g)) {
-            out.push({ from: p, route: m[1], id: m[2] });
-          }
+          out.push(...linksIn(readSource(p), p));
         }
       }
     };
@@ -151,26 +202,38 @@ describe("a link to another screen's section lands on it", () => {
 
   const links = hashLinks();
 
-  it("finds the cross-screen anchors at all — the sweep's own control", () => {
+  it("recognises a cross-screen anchor when it sees one — the sweep's own control", () => {
     /**
-     * One today, and naming it is what stops this passing vacuously if the
-     * attribute is ever written differently. If this goes red because the
-     * link moved rather than broke, point the control at wherever it went.
+     * `src` holds none of these today, so there is nothing real to name. What
+     * can still be proved is that the instrument works: hand it a line in the
+     * exact shape a screen would write, and a sweep reporting zero is then a
+     * fact about the app rather than about a regex that matches nothing.
      */
-    expect(
-      links.map((l) => `/${l.route}#${l.id}`),
-      "no cross-screen anchor links found — the sweep is broken",
-    ).toContain("/event#tournaments");
+    const found = linksIn(`<Link href="/event#scoring">Scoring</Link>`, "sample.tsx");
+    expect(found, "the matcher no longer recognises a cross-screen anchor").toEqual([
+      { from: "sample.tsx", route: "event", id: "scoring" },
+    ]);
   });
 
-  it.each(links)("$from -> /$route#$id exists", ({ route, id }) => {
-    const page = pageFor(route);
-    expect(page, `no page renders /${route}`).not.toBeNull();
-    const src = readSource(page!);
-    const anchored =
-      new RegExp(`<SettingsSectionAnchor id="${id}"`).test(src) ||
-      new RegExp(`<section id="${id}"`).test(src) ||
-      new RegExp(`id="${id}"`).test(src);
-    expect(anchored, `/${route} has no element with id="${id}"`).toBe(true);
-  });
+  /**
+   * `it.each([])` registers nothing, which is the vacuous pass this file is
+   * otherwise careful about — so say out loud that there are none, and let the
+   * control above be what proves the sweep still works.
+   */
+  if (links.length === 0) {
+    it("finds no cross-screen anchors in src, which is the current answer", () => {
+      expect(links).toEqual([]);
+    });
+  } else {
+    it.each(links)("$from -> /$route#$id exists", ({ route, id }) => {
+      const page = pageFor(route);
+      expect(page, `no page renders /${route}`).not.toBeNull();
+      const src = readSource(page!);
+      const anchored =
+        new RegExp(`<SettingsSectionAnchor id="${id}"`).test(src) ||
+        new RegExp(`<section id="${id}"`).test(src) ||
+        new RegExp(`id="${id}"`).test(src);
+      expect(anchored, `/${route} has no element with id="${id}"`).toBe(true);
+    });
+  }
 });
