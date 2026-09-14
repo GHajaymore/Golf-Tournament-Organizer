@@ -5651,6 +5651,54 @@ describe("play settings name one thing per heading", () => {
     return render(<PlaySettings mode={mode} settings={settings as any} canEdit />);
   };
 
+  /**
+   * THE TEE PICKER NAMES THE COURSE, once a tournament has more than one.
+   *
+   * Widening the tee read to include the event's own course put BOTH venues'
+   * sets in one list — correct, and immediately unreadable: the demo club has
+   * "Black" on two courses and "Green" on three, so ten options carried
+   * duplicate names with only a rating to tell them apart. That rating is the
+   * number somebody came here to decide, not to decode.
+   */
+  const teePanel = async (tees: Array<Record<string, unknown>>) => {
+    const { PlaySettings } = await import("@/components/PlaySettings");
+    return render(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      <PlaySettings mode="tournament" settings={settings as any} canEdit tees={tees as any} />,
+    );
+  };
+  const tee = (id: string, name: string, courseName: string) => ({
+    id, name, courseName, courseRating: 71, slopeRating: 120, rated: true,
+  });
+
+  it("groups the sets by course when the tournament has two", async () => {
+    const html = await teePanel([
+      tee("t1", "Black", "Bushwood"),
+      tee("t2", "Black", "Ridgeline"),
+    ]);
+    expect(html).toContain("<optgroup");
+    expect(html).toContain('label="Bushwood"');
+    expect(html).toContain('label="Ridgeline"');
+  });
+
+  it("does not group a single-venue tournament", async () => {
+    // A group heading repeating the tournament's only course is furniture.
+    const html = await teePanel([tee("t1", "Blue", "Bushwood"), tee("t2", "White", "Bushwood")]);
+    expect(html).not.toContain("<optgroup");
+    expect(html).toContain("Blue");
+    expect(html).toContain("White");
+  });
+
+  it("still renders for a caller that sends no course name", async () => {
+    // `courseName` is optional so a caller not yet taught renders exactly what
+    // it did — one ungrouped list, not a crash and not a blank heading.
+    const html = await teePanel([
+      { id: "t1", name: "Blue", courseRating: 71, slopeRating: 120, rated: true },
+    ]);
+    expect(html).not.toContain("<optgroup");
+    expect(html).toContain("Blue");
+  });
+
   it("separates the four questions that shared one heading", async () => {
     // Seven controls sat flat under "Players & scoring", answering four
     // unrelated questions. The setting somebody came for could not be found

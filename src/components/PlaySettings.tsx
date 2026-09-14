@@ -74,6 +74,15 @@ interface Props {
 export interface TeeOption {
   id: string;
   name: string;
+  /**
+   * The course this set belongs to.
+   *
+   * A tournament played over two venues offers both courses' sets in one
+   * list, and clubs name markers alike — the demo club has "Black" on two
+   * courses and "Green" on three. Optional so a caller that has not been
+   * taught renders exactly what it did.
+   */
+  courseName?: string;
   courseRating: number;
   slopeRating: number;
   /** False when nobody has entered a rating, so this set changes nothing. */
@@ -432,12 +441,46 @@ export function PlaySettings({
                   describes the wrong fallback is worse than a blank — it is
                   the reason an organizer does not go and look. */}
               <option value="">The first rated set at each round&rsquo;s course</option>
-              {tees.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                  {t.rated ? ` — ${t.courseRating.toFixed(1)} / ${t.slopeRating}` : " — not rated"}
-                </option>
-              ))}
+              {/**
+                * GROUPED BY COURSE, because a two-venue tournament offers
+                * both and clubs name their markers alike.
+                *
+                * The demo club has "Black" on two courses and "Green" on
+                * three. Flat, that list reads as ten options with duplicate
+                * names and no way to tell which is which — a reader picking
+                * "Black" cannot know whose, and the rating beside it is the
+                * only clue, which is exactly the number they came here to
+                * decide rather than to decode.
+                *
+                * `optgroup` rather than putting the course in every label:
+                * it says the course once per block, is what a screen reader
+                * announces as a grouping, and keeps the option itself short
+                * enough to read on a phone.
+                *
+                * Only when there IS more than one course. A single-venue
+                * tournament gets a flat list, because a group heading
+                * repeating the tournament's only course is furniture.
+                */}
+              {(() => {
+                const byCourse = new Map<string, TeeOption[]>();
+                for (const t of tees) {
+                  const key = t.courseName ?? "";
+                  if (!byCourse.has(key)) byCourse.set(key, []);
+                  byCourse.get(key)!.push(t);
+                }
+                const option = (t: TeeOption) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.rated ? ` — ${t.courseRating.toFixed(1)} / ${t.slopeRating}` : " — not rated"}
+                  </option>
+                );
+                if (byCourse.size < 2) return tees.map(option);
+                return [...byCourse].map(([courseName, rows]) => (
+                  <optgroup key={courseName} label={courseName || "Other courses"}>
+                    {rows.map(option)}
+                  </optgroup>
+                ));
+              })()}
             </select>
             {/* The rating IS the reason to choose one set over another, so an
                 unrated pick is worth saying out loud rather than leaving to be

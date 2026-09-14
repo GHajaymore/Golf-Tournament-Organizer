@@ -396,6 +396,16 @@ export async function courseHandicapForPlayer(
 export interface TeeView {
   id: string;
   courseId: string;
+  /**
+   * WHICH COURSE IT BELONGS TO, BY NAME.
+   *
+   * A tournament played over two venues offers both courses' sets in one
+   * list, and clubs name their markers the same way — the demo data has
+   * "Black" twice and "Green" three times across two courses. An id cannot
+   * be read off a dropdown, so without this a reader picking "Black" has no
+   * way to know whose.
+   */
+  courseName: string;
   name: string;
   gender: string;
   courseRating: number;
@@ -435,6 +445,7 @@ export async function teesForEvent(eventId: string): Promise<TeeView[]> {
       out.push({
         id: t.id,
         courseId: c.id,
+        courseName: c.name,
         name: t.name,
         gender: t.gender,
         courseRating: t.courseRating,
