@@ -350,6 +350,9 @@ export default async function EventPage({
           // with their real ratings rather than asking for one blind.
           tees={eventTees.map((t) => ({
             id: t.id,
+            // Which course, because a two-venue tournament offers both and
+            // clubs name their markers alike — see TeeOption.courseName.
+            courseName: t.courseName,
             name: t.name,
             courseRating: t.courseRating,
             slopeRating: t.slopeRating,
