@@ -33,10 +33,19 @@ export function TeeEditor({
   courseId,
   tees,
   canEdit,
+  defaultOpen = false,
 }: {
   courseId: string;
   tees: TeeRow[];
   canEdit: boolean;
+  /**
+   * Start unfolded.
+   *
+   * For the course somebody deep-linked to from score entry — arriving at a
+   * card you were sent to correct, to find it folded away, is the disclosure
+   * working against the link.
+   */
+  defaultOpen?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -104,10 +113,72 @@ export function TeeEditor({
 
   const unrated = tees.filter((t) => !t.rated);
 
+  /**
+   * FOLDED AWAY BY DEFAULT, because on this screen it is the majority of the
+   * page and almost never the reason anybody came.
+   *
+   * Measured on /event with the demo club's three courses: the page is
+   * 7,630px — 9.4 phone screens — and the three tee tables are 2,175px of it,
+   * 28%, all of it between "Courses" and "Players & scoring". A club with ten
+   * courses on file would push the settings below it off the end of a very
+   * long scroll. Ratings are set once when a venue is added and then read
+   * perhaps twice a year; the settings underneath are what an organizer
+   * actually comes back for.
+   *
+   * The SUMMARY still says what is in there — how many sets and their names —
+   * so folding it removes the table, not the fact. A course with no sets at
+   * all stays open, because then the disclosure would hide the only thing
+   * worth doing here, and so does the course somebody has just deep-linked to
+   * from score entry.
+   */
+  /**
+   * NAMES, DE-DUPLICATED, because a set is named per gender.
+   *
+   * A club rates the same tees twice — "White men 69.1/126" and "White women
+   * 74.6/135" are one set of markers with two ratings, which is how golf
+   * works and how this table stores it. Listing them raw read "Black, Gold,
+   * White, White, Green, Green", which looks like a data error to anybody who
+   * does not already know that. The COUNT still says six; the names say which
+   * markers.
+   */
+  const names = [...new Set(tees.map((t) => t.name))].join(", ");
+  const summary =
+    tees.length === 0
+      ? "No tees yet"
+      : `${tees.length} ${tees.length === 1 ? "set" : "sets"} — ${names}${
+          unrated.length ? ` · ${unrated.length} unrated` : ""
+        }`;
+
   return (
+    <details
+      open={defaultOpen || tees.length === 0}
+      style={{ marginTop: 10 }}
+      // A `summary` element is a real disclosure: keyboard-operable and
+      // announced as one, which a div with an onClick is not.
+    >
+      <summary
+        style={{
+          cursor: "pointer",
+          fontSize: 12,
+          color: "var(--color-neutral-400)",
+          padding: "4px 0",
+          /* NO inline min-height. A first draft set 32 here under a comment
+             claiming 44, which is the kind of wrong that survives because the
+             number and the sentence are both right next to each other and
+             neither is checked. The 44 belongs on a coarse pointer only — a
+             mouse does not need a 44px row of text — and `globals.css` is
+             where this app keeps that rule, for every disclosure rather than
+             just this one. An inline value here would also beat it. */
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        <span className="card-kicker" style={{ margin: 0 }}>Tees &amp; ratings</span>
+        <span style={{ fontWeight: 400 }}>{summary}</span>
+      </summary>
     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span className="card-kicker">Tees &amp; ratings</span>
         {canEdit && (
           <button
             type="button"
@@ -305,6 +376,7 @@ export function TeeEditor({
         </div>
       )}
     </div>
+    </details>
   );
 }
 

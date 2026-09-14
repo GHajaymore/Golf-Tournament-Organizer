@@ -462,7 +462,27 @@ describe("the event switcher never lists another club's tournaments", () => {
     // switcher offered rows the actions then refused. The access list is the
     // single source of what appears, exactly as it is for what switches.
     const src = readSource("src/app/(app)/event/page.tsx");
-    expect(src).toMatch(/prisma\.event\.findMany\(\{\s*\n\s*where: \{ id: \{ in: \[\.\.\.accessible\.keys\(\)\] \} \}/);
+    /**
+     * WHAT MATTERS IS THE SCOPE, not the expression that spells it.
+     *
+     * This pinned `[...accessible.keys()]` exactly, and went red when the
+     * query moved into a `Promise.all` beside the access read it depends on —
+     * where the list is `accessList` and the map of roles is not built yet.
+     * The SET is identical; only the way of naming it changed.
+     *
+     * So it asserts the guarantee instead: the query filters on an id list
+     * derived from the access read, and there is no `prisma.event.findMany`
+     * on this screen without one. The absence half is the part that catches
+     * the original bug — an unscoped `findMany` showing every club's
+     * tournaments to every signed-in user.
+     */
+    const scoped = /prisma\.event\.findMany\(\{\s*\n?\s*where: \{ id: \{ in: (\[\.\.\.accessible\.keys\(\)\]|accessList\.map\(\(a\) => a\.eventId\)) \} \}/;
+    expect(src, "the switcher's query is not scoped to the access list").toMatch(scoped);
+    // And nothing else on this screen reads events unscoped.
+    expect(
+      src.split("prisma.event.findMany").length - 1,
+      "a second event query appeared — scope it the same way",
+    ).toBe(1);
   });
 });
 

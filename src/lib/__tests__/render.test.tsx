@@ -284,6 +284,76 @@ describe("tees and ratings", () => {
     );
     expect(html).not.toContain("Add tees");
   });
+
+  /**
+   * FOLDED, BECAUSE IT IS MOST OF THE SCREEN.
+   *
+   * Measured on /event with the demo club's three courses: the page was
+   * 7,630px — 9.4 phone screens — and the three tee tables were 2,175px of
+   * it, 28%, sitting between "Courses" and the settings underneath. Folding
+   * them took the page to 6,221px. Ratings are set when a venue is added and
+   * read perhaps twice a year; the settings below are what an organizer comes
+   * back for.
+   */
+  const set = (id: string, name: string, gender = "men", rated = true) => ({
+    id, name, gender, courseRating: rated ? 71.5 : 0, slopeRating: rated ? 125 : 0, par: 72, rated,
+  });
+
+  it("folds the table away but keeps the fact", () => {
+    const html = render(
+      <TeeEditor courseId="c1" canEdit tees={[set("t1", "Blue"), set("t2", "White")]} />,
+    );
+    // Closed...
+    expect(html).toContain("<details");
+    expect(html).not.toContain("<details open");
+    // ...and still says what is inside it.
+    expect(html).toContain("2 sets");
+    expect(html).toContain("Blue, White");
+  });
+
+  it("names each set of markers once, not once per gender", () => {
+    /**
+     * A club rates the same markers twice — "White men 69.1/126" and "White
+     * women 74.6/135" are ONE set with two ratings, which is how golf works
+     * and how this table stores it. The raw list read "Black, White, White,
+     * Green, Green" on the demo club, which looks like a data error to
+     * anybody who does not already know that. The count still says how many
+     * ratings there are.
+     */
+    const html = render(
+      <TeeEditor
+        courseId="c1"
+        canEdit
+        tees={[set("t1", "White", "men"), set("t2", "White", "women"), set("t3", "Green", "men")]}
+      />,
+    );
+    expect(html).toContain("3 sets");
+    expect(html).toContain("White, Green");
+    expect(html).not.toContain("White, White");
+  });
+
+  it("stays open when there are no tees at all", () => {
+    // Otherwise the disclosure hides the only thing worth doing here.
+    const html = render(<TeeEditor courseId="c1" canEdit tees={[]} />);
+    expect(html).toContain("<details open");
+    expect(html).toContain("No tees yet");
+  });
+
+  it("stays open for the course somebody was deep-linked to", () => {
+    // Score entry links here to correct a card. Arriving to find it folded
+    // away is the disclosure working against the link.
+    const html = render(<TeeEditor courseId="c1" canEdit defaultOpen tees={[set("t1", "Blue")]} />);
+    expect(html).toContain("<details open");
+  });
+
+  it("counts the unrated sets in the summary, where they can still be seen", () => {
+    // An unrated set produces no course-handicap conversion at all. Folding
+    // the table must not fold away the reason a net score looks wrong.
+    const html = render(
+      <TeeEditor courseId="c1" canEdit tees={[set("t1", "Blue"), set("t2", "Society", "men", false)]} />,
+    );
+    expect(html).toContain("1 unrated");
+  });
 });
 
 describe("team screens", () => {
@@ -5025,6 +5095,40 @@ describe("tournament details", () => {
         }} />,
     );
   };
+
+  it("says when more are confirmed than the field holds", async () => {
+    /**
+     * The summary printed "Capacity 32 players" and "Confirmed 33" one line
+     * apart and drew no conclusion, so the fact sat in plain sight as two
+     * unrelated numbers.
+     *
+     * `RegistrationClient` has said it out loud for a while — "1 over" — under
+     * a comment about an organizer drawing a tee sheet for thirty-two while
+     * thirty-three people arrive. And that screen's remedy is a link reading
+     * "change on Tournament details", which sent them HERE: the one screen
+     * holding both numbers and the field that fixes it, and the only one that
+     * did not mention the problem.
+     */
+    const html = await setup({ capacity: 32 }, { playersCount: 33 });
+    expect(html).toContain("1 over the field");
+  });
+
+  it("calls an open field open rather than infinitely over", async () => {
+    /**
+     * Through `overCapacity`, which treats a cap of zero as UNLIMITED. A
+     * second copy of that rule written as `playersCount > capacity` reports a
+     * 40-player open event as forty over — which is why this reads the one
+     * that already exists.
+     */
+    const html = await setup({ capacity: 0 }, { playersCount: 40 });
+    expect(html).toContain("Open / unlimited");
+    expect(html).not.toContain("over the field");
+  });
+
+  it("says nothing while the field still has room", async () => {
+    const html = await setup({ capacity: 32 }, { playersCount: 24 });
+    expect(html).not.toContain("over the field");
+  });
 
   it("keeps every control on the setup card", async () => {
     // The guard against a separation becoming a removal. Manual mode, so the

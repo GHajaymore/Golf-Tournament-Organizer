@@ -720,6 +720,17 @@ body {
   #course-picker-list {
     --picker-row-pad: 13px;
   }
+  /* A DISCLOSURE IS A CONTROL. `<summary>` opens and closes the section under
+     it, and the ones in this app are a single line of text — which is a ~20px
+     target on the screen where folding a long section matters most. Every
+     `<details>` in the app gets it rather than the newest one only: the tee
+     tables on Tournament details, the card importer, the money breakdown and
+     the round availability panel are all the same act. */
+  details > summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
   /* A label wrapping a checkbox or radio IS the target: tapping anywhere in it
      toggles the control. Sized here rather than on the input, because inflating
      a native checkbox is how you get a 44px box beside 13px text. */

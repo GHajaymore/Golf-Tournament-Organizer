@@ -19,6 +19,7 @@ import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { railSpeaks } from "@/lib/domain/setup-flow";
 import { SetupChecklist } from "@/components/SetupChecklist";
+import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/components/SettingsNav";
 import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { isMatch } from "@/lib/tournament-shape";
 import { entitlementForEvent } from "@/lib/services/entitlements";
@@ -41,29 +42,72 @@ export default async function EventPage({
   searchParams: Promise<{ course?: string }>;
 }) {
   const session = await requireScreen("event");
-  const state = await loadEventState(session.eventId);
+
+  /**
+   * EVERYTHING THIS SCREEN NEEDS THAT ONLY NEEDS THE SESSION, AT ONCE.
+   *
+   * This page made TWELVE round-trips one after another, four of them from
+   * inside the JSX — `organizationsForOrganizer` twice, `enteredCardCount`
+   * and `entitlementForEvent` — where they do not merely cost their own
+   * latency but stall the render that is already in progress.
+   *
+   * Almost none of them depended on each other. They were sequential because
+   * `await` on its own line reads naturally, not because anything needed the
+   * previous answer: the tees, the setup flow, the access list, the card
+   * count and the plan entitlement are all answers to "this event id" and
+   * could always have been asked together.
+   *
+   * Two waves now — this one off the session, the one below off what it
+   * returns. Measured on the demo data before and after; see the PR.
+   *
+   * `loadEventState` is in here with the rest rather than gating them. It can
+   * come back null, and then everything else was wasted work — but that path
+   * ends in a redirect, so the waste is on a request nobody reads, and paying
+   * for it buys the other eleven their parallelism on every request that is
+   * actually served.
+   */
+  const [state, flow, eventTees, params, accessList, cardsIn, scanPlan, orgsForSwitcher] =
+    await Promise.all([
+      loadEventState(session.eventId),
+      setupFlowFor(session.eventId),
+      teesForEvent(session.eventId),
+      searchParams,
+      accessibleEvents(session.email),
+      enteredCardCount(session.eventId),
+      entitlementForEvent(session.eventId, "cardScan"),
+      organizationsForOrganizer(session.email),
+    ]);
   if (!state) redirect("/");
   const e = state.event;
   const locked = isSetupLocked(state.event);
-  // Where this screen sits in setting the tournament up. Null for a match.
-  const flow = await setupFlowFor(session.eventId);
-  // The club's own courses. The setup picker used to read a bundled list of
-  // four invented layouts, so it offered courses nobody plays and scored
-  // against cards that do not exist.
-  const courses = await clubCourses(e.organizationId, e.id);
-  const eventTees = await teesForEvent(e.id);
-  const org = await prisma.organization.findUnique({
-    where: { id: e.organizationId },
-    // `kind` so the branding nudge calls the outfit by its own name — a
-    // society is not a club. See ChecklistState.orgKind.
-    select: { defaultCourseId: true, logoUrl: true, themeSetAt: true, kind: true },
-  });
+
+  /**
+   * And the second wave: the three that genuinely need an answer from the
+   * first — the club's id, and the list of events access allows.
+   */
+  const [courses, org, allEvents] = await Promise.all([
+    // The club's own courses. The setup picker used to read a bundled list of
+    // four invented layouts, so it offered courses nobody plays and scored
+    // against cards that do not exist.
+    clubCourses(e.organizationId, e.id),
+    prisma.organization.findUnique({
+      where: { id: e.organizationId },
+      // `kind` so the branding nudge calls the outfit by its own name — a
+      // society is not a club. See ChecklistState.orgKind.
+      select: { defaultCourseId: true, logoUrl: true, themeSetAt: true, kind: true },
+    }),
+    prisma.event.findMany({
+      where: { id: { in: accessList.map((a) => a.eventId) } },
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { players: true } } },
+    }),
+  ]);
   const homeCourseId = org?.defaultCourseId ?? null;
 
   // Checked against the club's own courses rather than trusted: this arrives
   // off the query string, and opening an editor for a row that is not theirs
   // would be the screen contradicting every action behind it.
-  const requestedCourse = (await searchParams).course ?? "";
+  const requestedCourse = params.course ?? "";
   const openCourseId = courses.some((c) => c.id === requestedCourse) ? requestedCourse : null;
 
   // Access is per-event *or* inherited from running the organization, so this
@@ -75,12 +119,7 @@ export default async function EventPage({
   // user saw every club's event names, dates, venues and field sizes, and the
   // switcher offered rows the actions then refused — which is how "why can't I
   // delete this tournament?" turned out to mean "why can I see it at all?".
-  const accessible = new Map((await accessibleEvents(session.email)).map((a) => [a.eventId, a.role]));
-  const allEvents = await prisma.event.findMany({
-    where: { id: { in: [...accessible.keys()] } },
-    orderBy: { createdAt: "desc" },
-    include: { _count: { select: { players: true } } },
-  });
+  const accessible = new Map(accessList.map((a) => [a.eventId, a.role]));
   const eventRows = allEvents.map((ev) => ({
     id: ev.id,
     name: ev.name,
@@ -121,6 +160,52 @@ export default async function EventPage({
    * Flights and Access & staff, which the sidebar closed for a match long ago.
    */
   const matchEvent = isMatch(e.shape);
+
+  /**
+   * ONE SWITCHER, RENDERED IN ONE OF TWO PLACES.
+   *
+   * It was written out twice with identical props — once above the setup form
+   * and once below it — under `!railSpeaks(flow)` and `railSpeaks(flow)`.
+   * Those two are exhaustive, so it always renders; what the pair decides is
+   * WHERE, which is the whole point (see the long note at the first site).
+   *
+   * Two copies of a six-line element is two places to update and one of them
+   * to forget, and the props are not trivially identical — `events` is a
+   * mapped array and `organizations` was a separate `await` at each site. As
+   * one element it cannot drift, and the position stays a decision rather
+   * than a duplication.
+   */
+  const switcher = (
+    <SettingsSectionAnchor id="tournaments">
+      <EventSwitcher events={eventRows} organizations={orgsForSwitcher} />
+    </SettingsSectionAnchor>
+  );
+
+  /**
+   * WHAT THIS PAGE CONTAINS, because it is long enough that you cannot see.
+   *
+   * Measured: 6,221px after folding the tee tables away — 7.7 phone screens —
+   * across four independent areas with nothing between them but a gap. An
+   * organizer coming to change who can see the leaderboard scrolls past the
+   * whole setup form, the journey card and every course the club owns, with
+   * no way of knowing that section exists until they arrive at it.
+   *
+   * `SettingsNav` is the app's existing answer to exactly this. It was built
+   * for Club settings at 11,000px, and its own header sets out why a nav
+   * rather than collapsing everything: sections already carry their own
+   * headings, and several hold unsaved drafts behind a Save button that a
+   * disclosure unmounting its children would throw away silently. Both are
+   * true here too — which is why the tee tables ARE folded (they hold no
+   * draft and carry no heading of their own) and these sections are not.
+   *
+   * Used on one screen until now. Second reader, same component.
+   */
+  const sections: SettingsSection[] = [
+    { id: "details", label: "Tournament details" },
+    { id: "courses", label: "Courses" },
+    { id: "scoring", label: "Players & scoring" },
+    { id: "tournaments", label: "Your tournaments" },
+  ];
   const checklist = setupChecklist({
     isMatch: matchEvent,
     ...state,
@@ -176,12 +261,7 @@ export default async function EventPage({
        * while the guide is running the ordered guide wins, afterwards the
        * status board does. One rule, two readers.
        */}
-      {!railSpeaks(flow) && (
-        <EventSwitcher
-          events={eventRows}
-          organizations={await organizationsForOrganizer(session.email)}
-        />
-      )}
+      {!railSpeaks(flow) && switcher}
 
       <SetupLockBanner locked={locked} isAdmin={session.viewRole === "admin"} />
 
@@ -200,13 +280,16 @@ export default async function EventPage({
         </div>
       )}
 
+      <SettingsNav sections={sections} />
+
+      <SettingsSectionAnchor id="details">
       <EventSetupClient
         key={e.id}
         isMatch={matchEvent}
         hasBracket={hasKnockoutStage(state.stages)}
         setup={flow ? { doneCount: flow.doneCount, total: flow.steps.length, complete: flow.complete } : null}
         launched={e.status === "live" || e.status === "completed"}
-        scored={await enteredCardCount(state.event.id) > 0}
+        scored={cardsIn > 0}
         initial={{
           name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,
           address: e.address, regDeadline: e.regDeadline, capacity: e.capacity,
@@ -219,18 +302,19 @@ export default async function EventPage({
         // typing a name — the screen never had anything else to pick by.
         courses={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, address: "" }))}
       />
+      </SettingsSectionAnchor>
 
       {/* Always available, never a blocker here. A tournament may not need
           course data to score — gross match play doesn't — and still want it,
           because printed scorecards carry par, yardage and stroke index next
           to the club's logo. */}
-      <div style={{ marginTop: 16 }}>
+      <SettingsSectionAnchor id="courses">
         <CourseLibrary
           courses={courses}
           canEdit={session.viewRole === "admin"}
           // Resolved here rather than in the component: a locked feature has
           // to be visible before somebody photographs a card and uploads it.
-          cardScanAvailable={(await entitlementForEvent(session.eventId, "cardScan")).allowed}
+          cardScanAvailable={scanPlan.allowed}
           homeCourse={homeCourseId}
           // Checked against the club's own courses rather than trusted: this
           // arrives off the query string, and opening an editor for a row that
@@ -238,7 +322,7 @@ export default async function EventPage({
           // behind it.
           openCourseId={openCourseId}
         />
-      </div>
+      </SettingsSectionAnchor>
 
       {/* The event-level "Course card" section used to sit here, and it was
           the same job done twice on one screen — worse, done twice into two
@@ -251,7 +335,7 @@ export default async function EventPage({
           paste a card, and every one of those produces a real venue with tees
           and a verification state, which the event card never had. */}
 
-      <div style={{ marginTop: 16 }}>
+      <SettingsSectionAnchor id="scoring">
         <PlaySettings
           mode="tournament"
           settings={settingsOf(e)}
@@ -273,19 +357,12 @@ export default async function EventPage({
           }))}
           defaultTeeId={e.defaultTeeId}
         />
-      </div>
+      </SettingsSectionAnchor>
 
       {/* And here it is while the guide is running: still on the screen, still
           one click from switching or creating, just no longer standing in
           front of the fields the guide sent this organizer to fill in. */}
-      {railSpeaks(flow) && (
-        <div style={{ marginTop: 16 }}>
-          <EventSwitcher
-            events={eventRows}
-            organizations={await organizationsForOrganizer(session.email)}
-          />
-        </div>
-      )}
+      {railSpeaks(flow) && switcher}
 
       <SetupFlowFooter flow={flow} href="/event" />
     </>

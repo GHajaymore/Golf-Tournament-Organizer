@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import { overCapacity } from "@/lib/registration";
 import { saveEvent, applyManualCount } from "@/app/actions/tournament";
 import { SIDE_STYLE_OPTIONS } from "@/lib/side-style";
 import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
@@ -283,11 +284,37 @@ export function EventSetupClient({
     );
   };
 
+  /**
+   * MORE PEOPLE CONFIRMED THAN THE FIELD HOLDS, said on the screen that sets
+   * the number.
+   *
+   * The summary printed "Capacity 32 players" and "Confirmed 33" one line
+   * apart and drew no conclusion, so the fact sat in plain sight as two
+   * unrelated numbers. `RegistrationClient` has said it out loud for a while —
+   * "33 of 32 capacity · 1 over" — under a comment about the organizer
+   * drawing a tee sheet for thirty-two and thirty-three people arriving.
+   *
+   * And that screen's own remedy is a link reading "change on Tournament
+   * details", which sent somebody here: to the one screen holding both numbers
+   * and the field that fixes it, and the only one that did not mention the
+   * problem.
+   *
+   * Through `overCapacity` rather than `playersCount > f.capacity`, because a
+   * cap of zero means UNLIMITED and a second copy of that rule is how one of
+   * them ends up reporting a 40-player open event as eight over.
+   */
+  const over = overCapacity(f.capacity, playersCount);
   const summary = [
     { k: "Format", v: f.format === "stroke" ? "Stroke play" : "Match play" },
     { k: "Course", v: f.courseMode === "open" ? "Players choose" : f.course || "—" },
     { k: "Capacity", v: f.capacity > 0 ? `${f.capacity} players` : "Open / unlimited" },
-    { k: "Confirmed", v: `${playersCount}` },
+    {
+      k: "Confirmed",
+      v: `${playersCount}`,
+      // Named on the row that carries the number it contradicts, not as a
+      // banner somewhere else on the screen.
+      note: over > 0 ? `${over} over the field` : "",
+    },
     { k: "Player count", v: f.playerCountMode === "manual" ? "Manual target" : "From registrations" },
   ];
 
@@ -642,7 +669,12 @@ export function EventSetupClient({
           {summary.map((s) => (
             <div key={s.k} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0", borderBottom: "1px solid var(--color-divider)" }}>
               <span className="text-muted">{s.k}</span>
-              <span style={{ fontWeight: 500 }}>{s.v}</span>
+              <span style={{ fontWeight: 500 }}>
+                {s.v}
+                {s.note && (
+                  <span style={{ color: "var(--color-danger)", fontWeight: 500 }}> · {s.note}</span>
+                )}
+              </span>
             </div>
           ))}
         </div>
