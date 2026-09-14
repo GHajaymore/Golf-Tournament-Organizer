@@ -44,6 +44,24 @@ const FIELD_SIZES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 14, 16, 21, 28];
 
 const TEAM_FORMATS = GOLF_FORMATS.filter((f) => f.playable && needsTeams(f.name)).map((f) => f.name);
 
+/**
+ * Whether the field can be divided at all under this format's rules.
+ *
+ * SOME FIELDS GENUINELY CANNOT BE, and the app must keep saying so. Four-ball
+ * and foursomes are exactly two a side, so nine players cannot be drawn into
+ * legal sides however clever the draw is — somebody has no partner, and
+ * "Team 5 has 1 of 2 players" is the app telling the organizer a true thing
+ * they need to act on.
+ *
+ * So the sweep below asserts the draw is right WHERE A RIGHT ANSWER EXISTS.
+ * Without this it would be demanding the impossible, and the only way to make
+ * it pass would be to stop reporting a real fault.
+ */
+function canBeDrawn(n: number, min: number, max: number): boolean {
+  for (let k = 1; k <= n; k += 1) if (k * min <= n && n <= k * max) return true;
+  return false;
+}
+
 function drawFor(format: string, n: number) {
   const players = Array.from({ length: n }, (_, i) => ({ id: `p${i}`, handicap: 4 + i }));
   // The size the real action aims for — `drawSides` passes the format's
@@ -89,24 +107,7 @@ describe("a drawn side is a side the app accepts", () => {
     expect(canBeDrawn(8, 2, 2), "eight is four pairs").toBe(true);
   });
 
-  /**
-   * Whether the field can be divided at all under this format's rules.
-   *
-   * SOME FIELDS GENUINELY CANNOT BE, and the app must keep saying so. Four-ball
-   * and foursomes are exactly two a side, so nine players cannot be drawn into
-   * legal sides however clever the draw is — somebody has no partner, and
-   * "Team 5 has 1 of 2 players" is the app telling the organizer a true thing
-   * they need to act on.
-   *
-   * So this sweep asserts the draw is right WHERE A RIGHT ANSWER EXISTS. Without
-   * this the assertion would be demanding the impossible, and the only way to
-   * make it pass would be to stop reporting a real fault.
-   */
-  const canBeDrawn = (n: number, min: number, max: number) => {
-    for (let k = 1; k <= n; k += 1) if (k * min <= n && n <= k * max) return true;
-    return false;
-  };
-
+  // Skipping the cells with no legal shape at all — see `canBeDrawn` above.
   for (const format of TEAM_FORMATS) {
     const { min, max } = sideSizeRange(format);
     for (const n of FIELD_SIZES.filter((n) => n >= min && canBeDrawn(n, min, max))) {
