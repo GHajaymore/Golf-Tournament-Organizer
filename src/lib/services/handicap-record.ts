@@ -196,6 +196,16 @@ export async function memberHandicapRecord(
           entry.teeId,
           entry.groupId ? flightTeeOf.get(entry.groupId) ?? null : null,
           event.defaultTeeId,
+          /**
+           * And on the course that event was played at. A differential is a
+           * permanent record — it goes into the member's index and stays — so
+           * a rating borrowed from another venue is the one place this mistake
+           * cannot later be corrected by re-scoring.
+           */
+          (id) => {
+            const at = event.defaultTeeId ? teeById.get(event.defaultTeeId)?.courseId : undefined;
+            return !at || teeById.get(id)?.courseId === at;
+          },
         ),
       ) ?? null;
     const rating = teeRatingFor(tee, holes);

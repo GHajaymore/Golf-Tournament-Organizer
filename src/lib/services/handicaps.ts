@@ -96,10 +96,34 @@ export async function handicapsForRound(
   });
   const flightTee = new Map(flights.map((g) => [g.id, g.teeId]));
 
+  /**
+   * Which sets are at the course this round is played on.
+   *
+   * From the ROUND'S OWN tee, which `teeForPlay` has already resolved against
+   * that course — so the tee names the course and nothing extra has to be
+   * threaded through this function's signature.
+   *
+   * A stored `Player.teeId` names a row on one course, and a tournament can be
+   * played on several. Honouring it at another venue does not give a stale
+   * answer, it gives a slope and a course rating from somewhere else.
+   */
+  const playingAt = defaultTeeId ? teeById.get(defaultTeeId)?.courseId : undefined;
+  const onThisCourse = (id: string) => {
+    if (!playingAt) return true;
+    return teeById.get(id)?.courseId === playingAt;
+  };
+
   return players.map((p) => {
     const tee =
-      teeById.get(teeIdFor(policy, p.teeId, flightTee.get(p.groupId ?? "") ?? null, defaultTeeId)) ??
-      null;
+      teeById.get(
+        teeIdFor(
+          policy,
+          p.teeId,
+          flightTee.get(p.groupId ?? "") ?? null,
+          defaultTeeId,
+          onThisCourse,
+        ),
+      ) ?? null;
     const rating = teeRatingFor(tee, holes);
     // Index and rating are each converted to the holes being played, once.
     // The old conversion only handled stored 9-hole indexes; an ordinary
@@ -334,12 +358,34 @@ export async function courseHandicapForPlayer(
     },
   });
   if (!player) return 0;
+  /**
+   * The same course check the round-wide path makes, read for the two or three
+   * ids this path can possibly consider rather than the whole table.
+   *
+   * A stored tee from another venue is a rating from somewhere else, not a
+   * stale one — see `onThisCourse` in `teeIdFor`. Resolving it differently
+   * here is how one screen comes to disagree with another about a net score,
+   * which is the thing the comments above this query are already about.
+   */
+  const considered = [player.teeId, player.group?.teeId, defaultTeeId].filter(
+    (id): id is string => !!id,
+  );
+  const courseOfTee = new Map(
+    (
+      await prisma.tee.findMany({
+        where: { id: { in: considered } },
+        select: { id: true, courseId: true },
+      })
+    ).map((t) => [t.id, t.courseId]),
+  );
+  const playingAt = defaultTeeId ? courseOfTee.get(defaultTeeId) : undefined;
   const teeId =
     teeIdFor(
       player.event?.teePolicy ?? "own",
       player.teeId,
       player.group?.teeId ?? null,
       defaultTeeId,
+      (id) => !playingAt || courseOfTee.get(id) === playingAt,
     ) || null;
   const tee = teeId ? await prisma.tee.findUnique({ where: { id: teeId } }) : null;
   const index = indexForHoles(player.handicap, player.handicapType, holes);

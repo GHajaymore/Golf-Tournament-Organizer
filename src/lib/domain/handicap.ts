@@ -263,18 +263,54 @@ export function teeIdFor(
    */
   flightTeeId: string | null | undefined,
   defaultTeeId: string | null,
+  /**
+   * Whether a set is on the course this round is actually played at.
+   *
+   * REQUIRED, AND NOT DEFAULTED, for the reason `courseHandicapMap` gives
+   * about its own policy argument: a caller that forgot would silently price a
+   * card off another course's rating, and the compiler is the only thing that
+   * reliably finds every call site.
+   *
+   * A stored `Player.teeId` names a row on ONE course. That is right for a
+   * club medal and wrong the moment a tournament moves — a two-day
+   * member-guest, a league with no fixed venue — because the preference then
+   * points at a set that is not at the course in front of the player. It is
+   * not stale, which would be a small error; it is a slope and a course rating
+   * from somewhere else, which is a large one. Measured on a two-venue fixture:
+   * 17 strokes where 7 is right, with everybody who had NO stored tee priced
+   * correctly beside them.
+   *
+   * So a rung that is not on this course is stepped past rather than honoured
+   * — the same rule `teeForPlay` already applies to the round's own chain —
+   * and the player falls through to the round's set, which is what the rest of
+   * the field is on.
+   */
+  onThisCourse: (teeId: string) => boolean,
 ): string {
+  /** A rung is only a rung if it points at a set that is actually here. */
+  const here = (id: string | null | undefined) => (id && onThisCourse(id) ? id : null);
   // The policy is the FLOOR of what may override, and specificity wins above
   // it. One set for everyone means neither a flight nor a player may differ;
   // by division means the flight may and a player may not.
+  //
+  // `defaultTeeId` is NOT filtered: it is the round's own set, resolved by
+  // `teeForPlay` against this very course, so asking again would be asking the
+  // answer whether it is the answer — and on a tournament whose courses have
+  // no tees at all it would turn a harmless "" into a different harmless "".
   if (policy === "one") return defaultTeeId ?? "";
-  if (policy === "flight") return flightTeeId ?? defaultTeeId ?? "";
-  return playerTeeId ?? flightTeeId ?? defaultTeeId ?? "";
+  if (policy === "flight") return here(flightTeeId) ?? defaultTeeId ?? "";
+  return here(playerTeeId) ?? here(flightTeeId) ?? defaultTeeId ?? "";
 }
 
 export function courseHandicapMap(
   players: IndexHolder[],
-  teesById: Map<string, TeeRating>,
+  /**
+   * Carries `courseId` now, because the resolution below has to know which
+   * sets are at the course being played — see `onThisCourse` in `teeIdFor`. A
+   * map of ratings alone cannot answer that, which is exactly why a stored tee
+   * from another venue used to win.
+   */
+  teesById: Map<string, TeeRating & { courseId?: string }>,
   defaultTeeId: string | null,
   holes: number,
   /**
@@ -284,9 +320,33 @@ export function courseHandicapMap(
    */
   teePolicy: string,
 ): Map<string, number> {
+  /**
+   * The course this round is played at, taken from the round's OWN set.
+   *
+   * `teeForPlay` has already resolved `defaultTeeId` against the round's
+   * course, so the tee names the course and nothing else needs passing in.
+   * Undefined when the tournament has no tees at all, and then every rung is
+   * allowed through — there is nothing to be on the wrong side of, and
+   * refusing would convert "unrated" into "unrated by a different route".
+   */
+  const playingAt = defaultTeeId ? teesById.get(defaultTeeId)?.courseId : undefined;
+  const onThisCourse = (id: string) => {
+    // Nothing to be on the wrong side of.
+    if (!playingAt) return true;
+    const row = teesById.get(id);
+    // A set this map has never heard of resolves to no rating anyway, so
+    // refusing it costs nothing and buys the fall-through to the round's set —
+    // a real answer instead of an unrated one.
+    if (!row) return false;
+    // A caller that supplies ratings without a courseId cannot be judged, and
+    // must keep behaving exactly as it did rather than start refusing.
+    if (row.courseId === undefined) return true;
+    return row.courseId === playingAt;
+  };
   const out = new Map<string, number>();
   for (const p of players) {
-    const raw = teesById.get(teeIdFor(teePolicy, p.teeId, p.flightTeeId, defaultTeeId)) ?? null;
+    const raw =
+      teesById.get(teeIdFor(teePolicy, p.teeId, p.flightTeeId, defaultTeeId, onThisCourse)) ?? null;
     // Index and rating are each converted to the holes being played, once.
     // See indexForHoles for the four cases and the doubling bug the old
     // one-case conversion caused.

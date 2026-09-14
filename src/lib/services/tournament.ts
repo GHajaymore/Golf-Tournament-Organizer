@@ -721,7 +721,24 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   // app behaved before ratings existed.
   const activeHoles = holesPlayed(playingStages(stages)[0]?.holes);
   const teeRatings = new Map(
-    tees.map((t) => [t.id, { courseRating: t.courseRating, slopeRating: t.slopeRating, par: t.par }]),
+    tees.map((t) => [
+      t.id,
+      {
+        courseRating: t.courseRating,
+        slopeRating: t.slopeRating,
+        par: t.par,
+        /**
+         * Carried so `courseHandicapMap` can tell which sets are at the course
+         * the round is played on.
+         *
+         * Without it the map holds ratings and no provenance, and a stored
+         * `Player.teeId` from another venue resolves to a real rating from the
+         * wrong club — 17 strokes where 7 is right on the two-venue fixture,
+         * with everybody who had no stored tee priced correctly beside them.
+         */
+        courseId: t.courseId,
+      },
+    ]),
   );
   // The tournament choice, falling back to first-by-position.
   const defaultTeeId = roundTeeId(tees, event?.defaultTeeId);

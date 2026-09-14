@@ -1400,7 +1400,7 @@ describe("tee policy, on every field size", () => {
   /**
    * The `flight` policy, through the MAP rather than the pure function.
    *
-   * `teeIdFor("flight", …)` was asserted directly and was always right. What
+   * `teeIdFor("flight", …, here)` was asserted directly and was always right. What
    * nothing asserted was `courseHandicapMap` honouring it — and every fixture
    * in this file built players without a `flightTeeId`, so a map that ignored
    * the field passed the whole sweep. It did ignore it: the field's tee lives
@@ -1444,39 +1444,78 @@ describe("tee policy, on every field size", () => {
     expect(m.get("p1")).toBe(Math.round(10 + (WHITE.courseRating - WHITE.par)));
   });
 
+  /**
+   * ONE COURSE, so every set named below is on it.
+   *
+   * `teeIdFor` takes a fifth argument now — whether a set is at the course
+   * being played — because a stored `Player.teeId` names a row on ONE course
+   * and a tournament can be played on several. These blocks are about
+   * PRECEDENCE, which is a separate question, so they answer yes to all of it
+   * and the cross-course behaviour is asserted on its own below.
+   */
+  const here = () => true;
+
   it("resolves the id itself the same way, so one reader answers for all", () => {
     // teeIdFor is what both the scoring path and the printed card go through.
-    // Arguments are (policy, player, flight, round).
-    expect(teeIdFor("one", "blue", null, "white")).toBe("white");
-    expect(teeIdFor("own", "blue", null, "white")).toBe("blue");
-    expect(teeIdFor("own", null, null, "white")).toBe("white");
+    // Arguments are (policy, player, flight, round, is-it-on-this-course).
+    expect(teeIdFor("one", "blue", null, "white", here)).toBe("white");
+    expect(teeIdFor("own", "blue", null, "white", here)).toBe("blue");
+    expect(teeIdFor("own", null, null, "white", here)).toBe("white");
     // No round tee and no player tee is "unrated", not a crash.
-    expect(teeIdFor("one", "blue", null, null)).toBe("");
+    expect(teeIdFor("one", "blue", null, null, here)).toBe("");
     // An unrecognised policy behaves as "own" — a bad stored value must not
     // silently impose a restriction nobody chose.
-    expect(teeIdFor("nonsense", "blue", null, "white")).toBe("blue");
+    expect(teeIdFor("nonsense", "blue", null, "white", here)).toBe("blue");
   });
 
   it("lets a FLIGHT claim its own tees, which is how a club championship works", () => {
     // Championship off the blues, seniors off the whites, ladies off the reds:
     // three decisions rather than one per player, which is the only version a
     // club would actually use on a field of 120.
-    expect(teeIdFor("flight", null, "white", "blue")).toBe("white");
+    expect(teeIdFor("flight", null, "white", "blue", here)).toBe("white");
     // A flight claiming nothing falls through to the round's set.
-    expect(teeIdFor("flight", null, null, "blue")).toBe("blue");
+    expect(teeIdFor("flight", null, null, "blue", here)).toBe("blue");
 
     // SPECIFICITY WINS ABOVE THE POLICY, AND THE POLICY IS THE FLOOR.
     // "By division" means the flight may differ and an individual may not —
     // otherwise one player quietly opting onto another set would break the
     // division the committee drew.
-    expect(teeIdFor("flight", "red", "white", "blue")).toBe("white");
+    expect(teeIdFor("flight", "red", "white", "blue", here)).toBe("white");
     // "One set for everyone" overrides both, which is what it says.
-    expect(teeIdFor("one", "red", "white", "blue")).toBe("blue");
+    expect(teeIdFor("one", "red", "white", "blue", here)).toBe("blue");
     // Where individuals may differ, a player beats their flight, and a flight
     // beats the round.
-    expect(teeIdFor("own", "red", "white", "blue")).toBe("red");
-    expect(teeIdFor("own", null, "white", "blue")).toBe("white");
-    expect(teeIdFor("player", null, "white", "blue")).toBe("white");
+    expect(teeIdFor("own", "red", "white", "blue", here)).toBe("red");
+    expect(teeIdFor("own", null, "white", "blue", here)).toBe("white");
+    expect(teeIdFor("player", null, "white", "blue", here)).toBe("white");
+  });
+
+  it("steps past a set that is not at the course being played", () => {
+    /**
+     * A stored `Player.teeId` names a row on ONE course, and a tournament can
+     * be played on several — a two-day member-guest, a league with no fixed
+     * venue. Honouring it at another club does not give a stale answer; it
+     * gives a slope and a course rating from somewhere else, while everybody
+     * WITHOUT a stored tee is priced correctly beside them. Measured on a
+     * two-venue fixture: 17 strokes where 7 is right.
+     *
+     * The round's own set is never filtered — `teeForPlay` resolved it against
+     * this very course, so asking again would be asking the answer whether it
+     * is the answer.
+     */
+    const atThisCourse = (id: string) => id === "home-white" || id === "home-blue";
+
+    // The player's set is at another club: fall through to the round's.
+    expect(teeIdFor("own", "away-red", null, "home-white", atThisCourse)).toBe("home-white");
+    // So is the flight's — a division drawn at one venue does not travel.
+    expect(teeIdFor("flight", null, "away-red", "home-white", atThisCourse)).toBe("home-white");
+    // Both, falling all the way through.
+    expect(teeIdFor("own", "away-red", "away-blue", "home-white", atThisCourse)).toBe("home-white");
+    // A player's set that IS here still wins, which is the whole point of the
+    // preference existing.
+    expect(teeIdFor("own", "home-blue", null, "home-white", atThisCourse)).toBe("home-blue");
+    // And the round's own set is taken whether or not the predicate likes it.
+    expect(teeIdFor("one", "home-blue", null, "away-red", atThisCourse)).toBe("away-red");
   });
 });
 
