@@ -356,6 +356,62 @@ describe("tees and ratings", () => {
   });
 });
 
+describe("the journey card counts phases, not steps", () => {
+  /**
+   * TWO COUNTERS ON ONE SCREEN, WITH TWO DENOMINATORS.
+   *
+   * On /event this card sits about two thousand pixels below the setup
+   * rail's "Setup is done — all 5 parts", and the rail's progress line reads
+   * "N of 5 done". The journey counts something else — the four PHASES of
+   * running a tournament — and said "You are on step 4 of 4".
+   *
+   * So a reader met "step 4 of 4" under a banner saying five, with nothing
+   * to tell them the two sentences were answering different questions.
+   * "Phase" is also what this component's own type calls them
+   * (`JourneyPhase`) and what every comment in the file says.
+   *
+   * Neither component had a render test, which is how a screen ends up with
+   * two counters nobody compared.
+   */
+  const journey = async (props: Record<string, unknown> = {}) => {
+    const { TournamentJourney } = await import("@/components/TournamentJourney");
+    return render(
+      <TournamentJourney
+        setup={{ doneCount: 5, total: 5, complete: true }}
+        launched={false}
+        scored={false}
+        hasBracket
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        {...(props as any)}
+      />,
+    );
+  };
+
+  it("says phase, not step", async () => {
+    const html = await journey();
+    expect(html).toContain("You are on phase");
+    expect(html, "two counters on one screen both calling themselves steps").not.toContain(
+      "You are on step",
+    );
+  });
+
+  it("counts the four phases of running a tournament", async () => {
+    // Not the five setup steps, which are the rail's business and are
+    // reported separately inside this card's own first phase.
+    expect(await journey()).toContain("of 4.");
+  });
+
+  it("moves through them as the tournament does", async () => {
+    // Setup complete but not launched is phase 2; a returned card is phase 4.
+    expect(await journey()).toContain("phase 2 of 4");
+    expect(await journey({ launched: true })).toContain("phase 3 of 4");
+    expect(await journey({ launched: true, scored: true })).toContain("phase 4 of 4");
+    expect(
+      await journey({ setup: { doneCount: 2, total: 5, complete: false } }),
+    ).toContain("phase 1 of 4");
+  });
+});
+
 describe("team screens", () => {
   const format = {
     name: "Four-Ball", desc: "Two against two.", min: 2, max: 2,

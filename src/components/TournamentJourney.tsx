@@ -110,7 +110,16 @@ export function TournamentJourney({ setup, launched, scored, hasBracket }: Tourn
         How a tournament runs
       </span>
       <p className="text-muted" style={{ fontSize: 12, margin: "-2px 0 2px" }}>
-        You are on step {currentIndex + 1} of {order.length}.
+        {/* PHASE, NOT STEP — this card counts something else.
+            On /event this sentence sits about two thousand pixels below the
+            rail's "Setup is done — all 5 parts", and the rail's own progress
+            line reads "N of 5 done". Two counters, two denominators, and this
+            one was the only thing on the screen calling its four PHASES
+            "steps" — which is also what this file's own type calls them
+            (`JourneyPhase`) and what every comment in it says. So a reader
+            met "step 4 of 4" under a banner saying five and had no way to
+            tell they were different questions. */}
+        You are on phase {currentIndex + 1} of {order.length}.
       </p>
 
       <ol style={{ listStyle: "none", margin: "4px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 2 }}>
