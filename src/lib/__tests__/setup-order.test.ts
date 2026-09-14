@@ -337,12 +337,20 @@ describe("what the first setup step puts in front of you", () => {
   it("puts the tournament's own fields above the tournament manager", () => {
     const src = page();
     const setupForm = src.indexOf("<EventSetupClient");
-    // The switcher renders twice, in two branches; the one that leads is the
-    // one guarded by `!railSpeaks`.
-    // Regex rather than a literal: `readSource` strips comments, so the exact
-    // whitespace between the guard and the element is not stable.
-    const leading = src.search(/\{!railSpeaks\(flow\) && \(\s*<EventSwitcher/);
-    const trailing = src.search(/\{railSpeaks\(flow\) && \(\s*<div[^>]*>\s*<EventSwitcher/);
+    /**
+     * ONE ELEMENT, RENDERED IN ONE OF TWO PLACES.
+     *
+     * These two searches used to look for `<EventSwitcher` written out in
+     * each branch, because it was. It is a `switcher` variable now — the two
+     * copies had identical props, one of which was its own `await`, and two
+     * copies of a six-line element is two places to update and one to forget.
+     *
+     * The RULE is unchanged and is what this still asserts: while the guide is
+     * running the switcher sits after the setup form, and only the
+     * `!railSpeaks` branch puts it before.
+     */
+    const leading = src.search(/\{!railSpeaks\(flow\) && switcher\}/);
+    const trailing = src.search(/\{railSpeaks\(flow\) && \(\s*<div[^>]*>\{switcher\}/);
     expect(setupForm, "<EventSetupClient not found").toBeGreaterThan(-1);
     expect(leading, "leading switcher branch not found").toBeGreaterThan(-1);
     expect(trailing, "trailing switcher branch not found").toBeGreaterThan(-1);
@@ -356,8 +364,13 @@ describe("what the first setup step puts in front of you", () => {
      * Moved, not removed. Switching tournament from the screen you configure
      * one on is a perfectly ordinary thing to want, and a guide that hides the
      * way out is worse than one that leads with it.
+     *
+     * Counted on the VARIABLE now rather than on two copies of the element:
+     * one declaration and two uses. Counting `<EventSwitcher` would say "1"
+     * and read as the removal this test exists to prevent — which is exactly
+     * what it did when the duplication was collapsed.
      */
-    expect(page().split("<EventSwitcher").length - 1).toBe(2);
+    expect(page().split("switcher").length - 1, "declared once and rendered in both branches").toBe(3);
   });
 
   it("uses the same predicate the checklist already uses, not a new one", () => {

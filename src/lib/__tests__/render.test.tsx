@@ -5026,6 +5026,40 @@ describe("tournament details", () => {
     );
   };
 
+  it("says when more are confirmed than the field holds", async () => {
+    /**
+     * The summary printed "Capacity 32 players" and "Confirmed 33" one line
+     * apart and drew no conclusion, so the fact sat in plain sight as two
+     * unrelated numbers.
+     *
+     * `RegistrationClient` has said it out loud for a while — "1 over" — under
+     * a comment about an organizer drawing a tee sheet for thirty-two while
+     * thirty-three people arrive. And that screen's remedy is a link reading
+     * "change on Tournament details", which sent them HERE: the one screen
+     * holding both numbers and the field that fixes it, and the only one that
+     * did not mention the problem.
+     */
+    const html = await setup({ capacity: 32 }, { playersCount: 33 });
+    expect(html).toContain("1 over the field");
+  });
+
+  it("calls an open field open rather than infinitely over", async () => {
+    /**
+     * Through `overCapacity`, which treats a cap of zero as UNLIMITED. A
+     * second copy of that rule written as `playersCount > capacity` reports a
+     * 40-player open event as forty over — which is why this reads the one
+     * that already exists.
+     */
+    const html = await setup({ capacity: 0 }, { playersCount: 40 });
+    expect(html).toContain("Open / unlimited");
+    expect(html).not.toContain("over the field");
+  });
+
+  it("says nothing while the field still has room", async () => {
+    const html = await setup({ capacity: 32 }, { playersCount: 24 });
+    expect(html).not.toContain("over the field");
+  });
+
   it("keeps every control on the setup card", async () => {
     // The guard against a separation becoming a removal. Manual mode, so the
     // target and its Apply button are in the markup too.
