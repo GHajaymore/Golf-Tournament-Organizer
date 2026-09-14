@@ -921,6 +921,40 @@ export async function saveEvent(data: {
    */
   await drainWaitlist(eventId);
 
+  /**
+   * THE TOURNAMENT'S OWN COURSE IS ONE OF ITS VENUES.
+   *
+   * Every other writer of a venue links it — `setStageCourse`,
+   * `setMatchCourse` and `nameMatchVenue` all upsert this row, each with a
+   * comment saying why: "so the existing per-match course picker and every
+   * downstream resolver accept it". This one, the screen where a club picks
+   * the course in the first place, wrote `Event.courseId` and stopped.
+   *
+   * So a tournament could hold two answers to "where is this played" that
+   * disagreed, and the demo data does: `Event.courseId` names Blue Ash while
+   * the only `EventCourse` row names Green Crest.
+   *
+   * That is not cosmetic, because `teesForEvent` reads tees through the
+   * VENUE join. On that tournament the "Played from" picker offered Green
+   * Crest's three sets — 69.5/122, 68.3/119, 68.1/110 — under a header
+   * reading Blue Ash, and `teeForPlay`, asked to scope its fallback to
+   * `event.courseId`, found no tees at that course at all and fell through to
+   * the first across every venue. A round at Blue Ash priced off Green
+   * Crest's slope.
+   *
+   * UPSERT, NEVER DELETE. A tournament may legitimately have several venues,
+   * and a round or a match may already point at the old one — removing it
+   * would orphan them. Changing the event's course adds a venue; it does not
+   * retire the others, which is what the Courses list is for.
+   */
+  if (courseId) {
+    await prisma.eventCourse.upsert({
+      where: { eventId_courseId: { eventId, courseId } },
+      update: {},
+      create: { eventId, courseId },
+    });
+  }
+
   await refresh();
 }
 
