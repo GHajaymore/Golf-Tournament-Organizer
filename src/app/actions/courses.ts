@@ -363,6 +363,14 @@ export async function setStageCourse(
   courseId: string | null,
   nine = "full",
   force = false,
+  /**
+   * The set this round is played from, from the course above.
+   *
+   * Last and optional so every existing caller is unchanged: a screen that
+   * only sets the venue clears the tee along with it, which is the honest
+   * answer when the course has moved — see the note at the write below.
+   */
+  teeId: string | null = null,
 ): Promise<CourseResult> {
   const { eventId, organizationId } = await requireOrganizerOrg();
   const stage = await prisma.stage.findFirst({ where: { id: stageId, eventId } });
@@ -419,9 +427,29 @@ export async function setStageCourse(
     });
   }
 
+  /**
+   * WHICH SET THIS ROUND IS PLAYED FROM, when the caller says.
+   *
+   * Scoped to the course being set, exactly as `nameMatchVenue` scopes the
+   * match's: an id off the wire is an arbitrary row, and unscoped it would
+   * price the round off another club's slope and rating.
+   *
+   * CLEARED when the course changes and the new one is not asked about. A tee
+   * belongs to one course, so a `Stage.teeId` left pointing at the old venue
+   * is a set that is not there — `teeForPlay` steps past it, correctly, which
+   * means the round would silently fall back with the screen still showing an
+   * answer. Better to hold nothing than to hold something untrue.
+   */
+  let roundTee: string | null = null;
+  if (courseId && teeId) {
+    const owned = await prisma.tee.findFirst({ where: { id: teeId, courseId }, select: { id: true } });
+    if (!owned) return { ok: false, error: "Those tees aren't on that course." };
+    roundTee = owned.id;
+  }
+
   await prisma.stage.update({
     where: { id: stageId },
-    data: { courseId, nine: cleanNine(nine) },
+    data: { courseId, teeId: roundTee, nine: cleanNine(nine) },
   });
   await refresh();
   return { ok: true };

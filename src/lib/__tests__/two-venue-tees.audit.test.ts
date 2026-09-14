@@ -233,6 +233,23 @@ describe("a round is priced off the tees of the course it is played on", () => {
     }
   });
 
+  /**
+   * THERE IS NO TEST HERE FOR `setStageCourse` REFUSING A TEE FROM ANOTHER
+   * COURSE, and that is a stated gap rather than an oversight.
+   *
+   * One was written and removed. This fixture has no Account and no User, so
+   * `requireOrganizerOrg` refuses before the scope check is ever reached — the
+   * assertion went green on `ok: false` for authorization, which is the exact
+   * shape of a test that passes for the wrong reason. Giving the fixture a
+   * signed-in organizer is the honest fix and belongs with the other
+   * session-mocked audits rather than bolted onto a handicap fixture.
+   *
+   * What IS covered: `teeForPlay` steps past a tee that is not in the
+   * tournament's list, over a fixture where every rung is a different set
+   * (`tee-follows-the-course.test.ts`). So a bad id cannot price a card even
+   * if one were stored; the untested part is whether the write is refused at
+   * the door.
+   */
   it("lets a round name its own set, overriding the course's first", async () => {
     /**
      * `Stage.teeId` — the round's own answer, which is what a medal off the

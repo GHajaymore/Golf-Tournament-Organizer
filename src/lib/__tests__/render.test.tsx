@@ -2316,6 +2316,53 @@ describe("where this round was played", () => {
     expect(html).toContain("No course set for this round");
   });
 
+  it("asks which tees, once the course has more than one set", async () => {
+    /**
+     * The other half of "where was this played". Course handicap is
+     * Index x Slope/113 + (CR - Par) and the slope belongs to the TEE, so a
+     * round with a venue and no tee is half answered — and the missing half is
+     * the one that decides how many shots change hands.
+     *
+     * An open-course round reaches this panel with no venue at all (see the
+     * test above), picks its course here, and until now had nowhere on the
+     * screen to say which set.
+     */
+    const withTees = await venue({
+      venues: [{ id: "c1", name: "Bushwood" }],
+      library: [
+        {
+          id: "c1",
+          name: "Bushwood",
+          tees: [
+            { id: "t1", courseId: "c1", name: "Blue", courseRating: 71.2, slopeRating: 128, par: 72, rated: true },
+            { id: "t2", courseId: "c1", name: "White", courseRating: 69.4, slopeRating: 117, par: 72, rated: true },
+          ],
+        },
+      ],
+    });
+    expect(withTees).toContain("Blue");
+    expect(withTees).toContain("White");
+  });
+
+  it("asks nothing about tees when the course has only one set", async () => {
+    // A question with one answer is furniture — the same rule the venue picker
+    // above follows, and the reason a single-venue tournament is not asked
+    // where it is played.
+    const oneSet = await venue({
+      venues: [{ id: "c1", name: "Bushwood" }],
+      library: [
+        {
+          id: "c1",
+          name: "Bushwood",
+          tees: [
+            { id: "t1", courseId: "c1", name: "Solo", courseRating: 71.2, slopeRating: 128, par: 72, rated: true },
+          ],
+        },
+      ],
+    });
+    expect(oneSet).not.toContain("Solo");
+  });
+
   it("shows none of it to someone who cannot edit the tournament", async () => {
     // A player entering their own card does not set the venue for the field.
     expect(await venue({ venues: twoVenues, canEdit: false })).toBe("");

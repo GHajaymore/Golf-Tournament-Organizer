@@ -34,6 +34,8 @@ export interface EntryRound {
    * inherits — the tournament's sole venue, then the event's own course.
    */
   courseId: string;
+  /** The set this round is played from, or "" for the tournament’s. */
+  teeId: string;
   /**
    * The card this round will actually be scored against, and whether that
    * card exists.
@@ -339,6 +341,7 @@ export function EntryModes({
           venues={venues}
           library={courseLibrary}
           venue={round.venue}
+          teeId={round.teeId}
           canEdit={isStaff}
         />
       )}
