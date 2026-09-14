@@ -2,6 +2,35 @@ import "server-only";
 import { prisma } from "../db";
 import { parseHoleArray } from "../courses";
 
+/**
+ * EVERY COURSE THIS TOURNAMENT MAY BE PLAYED ON — its linked venues AND its
+ * own.
+ *
+ * Nine reads asked `{ events: { some: { eventId } } }`, which is the
+ * `EventCourse` join alone. That is right for a tournament whose course was
+ * linked, and every writer links one now — but `saveEvent` did not until
+ * #356, so a tournament set up before that holds a course in
+ * `Event.courseId` that no venue row names.
+ *
+ * For those, the join came back WITHOUT the course the tournament is actually
+ * played on. The tee picker on Tournament details offered another venue's
+ * sets; `teeForPlay`, scoping its fallback to `event.courseId`, found no tees
+ * at that course at all and fell through to the first across every venue. A
+ * round at one club priced off another's slope.
+ *
+ * FIXED IN THE READ RATHER THAN BY A BACKFILL, deliberately. A migration
+ * would have to write to every event in the database, including the ones
+ * holding real people, to repair something the reader can simply answer
+ * correctly — and a read that is right needs no one to remember to run it.
+ *
+ * `defaultFor` is `Event.courseId`'s back-relation (the organization's home
+ * course is `homeFor`, a different one), so this costs no extra query: it is
+ * one `where`, and both halves are indexed joins.
+ */
+export const playedOnBy = (eventId: string) => ({
+  OR: [{ events: { some: { eventId } } }, { defaultFor: { some: { id: eventId } } }],
+});
+
 /** A course as the UI needs it — hole arrays already decoded. */
 export interface ClubCourse {
   id: string;

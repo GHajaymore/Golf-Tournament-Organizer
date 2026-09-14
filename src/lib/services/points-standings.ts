@@ -1,4 +1,5 @@
 import { allocationHoles } from "../domain/stroke";
+import { playedOnBy } from "./courses";
 import "server-only";
 import { prisma } from "../db";
 import { playSkins, type SkinsOutcome } from "../domain/skins";
@@ -70,7 +71,7 @@ async function playingHandicapFor(
     // for the same reason: an unscoped read lets a player's teeId resolve to
     // another organization's rating and silently changes what they play off.
     prisma.tee.findMany({
-      where: { course: { events: { some: { eventId } } } },
+      where: { course: playedOnBy(eventId) },
       orderBy: [{ position: "asc" }],
     }),
     roundHandicapRows(eventId, stageId),
