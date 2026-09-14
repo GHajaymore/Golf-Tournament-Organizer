@@ -108,6 +108,7 @@ import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/dom
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, logAudit } from "@/lib/services/action-shared";
+import { ensureRoundCodes } from "@/lib/services/round-codes";
 
 async function requireEvent(): Promise<string> {
   const session = await getSession();
@@ -1705,6 +1706,10 @@ export async function addStage(
     if (i === 0) firstId = created.id;
   }
 
+  // A new round of a code-using tournament needs a code, or it is a round
+  // nobody without an account can enter. No-op when codes are off.
+  await ensureRoundCodes(eventId);
+
   await refresh();
   return firstId;
 }
@@ -2988,6 +2993,18 @@ export async function cloneEvent(sourceEventId: string, name: string): Promise<{
     data: { eventId: created.id, name: session.name, email: session.email, role: "admin" },
   });
 
+  /**
+   * FRESH CODES FOR THE COPY, since it deliberately inherited none.
+   *
+   * The loop above is right not to carry them: a Round Code is a credential,
+   * and last year's code opening this year's rounds is the same fault as
+   * reusing a password. But the copy DOES inherit `playerAccess`, so without
+   * this it is a tournament with code entry switched on and not one code in
+   * it — and because the setting never changes, the old transition guard in
+   * `saveTournamentSettings` would never have fired for it either.
+   */
+  await ensureRoundCodes(created.id);
+
   await setActiveEvent(created.id);
   await refresh();
   return { ok: true };
@@ -3204,6 +3221,20 @@ export async function createEvent(
   await prisma.account.create({
     data: { eventId: event.id, name: session.name, email: session.email, role: "admin" },
   });
+  /**
+   * A NEW TOURNAMENT INHERITS THE CLUB'S ACCESS SETTING, so it can be created
+   * with code entry already switched on — and then there is no transition for
+   * `saveTournamentSettings` to catch and its rounds never get codes at all.
+   *
+   * Two of the three code-using tournaments in the development database were
+   * in exactly that state on 2026-09-14: the feature on, and zero of their
+   * rounds reachable by it.
+   *
+   * Outside the `plannedRounds` block on purpose — "Start from scratch"
+   * creates no rounds, and this must still be the call that runs when rounds
+   * arrive later, which `addStage` now also makes.
+   */
+  await ensureRoundCodes(event.id);
   await setActiveEvent(event.id);
   await refresh();
   return { ok: true };

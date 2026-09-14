@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import { cleanSettings, usesAccessCodes, type TournamentSettings } from "@/lib/tournament-settings";
 import { lockoutRefusal, revokesCodes } from "@/lib/domain/access-lockout";
 import { generateAccessCode } from "@/lib/codes";
+import { ensureRoundCodes, revokeRoundCodes } from "@/lib/services/round-codes";
 import { organizationAccess } from "@/lib/services/org-access";
 
 /**
@@ -47,40 +48,13 @@ async function requireOrganizer(): Promise<string> {
 }
 
 /**
- * Issue Round Codes for every round of a tournament that doesn't have one.
+ * Both halves of the Round Code rule live in `services/round-codes.ts` now.
  *
- * Codes are unique across all tournaments because redemption looks them up on
- * their own, so a collision is retried rather than thrown — with 27^8 codes
- * this effectively never fires, but "effectively never" is not "never" and a
- * unique-constraint crash mid-round would be a miserable way to find out.
+ * They were private to this file, which is how the rule came to be enforced
+ * only here — and this file only ever runs when somebody saves the settings
+ * screen. The four places that CREATE a round could not call them, so a round
+ * added to a code-using tournament got no code. See that file's header.
  */
-async function issueRoundCodes(eventId: string): Promise<void> {
-  const stages = await prisma.stage.findMany({
-    where: { eventId, accessCode: "" },
-    select: { id: true },
-  });
-
-  for (const stage of stages) {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const code = generateAccessCode();
-      const taken = await prisma.stage.count({ where: { accessCode: code } });
-      if (taken > 0) continue;
-      try {
-        await prisma.stage.update({ where: { id: stage.id }, data: { accessCode: code } });
-        break;
-      } catch {
-        // Lost a race against a concurrent issue for the same code — try again.
-      }
-    }
-  }
-}
-
-/** Withdraw every Round Code for a tournament. Turning code access off has to
- *  actually revoke the codes, or "off" would mean nothing. */
-async function revokeRoundCodes(eventId: string): Promise<void> {
-  await prisma.stage.updateMany({ where: { eventId }, data: { accessCode: "" } });
-}
-
 export async function saveTournamentSettings(input: Partial<TournamentSettings>): Promise<SettingsResult> {
   const eventId = await requireOrganizer();
   const event = await prisma.event.findUnique({ where: { id: eventId } });
@@ -122,7 +96,22 @@ export async function saveTournamentSettings(input: Partial<TournamentSettings>)
 
   await prisma.event.update({ where: { id: eventId }, data: next });
 
-  if (nowUsingCodes && !wasUsingCodes) await issueRoundCodes(eventId);
+  /**
+   * A STATE, NOT A TRANSITION.
+   *
+   * This read `nowUsingCodes && !wasUsingCodes`, which is right about the
+   * moment the dropdown changes and wrong about every other moment: a round
+   * added later, or a tournament created with codes already on, never sees a
+   * transition and so never gets a code. `ensureRoundCodes` only fills blanks,
+   * so asking it unconditionally costs one query on the common path and heals
+   * a tournament that has fallen behind. See its header for the measurement.
+   *
+   * Revocation stays a transition, and must: it BLANKS codes, so running it
+   * whenever codes are off would re-revoke on every unrelated save — harmless
+   * today and exactly the kind of write that stops being harmless once
+   * anything else reads those rows.
+   */
+  if (nowUsingCodes) await ensureRoundCodes(eventId);
   if (!nowUsingCodes && wasUsingCodes) await revokeRoundCodes(eventId);
 
   await refresh();

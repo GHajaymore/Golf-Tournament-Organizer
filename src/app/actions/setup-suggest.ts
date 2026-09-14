@@ -10,6 +10,7 @@ import { STAGE_TYPES } from "@/lib/stage-types";
 import { extractReadingJson } from "@/lib/domain/card-reading";
 import { parseSetupProposal, setupPrompt, type SetupProposal } from "@/lib/domain/setup-proposal";
 import { assertUnlocked } from "@/lib/services/action-shared";
+import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { askClaude } from "@/lib/services/claude";
 
 /**
@@ -181,6 +182,10 @@ export async function applySetupProposal(rounds: unknown): Promise<SetupSuggestR
       description: r.description,
     })),
   });
+
+  // Rounds made from a description are rounds like any other, and a
+  // code-using tournament's rounds need codes. No-op when codes are off.
+  await ensureRoundCodes(eventId);
 
   await refresh();
   return { ok: true, proposal: checked };
