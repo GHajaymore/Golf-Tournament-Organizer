@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setStageCourse } from "@/app/actions/courses";
 import { CoursePicker } from "@/components/CoursePicker";
+import { defaultTeeFor, type TeeLike } from "@/lib/domain/venue";
 import { Icon } from "./Icon";
 
 /**
@@ -32,6 +33,7 @@ export function RoundVenue({
   venues,
   library = [],
   venue,
+  teeId = "",
   canEdit,
 }: {
   stageId: string;
@@ -48,7 +50,9 @@ export function RoundVenue({
    * from a course the tournament does not know about. Choosing one adds it
    * to the tournament's venues, which is what the action does now.
    */
-  library?: Array<{ id: string; name: string; city?: string }>;
+  library?: Array<{ id: string; name: string; city?: string; tees?: Array<TeeLike & { rated: boolean }> }>;
+  /** The set this round is currently played from, or "" for the tournament's. */
+  teeId?: string;
   /** The venue this round resolves to, and whether it has a card. */
   venue: { name: string; courseId: string; hasCard: boolean } | null;
   canEdit: boolean;
@@ -105,7 +109,27 @@ export function RoundVenue({
    * header beside the dates, and a dropdown of one is furniture.
    */
   const elsewhereToPlay = library.some((c) => !venues.some((v) => v.id === c.id));
-  if (!canEdit || (venues.length < 2 && !elsewhereToPlay && !missingCard && !noVenue)) return null;
+  /**
+   * A FIFTH REASON, and the same shape as the fourth.
+   *
+   * Every condition above asks what there is to choose between about the
+   * COURSE. A club with one course and three sets of tees answers no to all of
+   * them — and still has a real decision to make, because the medal is off the
+   * whites and the club championship off the blues, and that decision moves
+   * every net score in the round.
+   *
+   * Found by a test written for the picker below: it rendered nothing, because
+   * the panel holding it was hidden by arithmetic that had never been asked to
+   * account for tees. Exactly the fault #345 fixed one condition earlier, and
+   * it was sitting directly underneath.
+   */
+  const setsToChooseFrom = (library.find((c) => c.id === venue?.courseId)?.tees ?? []).length > 1;
+  if (
+    !canEdit ||
+    (venues.length < 2 && !elsewhereToPlay && !missingCard && !noVenue && !setsToChooseFrom)
+  ) {
+    return null;
+  }
 
   /**
    * The one card editor, opened on this course.
@@ -115,6 +139,22 @@ export function RoundVenue({
    * that costs a hunt is a correction that does not get made.
    */
   const editHref = venue ? `/event?course=${encodeURIComponent(venue.courseId)}` : "/event";
+
+  /**
+   * The sets belonging to the course this round actually resolves to.
+   *
+   * `venue.courseId` rather than the round's own `courseId`, because a round
+   * that inherits the tournament's venue has an empty one — and a tee picker
+   * that disappeared the moment a round inherited would be missing on exactly
+   * the rounds nobody has configured, which is most of them.
+   */
+  const teesHere = library.find((c) => c.id === venue?.courseId)?.tees ?? [];
+  const setTee = (id: string) =>
+    startTransition(async () => {
+      const res = await setStageCourse(stageId, venue?.courseId ?? null, "full", true, id || null);
+      if (!res.ok) setError(res.error ?? "Couldn't set the tees for this round.");
+      else router.refresh();
+    });
 
   return (
     <div
@@ -171,6 +211,45 @@ export function RoundVenue({
             })
           }
         />
+      )}
+
+      {/* AND WHICH SET, beside where it is played, because they are one
+          question asked twice otherwise. Course handicap is
+          Index x Slope/113 + (CR - Par) and the slope belongs to the tee, so a
+          round with a venue and no tee is only half answered — and the half
+          that is missing is the half that decides how many shots change hands.
+
+          Only when the course this round resolves to actually has sets on
+          file. A club that has not entered its ratings is told so on the card
+          instead, which is where a reader meets the consequence. */}
+      {teesHere.length > 1 && (
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, flexWrap: "wrap" }}>
+          <span className="text-muted">Tees</span>
+          <select
+            className="input"
+            style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
+            value={teeId}
+            disabled={pending}
+            onChange={(e) => setTee(e.target.value)}
+          >
+            {/* Named rather than blank, and named with what it resolves to —
+                the same rule the course picker above follows for "inherited". */}
+            <option value="">
+              {defaultTeeFor(venue?.courseId ?? null, teesHere)?.name
+                ? `${defaultTeeFor(venue?.courseId ?? null, teesHere)!.name} (the tournament's)`
+                : "The tournament's"}
+            </option>
+            {teesHere.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+                {t.rated ? "" : " — unrated"}
+              </option>
+            ))}
+          </select>
+          <span className="text-muted" style={{ fontSize: 11.5 }}>
+            decides the shots, and is printed on every card
+          </span>
+        </label>
       )}
 
       {/* Beside the control, and holding the number the server counted. The

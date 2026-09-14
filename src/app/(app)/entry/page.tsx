@@ -640,6 +640,7 @@ export default async function EntryPage() {
         // How this round is won, which decides which totals its card reports.
         scoringBasis: stage.scoringBasis,
         courseId: stage.courseId ?? "",
+        teeId: stage.teeId ?? "",
         /**
          * The venue this round will actually be scored against.
          *
