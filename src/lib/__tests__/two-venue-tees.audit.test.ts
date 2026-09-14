@@ -186,6 +186,43 @@ describe("a round is priced off the tees of the course it is played on", () => {
     );
   });
 
+  it("ignores a player's own set when it belongs to another course", async () => {
+    /**
+     * `Player.teeId` POINTS AT ONE COURSE'S TEE, and a tournament can be
+     * played on several.
+     *
+     * A stored preference is how a club records "he plays off the whites", and
+     * `teeIdFor` honours it above the round's — correctly, because mixed tees
+     * are the case that makes the whole conversion necessary. But the id names
+     * a row on ONE course, so the moment the tournament moves to another venue
+     * that preference is not merely stale, it is a rating from somewhere else:
+     * the player is priced off the host club's slope on a card played at the
+     * away club, while everybody without a stored tee is priced correctly.
+     *
+     * The fix is the rule `teeForPlay` already applies to the round's own
+     * chain — a rung that is not on the course being played is stepped past,
+     * not honoured — so this falls through to the round's set, which is what
+     * the rest of the field is on.
+     */
+    const hostTee = await prisma.tee.findFirst({
+      where: { course: { name: `${TAG} host` } },
+      select: { id: true },
+    });
+    await prisma.player.update({ where: { id: playerId }, data: { teeId: hostTee!.id } });
+    try {
+      const state = await loadEventState(eventId);
+      // Day one IS at the host club, so the stored set is right there and wins.
+      expect(state!.strokeHandicapFor(playerId, dayOneId)).toBe(playing(HOST));
+      // Day two is at the away club. The host's set is not on it.
+      expect(
+        state!.strokeHandicapFor(playerId, dayTwoId),
+        "a stored tee from another course priced this round",
+      ).toBe(playing(AWAY));
+    } finally {
+      await prisma.player.update({ where: { id: playerId }, data: { teeId: null } });
+    }
+  });
+
   it("lets a MATCH name its own set, which is what an open course needs", async () => {
     /**
      * `Match.teeId` with a live reader, which is the whole point of adding it.
