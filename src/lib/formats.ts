@@ -292,8 +292,38 @@ export const GOLF_FORMATS: GolfFormat[] = [
     sideSize: 2,
     ball: "single",
     engine: "team-single",
-    allowance: 50,
-    allowanceIsConvention: true,
+    /**
+     * 60% OF THE LOW HANDICAP PLUS 40% OF THE HIGH — the published USGA
+     * recommendation, and the same shape as greensomes below rather than
+     * foursomes' flat 50% of the combined.
+     *
+     * This said `allowance: 50, allowanceIsConvention: true`, which was wrong
+     * twice. The 50% is the figure from the PRE-WHS USGA Handicap System,
+     * superseded when WHS came in; and `allowanceIsConvention` means, in this
+     * file's own words, "local convention rather than a published WHS
+     * recommendation" — so the round screen told an organizer "the common club
+     * convention for this format, not a published standard" about a format
+     * that has one.
+     *
+     * WHAT IT COST, and why it was invisible. A flat 50% of the combined and a
+     * 60/40 split agree exactly when the partners are equal, and diverge with
+     * the gap between them:
+     *
+     *     10 and 20   50% of 30 = 15   ·   60/40 = 6 + 8 = 14     one shot
+     *      5 and 25   50% of 30 = 15   ·   60/40 = 3 + 10 = 13    two shots
+     *     15 and 15   50% of 30 = 15   ·   60/40 = 9 + 6 = 15     agree
+     *
+     * So it was correct on the evenly-matched pairs anybody would check it
+     * with, and wrong precisely on the mismatched ones the allowance exists
+     * for — always in the same direction, handing the weaker pairing shots it
+     * had not earned.
+     *
+     * `allowance: 100` mirrors greensomes: for a format carrying
+     * `weightsBySideSize`, the split is what `sidePlayingHandicap` applies and
+     * this number is never used in the arithmetic.
+     */
+    allowance: 100,
+    weightsBySideSize: { 2: [60, 40] },
     scored: true,
     playable: true,
   },
