@@ -7,6 +7,7 @@ import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
 import { CoursePicker } from "@/components/CoursePicker";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
+import { StickySave } from "./StickySave";
 import { TournamentJourney } from "./TournamentJourney";
 
 interface EventForm {
@@ -643,7 +644,12 @@ export function EventSetupClient({
             Player count tracks confirmed registrations live — currently {playersCount}.
           </p>
         )}
-        <div style={{ display: "flex", gap: 8 }}>
+        {/* The same treatment as the settings form below, from the same
+            component. This card is 1,898px with 1,125px between the
+            tournament's name — the first field — and the only button that
+            keeps it. Fixing one of the two Saves on a screen that has two
+            would have been a worse inconsistency than the distance. */}
+        <StickySave dirty={isDirty} note="Unsaved changes to the tournament">
           <button
             type="button"
             className="btn btn-primary"
@@ -661,7 +667,7 @@ export function EventSetupClient({
           >
             <Icon name="check" /> {isDirty ? "Save event" : "Saved"}
           </button>
-        </div>
+        </StickySave>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div className="card elev-sm">
