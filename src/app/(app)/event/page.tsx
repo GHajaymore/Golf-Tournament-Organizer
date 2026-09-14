@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { screenMetadata } from "@/lib/screen-metadata";
+import { formattingFor } from "@/lib/domain/locale";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
@@ -89,10 +90,26 @@ export default async function EventPage({
       where: { id: e.organizationId },
       // `kind` so the branding nudge calls the outfit by its own name — a
       // society is not a club. See ChecklistState.orgKind.
-      select: { defaultCourseId: true, logoUrl: true, themeSetAt: true, kind: true },
+      select: {
+        defaultCourseId: true,
+        logoUrl: true,
+        themeSetAt: true,
+        kind: true,
+        // How this club writes a date and an amount — the default this
+        // tournament may override. See domain/locale.ts.
+        locale: true,
+        currency: true,
+      },
     }),
   ]);
   const homeCourseId = org?.defaultCourseId ?? null;
+
+  /**
+   * How this tournament writes its dates: its own answer, then the club's,
+   * then US English. Resolved once here rather than in each component, so two
+   * halves of one screen cannot disagree about it.
+   */
+  const fmt = formattingFor(org, e);
 
   // Checked against the club's own courses rather than trusted: this arrives
   // off the query string, and opening an editor for a row that is not theirs
@@ -224,6 +241,7 @@ export default async function EventPage({
         // distinguish a tournament being played from one that is over, and
         // used `scored` for it instead — see TournamentJourney's `current`.
         finished={e.status === "completed"}
+        locale={fmt.locale}
         initial={{
           name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,
           address: e.address, regDeadline: e.regDeadline, capacity: e.capacity,

@@ -21,6 +21,8 @@ export interface DeadlineStatus {
   overridden: boolean;
 }
 
+import { formatDay, DEFAULT_LOCALE } from "./domain/locale";
+
 /** Whether a stored deadline is a date this can reason about. */
 export function isIsoDate(v: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
@@ -78,11 +80,20 @@ export function parseDeadlineIso(deadline: string): string {
  * Free text is returned unchanged — whatever the organizer typed is what the
  * screen should say.
  */
-export function formatDeadline(deadline: string): string {
+export function formatDeadline(deadline: string, locale: string = DEFAULT_LOCALE): string {
   const iso = parseDeadlineIso(deadline);
   if (!iso) return (deadline ?? "").trim();
-  const [y, m, d] = iso.split("-");
-  return `${MONTHS[Number(m) - 1]} ${Number(d)}, ${y}`;
+  /**
+   * Written the way the club writes a date, not as "Jun 1, 2026".
+   *
+   * The month names came from the `MONTHS` array above and the order was
+   * hardcoded American, so a club in Dublin was told its entries closed on
+   * "Jun 1, 2026". `MONTHS` stays, because `parseDeadlineIso` still needs it
+   * to READ the US-shaped strings this app wrote into the column for a year —
+   * but reading legacy data and writing new display text are different jobs
+   * and only one of them should be American.
+   */
+  return formatDay(iso, locale);
 }
 
 /**
