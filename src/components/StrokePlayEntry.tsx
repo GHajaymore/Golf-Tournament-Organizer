@@ -24,6 +24,15 @@ interface StrokePlayer {
   name: string;
   handicap: number;
   /**
+   * Which set of tees this player is on, for the head of their card.
+   *
+   * Per player and not per screen, because a field can be mixed: a club
+   * championship runs championship, seniors and ladies off three sets, set
+   * once on each FLIGHT. Resolved on the server through the tee policy so
+   * the name here is the one the shots below were computed from.
+   */
+  tee?: { name: string; rated: boolean } | null;
+  /**
    * Marked out for this round of a weekly league.
    *
    * The picker listed the whole season roster, so a Tuesday where four of
@@ -544,6 +553,10 @@ export function StrokePlayEntry({
           brand={brand}
           courseName={courseName}
           venueIsHome={venueIsHome}
+          /* Which set THIS player is on. Resolved on the server through the
+             tee policy and the flight, so a mixed field — championship,
+             seniors, ladies off three sets — names the right one per card. */
+          tee={player?.tee ?? null}
           shotsPerHole={Array.from({ length: holes }, (_, i) => shotsByPlayer[playerId]?.[i] ?? 0)}
           onSet={(i: number, v: number | null) => setCards((prev) => {
             const next = [...(prev[playerId] ?? new Array(holes).fill(null))];

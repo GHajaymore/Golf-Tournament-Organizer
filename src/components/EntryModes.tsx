@@ -97,7 +97,13 @@ export function EntryModes({
    *  Passed down so the control renders locked rather than disappearing —
    *  a feature nobody can see is a feature nobody asks for. */
   cardScanAvailable?: boolean;
-  players: Array<{ id: string; name: string; handicap: number }>;
+  players: Array<{
+    id: string;
+    name: string;
+    handicap: number;
+    /** Which set this player is on, already resolved by policy and flight. */
+    tee?: { name: string; rated: boolean } | null;
+  }>;
   /**
    * Who a weekly league has marked OUT, per round.
    *
