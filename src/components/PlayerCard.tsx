@@ -52,6 +52,7 @@ export function PlayerCard({
   strokeIndex,
   shotsPerHole = [],
   playingHandicap = 0,
+  tee = null,
   status,
   brand,
   initialStrokes,
@@ -76,6 +77,14 @@ export function PlayerCard({
   shotsPerHole?: number[];
   /** The Playing Handicap those strokes add up to, for the header. */
   playingHandicap?: number;
+  /**
+   * Which set this card was scored from.
+   *
+   * The one thing a golfer checks before they hit, and the thing that
+   * explains their shots — slope belongs to the tee. Resolved on the server
+   * through the tee policy and the player’s flight.
+   */
+  tee?: { name: string; rated: boolean } | null;
   status: string;
   /** The club's mark, for the head of the card — the badge that is on the
    *  paper one. Optional; an unbranded card simply has no header. */
@@ -405,6 +414,7 @@ export function PlayerCard({
             strokes={strokes}
             shotsPerHole={shotsPerHole}
             playingHandicap={playingHandicap}
+            tee={tee}
             brand={brand}
             courseName={courseName}
             venueIsHome={venueIsHome}
@@ -495,6 +505,7 @@ export function PlayerCard({
               strokes={strokes}
               shotsPerHole={shotsPerHole}
               playingHandicap={playingHandicap}
+              tee={tee}
               brand={brand}
               courseName={courseName}
               venueIsHome={venueIsHome}

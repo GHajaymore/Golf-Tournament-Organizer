@@ -171,6 +171,7 @@ export function ScorecardTable({
   strokeIndex = [],
   strokes,
   shotsPerHole = [],
+  tee,
   playingHandicap,
   onSet,
   scoreLabel = "Score",
@@ -191,6 +192,30 @@ export function ScorecardTable({
   /** Whether that course is the club's own. Then the club's mark alone heads
    *  the card, because it really is their card rather than a claim. */
   venueIsHome?: boolean;
+  /**
+   * WHICH TEES THIS CARD WAS SCORED FROM.
+   *
+   * A scorecard that does not say is missing the one fact a marker checks
+   * before anybody hits, and the one that explains the shots printed two rows
+   * below it: the Course Handicap is Index x Slope/113 + (CR - Par), and the
+   * slope belongs to the tee. Two players off different sets are owed
+   * different strokes off the same index, which reads as an error on a card
+   * that names no tee.
+   *
+   * `teeNamesForRound` has said so since it was written — "every card, the
+   * printed one a group carries out and the one on screen at score entry" —
+   * and had one caller, `/foursomes`. This is the rest of that sentence.
+   *
+   * Resolved by the caller, never here, and that is the whole point. The tee
+   * is not the player's stored preference: it walks player, then FLIGHT, then
+   * the round's, and which of those may win is the committee's tee policy. A
+   * club championship running championship, seniors and ladies off three sets
+   * expresses that on the FLIGHT, so a card that read the player's own record
+   * would name the wrong tee for most of the field. `teeIdFor` is the one
+   * reader of that chain; a second one here would eventually print one tee and
+   * score another, which is worse than printing nothing.
+   */
+  tee?: { name: string; rated: boolean } | null;
   /** Handicap strokes per hole, from the server's allocation. */
   shotsPerHole?: number[];
   /** Shown beside the net total, so the number can be checked. */
@@ -328,6 +353,26 @@ export function ScorecardTable({
               </span>
             )}
           </span>
+        </div>
+      )}
+      {/* OUTSIDE the branded heading block above, deliberately. That block
+          only renders when there is a club mark or a course name to lead
+          with, and a card with neither still has tees — a society's outing
+          scored on a borrowed card is exactly the case where "which set?" is
+          asked out loud. */}
+      {tee?.name && (
+        <div
+          className="text-muted"
+          style={{ fontSize: 11.5, margin: "0 0 8px", display: "flex", gap: 6, flexWrap: "wrap" }}
+        >
+          <span style={{ letterSpacing: "0.06em", textTransform: "uppercase", fontSize: 10.5 }}>Tees</span>
+          <strong style={{ fontSize: 12.5, fontWeight: 600 }}>{tee.name}</strong>
+          {/* Said on the card rather than left to be inferred from a handicap
+              that looks ordinary. `courseHandicap` returns the index unchanged
+              when a tee carries no rating, and its own comment calls that
+              "better to keep working and let the UI say the number is
+              unrated" — this is the UI keeping that half of the bargain. */}
+          {!tee.rated && <span>· unrated, so shots are the index as it stands</span>}
         </div>
       )}
       <div className="sc-wrap">

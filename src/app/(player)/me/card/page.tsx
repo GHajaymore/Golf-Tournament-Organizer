@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { handicapsForRound, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { redirect } from "next/navigation";
 import { needsTeams } from "@/lib/formats";
@@ -129,6 +130,25 @@ export default async function PlayCardPage() {
    * off the Course Handicap, five shots apart on one screen.
    */
   const playing = state.strokeHandicapFor(me.playerId, me.round.stageId);
+  /**
+   * And WHICH SET those shots came off, which the comment above has named as
+   * missing since it was written.
+   *
+   * Resolved by `handicapsForRound`, the same function the number above comes
+   * from, so the tee printed on the card and the strokes allocated on it
+   * cannot come from two different answers. It walks the player's own tee,
+   * then their FLIGHT's — a club championship puts championship, seniors and
+   * ladies on three sets per flight rather than per player — then the round's,
+   * and the committee's policy decides which of those may win.
+   */
+  const teeRow = (
+    await handicapsForRound(
+      session.eventId,
+      holes,
+      roundTeeId(await teesForEvent(session.eventId), state.event.defaultTeeId),
+    )
+  ).find((r) => r.playerId === me.playerId);
+  const tee = teeRow?.teeName ? { name: teeRow.teeName, rated: teeRow.rated } : null;
   const alloc = allocationHoles(holes);
   const shots = Array.from({ length: holes }, (_, i) =>
     known ? holeStrokesReceived(playing, card.strokeIndex[i] ?? 18, alloc) : 0,
@@ -152,6 +172,7 @@ export default async function PlayCardPage() {
       strokeIndex={known ? card.strokeIndex.slice(0, holes) : []}
       shotsPerHole={shots}
       playingHandicap={playing}
+      tee={tee}
       status={me.round.card?.status ?? "entered"}
       // Whether signing this card hands it to anybody. Under player
       // confirmation nothing approves a scorecard — `certifyCard` writes

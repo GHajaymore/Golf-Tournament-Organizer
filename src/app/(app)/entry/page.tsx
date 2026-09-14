@@ -35,6 +35,7 @@ import type { VoiceContext } from "@/lib/domain/voice-query";
 import { courseModeOf, needsVenue } from "@/lib/domain/venue";
 import { resolveTeamEntry, teamEntryNote } from "@/lib/domain/team-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { handicapsForRound, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
 
 export const metadata = screenMetadata("/entry");
 
@@ -308,24 +309,55 @@ export default async function EntryPage() {
   // Which tees each player is rated off. Shown on the card because the shots
   // given are computed from slope and rating, and a player cannot check an
   // allocation whose inputs are invisible.
-  const allTees = await prisma.tee.findMany({
-    where: { course: { events: { some: { eventId: session.eventId } } } },
-    orderBy: [{ position: "asc" }],
-  });
-  const teeById = new Map(allTees.map((t) => [t.id, t]));
-  const playerTeeIds = await prisma.player.findMany({
-    where: { eventId: session.eventId },
-    select: { id: true, teeId: true },
-  });
+  /**
+   * THE TEE THE ROUND WAS ACTUALLY SCORED FROM — not the player's record.
+   *
+   * This read `player.teeId` directly and stopped there, which got the
+   * common cases wrong in both directions:
+   *
+   *   the whole field   nobody had a personal tee, so every card said
+   *                     NOTHING, while `courseHandicapMap` scored them all
+   *                     off the round's set. Measured on the demo data: a
+   *                     venue with three rated sets, no tee configured, and
+   *                     33 of 33 players silently on "Black" by
+   *                     `roundTeeId`'s first-by-position fallback, with no
+   *                     screen saying so.
+   *
+   *   a mixed field     a club championship runs championship, seniors and
+   *                     ladies off three sets, and expresses that on the
+   *                     FLIGHT — `Group.teeId` — precisely so it is three
+   *                     decisions rather than 120. A card reading the
+   *                     player's own record names the wrong set for
+   *                     everybody the committee assigned by division.
+   *
+   *   a condition of    under the `one` policy the round's set governs
+   *   competition       whatever a player's record says (Rule 6.1b), so a
+   *                     stored preference is not merely unused — printing it
+   *                     contradicts the committee.
+   *
+   * `handicapsForRound` already walks player, then flight, then the round's,
+   * under the policy, through the single `teeIdFor`. It is the same function
+   * the shots on this screen are computed by, so the name on the card and the
+   * strokes beside it cannot disagree.
+   */
+  const teeRows = await handicapsForRound(
+    session.eventId,
+    holesPlayed(activeStage?.holes),
+    roundTeeId(await teesForEvent(session.eventId), state.event.defaultTeeId),
+  );
+  const teeByPlayer = new Map(teeRows.map((r) => [r.playerId, r]));
   const teeLabel = (playerId: string): string | undefined => {
-    const teeId = playerTeeIds.find((p) => p.id === playerId)?.teeId;
-    const tee = teeId ? teeById.get(teeId) : null;
-    if (!tee) return undefined;
-    // Slope and rating alongside the name: the name alone does not say why
-    // one player is owed more shots than another.
-    return tee.slopeRating > 0
-      ? `${tee.name} (${tee.slopeRating}/${tee.courseRating})`
-      : `${tee.name} — unrated`;
+    const row = teeByPlayer.get(playerId);
+    if (!row?.teeName) return undefined;
+    // Rated or not alongside the name: the name alone does not say why one
+    // player is owed more shots than another, and an unrated set is the case
+    // where the shots are simply the index.
+    return row.rated ? row.teeName : `${row.teeName} — unrated`;
+  };
+  /** The same answer, shaped for `ScorecardTable`'s own tee line. */
+  const teeFor = (playerId: string): { name: string; rated: boolean } | null => {
+    const row = teeByPlayer.get(playerId);
+    return row?.teeName ? { name: row.teeName, rated: row.rated } : null;
   };
 
   const nameById = new Map(state.players.map((p) => [p.id, p.name]));
@@ -802,7 +834,10 @@ export default async function EntryPage() {
       activeIndex={activeIndex}
       players={state.confirmed
         .filter((p) => !ownIds || ownIds.has(p.id))
-        .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap }))}
+        // The tee each player is on, resolved through the policy and their
+        // flight — see `teeFor`. Carried on the player rather than as a
+        // parallel map so it cannot drift out of step with the name beside it.
+        .map((p) => ({ id: p.id, name: p.name, handicap: p.handicap, tee: teeFor(p.id) }))}
       absentByStage={absentByStage}
       // A quick round has no field, no spreadsheet and no draw. See the prop.
       casual={casualRound}
