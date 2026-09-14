@@ -60,6 +60,23 @@ export const CLONED_EVENT_FIELDS = [
   "scoreEntryWindow",
   "voiceEntry",
   "playerAccess",
+  /**
+   * How this tournament writes its dates and prices its money, where it
+   * differs from the club's own.
+   *
+   * CARRIED, because the reason a tournament has its own is almost always a
+   * standing one: a club runs an invitational to American conventions for an
+   * American field, and it runs it again next year for the same field. An
+   * empty value — which is what nearly every tournament holds — copies as
+   * empty and goes on following the club, so carrying these changes nothing
+   * for anybody who has not deliberately set one.
+   *
+   * The opposite choice would be worse in a quiet way: the copy would silently
+   * revert to the club's conventions, and the organizer would find out when
+   * the field did.
+   */
+  "localeOverride",
+  "currencyOverride",
   // Carried, unlike registrationOpen/registrationApproval above. Those are
   // about the state a copy starts in; this is a standing decision about what
   // the club asks its members for. A society that runs a shotgun every year

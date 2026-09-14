@@ -291,6 +291,23 @@ model Organization {
    */
   currency       String @default("USD")
 
+  /**
+   * How this club writes a date and a number — a BCP-47 tag, e.g. en-US,
+   * en-GB, ja-JP.
+   *
+   * The app formatted every date with a hardcoded "en-US" and every amount
+   * with `Intl.NumberFormat("en-US")`, so a club in Surrey or Osaka read its
+   * own tournament dates in American order. Currency was already the club's
+   * (`currency` above); the WAY it was written was not, which is how a
+   * European club could be set to EUR and still see "€1,234.00" rather than
+   * "1.234,00 €".
+   *
+   * A tag rather than a country, because the tag is what `Intl` takes and a
+   * country does not settle it — Switzerland writes four ways. Defaults to
+   * en-US so nothing that exists today renders differently tomorrow.
+   */
+  locale         String @default("en-US")
+
   members      OrganizationMember[]
   roster       Member[]
   courses      Course[]
@@ -695,6 +712,25 @@ model Event {
    */
   organizationId    String
   name              String
+  /**
+   * This tournament's own locale and currency, overriding the club's.
+   *
+   * Empty means FOLLOW THE CLUB, which is what almost every tournament wants
+   * and what every existing row gets. These exist for the case a club genuinely
+   * has: an invitational run to American conventions by a club that is not
+   * American, or the reverse — dates and prize money written the way the
+   * visiting field expects rather than the way the host writes its letters.
+   *
+   * Two fields rather than one "US mode" flag, because they are two questions
+   * and a club may want either without the other: a Japanese club running a
+   * USD-priced invitational still writes the date its own way.
+   *
+   * Resolved in exactly one place — `resolveLocale` / `resolveCurrency` in
+   * domain/locale.ts — so a screen cannot read the club's answer where the
+   * tournament has given its own.
+   */
+  localeOverride    String  @default("")
+  currencyOverride  String  @default("")
   dates             String
   format            String  @default("match") // match | stroke
   course            String

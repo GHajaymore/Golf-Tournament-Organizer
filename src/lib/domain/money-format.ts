@@ -106,14 +106,32 @@ export function minorUnitDigits(currency: string): number {
  * throwing: a bad row must not take a money screen down, and showing the
  * number in dollars is recoverable where showing nothing is not.
  */
-export function money(minorUnits: number, currency: string = DEFAULT_CURRENCY): string {
+export function money(
+  minorUnits: number,
+  currency: string = DEFAULT_CURRENCY,
+  /**
+   * How to WRITE the number, which is a different question from which
+   * currency it is in.
+   *
+   * This was pinned to "en-US", so a club set to EUR — already possible —
+   * read "€1,234.00" where its members write "1.234,00 €". The currency was
+   * the club's and the conventions were American, which is the half of
+   * localisation that is easy to miss because the symbol looks right.
+   *
+   * Defaults to US English so nothing that exists today changes shape until a
+   * club sets its locale. See domain/locale.ts for who decides.
+   */
+  locale: string = "en-US",
+): string {
   const code = (currency || DEFAULT_CURRENCY).toUpperCase();
   const value = Number.isFinite(minorUnits) ? minorUnits : 0;
   try {
-    const fmt = new Intl.NumberFormat("en-US", { style: "currency", currency: code });
+    const fmt = new Intl.NumberFormat(locale, { style: "currency", currency: code });
     const digits = fmt.resolvedOptions().maximumFractionDigits ?? 2;
     return fmt.format(value / 10 ** digits);
   } catch {
+    // Either the code or the locale was unusable. Falling back on both rather
+    // than only the code: a bad locale must not take a money screen down.
     const fmt = new Intl.NumberFormat("en-US", { style: "currency", currency: DEFAULT_CURRENCY });
     return fmt.format(value / 100);
   }
