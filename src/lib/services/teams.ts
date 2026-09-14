@@ -319,9 +319,53 @@ export async function teamStandings(
 export function snakeDraw<T extends { id: string; handicap: number }>(
   players: T[],
   sideSize: number,
+  /**
+   * What sizes this format will actually accept, when it accepts a range.
+   *
+   * Defaults to exactly `sideSize`, which is what every caller meant before
+   * this existed and leaves their behaviour unchanged.
+   *
+   * WHY THE DRAW NEEDS IT. Sides are filled round-robin, so they end up within
+   * one of each other and the smallest is `floor(n / sideCount)`. With
+   * `sideCount = ceil(n / sideSize)` that lands BELOW the format's minimum
+   * whenever the remainder is small — and the app then reports the side it
+   * just drew as broken:
+   *
+   *     Best Ball, 3 players -> [1, 2]   "Team 1 has 1 of 2 players"
+   *     Best Ball, 5 players -> [1, 2, 2]
+   *
+   * Best ball is playable 2 to 4, so three players are one perfectly ordinary
+   * side of three. The draw had no way to know that, because it was only ever
+   * told one number.
+   *
+   * It is NOT always avoidable, and must not pretend otherwise: four-ball and
+   * foursomes are exactly two a side, so an odd field has no legal shape at
+   * all and somebody genuinely has no partner. Where no side count works, this
+   * falls back to the old answer and leaves `teamProblems` to say so — which
+   * is the app being right rather than the app being quiet.
+   */
+  range?: { min: number; max: number },
 ): T[][] {
   const ordered = [...players].sort((a, b) => a.handicap - b.handicap);
-  const sideCount = Math.ceil(ordered.length / sideSize) || 0;
+  const min = range?.min ?? sideSize;
+  const max = range?.max ?? sideSize;
+
+  /**
+   * The most sides that keeps every one of them inside the range.
+   *
+   * Counting DOWN from the ideal rather than up, so a format that fits its
+   * preferred size exactly keeps it: 16 players at 4 a side still draws four
+   * fours, because that is the first count tried and it is already legal.
+   */
+  let sideCount = Math.ceil(ordered.length / sideSize) || 0;
+  for (let k = sideCount; k >= 1; k -= 1) {
+    const smallest = Math.floor(ordered.length / k);
+    const largest = Math.ceil(ordered.length / k);
+    if (smallest >= min && largest <= max) {
+      sideCount = k;
+      break;
+    }
+  }
   if (sideCount === 0) return [];
   const sides: T[][] = Array.from({ length: sideCount }, () => []);
   ordered.forEach((p, i) => {

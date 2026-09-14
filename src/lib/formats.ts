@@ -38,8 +38,32 @@ export interface GolfFormat {
   desc: string;
   /** Broad scoring family, for engines/UI hints. */
   family: ScoringFamily;
-  /** Players per side. 1 is an individual format and needs no team. */
+  /**
+   * Players per side, and the size the automatic draw AIMS FOR.
+   *
+   * 1 is an individual format and needs no team. This is the DEFAULT, not the
+   * floor: a scramble is drawn into fours because that is how a charity day is
+   * run, and is still a legal scramble with three.
+   */
   sideSize: number;
+  /**
+   * Lower bound where the format allows a range. Defaults to `sideSize`.
+   *
+   * SEPARATE FROM `sideSize` BECAUSE THE TWO GENUINELY DIFFER, and conflating
+   * them made the app contradict its own draw. `sideSizeRange` returned
+   * `min: sideSize`, so a scramble's minimum was 4 — while `snakeDraw`, given
+   * an ordinary field, produces sides of 3 and 2:
+   *
+   *     14 players -> [3, 3, 4, 4], and `teamProblems` called two of them
+   *                   "has 3 of 4 players"
+   *      5 players -> [3, 2], both reported broken
+   *
+   * The organizer had no remedy: the app had drawn the field itself and then
+   * declared its own answer faulty. And `weightsBySideSize` on both scramble
+   * entries already carried allowances for sides of 2, 3 and 4, so the scoring
+   * engine was ready for exactly the sides the validator rejected.
+   */
+  minSideSize?: number;
   /** Upper bound where the format allows a range — a scramble is 2 to 4. */
   maxSideSize?: number;
   ball: BallFormat;
@@ -347,7 +371,11 @@ export const GOLF_FORMATS: GolfFormat[] = [
     name: "Scramble",
     family: "team",
     desc: "Everyone plays, the team picks the best shot, and everyone plays again from there. The kindest format for mixed ability.",
+    // Drawn into fours, legal from two — which is what the allowance table
+    // below has always said, and what the field note on `minSideSize` says the
+    // app used to contradict.
     sideSize: 4,
+    minSideSize: 2,
     maxSideSize: 4,
     ball: "single",
     engine: "team-single",
@@ -378,7 +406,11 @@ export const GOLF_FORMATS: GolfFormat[] = [
     name: "Texas Scramble",
     family: "team",
     desc: "A scramble with a minimum number of drives that must be used from each player, so nobody is a passenger.",
+    // Same range as a plain scramble, for the same reason — and note the
+    // minimum-drives rule makes a short side MORE likely to be wanted, not
+    // less: a side of two owes four drives each rather than two.
     sideSize: 4,
+    minSideSize: 2,
     maxSideSize: 4,
     ball: "single",
     engine: "team-single",
@@ -699,7 +731,10 @@ export function sharesOneCard(formatName: string): boolean {
  */
 export function sideSizeRange(formatName: string): { min: number; max: number } {
   const f = findFormat(formatName);
-  return { min: f.sideSize, max: f.maxSideSize ?? f.sideSize };
+  // `sideSize` is the draw's TARGET, not the floor — see the field's own note.
+  // This read `min: f.sideSize`, which made a scramble's minimum four and every
+  // side of three the app itself drew a reported fault.
+  return { min: f.minSideSize ?? f.sideSize, max: f.maxSideSize ?? f.sideSize };
 }
 
 /**
