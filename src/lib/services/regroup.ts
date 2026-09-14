@@ -1,4 +1,5 @@
 import { COURSE_REF } from "./course-resolution";
+import { playedOnBy } from "./courses";
 import { roundTeeId, flightTeeByPlayer } from "./handicaps";
 import "server-only";
 import { prisma } from "../db";
@@ -178,7 +179,7 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
   const [allStages, tees] = await Promise.all([
     prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
     prisma.tee.findMany({
-      where: { course: { events: { some: { eventId } } } },
+      where: { course: playedOnBy(eventId) },
       orderBy: [{ position: "asc" }],
     }),
   ]);

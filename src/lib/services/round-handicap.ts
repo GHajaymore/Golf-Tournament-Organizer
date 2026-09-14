@@ -1,4 +1,5 @@
 import "server-only";
+import { playedOnBy } from "./courses";
 import { teeSetupFor, flightTeeByPlayer } from "./handicaps";
 import { prisma } from "../db";
 import { courseHandicapMap, holesPlayed } from "../domain/handicap";
@@ -74,7 +75,7 @@ export async function freezeRoundHandicaps(eventId: string, stageId: string): Pr
     // This club's tees only, the same scoping `handicapsForRound` needs: an
     // unscoped read lets a player's teeId resolve to another organization's
     // rating and quietly changes the number being written into history.
-    where: { course: { events: { some: { eventId } } } },
+    where: { course: playedOnBy(eventId) },
     orderBy: [{ position: "asc" }],
   });
   const holes = holesPlayed(stage.holes);
@@ -233,7 +234,7 @@ export async function roundHandicapsFor(eventId: string, stageId: string): Promi
       orderBy: { seed: "asc" },
     }),
     prisma.tee.findMany({
-      where: { course: { events: { some: { eventId } } } },
+      where: { course: playedOnBy(eventId) },
       orderBy: [{ position: "asc" }],
     }),
   ]);

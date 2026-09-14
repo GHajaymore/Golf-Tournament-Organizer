@@ -1,4 +1,5 @@
 import "server-only";
+import { playedOnBy } from "./courses";
 import { prisma } from "../db";
 import { courseHandicap, nineHoleTee, isRated, explainHandicap, indexForHoles, type TeeRating, teeIdFor } from "../domain/handicap";
 import { parseHoleArray } from "../courses";
@@ -69,7 +70,7 @@ export async function handicapsForRound(
     prisma.tee.findMany({
       // This club's tees only. An unscoped read let a player's teeId resolve
       // to another organization's rating, quietly changing their handicap.
-      where: { course: { events: { some: { eventId } } } },
+      where: { course: playedOnBy(eventId) },
       orderBy: [{ position: "asc" }],
     }),
   ]);
@@ -307,7 +308,7 @@ export async function teeMatcherFor(eventId: string): Promise<(text: string | nu
     // This tournament's course only. An unscoped read would let "white" match
     // another club's set — the same widening that once let a stored teeId
     // resolve to a foreign rating.
-    where: { course: { events: { some: { eventId } } } },
+    where: { course: playedOnBy(eventId) },
     select: { id: true, name: true },
     orderBy: [{ position: "asc" }],
   });
@@ -416,7 +417,7 @@ export interface TeeView {
  */
 export async function teesForEvent(eventId: string): Promise<TeeView[]> {
   const courses = await prisma.course.findMany({
-    where: { events: { some: { eventId } } },
+    where: playedOnBy(eventId),
     include: { tees: { orderBy: [{ position: "asc" }, { name: "asc" }] } },
   });
 

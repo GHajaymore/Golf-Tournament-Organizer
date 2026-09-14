@@ -175,3 +175,73 @@ describe("picking the tournament's course makes it a venue", () => {
     expect(await prisma.eventCourse.count({ where: { eventId } })).toBe(before);
   });
 });
+
+describe("a tournament set up before the link existed still finds its tees", () => {
+  /**
+   * THE READ ANSWERS CORRECTLY, SO NOTHING HAS TO BE MIGRATED.
+   *
+   * `saveEvent` links the course now, but every tournament set up before it
+   * did holds a course in `Event.courseId` that no `EventCourse` row names —
+   * and nine reads asked the join alone. For those the tees at the course the
+   * tournament is actually played on were invisible: the picker offered
+   * another venue's sets, and `teeForPlay` scoping its fallback to
+   * `event.courseId` found nothing there and fell through to the first across
+   * every venue.
+   *
+   * A backfill would have had to write to every event in the database —
+   * including the ones holding real people — to repair something the reader
+   * can simply answer. `playedOnBy` asks for the venues OR the event's own
+   * course, in one `where`, so a legacy tournament is right on its next page
+   * load and nobody has to remember to run anything.
+   *
+   * The fixture is deliberately the BROKEN shape: a courseId and no link.
+   */
+  let legacyId = "";
+
+  beforeAll(async () => {
+    const org = await prisma.organization.findFirst({
+      where: { name: `${TAG} club` },
+      select: { id: true },
+    });
+    const legacy = await prisma.event.create({
+      data: {
+        organizationId: org!.id,
+        name: `${TAG} legacy`,
+        dates: "",
+        course: `${TAG} home`,
+        city: "",
+        address: "",
+        regDeadline: "",
+        shareToken: `${TAG}-legacy-${process.pid}`,
+        // The course is set and NOTHING links it — exactly what `saveEvent`
+        // used to leave behind.
+        courseId: homeId,
+      },
+    });
+    legacyId = legacy.id;
+  });
+
+  it("has no venue row at all — the fixture is the broken shape", async () => {
+    // Without this the test below could pass on a tournament that happens to
+    // be linked, proving nothing about the case it exists for.
+    expect(await prisma.eventCourse.count({ where: { eventId: legacyId } })).toBe(0);
+  });
+
+  it("sees the tees at the course it is played on", async () => {
+    const tees = await teesForEvent(legacyId);
+    expect(tees.map((t) => t.name), "an unlinked course's tees are invisible").toContain(
+      `${TAG} home white`,
+    );
+  });
+
+  it("does not thereby see another course's", async () => {
+    // The widening must reach the event's OWN course and stop. A scope that
+    // picked up the whole club's library would price a round off a course the
+    // tournament has nothing to do with.
+    const tees = await teesForEvent(legacyId);
+    expect(tees.map((t) => t.name), "the scope reached past this tournament").not.toContain(
+      `${TAG} away white`,
+    );
+    expect(awayId).not.toBe(homeId);
+  });
+});
