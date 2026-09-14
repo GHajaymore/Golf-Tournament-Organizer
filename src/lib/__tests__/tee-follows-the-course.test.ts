@@ -24,13 +24,30 @@ import { teeForPlay, roundTeeId } from "@/lib/services/handicaps";
  * the precedence was.
  */
 
-/** Two venues, two sets each. Deliberately interleaved so `tees[0]` is never
- *  the right answer for the second course, and never the configured one. */
+/**
+ * Two venues, two sets each. Deliberately ordered so `tees[0]` is never the
+ * right answer for the second course, and never the configured one.
+ *
+ * RATED, and with real names, because the fallback goes through
+ * `defaultTeeFor` — which sorts by name and prefers a rated set over an
+ * unrated one. A fixture of bare ids type-checked against the old signature
+ * and crashed inside that sort; the signature is honest now and this is what
+ * honest looks like.
+ */
+const rate = (id: string, courseId: string, name: string, slope: number) => ({
+  id,
+  courseId,
+  name,
+  courseRating: 72,
+  slopeRating: slope,
+  par: 72,
+  position: 0,
+});
 const TEES = [
-  { id: "a-black", courseId: "course-a" },
-  { id: "a-white", courseId: "course-a" },
-  { id: "b-blue", courseId: "course-b" },
-  { id: "b-red", courseId: "course-b" },
+  rate("a-black", "course-a", "Black", 140),
+  rate("a-white", "course-a", "White", 120),
+  rate("b-blue", "course-b", "Blue", 118),
+  rate("b-red", "course-b", "Red", 105),
 ];
 
 describe("which tees a round is played from", () => {
@@ -85,6 +102,23 @@ describe("which tees a round is played from", () => {
     expect(
       teeForPlay(TEES, { matchTeeId: "gone", stageTeeId: "gone", eventDefaultTeeId: "gone" }, "course-b"),
     ).toBe("b-blue");
+  });
+
+  it("prefers a rated set over an unrated one when nobody chose", () => {
+    /**
+     * Through `defaultTeeFor`, which is the domain's answer to this and was
+     * already being asked elsewhere. An unrated set produces no course-handicap
+     * conversion at all — `courseHandicap` returns the index as it stands — so
+     * falling back to one silently prices the whole field off raw indexes while
+     * a rated set sits behind it in the list.
+     *
+     * The unrated set is FIRST here, so taking `[0]` would pick it.
+     */
+    const mixed = [
+      { ...rate("c-unrated", "course-c", "Members", 0), courseRating: 0 },
+      rate("c-rated", "course-c", "Yellow", 121),
+    ];
+    expect(teeForPlay(mixed, {}, "course-c")).toBe("c-rated");
   });
 
   it("says nothing when the club has no tees at all", () => {

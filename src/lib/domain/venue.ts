@@ -125,6 +125,18 @@ export interface CourseLike {
    * caller that does not know says nothing rather than asserting a card.
    */
   hasCard?: boolean;
+  /**
+   * The sets this course is played from, carried through the match so a screen
+   * can offer them.
+   *
+   * Same reasoning as `hasCard` above: matching does not depend on it, and a
+   * caller that does not know says nothing. It is here rather than only on the
+   * component's own type because a course reached by TYPING its name arrives
+   * through `matchCourse`, and one reached by browsing does not — a screen
+   * whose tee picker appeared for one route and not the other would be the
+   * same question with two answers.
+   */
+  tees?: Array<TeeLike & { rated: boolean }>;
 }
 
 export type VenueMatch =

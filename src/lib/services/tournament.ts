@@ -443,6 +443,19 @@ export interface EventState {
    */
   strokeHandicapFor: (playerId: string, stageId: string) => number;
   /**
+   * The same, for a match that names its OWN tees.
+   *
+   * A league with no fixed venue records where a pair played at scoring time,
+   * and `Match.teeId` records what they played it off. That is a fact about
+   * one pairing — the other matches in the round are elsewhere — so it cannot
+   * be answered by `strokeHandicapFor`, which only knows a round.
+   *
+   * Falls through to the round for every match that names nothing, which is
+   * almost all of them, so a caller can use this wherever it has a match id
+   * without having to know whether this one is special.
+   */
+  matchHandicapFor: (playerId: string, matchId: string) => number;
+  /**
    * The card a given round is scored against — round venue, then event, with
    * the played nine already applied and its stroke indexes re-ranked 1..9.
    *
@@ -769,6 +782,34 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     );
   }
   /**
+   * AND PER MATCH, for the matches that name their own set.
+   *
+   * Only those. In a league with no fixed venue a pair says where they played
+   * at scoring time and, since `Match.teeId` exists, off which tees — and that
+   * is a fact about one pairing, not about the round the other nine matches
+   * are also in. A match that names nothing is not in this map at all and
+   * resolves through its round exactly as before, so the common case costs
+   * nothing.
+   *
+   * Built eagerly like the per-round maps, and bounded by the same thing: a
+   * match has to have had a set chosen ON it to appear here, which is a
+   * deliberate act by a scorer rather than something every row acquires.
+   */
+  const courseHcpByMatch = new Map<string, Map<string, number>>();
+  for (const m of matches) {
+    if (!m.teeId) continue;
+    const stage = stages.find((s) => s.id === m.stageId);
+    const matchTee = teeForPlay(
+      tees,
+      { matchTeeId: m.teeId, stageTeeId: stage?.teeId, eventDefaultTeeId: event?.defaultTeeId },
+      m.courseId ?? stage?.courseId ?? event?.courseId ?? null,
+    );
+    courseHcpByMatch.set(
+      m.id,
+      courseHandicapMap(withFlightTee, teeRatings, matchTee, holesPlayed(stage?.holes), teePolicy),
+    );
+  }
+  /**
    * A player's handicap for FLIGHTING and standings, which is deliberately the
    * roster's and not the round's.
    *
@@ -1012,6 +1053,8 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const nextUnplayedRound = playRounds.find((s) => roundProgress(s).done === 0) ?? null;
 
   const stageById = new Map(stages.map((s) => [s.id, s]));
+  /** For `matchHandicapFor`, which needs a match's round before it can price it. */
+  const matchById = new Map(matches.map((m) => [m.id, m]));
   const roundHandicapBy = new Map(
     roundHandicaps.map((r) => [roundHandicapKey(r.stageId, r.playerId), { frozen: r.frozen, override: r.override }]),
   );
@@ -1513,6 +1556,30 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     strokeUnit,
     strokeRounds,
     strokeHandicapFor: handicapFor,
+    /**
+     * The round's answer unless this match named its own set.
+     *
+     * One reader for both, so the screen that prices a match and the screen
+     * that prices its round cannot disagree about which tees were played. The
+     * per-round allowance and any committee override still apply on top,
+     * exactly as they do in `strokeHandicapResolver` — a match choosing its
+     * own tees is saying WHERE it was played, not opting out of the round's
+     * arithmetic.
+     */
+    matchHandicapFor: (playerId: string, matchId: string) => {
+      const m = matchById.get(matchId);
+      if (!m) return 0;
+      const own = courseHcpByMatch.get(matchId);
+      if (!own) return handicapFor(playerId, m.stageId);
+      const stage = stageById.get(m.stageId);
+      const allowance = stage ? effectiveAllowance(stage.format, stage.handicapAllowance) : 100;
+      const member = own.get(playerId) ?? courseHcp.get(playerId) ?? 0;
+      const resolved = resolveRoundHandicap({
+        ...(roundHandicapBy.get(roundHandicapKey(m.stageId, playerId)) ?? {}),
+        member,
+      });
+      return playingHandicapFrom(resolved.handicap, allowance);
+    },
     strokeCourseFor: courseFor,
     advancingCount,
     advancingIds,

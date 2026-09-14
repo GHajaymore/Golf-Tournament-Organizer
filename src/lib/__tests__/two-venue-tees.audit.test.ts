@@ -186,6 +186,53 @@ describe("a round is priced off the tees of the course it is played on", () => {
     );
   });
 
+  it("lets a MATCH name its own set, which is what an open course needs", async () => {
+    /**
+     * `Match.teeId` with a live reader, which is the whole point of adding it.
+     *
+     * In a league with no fixed venue a pair says where they played at scoring
+     * time, and `nameMatchVenue` has always asked which tees — validated them,
+     * created the row, and then pointed nothing at it. A column with no reader
+     * is the same defect in a different place, so this asserts the number
+     * actually moves.
+     *
+     * The match is on DAY ONE, at the host club, and names the away club's
+     * gentler set. Nothing else on that round changes, so a wrong answer here
+     * cannot be a round-level effect leaking in.
+     */
+    const away = await prisma.course.findFirst({ where: { name: `${TAG} away` }, select: { id: true } });
+    const awayTee = await prisma.tee.findFirst({ where: { courseId: away!.id }, select: { id: true } });
+    const group = await prisma.group.create({
+      data: { eventId, name: `${TAG} flight`, position: 0 },
+    });
+    const match = await prisma.match.create({
+      data: {
+        eventId,
+        stageId: dayOneId,
+        groupId: group.id,
+        round: 1,
+        playerAId: playerId,
+        playerBId: playerId,
+        holes: JSON.stringify(new Array(18).fill(null)),
+      },
+    });
+    try {
+      const before = await loadEventState(eventId);
+      // Untouched, it is its round's answer — the host club.
+      expect(before!.matchHandicapFor(playerId, match.id)).toBe(playing(HOST));
+
+      await prisma.match.update({ where: { id: match.id }, data: { teeId: awayTee!.id } });
+      const after = await loadEventState(eventId);
+      expect(after!.matchHandicapFor(playerId, match.id)).toBe(playing(AWAY));
+
+      // And the ROUND is unmoved by one pairing saying where it went.
+      expect(after!.strokeHandicapFor(playerId, dayOneId)).toBe(playing(HOST));
+    } finally {
+      await prisma.match.delete({ where: { id: match.id } });
+      await prisma.group.delete({ where: { id: group.id } });
+    }
+  });
+
   it("lets a round name its own set, overriding the course's first", async () => {
     /**
      * `Stage.teeId` — the round's own answer, which is what a medal off the

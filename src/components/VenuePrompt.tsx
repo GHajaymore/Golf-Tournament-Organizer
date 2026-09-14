@@ -1,8 +1,16 @@
 "use client";
 import { useOrgProfile } from "@/components/OrgProfileProvider";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { nameMatchVenue } from "@/app/actions/courses";
-import { matchCourse, needsNine, cardProblems, teeProblems, exactCardClaim } from "@/lib/domain/venue";
+import {
+  matchCourse,
+  needsNine,
+  cardProblems,
+  teeProblems,
+  exactCardClaim,
+  defaultTeeFor,
+  type TeeLike,
+} from "@/lib/domain/venue";
 import { parseCard } from "@/lib/domain/scorecard-parse";
 import { Icon } from "./Icon";
 
@@ -39,6 +47,15 @@ export interface VenueCourse {
    * than asserting a card is there.
    */
   hasCard?: boolean;
+  /**
+   * The sets this course is played from, when the club already has them.
+   *
+   * A course the club has on file usually has its ratings on file too, and
+   * asking somebody to retype "Blue, 119, 68.3" standing on the 18th green is
+   * asking them to get it wrong. The free-text block below is for a course
+   * nobody has entered — it is the last rung, not the first.
+   */
+  tees?: Array<TeeLike & { rated: boolean }>;
 }
 
 /**
@@ -86,6 +103,15 @@ export function VenuePrompt({
   const [pars, setPars] = useState<string[]>(BLANK);
   const [yards, setYards] = useState<string[]>(BLANK);
   const [si, setSi] = useState<string[]>(BLANK);
+  /**
+   * The set chosen from the ones the club already has, or "" for "another
+   * set", which reveals the free-text block.
+   *
+   * Defaulted in the effect below rather than here: `chosen` is not known at
+   * mount, and an initial value computed from it would be stale the moment
+   * somebody picks a different course.
+   */
+  const [teeId, setTeeId] = useState("");
   const [teeName, setTeeName] = useState("");
   const [cr, setCr] = useState("");
   const [slope, setSlope] = useState("");
@@ -96,6 +122,33 @@ export function VenuePrompt({
   // Live, so someone typing "Maketewah" sees the club already has it before
   // they start filling in a card by hand.
   const found = useMemo(() => (typed.trim() ? matchCourse(typed, library) : null), [typed, library]);
+
+  /**
+   * The sets belonging to whichever course is currently settled on.
+   *
+   * Browsed or typed — the two ways in have to offer the same tees, or the
+   * control would appear and disappear depending on how the reader got to the
+   * same course.
+   */
+  const settledCourse = chosen ?? (found?.kind === "exact" ? found.course : null);
+  const knownTees = useMemo(() => settledCourse?.tees ?? [], [settledCourse]);
+
+  /**
+   * Default to the club's first set whenever the course changes.
+   *
+   * The same answer `teeForPlay` falls back to, so the control and the
+   * scoring agree. Reset rather than kept: a tee id belongs to one course, and
+   * carrying it across a course change would send a set that is not there —
+   * which the action refuses, correctly, on a screen that looked answered.
+   */
+  useEffect(() => {
+    // `defaultTeeFor`, not `knownTees[0]` — the domain's answer to "which set
+    // when nobody chose", which prefers a RATED one. An unrated set produces
+    // no course-handicap conversion at all, so defaulting to it would quietly
+    // offer the reader the one choice that scores nothing. It is also exactly
+    // what `teeForPlay` falls back to, so the control and the scoring agree.
+    setTeeId(defaultTeeFor(settledCourse?.id ?? null, knownTees)?.id ?? "");
+  }, [knownTees, settledCourse]);
   const isNew = found?.kind === "new";
   /** Whether the screen may claim a saved card. See `exactCardClaim`. */
   const claim = exactCardClaim(found);
@@ -163,8 +216,14 @@ export function VenuePrompt({
 
   const submit = () => {
     setError("");
+    /**
+     * A set the club already has wins over anything typed below, because the
+     * typed block is hidden while one is chosen — reading both would let a
+     * stale value from a course the reader has since changed away from travel
+     * with the answer.
+     */
     const tee =
-      teeName.trim() || cr || slope
+      !teeId && (teeName.trim() || cr || slope)
         ? {
             name: teeName,
             courseRating: parseFloat(cr) || 0,
@@ -377,7 +436,44 @@ export function VenuePrompt({
             Course handicap is Index × Slope ÷ 113 + (Rating − Par), so the tees
             decide how many shots change hands. Both are printed on the card.
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 8 }}>
+          {/* PICK A SET THE CLUB ALREADY HAS, before offering to type one.
+              Asking somebody to retype "Blue, 119, 68.3" standing on the 18th
+              green is asking them to get it wrong, and a mistyped slope is a
+              wrong Course Handicap that looks entirely normal. The free-text
+              block below stays for a course nobody has entered — the last
+              rung, not the first.
+
+              Defaulted to the first set rather than left blank: an unanswered
+              tee is the state this whole change exists to remove, and the
+              first by position is the same answer `teeForPlay` falls back to,
+              so the control agrees with the scoring rather than offering a
+              different silence. */}
+          {knownTees.length > 0 && (
+            <div className="field" style={{ marginBottom: 8 }}>
+              <label htmlFor="venue-tee">This course&rsquo;s tees</label>
+              <select
+                id="venue-tee"
+                className="input"
+                value={teeId}
+                onChange={(e) => setTeeId(e.target.value)}
+                style={{ maxWidth: 320 }}
+              >
+                {knownTees.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.rated ? "" : " — unrated"}
+                  </option>
+                ))}
+                {/* Named, not blank. A set the club has not entered is a real
+                    answer here and the reader has to be able to say so. */}
+                <option value="">Another set — enter it below</option>
+              </select>
+            </div>
+          )}
+          <div
+            hidden={knownTees.length > 0 && teeId !== ""}
+            style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr 1fr", gap: 8 }}
+          >
             <div className="field">
               <label>Tees</label>
               <input className="input" value={teeName} onChange={(e) => setTeeName(e.target.value)} placeholder="Blue" />
