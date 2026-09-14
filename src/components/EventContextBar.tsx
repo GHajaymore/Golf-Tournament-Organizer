@@ -50,25 +50,26 @@ export function EventContextBar({
       {canSwitch && (
         <Link
           /**
-           * THE LIST, NOT THE TOP OF THE SCREEN THAT HOLDS IT.
+           * THE LIST, WHICH IS ITS OWN SCREEN NOW.
            *
-           * This pointed at `/event`, which is 6,330px of configuring ONE
-           * tournament with the switcher as 440px — 7% — of it. Worse, where
-           * that 7% sits depends on the lifecycle: the switcher leads once a
-           * tournament is launched and trails while the setup rail is still
-           * talking, which is a deliberate and good rule (an organizer
-           * following the guide to fill in a date should not be met with a
-           * form for creating another tournament). But it means this link
-           * landed somewhere different depending on state — on the demo
-           * tournament, 5,782px above the list it was asking for.
+           * This pointed at `/event` — 6,330px of configuring ONE tournament,
+           * with the switcher 440px of it — because there was nowhere else
+           * for it to go. Worse, WHERE that 440px sat depended on the
+           * lifecycle: the switcher leads once a tournament is launched and
+           * trails while the setup rail is still talking. That is a good rule
+           * with a walkthrough behind it — an organizer following the guide
+           * to fill in a date should not be met with a form for creating
+           * another tournament — but it meant the most pressed link in the
+           * console landed somewhere different depending on state, and never
+           * on what it asked for.
            *
-           * Somebody pressing "Switch event" wants the list. The anchor is on
-           * the section in both of its positions, so this is right in either.
-           *
-           * `scrollMarginTop` on `SettingsSectionAnchor` keeps the heading
-           * clear of the sticky jump-to nav when it lands.
+           * A fragment (`/event#tournaments`) fixed the landing and left the
+           * screen still doing two jobs. `/tournaments` is the rest of it:
+           * switching, creating, copying and deleting are about the SET of
+           * tournaments, which is club-level, and the sidebar's Club group
+           * already drew that line.
            */
-          href="/event#tournaments"
+          href="/tournaments"
           // `touch-target` gives it 44px of height on a coarse pointer without
           // changing how it looks: it is a navigational control, not a link
           // inside a sentence, and at 19px it was the last thing on the

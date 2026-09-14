@@ -54,6 +54,24 @@ export const SCREEN_ACCESS: Record<string, readonly Role[]> = {
   // Organization settings sit above any one event; a finer check inside the
   // screen limits editing to organization owners/admins.
   organization: ["admin"],
+  /**
+   * Every tournament you can reach, and creating, copying or deleting one.
+   *
+   * ADMIN, to match the door. `EventContextBar`'s "Switch event" is rendered
+   * on `viewRole === "admin"` and is the only link to this screen that is not
+   * the sidebar — a wider rule here would mean a screen an assistant can reach
+   * and has no way to find, which is how a half-hidden surface stops being
+   * maintained.
+   *
+   * It carried `event`'s rule before it had a route of its own, and it is the
+   * same set of acts, so this is the existing answer written down rather than
+   * a new decision. A PLAYER who belongs to several tournaments switches on
+   * `/choose`, which is built for that question and sits outside the console.
+   *
+   * And the rows are scoped by `accessibleEvents` regardless — a screen-access
+   * list is navigation, never authorization.
+   */
+  tournaments: ["admin"],
   // The club roster spans every event, but assistants fill fields from it, so
   // it follows registration's access rather than organization's.
   roster: ["admin", "assistant"],

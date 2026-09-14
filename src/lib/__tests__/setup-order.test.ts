@@ -317,7 +317,7 @@ describe("a match is not offered the apparatus of running a field", () => {
 /**
  * AND THE GUIDE'S FIRST STEP LANDS ON THE FIELDS IT ASKED FOR.
  *
- * `/event` is two screens in one and says so: "Manage your tournaments, or
+ * `/event` WAS two screens in one and said so: "Manage your tournaments, or
  * configure the one you're running." The manager half — every tournament you
  * have, a form to create another, and a link to set up a casual round — sat
  * directly under the heading, and the half the screen is NAMED after sat below
@@ -330,47 +330,64 @@ describe("a match is not offered the apparatus of running a field", () => {
  * venue fields fourth. An organizer following the guide to fill in a date is
  * met with a form for making another tournament — which is not merely
  * confusing, it is one click from a duplicate.
+ *
+ * THAT WAS FIXED BY ORDERING, AND IS NOW FIXED BY ADDRESS. The manager moved
+ * to `/tournaments`, so the defect is not merely pushed below the fold — it is
+ * not on this screen at all, and no future edit to the ordering can bring it
+ * back. So this block asserts ABSENCE here plus PRESENCE there, which is both
+ * a stronger statement than the old position rule and the safer direction: an
+ * absence assertion cannot be satisfied by a comment mentioning the thing.
+ *
+ * The presence half is not decoration. "The manager is not on /event" is
+ * equally true of having deleted it, and deleting the only way to switch
+ * tournament is a considerably worse bug than the one being fixed.
  */
 describe("what the first setup step puts in front of you", () => {
   const page = () => readSource("src", "app", "(app)", "event", "page.tsx");
+  const list = () => readSource("src", "app", "(app)", "tournaments", "page.tsx");
 
-  it("puts the tournament's own fields above the tournament manager", () => {
+  it("puts nothing about OTHER tournaments on the screen for configuring one", () => {
     const src = page();
-    const setupForm = src.indexOf("<EventSetupClient");
+    expect(src, "the tournament manager is back on /event").not.toContain("<EventSwitcher");
     /**
-     * ONE ELEMENT, RENDERED IN ONE OF TWO PLACES.
-     *
-     * These two searches used to look for `<EventSwitcher` written out in
-     * each branch, because it was. It is a `switcher` variable now — the two
-     * copies had identical props, one of which was its own `await`, and two
-     * copies of a six-line element is two places to update and one to forget.
-     *
-     * The RULE is unchanged and is what this still asserts: while the guide is
-     * running the switcher sits after the setup form, and only the
-     * `!railSpeaks` branch puts it before.
+     * And not by some other route either. `accessibleEvents` is what lists the
+     * tournaments a person can reach; a screen about ONE tournament has no
+     * business asking for the set, and this is the query that would come back
+     * first if somebody rebuilt the manager here by hand.
      */
-    const leading = src.search(/\{!railSpeaks\(flow\) && switcher\}/);
-    const trailing = src.search(/\{railSpeaks\(flow\) && switcher\}/);
-    expect(setupForm, "<EventSetupClient not found").toBeGreaterThan(-1);
-    expect(leading, "leading switcher branch not found").toBeGreaterThan(-1);
-    expect(trailing, "trailing switcher branch not found").toBeGreaterThan(-1);
-    // While the guide is running the switcher is after the form; only the
-    // guarded copy is before it.
-    expect(trailing).toBeGreaterThan(setupForm);
+    expect(src, "/event is asking for the list of tournaments again").not.toContain("accessibleEvents");
   });
 
-  it("keeps the switcher on the screen either way", () => {
+  it("puts the tournament's own fields first on it", () => {
     /**
-     * Moved, not removed. Switching tournament from the screen you configure
-     * one on is a perfectly ordinary thing to want, and a guide that hides the
-     * way out is worse than one that leads with it.
-     *
-     * Counted on the VARIABLE now rather than on two copies of the element:
-     * one declaration and two uses. Counting `<EventSwitcher` would say "1"
-     * and read as the removal this test exists to prevent — which is exactly
-     * what it did when the duplication was collapsed.
+     * What the rail's first step promised all along. With the manager gone
+     * there is nothing between the heading and the fields — but "nothing above
+     * it" has to be asserted against something, so it is asserted against the
+     * two sections that follow: the course library and the scoring settings,
+     * neither of which is what the step asked for.
      */
-    expect(page().split("switcher").length - 1, "declared once and rendered in both branches").toBe(3);
+    const src = page();
+    const setupForm = src.indexOf("<EventSetupClient");
+    const courses = src.indexOf("<CourseLibrary");
+    const scoring = src.indexOf("<PlaySettings");
+    expect(setupForm, "<EventSetupClient not found").toBeGreaterThan(-1);
+    expect(courses, "<CourseLibrary not found").toBeGreaterThan(-1);
+    expect(scoring, "<PlaySettings not found").toBeGreaterThan(-1);
+    expect(setupForm).toBeLessThan(courses);
+    expect(courses).toBeLessThan(scoring);
+  });
+
+  it("moved the manager rather than deleting it", () => {
+    /**
+     * The control on the absence above. Switching tournament is an ordinary
+     * thing to want and `EventContextBar` links to it from every authenticated
+     * screen, so "not on /event" is only the right answer while it is
+     * somewhere — and `/tournaments` is where the sidebar's Club group already
+     * said club-level acts go.
+     */
+    const src = list();
+    expect(src, "nothing renders the tournament manager any more").toContain("<EventSwitcher");
+    expect(src, "the list is not scoped to what this person can reach").toContain("accessibleEvents");
   });
 
   it("uses the same predicate the checklist already uses, not a new one", () => {
@@ -378,9 +395,15 @@ describe("what the first setup step puts in front of you", () => {
      * `railSpeaks` is the existing answer to "is the ordered guide talking".
      * A second predicate meaning almost the same thing is how the three
      * disagreeing setup orders at the top of this file happened.
+     *
+     * Three uses once, now one: two of them gated the switcher's position and
+     * went with it to `/tournaments`, which does not have a rail. The
+     * remaining one is the checklist gate, which is the rule's original
+     * reader — "the ordered guide and the flat status board are never both
+     * talking".
      */
     const src = page();
     expect(src).toMatch(/import \{ railSpeaks \} from "@\/lib\/domain\/setup-flow"/);
-    expect(src.split("railSpeaks(flow)").length - 1).toBe(3);
+    expect(src.split("railSpeaks(flow)").length - 1).toBe(1);
   });
 });
