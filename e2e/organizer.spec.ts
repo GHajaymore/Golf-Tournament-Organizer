@@ -302,3 +302,50 @@ test("the settings save follows you once there is something to save", async ({ p
   await page.waitForLoadState("networkidle");
   await expect(page.getByText("Unsaved changes to players & scoring")).toHaveCount(0);
 });
+
+/**
+ * TWO FORMS, TWO SAVES, AND ONLY THE ONE YOU TOUCHED FOLLOWS YOU.
+ *
+ * /event stacks the setup form (1,898px, with 1,125px from its first field to
+ * its Save) above Players & scoring (2,455px, 1,897px). Both use the same
+ * `StickySave` now, which is the point: fixing one of two Saves on a screen
+ * that has two would have been a worse inconsistency than the distance.
+ *
+ * Their idle labels are both "Saved", so the note is what tells them apart
+ * once one has floated away from the heading that named it. This asserts they
+ * stay independent — dirtying one must not pin the other over controls it
+ * does not save.
+ */
+test("each form's save follows only its own form", async ({ page }) => {
+  await page.goto("/event");
+  await page.waitForLoadState("networkidle");
+
+  const setupSave = page.locator("#details").getByRole("button", { name: /save event|^saved$/i });
+  const settingsSave = page
+    .locator("#scoring")
+    .getByRole("button", { name: /save settings|^saved$/i });
+  await expect(setupSave.locator("xpath=..")).toHaveCSS("position", "static");
+  await expect(settingsSave.locator("xpath=..")).toHaveCSS("position", "static");
+
+  /* The first text field in the upper form, positionally. `getByLabel` does
+     not reach it: the label wraps a FieldInfo button as well as the words, so
+     the accessible name is not the label text. Positional is honest here —
+     this test is about the FIRST field being far from the Save. */
+  /* `input` rather than `input[type="text"]`: these fields set no type
+     attribute, so the attribute selector matches nothing even though the DOM
+     property reads "text". */
+  const name = page.locator("#details").locator("input").first();
+  await name.fill("zz-renamed for a sticky-save test");
+
+  await expect(page.getByText("Unsaved changes to the tournament")).toBeVisible();
+  await expect(setupSave.locator("xpath=..")).toHaveCSS("position", "sticky");
+  // And the other form is untouched, so its save has not pinned itself over
+  // controls it does not save.
+  await expect(settingsSave.locator("xpath=..")).toHaveCSS("position", "static");
+  await expect(page.getByText("Unsaved changes to players & scoring")).toHaveCount(0);
+
+  // Nothing is saved: this fixture is shared with every test in the file.
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("Unsaved changes to the tournament")).toHaveCount(0);
+});

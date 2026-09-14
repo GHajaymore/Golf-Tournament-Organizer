@@ -43,6 +43,7 @@ import {
 } from "@/lib/tournament-settings";
 import { formatAccessCode } from "@/lib/code-format";
 import { Icon } from "./Icon";
+import { StickySave } from "./StickySave";
 
 export interface RoundCode {
   stageId: string;
@@ -586,13 +587,13 @@ export function PlaySettings({
 
       {canEdit ? (
         /**
-         * THE SAVE FOLLOWS YOU, once there is something to save.
+         * THE SAVE FOLLOWS YOU, once there is something to save — see
+         * `StickySave`, which holds the measurements and the reasoning and is
+         * shared with the setup form above.
          *
-         * Measured on /event: this block is 2,455px and the first control —
-         * "Who can see the leaderboard" — sits 1,897px above this button.
-         * Two and a third phone screens between changing a setting and the
-         * only thing that keeps it, with nothing on the way down saying a
-         * Save exists at all.
+         * The note says "players & scoring" with a plain `&`: in a JSX string
+         * ATTRIBUTE an entity is literal text, so `&amp;` would have reached
+         * the reader as `&amp;`. Entities belong in JSX children.
          *
          * One button still, deliberately. This file already says why: "Two
          * save models on one screen is how a club changes something, presses
@@ -606,26 +607,7 @@ export function PlaySettings({
          * those controls are not part of this form and a Save hovering over
          * them would be lying about what it saves.
          */
-        <div
-          style={
-            dirty
-              ? {
-                  position: "sticky",
-                  bottom: 12,
-                  zIndex: 5,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  background: "var(--color-surface)",
-                  boxShadow: "0 2px 14px color-mix(in srgb, var(--color-text) 18%, transparent)",
-                  border: "1px solid var(--color-divider)",
-                }
-              : { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }
-          }
-        >
+        <StickySave dirty={dirty} note="Unsaved changes to players & scoring">
           <button
             type="button"
             className="btn btn-primary"
@@ -634,14 +616,7 @@ export function PlaySettings({
           >
             <Icon name="check" /> {pending ? "Saving…" : saved && !dirty ? "Saved" : "Save settings"}
           </button>
-          {/* Named while it floats, because a button that has followed you up
-              the page has left the heading that said what it belongs to. */}
-          {dirty && (
-            <span className="text-muted" style={{ fontSize: 12 }}>
-              Unsaved changes to players &amp; scoring
-            </span>
-          )}
-        </div>
+        </StickySave>
       ) : (
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
           Only the organizer can change these.
