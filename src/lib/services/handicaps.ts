@@ -134,12 +134,71 @@ export function roundTeeId(
   tees: Array<{ id: string }>,
   configured: string | null | undefined,
 ): string | null {
-  // A configured tee that is no longer on the course must not silently pick
-  // itself back to first-by-position without saying so — but it also must not
-  // break the round, so the fallback stands and the setting screen is where
-  // the club is told.
-  if (configured && tees.some((t) => t.id === configured)) return configured;
-  return tees[0]?.id ?? null;
+  return teeForPlay(tees, { eventDefaultTeeId: configured }, null);
+}
+
+/**
+ * THE TEES A PARTICULAR ROUND IS PLAYED FROM — match, then round, then the
+ * tournament's, then the first set on the course actually being played.
+ *
+ * The COURSE has walked match -> round -> event since the venue library was
+ * built. The tees did not: they were an event-level answer with a flight and a
+ * player layered on top, and nothing in between. Two consequences, both
+ * measured rather than reasoned about:
+ *
+ *   a two-venue event   `roundTeeId` fell back to the first tee by position
+ *                       across EVERY venue, and `teesForEvent` collects them
+ *                       course by course. So a member-guest played over two
+ *                       clubs scored day two off day one's slope and course
+ *                       rating — a real number, from the wrong course, on a
+ *                       card that named neither.
+ *
+ *   an open course      `nameMatchVenue` asks the scorer for the tees they
+ *                       played off, validates them, CREATES the Tee row — and
+ *                       then nothing pointed at it. The rating was collected
+ *                       for a card it could not be used to score.
+ *
+ * The fallback is the part that matters most, because it is the one nobody
+ * chooses. Scoping it to `courseId` means an unconfigured round is priced off
+ * a set that is at least AT the course being played; the old one could not
+ * promise that.
+ *
+ * `courseId` null means "no round in hand" — the event-level screens, pricing
+ * a roster rather than a card — and then the whole-event fallback is the
+ * honest answer rather than a guess at which venue is meant.
+ */
+export function teeForPlay(
+  tees: Array<{ id: string; courseId?: string }>,
+  chain: {
+    /** The set this match was played from. Null falls through to the round. */
+    matchTeeId?: string | null;
+    /** The set this round is played from. Null falls through to the event. */
+    stageTeeId?: string | null;
+    /** The tournament's own choice. */
+    eventDefaultTeeId?: string | null;
+  },
+  /** The course this round or match is played on, for the fallback. */
+  courseId: string | null,
+): string | null {
+  /**
+   * Each rung is honoured only if it still EXISTS on this tournament's
+   * courses. A tee that has been deleted, or that belongs to a venue this
+   * round is no longer at, must not silently price the card — but it must not
+   * break the round either, so the chain simply continues past it. Same rule
+   * the configured event tee has always had, applied to every rung rather
+   * than only the last.
+   */
+  const live = (id: string | null | undefined) => (id && tees.some((t) => t.id === id) ? id : null);
+  const chosen = live(chain.matchTeeId) ?? live(chain.stageTeeId) ?? live(chain.eventDefaultTeeId);
+  if (chosen) return chosen;
+  /**
+   * Nobody chose, so the course decides — and the course is the one being
+   * played, when it is known. `tees[0]` across every venue is what this used
+   * to be, and is kept only for the event-level callers that genuinely have no
+   * round in hand.
+   */
+  const here = courseId ? tees.filter((t) => t.courseId === courseId) : tees;
+  return (here[0] ?? tees[0])?.id ?? null;
 }
 
 /**

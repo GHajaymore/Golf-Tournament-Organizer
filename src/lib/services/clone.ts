@@ -282,6 +282,13 @@ export const CLONED_STAGE_FIELDS = [
   "cutCount",
   "cutPercent",
   "courseId",
+  // Carried for the same reason as `courseId` beside it: a round cloned from
+  // last year is played at the same course off the same set until somebody
+  // says otherwise, and the club still owns both — the id stays valid. A copy
+  // that dropped it would be scored off whatever `teeForPlay` falls back to,
+  // which is a different slope and a different course rating on a round the
+  // organizer believes they copied exactly.
+  "teeId",
   "nine",
   // The committee's own arithmetic. A round copied without these is scored on
   // the format's defaults instead of what the club actually plays.
@@ -296,6 +303,7 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   eventId: "points at the new tournament",
   event: "the relation object for eventId",
   course: "the relation object for courseId, which IS carried",
+  teeRef: "the relation object for teeId, which IS carried — a relation is navigated, never written",
   playedOn: "last year's date is never this year's",
   deadline: "same — a copied deadline is always in the past",
   deadlineOverride: "belongs to the deadline that was not copied",

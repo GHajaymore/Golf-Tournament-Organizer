@@ -1,7 +1,7 @@
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireScreen } from "@/lib/page-helpers";
 import { roundLabel, roundLabelWith } from "@/lib/domain/round-label";
-import { teeNamesForRound, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
+import { teeNamesForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
 import { loadEventState, playingStages } from "@/lib/services/tournament";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -214,7 +214,14 @@ export default async function FoursomesPage({
   const teeNames = await teeNamesForRound(
     session.eventId,
     holesPlayed(stage?.holes),
-    roundTeeId(eventTees, state.event.defaultTeeId),
+    // The round’s own set first, and the fallback scoped to the course it is
+    // played on — a tee sheet for day two of a two-venue event named day
+    // one’s tees. See `teeForPlay`.
+    teeForPlay(
+      eventTees,
+      { stageTeeId: stage?.teeId, eventDefaultTeeId: state.event.defaultTeeId },
+      stage?.courseId ?? state.event.courseId ?? null,
+    ),
   );
   const printGroups = (savedSheet?.groups ?? []).map((g) => ({
     name: g.name,

@@ -2327,16 +2327,29 @@ describe("nothing resolves a tee as whichever one sorts first", () => {
     ).toEqual([]);
   });
 
-  it("keeps roundTeeId itself preferring the configured set", () => {
-    // The guard above is only worth anything if the one reader is right.
-    const fn = stripComments(
-      readFileSync(join(process.cwd(), "src", "lib", "services", "handicaps.ts"), "utf8"),
-    );
-    const body = fn.slice(fn.indexOf("export function roundTeeId"));
-    // It returns the configured set when the course still has it...
-    expect(body).toMatch(/if \(configured && tees\.some/);
-    // ...and only then falls back to first-by-position.
-    expect(body.indexOf("configured")).toBeLessThan(body.indexOf("tees[0]"));
+  it("keeps roundTeeId itself preferring the configured set", async () => {
+    /**
+     * The guard above is only worth anything if the one reader is right.
+     *
+     * ASSERTED ON BEHAVIOUR, not on the body's text. This read the source and
+     * matched `if (configured && tees.some` — which went red the day the rule
+     * moved into `teeForPlay`, with `roundTeeId` delegating to it and the
+     * behaviour completely unchanged. A false alarm on a refactor that
+     * strengthened the very thing it was guarding, and the kind that tempts
+     * you to weaken the test rather than re-aim it.
+     *
+     * The full chain — match, round, event, then the first set on the course
+     * being played — is covered in `tee-follows-the-course.test.ts` over a
+     * fixture where every rung is a different tee, so a wrong precedence
+     * cannot look right.
+     */
+    const { roundTeeId } = await import("@/lib/services/handicaps");
+    const tees = [{ id: "first" }, { id: "configured" }];
+    // The configured set when the course still has it...
+    expect(roundTeeId(tees, "configured")).toBe("configured");
+    // ...and only then first-by-position.
+    expect(roundTeeId(tees, null)).toBe("first");
+    expect(roundTeeId(tees, "deleted-set")).toBe("first");
   });
 });
 

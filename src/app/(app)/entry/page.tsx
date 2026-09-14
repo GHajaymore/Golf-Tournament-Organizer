@@ -35,7 +35,7 @@ import type { VoiceContext } from "@/lib/domain/voice-query";
 import { courseModeOf, needsVenue } from "@/lib/domain/venue";
 import { resolveTeamEntry, teamEntryNote } from "@/lib/domain/team-entry";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { handicapsForRound, teesForEvent, roundTeeId } from "@/lib/services/handicaps";
+import { handicapsForRound, teesForEvent, teeForPlay } from "@/lib/services/handicaps";
 
 export const metadata = screenMetadata("/entry");
 
@@ -340,10 +340,21 @@ export default async function EntryPage() {
    * the shots on this screen are computed by, so the name on the card and the
    * strokes beside it cannot disagree.
    */
+  /**
+   * And the ROUND's own set before the tournament's — `teeForPlay`, which
+   * walks the same match -> round -> event chain the course does, and falls
+   * back to the first set on the course actually being played rather than the
+   * first across every venue. On a two-venue tournament the old fallback
+   * priced day two off day one's slope.
+   */
   const teeRows = await handicapsForRound(
     session.eventId,
     holesPlayed(activeStage?.holes),
-    roundTeeId(await teesForEvent(session.eventId), state.event.defaultTeeId),
+    teeForPlay(
+      await teesForEvent(session.eventId),
+      { stageTeeId: activeStage?.teeId, eventDefaultTeeId: state.event.defaultTeeId },
+      activeStage?.courseId ?? state.event.courseId ?? null,
+    ),
   );
   const teeByPlayer = new Map(teeRows.map((r) => [r.playerId, r]));
   const teeLabel = (playerId: string): string | undefined => {
