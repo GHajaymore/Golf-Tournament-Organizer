@@ -37,6 +37,8 @@ export interface ClubCourse {
  */
 export interface ClubTee {
   id: string;
+  /** Which course it belongs to, so `defaultTeeFor` can scope to it. */
+  courseId: string;
   name: string;
   gender: string;
   courseRating: number;
@@ -112,6 +114,7 @@ export async function clubCourses(
     // living on a separate screen nobody finds.
     tees: c.tees.map((t) => ({
       id: t.id,
+      courseId: t.courseId,
       name: t.name,
       gender: t.gender,
       courseRating: t.courseRating,
@@ -142,6 +145,7 @@ export async function eventCourses(eventId: string): Promise<ClubCourse[]> {
         parseHoleArray(l.course.pars) !== null && parseHoleArray(l.course.strokeIndex) !== null,
       tees: l.course.tees.map((t) => ({
         id: t.id,
+        courseId: t.courseId,
         name: t.name,
         gender: t.gender,
         courseRating: t.courseRating,

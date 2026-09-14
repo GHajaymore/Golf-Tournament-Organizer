@@ -1141,7 +1141,7 @@ describe("course library", () => {
     pars: Array(18).fill(4), yards: Array(18).fill(400),
     strokeIndex: Array.from({ length: 18 }, (_, i) => i + 1),
     inEvent: true, source: "manual", verified: true, verifiedBy: "", sourceUrl: "", hasCard: true,
-    tees: [{ id: "t1", name: "Blue", gender: "men", courseRating: 71.5, slopeRating: 125, par: 72, rated: true }],
+    tees: [{ id: "t1", courseId: "c1", name: "Blue", gender: "men", courseRating: 71.5, slopeRating: 125, par: 72, rated: true }],
   };
 
   it("offers to paste a card when the library is empty", () => {

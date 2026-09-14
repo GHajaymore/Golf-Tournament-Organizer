@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { courseHandicap, nineHoleTee, isRated, explainHandicap, indexForHoles, type TeeRating, teeIdFor } from "../domain/handicap";
 import { parseHoleArray } from "../courses";
 import { matchTee } from "../domain/tee-match";
+import { defaultTeeFor, type TeeLike } from "../domain/venue";
 
 /**
  * Turning a roster of Handicap Indexes into the strokes each player receives
@@ -134,7 +135,11 @@ export function roundTeeId(
   tees: Array<{ id: string }>,
   configured: string | null | undefined,
 ): string | null {
-  return teeForPlay(tees, { eventDefaultTeeId: configured }, null);
+  // Safe with the looser shape because `courseId` is null here, and
+  // `defaultTeeFor` returns on a null course before it reads a name or a
+  // rating. The event-level callers genuinely have no round in hand and some
+  // of them hold only ids.
+  return teeForPlay(tees as TeeLike[], { eventDefaultTeeId: configured }, null);
 }
 
 /**
@@ -168,7 +173,20 @@ export function roundTeeId(
  * honest answer rather than a guess at which venue is meant.
  */
 export function teeForPlay(
-  tees: Array<{ id: string; courseId?: string }>,
+  /**
+   * REQUIRED IN FULL, not `{ id }`, because the fallback below asks
+   * `defaultTeeFor` — which sorts by name and prefers a rated set, so it needs
+   * the ratings and the name to do either.
+   *
+   * A first draft declared `{ id; courseId? }` and cast to `TeeLike` at the
+   * call. Every real caller passes whole rows so it worked, and the cast was a
+   * lie the compiler had been told not to check: the unit fixture passed
+   * `{ id, courseId }` and crashed on `localeCompare` inside the sort. Typed
+   * honestly, the compiler finds a caller that cannot supply this instead of a
+   * test finding it later — the same reason `courseHandicapMap` refuses to
+   * default its policy argument.
+   */
+  tees: TeeLike[],
   chain: {
     /** The set this match was played from. Null falls through to the round. */
     matchTeeId?: string | null;
@@ -192,13 +210,22 @@ export function teeForPlay(
   const chosen = live(chain.matchTeeId) ?? live(chain.stageTeeId) ?? live(chain.eventDefaultTeeId);
   if (chosen) return chosen;
   /**
-   * Nobody chose, so the course decides — and the course is the one being
-   * played, when it is known. `tees[0]` across every venue is what this used
-   * to be, and is kept only for the event-level callers that genuinely have no
-   * round in hand.
+   * Nobody chose, so the course decides — through `defaultTeeFor`, which is
+   * the domain's answer to this exact question and was already being asked
+   * elsewhere.
+   *
+   * A first draft filtered by course and took `[0]`, which is scoped correctly
+   * and still a SECOND reader of "which set by default" — and the two
+   * disagreed: `defaultTeeFor` prefers a RATED set over an unrated one, and
+   * taking `[0]` does not. An unrated tee produces no course-handicap
+   * conversion at all, so falling back to one silently prices the whole field
+   * off raw indexes when a rated set was sitting behind it.
+   *
+   * `tees[0]` across every venue remains only for the event-level callers that
+   * genuinely have no round in hand, and `defaultTeeFor` returns null for a
+   * null course, which is what selects it.
    */
-  const here = courseId ? tees.filter((t) => t.courseId === courseId) : tees;
-  return (here[0] ?? tees[0])?.id ?? null;
+  return defaultTeeFor(courseId, tees)?.id ?? tees[0]?.id ?? null;
 }
 
 /**

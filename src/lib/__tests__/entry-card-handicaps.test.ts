@@ -152,9 +152,25 @@ describe("both entry screens are handed the resolved number", () => {
      * recomputed. So the wrong allocation does not merely display wrong; it
      * becomes the result.
      */
+    /**
+     * EITHER RESOLVER, because there are now two and both are resolvers.
+     *
+     * This pinned `strokeHandicapFor` by name and went red when the match rows
+     * moved to `matchHandicapFor` — which is the round's answer unless the
+     * MATCH names its own tees, and falls through to `strokeHandicapFor` for
+     * every match that does not. A strict improvement on exactly the axis this
+     * test cares about, reported as a regression.
+     *
+     * What it actually guards is that the number is RESOLVED rather than read
+     * off the player row, so that is what it says now. `m.handicap` and
+     * `p.handicap` are the shapes that would be wrong, and the absence
+     * assertion below is the half that catches them.
+     */
     const entry = read("src/app/(app)/entry/page.tsx");
-    expect(entry).toMatch(/aHandicap: state\.strokeHandicapFor\(m\.playerAId, stage\.id\)/);
-    expect(entry).toMatch(/bHandicap: state\.strokeHandicapFor\(m\.playerBId, stage\.id\)/);
+    expect(entry).toMatch(/aHandicap: state\.(stroke|match)HandicapFor\(m\.playerAId, (stage\.id|m\.id)\)/);
+    expect(entry).toMatch(/bHandicap: state\.(stroke|match)HandicapFor\(m\.playerBId, (stage\.id|m\.id)\)/);
+    // The roster index, straight off the row, is the mistake this exists for.
+    expect(entry).not.toMatch(/aHandicap: [^\n]*\bm\.aHandicap\b/);
     // The map that used to feed them. Its absence is the fix.
     expect(entry).not.toMatch(/new Map\(state\.players\.map\(\(p\) => \[p\.id, p\.handicap\]\)\)/);
   });

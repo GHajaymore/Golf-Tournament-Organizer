@@ -577,8 +577,16 @@ export default async function EntryPage() {
              * view already use, and it also handles a nine-hole round halving
              * the index, which the client did not.
              */
-            aHandicap: state.strokeHandicapFor(m.playerAId, stage.id),
-            bHandicap: state.strokeHandicapFor(m.playerBId, stage.id),
+            /**
+             * Per MATCH, not per round, because in a league with no fixed
+             * venue this pairing may have played somewhere else entirely —
+             * and, since `Match.teeId`, off a different set. `matchHandicapFor`
+             * falls through to the round for every match that names nothing,
+             * which is almost all of them, so this is the round's answer
+             * wherever the round is the answer.
+             */
+            aHandicap: state.matchHandicapFor(m.playerAId, m.id),
+            bHandicap: state.matchHandicapFor(m.playerBId, m.id),
             groupName: `Flight ${(groupById.get(m.groupId) ?? 0) + 1}`,
             round: m.round,
             // Who conceded, so the screen can say so and offer to undo it.
@@ -841,7 +849,18 @@ export default async function EntryPage() {
       rounds={rounds}
       voice={voice}
       openCourse={courseMode === "open"}
-      courseLibrary={clubLibrary.map((c) => ({ id: c.id, name: c.name, city: c.city, hasCard: c.hasCard }))}
+      courseLibrary={clubLibrary.map((c) => ({
+        id: c.id,
+        name: c.name,
+        city: c.city,
+        hasCard: c.hasCard,
+        // The sets it is played from. Carried so the open-course prompt can
+        // offer a tee BOX rather than only a free-text set — a course the
+        // club already has usually already has its ratings too.
+        // Whole rows, because the picker defaults through `defaultTeeFor`,
+        // which prefers a RATED set and needs the ratings to know which is.
+        tees: c.tees,
+      }))}
       activeIndex={activeIndex}
       players={state.confirmed
         .filter((p) => !ownIds || ownIds.has(p.id))

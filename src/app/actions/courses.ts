@@ -1117,6 +1117,14 @@ export interface NameVenueInput {
   };
   /** The tees played, rated — without these there is no course handicap. */
   tee?: { name: string; courseRating: number; slopeRating: number; par: number };
+  /**
+   * A set the club ALREADY has, chosen rather than retyped.
+   *
+   * Checked against the course below before the match is pointed at it: an id
+   * off the wire is an arbitrary row, and unscoped it would price a card off
+   * another club's slope — the same widening `setStageCourse` guards against.
+   */
+  teeId?: string;
   /** full | front | back, for a nine-hole round. */
   nine?: string;
 }
@@ -1276,23 +1284,48 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
   }
 
   // The tees, and with them the rating and slope a course handicap needs.
-  if (input.tee) {
+  /**
+   * WHICH SET THIS MATCH WAS PLAYED FROM, and the match is pointed at it.
+   *
+   * It was not, and that was the whole shape of the old bug: this block asked
+   * the scorer for the tees, validated them, CREATED the row — and then
+   * nothing referred to it ever again. The rating was collected for a card it
+   * could not be used to score, because there was no `Match.teeId` to put it
+   * in. There is now.
+   */
+  let playedFrom: string | null = null;
+  if (input.teeId) {
+    // Scoped to the course actually being recorded. An id off the wire is an
+    // arbitrary row until this narrows it, and unscoped it would price this
+    // card off another club's slope and rating.
+    const owned = await prisma.tee.findFirst({
+      where: { id: input.teeId, courseId },
+      select: { id: true },
+    });
+    if (!owned) return { ok: false, error: "Those tees aren't on that course." };
+    playedFrom = owned.id;
+  } else if (input.tee) {
     const problems = teeProblems(input.tee);
     if (problems.length) return { ok: false, error: problems[0] };
     const already = await prisma.tee.findFirst({
       where: { courseId, name: { equals: input.tee.name.trim(), mode: "insensitive" } },
     });
-    if (!already) {
-      await prisma.tee.create({
-        data: {
-          courseId,
-          name: input.tee.name.trim(),
-          courseRating: input.tee.courseRating,
-          slopeRating: input.tee.slopeRating,
-          par: input.tee.par,
-        },
-      });
-    }
+    // Reused rather than duplicated when the club already has a set by that
+    // name — and either way the match ends up pointing at one.
+    playedFrom =
+      already?.id ??
+      (
+        await prisma.tee.create({
+          data: {
+            courseId,
+            name: input.tee.name.trim(),
+            courseRating: input.tee.courseRating,
+            slopeRating: input.tee.slopeRating,
+            par: input.tee.par,
+          },
+          select: { id: true },
+        })
+      ).id;
   }
 
   // Make it one of this tournament's venues, so the existing per-match course
@@ -1305,7 +1338,14 @@ export async function nameMatchVenue(matchId: string, input: NameVenueInput): Pr
 
   await prisma.match.update({
     where: { id: matchId },
-    data: { courseId, nine: cleanNine(input.nine ?? "full") },
+    data: {
+      courseId,
+      // Only when this call settled one. Null would CLEAR a set recorded by an
+      // earlier correction, and "I only came to fix the course" must not
+      // quietly unprice the card.
+      ...(playedFrom ? { teeId: playedFrom } : {}),
+      nine: cleanNine(input.nine ?? "full"),
+    },
   });
   await refresh();
   return { ok: true };
