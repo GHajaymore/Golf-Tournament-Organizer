@@ -390,7 +390,14 @@ export function PlaySettings({
         <>
           <Group
             title="Tees"
-            blurb="Which set this tournament is played from, and who decides. The tees change the Course Handicap, so they change the strokes."
+            /* The last sentence is the one a multi-venue tournament needs and
+               nothing said. A stored `Player.teeId` names a row on ONE course;
+               at another venue it is not a stale preference but a slope and a
+               rating from somewhere else, so it is stepped past and the player
+               falls in with the rest of the field. Said here because the
+               control above is where somebody decides whether to rely on
+               personal sets at all. */
+            blurb="Which set this tournament is played from, and who decides. The tees change the Course Handicap, so they change the strokes. A player's own set only counts at the course it belongs to — anywhere else they play the round's."
           />
 
           <div className="field">
@@ -409,8 +416,22 @@ export function PlaySettings({
             >
               {/* A real answer, not a blank: a society that has never thought
                   about tees is not misconfigured, and saying so is honest
-                  about what the app will then do. */}
-              <option value="">The first set on the course</option>
+                  about what the app will then do.
+
+                  IT SAID "The first set on the course", AND THAT STOPPED
+                  BEING TRUE. `teeForPlay` falls through to `defaultTeeFor`,
+                  which prefers a RATED set over an unrated one — an unrated
+                  set produces no course-handicap conversion at all, so
+                  falling back to one would quietly price the field off raw
+                  indexes with a rated set sitting behind it in the list. And
+                  it scopes to the course THAT ROUND is played on, not to a
+                  single course the tournament may not have: a two-day
+                  member-guest at two clubs resolves this separately per day.
+
+                  Neither is what the old sentence promised, and a label that
+                  describes the wrong fallback is worse than a blank — it is
+                  the reason an organizer does not go and look. */}
+              <option value="">The first rated set at each round&rsquo;s course</option>
               {tees.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
@@ -521,15 +542,63 @@ export function PlaySettings({
       )}
 
       {canEdit ? (
-        <button
-          type="button"
-          className="btn btn-primary"
-          style={{ alignSelf: "flex-start" }}
-          disabled={pending || !dirty}
-          onClick={save}
+        /**
+         * THE SAVE FOLLOWS YOU, once there is something to save.
+         *
+         * Measured on /event: this block is 2,455px and the first control —
+         * "Who can see the leaderboard" — sits 1,897px above this button.
+         * Two and a third phone screens between changing a setting and the
+         * only thing that keeps it, with nothing on the way down saying a
+         * Save exists at all.
+         *
+         * One button still, deliberately. This file already says why: "Two
+         * save models on one screen is how a club changes something, presses
+         * Save, and finds half of it kept." Per-group saves would fix the
+         * distance by breaking that, so the button moves rather than
+         * multiplies.
+         *
+         * Sticky only while DIRTY, so a screen nobody has touched carries no
+         * floating chrome — and sticky to the BOTTOM, which pins it inside
+         * this section only: scroll up into Courses and it is gone, because
+         * those controls are not part of this form and a Save hovering over
+         * them would be lying about what it saves.
+         */
+        <div
+          style={
+            dirty
+              ? {
+                  position: "sticky",
+                  bottom: 12,
+                  zIndex: 5,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  background: "var(--color-surface)",
+                  boxShadow: "0 2px 14px color-mix(in srgb, var(--color-text) 18%, transparent)",
+                  border: "1px solid var(--color-divider)",
+                }
+              : { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }
+          }
         >
-          <Icon name="check" /> {pending ? "Saving…" : saved && !dirty ? "Saved" : "Save settings"}
-        </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={pending || !dirty}
+            onClick={save}
+          >
+            <Icon name="check" /> {pending ? "Saving…" : saved && !dirty ? "Saved" : "Save settings"}
+          </button>
+          {/* Named while it floats, because a button that has followed you up
+              the page has left the heading that said what it belongs to. */}
+          {dirty && (
+            <span className="text-muted" style={{ fontSize: 12 }}>
+              Unsaved changes to players &amp; scoring
+            </span>
+          )}
+        </div>
       ) : (
         <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
           Only the organizer can change these.

@@ -240,3 +240,65 @@ test("the public board and the player's board label the column the same way", as
   expect(unitOf(board), "and so does the public one").toBeTruthy();
   expect(unitOf(board), "and they agree").toBe(unitOf(player));
 });
+
+/**
+ * TOURNAMENT DETAILS IS A VERY LONG SCREEN, AND ITS SAVE IS AT THE BOTTOM.
+ *
+ * Measured on the demo data: the Players & scoring block is ~2,450px and its
+ * first control — "Who can see the leaderboard" — sits about 1,900px above
+ * the only button that keeps a change. Two and a third phone screens, with
+ * nothing on the way down saying a Save exists.
+ *
+ * One button still: this screen saves everything together on purpose, and
+ * per-group saves are how a club changes something, presses Save, and finds
+ * half of it kept. So the button follows rather than multiplies.
+ *
+ * PLAYWRIGHT RATHER THAN A RENDER TEST, because the behaviour only exists
+ * once something is dirty and `form` starts equal to `settings` — a static
+ * render can prove the clean state and nothing else. This is the sixth of the
+ * gate doing the thing nothing above it can.
+ */
+test("the settings save follows you once there is something to save", async ({ page }) => {
+  await page.goto("/event");
+  await page.waitForLoadState("networkidle");
+
+  /* Scoped to the section: the setup form above has its own Save, and an
+     unscoped locator resolves to both. Two save buttons on one screen is a
+     finding in itself — they belong to different forms and say almost the
+     same word — but they are genuinely separate forms, so the fix here is the
+     scope rather than the button. */
+  const scoring = page.locator("#scoring");
+  const save = scoring.getByRole("button", { name: /save settings|^saved$/i });
+  await expect(save).toBeVisible();
+
+  // UNTOUCHED: no floating chrome on a screen nobody has changed.
+  await expect(save.locator("xpath=..")).toHaveCSS("position", "static");
+  await expect(page.getByText("Unsaved changes to players & scoring")).toHaveCount(0);
+
+  // Change the first thing in the block, which is the furthest from the save.
+  const blind = scoring.getByRole("radio", { name: /organizers only/i }).first();
+  await blind.check();
+
+  await expect(page.getByText("Unsaved changes to players & scoring")).toBeVisible();
+  await expect(save.locator("xpath=..")).toHaveCSS("position", "sticky");
+
+  // And it is REACHABLE from the top of its own section, which is the whole
+  // point — scrolled up 1,900px, the button is still on screen.
+  await page.locator("#scoring").scrollIntoViewIfNeeded();
+  await page.evaluate(() => document.getElementById("scoring")?.scrollIntoView({ block: "start" }));
+  const box = await save.boundingBox();
+  const height = page.viewportSize()?.height ?? 0;
+  expect(box, "the save button has no box").not.toBeNull();
+  expect(box!.y, "the save scrolled off the top").toBeGreaterThan(0);
+  expect(box!.y, "the save is below the fold").toBeLessThan(height);
+
+  /**
+   * NOTHING IS SAVED. This spec shares one fixture with every other test in
+   * the file, and leaving this tournament blind would break the public-board
+   * specs above it. Reloading discards the draft, which is also the assertion
+   * that the draft really was a draft.
+   */
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByText("Unsaved changes to players & scoring")).toHaveCount(0);
+});
