@@ -423,7 +423,15 @@ export function CourseLibrary({
                     holding the scorecard they are printed on. */}
                 <tr key={`-tees`}>
                   <td colSpan={canEdit ? 7 : 6} style={{ paddingTop: 0 }}>
-                    <TeeEditor courseId={c.id} tees={c.tees} canEdit={canEdit} />
+                    <TeeEditor
+                      courseId={c.id}
+                      tees={c.tees}
+                      canEdit={canEdit}
+                      /* Unfolded for the course somebody was sent here to fix.
+                         Arriving on a deep link to find the thing folded away
+                         is the disclosure working against the link. */
+                      defaultOpen={c.id === openCourseId}
+                    />
                   </td>
                 </tr>
               </Fragment>

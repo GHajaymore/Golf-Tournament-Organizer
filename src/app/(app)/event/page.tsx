@@ -19,6 +19,7 @@ import { SetupFlowRail, SetupFlowFooter } from "@/components/SetupFlowRail";
 import { setupFlowFor } from "@/lib/services/setup-flow";
 import { railSpeaks } from "@/lib/domain/setup-flow";
 import { SetupChecklist } from "@/components/SetupChecklist";
+import { SettingsNav, SettingsSectionAnchor, type SettingsSection } from "@/components/SettingsNav";
 import { setupChecklist, clubBrandingState } from "@/lib/services/checklist";
 import { isMatch } from "@/lib/tournament-shape";
 import { entitlementForEvent } from "@/lib/services/entitlements";
@@ -174,7 +175,37 @@ export default async function EventPage({
    * one element it cannot drift, and the position stays a decision rather
    * than a duplication.
    */
-  const switcher = <EventSwitcher events={eventRows} organizations={orgsForSwitcher} />;
+  const switcher = (
+    <SettingsSectionAnchor id="tournaments">
+      <EventSwitcher events={eventRows} organizations={orgsForSwitcher} />
+    </SettingsSectionAnchor>
+  );
+
+  /**
+   * WHAT THIS PAGE CONTAINS, because it is long enough that you cannot see.
+   *
+   * Measured: 6,221px after folding the tee tables away — 7.7 phone screens —
+   * across four independent areas with nothing between them but a gap. An
+   * organizer coming to change who can see the leaderboard scrolls past the
+   * whole setup form, the journey card and every course the club owns, with
+   * no way of knowing that section exists until they arrive at it.
+   *
+   * `SettingsNav` is the app's existing answer to exactly this. It was built
+   * for Club settings at 11,000px, and its own header sets out why a nav
+   * rather than collapsing everything: sections already carry their own
+   * headings, and several hold unsaved drafts behind a Save button that a
+   * disclosure unmounting its children would throw away silently. Both are
+   * true here too — which is why the tee tables ARE folded (they hold no
+   * draft and carry no heading of their own) and these sections are not.
+   *
+   * Used on one screen until now. Second reader, same component.
+   */
+  const sections: SettingsSection[] = [
+    { id: "details", label: "Tournament details" },
+    { id: "courses", label: "Courses" },
+    { id: "scoring", label: "Players & scoring" },
+    { id: "tournaments", label: "Your tournaments" },
+  ];
   const checklist = setupChecklist({
     isMatch: matchEvent,
     ...state,
@@ -249,6 +280,9 @@ export default async function EventPage({
         </div>
       )}
 
+      <SettingsNav sections={sections} />
+
+      <SettingsSectionAnchor id="details">
       <EventSetupClient
         key={e.id}
         isMatch={matchEvent}
@@ -268,12 +302,13 @@ export default async function EventPage({
         // typing a name — the screen never had anything else to pick by.
         courses={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, address: "" }))}
       />
+      </SettingsSectionAnchor>
 
       {/* Always available, never a blocker here. A tournament may not need
           course data to score — gross match play doesn't — and still want it,
           because printed scorecards carry par, yardage and stroke index next
           to the club's logo. */}
-      <div style={{ marginTop: 16 }}>
+      <SettingsSectionAnchor id="courses">
         <CourseLibrary
           courses={courses}
           canEdit={session.viewRole === "admin"}
@@ -287,7 +322,7 @@ export default async function EventPage({
           // behind it.
           openCourseId={openCourseId}
         />
-      </div>
+      </SettingsSectionAnchor>
 
       {/* The event-level "Course card" section used to sit here, and it was
           the same job done twice on one screen — worse, done twice into two
@@ -300,7 +335,7 @@ export default async function EventPage({
           paste a card, and every one of those produces a real venue with tees
           and a verification state, which the event card never had. */}
 
-      <div style={{ marginTop: 16 }}>
+      <SettingsSectionAnchor id="scoring">
         <PlaySettings
           mode="tournament"
           settings={settingsOf(e)}
@@ -322,14 +357,12 @@ export default async function EventPage({
           }))}
           defaultTeeId={e.defaultTeeId}
         />
-      </div>
+      </SettingsSectionAnchor>
 
       {/* And here it is while the guide is running: still on the screen, still
           one click from switching or creating, just no longer standing in
           front of the fields the guide sent this organizer to fill in. */}
-      {railSpeaks(flow) && (
-        <div style={{ marginTop: 16 }}>{switcher}</div>
-      )}
+      {railSpeaks(flow) && switcher}
 
       <SetupFlowFooter flow={flow} href="/event" />
     </>

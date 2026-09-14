@@ -350,7 +350,7 @@ describe("what the first setup step puts in front of you", () => {
      * `!railSpeaks` branch puts it before.
      */
     const leading = src.search(/\{!railSpeaks\(flow\) && switcher\}/);
-    const trailing = src.search(/\{railSpeaks\(flow\) && \(\s*<div[^>]*>\{switcher\}/);
+    const trailing = src.search(/\{railSpeaks\(flow\) && switcher\}/);
     expect(setupForm, "<EventSetupClient not found").toBeGreaterThan(-1);
     expect(leading, "leading switcher branch not found").toBeGreaterThan(-1);
     expect(trailing, "trailing switcher branch not found").toBeGreaterThan(-1);
