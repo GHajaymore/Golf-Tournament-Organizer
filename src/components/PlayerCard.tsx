@@ -263,6 +263,84 @@ export function PlayerCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card.recovered, recoveredDiffers]);
 
+  /**
+   * WHICH DISAGREEMENT THE CHOOSER IS ASKING ABOUT — decided here, rendered in
+   * ONE place.
+   *
+   * There were two `<CardConflict>` call sites at different positions in the
+   * JSX below, one guarded by `conflict` and one by `!conflict &&
+   * recoveredDiffers`. They are mutually exclusive, so only ever one showed —
+   * but because they sat at different positions, a flip between the two states
+   * made React UNMOUNT one and MOUNT the other rather than update in place.
+   *
+   * CLAUDE.md's entry on the `offline.spec:245` intermittent names exactly
+   * that as the next thing to look at: every failing log ends `element was
+   * detached from the DOM, retrying`, which is what an unmount under a pending
+   * click looks like. On 2026-09-15 that flake recurred with the geometry
+   * assertion two lines above the click having just PASSED — so the box was
+   * right when measured and wrong when pressed, which points at identity
+   * rather than layout.
+   *
+   * THIS IS NOT A CONFIRMED FIX and must not be written up as one. The failure
+   * is intermittent and has never been reproduced on demand, so the most that
+   * can be said is that one named mechanism for "detached from the DOM" is
+   * gone. It is worth doing regardless: one element at one position is simpler
+   * than two that alternate, and `CardConflict` holds no state, so nothing is
+   * preserved across the flip that should not be.
+   */
+  const chooser = conflict
+    ? {
+        kind: "conflict" as const,
+        mine: strokes,
+        theirs: conflict.strokes,
+        onKeepMine: () => {
+          // Adopt their revision so the next write is no longer stale, then
+          // push ours on top. This is the destructive choice and is only ever
+          // reached by somebody tapping "Keep mine".
+          revision.current = conflict.revision;
+          setConflict(null);
+          card.push(latest.current);
+        },
+        onTakeTheirs: () => {
+          // Their card becomes what this screen is editing. Nothing is sent:
+          // the server already holds exactly this.
+          revision.current = conflict.revision;
+          const theirs = Array.from({ length: holes }, (_, i) => conflict.strokes[i] ?? null);
+          dirty.current = false;
+          setStrokes(theirs);
+          latest.current = theirs;
+          setConflict(null);
+          // Settled, not merely forgotten: there is nothing left to send, so
+          // the queue is emptied too. `clearRecovered` alone left it flagged
+          // and the status line warning for the rest of the round.
+          card.settle();
+        },
+      }
+    : recoveredDiffers
+      ? {
+          /**
+           * The situation, which this did not say — so the recovery case
+           * rendered the CONFLICT's words: "Somebody else — usually the
+           * committee — edited this card while your phone was offline", when
+           * nobody had edited anything, and "If you are not sure, use theirs",
+           * which discards the only copy of these holes.
+           */
+          kind: "recovered" as const,
+          mine: recoveredFitted,
+          theirs: strokes,
+          onKeepMine: () => {
+            dirty.current = true;
+            setStrokes(recoveredFitted);
+            latest.current = recoveredFitted;
+            card.clearRecovered();
+            // Straight back into the queue: these holes have never reached the
+            // server.
+            card.push(recoveredFitted);
+          },
+          onTakeTheirs: () => card.settle(),
+        }
+      : null;
+
   useEffect(() => {
     if (!dirty.current || locked) return;
     card.push(latest.current);
@@ -522,81 +600,26 @@ export function PlayerCard({
             the one thing Rule 3.3b does not allow.
           */}
           {/*
-            Holes found on this phone that the server has never seen.
+            ONE CHOOSER, FOR BOTH DISAGREEMENTS.
 
-            The tab-eviction case the whole module exists for. `recovered` was
-            being read from localStorage on mount and then never rendered by
-            anybody, so the player came back to a card missing five holes with
-            nothing on screen to say so — and typing the next hole overwrote
-            the stored copy, which was the last one left.
-
-            Nothing is auto-sent. The device copy may be twenty minutes old and
-            the committee may have corrected the card since, which is the same
-            argument the conflict chooser exists to settle — so it uses the
-            same chooser.
+            Which one it is asking about is decided in `chooser` above, beside
+            the handlers — including the tab-eviction case this module exists
+            for, where holes found on the phone have never reached the server
+            and nothing may be auto-sent, because the device copy can be
+            twenty minutes old and the committee may have corrected the card
+            since. That is the same argument this chooser settles, which is
+            why it is the same chooser and now literally the same element.
           */}
-          {!conflict && recoveredDiffers && (
+          {chooser && (
             <div style={{ margin: "12px 0" }}>
               <CardConflict
-                /**
-                 * The situation, which this did not say — so the recovery case
-                 * rendered the CONFLICT's words: "Somebody else — usually the
-                 * committee — edited this card while your phone was offline",
-                 * when nobody had edited anything, and "If you are not sure,
-                 * use theirs", which discards the only copy of these holes.
-                 */
-                kind="recovered"
-                mine={recoveredFitted}
-                theirs={strokes}
+                kind={chooser.kind}
+                mine={chooser.mine}
+                theirs={chooser.theirs}
                 pars={pars}
                 busy={pending}
-                onKeepMine={() => {
-                  dirty.current = true;
-                  setStrokes(recoveredFitted);
-                  latest.current = recoveredFitted;
-                  card.clearRecovered();
-                  // Straight back into the queue: these holes have never
-                  // reached the server.
-                  card.push(recoveredFitted);
-                }}
-                onTakeTheirs={() => card.settle()}
-              />
-            </div>
-          )}
-
-          {conflict && (
-            <div style={{ margin: "12px 0" }}>
-              <CardConflict
-                mine={strokes}
-                theirs={conflict.strokes}
-                pars={pars}
-                busy={pending}
-                onKeepMine={() => {
-                  // Adopt their revision so the next write is no longer stale,
-                  // then push ours on top. This is the destructive choice and
-                  // is only ever reached by somebody tapping "Keep mine".
-                  revision.current = conflict.revision;
-                  setConflict(null);
-                  card.push(latest.current);
-                }}
-                onTakeTheirs={() => {
-                  // Their card becomes what this screen is editing. Nothing is
-                  // sent: the server already holds exactly this.
-                  revision.current = conflict.revision;
-                  const theirs = Array.from(
-                    { length: holes },
-                    (_, i) => conflict.strokes[i] ?? null,
-                  );
-                  dirty.current = false;
-                  setStrokes(theirs);
-                  latest.current = theirs;
-                  setConflict(null);
-                  // Settled, not merely forgotten: there is nothing left to
-                  // send, so the queue is emptied too. `clearRecovered` alone
-                  // left it flagged and the status line warning for the rest
-                  // of the round.
-                  card.settle();
-                }}
+                onKeepMine={chooser.onKeepMine}
+                onTakeTheirs={chooser.onTakeTheirs}
               />
             </div>
           )}

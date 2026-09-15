@@ -1635,9 +1635,15 @@ describe("the pending-card queue never clears a card it did not send", () => {
   it("shows the player a card recovered from a previous visit", () => {
     // `recovered` was read from localStorage on mount and then rendered by
     // nobody, so the tab-eviction case the module exists for still lost holes.
+    //
+    // The prop is written `mine: recoveredFitted` now rather than
+    // `mine={recoveredFitted}`: the two chooser call sites were collapsed into
+    // one element fed by a `chooser` value, so the recovery case is an object
+    // rather than a second block of JSX. Same rule, same fact asserted — see
+    // dialogs-are-swept for why the sites were merged.
     const card = readSource("src", "components", "PlayerCard.tsx");
     expect(card).toMatch(/recoveredDiffers/);
-    expect(card).toMatch(/mine=\{recoveredFitted\}/);
+    expect(card).toMatch(/mine:\s*recoveredFitted/);
   });
 
   /**
@@ -1657,8 +1663,18 @@ describe("the pending-card queue never clears a card it did not send", () => {
     const card = stripComments(
       readFileSync(join(process.cwd(), "src", "components", "PlayerCard.tsx"), "utf8"),
     );
-    // The recovery chooser declares itself; the conflict one takes the default.
-    expect(card).toMatch(/kind="recovered"[\s\S]{0,200}mine=\{recoveredFitted\}/);
+    /**
+     * The recovery branch declares its own kind, and does so BESIDE the
+     * recovered strokes — the proximity is the assertion, because a `kind`
+     * that drifted away from the data it describes is how the recovery case
+     * came to render the conflict's words in the first place.
+     *
+     * Object syntax now (`kind: "recovered"`), since the two call sites were
+     * collapsed into one element fed by a `chooser` value. The conflict branch
+     * still spells its own kind rather than leaning on the component default,
+     * which is the stricter of the two and costs nothing.
+     */
+    expect(card).toMatch(/kind:\s*"recovered"[\s\S]{0,300}mine:\s*recoveredFitted/);
 
     const chooser = stripComments(
       readFileSync(join(process.cwd(), "src", "components", "CardConflict.tsx"), "utf8"),

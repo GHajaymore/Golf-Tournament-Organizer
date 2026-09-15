@@ -361,7 +361,32 @@ above it had just passed. So at the moment the chooser was measured the box was
 correct, and the click still could not land: whatever moves it, moves it
 between the measurement and the press. That is the strongest evidence yet that
 the cause is re-render timing rather than layout, and it is the reason to look
-at what changes identity under the chooser rather than at its CSS. The other
+at what changes identity under the chooser rather than at its CSS.
+
+**TWO SUSPECTS ARE NOW ELIMINATED, both of them named above.** Neither was the
+cause, and knowing that is worth more than the guesses were:
+
+- **The two call sites.** They were collapsed into ONE `<CardConflict>` fed by
+  a `chooser` value on 2026-09-15, so a `conflict`/`recovered` flip can no
+  longer unmount one and mount the other. The flake then recurred TWICE in the
+  next full run — `phone` and `small-phone` — with `element was detached from
+  the DOM` still in both logs. Whatever detaches it, it is not that.
+- **The five-second timer.** `shouldPoll` refuses a `held` card, and a conflict
+  DOES set `held`: `send` returns `"held"` for a conflict and `setHeld(true)`
+  runs before the chooser appears. So the interval is already stopped while
+  this chooser is open, and the 2026-09-12 fix cannot be what is still
+  re-rendering it.
+
+So the next person starts with both of the obvious answers crossed off. What is
+left is something ABOVE the chooser in `PlayerCard` changing between
+Playwright resolving the locator and pressing it — an ancestor re-rendering, or
+the layout shifting under a scroll that has already happened. Note the order in
+every log: `not stable` comes FIRST, before `outside of the viewport`, which
+reads as the page still moving when the scroll was attempted rather than the
+element being in the wrong place to begin with.
+
+Still not worth `retries`. The reasoning above about hiding a real regression
+has not changed. The other
 two dialogs in the app are measured in `e2e/dialog.spec.ts`, and
 `src/lib/__tests__/dialogs-are-swept.test.ts` pins which of the three is which
 kind — so a later change making this one a proper modal would resolve the
