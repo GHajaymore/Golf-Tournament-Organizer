@@ -4,7 +4,7 @@ import { ClubHandicapPanel } from "@/components/ClubHandicapPanel";
 import { listNames } from "@/lib/format";
 import { fieldRosterSummary } from "@/lib/domain/roster-link";
 import { csvSizeRefusal } from "@/lib/csv";
-import { orgProfile } from "@/lib/domain/org-profile";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { rosterSelection } from "@/lib/domain/roster-selection";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
@@ -61,16 +61,6 @@ export interface RosterRow {
 interface Props {
   clubName: string;
   /**
-   * The stored kind, asked via `orgProfile` rather than compared here.
-   *
-   * This was `isClub: boolean`, filled in by the page with `kind === "club"`.
-   * That is a second place deciding what a kind means, and it got the answer
-   * wrong for every kind but the two it knew: a society has a shared roster
-   * and would have been labelled "Personal — your own list of players" while
-   * looking at the shared list.
-   */
-  orgKind: string;
-  /**
    * The tournament currently open, or "" when there is none.
    *
    * EMPTY IS A REAL STATE NOW. The roster is the club's standing member list
@@ -113,7 +103,6 @@ const BLANK: MemberInput = {
 
 export function RosterClient({
   clubName,
-  orgKind,
   eventName,
   fieldLocked,
   members,
@@ -148,7 +137,11 @@ export function RosterClient({
     return runAction(fn, after);
   };
   const summary = fieldRosterSummary(fieldSize, unlinkedCount);
-  const profile = orgProfile(orgKind);
+  // The RESOLVED profile from the console context, not `orgProfile(orgKind)`:
+  // the kind alone cannot know what this outfit CALLS itself, so a US league
+  // read "society" here. The provider carries kind, country and the override
+  // together and every screen in the console is inside it.
+  const profile = useOrgProfile();
   /** Whether there is a tournament to talk about at all — see the prop. */
   const hasTournament = eventName !== "";
 

@@ -104,6 +104,10 @@ export interface ChecklistState {
    * before the question existed.
    */
   orgKind?: string | null;
+  /** The club's country, which picks the default word for a community. */
+  orgCountry?: string | null;
+  /** What the outfit calls itself, which beats the country. */
+  orgNoun?: string | null;
   /**
    * This event is a MATCH — two people playing each other, not a tournament.
    *
@@ -230,7 +234,7 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
     // A society is not a club and an outing is neither. `noun` is the word
     // that survives being dropped into running text — the reason it exists
     // apart from `label`, which does not: "Add your society's logo".
-    const noun = state.orgKind ? orgProfile(state.orgKind).noun : "club";
+    const noun = state.orgKind ? orgProfile(state.orgKind, state.orgCountry, state.orgNoun).noun : "club";
     items.push({
       label: `Add your ${noun}'s logo & colours`,
       detail: `Put your ${noun}'s badge and colours on the leaderboard and player screens.`,

@@ -69,7 +69,14 @@ export async function membershipFor(
     where: { id: eventId },
     // The organization's KIND rides along on a query that already runs, so a
     // society's message scopes can be called what they are. See orgNoun.
-    select: { id: true, organizationId: true, organization: { select: { kind: true } } },
+    select: {
+      id: true,
+      organizationId: true,
+      // `country` and `communityNoun` beside the kind: the kind alone cannot
+      // know what the outfit CALLS itself, and `orgNoun` below is read into
+      // sentences a player sees.
+      organization: { select: { kind: true, country: true, communityNoun: true } },
+    },
   });
   if (!event) return null;
 
@@ -195,7 +202,7 @@ export async function membershipFor(
     email: key,
     role,
     organizationId: event.organizationId,
-    orgNoun: orgProfile(event.organization.kind).noun,
+    orgNoun: orgProfile(event.organization.kind, event.organization.country, event.organization.communityNoun).noun,
     eventId,
     playerId,
     onRoster: !!member || !!playerId || role !== "player",

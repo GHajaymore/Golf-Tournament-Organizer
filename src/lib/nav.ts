@@ -1,5 +1,5 @@
 import { canAccessScreen, type Role } from "./roles";
-import { orgProfile, type OrgKind } from "@/lib/domain/org-profile";
+import { type OrgProfile } from "@/lib/domain/org-profile";
 // The one href this file does not own. `/choose?stay=1` is the setup
 // checklist's tournament step, and the sidebar's way out of an eventless
 // session is the same door — a literal here would be a second copy of it.
@@ -200,10 +200,23 @@ const MATCH_SECTION_LABEL: Readonly<Record<string, string>> = {
 export function itemLabel(
   item: { key: string; label: string },
   isMatch: boolean,
-  orgKind?: OrgKind,
+  /**
+   * The RESOLVED profile, not the kind.
+   *
+   * It took a `kind` and resolved it here, which meant this could only ever
+   * know what kind of outfit it was and never what that outfit calls itself.
+   * Rendered on 2026-09-15 against a US community: the sidebar said "Society
+   * settings" while the country said league, because resolving from the kind
+   * alone throws the country and the organizer's own answer away.
+   *
+   * Handing it the answer instead of the ingredients makes that impossible
+   * rather than remembered — the same shape as `standingRows` returning `[]`
+   * on its first line.
+   */
+  outfit?: OrgProfile,
 ): string {
   if (isMatch && MATCH_ITEM_LABEL[item.key]) return MATCH_ITEM_LABEL[item.key];
-  if (orgKind && item.key === "organization") return orgProfile(orgKind).settingsLabel;
+  if (outfit && item.key === "organization") return outfit.settingsLabel;
   return item.label;
 }
 
@@ -403,7 +416,7 @@ export function navForRole(
      * in the sidebar is about the tournament, which does not change shape
      * because of who is running it.
      */
-    orgKind?: OrgKind;
+    outfit?: OrgProfile;
     /**
      * This person runs a club and has no tournament open — see `allowed`.
      *
@@ -508,14 +521,14 @@ export function navForRole(
    * Falls back to the club wording when no kind is passed, which is what every
    * caller did before and what a club — the commonest case — should see.
    */
-  const profile = opts.orgKind ? orgProfile(opts.orgKind) : null;
+  const profile = opts.outfit ?? null;
   const relabel = (s: NavSection): NavSection => {
     if (!profile || s.label !== "Club") return s;
     return {
       ...s,
       label: profile.groupLabel,
       items: s.items.map((i) =>
-        i.key === "organization" ? { ...i, label: itemLabel(i, false, opts.orgKind) } : i,
+        i.key === "organization" ? { ...i, label: itemLabel(i, false, opts.outfit) } : i,
       ),
     };
   };
@@ -547,7 +560,7 @@ export function navForRole(
       : {
           ...s,
           label: MATCH_SECTION_LABEL[s.label] ?? s.label,
-          items: s.items.map((i) => ({ ...i, label: itemLabel(i, true, opts.orgKind) })),
+          items: s.items.map((i) => ({ ...i, label: itemLabel(i, true, opts.outfit) })),
         };
 
   const sections = NAV.map((s) =>
@@ -651,7 +664,7 @@ export function primaryTabs(sections: NavSection[]): NavItem[] {
  *
  * Falls back to the href, which is at least true, rather than to a guess.
  */
-export function screenName(href: string, isMatch = false, orgKind?: OrgKind): string {
+export function screenName(href: string, isMatch = false, outfit?: OrgProfile): string {
   const path = href.split(/[?#]/)[0];
   for (const section of NAV) {
     for (const item of section.items) {
@@ -666,7 +679,7 @@ export function screenName(href: string, isMatch = false, orgKind?: OrgKind): st
          * cross-references inside tournament screens — keeps the tournament
          * name, which is the only name those screens are ever shown under.
          */
-        return itemLabel(item, isMatch, orgKind);
+        return itemLabel(item, isMatch, outfit);
       }
     }
   }

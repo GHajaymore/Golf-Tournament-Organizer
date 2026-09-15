@@ -28,6 +28,8 @@ export function MoneyModeLine({
   eventMode,
   orgMode,
   orgKind,
+  orgCountry = "",
+  orgNoun = "",
   clubName,
   /** Where the picker is. Staff only — a player has nothing to jump to. */
   href,
@@ -35,11 +37,27 @@ export function MoneyModeLine({
   eventMode: string;
   orgMode: string;
   orgKind: string;
+  /** The club's country, which picks the default word for a community. */
+  orgCountry?: string;
+  /** What the outfit calls itself, which beats the country. */
+  orgNoun?: string;
   clubName: string;
   href?: string;
 }) {
   const active = resolveMoneyMode({ eventMode, orgMode, orgKind });
-  const profile = orgProfile(orgKind);
+  /**
+   * All three ingredients, from PROPS - this is a SERVER component.
+   *
+   * It briefly read `useOrgProfile()`, which is the right answer for the four
+   * client components beside it and is invalid here: a hook cannot be called
+   * from the server. tsc, lint, the unit suite and `next build` were all green
+   * on it; the smoke pass returned a 500, which is the whole reason that step
+   * exists.
+   *
+   * `orgKind` stays for `resolveMoneyMode`, which IS a question about the kind
+   * - a society keeps a ledger and a club does not, wherever either plays.
+   */
+  const profile = orgProfile(orgKind, orgCountry, orgNoun);
   /**
    * Whether this tournament chose, or is taking the club's answer.
    *

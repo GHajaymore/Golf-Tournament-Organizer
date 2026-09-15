@@ -65,7 +65,7 @@ import { logoSrc } from "../domain/logo-upload";
  */
 export async function organizationsForOrganizer(
   email: string,
-): Promise<Array<{ id: string; name: string; kind: string; country: string; plan: string }>> {
+): Promise<Array<{ id: string; name: string; kind: string; country: string; communityNoun: string; plan: string }>> {
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (!user) return [];
   const rows = await prisma.organizationMember.findMany({
@@ -94,6 +94,7 @@ export async function organizationsForOrganizer(
           name: true,
           kind: true,
           country: true,
+          communityNoun: true,
           subscription: { select: { plan: true } },
         },
       },
@@ -107,6 +108,7 @@ export async function organizationsForOrganizer(
     name: r.organization.name,
     kind: r.organization.kind,
     country: r.organization.country,
+    communityNoun: r.organization.communityNoun,
     plan: r.organization.subscription?.plan ?? DEFAULT_PLAN,
   }));
 }
@@ -370,6 +372,8 @@ export async function orgSetupFactsFor(
           select: {
             name: true,
             kind: true,
+            country: true,
+            communityNoun: true,
             moneyMode: true,
             _count: { select: { roster: true, events: true, courses: true } },
           },
@@ -393,6 +397,8 @@ export async function orgSetupFactsFor(
         select: {
           name: true,
           kind: true,
+          country: true,
+          communityNoun: true,
           moneyMode: true,
           _count: { select: { roster: true, events: true, courses: true } },
         },
@@ -415,6 +421,8 @@ function factsFrom(
   org: {
     name: string;
     kind: string;
+    country: string;
+    communityNoun: string;
     moneyMode: string;
     _count: { roster: number; events: number; courses: number };
   },
@@ -423,6 +431,8 @@ function factsFrom(
 ): OrgSetupFacts {
   return {
     kind: org.kind,
+    country: org.country,
+    communityNoun: org.communityNoun,
     // Not `!!org.name` — every organization has a name from birth, because
     // sign-up derives one from the person. See organizationWasNamed.
     named: organizationWasNamed(org.name, displayName, email),

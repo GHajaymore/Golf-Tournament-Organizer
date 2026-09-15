@@ -14,7 +14,7 @@ import {
   resolveMoneyMode,
   type MoneyMode,
 } from "@/lib/domain/money-mode";
-import { orgProfile } from "@/lib/domain/org-profile";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
 import { Icon } from "./Icon";
 import { useAction } from "./useAction";
 
@@ -70,7 +70,11 @@ export function MoneySetup({
 
   const inherited = resolveMoneyMode({ eventMode: "", orgMode, orgKind });
   const active = resolveMoneyMode({ eventMode, orgMode, orgKind });
-  const profile = orgProfile(orgKind);
+  // The RESOLVED profile from the console context, not `orgProfile(orgKind)`:
+  // the kind alone cannot know what this outfit CALLS itself, so a US league
+  // read "society" here. The provider carries kind, country and the override
+  // together and every screen in the console is inside it.
+  const profile = useOrgProfile();
   const activeEntry = resolveExpenseEntry({ eventEntry });
   const locked = !isTournament && !canEdit;
 

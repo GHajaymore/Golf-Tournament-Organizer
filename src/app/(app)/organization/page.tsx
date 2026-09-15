@@ -8,6 +8,7 @@ import { integrationSetup } from "@/lib/services/integrations";
 import { ThemePicker } from "@/components/ThemePicker";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
 import { LocalePicker } from "@/components/LocalePicker";
+import { OrgNounPicker } from "@/components/OrgNounPicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { organizationAccessReport } from "@/lib/services/access";
 import { organizationAccess } from "@/lib/services/org-access";
@@ -118,6 +119,7 @@ export default async function OrganizationPage() {
         country={org.country}
         brandDisplay={org.brandDisplay}
         kind={org.kind}
+        communityNoun={org.communityNoun}
         plan={org.subscription?.plan ?? "free"}
         eventCount={org._count.events}
         memberCount={org._count.members}
@@ -182,6 +184,20 @@ export default async function OrganizationPage() {
           Both are still their own card, because they are two decisions: what
           symbol every amount is shown in, and how money works at the club. */}
       <SettingsSectionAnchor id="money">
+        {/* ONLY A COMMUNITY, because it is the only kind whose noun travels
+            badly. A club is a club and an outing is an outing wherever they
+            are played; offering either of them a word to change would be
+            asking a question with no right answer behind it.
+
+            The country on this page already picks a default — a society in
+            Britain and Ireland, a league in the United States — and a country
+            is only ever a good guess. This is where the outfit overrules it. */}
+        {canEdit && org.kind === "community" && (
+          <section className="card elev-sm" style={{ marginBottom: 16 }}>
+            <span className="card-title" style={{ fontSize: 15 }}>What we are called</span>
+            <OrgNounPicker noun={org.communityNoun} country={org.country} />
+          </section>
+        )}
         {canEdit && (
           <section className="card elev-sm" style={{ marginBottom: 16 }}>
             {/* "Currency", which is what it is. It was "Money", which is also
@@ -217,7 +233,7 @@ export default async function OrganizationPage() {
       </SettingsSectionAnchor>
 
       <SettingsSectionAnchor id="access">
-        <OrganizationAccess report={report} canEdit={canEdit} orgKind={org.kind} />
+        <OrganizationAccess report={report} canEdit={canEdit} />
       </SettingsSectionAnchor>
     </>
   );

@@ -1590,7 +1590,7 @@ describe("roster CSV import", () => {
 
   it("offers both ways of adding someone", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" orgKind="club" eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("Add member");
@@ -1605,7 +1605,7 @@ describe("roster CSV import", () => {
     // right edge. The one sentence a new club needs was the one being cut in
     // half. No rows, no table.
     const html = render(
-      <RosterClient clubName="Bushwood" orgKind="club" eventName="Spring Medal" fieldLocked={false} members={[]}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false} members={[]}
         fieldSize={0} unlinkedCount={0} />,
     );
     expect(html).toContain("No members yet.");
@@ -1616,7 +1616,7 @@ describe("roster CSV import", () => {
 
   it("renders a populated roster", () => {
     const html = render(
-      <RosterClient clubName="Bushwood" orgKind="club" eventName="Spring Medal" fieldLocked={false}
+      <RosterClient clubName="Bushwood" eventName="Spring Medal" fieldLocked={false}
         fieldSize={2} unlinkedCount={0}
         members={[row(), row({ id: "m2", name: "Rob Ferris", status: "inactive" })]} />,
     );
@@ -4803,7 +4803,7 @@ describe("the roster and the tournament in front of it", () => {
   const roster = async (members: RosterRow[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" orgKind="club" eventName="zz-Cup" fieldLocked={false}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={false}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -4853,7 +4853,7 @@ describe("members", () => {
   const roster = async (members: ReturnType<typeof member>[]) => {
     const { RosterClient } = await import("@/components/RosterClient");
     return render(
-      <RosterClient clubName="zz-Club" orgKind="club" eventName="zz-Cup" fieldLocked={false}
+      <RosterClient clubName="zz-Club" eventName="zz-Cup" fieldLocked={false}
         members={members} fieldSize={members.length} unlinkedCount={0} />,
     );
   };
@@ -4909,7 +4909,7 @@ describe("club settings", () => {
     return render(
       <OrganizationClient
         name="Ridgeline National" shortName="" logoUrl="" city="" region="" country=""
-        brandDisplay="short" kind="club" plan="free" eventCount={2} memberCount={9} canEdit
+        brandDisplay="short" kind="club" communityNoun="" plan="free" eventCount={2} memberCount={9} canEdit
         {...over} />,
     );
   };
@@ -5001,10 +5001,24 @@ describe("club settings", () => {
 });
 
 describe("how money works", () => {
-  const money = async (over: Record<string, unknown> = {}) => {
+  /**
+   * Wrapped in the provider, because that is how it renders in the console and
+   * where the outfit's word now comes from.
+   *
+   * `MoneySetup` resolved `orgProfile(orgKind)` itself, which can only know
+   * what KIND the outfit is — never its country or the word the organizer
+   * chose. `orgKind` stays a prop because `resolveMoneyMode` reads it, and
+   * that IS a question about the kind: a society keeps a ledger and a club
+   * does not, wherever either of them plays.
+   */
+  const money = async (over: Record<string, unknown> = {}, kind?: string) => {
     const { MoneySetup } = await import("@/components/MoneySetup");
+    const { OrgProfileProvider } = await import("@/components/OrgProfileProvider");
+    const props = { mode: "tournament", eventMode: "", orgMode: "", orgKind: "club", clubName: "zz-Club", ...over };
     return render(
-      <MoneySetup mode="tournament" eventMode="" orgMode="" orgKind="club" clubName="zz-Club" {...over} />,
+      <OrgProfileProvider kind={kind ?? (props.orgKind as string)}>
+        <MoneySetup {...(props as React.ComponentProps<typeof MoneySetup>)} />
+      </OrgProfileProvider>,
     );
   };
 
@@ -5365,8 +5379,31 @@ describe("the console tells its screens what kind of outfit this is", () => {
      * its own screens "Club settings" to a society, in the one state where
      * setting the society up is the only thing to do.
      */
-    expect(src).toMatch(/<OrgProfileProvider kind=\{orgKindNow \|\| undefined\}/);
+    /**
+     * Written per-prop rather than as one line, because the call is now four
+     * lines: `kind`, `country` and `noun` travel together and a single-line
+     * pattern broke the moment the third arrived. Pinning each separately says
+     * which one went missing instead of failing on the whitespace.
+     */
+    expect(src).toMatch(/\skind=\{orgKindNow \|\| undefined\}/);
     expect(src).toMatch(/const orgKindNow = event\?\.organization\.kind \?\? ownedOrgs\[0\]\?\.kind/);
+  });
+
+  it("and its country, and what it calls itself", () => {
+    /**
+     * THE COUNTRY IS THE DEFAULT AND THE NOUN IS THE ANSWER — a US outfit that
+     * has always called itself a society is not wrong about its own name.
+     *
+     * Both pinned at the provider, because that is the sink: eleven components
+     * read this one context rather than each taking a prop somebody can
+     * forget. A country wired here and a noun left off would be the halfway
+     * state that looks done and quietly overrules nobody.
+     */
+    expect(src).toMatch(/\scountry=\{orgCountryNow \|\| undefined\}/);
+    expect(src).toMatch(/\snoun=\{orgNounNow \|\| undefined\}/);
+    // Resolved from the SAME source and in the same order as the kind, or one
+    // outfit gets named after another.
+    expect(src).toMatch(/const orgNounNow = event \? event\.organization\.communityNoun/);
   });
 
   it("starts a label with the noun rather than shouting it or spelling out the label", async () => {
@@ -5912,8 +5949,9 @@ describe("the organization roles read as Commissioner", () => {
   };
   const panel = async () => {
     const { OrganizationAccess } = await import("@/components/OrganizationAccess");
+    const { OrgProfileProvider } = await import("@/components/OrgProfileProvider");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return render(<OrganizationAccess report={report as any} canEdit orgKind="club" />);
+    return render(<OrgProfileProvider kind="club"><OrganizationAccess report={report as any} canEdit /></OrgProfileProvider>);
   };
 
   it("shows Commissioner and never Owner", async () => {

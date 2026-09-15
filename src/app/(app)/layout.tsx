@@ -29,7 +29,7 @@ import { KNOCKOUT_STAGE_TYPES, WEEKLY_ROUND_TYPES } from "@/lib/stage-types";
 import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { myPlayerIds } from "@/lib/services/me";
 import { isMatch } from "@/lib/tournament-shape";
-import { isOrgKind, type OrgKind } from "@/lib/domain/org-profile";
+import { isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { organizationsForOrganizer } from "@/lib/services/organization";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -44,7 +44,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // CALLED: a community is a society in Britain and a league in the United
     // States. One query, both facts, so the word and the kind cannot come
     // from different places and disagree.
-    include: { organization: { select: { kind: true, country: true } } },
+    // And `communityNoun` with them, which BEATS the country: the country is
+    // only ever a good guess, and a US outfit that has always called itself a
+    // society is not wrong about its own name.
+    include: { organization: { select: { kind: true, country: true, communityNoun: true } } },
   });
   // Teams only appear once a round is actually set to a team format, so the
   // many tournaments that never play one are not shown a link to an empty
@@ -85,6 +88,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // the tournament's club while the kind came from the organizer's own would
   // name one outfit after another.
   const orgCountryNow = event ? event.organization.country : (ownedOrgs[0]?.country ?? "");
+  // From the same source and in the same order as the two above, for the same
+  // reason: a noun read from the tournament's club while the kind came from
+  // the organizer's own would name one outfit after another.
+  const orgNounNow = event ? event.organization.communityNoun : (ownedOrgs[0]?.communityNoun ?? "");
 
   const sections = navForRole(session.viewRole, event ? settingsOf(event) : undefined, {
     hasTeamRound: teamRounds > 0,
@@ -99,7 +106,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
      * not created a tournament yet, which is the same two-names fault the
      * browser tab had.
      */
-    orgKind: isOrgKind(orgKindNow) ? (orgKindNow as OrgKind) : undefined,
+    outfit: isOrgKind(orgKindNow)
+      ? orgProfile(orgKindNow, orgCountryNow, orgNounNow)
+      : undefined,
     // A club with no tournament yet still has club settings to reach.
     orgAdminWithoutEvent: !event && ownedOrgs.length > 0,
   });
@@ -125,7 +134,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     {/* What kind of outfit this is, beside its currency and its theme — one
         fact about the organization read by a dozen screens that name it. A
         society is not a club, and the console said so in eight places. */}
-    <OrgProfileProvider kind={orgKindNow || undefined} country={orgCountryNow || undefined}>
+    <OrgProfileProvider
+      kind={orgKindNow || undefined}
+      country={orgCountryNow || undefined}
+      noun={orgNounNow || undefined}
+    >
     <div
       id="club-theme"
       // Drives `color-scheme` in globals.css. Native form chrome — the date
