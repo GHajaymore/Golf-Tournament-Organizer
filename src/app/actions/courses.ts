@@ -644,7 +644,9 @@ export async function setEventDefaultTee(teeId: string | null): Promise<CourseRe
  */
 export async function setFlightTee(groupId: string, teeId: string | null): Promise<CourseResult> {
   const { eventId } = await requireOrganizerOrg();
-  const flight = await prisma.group.findFirst({ where: { id: groupId, eventId }, select: { id: true } });
+  // A flight, not a match carrier — a carrier has no players to play off any
+  // tees it claimed. See Group.stageId.
+  const flight = await prisma.group.findFirst({ where: { id: groupId, eventId, isCarrier: false }, select: { id: true } });
   if (!flight) return { ok: false, error: "Flight not found." };
   if (teeId) {
     // Scoped to this tournament's course, so another club's set can never

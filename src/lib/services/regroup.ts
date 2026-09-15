@@ -225,8 +225,26 @@ export async function regenerateGroupsAndSchedule(eventId: string): Promise<void
    * `generateCutRound` already solves exactly this by keeping group rows and
    * only creating what it lacks. Same approach here.
    */
+  /**
+   * FLIGHTS ONLY — `stageId: null`. A carrier is not a flight and must never
+   * be reused as one.
+   *
+   * This read every Group in the event, and the loop below reuses `existing[i]`
+   * BY INDEX and renames it in place. Carriers are created at `maxPos + 1`, so
+   * they sit past the flights and are safe only while the flight count never
+   * grows past them. Grow the field and regenerate, and index `i` walks onto
+   * one: measured on 2026-09-15 against real rows, a play-off carrier called
+   * "Match Play {em dash} Round 2" was renamed to "C", given two players, and
+   * left holding both a round-robin fixture and a Single Match Stage final.
+   *
+   * The renaming is the damage rather than the reuse. That name WAS the
+   * carrier's identity, so the next "Generate Round 2" could not find it and
+   * would create a second row beside it — splitting that round's matches
+   * across two groups, which is the failure both carrier call sites carry
+   * comments about and neither was able to prevent.
+   */
   const existing = await prisma.group.findMany({
-    where: { eventId },
+    where: { eventId, isCarrier: false },
     orderBy: { position: "asc" },
     select: { id: true },
   });
@@ -434,7 +452,13 @@ export async function generateCutRound(
     prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
     prisma.player.findMany({ where: { eventId, status: "confirmed" }, orderBy: { seed: "asc" } }),
     prisma.match.findMany({ where: { eventId } }),
-    prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
+    // Flights only, for the same reason as `regenerateGroupsAndSchedule`
+    // above: `groups[i]` is indexed into below to pick a row for a rebuilt
+    // flight, and a carrier landing at that index would be given players and
+    // this round's matches. Milder than the other one — nothing is renamed
+    // here, so the carrier's identity survives — but a match bucket is still
+    // not a division of the field.
+    prisma.group.findMany({ where: { eventId, isCarrier: false }, orderBy: { position: "asc" } }),
   ]);
   if (!event) return { ok: false, reason: "no-stage" };
 

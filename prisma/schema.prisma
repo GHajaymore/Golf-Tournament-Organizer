@@ -1172,6 +1172,99 @@ model Group {
   name          String
   position      Int
   /**
+   * The round this row belongs to, when it is a round's MATCH CARRIER rather
+   * than a flight of the field.
+   *
+   * ONE MODEL WAS DOING TWO JOBS, and only one of them is a flight:
+   *
+   *   FLIGHT   a division of the field. `Player.groupId` points at it, an
+   *            organizer names it, and it belongs to the tournament rather
+   *            than to any one round. `stageId` is NULL.
+   *   CARRIER  a round's match bucket, created by `matchCarrierGroup` and by
+   *            the team round-robin path purely to satisfy `Match.groupId`,
+   *            which is NOT NULL. It has no players and never will.
+   *
+   * Until this column existed a carrier said which round it was by ENCODING
+   * THE ROUND NUMBER IN ITS OWN NAME — "Match Play {em dash} Round 2" — and
+   * that string was the find-or-create key. Two call sites carry comments
+   * warning that renaming it would create a second row beside the first and
+   * split a club's matches across the two, and `round-number-source.test.ts`
+   * exempts both lines from the round-numbering rule to protect it.
+   *
+   * THEY GUARDED THE WRONG DOOR. Renumbering was never what renamed it;
+   * `regenerateGroupsAndSchedule` was. It reused Group rows BY POSITION out of
+   * an unfiltered list and renamed them in place, so growing the field past
+   * the carrier's position renamed the carrier to "C", moved two players into
+   * it, and left the next generate unable to find it — the exact split those
+   * comments describe, arriving by a door nobody was watching. Measured
+   * 2026-09-15 by running the real function against real rows.
+   *
+   * Two more instances fell out of the same gap: a carrier rendered on the
+   * Flights screen as a phantom flight, and appeared in the organizer's
+   * message picker as a send-to destination reaching nobody. NEITHER COULD BE
+   * FIXED AT THE READ SITES, which is why this is a column and not a filter: a
+   * real flight also owns matches, and a real flight is legitimately empty
+   * between being created and being filled, so no test over today's data can
+   * tell the two apart.
+   *
+   * Nullable, and NULL is the flight. Every row that existed before this
+   * column is a flight or an unclaimed carrier, and both behave exactly as
+   * they did — there is no bulk backfill. A carrier is adopted one row at a
+   * time by `matchCarrierGroup`, which falls back to the old name lookup and
+   * sets this column when it finds one. See that function for why a bulk
+   * UPDATE was refused.
+   *
+   * Cascade, matching `Match.stage`: a carrier is PART of its round, so
+   * deleting the round takes it. SetNull would be worse than either — it would
+   * leave the row behind as a nameless phantom flight, which is the defect
+   * this column exists to end.
+   */
+  stageId       String?
+  stage         Stage?  @relation("StageCarrier", fields: [stageId], references: [id], onDelete: Cascade)
+  /**
+   * WHICH OF THE TWO JOBS THIS ROW IS DOING. `stageId` alone cannot say.
+   *
+   * A CARRIER HOLDS NO PLAYERS, EVER. It exists for one reason: `Match.groupId`
+   * is NOT NULL, so a Single Match Stage's final and a bracket's play-off need
+   * a Group to point at even though nobody is being divided into anything.
+   * "Carrier" is a word this schema invented for that — it is not a golf term
+   * and it is not self-evident, so it is defined here rather than left to be
+   * inferred from the code that makes one.
+   *
+   * The scope and the KIND are independent axes, and collapsing them is the
+   * mistake this field exists to prevent — the same shape `stage-types.ts`
+   * opens with about a round's type and its format.
+   *
+   *   stageId   null = applies to the whole tournament; set = that round only.
+   *   isCarrier false = a flight of the FIELD; true = a round's match bucket.
+   *
+   * Ajay, 2026-09-15, on why the scope is a real choice rather than a legacy
+   * state: "Flights can be different per round (ex. matchplay) or could be
+   * same depending on the tournament type/format. So for club championship, if
+   * club has flighted based on some criteria (HC etc), then flight can remain
+   * same for all rounds". A club championship flights once on handicap and
+   * keeps those flights every round — `stageId` null, and that is CORRECT, not
+   * unmigrated. Match play flights per round — `stageId` set.
+   *
+   * Which is exactly why `stageId IS NOT NULL` must not be read as "carrier".
+   * It means that today only because per-round flights are not built yet, and
+   * a reader written on that assumption would silently HIDE every per-round
+   * flight the day they are. That is the `event-answer-vs-round-answer` class
+   * — a screen asking the scope question when it meant the kind question —
+   * and it is cheaper to make impossible now than to find later in six places.
+   *
+   * So every "the flights" read filters on `isCarrier: false` and says nothing
+   * about scope. "The flights for THIS round" is a different question with a
+   * different answer — `isCarrier: false AND (stageId = round OR stageId IS
+   * NULL)` — and nothing needs to ask it until per-round flights exist.
+   *
+   * THE DEEPER FIX IS NOT THIS. Carriers exist only because `Match.groupId` is
+   * NOT NULL; make it nullable and the concept disappears. That is a bigger
+   * change touching every match reader, it was not asked for, and it is worth
+   * writing down as the thing that would end this rather than manage it.
+   */
+  isCarrier     Boolean @default(false)
+  /**
    * The tees this flight plays from.
    * A club championship is one tournament with three divisions off three
    * sets — championship off the blues, seniors off the whites, ladies off the
@@ -1200,6 +1293,8 @@ model Group {
   matches Match[]
 
   @@index([eventId])
+  // One carrier per round, and the lookup is now this pair rather than a name.
+  @@index([eventId, stageId])
 }
 
 model Stage {
@@ -1404,6 +1499,9 @@ model Stage {
   teams      Team[]
   attendance RoundAttendance[]
   skinsPots  SkinsPot[]
+  /// The player-less Group rows that exist only to hold this round's matches —
+  /// see `Group.stageId`. Never a flight; a flight has no round.
+  carriers   Group[]           @relation("StageCarrier")
   // Redemption looks a code up on its own, so codes must be unique across
   // every tournament. Enforced by a *partial* unique index in the migration
   // (unique where accessCode <> ''), which Prisma's schema language can't

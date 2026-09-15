@@ -1097,9 +1097,15 @@ export async function movePlayerToGroup(
   // Both ends scoped to the caller's tournament. Either one unscoped would let
   // an organizer of any event move a stranger's player into a stranger's
   // flight by posting two ids.
+  //
+  // And `stageId: null`, so the destination is a FLIGHT. A match carrier is a
+  // round's fixture bucket with no players in it by definition, and moving
+  // somebody into one would put a player in a row every screen has just been
+  // taught to hide. Checked here rather than trusted to the UI, because a
+  // `"use server"` export is a public HTTP endpoint.
   const [player, group] = await Promise.all([
     prisma.player.findFirst({ where: { id: playerId, eventId }, select: { id: true, groupId: true } }),
-    prisma.group.findFirst({ where: { id: groupId, eventId }, select: { id: true } }),
+    prisma.group.findFirst({ where: { id: groupId, eventId, isCarrier: false }, select: { id: true } }),
   ]);
   if (!player) return { ok: false, error: "Player not found in this tournament." };
   if (!group) return { ok: false, error: "Flight not found in this tournament." };
@@ -3524,7 +3530,13 @@ export async function renameGroup(groupId: string, name: string): Promise<{ ok: 
   const clean = name.trim().slice(0, 40);
   if (!clean) return { ok: false, error: "Give the flight a name." };
 
-  const group = await prisma.group.findFirst({ where: { id: groupId, eventId }, select: { id: true } });
+  // A flight, not a match carrier — see `Group.stageId`. Renaming a carrier
+  // from a flights control is meaningless now that no screen offers one, and
+  // the name was load-bearing until this release.
+  const group = await prisma.group.findFirst({
+    where: { id: groupId, eventId, isCarrier: false },
+    select: { id: true },
+  });
   if (!group) return { ok: false, error: "Flight not found in this tournament." };
 
   await prisma.group.update({ where: { id: groupId }, data: { name: clean } });
@@ -4416,22 +4428,73 @@ export async function setSingleMatchRule(
  * what it is: a final is two players going out together.
  */
 /**
- * The flight a derived match is filed under, found or created BY NAME.
+ * The CARRIER a derived match is filed under — found or created by its ROUND.
  *
- * The name is a lookup key, so the two callers below build it from
- * `stage.position + 1` rather than from `roundLabel`. That number counts a cut
- * as a round and so differs from what every screen shows — deliberately left
- * alone, because renumbering would stop matching the flight already in an
- * existing tournament and quietly create a second one beside it, splitting a
- * club's matches. Changing it is a migration. `round-number-source.test.ts`
- * exempts those two lines and asserts this lookup is still what they feed.
+ * IT USED TO BE FOUND BY NAME, and the name was the whole identity. Both
+ * callers built `<format> — Round <n>` from `stage.position + 1`, and this
+ * function's previous comment explained at length that renumbering it "would
+ * stop matching the flight already in an existing tournament and quietly
+ * create a second one beside it, splitting a club's matches". That reasoning
+ * was right, the danger was real, and it was guarding the wrong door.
+ *
+ * What actually renamed these rows was `regenerateGroupsAndSchedule`, which
+ * reused Group rows by POSITION from an unfiltered list and renamed them in
+ * place. Grow the field past a carrier's position, press Generate flights, and
+ * the carrier became flight "C" with two players in it — and the next generate
+ * could no longer find it. Exactly the split described above, by a route the
+ * comment never mentioned. Measured against real rows on 2026-09-15.
+ *
+ * So the round is the key now, and `Group.stageId` is where it lives.
+ *
+ * THE FALLBACK IS NOT BELT AND BRACES — IT IS THE MIGRATION. Every carrier
+ * created before that column exists has `stageId` NULL, so a lookup by round
+ * alone finds nothing, creates a second row beside it, and ships the bug as
+ * the fix. The name lookup is tried second and the row it finds is ADOPTED:
+ * its `stageId` is set, and from then on it is found by round like any other.
+ *
+ * That is deliberately how the backfill happens — one row at a time, at the
+ * moment the app is already writing to that round, using the key the app
+ * already trusted. A bulk UPDATE was considered and refused: the development
+ * database contains ZERO carriers (nobody has ever pressed the button here),
+ * so a mass rewrite could not be judged against a real catalogue before it ran
+ * — which is how 33 course cards were lost in August. `scripts/report-carrier-groups.mjs`
+ * reports what is out there, read-only, so the bulk question can be answered
+ * with a number rather than a guess.
+ *
+ * The NAME is now only a label, which is why it may safely come from
+ * `roundLabel` one day; it is left as it is here because changing it is no
+ * longer urgent and an unnecessary rename is an unnecessary risk.
  */
-async function matchCarrierGroup(eventId: string, name: string): Promise<string> {
-  const existing = await prisma.group.findFirst({ where: { eventId, name }, select: { id: true } });
-  if (existing) return existing.id;
+async function matchCarrierGroup(eventId: string, stageId: string, name: string): Promise<string> {
+  const byRound = await prisma.group.findFirst({
+    where: { eventId, stageId, isCarrier: true },
+    select: { id: true },
+  });
+  if (byRound) return byRound.id;
+
+  /**
+   * A carrier made before the columns existed, found the only way it can be.
+   *
+   * It has `isCarrier` false and `stageId` null, which is indistinguishable
+   * from a flight by column — that IS the defect, and the name is the only
+   * evidence left. So the old lookup runs once more and the row it finds is
+   * adopted onto both axes.
+   *
+   * Narrowed to a row that claims neither, so this can never take a real
+   * per-round flight or a carrier already belonging to another round.
+   */
+  const byName = await prisma.group.findFirst({
+    where: { eventId, name, stageId: null, isCarrier: false },
+    select: { id: true },
+  });
+  if (byName) {
+    await prisma.group.update({ where: { id: byName.id }, data: { stageId, isCarrier: true } });
+    return byName.id;
+  }
+
   const maxPos = await prisma.group.aggregate({ where: { eventId }, _max: { position: true } });
   const group = await prisma.group.create({
-    data: { eventId, name, position: (maxPos._max.position ?? -1) + 1 },
+    data: { eventId, stageId, isCarrier: true, name, position: (maxPos._max.position ?? -1) + 1 },
   });
   return group.id;
 }
@@ -4473,7 +4536,7 @@ export async function createSingleMatch(stageId: string): Promise<{ ok: boolean;
   });
   if (both.length !== 2) return { ok: false, error: "Those players aren't both in this tournament." };
 
-  const groupId = await matchCarrierGroup(eventId, `${stage.format} — Round ${stage.position + 1}`);
+  const groupId = await matchCarrierGroup(eventId, stage.id, `${stage.format} — Round ${stage.position + 1}`);
   // Sized to the round, like every other match this app creates. An empty
   // array is not "no holes yet" to the entry screen — it falls back to
   // `holes.length || 18`, which would offer eighteen holes on a nine-hole round.
@@ -4553,7 +4616,7 @@ export async function createThirdPlaceMatch(stageId: string): Promise<{ ok: bool
   });
   if (both.length !== 2) return { ok: false, error: "Those players aren't both in this tournament." };
 
-  const groupId = await matchCarrierGroup(eventId, `Play-off for third — Round ${stage.position + 1}`);
+  const groupId = await matchCarrierGroup(eventId, stage.id, `Play-off for third — Round ${stage.position + 1}`);
   const emptyHoles = JSON.stringify(new Array(holesPlayed(stage.holes)).fill(null));
 
   await prisma.match.create({
