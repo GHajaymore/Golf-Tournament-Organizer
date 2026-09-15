@@ -144,16 +144,28 @@ describe("the card chooser is an inline card, not an overlay", () => {
     expect(src, "it grew fixed positioning — see above").not.toMatch(/position:\s*["']fixed["']/);
   });
 
-  it("is rendered from two different JSX positions in PlayerCard", () => {
+  it("is rendered from exactly one place in PlayerCard", () => {
     /**
-     * The other half of the same investigation, and CLAUDE.md names it: the
-     * two call sites sit at different positions, so a `conflict`/`recovered`
-     * flip unmounts one and mounts the other, which is what "detached from the
-     * DOM" describes. Pinned so that collapsing them to one site — which would
-     * be a real fix for that symptom — is a deliberate act rather than a
-     * side effect.
+     * IT WAS TWO, AND THIS TEST PINNED THE TWO — deliberately, so that
+     * collapsing them would be an act rather than an accident. It has now been
+     * done, so this pins the one.
+     *
+     * The two sites sat at different JSX positions under mutually exclusive
+     * guards, so a `conflict`/`recovered` flip made React UNMOUNT one and MOUNT
+     * the other rather than update in place — and every failing log of the
+     * `offline.spec:245` intermittent ends `element was detached from the DOM,
+     * retrying`, which is what an unmount under a pending click looks like.
+     *
+     * Not a confirmed fix: that failure is intermittent and has never been
+     * reproduced on demand, so what can be said is that one named mechanism
+     * for it is gone. Which situation the chooser is asking about is decided
+     * in a `chooser` value beside the handlers; `CardConflict` holds no state,
+     * so nothing survives the flip that should not.
      */
     const card = readSource(join(COMPONENTS, "PlayerCard.tsx"));
-    expect(card.split("<CardConflict").length - 1).toBe(2);
+    expect(
+      card.split("<CardConflict").length - 1,
+      "a second call site is back — a flip between them unmounts and remounts the chooser",
+    ).toBe(1);
   });
 });
