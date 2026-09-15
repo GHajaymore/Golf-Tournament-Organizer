@@ -208,8 +208,20 @@ export function LifecycleBar({
 
       {confirming && (
         <div className="dialog-backdrop" onClick={() => setConfirming(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="dialog-title">Launch “{summary.name}”?</div>
+          {/* ANNOUNCED AS A DIALOG, WHICH IT WAS NOT — see PlayerSignOut for
+              the sweep that found it. A backdrop and a centred box with no
+              `role` and no `aria-modal` is a modal to everybody except the
+              people who most need to be told one has opened, and this is the
+              dialog that launches a tournament. Labelled by its own title so
+              the announcement carries the tournament's name. */}
+          <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="launch-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="dialog-title" id="launch-dialog-title">Launch “{summary.name}”?</div>
             <div className="dialog-body">
               {/**
                * THE THIRD COPY OF A CLAIM THAT WAS MEASURED FALSE, and the one
