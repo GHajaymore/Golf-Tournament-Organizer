@@ -4,7 +4,7 @@
 
 import { resolveMatch, countedHoles } from "./match";
 import { breakMatchTie, type MatchTiebreakKey } from "./match-tiebreak";
-import { toughestN } from "./types";
+import { toughestN, DEFAULT_TIEBREAKERS } from "./types";
 import type {
   Match,
   Player,
@@ -403,6 +403,17 @@ function tiebreakerCompare(
  * Rank players by total points desc, then the configured tiebreaker chain.
  * Falls back to seed for a fully deterministic ordering.
  */
+/**
+ * Two chains, same keys in the same order.
+ *
+ * Order matters and is not incidental: a committee that reorders the default
+ * four has configured a chain, and reading that as "untouched" would ignore
+ * the one decision they made.
+ */
+function sameChain(a: readonly TiebreakerKey[], b: readonly TiebreakerKey[]): boolean {
+  return a.length === b.length && a.every((key, i) => key === b[i]);
+}
+
 export function rankPlayers(
   players: Player[],
   stats: Map<string, PlayerStats>,
@@ -419,9 +430,10 @@ export function rankPlayers(
    */
   matchTiebreak?: { sequence: MatchTiebreakKey[]; strokeIndex: number[] },
 ): RankedPlayer[] {
-  const chain = scoring.tiebreakers?.length
-    ? scoring.tiebreakers
-    : (["head-to-head", "holes-won-ratio", "fewest-holes-lost", "lower-handicap"] as TiebreakerKey[]);
+  // `DEFAULT_TIEBREAKERS`, not a fourth copy of the same four keys. It is the
+  // same array the schema hands every event, which is what makes the
+  // "did anybody choose this" test below possible at all.
+  const chain = scoring.tiebreakers?.length ? scoring.tiebreakers : DEFAULT_TIEBREAKERS;
 
   /**
    * Points first, and then each tie broken WITHIN its own group.
@@ -487,7 +499,75 @@ export function rankPlayers(
    * the organizer configured returned zero. The seed fallback above is
    * deliberately not consulted: it exists to make the ORDER stable, which a
    * list still needs, and using it here is exactly what hid the tie.
+   *
+   * HANDICAP IS THE SAME KIND OF THING AS SEED, and is excluded for the same
+   * reason. It makes the ORDER deterministic; it does not mean anybody beat
+   * anybody. Everything else in the chain is a RESULT — who won the meeting,
+   * holes won, holes lost, the hardest six — and a place is shared unless
+   * something a player DID separates them.
+   *
+   * Measured before changing it, because the consequence is not theoretical:
+   *
+   *   two players halve their match  ->  1st and 2nd, the lower handicap "won"
+   *   eight players, nobody has played  ->  places 1 to 8 in handicap order
+   *
+   * The second is the one somebody walks past on a clubhouse screen: before a
+   * ball is struck, the board names a leader. Both are the same fault, which
+   * is a number that is not a result deciding a tie.
+   *
+   * NOTHING IS MIGRATED AND NO CONFIGURED CHAIN CHANGES. `lower-handicap` is
+   * the last entry of the schema's own column default, so every event carries
+   * it whether or not anybody chose it, and the two cannot be told apart from
+   * the data. It still orders the list exactly as it did — the board reads in
+   * the same sequence today as yesterday — it just stops claiming that a
+   * halved match had a winner.
+   *
+   * A committee that must produce ONE name still can: a tie on the board is
+   * what a play-off or a committee decision resolves, and neither is the
+   * leaderboard's job to invent. See `suggestChampion`, which already refuses
+   * to name a champion while `leaders.length > 1`.
    */
+  /**
+   * THE COMMITTEE'S CHAIN WINS. The standard only applies where there isn't one.
+   *
+   * `lower-handicap` is the last entry of the schema's own column default, so
+   * EVERY event carries it whether or not anybody opened Rounds & formats. That
+   * is the whole difficulty: the stored value cannot, by itself, tell "the
+   * committee chose this" from "nobody ever looked".
+   *
+   * It can be told by comparing against the default itself. A chain that still
+   * equals `DEFAULT_TIEBREAKERS` exactly is one nobody has touched, so the
+   * standard applies and a handicap does not break a tie. A chain that differs
+   * in any way — a key added, removed, or reordered — was configured by a
+   * person, and it is honoured exactly as written, `lower-handicap` included.
+   *
+   * That is the rule Ajay asked for on 2026-09-15: the standard as the default,
+   * overridden by the custom rule where there is one. It needs no migration and
+   * takes nothing away from a club that genuinely wants handicap to settle a
+   * tie — they say so on the screen built for saying it.
+   *
+   * THE COLUMN DEFAULT IS NOW LOAD-BEARING. It is the sentinel for "unset", so
+   * changing it would silently re-read every untouched event as configured.
+   * Change `DEFAULT_TIEBREAKERS` and this and the schema together, or not at
+   * all.
+   *
+   * The narrow cost, stated rather than hidden: a committee that deliberately
+   * picks exactly the default four reads as untouched. They get shared places
+   * on a genuine dead heat, which is the standard answer anyway — and moving
+   * any entry makes their choice legible again.
+   */
+  const configured = !sameChain(chain, DEFAULT_TIEBREAKERS);
+
+  /**
+   * And on an untouched chain, a handicap orders the list without deciding it.
+   *
+   * Exactly how `seed` is already treated a few lines below: it exists to make
+   * the ORDER stable, which a list still needs, and it does not mean anybody
+   * beat anybody. Everything else in the chain is a RESULT — who won the
+   * meeting, holes won, holes lost, the hardest six.
+   */
+  const separating = configured ? chain : chain.filter((key) => key !== "lower-handicap");
+
   const separated = (a: Player, b: Player): boolean => {
     const sa = stats.get(a.id)!;
     const sb = stats.get(b.id)!;
@@ -497,7 +577,7 @@ export function rankPlayers(
     // question and would answer this one wrongly.
     const pair = [a, b];
     const h2h = new Map(pair.map((p) => [p.id, miniLeague(p.id, pair, matches, matchTiebreak)]));
-    return chain.some(
+    return separating.some(
       (key) => tiebreakerCompare(key, a, b, sa, sb, matches, holeDifficulty, h2h, matchTiebreak) !== 0,
     );
   };

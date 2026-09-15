@@ -538,21 +538,40 @@ describe("standings, at every field size", () => {
       const ranked = rankPlayers(players, stats, DEFAULT_SCORING, roundRobin(players));
       expect(ranked).toHaveLength(n);
       /**
-       * Ranks run 1..n with no gaps and no repeats — UNDER THIS CHAIN.
+       * EVERY MATCH IN THIS FIXTURE IS HALVED, so nobody has beaten anybody
+       * and the whole field is level. The right answer is that they all share
+       * first place.
        *
-       * A gap would mean somebody was dropped from the board, which is always
-       * wrong. A repeat is not: two players nothing separates share a place,
-       * and `rankPlayers` says so rather than breaking the tie on seed order.
+       * This asserted `1..n` — a distinct place for every player — and said so
+       * in its own comment: "it cannot happen here because `DEFAULT_SCORING`'s
+       * chain ends in `lower-handicap` and this field's handicaps are
+       * distinct". That was true, and it was the DEFECT rather than the rule.
+       * A handicap is not a result; it decides the order of a list and cannot
+       * decide who won. With eight players and every match halved, this cell
+       * was pinning a board that reads 1 through 8 in handicap order.
        *
-       * It cannot happen here because `DEFAULT_SCORING`'s chain ends in
-       * `lower-handicap` and this field's handicaps are distinct, so every
-       * pair is separated by something. That is what makes 1..n the right
-       * assertion for this fixture and not a rule about ranks in general —
-       * see tied-rank.test.ts for the chain that genuinely cannot split two
-       * players, and what a board should print then.
+       * Exactly the shape CLAUDE.md records for this file: "the whole
+       * leaderboard inverted, loser first — every match in the fixture was
+       * halved, so nobody ever won anything".
        */
-      expect(ranked.map((r) => r.rank)).toEqual(Array.from({ length: n }, (_, i) => i + 1));
+      const ranks = ranked.map((r) => r.rank);
+      expect(ranks, "every match was halved, so nobody is ahead of anybody").toEqual(
+        Array.from({ length: n }, () => 1),
+      );
       expect(new Set(ranked.map((r) => r.player.id)).size).toBe(n);
+
+      /**
+       * And the general rule, which holds whatever the chain does: competition
+       * ranking. Places never go backwards, the first is 1, and a place is
+       * either shared with the row above or is that row's 1-based position —
+       * which is what makes two players on 2nd leave the next on 4th rather
+       * than inventing a 3rd nobody earned.
+       */
+      ranks.forEach((rank, i) => {
+        expect(rank, `rank ${i} is not a place`).toBeGreaterThanOrEqual(1);
+        if (i === 0) expect(rank, "the board starts at 1").toBe(1);
+        else expect([ranks[i - 1], i + 1], `rank ${i} skipped or went backwards`).toContain(rank);
+      });
     });
   }
 
@@ -1139,11 +1158,27 @@ describe("forfeits, at every field size", () => {
         expect(s.played).toBeGreaterThanOrEqual(0);
       }
 
-      // The board still ranks everybody, contiguously, with the forfeit in it.
+      // The board still ranks everybody, with the forfeit in it, and nobody
+      // is dropped.
       const ranked = rankPlayers(players, stats, DEFAULT_SCORING, matches);
       expect(ranked).toHaveLength(n);
-      expect(ranked.map((r) => r.rank)).toEqual(Array.from({ length: n }, (_, i) => i + 1));
       expect(new Set(ranked.map((r) => r.player.id)).size).toBe(n);
+
+      /**
+       * COMPETITION RANKING, not one place each.
+       *
+       * This asserted `1..n`, which only held because the chain ended in
+       * `lower-handicap` and this field's handicaps are distinct — so a
+       * handicap, which is not a result, was quietly separating players the
+       * forfeit had left level. A four-player round here settles as
+       * `[1, 2, 2, 4]`: two players share second, and the next is fourth
+       * rather than a third nobody earned.
+       */
+      const ranks = ranked.map((r) => r.rank);
+      ranks.forEach((rank, i) => {
+        if (i === 0) expect(rank, "the board starts at 1").toBe(1);
+        else expect([ranks[i - 1], i + 1], `rank ${i} skipped or went backwards`).toContain(rank);
+      });
     });
   }
 });
