@@ -124,7 +124,7 @@ const TIEBREAKER_HELP: Record<FixedTiebreakerKey, string> = {
   "fewest-holes-lost":
     "Fewest holes dropped across every match — the defensive twin of hole differential.",
   "lower-handicap":
-    "The lower handicap ranks first. Traditional, and a definite answer — worth keeping last in the list so a tie always resolves.",
+    "The lower handicap is listed first. It decides the ORDER of players nothing else separates — it does not break the tie, because a handicap is not a result: two players who halve their match are shown level, and a committee or a play-off settles a single prize.",
 };
 
 export function tiebreakerHelp(key: string): string {

@@ -487,7 +487,36 @@ export function rankPlayers(
    * the organizer configured returned zero. The seed fallback above is
    * deliberately not consulted: it exists to make the ORDER stable, which a
    * list still needs, and using it here is exactly what hid the tie.
+   *
+   * HANDICAP IS THE SAME KIND OF THING AS SEED, and is excluded for the same
+   * reason. It makes the ORDER deterministic; it does not mean anybody beat
+   * anybody. Everything else in the chain is a RESULT — who won the meeting,
+   * holes won, holes lost, the hardest six — and a place is shared unless
+   * something a player DID separates them.
+   *
+   * Measured before changing it, because the consequence is not theoretical:
+   *
+   *   two players halve their match  ->  1st and 2nd, the lower handicap "won"
+   *   eight players, nobody has played  ->  places 1 to 8 in handicap order
+   *
+   * The second is the one somebody walks past on a clubhouse screen: before a
+   * ball is struck, the board names a leader. Both are the same fault, which
+   * is a number that is not a result deciding a tie.
+   *
+   * NOTHING IS MIGRATED AND NO CONFIGURED CHAIN CHANGES. `lower-handicap` is
+   * the last entry of the schema's own column default, so every event carries
+   * it whether or not anybody chose it, and the two cannot be told apart from
+   * the data. It still orders the list exactly as it did — the board reads in
+   * the same sequence today as yesterday — it just stops claiming that a
+   * halved match had a winner.
+   *
+   * A committee that must produce ONE name still can: a tie on the board is
+   * what a play-off or a committee decision resolves, and neither is the
+   * leaderboard's job to invent. See `suggestChampion`, which already refuses
+   * to name a champion while `leaders.length > 1`.
    */
+  const separating = chain.filter((key) => key !== "lower-handicap");
+
   const separated = (a: Player, b: Player): boolean => {
     const sa = stats.get(a.id)!;
     const sb = stats.get(b.id)!;
@@ -497,7 +526,7 @@ export function rankPlayers(
     // question and would answer this one wrongly.
     const pair = [a, b];
     const h2h = new Map(pair.map((p) => [p.id, miniLeague(p.id, pair, matches, matchTiebreak)]));
-    return chain.some(
+    return separating.some(
       (key) => tiebreakerCompare(key, a, b, sa, sb, matches, holeDifficulty, h2h, matchTiebreak) !== 0,
     );
   };
