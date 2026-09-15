@@ -152,6 +152,81 @@ describe("and a real result still separates people", () => {
   });
 });
 
+describe("the committee's chain wins; the standard only fills a gap", () => {
+  /**
+   * AJAY'S RULE, 2026-09-15: the standard as the default, overridden by the
+   * custom tiebreaker rule on Rounds & formats where there is one.
+   *
+   * The difficulty is that `lower-handicap` is the last entry of the schema's
+   * own column default, so EVERY event carries it whether or not anybody
+   * opened that screen — and the stored value cannot by itself tell "chosen"
+   * from "never looked at".
+   *
+   * It can be told by comparing against the default. Untouched means the
+   * standard; different in any way means a person decided it.
+   */
+  const chainOf = (tiebreakers: typeof DEFAULT_TIEBREAKERS) => ({
+    ...DEFAULT_SCORING,
+    tiebreakers,
+  });
+
+  it("an untouched chain lets a halved match stay halved", () => {
+    const [a, b] = field(2);
+    const rows = computeStandings([a, b], halvedRoundRobin([a, b]), chainOf(DEFAULT_TIEBREAKERS));
+    expect(rows.map((r) => r.rank)).toEqual([1, 1]);
+  });
+
+  it("a CONFIGURED chain with lower-handicap separates them", () => {
+    /**
+     * The half that makes this an override rather than a ban. A committee that
+     * wants the lower handicap to settle a tie says so on the screen built for
+     * saying it, and the app does it — which is the whole difference between
+     * the rule Ajay asked for and the one I first built.
+     */
+    const [a, b] = field(2);
+    const rows = computeStandings(
+      [a, b],
+      halvedRoundRobin([a, b]),
+      chainOf(["head-to-head", "lower-handicap"]),
+    );
+    expect(rows.map((r) => r.rank), "a configured chain was overruled").toEqual([1, 2]);
+    expect(rows[0].player.handicap, "the lower handicap should rank first").toBeLessThan(
+      rows[1].player.handicap,
+    );
+  });
+
+  it("REORDERING the default counts as configuring it", () => {
+    /**
+     * Order is a decision. A committee that moves an entry has configured a
+     * chain, and reading that as untouched would ignore the one thing they
+     * did.
+     */
+    const reordered = [...DEFAULT_TIEBREAKERS].reverse() as typeof DEFAULT_TIEBREAKERS;
+    const [a, b] = field(2);
+    const rows = computeStandings([a, b], halvedRoundRobin([a, b]), chainOf(reordered));
+    expect(rows.map((r) => r.rank), "a reordered chain read as untouched").toEqual([1, 2]);
+  });
+
+  it("dropping lower-handicap is also configuring it, and still shares", () => {
+    // The other direction: a committee that removes it gets shared places for
+    // the reason they asked for, not by accident of matching the default.
+    const without = DEFAULT_TIEBREAKERS.filter((k) => k !== "lower-handicap");
+    const [a, b] = field(2);
+    const rows = computeStandings([a, b], halvedRoundRobin([a, b]), chainOf(without));
+    expect(rows.map((r) => r.rank)).toEqual([1, 1]);
+  });
+
+  it("the control: the two chains really are different", () => {
+    /**
+     * Without this, every assertion above passes if `sameChain` always returns
+     * true or always false — one of those makes the whole file assert the old
+     * behaviour and the other makes it assert nothing.
+     */
+    expect(DEFAULT_TIEBREAKERS).toContain("lower-handicap");
+    expect(["head-to-head", "lower-handicap"]).not.toEqual([...DEFAULT_TIEBREAKERS]);
+  });
+});
+
 describe("the chain the app actually ships", () => {
   it("still ends in lower-handicap, which is what made this worth fixing", () => {
     /**
