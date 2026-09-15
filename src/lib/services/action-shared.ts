@@ -1,4 +1,5 @@
 import "server-only";
+import { configurationLocked } from "@/lib/domain/lifecycle-state";
 import { prisma } from "../db";
 import { getSession } from "../auth";
 
@@ -42,7 +43,8 @@ export async function assertUnlocked(
     where: { id: eventId },
     select: { status: true, configUnlocked: true },
   });
-  if (e && (e.status === "live" || e.status === "completed") && !e.configUnlocked) {
+  // One definition of "locked", shared with isSetupLocked and LifecycleBar.
+  if (e && configurationLocked(e)) {
     throw new Error(`Configuration is locked. Unlock the tournament to ${what}.`);
   }
 }

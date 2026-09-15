@@ -5,6 +5,8 @@ import { STATUS_META } from "@/lib/format";
 import {
   lifecycleMismatch,
   nextLifecycleAction,
+  configurationLocked,
+  isLaunched,
   LAUNCH_DOES,
   VISIBILITY_IS_ELSEWHERE,
 } from "@/lib/domain/lifecycle-state";
@@ -63,7 +65,10 @@ export function LifecycleBar({
    */
   const [refused, setRefused] = useState("");
   const meta = STATUS_META[status] ?? STATUS_META.draft;
-  const locked = (status === "live" || status === "completed") && !configUnlocked;
+  // The same answer the server gives — `configurationLocked` is what
+  // `isSetupLocked` and `assertUnlocked` both call. This component could not
+  // reach the old copy: it lived in a `server-only` module.
+  const locked = configurationLocked({ status, configUnlocked });
   const mismatch = lifecycleMismatch({ status, resultsIn, playersEntered: summary.players });
 
   /**
@@ -162,7 +167,7 @@ export function LifecycleBar({
             <span style={{ fontWeight: 600 }}>{mismatch.title}.</span> {mismatch.detail}
           </p>
         )}
-        {isAdmin && (status === "live" || status === "completed") && (
+        {isAdmin && isLaunched(status) && (
           <button
             type="button"
             className="btn btn-secondary"

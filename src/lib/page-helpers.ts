@@ -1,4 +1,5 @@
 import "server-only";
+import { configurationLocked } from "@/lib/domain/lifecycle-state";
 import { redirect } from "next/navigation";
 import { primaryOrganizationFor } from "@/lib/services/organization";
 import { headers } from "next/headers";
@@ -113,9 +114,18 @@ export async function requireState(): Promise<{ session: Session; state: EventSt
   return { session, state };
 }
 
-/** Setup config is frozen once the event is live/completed, unless the organizer unlocked it. */
+/**
+ * Setup config is frozen once the event is launched, unless the organizer
+ * unlocked it.
+ *
+ * DELEGATES NOW, and the name stays because a dozen server components call it.
+ * The rule moved to `domain/lifecycle-state` because this file is
+ * `server-only` — so `LifecycleBar`, a client component, could not call it and
+ * wrote the same sentence out by hand instead. That is the whole mechanism by
+ * which one rule became five copies.
+ */
 export function isSetupLocked(event: { status: string; configUnlocked: boolean }): boolean {
-  return (event.status === "live" || event.status === "completed") && !event.configUnlocked;
+  return configurationLocked(event);
 }
 
 export function initialsOf(name: string): string {

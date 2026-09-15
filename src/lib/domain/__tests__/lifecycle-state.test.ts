@@ -4,6 +4,10 @@ import {
   nextLifecycleAction,
   resultsIn,
   tournamentPhase,
+  isLaunched,
+  isFinished,
+  configurationLocked,
+  PRE_LAUNCH_STATUSES,
   LAUNCH_DOES,
   VISIBILITY_IS_ELSEWHERE,
 } from "@/lib/domain/lifecycle-state";
@@ -141,8 +145,17 @@ describe("how much golf has been played", () => {
  * and the chip said Draft.
  */
 describe("which phase the tournament is in", () => {
+  /**
+   * TAKES THE STATUS NOW, not `launched` and `finished` as separate flags.
+   *
+   * Those were computed in `/event/page.tsx` and forwarded untouched through
+   * `EventSetupClient`, so the rule about what "launched" means lived in a
+   * page. It is derived here from `PRE_LAUNCH_STATUSES` — which also closes a
+   * latent disagreement, since the hand-written pair was the INVERSE of that
+   * list rather than the same rule, and a sixth status would have split them.
+   */
   const p = (over: Partial<Parameters<typeof tournamentPhase>[0]> = {}) =>
-    tournamentPhase({ launched: false, scored: false, finished: false, setupComplete: true, ...over });
+    tournamentPhase({ status: "draft", scored: false, setupComplete: true, ...over });
 
   it("only calls it finished when somebody said so", () => {
     /**
@@ -152,14 +165,29 @@ describe("which phase the tournament is in", () => {
      * money — on a tournament whose second round was in progress.
      */
     expect(p({ scored: true })).toBe("play");
-    expect(p({ launched: true, scored: true })).toBe("play");
-    expect(p({ finished: true })).toBe("results");
+    expect(p({ status: "live", scored: true })).toBe("play");
+    expect(p({ status: "completed" })).toBe("results");
   });
 
   it("lets a result move it forward to play, and no further", () => {
     // The evidence route: a card that has come in means somebody is out there
     // whatever the status says.
-    expect(p({ scored: true, launched: false })).toBe("play");
+    expect(p({ scored: true, status: "draft" })).toBe("play");
+  });
+
+  it("reads every pre-launch status as pre-launch, not just draft", () => {
+    /**
+     * The half the boolean could not express. `launched` arrived as one value
+     * and this function could not tell "draft" from "registration" from
+     * "ready" — they are all before the launch, and all three now reach here
+     * intact. Worth asserting because the old hand-written pair tested for
+     * live-or-completed, so anything NOT in that pair was pre-launch by
+     * accident rather than by the list.
+     */
+    for (const status of PRE_LAUNCH_STATUSES) {
+      expect(p({ status }), status).toBe("launch");
+      expect(p({ status, setupComplete: false }), status).toBe("setup");
+    }
   });
 
   it("waits for setup before offering launch", () => {
@@ -316,6 +344,81 @@ describe("what the app says launching does", () => {
       expect(src(p), `${p} claims launch is what lets the field look`).not.toMatch(
         /Player access and can view/,
       );
+    }
+  });
+});
+
+/**
+ * ONE DEFINITION OF "LAUNCHED", AND ONE OF "LOCKED".
+ *
+ * Seven places in `src` spelled `status === "live" || status === "completed"`
+ * by hand, and four of those went on to `&& !configUnlocked` — which is
+ * `isSetupLocked`, written out a fifth time in four other files. `page-helpers`
+ * is `server-only`, so `LifecycleBar` could not have called the existing one
+ * even if somebody had thought to; that is the mechanism, not carelessness.
+ */
+describe("what launched means, asked once", () => {
+  it("is anything not on the pre-launch list", () => {
+    for (const status of PRE_LAUNCH_STATUSES) expect(isLaunched(status), status).toBe(false);
+    expect(isLaunched("live")).toBe(true);
+    expect(isLaunched("completed")).toBe(true);
+  });
+
+  it("agrees with the pair it replaced, on every status that exists today", () => {
+    /**
+     * The control on the change. `isLaunched` is derived from the LIST and the
+     * old code tested for the PAIR, so this asserts the two answer alike for
+     * everything currently in play — a refactor that quietly moved a status
+     * from one side to the other would show up here rather than on a screen.
+     */
+    for (const status of [...PRE_LAUNCH_STATUSES, "live", "completed"]) {
+      const theOldWay = status === "live" || status === "completed";
+      expect(isLaunched(status), status).toBe(theOldWay);
+    }
+  });
+
+  it("and DIVERGES on a status nobody has added yet, which is the point", () => {
+    /**
+     * The reason this is a function rather than a tidier copy of the pair.
+     * They are not the same rule: one is "not on the list", the other is "one
+     * of these two". Add a sixth status — a paused or abandoned tournament —
+     * and the list-based answer calls it launched while the pair calls it
+     * pre-launch, silently, on whichever screens happened to use which.
+     *
+     * Asserting the divergence rather than the agreement, because the
+     * agreement is the thing that made five copies survive this long.
+     */
+    // Typed as a plain string: narrowed to its literal, TypeScript refuses the
+    // comparison below as provably false — which is true of the TYPE and is
+    // exactly the runtime divergence being demonstrated.
+    const invented: string = "abandoned";
+    expect(PRE_LAUNCH_STATUSES).not.toContain(invented);
+    expect(isLaunched(invented), "the list says launched").toBe(true);
+    expect(invented === "live" || invented === "completed", "the old pair said not").toBe(false);
+  });
+
+  it("only calls it finished when the organizer said so", () => {
+    expect(isFinished("completed")).toBe(true);
+    for (const status of [...PRE_LAUNCH_STATUSES, "live"]) {
+      expect(isFinished(status), status).toBe(false);
+    }
+  });
+});
+
+describe("what locked means, asked once", () => {
+  it("is launched and not deliberately unlocked", () => {
+    expect(configurationLocked({ status: "live", configUnlocked: false })).toBe(true);
+    expect(configurationLocked({ status: "completed", configUnlocked: false })).toBe(true);
+  });
+
+  it("an organizer who unlocked it is not locked", () => {
+    // The escape hatch, and the half a `status` check alone would lose.
+    expect(configurationLocked({ status: "live", configUnlocked: true })).toBe(false);
+  });
+
+  it("a tournament that has not launched is never locked", () => {
+    for (const status of PRE_LAUNCH_STATUSES) {
+      expect(configurationLocked({ status, configUnlocked: false }), status).toBe(false);
     }
   });
 });

@@ -31,8 +31,21 @@ export type JourneyPhase = "setup" | "launch" | "play" | "results";
 export interface TournamentJourneyProps {
   /** How far setting up has got. Null for an event with no setup flow. */
   setup: { doneCount: number; total: number; complete: boolean } | null;
-  /** Whether the tournament has been launched — play has begun. */
-  launched: boolean;
+  /**
+   * THE TOURNAMENT'S STATUS, not conclusions drawn from it.
+   *
+   * This was two booleans, `launched` and `finished`, each computed in
+   * `/event/page.tsx` and passed down through `EventSetupClient` — which used
+   * neither and forwarded both. Three components carrying a rule that belongs
+   * to one, and the page was the one stating it: `status === "live" ||
+   * status === "completed"`.
+   *
+   * `tournamentPhase` derives both itself now, from `PRE_LAUNCH_STATUSES`,
+   * which is the list that actually defines what launched means. See its note
+   * for why the hand-written pair was not merely a copy but an INVERSE that
+   * would diverge the day a sixth status is added.
+   */
+  status: string;
   /**
    * Whether any card has been returned.
    *
@@ -41,15 +54,6 @@ export interface TournamentJourneyProps {
    * first phase of scoring looks like, not the last.
    */
   scored: boolean;
-  /**
-   * Whether the organizer has declared it over.
-   *
-   * `launched` cannot answer this: it is `status === "live" || status ===
-   * "completed"`, so by the time it reaches here the two are the same value.
-   * Finishing is a decision somebody makes, not a threshold a card count
-   * crosses — see `current` below.
-   */
-  finished: boolean;
   /** Knockout tournaments only — see the bracket gate in EventSetupClient. */
   hasBracket: boolean;
 }
@@ -65,9 +69,8 @@ interface Phase {
 
 export function TournamentJourney({
   setup,
-  launched,
+  status,
   scored,
-  finished,
   hasBracket,
 }: TournamentJourneyProps) {
   const phases: Phase[] = [
@@ -156,9 +159,8 @@ export function TournamentJourney({
    * Finish, which is the direction it is capable of being right about.
    */
   const current: JourneyPhase = tournamentPhase({
-    launched,
+    status,
     scored,
-    finished,
     setupComplete: !!setup?.complete,
   });
   const order: JourneyPhase[] = ["setup", "launch", "play", "results"];

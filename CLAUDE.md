@@ -352,7 +352,16 @@ thing, not by animation — which is what the paragraphs above reach for.
 Its GEOMETRY is now measured, inside `offline.spec` where it is already open,
 and it is clean at 320, 393 and 1280 with a 59-character tournament name. So
 "the chooser is too wide" is off the table as a cause; what remains is that it
-is inline, in a page that re-renders, at two different JSX positions. The other
+is inline, in a page that re-renders, at two different JSX positions.
+
+**And that is measured DURING a failure, not merely alongside one.** The
+assertion sits immediately before the click. On 2026-09-15 the flake recurred
+at `small-phone` with the full signature — and the geometry assertion two lines
+above it had just passed. So at the moment the chooser was measured the box was
+correct, and the click still could not land: whatever moves it, moves it
+between the measurement and the press. That is the strongest evidence yet that
+the cause is re-render timing rather than layout, and it is the reason to look
+at what changes identity under the chooser rather than at its CSS. The other
 two dialogs in the app are measured in `e2e/dialog.spec.ts`, and
 `src/lib/__tests__/dialogs-are-swept.test.ts` pins which of the three is which
 kind — so a later change making this one a proper modal would resolve the
