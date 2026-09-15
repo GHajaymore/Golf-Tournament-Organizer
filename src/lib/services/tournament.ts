@@ -15,6 +15,7 @@ import { aggregateStroke, emptyAgg, isRanked, netOf, type StrokeCard } from "../
 import { matchStrokeCards, withoutSupersededStrokeCards } from "../domain/match-cards";
 import { countbackCompare } from "../domain/stroke-countback";
 import { reviewQueue, type ReviewQueue } from "../domain/review-queue";
+import { resultsIn } from "../domain/lifecycle-state";
 import { resolveCourse } from "../courses";
 import { todayIso } from "../deadline";
 import { cleanIsoDate } from "../domain/round-dates";
@@ -480,6 +481,17 @@ export interface EventState {
   pendingConfirmations: number;
   /** The same queue, split by source, for the line under the number. */
   reviewing: ReviewQueue;
+  /**
+   * How much golf has been played, from both sources, over the WHOLE
+   * tournament — the lifecycle's evidence that a status is out of date.
+   *
+   * Deliberately not `matchProgress`, which the lifecycle warning used to read
+   * and which counts the active stage's matches alone: a pure stroke-play
+   * tournament has none, so it was never warned however many cards were in.
+   * Assembled beside `reviewing` because it is the same two arrays and the
+   * same whole-tournament scope. See `domain/lifecycle-state.ts#resultsIn`.
+   */
+  resultsIn: number;
   overallCutoff: number | null;
   brackets: { winners: BracketView; consolation: BracketView };
   qualifiers: Player[];
@@ -1492,6 +1504,19 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     staffApproves,
   });
   const pendingConfirmations = reviewing.total;
+  /**
+   * The same two arrays, asked a different and much looser question.
+   *
+   * `matchSettled` rather than `resolveMatch(...).complete`, which is the
+   * opposite of the call the review queue two lines up makes — and both are
+   * right. A queue may only hold FINISHED matches, because a match one hole
+   * old is not a result anybody can sign off. The lifecycle is asking whether
+   * anybody is out on the course at all, and one hole answers that.
+   */
+  const played = resultsIn({
+    matches: matches.map((m) => ({ played: matchSettled(m) })),
+    cards: scorecards,
+  });
   const liveQualifiers = isStroke
     ? strokeStandings.filter((s) => qualifierIds.has(s.player.id)).map((s) => toDomainPlayer(s.player, hcpOf(s.player)))
     : overall.filter((rp) => qualifierIds.has(rp.player.id)).map((rp) => rp.player);
@@ -1602,6 +1627,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     advancingIds,
     pendingConfirmations,
     reviewing,
+    resultsIn: played,
     overallCutoff,
     brackets,
     qualifiers,

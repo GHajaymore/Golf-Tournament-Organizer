@@ -10,9 +10,9 @@ import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { settingsOf } from "@/lib/services/tournament";
 import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
 import { showBracket, bracketBadge } from "@/lib/bracket-visibility";
-import { matchProgress, standingRows } from "@/lib/services/tournament";
+import { standingRows } from "@/lib/services/tournament";
 import { usesStandardBoard } from "@/lib/formats";
-import { pts, shortName, distinctLabels } from "@/lib/format";
+import { pts, shortName, distinctLabels, plural } from "@/lib/format";
 import { toParText } from "@/lib/domain";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
@@ -22,6 +22,7 @@ import { currentRoundCut } from "@/lib/domain/cut";
 import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
+import { nextLifecycleAction } from "@/lib/domain/lifecycle-state";
 import { cleanSideStyle, wantsTeams } from "@/lib/side-style";
 import { TEAM_FORMAT_NAMES } from "@/lib/formats";
 import { SetupChecklist } from "@/components/SetupChecklist";
@@ -196,7 +197,12 @@ export default async function DashboardPage() {
    */
   const teamRound = TEAM_FORMAT_NAMES.includes(state.boardStage?.format ?? "");
 
-  const progress = matchProgress(state);
+  /* `matchProgress` is gone from this screen. Its one reader here was the
+     lifecycle bar's result count, and it was the wrong number for that
+     question twice over — the active stage's matches only, so it ignored every
+     scorecard and reported a round the rest of the card was not about. The
+     bar reads `state.resultsIn` now. The progress BAR below still counts, and
+     counts `boardProgress`, which knows which round it is describing. */
   /**
    * THE ROUND THE "CURRENT ROUND" CARD IS ABOUT, and it has to be the one the
    * progress bar under it counts.
@@ -377,14 +383,23 @@ export default async function DashboardPage() {
    * Only the two transitions that mean something. Moving from draft to "taking
    * entries" is a club saying what it is doing and gates nothing; going live
    * and declaring a result are the ones that change what the field sees.
+   *
+   * ASKED OF THE ACTION, NOT OF THE STATUS, since a draft can now be offered
+   * Launch. This listed the statuses that could reach a launch button —
+   * `ready` and `registration` — and `nextLifecycleAction` has since added a
+   * third route to it: a pre-launch tournament with results in it is offered
+   * Launch from `draft` too. Keyed off the status, this would have handed that
+   * tournament an ungated button whose action then refused on the server, for
+   * a reason the screen had already worked out and thrown away.
    */
+  const lifecycleAction = nextLifecycleAction({ status: event.status, resultsIn: state.resultsIn });
   const phaseBlock =
-    event.status === "ready" || event.status === "registration"
+    lifecycleAction?.kind === "launch"
       ? launchRefusal({
           playingRounds: state.stages.filter((s) => isPlayingRound(s.type)).length,
           confirmed: state.confirmed.length,
         })
-      : event.status === "live"
+      : lifecycleAction?.to === "completed"
         ? finishRefusal({ pendingConfirmations: state.pendingConfirmations })
         : null;
   const navHrefs = new Set(
@@ -624,18 +639,46 @@ export default async function DashboardPage() {
               (matchEvent ? "No date or course set — neither is needed to play it" : "No dates or venue set yet")}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {showEntry && (
-            <Link className="btn btn-secondary" href="/entry">
-              <Icon name="pencil-simple" /> Enter scores
-            </Link>
-          )}
-          {showStandings && (
-            <Link className="btn btn-primary" href="/leaderboard">
-              <Icon name="ranking" /> Leaderboard
-            </Link>
-          )}
-        </div>
+        {/**
+         * ONE PRIMARY ON THE SCREEN, and the lifecycle wins it when it has
+         * something to say.
+         *
+         * "Enter scores", "Leaderboard", "Start taking entries" and "Launch
+         * tournament" were all on this screen at once, three of them
+         * primary-weighted, and nothing said which an organizer in this state
+         * should press. Two of those are the same button now
+         * (`nextLifecycleAction`); these two are the rest of the problem.
+         *
+         * They are NAVIGATION — go and look at the golf — and they stay, at
+         * secondary weight, whenever the lifecycle card is offering an action
+         * to the person looking. When it is not (a player, an assistant, or a
+         * completed tournament with nothing left to move) the screen would
+         * otherwise have no primary at all, and for a player the leaderboard
+         * genuinely is the thing they came for — so it takes the weight back.
+         *
+         * Asked of `nextLifecycleAction` rather than re-derived, so this
+         * cannot come to disagree with the button it is deferring to. A match
+         * renders no LifecycleBar at all, hence `matchEvent` — otherwise a
+         * fourball would demote its own leaderboard for a card that is not on
+         * the screen.
+         */}
+        {(() => {
+          const lifecycleLeads = !matchEvent && isAdmin && !!lifecycleAction;
+          return (
+            <div style={{ display: "flex", gap: 8 }}>
+              {showEntry && (
+                <Link className="btn btn-secondary" href="/entry">
+                  <Icon name="pencil-simple" /> Enter scores
+                </Link>
+              )}
+              {showStandings && (
+                <Link className={lifecycleLeads ? "btn btn-secondary" : "btn btn-primary"} href="/leaderboard">
+                  <Icon name="ranking" /> Leaderboard
+                </Link>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* A MATCH HAS NO LIFECYCLE TO RUN, so it is not offered one.
@@ -675,7 +718,7 @@ export default async function DashboardPage() {
           status={event.status}
           isAdmin={isAdmin}
           configUnlocked={event.configUnlocked}
-          matchesScored={progress.done}
+          resultsIn={state.resultsIn}
           blockedReason={phaseBlock ?? undefined}
           summary={{
             name: event.name,
@@ -897,11 +940,17 @@ export default async function DashboardPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
                   <span><Icon name="trophy" style={{ color: "var(--color-accent)", marginRight: 6 }} />Winners</span>
-                  <span className="text-muted">{brackets.winners.champion?.name ?? `${state.brackets.winners.rounds[0].matches.length} matches`}</span>
+                  {/* `plural`, because this card printed "1 matches" on the
+                      demo tournament's consolation bracket — read off the
+                      rendered screen on 2026-09-14. The stat card at the top
+                      of this same page had "1 flights" fixed for exactly this
+                      reason; the helper exists so the next one does not have
+                      to be spotted by eye. */}
+                  <span className="text-muted">{brackets.winners.champion?.name ?? plural(state.brackets.winners.rounds[0].matches.length, "match", "matches")}</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
                   <span><Icon name="medal" style={{ color: "var(--color-accent)", marginRight: 6 }} />Consolation</span>
-                  <span className="text-muted">{brackets.consolation.champion?.name ?? `${state.brackets.consolation.rounds[0].matches.length} matches`}</span>
+                  <span className="text-muted">{brackets.consolation.champion?.name ?? plural(state.brackets.consolation.rounds[0].matches.length, "match", "matches")}</span>
                 </div>
               </div>
               <Link className="btn btn-ghost" href="/bracket" style={{ alignSelf: "flex-start", marginTop: 6 }}>

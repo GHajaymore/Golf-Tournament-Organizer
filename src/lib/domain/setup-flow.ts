@@ -125,14 +125,21 @@ export interface SetupFlow {
   doneCount: number;
   complete: boolean;
   /**
-   * Everything is set up and the field still cannot see any of it.
+   * Everything is set up, and nobody has said the tournament is live.
    *
    * The gap this closes: the rail guided an organizer through four steps and
    * then vanished, silently, at the exact moment the tournament became real.
-   * Nothing said "you are finished", and nothing said the thing that actually
-   * matters — that until it is launched, nobody in the field can see their
-   * schedule, their card or the leaderboard. The only warning about that fires
-   * AFTER a score is entered, which is a day too late.
+   * Nothing said "you are finished", and nothing said what was left to do.
+   *
+   * THIS USED TO SAY the thing that matters is "that until it is launched,
+   * nobody in the field can see their schedule, their card or the
+   * leaderboard". That is false, and it is the same sentence that was removed
+   * from two screens on 2026-09-11 after being measured — see `LAUNCH_DOES` in
+   * `lifecycle-state.ts`, which records a player on a `draft` tournament
+   * opening the board and a certifiable card. The sweep that caught the two
+   * rendered copies did not read comments, so this one sat here describing a
+   * gate the app does not have. What launching actually does is state the
+   * lifecycle and lock configuration.
    *
    * Self-clearing, and that is what makes it worth showing: it is true for the
    * few minutes between finishing setup and launching, and false forever

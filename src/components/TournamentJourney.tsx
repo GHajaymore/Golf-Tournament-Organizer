@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Icon } from "./Icon";
 import { screenName } from "@/lib/nav";
 import { SETUP_ORDER } from "@/lib/domain/setup-flow";
+import { tournamentPhase } from "@/lib/domain/lifecycle-state";
 
 /**
  * THE WHOLE OF RUNNING A TOURNAMENT, ON ONE CARD.
@@ -115,11 +116,19 @@ export function TournamentJourney({
   ];
 
   /**
-   * Where the tournament actually is.
+   * Where the tournament actually is — `tournamentPhase`, not an expression.
    *
    * Read from what has happened rather than from a stored stage, so it cannot
    * disagree with the screens either side of it: setting up is finished when
    * the rail says so, playing has started when a card has been returned.
+   *
+   * THE RULE HAS MOVED TO `domain/lifecycle-state.ts`, unchanged, because this
+   * card was not the only screen answering the question. `/dashboard`'s status
+   * chip answered it separately and got a different answer on the same
+   * tournament — this card said Play and the chip said Draft. Fixing the
+   * expression here and leaving the chip to be fixed later is precisely how
+   * the two came to disagree, so there is now one function and two readers.
+   * The reasoning below is kept where the rule is.
    *
    * THE FIRST TEST USED TO BE `scored`, AND IT ANSWERED THE WRONG QUESTION.
    * One returned card sent the whole card to "Finish", so it ticked Launch and
@@ -146,13 +155,12 @@ export function TournamentJourney({
    * So a card count can now only ever move this FORWARD to Play, never to
    * Finish, which is the direction it is capable of being right about.
    */
-  const current: JourneyPhase = finished
-    ? "results"
-    : launched || scored
-      ? "play"
-      : setup?.complete
-        ? "launch"
-        : "setup";
+  const current: JourneyPhase = tournamentPhase({
+    launched,
+    scored,
+    finished,
+    setupComplete: !!setup?.complete,
+  });
   const order: JourneyPhase[] = ["setup", "launch", "play", "results"];
   const currentIndex = order.indexOf(current);
 
