@@ -364,7 +364,39 @@ will not know it happened. It wants:
   defaults — almost certainly leave them alone, the same call `eventCount > 0`
   makes for the club-first gate.
 
-### "Society" is a British word, and the app says it worldwide
+### "Society" is a British word — DEFAULT half BUILT 2026-09-15, OVERRIDE half open
+**What shipped (#373).** A `community` is a *league* in the United States and a
+*society* everywhere else, resolved from `Organization.country` through
+`orgProfile(kind, country)` and delivered by `OrgProfileProvider`, which was
+already the sink for this — eleven components read that context. All five
+strings vary together; a test pins that, and another pins that no country
+flips any behavioural flag on any kind (a society in Boston still fronts the
+minibus).
+
+**What is NOT built: the ORGANIZER AS AUTHORITY half.** The design below says
+"the country as the DEFAULT, the organizer as the AUTHORITY" and only the
+default exists. There is no way to overrule it, so a US club that thinks of
+itself as a society cannot say so. That needs somewhere to store the choice —
+a column — and it was deliberately not started on 2026-09-15 because a second
+session was mid-migration on `Group` and two concurrent migrations is how one
+of them ends up reverted. Pick it up once that has landed.
+
+**Australia is a decision, not an omission.** The note below says such an
+outfit is "often just a club". Calling a `community` a "club" collides with the
+`club` KIND — an Australian society and an Australian golf club would read
+identically on every screen — so it resolves to "society" and there is a test
+saying so by name. Somebody should make that trade deliberately rather than
+discover it.
+
+**The transferable part: RENDER IT.** Building this turned up five hardcoded
+"club" strings in components that already had the right word one line above,
+two of them `FieldInfo` labels that become `aria-label` — so a society's
+screen-reader user was told about "the club's currency". Reading the source
+found none of them. What found them was a CONTROL that failed: the first render
+test asserted against a sentence inside a collapsed popover, which is not in
+the static markup at all, so the "no wrong word present" assertions would have
+passed against a page naming the outfit nowhere.
+
 Asked for on 2026-09-11: should the wording follow the user's country?
 
 **Yes — and `kind` is only half of it.** The three kinds describe how the golf
