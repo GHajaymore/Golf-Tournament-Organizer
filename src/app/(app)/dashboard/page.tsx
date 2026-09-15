@@ -432,7 +432,9 @@ export default async function DashboardPage() {
         where: { id: event.organizationId },
         // `kind` so the nudge below calls the outfit by its own name — a
         // society is not a club. See ChecklistState.orgKind.
-        select: { logoUrl: true, themeSetAt: true, kind: true },
+        // `country` and `communityNoun` with it: the kind alone cannot know
+        // what the outfit CALLS itself, so a US league read "society".
+        select: { logoUrl: true, themeSetAt: true, kind: true, country: true, communityNoun: true },
       })
     : null;
   /**
@@ -457,6 +459,8 @@ export default async function DashboardPage() {
         ...state,
         branding: clubBrandingState(brandingOrg),
         orgKind: brandingOrg?.kind,
+        orgCountry: brandingOrg?.country,
+        orgNoun: brandingOrg?.communityNoun,
         flow: flow?.steps,
       })
     : [];

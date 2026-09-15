@@ -30,6 +30,7 @@ const OrgProfileContext = createContext<OrgProfile>(orgProfile("club"));
 export function OrgProfileProvider({
   kind,
   country,
+  noun,
   children,
 }: {
   kind: string | null | undefined;
@@ -48,10 +49,19 @@ export function OrgProfileProvider({
    * society. See `org-profile.ts`.
    */
   country?: string | null;
+  /**
+   * What the outfit calls ITSELF, beating whatever its country implies.
+   *
+   * The country is a default and this is the answer. Carried here for the same
+   * reason as `kind` and `country`: the eleven components below read one
+   * context, so an organizer who picks "league" on the settings screen sees it
+   * everywhere rather than on the screen they set it.
+   */
+  noun?: string | null;
   children: React.ReactNode;
 }) {
   return (
-    <OrgProfileContext.Provider value={orgProfile(kind ?? "club", country)}>
+    <OrgProfileContext.Provider value={orgProfile(kind ?? "club", country, noun)}>
       {children}
     </OrgProfileContext.Provider>
   );

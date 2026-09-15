@@ -35,7 +35,7 @@ export default async function ChooseTournamentPage({
   const access = await accessibleEvents(session.email);
   const events = await prisma.event.findMany({
     where: { id: { in: access.map((a) => a.eventId) } },
-    include: { _count: { select: { players: true } }, organization: { select: { name: true, kind: true } } },
+    include: { _count: { select: { players: true } }, organization: { select: { name: true, kind: true, country: true, communityNoun: true } } },
     orderBy: { createdAt: "desc" },
   });
   // Null for anybody who runs no organization of their own, which is every
@@ -187,7 +187,7 @@ export default async function ChooseTournamentPage({
                         people, so the row says which one. A personal organizer's
                         org name is their own and adds nothing. Asked via the
                         profile rather than compared, so a society gets it too. */}
-                    {a.event.organization && orgProfile(a.event.organization.kind).sharedRoster
+                    {a.event.organization && orgProfile(a.event.organization.kind, a.event.organization.country, a.event.organization.communityNoun).sharedRoster
                       ? ` · ${a.event.organization.name}`
                       : ""}
                   </div>
@@ -202,7 +202,7 @@ export default async function ChooseTournamentPage({
                       is under the list, said once. */}
                   {a.source === "organization" && (
                     <span className="tag tag-neutral">
-                      <Icon name="buildings" /> via {orgProfile(a.event.organization?.kind).noun}
+                      <Icon name="buildings" /> via {orgProfile(a.event.organization?.kind, a.event.organization?.country, a.event.organization?.communityNoun).noun}
                     </span>
                   )}
                   <span className={`tag ${a.role === "admin" ? "tag-accent" : "tag-neutral"}`}>{ROLE_LABEL[a.role] ?? a.role}</span>
@@ -306,6 +306,8 @@ export default async function ChooseTournamentPage({
              settings". Empty resolves to `personal`, which is what somebody
              with no organization yet is about to be given. */
           orgKind={facts?.kind ?? ""}
+          orgCountry={facts?.country ?? ""}
+          orgNoun={facts?.communityNoun ?? ""}
           /* THE BEST STARTING POINT A CLUB HAS IS ONE OF ITS OWN — see the
              prop. Only ones this person ORGANIZES, because `cloneEvent`
              refuses anything else and a list must not offer what the action

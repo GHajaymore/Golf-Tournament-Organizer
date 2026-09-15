@@ -125,6 +125,28 @@ model Organization {
   region            String @default("")
   country           String @default("")
   /**
+   * What a COMMUNITY calls itself — "society", "league", "association".
+   *
+   * The country above is only ever a good guess: the same outfit is a society
+   * in Britain and a golf league in the United States, so `orgProfile` reads
+   * `country` to pick a default. This is the outfit's own answer, and it wins.
+   * A US club that has always called itself a society is not wrong about its
+   * own name and the app should not keep correcting it.
+   *
+   * EMPTY MEANS "FOLLOW THE COUNTRY", which is what every row said before this
+   * column existed — so nothing needed backfilling and no existing outfit has
+   * been given an opinion it did not express.
+   *
+   * Only the `community` kind reads it. A club is a club and an outing is an
+   * outing wherever they are played, which is why this is one noun set on one
+   * kind rather than a naming system.
+   *
+   * Resolved, never trusted: an unrecognised value falls through to the
+   * country rather than throwing, so a row written by a later version of the
+   * app cannot break every screen that names the outfit.
+   */
+  communityNoun     String @default("")
+  /**
    * Accent colour preset, from src/lib/themes.ts.
    * A key rather than a hex value, deliberately. Storing raw colour would let
    * a club pick something the app cannot stay readable against; the presets

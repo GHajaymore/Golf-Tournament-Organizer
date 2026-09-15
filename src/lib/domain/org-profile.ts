@@ -132,6 +132,23 @@ export interface OrgProfile {
   ownsCourse: boolean;
 }
 
+/**
+ * What a community is called when nothing has said otherwise.
+ *
+ * Declared HERE, above `PROFILES`, rather than inline in the `community` entry
+ * — because it is also the `society` row of `COMMUNITY_VOICES` below, and two
+ * copies of the same five strings is precisely the defect this whole file
+ * exists to prevent. The next person to reword one of them would have found a
+ * second copy to disagree with.
+ */
+const COMMUNITY_DEFAULT_WORDS = {
+  label: "Society or league",
+  noun: "society",
+  settingsLabel: "Society settings",
+  groupLabel: "Society",
+  blurb: "A society, league or group that plays together and shares the costs.",
+} as const;
+
 const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
   club: {
     label: "Golf club",
@@ -145,11 +162,7 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
     ownsCourse: true,
   },
   community: {
-    label: "Society or league",
-    noun: "society",
-    settingsLabel: "Society settings",
-    groupLabel: "Society",
-    blurb: "A society, league or group that plays together and shares the costs.",
+    ...COMMUNITY_DEFAULT_WORDS,
     sharedRoster: true,
     ledger: true,
     // One person fronted the minibus and is owed by nine others, no shop to ask.
@@ -199,14 +212,60 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
  * minibus. There is a test pinning that, because "translate the nouns" is
  * exactly the change that quietly takes a flag with it.
  */
-const COMMUNITY_WORDS: Record<string, Pick<OrgProfile, "label" | "noun" | "settingsLabel" | "groupLabel" | "blurb">> = {
-  US: {
+type Words = Pick<OrgProfile, "label" | "noun" | "settingsLabel" | "groupLabel" | "blurb">;
+
+/**
+ * The words themselves, keyed by what the outfit calls itself.
+ *
+ * ALL FIVE STRINGS ARE AUTHORED TOGETHER rather than four of them derived
+ * from `noun`. That is the whole reason `orgProfile` exists: `OrgSetupChecklist`
+ * once said "Setting up your personal" and titled a step "Name your personal",
+ * both from lowercasing a `label`, and neither is English. A generated
+ * `settingsLabel` would reintroduce it one word at a time.
+ *
+ * `society` is the default and matches what the app said before any of this
+ * existed, so an outfit that has answered nothing is unchanged.
+ */
+export const COMMUNITY_VOICES = {
+  society: COMMUNITY_DEFAULT_WORDS,
+  league: {
     label: "League or association",
     noun: "league",
     settingsLabel: "League settings",
     groupLabel: "League",
     blurb: "A league, association or group that plays together and shares the costs.",
   },
+  association: {
+    label: "Golf association",
+    noun: "association",
+    settingsLabel: "Association settings",
+    groupLabel: "Association",
+    blurb: "An association or group that plays together and shares the costs.",
+  },
+} as const satisfies Record<string, Words>;
+
+export type CommunityVoice = keyof typeof COMMUNITY_VOICES;
+
+export const COMMUNITY_VOICE_KEYS = Object.keys(COMMUNITY_VOICES) as CommunityVoice[];
+
+export function isCommunityVoice(v: string): v is CommunityVoice {
+  return (COMMUNITY_VOICE_KEYS as string[]).includes(v);
+}
+
+/**
+ * Which voice a country gets when the outfit has not said.
+ *
+ * ONLY WHAT WAS ASKED FOR IS MAPPED. `country` is free text defaulting to `""`,
+ * so "no answer" is the common case and must not become a wrong answer — and
+ * the register's third example, that an Australian outfit is "often just a
+ * club", is deliberately absent: calling a `community` a "club" collides with
+ * the `club` KIND, so an AU society and an AU golf club would read identically
+ * on every screen. That wants a decision, not a guess — and now that an
+ * organizer can override, an Australian outfit that wants a different word has
+ * a way to say so without the app assuming on its behalf.
+ */
+const VOICE_BY_COUNTRY: Record<string, CommunityVoice> = {
+  US: "league",
 };
 
 export function isOrgKind(v: string): v is OrgKind {
@@ -221,10 +280,33 @@ export function isOrgKind(v: string): v is OrgKind {
  * hide real debts from the people who owe them, and a typo in a column should
  * never be the reason somebody is not told they owe forty pounds.
  */
-export function orgProfile(kind: string | null | undefined, country?: string | null): OrgProfile {
+export function orgProfile(
+  kind: string | null | undefined,
+  country?: string | null,
+  /**
+   * What the outfit calls ITSELF, overriding whatever its country implies.
+   *
+   * THE COUNTRY IS THE DEFAULT; THE ORGANIZER IS THE AUTHORITY. A country can
+   * only ever be a good guess — a US club that has always called itself a
+   * society is not wrong about its own name, and the app should not keep
+   * correcting it. Empty, absent, or a value this file does not recognise all
+   * fall through to the country, which falls through to `society`.
+   *
+   * Unrecognised resolves rather than throws on purpose. This arrives from a
+   * free-text database column, and a stored value from a later version of the
+   * app — or a typo — must not be able to break every screen that names the
+   * outfit. Same direction of failure as an unknown `kind` resolving to
+   * `personal`.
+   */
+  voice?: string | null,
+): OrgProfile {
   const k = isOrgKind(kind ?? "") ? (kind as OrgKind) : "personal";
   const base = { kind: k, ...PROFILES[k] };
   if (k !== "community") return base;
+
+  const chosen = (voice ?? "").trim();
+  if (isCommunityVoice(chosen)) return { ...base, ...COMMUNITY_VOICES[chosen] };
+
   /**
    * Normalised through the app's one country vocabulary rather than compared
    * as text, so "United States", "USA" and "us" are the same country. Doing it
@@ -232,9 +314,9 @@ export function orgProfile(kind: string | null | undefined, country?: string | n
    * "United Kingdom" — and `countryCode` returns "" for blank or "Unknown",
    * which lands on the default below exactly as it should.
    *
-   * Second argument is OPTIONAL, so all twenty-three existing callers are
-   * unchanged and correct: no country means today's wording.
+   * Both extra arguments are OPTIONAL, so every caller written before they
+   * existed is unchanged and correct: nothing said means today's wording.
    */
-  const words = COMMUNITY_WORDS[countryCode(country ?? "")];
-  return words ? { ...base, ...words } : base;
+  const byCountry = VOICE_BY_COUNTRY[countryCode(country ?? "")];
+  return byCountry ? { ...base, ...COMMUNITY_VOICES[byCountry] } : base;
 }

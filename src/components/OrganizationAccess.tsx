@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { orgProfile } from "@/lib/domain/org-profile";
+import { useOrgProfile } from "@/components/OrgProfileProvider";
 import {
   addOrganizationMember,
   setOrganizationMemberRole,
@@ -56,21 +56,16 @@ const EVENT_ROLE_LABEL: Record<string, string> = { admin: "Organizer", assistant
 export function OrganizationAccess({
   report,
   canEdit,
-  orgKind,
 }: {
   report: AccessReport;
   canEdit: boolean;
-  /**
-   * What the organization IS, for the inherited-role marker.
-   *
-   * The marker read "club" while the sentence introducing it says "inherited
-   * from an organization role" — right for a club and wrong for the two kinds
-   * that are not one. The word is the only thing that differs.
-   */
-  orgKind: string;
 }) {
   /** "club" / "society" / "outing" — the thing a role can be inherited FROM. */
-  const from = orgProfile(orgKind).noun;
+  // The RESOLVED profile from the console context, not `orgProfile(orgKind)`:
+  // the kind alone cannot know what this outfit CALLS itself, so a US league
+  // read "society" here. The provider carries kind, country and the override
+  // together and every screen in the console is inside it.
+  const from = useOrgProfile().noun;
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState("member");

@@ -19,7 +19,7 @@ import { orgProfile, ORG_KINDS } from "../domain/org-profile";
 
 /** The section that holds the settings screen, whatever it is called now. */
 const orgSection = (kind?: string) =>
-  navForRole("admin", undefined, kind ? { orgKind: kind as never } : {}).find((s) =>
+  navForRole("admin", undefined, kind ? { outfit: orgProfile(kind) } : {}).find((s) =>
     s.items.some((i) => i.key === "organization"),
   );
 
@@ -73,7 +73,7 @@ describe("the sidebar follows the kind of organization", () => {
      * that reached across sections would be invisible to a narrower test.
      */
     const strip = (kind?: string) =>
-      navForRole("admin", undefined, kind ? { orgKind: kind as never } : {})
+      navForRole("admin", undefined, kind ? { outfit: orgProfile(kind) } : {})
         .filter((s) => !s.items.some((i) => i.key === "organization"))
         .map((s) => `${s.label}:${s.items.map((i) => i.key).join(",")}`);
 

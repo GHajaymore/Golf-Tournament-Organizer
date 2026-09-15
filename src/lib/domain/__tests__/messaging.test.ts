@@ -385,7 +385,18 @@ describe("the service tells the labels which outfit this is", () => {
   const src = readSource("src", "lib", "services", "messaging.ts");
 
   it("puts the organization's own noun on the context", () => {
-    expect(src).toMatch(/orgNoun: orgProfile\(event\.organization\.kind\)\.noun/);
+    /**
+     * ALL THREE INGREDIENTS, not just the kind. `orgNoun` is read into
+     * sentences a player sees, and the kind alone cannot know whether this
+     * outfit is a society or a league — that is the club's country, and the
+     * word the organizer chose over it.
+     */
+    expect(src).toMatch(
+      /orgNoun: orgProfile\(\s*event\.organization\.kind,\s*event\.organization\.country,\s*event\.organization\.communityNoun,?\s*\)\.noun/,
+    );
+    // And the query actually fetches them, or the two above are `undefined`
+    // and the call reads as correct while resolving nothing.
+    expect(src).toMatch(/organization: \{ select: \{ kind: true, country: true, communityNoun: true \} \}/);
   });
 
   it("and every label it composes reads it", () => {

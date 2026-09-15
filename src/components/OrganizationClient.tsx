@@ -105,6 +105,8 @@ interface Props {
   country: string;
   brandDisplay: string;
   kind: string;
+  /** The outfit's own word for itself; "" follows the country. */
+  communityNoun: string;
   plan: string;
   eventCount: number;
   memberCount: number;
@@ -112,6 +114,28 @@ interface Props {
 }
 
 export function OrganizationClient(props: Props) {
+  /**
+   * THE RESOLVED PROFILE — all three ingredients, not just the kind.
+   *
+   * Every one of these read `orgProfile(props.kind)`, which can only ever know
+   * what KIND of outfit this is and never what that outfit calls itself.
+   * Rendered on 2026-09-15 against a US community: this page was headed
+   * "Society settings" while its own country said league, and it stayed that
+   * way after the organizer picked a word — using a control on this very page.
+   *
+   * Resolved from PROPS rather than from `useOrgProfile()`, deliberately.
+   * The context would be correct today, because `primaryOrganizationFor`
+   * prefers the open tournament's club in the same order the layout does — but
+   * this page already holds the authoritative row it is editing, and reading
+   * it here means the heading cannot drift from the record even if those two
+   * resolvers ever diverge. It also keeps the component renderable on its own.
+   *
+   * `props.country`, not the `country` state below: the state is the text in
+   * the input, which changes as somebody types. A page heading that re-words
+   * itself mid-keystroke, before anything is saved, is a worse answer than one
+   * that follows the record.
+   */
+  const outfit = orgProfile(props.kind, props.country, props.communityNoun);
   const [name, setName] = useState(props.name);
   const [shortName, setShortName] = useState(props.shortName);
   const [logoUrl, setLogoUrl] = useState(props.logoUrl);
@@ -209,7 +233,7 @@ export function OrganizationClient(props: Props) {
             already reads "Personal · a single organizer" off the same profile,
             so a heading hard-coded to "Club settings" made the page disagree
             with itself in one eyeful. */}
-        <h1 className="page-title">{orgProfile(props.kind).settingsLabel}</h1>
+        <h1 className="page-title">{outfit.settingsLabel}</h1>
         {/* Described the branding card and nothing else, on a page that also
             holds the theme, the house play settings, the money default and
             staff access. An intro naming one of five cards reads as a
@@ -223,9 +247,9 @@ export function OrganizationClient(props: Props) {
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <div className="card elev-sm" style={{ gap: 2 }}>
           <span className="card-kicker">Type</span>
-          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{orgProfile(props.kind).label}</div>
+          <div style={{ fontFamily: "var(--font-heading)", fontSize: 18 }}>{outfit.label}</div>
           <div className="text-muted" style={{ fontSize: 12 }}>
-            {orgProfile(props.kind).sharedRoster ? "shared with staff" : "a single organizer"}
+            {outfit.sharedRoster ? "shared with staff" : "a single organizer"}
           </div>
         </div>
         <div className="card elev-sm" style={{ gap: 2 }}>
@@ -263,7 +287,7 @@ export function OrganizationClient(props: Props) {
               // An example of the kind of outfit this actually is. "e.g.
               // Ridgeline National Golf Club" is the one thing on the field a
               // solo organizer knows they are not.
-              placeholder={`e.g. ${NAME_EXAMPLE[orgProfile(props.kind).kind]}`}
+              placeholder={`e.g. ${NAME_EXAMPLE[outfit.kind]}`}
             />
           </div>
 
@@ -449,7 +473,7 @@ export function OrganizationClient(props: Props) {
               <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.15, minWidth: 0 }}>
                 <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600 }}>
                   {preview.primary || (
-                    <span className="text-muted">Your {orgProfile(props.kind).noun}</span>
+                    <span className="text-muted">Your {outfit.noun}</span>
                   )}
                 </span>
                 {preview.secondary && (

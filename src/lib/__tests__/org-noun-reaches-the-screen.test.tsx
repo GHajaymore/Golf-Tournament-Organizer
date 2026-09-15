@@ -25,9 +25,9 @@ import { LocalePicker } from "@/components/LocalePicker";
  * instead of a prop on each.
  */
 
-const markup = (country: string | undefined, el: React.ReactElement) =>
+const markup = (country: string | undefined, el: React.ReactElement, noun?: string) =>
   renderToStaticMarkup(
-    <OrgProfileProvider kind="community" country={country}>
+    <OrgProfileProvider kind="community" country={country} noun={noun}>
       {el}
     </OrgProfileProvider>,
   );
@@ -69,6 +69,33 @@ describe("a community sees its own country's word for itself", () => {
     for (const spelling of ["US", "usa", "United States"]) {
       expect(markup(spelling, money()), spelling).toContain("the league&#x27;s currency");
     }
+  });
+});
+
+describe("what the outfit calls itself reaches the screen too", () => {
+  /**
+   * The resolver half is proved in `org-profile-country.test.ts`. This is the
+   * half that matters to a person: an organizer who picks "society" on the
+   * settings screen has to stop being called a league EVERYWHERE, not just
+   * there. The override travels the same context as the country, so if the
+   * provider had taken one and not the other this is what would catch it.
+   */
+  it("beats the country, in body text and in an aria-label", () => {
+    const html = markup("US", money(), "society");
+    expect(html, "the country still won on screen").toContain("the society&#x27;s currency");
+    expect(html).not.toContain("league");
+  });
+
+  it("reaches the second consumer as well", () => {
+    expect(markup("US", dates(), "society")).toContain("how the society writes a date");
+    expect(markup("GB", dates(), "league")).toContain("how the league writes a date");
+  });
+
+  it("falls back to the country when nothing is stored", () => {
+    // The common case, and the one that must not regress: an outfit that has
+    // never opened the setting is unchanged.
+    expect(markup("US", money(), "")).toContain("the league&#x27;s currency");
+    expect(markup("US", money(), undefined)).toContain("the league&#x27;s currency");
   });
 });
 
