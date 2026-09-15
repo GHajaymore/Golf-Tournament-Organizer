@@ -169,3 +169,58 @@ describe("the card chooser is an inline card, not an overlay", () => {
     ).toBe(1);
   });
 });
+
+/**
+ * AND THE PLAYER IS TAKEN TO IT.
+ *
+ * The chooser is an inline section rendered after the scorecard, and a
+ * scorecard is eighteen rows tall. Measured on a 320x568 phone with the
+ * chooser open, its top edge sits at y=783 — 215px BELOW the fold. Nothing
+ * scrolled to it, and the status line that might have mentioned it renders
+ * BELOW it again, so a player whose card was in dispute saw an unchanged
+ * scorecard and no sign anything had happened.
+ *
+ * Until that question is answered the strokes are not sent and the card cannot
+ * be certified. It is the most urgent thing on the screen, and it was the only
+ * thing off it.
+ *
+ * FOUND WHILE DEBUGGING A TEST, which is the part worth remembering.
+ * `offline.spec:245` failed intermittently because Playwright had to SCROLL to
+ * this element before clicking it — and "the thing you must act on is below
+ * the fold" is a fact about the product that a test was reporting as its own
+ * problem.
+ */
+describe("the card chooser is brought into view", () => {
+  const card = readSource(join(COMPONENTS, "PlayerCard.tsx"));
+
+  it("scrolls to the chooser when it opens", () => {
+    expect(
+      card,
+      "nothing brings the chooser on screen — a player in dispute sees an unchanged scorecard",
+    ).toMatch(/chooserRef\.current\?\.scrollIntoView/);
+  });
+
+  it("only on the transition to open, not on every render", () => {
+    /**
+     * The half that stops it being a nuisance. Scrolling on every render would
+     * drag somebody back every time the card re-rendered underneath them —
+     * and this component re-renders on every hole entered.
+     */
+    expect(card).toMatch(/chooserWasOpen/);
+    expect(card).toMatch(/if \(chooserOpen && !chooserWasOpen\.current\)/);
+  });
+
+  it("leaves the manner of the scroll to the page", () => {
+    /**
+     * No `behavior` argument, deliberately: that defers to the page's
+     * `scroll-behavior`, which is smooth for most people and `auto` for
+     * anybody who has asked for reduced motion. Passing `"smooth"` here would
+     * override that preference for the one scroll in the app most likely to
+     * happen while somebody is already disoriented.
+     */
+    const call = /scrollIntoView\(\{([^}]*)\}\)/.exec(card)?.[1] ?? "";
+    expect(call, "the scroll hardcodes a behavior and ignores reduced motion").not.toMatch(
+      /behavior/,
+    );
+  });
+});

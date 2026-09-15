@@ -341,6 +341,41 @@ export function PlayerCard({
         }
       : null;
 
+  /**
+   * BRING THE CHOOSER INTO VIEW WHEN IT APPEARS, because it renders where
+   * nobody is looking.
+   *
+   * It is an inline section after the scorecard, and a scorecard is eighteen
+   * rows tall. Measured on a 320x568 phone with the chooser open: its top edge
+   * is at y=783 — 215px BELOW the fold. Nothing scrolled to it, and the status
+   * line that might have mentioned it renders BELOW it again, so a player
+   * whose card is in dispute saw an unchanged scorecard and no sign that
+   * anything had happened.
+   *
+   * That matters more than an ordinary bit of layout: until this is answered
+   * the strokes are not sent and the card cannot be certified, so it is the
+   * most urgent thing on the screen and it was the only thing off it.
+   *
+   * FOUND WHILE DEBUGGING A TEST. `offline.spec:245` failed intermittently
+   * because Playwright had to SCROLL to this element before it could click —
+   * which is a fact about the product, not about the test. The flake is fixed
+   * separately; this is the half of that measurement a player feels.
+   *
+   * Fires on the transition to open, not on every render, so it cannot fight
+   * somebody who has scrolled away and come back. No `behavior` is passed:
+   * that leaves it to the page's `scroll-behavior`, which is smooth for most
+   * people and `auto` for anybody who has asked for reduced motion.
+   */
+  const chooserOpen = !!chooser;
+  const chooserRef = useRef<HTMLDivElement>(null);
+  const chooserWasOpen = useRef(false);
+  useEffect(() => {
+    if (chooserOpen && !chooserWasOpen.current) {
+      chooserRef.current?.scrollIntoView({ block: "center" });
+    }
+    chooserWasOpen.current = chooserOpen;
+  }, [chooserOpen]);
+
   useEffect(() => {
     if (!dirty.current || locked) return;
     card.push(latest.current);
@@ -611,7 +646,7 @@ export function PlayerCard({
             why it is the same chooser and now literally the same element.
           */}
           {chooser && (
-            <div style={{ margin: "12px 0" }}>
+            <div ref={chooserRef} style={{ margin: "12px 0" }}>
               <CardConflict
                 kind={chooser.kind}
                 mine={chooser.mine}
