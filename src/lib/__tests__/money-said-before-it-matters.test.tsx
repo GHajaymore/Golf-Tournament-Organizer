@@ -86,7 +86,7 @@ describe("what the screen says about money before it shows any", () => {
     // codebase keeps rediscovering, most recently as "Name your personal".
     // `community` is the kind; "society" is the word `orgProfile` gives it,
     // which is the whole point of reading the noun rather than writing one.
-    expect(line({ eventMode: "", orgMode: "float", clubName: "" }, "community")).toMatch(
+    expect(line({ eventMode: "", orgMode: "float", clubName: "", orgKind: "community" })).toMatch(
       /following the society/i,
     );
     expect(line({ eventMode: "", orgMode: "float", clubName: "", orgKind: "club" })).toMatch(

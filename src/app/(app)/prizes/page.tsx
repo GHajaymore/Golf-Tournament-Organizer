@@ -142,7 +142,18 @@ export default async function PrizesPage({
   // How this tournament handles money at all, and the kitty when it keeps one.
   const org = await prisma.organization.findUnique({
     where: { id: state.event.organizationId },
-    select: { name: true, shortName: true, kind: true, moneyMode: true, currencySymbol: true },
+    // `country` and `communityNoun` beside the kind: the kind alone cannot
+    // know whether this outfit is a society or a league, and both the money
+    // line and the setup card below name it in a sentence.
+    select: {
+      name: true,
+      shortName: true,
+      kind: true,
+      country: true,
+      communityNoun: true,
+      moneyMode: true,
+      currencySymbol: true,
+    },
   });
   const moneyMode = resolveMoneyMode({
     eventMode: state.event.moneyMode,
@@ -197,6 +208,8 @@ export default async function PrizesPage({
         eventMode={state.event.moneyMode}
         orgMode={org?.moneyMode ?? ""}
         orgKind={org?.kind ?? ""}
+        orgCountry={org?.country ?? ""}
+        orgNoun={org?.communityNoun ?? ""}
         clubName={org?.shortName || org?.name || ""}
         href={isStaff ? "#money-setup" : undefined}
       />
