@@ -12,7 +12,7 @@ import { canSeeLeaderboard, canEnterScores } from "@/lib/tournament-settings";
 import { showBracket, bracketBadge } from "@/lib/bracket-visibility";
 import { standingRows } from "@/lib/services/tournament";
 import { usesStandardBoard } from "@/lib/formats";
-import { pts, shortName, distinctLabels } from "@/lib/format";
+import { pts, shortName, distinctLabels, plural } from "@/lib/format";
 import { toParText } from "@/lib/domain";
 import { RoundAvailability } from "@/components/RoundAvailability";
 import { todayIso } from "@/lib/deadline";
@@ -940,11 +940,17 @@ export default async function DashboardPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
                   <span><Icon name="trophy" style={{ color: "var(--color-accent)", marginRight: 6 }} />Winners</span>
-                  <span className="text-muted">{brackets.winners.champion?.name ?? `${state.brackets.winners.rounds[0].matches.length} matches`}</span>
+                  {/* `plural`, because this card printed "1 matches" on the
+                      demo tournament's consolation bracket — read off the
+                      rendered screen on 2026-09-14. The stat card at the top
+                      of this same page had "1 flights" fixed for exactly this
+                      reason; the helper exists so the next one does not have
+                      to be spotted by eye. */}
+                  <span className="text-muted">{brackets.winners.champion?.name ?? plural(state.brackets.winners.rounds[0].matches.length, "match", "matches")}</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
                   <span><Icon name="medal" style={{ color: "var(--color-accent)", marginRight: 6 }} />Consolation</span>
-                  <span className="text-muted">{brackets.consolation.champion?.name ?? `${state.brackets.consolation.rounds[0].matches.length} matches`}</span>
+                  <span className="text-muted">{brackets.consolation.champion?.name ?? plural(state.brackets.consolation.rounds[0].matches.length, "match", "matches")}</span>
                 </div>
               </div>
               <Link className="btn btn-ghost" href="/bracket" style={{ alignSelf: "flex-start", marginTop: 6 }}>
