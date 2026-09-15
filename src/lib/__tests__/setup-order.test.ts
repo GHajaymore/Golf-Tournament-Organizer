@@ -146,7 +146,10 @@ describe("the step the dashboard never had", () => {
    * the same disagreement `SETUP_ORDER` fixed for their sequence.
    */
   const withDetails = (done: boolean) =>
-    setupChecklist({ ...empty, details: { done, missing: "It still needs a name." } });
+    setupChecklist({
+      ...empty,
+      flow: [{ href: "/event", done, missing: "It still needs a name." }],
+    });
 
   it("leads with tournament details when the caller supplies them", () => {
     expect(withDetails(false)[0].href).toBe("/event");
@@ -177,8 +180,10 @@ describe("the step the dashboard never had", () => {
   it("still follows SETUP_ORDER with the step present", () => {
     const hrefs = setupChecklist({
       ...empty,
-      details: { done: false, missing: "It still needs a name." },
-      money: { done: false },
+      flow: [
+        { href: "/event", done: false, missing: "It still needs a name." },
+        { href: "/prizes", done: false, missing: "Nobody has said how money works here." },
+      ],
     })
       .map((i) => i.href)
       .filter((h) => SETUP_ORDER.includes(h));

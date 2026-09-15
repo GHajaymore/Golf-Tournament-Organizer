@@ -31,17 +31,42 @@
  * shape of the tournament is not a lock either, for the same reason.
  */
 
-export interface SetupFacts {
-  /** Entries in the field. */
-  confirmed: number;
-  /** Rounds configured. */
-  stages: number;
-  /** Flights generated. */
-  groups: number;
-  /** Fixtures drawn, which is what generating flights actually produces. */
-  matches: number;
+/**
+ * ONE ROUND, as the guide has to judge it.
+ *
+ * THE STEP USED TO BE A COUNT, and a count cannot be wrong about a round it
+ * never looked at. `f.stages > 0` meant "Rounds & formats" went DONE the
+ * moment a single Stage row existed — so on 2026-09-15 the rail read
+ * "Rounds & formats DONE" directly above a Round 2 showing a "Not generated
+ * yet" chip, an empty "Played on", and no deadline either. Four rounds of a
+ * three-day tournament, and nothing anywhere said which day any of them was.
+ *
+ * Several thousand passing tests were happy with that, which is the part
+ * worth remembering: every one of them asserted the count, and the count was
+ * right.
+ *
+ * So the rounds arrive one by one and each step asks its own question of
+ * them. What a round must answer is split deliberately across two steps —
+ * see the `stages` and `grouping` entries — because a round's SCHEDULE
+ * depends on nothing downstream and its FIXTURES depend on the field and the
+ * flights, which are steps 3 and 4. Asking step 2 for fixtures would pin the
+ * guide on step 2 until steps 3 and 4 were done, which is the guide
+ * deadlocking on its own order.
+ */
+export interface SetupRound {
   /**
-   * Whether ANY round in this tournament has pairings drawn from the flights.
+   * "Round 2", from `roundLabel` — never counted here.
+   *
+   * The `missing` line names the round that is holding the step up, and the
+   * number in it is the one every other screen shows. See
+   * `round-number-source.test.ts`: a round number derived from a list position
+   * is the bug that had one club championship called "Round 3" on two screens
+   * and "Round 2" on four others. Empty is tolerated, and the message falls
+   * back to saying it without a number.
+   */
+  label: string;
+  /**
+   * Whether the scheduler draws this round's pairings — `generatesPairings`.
    *
    * True for a round robin, which is what "generating flights actually
    * produces" was written about. FALSE for a medal — a Stroke Play Round draws
@@ -62,6 +87,61 @@ export interface SetupFacts {
    * enters a score, which is a day too late.
    */
   drawsPairings: boolean;
+  /**
+   * A day this round is played on, or a day it is played BY. Either answers
+   * "when is this one?", and the schema says so at both fields: a fixed-day
+   * league PLAYS on Tuesday and wants `playedOn`; a knockout round where the
+   * players arrange their own match wants a `deadline`.
+   *
+   * ONE OF THE TWO, never both, for the reason the `event` step takes a date
+   * OR a venue: demanding both refuses a real tournament, and a guard that
+   * refuses a real tournament is worse than no guard.
+   */
+  scheduled: boolean;
+  /**
+   * Whether this round's field is the survivors of a cut out of the round
+   * before it.
+   *
+   * THE EXEMPTION THAT STOPS THE FIXTURE TEST BECOMING THE `drawsPairings`
+   * BUG AGAIN. A cut-fed round cannot be drawn during setup, and the screen
+   * says so in as many words — "run it once this round is complete", because
+   * the draw ranks a field on results that do not exist yet. Requiring it
+   * would be waiting for something that cannot happen until the tournament is
+   * half played, which is exactly the shape that pinned a medal on step four
+   * for ever.
+   */
+  cutFed: boolean;
+  /** Fixtures drawn for THIS round. */
+  matches: number;
+}
+
+/**
+ * Whether a round says WHEN it is.
+ *
+ * A DAY IT IS PLAYED ON, OR A DAY IT IS PLAYED BY — and the reason both count
+ * is written at both columns in the schema. A Tuesday league PLAYS on Tuesday
+ * and wants `playedOn`; a knockout round whose players arrange their own match
+ * between themselves is played BY a date and wants `deadline`. Insisting on
+ * the first refuses the second, which is a shape clubs genuinely run, and a
+ * guard that refuses a real tournament is worse than no guard.
+ *
+ * Here rather than inline in the service so the rule is testable without a
+ * database. It is one line, and a one-line rule with no test is how the
+ * deadline half quietly stops counting.
+ */
+export function roundIsScheduled(playedOn: string, deadline: string): boolean {
+  // Trimmed, because both columns default to "" and a stored space is not a
+  // day. Same reading as `named`, `dated` and `venued`.
+  return !!playedOn.trim() || !!deadline.trim();
+}
+
+export interface SetupFacts {
+  /** Entries in the field. */
+  confirmed: number;
+  /** The rounds, in play order. */
+  rounds: readonly SetupRound[];
+  /** Flights generated. */
+  groups: number;
   /** A name of its own, rather than the placeholder a blank one falls back to. */
   named: boolean;
   /** A day it is played on. */
@@ -183,14 +263,70 @@ const STEPS: ReadonlyArray<{
     href: "/stages",
     // Before the field, deliberately — see the note at the top of the file.
     question: "What is being played?",
-    missing: () => "Add at least one round.",
-    done: (f) => f.stages > 0,
+    /**
+     * A ROUND, AND A DAY FOR EACH ONE ONCE THERE IS MORE THAN ONE.
+     *
+     * The first half is what this step always asked. The second is what
+     * `f.stages > 0` could not see: on 2026-09-15 a four-round tournament
+     * dated "May 14–16, 2026" had a deadline on Round 1 and nothing at all on
+     * Rounds 2, 3 and 4, and the rail called the step DONE. Nothing in the
+     * app could answer "which day is Round 2?", and nothing was asking.
+     *
+     * WHY A DAY *OR* A DEADLINE. Both are real answers to "when", and the
+     * schema argues for each: `playedOn` is the Tuesday league that PLAYS on
+     * Tuesday, `deadline` is the knockout round whose players arrange their
+     * own match. Insisting on the first would refuse the second, which is a
+     * genuine shape clubs run.
+     *
+     * WHY ONLY ONCE THERE ARE TWO. A single-round tournament is already dated
+     * by the event — that is what step one asked for — so asking again is the
+     * app forgetting an answer it has, the same reason `moneyAnswered` takes
+     * the club's. With two rounds the event's date stops being an answer: a
+     * range covering three days says nothing about which of them is Round 2.
+     *
+     * AND NOT FIXTURES, which is the candidate this deliberately leaves to
+     * the flights step. A round's pairings come from the flights, which come
+     * from the field — steps four and three. A step that cannot be finished
+     * until two later steps are done is a guide deadlocking on its own order.
+     */
+    missing: (f) => {
+      if (f.rounds.length === 0) return "Add at least one round.";
+      const waiting = f.rounds.filter((r) => !r.scheduled);
+      const named = waiting.find((r) => !!r.label)?.label;
+      if (waiting.length > 1) return "Some rounds have no day and no deadline.";
+      return named
+        ? `${named} has no day and no deadline.`
+        : "One round has no day and no deadline.";
+    },
+    done: (f) =>
+      f.rounds.length > 0 && (f.rounds.length === 1 || f.rounds.every((r) => r.scheduled)),
   },
   {
     key: "registration",
     href: "/registration",
     question: "Who is playing?",
     missing: () => "Nobody is entered yet.",
+    /**
+     * ONE ENTRY, AND THAT IS GENUINELY THE BAR — checked 2026-09-15 rather
+     * than left as the "at least one" shape the two steps either side of it
+     * turned out to be.
+     *
+     * Only the organizer knows how big the field is meant to be. `capacity` is
+     * a ceiling and not a target, `manualPlayerCount` is an estimate for a
+     * tournament not taking entries at all, and neither is a number the app
+     * may hold a step open against — a society day that ends up with eleven
+     * players is not half-finished, it is a society day with eleven players.
+     *
+     * THE ONE CANDIDATE THAT WAS CONSIDERED AND REJECTED is pending entries.
+     * Under `approve` mode an entry lands as `pending` and waits for the
+     * organizer, so "one confirmed and twelve people waiting to hear" is a
+     * real state and a real piece of outstanding work. It is still not this
+     * step: entries arrive continuously and after launch, so the rail would
+     * flip between DONE and TODO as strangers filled the form in, and setup
+     * would un-finish itself on a tournament already being played. A banner
+     * that comes back is furniture — see `readyToLaunch`, which is kept
+     * self-clearing for the same reason.
+     */
     done: (f) => f.confirmed > 0,
   },
   {
@@ -210,10 +346,30 @@ const STEPS: ReadonlyArray<{
      * is waiting for something that is never going to happen — and it did:
      * both were pinned on the last step of setup for ever. See
      * `drawsPairings` for what that cost beyond the counter.
+     *
+     * AND IT IS ASKED OF EACH ROUND, not of the tournament. It used to read
+     * `f.matches > 0` across the whole event, which any one round satisfies
+     * for all of them: a second round robin with no draw at all passed on the
+     * strength of the first round's forty-eight matches, while the Rounds &
+     * formats screen sat there showing it a "Not generated yet" chip. That is
+     * the same defect as the count this file's `SetupRound` was written for,
+     * one step along.
+     *
+     * The remedy is on Rounds & formats rather than here — "Generate Round 2
+     * pairings" lives beside the round it builds — so the message says where
+     * to go. A step whose fix is on another screen is worth naming; a step
+     * that does not say is just a closed door.
      */
-    missing: (f) =>
-      f.groups === 0 ? "No flights yet." : "Flights are made, but no pairings are drawn.",
-    done: (f) => f.groups > 0 && (!f.drawsPairings || f.matches > 0),
+    missing: (f) => {
+      if (f.groups === 0) return "No flights yet.";
+      const undrawn = f.rounds.filter((r) => r.drawsPairings && !r.cutFed && r.matches === 0);
+      const named = undrawn.find((r) => !!r.label)?.label;
+      return named
+        ? `${named} has no pairings — generate them on Rounds & formats.`
+        : "Flights are made, but no pairings are drawn.";
+    },
+    done: (f) =>
+      f.groups > 0 && f.rounds.every((r) => !r.drawsPairings || r.cutFed || r.matches > 0),
   },
   {
     key: "money",

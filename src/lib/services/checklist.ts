@@ -56,38 +56,41 @@ export interface ChecklistState {
    *  so existing callers that pass none simply never show the item. */
   branding?: { hasLogo: boolean; hasColours: boolean };
   /**
-   * The "Tournament details" step, taken from the SETUP FLOW rather than
-   * decided again here.
+   * THE SETUP FLOW'S OWN VERDICT ON EVERY STEP IT HAS ONE FOR.
    *
-   * This list had no such step at all, so the dashboard — the screen a new
-   * organizer lands on straight after creating a tournament — never once said
-   * that the thing needed a name, a date or a venue. The rail on the Set-up
-   * screens said it first and loudest; the dashboard did not say it.
+   * This started as two fields — `details` and `money` — each passing one
+   * step's answer in so the rail and this list could not disagree about it.
+   * The reasoning was right and it was applied to two rows out of five, which
+   * left the other three deciding for themselves and drifting exactly as
+   * predicted:
    *
-   * Passed in as the flow's own answer, not recomputed. `setup-flow.ts` has a
-   * careful test for it — a name AND either a date OR a venue, because a
-   * rotating league has no venue and a club awaiting a committee has no date —
-   * and a second copy of that reasoning here is how the two would come to
-   * disagree about whether step one is finished.
+   *   Tournament details  taken from the flow          agreed
+   *   Registration & field `confirmed.length > 0`      agreed, by luck
+   *   Rounds & formats     `stages.length > 0`         the count the rail has
+   *                                                    now stopped using
+   *   Flights              `groups.length && matches`  DISAGREED ALREADY: no
+   *                                                    `generatesPairings`
+   *                                                    exemption, so a medal
+   *                                                    read done on the rail
+   *                                                    and not-done here
+   *   Prizes & payouts     taken from the flow         agreed
+   *
+   * So it is the whole list now, and a row that the flow has a step for takes
+   * its `done` from that step. What stays local is the DETAIL line, which is
+   * this screen's own voice and says more than the rail has room for — "4
+   * flights · schedule generated" rather than a bare tick.
    *
    * Absent means "don't ask", exactly like `branding`, so a caller that has
-   * not loaded the flow shows the list it always showed.
-   */
-  details?: { done: boolean; missing: string };
-  /**
-   * The money step, taken from the setup flow for the same reason `details`
-   * is: it is the flow's answer, not a second opinion about it.
+   * not loaded the flow shows the list it always showed — and the two rows
+   * that exist only when the flow does (details, money) simply do not appear.
    *
-   * Absent means "don't ask", the contract both the other opt-in fields use,
-   * so a caller that has not loaded the flow shows the list it always showed.
-   *
-   * NOT marked optional, deliberately, even though a tournament with nobody
-   * asked about money is perfectly playable — `resolveMoneyMode` falls back.
-   * The guide makes it a step, and a dashboard calling optional what the rail
-   * waits for is the same two-lists-disagree fault this file's own sort was
-   * written to end. Whichever is right, it has to be the same on both.
+   * Money is NOT marked optional, deliberately, even though a tournament with
+   * nobody asked about money is perfectly playable — `resolveMoneyMode` falls
+   * back. The guide makes it a step, and a dashboard calling optional what the
+   * rail waits for is the same two-lists-disagree fault this file's own sort
+   * was written to end. Whichever is right, it has to be the same on both.
    */
-  money?: { done: boolean };
+  flow?: readonly { href: string; done: boolean; missing: string }[];
   /**
    * What kind of outfit this tournament belongs to — see `orgProfile`.
    *
@@ -120,19 +123,31 @@ export interface ChecklistState {
 
 export function setupChecklist(state: ChecklistState): ChecklistItem[] {
   const hasSchedule = state.matches.length > 0;
+  const step = (href: string) => state.flow?.find((s) => s.href === href);
+  /**
+   * The flow's answer where there is one, this list's own where there is not.
+   *
+   * Two arguments rather than one so the local test is still WRITTEN at every
+   * row — it is what a caller passing no flow gets, and it is the thing a
+   * reader compares against when asking whether the two agree. A row that
+   * simply read `step(href)!.done` would be correct and would hide which rows
+   * have a second opinion at all.
+   */
+  const doneOf = (href: string, fallback: boolean) => step(href)?.done ?? fallback;
+  /** What is outstanding, in the flow's words when it has any. */
+  const missingOf = (href: string, fallback: string) => step(href)?.missing || fallback;
+  const details = step("/event");
   // Labels read from the sidebar, not written out again. This row said
   // "Rounds & format"; the screen is called "Rounds & formats" — the same
   // half-remembered name found the same day in the "Recommended flow" card on
   // Tournament details. A name typed twice drifts once.
   const items: ChecklistItem[] = [
-    ...(state.details
+    ...(details
       ? [
           {
             label: screenName("/event"),
-            detail: state.details.done
-              ? "Named, and it has a date or a venue."
-              : state.details.missing,
-            done: state.details.done,
+            detail: details.done ? "Named, and it has a date or a venue." : details.missing,
+            done: details.done,
             href: "/event",
           },
         ]
@@ -142,17 +157,27 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
       detail:
         state.confirmed.length > 0
           ? `${state.confirmed.length} confirmed${state.waitlist.length ? ` · ${state.waitlist.length} waitlisted` : ""}`
-          : "No players yet — open registration and add the field.",
-      done: state.confirmed.length > 0,
+          : missingOf("/registration", "No players yet — open registration and add the field."),
+      done: doneOf("/registration", state.confirmed.length > 0),
       href: "/registration",
     },
     {
       label: screenName("/stages"),
+      /**
+       * THE COUNT IS A DETAIL AND NO LONGER THE TEST.
+       *
+       * "2 rounds configured" is worth saying and was never worth believing:
+       * a round with no day, no deadline and no draw counts exactly the same
+       * as one that is ready. The flow looks at each round; this line says how
+       * many there are, and defers.
+       */
       detail:
         state.stages.length > 0
-          ? `${state.stages.length} round${state.stages.length === 1 ? "" : "s"} configured`
-          : "No rounds yet — sequence the tournament.",
-      done: state.stages.length > 0,
+          ? step("/stages") && !step("/stages")!.done
+            ? `${state.stages.length} round${state.stages.length === 1 ? "" : "s"} · ${step("/stages")!.missing}`
+            : `${state.stages.length} round${state.stages.length === 1 ? "" : "s"} configured`
+          : missingOf("/stages", "No rounds yet — sequence the tournament."),
+      done: doneOf("/stages", state.stages.length > 0),
       href: "/stages",
     },
     {
@@ -160,18 +185,26 @@ export function setupChecklist(state: ChecklistState): ChecklistItem[] {
       detail:
         state.groups.length > 0
           ? `${state.groups.length} flights · ${hasSchedule ? "schedule generated" : "schedule not generated yet"}`
-          : "No flights yet — generate them from the confirmed field.",
-      done: state.groups.length > 0 && hasSchedule,
+          : missingOf("/grouping", "No flights yet — generate them from the confirmed field."),
+      /**
+       * `hasSchedule` is the local fallback and the reason this row needed the
+       * flow most: it asks every tournament for fixtures, including the ones
+       * that never have any. A medal draws no pairings at all, so this row
+       * called a finished medal unfinished while the rail — which learned
+       * that on 2026-09-09 — called it done. Two lists, one tournament,
+       * opposite answers.
+       */
+      done: doneOf("/grouping", state.groups.length > 0 && hasSchedule),
       href: "/grouping",
     },
-    ...(state.money
+    ...(step("/prizes")
       ? [
           {
             label: screenName("/prizes"),
-            detail: state.money.done
+            detail: step("/prizes")!.done
               ? "Decided — entry fees and shared costs, or neither."
-              : "Nobody has said how money works here.",
-            done: state.money.done,
+              : step("/prizes")!.missing,
+            done: step("/prizes")!.done,
             href: "/prizes",
           },
         ]

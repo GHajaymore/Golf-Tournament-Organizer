@@ -1,9 +1,10 @@
 import "server-only";
 import { prisma } from "../db";
 import { screenName } from "../nav";
-import { setupFlow, type SetupFlow, type SetupFacts } from "../domain/setup-flow";
+import { setupFlow, roundIsScheduled, type SetupFlow, type SetupFacts } from "../domain/setup-flow";
 import { isMatch } from "../tournament-shape";
 import { generatesPairings } from "../stage-types";
+import { roundLabel } from "../domain/round-label";
 import { PRE_LAUNCH_STATUSES } from "../domain/lifecycle-state";
 import { isMoneyMode } from "../domain/money-mode";
 
@@ -36,13 +37,34 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
   if (!event) return null;
   if (isMatch(event.shape)) return null;
 
-  const [confirmed, stageRows, groups, matches, venues, org] = await Promise.all([
+  const [confirmed, stageRows, groups, venues, org] = await Promise.all([
     prisma.player.count({ where: { eventId, status: "confirmed" } }),
-    // The TYPES, not just how many. The last step of setup asks for fixtures,
-    // and only some kinds of round have any — see `drawsPairings`.
-    prisma.stage.findMany({ where: { eventId }, select: { type: true } }),
+    /**
+     * THE ROUNDS THEMSELVES, not a count of them.
+     *
+     * Two steps now ask a question of each round — "when is it?" and, where
+     * the scheduler draws them, "has it got fixtures?" — and neither can be
+     * answered by a number. It was `select: { type: true }` and a separate
+     * `match.count` across the whole event, which is how a round with no day
+     * and no draw sat inside a step reading DONE. See `SetupRound`.
+     *
+     * Ordered, because `roundLabel` numbers a round by where it sits among
+     * the others and an unordered list would number them by whatever the
+     * database happened to return.
+     */
+    prisma.stage.findMany({
+      where: { eventId },
+      select: {
+        id: true,
+        type: true,
+        playedOn: true,
+        deadline: true,
+        cutEnabled: true,
+        _count: { select: { matches: true } },
+      },
+      orderBy: { position: "asc" },
+    }),
     prisma.group.count({ where: { eventId } }),
-    prisma.match.count({ where: { eventId } }),
     prisma.eventCourse.count({ where: { eventId } }),
     // The club's default, which the tournament inherits unless it says
     // otherwise. Read so the guide does not ask a question the club has
@@ -52,14 +74,18 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
       select: { moneyMode: true },
     }),
   ]);
-  const stages = stageRows.length;
-
   const facts: SetupFacts = {
     confirmed,
-    stages,
     groups,
-    matches,
-    drawsPairings: stageRows.some((s) => generatesPairings(s.type)),
+    rounds: stageRows.map((s) => ({
+      // The whole list, so the number is the one every other screen shows —
+      // see `round-number-source.test.ts` for what counting it here costs.
+      label: roundLabel(stageRows, s.id),
+      drawsPairings: generatesPairings(s.type),
+      scheduled: roundIsScheduled(s.playedOn, s.deadline),
+      cutFed: s.cutEnabled,
+      matches: s._count.matches,
+    })),
     /**
      * "New Tournament" is what `createEvent` falls back to when the name field
      * is submitted blank, so it is the one string that means "not named yet"

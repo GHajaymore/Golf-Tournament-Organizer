@@ -27,10 +27,8 @@ import { setupFlow, type SetupFacts } from "../domain/setup-flow";
 /** A tournament with nothing done yet: every step is ahead, in order. */
 const NOTHING_DONE: SetupFacts = {
   confirmed: 0,
-  stages: 0,
+  rounds: [],
   groups: 0,
-  matches: 0,
-  drawsPairings: false,
   named: false,
   dated: false,
   venued: false,

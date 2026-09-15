@@ -70,10 +70,73 @@ describe("what the checklist says", () => {
 
   it("does not count flights done until the schedule is generated", () => {
     // Flights without a draw are a list of names, not a playable round — the
-    // step is only finished when there are matches to play.
+    // step is only finished when there are matches to play. Still the answer
+    // when no flow is supplied, which is the "don't ask" contract.
     const items = setupChecklist({ ...ready, matches: [] });
     expect(items[2].done).toBe(false);
     expect(items[2].detail).toContain("schedule not generated yet");
+  });
+
+  describe("and where the setup flow has an answer, it wins", () => {
+    /**
+     * TWO LISTS STATING ONE TOURNAMENT'S PROGRESS, AND THEY DISAGREED.
+     *
+     * Not hypothetically — measured on 2026-09-15, on `main`. The rail
+     * learned on 2026-09-09 that a medal draws no pairings at all and
+     * finishes on flights alone. This list never did: its flights row is
+     * `groups.length > 0 && matches.length > 0`, with no `generatesPairings`
+     * exemption anywhere in it. So one finished medal tournament read DONE on
+     * the rail and NOT DONE on the dashboard a click away, and nothing on
+     * either screen said which to believe.
+     *
+     * Fixed by deferring rather than by copying the exemption here, which
+     * would have been a third statement of the same rule.
+     */
+    const medalFlow = [
+      { href: "/registration", done: true, missing: "Nobody is entered yet." },
+      { href: "/stages", done: true, missing: "Add at least one round." },
+      // The whole point: no fixtures, and none are coming.
+      { href: "/grouping", done: true, missing: "No flights yet." },
+    ];
+
+    it("calls a medal's flights finished, as the rail already does", () => {
+      const items = setupChecklist({ ...ready, matches: [], flow: medalFlow });
+      expect(items[2].href).toBe("/grouping");
+      expect(items[2].done).toBe(true);
+    });
+
+    it("and still says not-done when the flow says not-done", () => {
+      /**
+       * The control. Without it, "take the flow's word" would be
+       * indistinguishable from "mark the row done", and a round robin with no
+       * draw at all would read as a finished tournament on the dashboard.
+       */
+      const undrawn = medalFlow.map((s) =>
+        s.href === "/grouping"
+          ? { ...s, done: false, missing: "Round 2 has no pairings — generate them on Rounds & formats." }
+          : s,
+      );
+      const items = setupChecklist({ ...ready, matches: [], flow: undrawn });
+      expect(items[2].done).toBe(false);
+    });
+
+    it("says the flow's reason on the rounds row, not just a count", () => {
+      /**
+       * "2 rounds configured" was the whole of what this row said, and it was
+       * true of two rounds with no day, no deadline and no draw between them.
+       * The count is still worth showing; it is no longer the verdict.
+       */
+      const unscheduled = medalFlow.map((s) =>
+        s.href === "/stages"
+          ? { ...s, done: false, missing: "Round 2 has no day and no deadline." }
+          : s,
+      );
+      const items = setupChecklist({ ...ready, flow: unscheduled });
+      expect(items[0].href).toBe("/stages");
+      expect(items[0].done).toBe(false);
+      expect(items[0].detail).toContain("2 rounds");
+      expect(items[0].detail).toContain("Round 2 has no day");
+    });
   });
 
   it("mentions the waitlist only when someone is on it", () => {
