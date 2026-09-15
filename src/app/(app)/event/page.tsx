@@ -235,13 +235,13 @@ export default async function EventPage({
         isMatch={matchEvent}
         hasBracket={hasKnockoutStage(state.stages)}
         setup={flow ? { doneCount: flow.doneCount, total: flow.steps.length, complete: flow.complete } : null}
-        launched={e.status === "live" || e.status === "completed"}
+        // The status, not two conclusions drawn from it. This passed
+        // `launched` and `finished`, each computed here and each forwarded
+        // untouched through EventSetupClient — a page stating a lifecycle rule
+        // and posting it through two components. `tournamentPhase` derives
+        // both from `PRE_LAUNCH_STATUSES` now.
+        status={e.status}
         scored={cardsIn > 0}
-        // The one thing a card count cannot tell you. `launched` folds "live"
-        // and "completed" into one boolean, so the journey card had no way to
-        // distinguish a tournament being played from one that is over, and
-        // used `scored` for it instead — see TournamentJourney's `current`.
-        finished={e.status === "completed"}
         locale={fmt.locale}
         initial={{
           name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,

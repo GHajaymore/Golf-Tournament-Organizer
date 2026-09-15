@@ -60,9 +60,8 @@ export function EventSetupClient({
   isMatch = false,
   hasBracket = true,
   setup = null,
-  launched = false,
+  status = "draft",
   scored = false,
-  finished = false,
   locale = DEFAULT_LOCALE,
 }: {
   initial: EventForm;
@@ -101,15 +100,21 @@ export function EventSetupClient({
   hasBracket?: boolean;
   /** Progress through setting up, for the journey card. Null for a match. */
   setup?: { doneCount: number; total: number; complete: boolean } | null;
-  launched?: boolean;
-  scored?: boolean;
   /**
-   * Defaults FALSE, and the direction matters: a caller that forgets it gets
-   * a journey card stuck on Play, which understates. The value it replaced
-   * derived "finished" from a card count and overstated — it told an
+   * The tournament's status, passed through to the journey card.
+   *
+   * This was `launched` and `finished`, two booleans this component never
+   * read — it forwarded both and nothing else. Passing the status instead
+   * means the rule about what launched MEANS lives with the list that defines
+   * it rather than in the page above.
+   *
+   * Defaults to "draft", the quietest answer: a caller that forgets it gets a
+   * journey card at the start of the journey, which understates. The value it
+   * replaced derived "finished" from a card count and OVERSTATED — it told an
    * organizer to settle the money mid-round.
    */
-  finished?: boolean;
+  status?: string;
+  scored?: boolean;
 }) {
   const [f, setF] = useState<EventForm>(initial);
   const [manualTarget, setManualTarget] = useState(initial.manualPlayerCount);
@@ -698,9 +703,8 @@ export function EventSetupClient({
         {!isMatch && (
         <TournamentJourney
           setup={setup}
-          launched={launched}
+          status={status}
           scored={scored}
-          finished={finished}
           hasBracket={hasBracket}
         />
         )}

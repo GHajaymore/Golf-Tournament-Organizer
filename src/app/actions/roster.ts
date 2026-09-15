@@ -1,4 +1,5 @@
 "use server";
+import { configurationLocked } from "@/lib/domain/lifecycle-state";
 import { teeMatcherFor } from "@/lib/services/handicaps";
 import { revalidatePath } from "next/cache";
 import { boardChanged } from "@/lib/services/board-refresh";
@@ -431,7 +432,8 @@ export async function addMembersToEvent(memberIds: string[]): Promise<AddToEvent
   const { organizationId, eventId } = await requireRosterOrg();
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return { ok: false, error: "Event not found.", added: 0, waitlisted: 0, skipped: 0, needContact: [], needEmail: [], needPhone: [] };
-  if ((event.status === "live" || event.status === "completed") && !event.configUnlocked) {
+  // One definition of "locked" — see domain/lifecycle-state.
+  if (configurationLocked(event)) {
     return {
       ok: false,
       error: "Configuration is locked. Unlock the tournament to change the field.",

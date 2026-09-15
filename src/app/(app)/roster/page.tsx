@@ -1,3 +1,4 @@
+import { configurationLocked } from "@/lib/domain/lifecycle-state";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { requireOrgScreen } from "@/lib/page-helpers";
 import { redirect } from "next/navigation";
@@ -84,12 +85,22 @@ export default async function RosterPage() {
     members.map((m) => ({ id: m.id, email: m.email })),
   );
 
+  /**
+   * The same "locked" the roster ACTION enforces, from the same function.
+   *
+   * This screen and `addMembersToEvent` each spelled out `live-or-completed
+   * and not unlocked` by hand, which is a screen and the server it calls
+   * holding separate copies of one rule — and a screen offering a control the
+   * server refuses is a bug report filed against the wrong thing.
+   */
+  const fieldLocked = !!event && configurationLocked(event);
+
   return (
     <RosterClient
       clubName={org.shortName || org.name}
       orgKind={org.kind}
       eventName={event?.name ?? ""}
-      fieldLocked={!!event && (event.status === "live" || event.status === "completed") && !event.configUnlocked}
+      fieldLocked={fieldLocked}
       fieldSize={fieldSizeOf(entered)}
       unlinkedCount={unlinked.length}
       members={members.map((m) => {

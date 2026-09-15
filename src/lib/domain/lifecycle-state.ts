@@ -92,6 +92,55 @@ export const PRE_LAUNCH_STATUSES = ["draft", "registration", "ready"];
 const PRE_LAUNCH = PRE_LAUNCH_STATUSES;
 
 /**
+ * HAS THIS TOURNAMENT BEEN LAUNCHED — asked once, here.
+ *
+ * The comment above says a second copy is how two readers come to disagree
+ * about what "launched" means, and then seven places wrote one: every screen
+ * and action that needed the answer spelled `status === "live" || status ===
+ * "completed"` by hand.
+ *
+ * WHICH IS THE INVERSE OF THIS FILE'S OWN DEFINITION, not the same rule
+ * written twice. `PRE_LAUNCH_STATUSES` is the list; launched means NOT on it.
+ * Those agree today because the two sets happen to cover every status, and
+ * they would diverge the moment a sixth is added — a "paused" or "abandoned"
+ * would be launched by this file's reckoning and pre-launch by the hand-written
+ * one, silently and in opposite directions on different screens.
+ *
+ * So this is derived from the list rather than restating the pair.
+ */
+export function isLaunched(status: string): boolean {
+  return !PRE_LAUNCH.includes(status);
+}
+
+/**
+ * Has the organizer declared it over.
+ *
+ * Nothing derived, and deliberately not "has everything been played": four
+ * rounds with one played and four rounds with four played both have cards.
+ * See `tournamentPhase`, which learnt that the hard way.
+ */
+export function isFinished(status: string): boolean {
+  return status === "completed";
+}
+
+/**
+ * IS THE CONFIGURATION FROZEN — the composite, which was the one really being
+ * copied.
+ *
+ * `isSetupLocked` in `page-helpers.ts` has said `launched && !configUnlocked`
+ * for a long time, and four other places said it again by hand: the roster
+ * screen, the roster action, `action-shared`'s guard and `LifecycleBar`. Five
+ * copies of one sentence, and `page-helpers` is `server-only` so a client
+ * component could not have called it even if somebody had thought to.
+ *
+ * Here instead, where both halves can reach it. `isSetupLocked` now delegates,
+ * so the server-side name keeps working and there is still one answer.
+ */
+export function configurationLocked(event: { status: string; configUnlocked: boolean }): boolean {
+  return isLaunched(event.status) && !event.configUnlocked;
+}
+
+/**
  * WHAT LAUNCHING ACTUALLY DOES — because two screens said something else.
  *
  * Both of them told the organizer that the field is locked out until launch:
@@ -233,18 +282,28 @@ export function resultsIn(input: {
 export type TournamentPhase = "setup" | "launch" | "play" | "results";
 
 export function tournamentPhase(facts: {
-  /** `status === "live" || status === "completed"`. */
-  launched: boolean;
+  /**
+   * THE STATUS ITSELF, not two booleans derived from it.
+   *
+   * This took `launched` and `finished` as separate flags, so `/event/page.tsx`
+   * computed `status === "live" || status === "completed"` and
+   * `status === "completed"` and handed both down through `EventSetupClient`,
+   * which used neither and passed them straight on. A page deriving fragments
+   * of the lifecycle and posting them through two components is how the
+   * dashboard and the journey card came to disagree in the first place.
+   *
+   * One fact in, one phase out, and the rule about what "launched" means stays
+   * in this file with `PRE_LAUNCH_STATUSES`.
+   */
+  status: string;
   /** Any result anywhere — see `resultsIn`. */
   scored: boolean;
-  /** `status === "completed"`, and nothing derived. */
-  finished: boolean;
   /** Whether the setup flow reports itself finished. */
   setupComplete: boolean;
 }): TournamentPhase {
-  return facts.finished
+  return isFinished(facts.status)
     ? "results"
-    : facts.launched || facts.scored
+    : isLaunched(facts.status) || facts.scored
       ? "play"
       : facts.setupComplete
         ? "launch"
