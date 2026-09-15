@@ -257,6 +257,42 @@ test("taking their card clears the queue without sending anything", async ({ pag
 
   const chooser = page.getByRole("alertdialog");
   await expect(chooser).toBeVisible({ timeout: 20_000 });
+
+  /**
+   * ITS GEOMETRY, MEASURED HERE BECAUSE THIS IS WHERE IT IS ALREADY OPEN.
+   *
+   * `e2e/dialog.spec.ts` measures the app's other two dialogs, and cannot
+   * measure this one: reaching it means going offline, entering a hole, being
+   * overwritten and coming back online, which is the whole of this test. So
+   * the assertion lives with the setup rather than the setup being written
+   * twice.
+   *
+   * WHY IT IS WORTH ASSERTING AT ALL. This is the intermittent CLAUDE.md has
+   * an entry about, and every failing log shares `element is not stable` →
+   * `outside of the viewport` → `element was detached from the DOM`. The
+   * middle one is a geometry claim, and until now nothing in this suite had
+   * ever measured the geometry of the thing making it.
+   *
+   * It is also NOT A MODAL, which is the part that makes "outside of the
+   * viewport" possible at all: a centred overlay cannot be outside the
+   * viewport, and this is a `<section className="card">` sitting inline in the
+   * scorecard's page flow, so Playwright must scroll to it before it can
+   * click. That is a fact about the shape, not a diagnosis — the
+   * `usePendingCard` timer fix has its own evidence — but if this assertion
+   * ever fails, the geometry theory stops being speculation.
+   */
+  {
+    const width = page.viewportSize()?.width ?? 0;
+    const box = await chooser.boundingBox();
+    expect(box, "the card chooser has no box").not.toBeNull();
+    expect(
+      Math.round(box!.width),
+      `the card chooser is ${Math.round(box!.width)}px in a ${width}px viewport`,
+    ).toBeLessThanOrEqual(width);
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(scrollWidth, `the chooser pushed the page to ${scrollWidth}px`).toBeLessThanOrEqual(width);
+  }
+
   await chooser.getByRole("button", { name: /use theirs/i }).click();
 
   // The disagreement is over, so the chooser goes.
