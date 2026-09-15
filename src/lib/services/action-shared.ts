@@ -1,5 +1,6 @@
 import "server-only";
-import { configurationLocked } from "@/lib/domain/lifecycle-state";
+import { configurationLocked, PRE_LAUNCH_STATUSES } from "@/lib/domain/lifecycle-state";
+import { playRefusal } from "@/lib/domain/phase-gate";
 import { prisma } from "../db";
 import { getSession } from "../auth";
 
@@ -47,6 +48,56 @@ export async function assertUnlocked(
   if (e && configurationLocked(e)) {
     throw new Error(`Configuration is locked. Unlock the tournament to ${what}.`);
   }
+}
+
+/**
+ * Refuse a score on a tournament that has not started, or return null.
+ *
+ * ONE PLACE, because there are four doors into scoring — the console's
+ * `requireScoreEntry`, the play surface, and two in `actions/courses.ts` — and
+ * a rule each of them has to remember to call is a rule one of them will
+ * forget. That is this codebase's most-repeated defect and `isManualFormat`
+ * is the entry CLAUDE.md keeps about it.
+ *
+ * RETURNS THE REASON rather than throwing, unlike `assertUnlocked` above, and
+ * the difference is deliberate. A locked configuration is reached only by a
+ * client out of step with the server, so throwing is right there. This one a
+ * PERSON hits — a player opening their card on the first tee of a tournament
+ * nobody launched — and they need to be told what is wrong and who can fix it.
+ *
+ * COSTS NOTHING ONCE LAUNCHED. The status is one indexed read, and the two
+ * result lookups run only while the tournament is still pre-launch, which is
+ * the rare case and never the hot path.
+ */
+export async function playRefusalFor(eventId: string): Promise<string | null> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { status: true },
+  });
+  if (!event) return null;
+  if (!PRE_LAUNCH_STATUSES.includes(event.status)) return null;
+
+  /**
+   * "Any result" over the WHOLE tournament, both sources.
+   *
+   * A pure stroke tournament has no matches and a pure match one has no cards,
+   * so asking either alone answers this wrongly for half the product — the
+   * same fault `resultsIn` was written to fix for the dashboard banner, and
+   * the reason that function counts both.
+   *
+   * `matchSettled` is not used: it wants a whole match object and this only
+   * needs to know whether anybody has been out on the course. One hole
+   * answers that, which is the same line the lifecycle warning draws.
+   */
+  const [card, match] = await Promise.all([
+    prisma.scorecard.findFirst({ where: { eventId }, select: { id: true } }),
+    prisma.match.findFirst({
+      where: { eventId, NOT: { holes: { equals: "" } } },
+      select: { holes: true },
+    }),
+  ]);
+  const played = !!card || !!(match && /[1-9AaBbHh]/.test(match.holes));
+  return playRefusal({ status: event.status, anyResult: played });
 }
 
 /**

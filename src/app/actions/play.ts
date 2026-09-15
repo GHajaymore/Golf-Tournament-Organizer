@@ -7,6 +7,7 @@ import { createPlaySession, destroyPlaySession, getPlaySession } from "@/lib/pla
 import { settingsOf } from "@/lib/services/tournament";
 import { usesAccessCodes, canPlayerSavePartial, canEnterScores } from "@/lib/tournament-settings";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limit";
+import { playRefusalFor } from "@/lib/services/action-shared";
 import { cleanHoleResults } from "@/lib/domain/score-payload";
 import { roundLabel } from "@/lib/domain/round-label";
 import { marginToHoles } from "@/lib/domain";
@@ -176,6 +177,13 @@ export async function savePlayMatchHoles(
     return { ok: false, error: "Scores for this tournament are entered by the organizer." };
   }
 
+  // AND THE TOURNAMENT HAS TO HAVE STARTED. Launch is the transition from
+  // setting up to playing and it gated nothing, so a tournament left in draft
+  // played a whole round with only a banner to say so. See playRefusal: a
+  // tournament already under way is deliberately NOT stopped halfway.
+  const notStarted = await playRefusalFor(session.eventId);
+  if (notStarted) return { ok: false, error: notStarted };
+
   // Scoped three ways: the right tournament, the right round, and a match this
   // player is actually in.
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
@@ -293,6 +301,13 @@ export async function savePlayMatchResult(
     return { ok: false, error: "Scores for this tournament are entered by the organizer." };
   }
 
+  // AND THE TOURNAMENT HAS TO HAVE STARTED. Launch is the transition from
+  // setting up to playing and it gated nothing, so a tournament left in draft
+  // played a whole round with only a banner to say so. See playRefusal: a
+  // tournament already under way is deliberately NOT stopped halfway.
+  const notStarted = await playRefusalFor(session.eventId);
+  if (notStarted) return { ok: false, error: notStarted };
+
   if (match.eventId !== session.eventId || match.stageId !== session.stageId) {
     return { ok: false, error: "That match isn't in your round." };
   }
@@ -394,6 +409,13 @@ export async function savePlayCard(strokes: (number | null)[]): Promise<ClaimRes
     return { ok: false, error: "Scores for this tournament are entered by the organizer." };
   }
 
+  // AND THE TOURNAMENT HAS TO HAVE STARTED. Launch is the transition from
+  // setting up to playing and it gated nothing, so a tournament left in draft
+  // played a whole round with only a banner to say so. See playRefusal: a
+  // tournament already under way is deliberately NOT stopped halfway.
+  const notStarted = await playRefusalFor(session.eventId);
+  if (notStarted) return { ok: false, error: notStarted };
+
   /**
    * The card is written for the player the SESSION names, never one the
    * caller sends. There is no playerId argument for the same reason the match
@@ -465,6 +487,13 @@ export async function certifyPlayCard(): Promise<ClaimResult> {
   if (!canEnterScores(settings, "player")) {
     return { ok: false, error: "Scores for this tournament are entered by the organizer." };
   }
+
+  // AND THE TOURNAMENT HAS TO HAVE STARTED. Launch is the transition from
+  // setting up to playing and it gated nothing, so a tournament left in draft
+  // played a whole round with only a banner to say so. See playRefusal: a
+  // tournament already under way is deliberately NOT stopped halfway.
+  const notStarted = await playRefusalFor(session.eventId);
+  if (notStarted) return { ok: false, error: notStarted };
 
   try {
     await certifyCard({
