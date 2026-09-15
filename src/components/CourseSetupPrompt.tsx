@@ -203,8 +203,9 @@ export function CourseSetupPrompt({
         ) : (
           <>
             Par, yardage and stroke index for {"“"}{eventCourse || "this event"}{"”"}. Gross match play doesn&rsquo;t
-            need this to score, but printed scorecards do — they carry the course details alongside your club&rsquo;s
-            logo. Paste the card off the course&rsquo;s website, or fill it in by hand.
+            need this to score, but printed scorecards do — they carry the course details alongside
+            your {org.noun}&rsquo;s logo. Paste the card off the course&rsquo;s website, or fill it
+            in by hand.
           </>
         )}
       </p>

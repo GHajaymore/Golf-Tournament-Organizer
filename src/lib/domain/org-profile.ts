@@ -40,6 +40,8 @@
  * whole point of declaring them here.
  */
 
+import { countryCode } from "./country";
+
 export type OrgKind = "club" | "community" | "personal";
 
 export const ORG_KINDS: OrgKind[] = ["club", "community", "personal"];
@@ -167,6 +169,46 @@ const PROFILES: Record<OrgKind, Omit<OrgProfile, "kind">> = {
   },
 };
 
+/**
+ * WHAT A COMMUNITY IS CALLED WHERE IT PLAYS.
+ *
+ * The three kinds describe how the golf is ORGANISED and they travel fine. The
+ * one thing that does not travel is the NOUN for `community`: the same outfit
+ * is a *society* in Britain and Ireland and a *golf league* or *association* in
+ * the United States. `club` and `outing` are understood everywhere, which is
+ * why this is one noun set on one kind rather than a rewrite.
+ *
+ * NOT OFF THE SIGNED-IN PERSON'S COUNTRY, which is the obvious implementation
+ * and is wrong. That is a fact about a PERSON and this word describes an
+ * OUTFIT: an Irish secretary living in Boston still runs a society, and a US
+ * league secretary on holiday in Dublin does not become one.
+ * `Organization.country` is the club's own answer about itself, which is the
+ * right source.
+ *
+ * ONLY WHAT WAS ASKED FOR IS MAPPED, and everything else falls through to the
+ * wording the app already used. Two reasons that matters here. `country` is
+ * free text defaulting to `""`, so "no answer" is the common case and must not
+ * become a wrong answer. And the register's third example — that an Australian
+ * outfit is "often just a club" — is deliberately NOT implemented: calling a
+ * `community` a "club" collides head-on with the `club` kind, so an AU society
+ * and an AU golf club would read identically on every screen. That wants a
+ * decision from somebody, not a guess from here.
+ *
+ * The country changes WORDS ONLY. Every behavioural flag below is a fact about
+ * how the outfit runs its golf, and a society in Boston still fronts the
+ * minibus. There is a test pinning that, because "translate the nouns" is
+ * exactly the change that quietly takes a flag with it.
+ */
+const COMMUNITY_WORDS: Record<string, Pick<OrgProfile, "label" | "noun" | "settingsLabel" | "groupLabel" | "blurb">> = {
+  US: {
+    label: "League or association",
+    noun: "league",
+    settingsLabel: "League settings",
+    groupLabel: "League",
+    blurb: "A league, association or group that plays together and shares the costs.",
+  },
+};
+
 export function isOrgKind(v: string): v is OrgKind {
   return (ORG_KINDS as string[]).includes(v);
 }
@@ -179,7 +221,20 @@ export function isOrgKind(v: string): v is OrgKind {
  * hide real debts from the people who owe them, and a typo in a column should
  * never be the reason somebody is not told they owe forty pounds.
  */
-export function orgProfile(kind: string | null | undefined): OrgProfile {
+export function orgProfile(kind: string | null | undefined, country?: string | null): OrgProfile {
   const k = isOrgKind(kind ?? "") ? (kind as OrgKind) : "personal";
-  return { kind: k, ...PROFILES[k] };
+  const base = { kind: k, ...PROFILES[k] };
+  if (k !== "community") return base;
+  /**
+   * Normalised through the app's one country vocabulary rather than compared
+   * as text, so "United States", "USA" and "us" are the same country. Doing it
+   * by hand is how the catalogue ended up with 187 rows of "GB" beside 10 of
+   * "United Kingdom" — and `countryCode` returns "" for blank or "Unknown",
+   * which lands on the default below exactly as it should.
+   *
+   * Second argument is OPTIONAL, so all twenty-three existing callers are
+   * unchanged and correct: no country means today's wording.
+   */
+  const words = COMMUNITY_WORDS[countryCode(country ?? "")];
+  return words ? { ...base, ...words } : base;
 }

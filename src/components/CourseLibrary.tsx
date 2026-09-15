@@ -188,7 +188,7 @@ export function CourseLibrary({
         setError(res.error ?? "Couldn't save the course.");
         return;
       }
-      setNotice(`${name.trim()} saved to the club library.`);
+      setNotice(`${name.trim()} saved to the ${org.noun} library.`);
       resetForm();
     });
   };

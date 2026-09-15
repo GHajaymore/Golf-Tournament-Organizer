@@ -40,7 +40,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // The organization's KIND rides along on a query that already runs, so the
     // sidebar can call the settings screen what it actually is without costing
     // a second round trip on every page in the console.
-    include: { organization: { select: { kind: true } } },
+    // `country` rides along with it, because it decides what that kind is
+    // CALLED: a community is a society in Britain and a league in the United
+    // States. One query, both facts, so the word and the kind cannot come
+    // from different places and disagree.
+    include: { organization: { select: { kind: true, country: true } } },
   });
   // Teams only appear once a round is actually set to a team format, so the
   // many tournaments that never play one are not shown a link to an empty
@@ -77,6 +81,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    */
   const ownedOrgs = event ? [] : await organizationsForOrganizer(session.email);
   const orgKindNow = event?.organization.kind ?? ownedOrgs[0]?.kind ?? "";
+  // From the SAME source as the kind, in the same order — a country read from
+  // the tournament's club while the kind came from the organizer's own would
+  // name one outfit after another.
+  const orgCountryNow = event ? event.organization.country : (ownedOrgs[0]?.country ?? "");
 
   const sections = navForRole(session.viewRole, event ? settingsOf(event) : undefined, {
     hasTeamRound: teamRounds > 0,
@@ -117,7 +125,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     {/* What kind of outfit this is, beside its currency and its theme — one
         fact about the organization read by a dozen screens that name it. A
         society is not a club, and the console said so in eight places. */}
-    <OrgProfileProvider kind={orgKindNow || undefined}>
+    <OrgProfileProvider kind={orgKindNow || undefined} country={orgCountryNow || undefined}>
     <div
       id="club-theme"
       // Drives `color-scheme` in globals.css. Native form chrome — the date
