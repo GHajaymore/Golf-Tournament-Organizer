@@ -28,6 +28,11 @@
  * required, because "no fixed course — players choose" is a real answer.
  */
 
+// The one list of statuses that mean "not launched". Imported rather than
+// repeated, for the reason lifecycle-state.ts gives beside it: launched means
+// NOT on this list, and two copies of that is two answers.
+import { PRE_LAUNCH_STATUSES } from "./lifecycle-state";
+
 export interface LaunchFacts {
   /** Rounds the field actually plays. */
   playingRounds: number;
@@ -51,6 +56,51 @@ export function launchRefusal(facts: LaunchFacts): string | null {
     return "Nobody is in the field yet, so there is nobody to launch it for. Enter the field on Registration & field, then launch.";
   }
   return null;
+}
+
+export interface PlayFacts {
+  /** draft | registration | ready | live | completed. */
+  status: string;
+  /**
+   * Whether ANY result exists anywhere in this tournament — a settled match or
+   * a scorecard, the same two sources `resultsIn` counts.
+   *
+   * This is the whole of the migration story, so it is a fact rather than a
+   * flag somebody sets. See below.
+   */
+  anyResult: boolean;
+}
+
+/**
+ * Why a score cannot be entered yet, or null when it can.
+ *
+ * LAUNCH IS THE TRANSITION FROM SETTING UP TO PLAYING, and until now it gated
+ * nothing: a tournament left in draft played a full round, and the only sign
+ * was a banner on the organizer's dashboard saying so. This is the gate the
+ * phase model at the top of this file always implied — "guide within a phase,
+ * gate between them" — applied to the one transition that had no gate.
+ *
+ * THE EXEMPTION IS THE POINT, and without it this must not ship. A tournament
+ * that is ALREADY UNDER WAY in draft is not locked retroactively. The reason
+ * is specific rather than cautious: a player standing on the 14th green cannot
+ * launch anything — only staff can — so refusing their card mid-round strands
+ * them with a remedy that is not theirs to apply. The deferred register has
+ * carried this item as "blocked on old data" precisely because turning the
+ * gate on retroactively would lock live players out of rounds they are in the
+ * middle of, and the seeded Demo Cup is one of those tournaments.
+ *
+ * So the rule is: you cannot START play without launching. A tournament that
+ * already started keeps going, and the dashboard banner keeps saying its
+ * status is out of date — which is a thing to tidy, not a thing to break.
+ *
+ * It self-clears. Every tournament begun after this has to launch before its
+ * first score, so the exempt population only ever shrinks.
+ */
+export function playRefusal(facts: PlayFacts): string | null {
+  if (!PRE_LAUNCH_STATUSES.includes(facts.status)) return null;
+  // Already under way. Not ours to stop halfway through.
+  if (facts.anyResult) return null;
+  return "This tournament hasn’t been launched yet, so play hasn’t started. An organizer can launch it from the dashboard.";
 }
 
 export interface FinishFacts {

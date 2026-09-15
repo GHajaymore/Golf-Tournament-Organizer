@@ -43,7 +43,9 @@ async function seedTiedStrokeEvent() {
       address: "",
       regDeadline: "",
       capacity: 0,
-      status: "active",
+      // "active" was not one of the five statuses the schema lists, so it
+      // passed the launch gate by accident rather than by being launched.
+      status: "live",
       shape: "series",
       format: "stroke",
       formationRule: "balanced",
@@ -213,7 +215,9 @@ async function seedTiedMatchEvent(opts: { tiebreakers: string }) {
       address: "",
       regDeadline: "",
       capacity: 0,
-      status: "active",
+      // "active" was not one of the five statuses the schema lists, so it
+      // passed the launch gate by accident rather than by being launched.
+      status: "live",
       shape: "series",
       format: "match",
       formationRule: "balanced",
@@ -476,7 +480,9 @@ async function seedLevelButSeparatedStrokeEvent() {
       name: `${TAG}-LEVEL ${Date.now()}`,
       dates: "", course: "", city: "", address: "", regDeadline: "",
       capacity: 0,
-      status: "active",
+      // "active" was not one of the five statuses the schema lists, so it
+      // passed the launch gate by accident rather than by being launched.
+      status: "live",
       shape: "series",
       format: "stroke",
       formationRule: "balanced",

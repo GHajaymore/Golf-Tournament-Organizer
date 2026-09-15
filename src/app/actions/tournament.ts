@@ -107,7 +107,7 @@ import type { MatchEntryMode } from "@/lib/domain/match-entry";
 import { aggregateTeamCard, singleBallTeamCard, teamMatchHoles } from "@/lib/domain/team";
 import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 import { holesPlayed } from "@/lib/domain/handicap";
-import { assertUnlocked, logAudit } from "@/lib/services/action-shared";
+import { assertUnlocked, logAudit, playRefusalFor } from "@/lib/services/action-shared";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
 import { isSupportedLocale } from "@/lib/domain/locale";
 import { isCurrencyCode } from "@/lib/domain/money-format";
@@ -152,6 +152,24 @@ async function requireScoreEntry(): Promise<{ eventId: string; session: Session;
   if (!canEnterScores(settings, session.role)) {
     throw new Error("Scores for this tournament are entered by the organizer.");
   }
+  /**
+   * AND THE TOURNAMENT HAS TO HAVE STARTED.
+   *
+   * Launch is the transition from setting up to playing, and it gated nothing
+   * — a tournament left in draft played a whole round with only a banner on
+   * the dashboard to say its status was out of date.
+   *
+   * Here rather than in each of the nine callers, which is the same reasoning
+   * `isManualFormat` earned its entry in CLAUDE.md for: a guard you must
+   * remember to call is a guard that will be forgotten.
+   *
+   * It cannot strand the certify and dispute paths below, which need a card to
+   * act on — a card existing is itself a result, so `playRefusal` returns null
+   * for them. And staff hold the remedy: the refusal names it, and launching
+   * is theirs to do.
+   */
+  const notStarted = await playRefusalFor(session.eventId);
+  if (notStarted) throw new Error(notStarted);
   return { eventId: session.eventId, session, settings };
 }
 

@@ -70,6 +70,12 @@ beforeAll(async () => {
     data: {
       organizationId: orgId,
       name: `${TAG} club championship`,
+      // LAUNCHED, because this fixture SCORES the tournament and scoring is
+      // the play phase. Launch gates it now — see phase-gate.ts#playRefusal —
+      // and a draft tournament with no results is refused, which is the rule
+      // working rather than a fixture to work around.
+      status: "live",
+
       dates: "",
       course: "Home",
       city: "",
