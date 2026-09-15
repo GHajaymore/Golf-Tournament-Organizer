@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { screenMetadata } from "@/lib/screen-metadata";
 import { formattingFor } from "@/lib/domain/locale";
+import { TournamentFormatting } from "@/components/TournamentFormatting";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
@@ -254,6 +255,21 @@ export default async function EventPage({
         // typing a name — the screen never had anything else to pick by.
         courses={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, address: "" }))}
       />
+        {/* HOW THIS ONE WRITES ITS DATES AND ITS MONEY.
+            In the identity section because that is what it is: the same kind
+            of fact as the name and the venue, and the section a reader is
+            already in when they notice a date reads wrong. Almost every
+            tournament leaves both following the club — see the component. */}
+        <div className="card elev-sm" style={{ marginTop: 16 }}>
+          <span className="card-kicker">Dates and money</span>
+          <TournamentFormatting
+            localeOverride={e.localeOverride}
+            currencyOverride={e.currencyOverride}
+            clubLocale={org?.locale ?? ""}
+            clubCurrency={org?.currency ?? ""}
+            canEdit={session.viewRole === "admin"}
+          />
+        </div>
       </SettingsSectionAnchor>
 
       {/* Always available, never a blocker here. A tournament may not need

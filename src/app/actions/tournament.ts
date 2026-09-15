@@ -109,6 +109,8 @@ import { sidePlayingHandicap, effectiveCountBest } from "@/lib/services/teams";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked, logAudit } from "@/lib/services/action-shared";
 import { ensureRoundCodes } from "@/lib/services/round-codes";
+import { isSupportedLocale } from "@/lib/domain/locale";
+import { isCurrencyCode } from "@/lib/domain/money-format";
 
 async function requireEvent(): Promise<string> {
   const session = await getSession();
@@ -4559,5 +4561,51 @@ export async function createThirdPlaceMatch(stageId: string): Promise<{ ok: bool
   });
   await logAudit(eventId, "third-place", `Created the play-off for third: ${a.name} v ${b.name}`);
   await refresh();
+  return { ok: true };
+}
+
+/**
+ * THIS TOURNAMENT'S OWN DATE AND MONEY CONVENTIONS, overriding the club's.
+ *
+ * Empty for either means follow the club, which is what almost every
+ * tournament wants and what every existing row holds. They are two separate
+ * values rather than one "run this in American" switch, because they are two
+ * questions: a club in Osaka pricing an invitational in dollars still writes
+ * its dates the Japanese way.
+ *
+ * ANY ISO CURRENCY, checked against `Intl`'s real list of about three hundred
+ * rather than a shape test — `Intl` formats any three letters happily, so
+ * "ABC" would otherwise land in the column looking deliberate.
+ *
+ * NOT GATED BY `assertUnlocked`, unlike the rest of this screen's settings,
+ * and that is a decision rather than an oversight. The lock exists because
+ * changing the field, the rounds or the format after a tournament has started
+ * changes what is being played and what the standings mean. This changes
+ * neither: it decides whether a date is written 14 May or May 14. The moment
+ * an organizer most needs it is precisely after the field has arrived and
+ * somebody has misread a date — which is exactly when the lock would be on.
+ */
+export async function setEventFormatting(
+  localeOverride: string,
+  currencyOverride: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const eventId = await requireAdminEvent();
+
+  const tag = (localeOverride ?? "").trim();
+  if (tag && !isSupportedLocale(tag)) {
+    return { ok: false, error: "Pick a region from the list, or leave it following the club." };
+  }
+
+  const code = (currencyOverride ?? "").trim().toUpperCase();
+  if (code && !isCurrencyCode(code)) {
+    return { ok: false, error: "Pick a currency from the list, or leave it following the club." };
+  }
+
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { localeOverride: tag, currencyOverride: code },
+  });
+  // The layout resolves this once for the whole tree — see formattingForEvent.
+  revalidatePath("/", "layout");
   return { ok: true };
 }

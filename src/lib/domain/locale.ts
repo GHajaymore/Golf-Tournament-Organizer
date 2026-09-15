@@ -253,3 +253,44 @@ export function formatDayRangeIn(startIso: string, endIso: string, f: Formatting
 export function formatMonthIn(iso: string, f: Formatting): string {
   return formatMonth(iso, f.locale);
 }
+
+/**
+ * The regions offered in the picker.
+ *
+ * NOT A CLOSED LIST — `resolveLocale` accepts any tag `Intl` supports, and a
+ * club already holding one the list does not offer keeps it. This is the
+ * shortlist a golf secretary picks from, not the set of legal answers.
+ *
+ * Chosen to span the conventions rather than the countries, which is why it is
+ * short and why the ones that look redundant are not:
+ *
+ *   en-US   month first, "May 14, 2026"
+ *   en-GB   day first, "14 May 2026" — and Ireland, most of Europe's clubs
+ *   en-AU   day first, distinct number and currency handling from en-GB
+ *   en-IN   day first, and the only one here that groups 1,23,456 rather
+ *           than 123,456 — an Indian club's prize list is visibly wrong
+ *           under any of the others
+ *   ja-JP   year first, "2026年5月14日", and a currency with no minor unit
+ *   ko-KR   year first, same minor-unit question as Japan
+ *   de-DE   day first, "1.234,00 €" — the trailing symbol
+ *   fr-FR   day first, space as the thousands separator
+ *   es-ES   day first, another European grouping
+ *   zh-CN   year first
+ *
+ * Golf's centre of gravity is not the United States alone, and this app
+ * defaulted every date to American for its whole life — Japan, Korea and
+ * Australia between them run a great many more club competitions than the
+ * original hardcoded "en-US" implied anybody had thought about.
+ */
+export const LOCALES: Array<{ tag: string; label: string }> = [
+  { tag: "en-US", label: "United States — May 14, 2026" },
+  { tag: "en-GB", label: "United Kingdom & Ireland — 14 May 2026" },
+  { tag: "en-AU", label: "Australia & New Zealand — 14 May 2026" },
+  { tag: "en-IN", label: "India — 14 May 2026" },
+  { tag: "ja-JP", label: "Japan — 2026年5月14日" },
+  { tag: "ko-KR", label: "Korea — 2026. 5. 14." },
+  { tag: "zh-CN", label: "China — 2026年5月14日" },
+  { tag: "de-DE", label: "Germany & Austria — 14.05.2026" },
+  { tag: "fr-FR", label: "France — 14 mai 2026" },
+  { tag: "es-ES", label: "Spain — 14 may 2026" },
+];
