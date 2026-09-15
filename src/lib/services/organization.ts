@@ -65,7 +65,7 @@ import { logoSrc } from "../domain/logo-upload";
  */
 export async function organizationsForOrganizer(
   email: string,
-): Promise<Array<{ id: string; name: string; kind: string; plan: string }>> {
+): Promise<Array<{ id: string; name: string; kind: string; country: string; plan: string }>> {
   const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (!user) return [];
   const rows = await prisma.organizationMember.findMany({
@@ -84,7 +84,18 @@ export async function organizationsForOrganizer(
         // The plan lives on the SUBSCRIPTION row, and an organization need not
         // have one — no row is the free plan, which is what `planForOrganization`
         // says and the only place that rule may be stated.
-        select: { id: true, name: true, kind: true, subscription: { select: { plan: true } } },
+        // `country` rides along for the same reason the plan does: it is the
+        // club's own answer about itself, and it decides what the outfit is
+        // CALLED — a community is a society in Britain and a league in the
+        // United States. Fetched here so the word cannot come from a second
+        // source and disagree.
+        select: {
+          id: true,
+          name: true,
+          kind: true,
+          country: true,
+          subscription: { select: { plan: true } },
+        },
       },
     },
     // The same order the default follows, so the list's first entry IS the one
@@ -95,6 +106,7 @@ export async function organizationsForOrganizer(
     id: r.organization.id,
     name: r.organization.name,
     kind: r.organization.kind,
+    country: r.organization.country,
     plan: r.organization.subscription?.plan ?? DEFAULT_PLAN,
   }));
 }

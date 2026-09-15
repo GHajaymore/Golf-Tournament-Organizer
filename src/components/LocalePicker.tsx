@@ -54,7 +54,9 @@ export function LocalePicker({ locale }: { locale: string }) {
     <div className="field" style={{ maxWidth: 340 }}>
       <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
         Dates and numbers
-        <FieldInfo label="how the club writes a date">
+        {/* Same fault as CurrencyPicker had: this becomes an `aria-label`, and
+            the sentence one line below already uses the outfit's own word. */}
+        <FieldInfo label={`how the ${org.noun} writes a date`}>
           <p>
             How every date and amount in this {org.noun} is written — the order of the day and
             month, and where the thousands separator and the currency symbol go.

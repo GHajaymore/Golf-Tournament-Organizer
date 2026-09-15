@@ -51,9 +51,14 @@ export function CurrencyPicker({ currency }: { currency: string }) {
     <div className="field" style={{ maxWidth: 340 }}>
       <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
         Currency
-        <FieldInfo label="the club's currency">
+        {/* The outfit's own word, not "club". `FieldInfo` renders this into
+            `aria-label="More about …"`, so a hardcoded one told a society's
+            screen-reader user about "the club's currency" — on a control whose
+            very next line already had the right word in scope. */}
+        <FieldInfo label={`the ${org.noun}'s currency`}>
           <p>
-            What every amount in this club is written in — prizes, pots, buy-ins and the settle-up.
+            What every amount in this {org.noun} is written in — prizes, pots, buy-ins and the
+            settle-up.
             It is the {org.noun}&rsquo;s default, and almost every tournament should just use it.
             {/* This read "one setting for the club rather than one per
                 tournament", which stopped being true the day a tournament

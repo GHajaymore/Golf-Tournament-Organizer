@@ -29,13 +29,31 @@ const OrgProfileContext = createContext<OrgProfile>(orgProfile("club"));
 
 export function OrgProfileProvider({
   kind,
+  country,
   children,
 }: {
   kind: string | null | undefined;
+  /**
+   * The club's own country, which decides what a `community` is CALLED — a
+   * society in Britain and Ireland, a league in the United States.
+   *
+   * Taken here rather than at each of the eleven components that read this
+   * context, which is the whole argument for the context existing: the prop
+   * somebody forgets is a screen quietly calling a league a society. Optional,
+   * so a caller that has not wired it gets today's wording rather than a
+   * crash — the same direction of failure as `kind` defaulting to club.
+   *
+   * NOT the signed-in person's country. That is a fact about a PERSON and this
+   * word describes an OUTFIT: an Irish secretary living in Boston still runs a
+   * society. See `org-profile.ts`.
+   */
+  country?: string | null;
   children: React.ReactNode;
 }) {
   return (
-    <OrgProfileContext.Provider value={orgProfile(kind ?? "club")}>{children}</OrgProfileContext.Provider>
+    <OrgProfileContext.Provider value={orgProfile(kind ?? "club", country)}>
+      {children}
+    </OrgProfileContext.Provider>
   );
 }
 
