@@ -20,13 +20,19 @@
  * The route list is read off the filesystem rather than typed out here, so a
  * screen added tomorrow is covered without anyone remembering to add it.
  */
+import { runMark } from "./run-mark.mjs";
 import { readdirSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHmac, randomBytes } from "node:crypto";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
 const APP_DIR = "src/app";
-const MARK = "ci-smoke";
+// Per worktree — same reason as the e2e fixture and the verify-* scripts: a
+// fixed mark lets this delete reach into a concurrent run's rows. Note the
+// prefix is "ci-smoke" rather than the repo's usual "zz-", which is why a grep
+// for zz- missed this file; left as it is, since renaming a mark and fixing a
+// collision are two changes.
+const MARK = runMark("ci-smoke");
 
 // Local .env for developer runs; in CI the variables are already exported.
 if (existsSync(".env")) {

@@ -14,12 +14,15 @@
  *
  *   npx tsx scripts/verify-round-handicaps.mjs        (SMOKE_BASE_URL to pick a port)
  */
+import { runMark } from "./run-mark.mjs";
 import { PrismaClient } from "@prisma/client";
 import { createHmac, randomBytes } from "node:crypto";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:3120";
 const EVENT = process.env.VERIFY_EVENT ?? "Demo Cup";
-const MARK = "zz-verify-round-handicaps";
+// Per worktree — a fixed mark lets one run's opening delete reach into a
+// concurrent run's rows. See scripts/run-mark.mjs.
+const MARK = runMark("zz-verify-round-handicaps");
 const prisma = new PrismaClient();
 
 const made = {};

@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { createHmac } from "node:crypto";
+import { runMark } from "../scripts/run-mark.mjs";
 
 /**
  * The tournament the end-to-end tests run against.
@@ -15,7 +16,20 @@ import { createHmac } from "node:crypto";
  * a course with local rules.
  */
 
-export const MARK = "zz-e2e";
+/**
+ * PER WORKTREE, so one run's teardown cannot reach into another's rows.
+ *
+ * This was the bare string `"zz-e2e"`, shared by every run on the machine —
+ * and `seed()` opens by deleting everything that starts with it. Two sessions
+ * in parallel worktrees therefore wiped each other's fixture mid-run, and the
+ * resulting cascade reads exactly like the dead-server signature CLAUDE.md
+ * documents. See `scripts/run-mark.mjs` for the measurement and for why the
+ * suffix is the worktree rather than a uuid.
+ *
+ * Still begins `zz-e2e`, so it is recognisable as a fixture at a glance and a
+ * deliberate sweep can still find every run's rows.
+ */
+export const MARK = runMark("zz-e2e");
 
 const PARS = [4, 5, 3, 4, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 4];
 const SI = [7, 3, 11, 1, 15, 5, 17, 9, 13, 8, 4, 12, 2, 16, 6, 18, 10, 14];

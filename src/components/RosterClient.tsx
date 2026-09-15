@@ -527,11 +527,30 @@ export function RosterClient({
               signing a field up means looking at the people who are not in it
               yet — and searching one name at a time was the only way. */}
           {hasTournament && (
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }} className="text-muted">
+            /**
+             * THE TOURNAMENT'S NAME IS IN AN OPTION, AND AN OPTION SETS THE
+             * WIDTH.
+             *
+             * A `width: auto` select is as wide as its longest option, so
+             * "only those in <tournament name>" made this control as wide as
+             * the name — and on a 375px phone a long one pushed the whole page
+             * sideways. Caught by `layout.spec` the moment a fixture name grew
+             * by seven characters; a club that calls its event "The Captain's
+             * Day Invitational 2026" gets there on its own.
+             *
+             * `min-width: 0` on both the flex child and the control, because
+             * neither is allowed to shrink below its content without it — the
+             * rule this repo's design notes state and the reason the overflow
+             * survived a `max-width` alone.
+             */
+            <label
+              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, minWidth: 0 }}
+              className="text-muted"
+            >
               <span>Show</span>
               <select
                 className="input"
-                style={{ width: "auto", fontSize: 12, padding: "3px 8px" }}
+                style={{ width: "auto", maxWidth: "100%", minWidth: 0, fontSize: 12, padding: "3px 8px" }}
                 value={entryFilter}
                 onChange={(e) => setEntryFilter(e.target.value as "all" | "in" | "out")}
               >
