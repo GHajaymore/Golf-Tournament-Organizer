@@ -192,22 +192,46 @@ export async function generateTeamMatches(stageId: string, replace = false): Pro
   }
 
   /**
-   * NOT a label — a lookup key, which is why it does not use `roundLabel`.
+   * THE CARRIER for this round's team matches, found by the ROUND.
    *
-   * The flight is found again by this exact name on every regenerate, so the
-   * string is effectively an identifier that happens to read as English.
-   * Renumbering it onto the app's round count would not correct existing
-   * tournaments: it would fail to match the flight already there, create a
-   * second one beside it, and split a club's matches across the two. Changing
-   * it is a migration, not an edit. `round-number-source.test.ts` exempts this
-   * line and asserts the lookup below is still here.
+   * This was a find-or-create BY NAME, and the comment here said at length
+   * that the string was really an identifier and that renaming it would "fail
+   * to match the flight already there, create a second one beside it, and
+   * split a club's matches across the two". All true — and the thing doing
+   * the renaming was never the renumbering it guarded against. It was
+   * `regenerateGroupsAndSchedule`, reusing rows by position and renaming them
+   * in place. See `Group.stageId` and `matchCarrierGroup`.
+   *
+   * The name is now a label. The fallback below is the migration: a carrier
+   * created before the column exists has no round, so it is found the old way
+   * once and adopted. Scoped to `stageId: null` so it can never take a carrier
+   * that already belongs to a different round.
    */
   const groupName = `${stage.format} — Round ${stage.position + 1}`;
-  let group = await prisma.group.findFirst({ where: { eventId, name: groupName } });
+  let group = await prisma.group.findFirst({ where: { eventId, stageId, isCarrier: true } });
+  if (!group) {
+    // Pre-column carrier — claims neither axis, so the name is the only
+    // evidence it is one. Adopted onto both. See `matchCarrierGroup`.
+    const byName = await prisma.group.findFirst({
+      where: { eventId, name: groupName, stageId: null, isCarrier: false },
+    });
+    if (byName) {
+      group = await prisma.group.update({
+        where: { id: byName.id },
+        data: { stageId, isCarrier: true },
+      });
+    }
+  }
   if (!group) {
     const maxPos = await prisma.group.aggregate({ where: { eventId }, _max: { position: true } });
     group = await prisma.group.create({
-      data: { eventId, name: groupName, position: (maxPos._max.position ?? -1) + 1 },
+      data: {
+        eventId,
+        stageId,
+        isCarrier: true,
+        name: groupName,
+        position: (maxPos._max.position ?? -1) + 1,
+      },
     });
   }
 

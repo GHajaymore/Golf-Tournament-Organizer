@@ -331,6 +331,8 @@ export const NOT_CLONED_STAGE_FIELDS: Record<string, string> = {
   teeSheet: "last year's draw, made from last year's field",
   teeSheetPublished: "belongs to the tee sheet that was not copied",
   matches: "results and pairings are never copied",
+  carriers:
+    "the Group rows holding this round's matches — and the matches are not copied, so there is nothing for one to carry. A carrier is created on demand by matchCarrierGroup the first time the copy generates that round",
   teams: "made from the field, which is not copied",
   attendance: "who turned up last year",
   skinsPots: "money — see the Event policy",

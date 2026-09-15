@@ -64,7 +64,17 @@ export async function setupFlowFor(eventId: string): Promise<SetupFlow | null> {
       },
       orderBy: { position: "asc" },
     }),
-    prisma.group.count({ where: { eventId } }),
+    /**
+     * FLIGHTS, not every Group row.
+     *
+     * Disclosed as a hole when the `rounds` work shipped and closed here: the
+     * flights step asks `groups > 0`, and that count included match carriers —
+     * player-less rows a play-off creates to hold its fixture. So a tournament
+     * whose only Group was a carrier passed the first half of the step on a
+     * phantom. Narrow, and real. Second time this column would have prevented
+     * something.
+     */
+    prisma.group.count({ where: { eventId, isCarrier: false } }),
     prisma.eventCourse.count({ where: { eventId } }),
     // The club's default, which the tournament inherits unless it says
     // otherwise. Read so the guide does not ask a question the club has

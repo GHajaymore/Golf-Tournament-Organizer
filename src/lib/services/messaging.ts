@@ -176,7 +176,16 @@ export async function membershipFor(
          * The same order every other screen uses: `position` for rounds, name
          * for the things a person picks by name.
          */
-        prisma.group.findMany({ where: { eventId }, select: { id: true }, orderBy: { position: "asc" } }),
+        // Flights only — see the same filter in `composableScopes`. These ids
+        // ARE the staff flight scopes, so an unfiltered read makes a match
+        // carrier a postable destination: `visibleScopes` emits its key and
+        // the label builder above prints "Flight " with nothing after it.
+        // Filtering the picker alone would not have been enough.
+        prisma.group.findMany({
+          where: { eventId, isCarrier: false },
+          select: { id: true },
+          orderBy: { position: "asc" },
+        }),
         prisma.stage.findMany({ where: { eventId }, select: { id: true }, orderBy: { position: "asc" } }),
         prisma.team.findMany({ where: { eventId }, select: { id: true }, orderBy: { name: "asc" } }),
       ])
@@ -630,7 +639,14 @@ export async function composableScopes(
   const keys = visibleScopes(ctx).filter((k) => canPostToScope(ctx, k));
 
   const [groups, stages, teams] = await Promise.all([
-    prisma.group.findMany({ where: { eventId: ctx.eventId }, select: { id: true, name: true } }),
+    // Flights only. A carrier is a round's match bucket with no players in it
+    // ever, so offering one here put a send-to destination in the organizer's
+    // picker named "Flight Match Play {em dash} Round 2" that reached nobody —
+    // the round name prefixed with the word "Flight" by the label builder.
+    prisma.group.findMany({
+      where: { eventId: ctx.eventId, isCarrier: false },
+      select: { id: true, name: true },
+    }),
     prisma.stage.findMany({
       where: { eventId: ctx.eventId },
       select: { id: true, type: true, description: true, position: true },
@@ -735,7 +751,15 @@ export async function staffBroadcast(
   // of one event could post into another club's flight by id — the same
   // cross-tenant hole the IDOR sweep exists to catch.
   if (parsed.kind === "flight") {
-    const g = await prisma.group.findFirst({ where: { id: parsed.id, eventId: ctx.eventId } });
+    // `stageId: null` for the same reason the two reads above filter: a match
+    // carrier is not a flight, so "post to this flight" must refuse one rather
+    // than open a thread nobody is in. Enforced at the CHECK as well as at the
+    // pickers, because a scope key is caller-supplied — a `"use server"`
+    // export is a public HTTP endpoint and will be called with whatever the
+    // caller likes.
+    const g = await prisma.group.findFirst({
+      where: { id: parsed.id, eventId: ctx.eventId, isCarrier: false },
+    });
     if (!g) return { ok: false, error: "That flight isn't in this tournament." };
   }
   if (parsed.kind === "round") {

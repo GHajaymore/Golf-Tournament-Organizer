@@ -673,7 +673,18 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const [accounts, players, groups, stages, matches, bracketWinners, scorecards, matchCards, venues, tees, roundHandicaps] = await Promise.all([
     prisma.account.findMany({ where: { eventId }, orderBy: { name: "asc" } }),
     prisma.player.findMany({ where: { eventId }, orderBy: { seed: "asc" } }),
-    prisma.group.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
+    /**
+     * FLIGHTS. `state.groups` is what every screen means by "the flights" —
+     * the Flights screen renders one card per row, the leaderboard groups by
+     * them, the tee sheet divides by them — and a carrier is not one.
+     *
+     * Filtered here rather than at each of those screens because that is where
+     * the data is built: a reader written later is correct without knowing the
+     * rule exists. Same shape as `standingRows` returning `[]` on its first
+     * line for a manual format. Before this, `/grouping` showed a play-off's
+     * carrier as a flight card reading "avg hcp 0 — No players assigned."
+     */
+    prisma.group.findMany({ where: { eventId, isCarrier: false }, orderBy: { position: "asc" } }),
     prisma.stage.findMany({ where: { eventId }, orderBy: { position: "asc" } }),
     /**
      * Ordered, and it has to be.

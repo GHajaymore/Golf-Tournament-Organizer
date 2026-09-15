@@ -375,7 +375,26 @@ describe("moving a player between flights", () => {
     // Either one unscoped lets an organizer of any event move a stranger's
     // player into a stranger's flight by posting two ids.
     expect(body).toMatch(/prisma\.player\.findFirst\(\{ where: \{ id: playerId, eventId \}/);
-    expect(body).toMatch(/prisma\.group\.findFirst\(\{ where: \{ id: groupId, eventId \}/);
+    // The trailing class allows `eventId }` or `eventId, stageId: null }` —
+    // widened for the carrier filter below rather than pinned to one spelling,
+    // because what this line is about is the EVENT scoping.
+    expect(body).toMatch(/prisma\.group\.findFirst\(\{ where: \{ id: groupId, eventId[,}]/);
+  });
+
+  it("refuses to move somebody into a match carrier", () => {
+    /**
+     * A carrier is a round's fixture bucket with no players in it by
+     * definition. Moving somebody into one files a player under a row every
+     * screen has been taught to hide, and this is a `"use server"` export, so
+     * the UI not offering it is not a guard.
+     *
+     * `isCarrier`, NOT `stageId`. The two are independent axes — scope and
+     * kind — and a per-round FLIGHT will one day have a `stageId` too. A guard
+     * written on the scope would start refusing those the day they land, which
+     * is the `event-answer-vs-round-answer` class in a test rather than a
+     * screen.
+     */
+    expect(body).toMatch(/isCarrier: false/);
   });
 
   it("will not silently move someone after matches are scored", () => {
@@ -390,7 +409,11 @@ describe("flight naming and sign-off", () => {
 
   it("renaming is staff-only, scoped, and bounded", () => {
     expect(rename).toMatch(/requireStaffEvent\(\)/);
-    expect(rename).toMatch(/where: \{ id: groupId, eventId \}/);
+    // `eventId }` or `eventId, isCarrier: false }` — a flight, and only ever
+    // one in the caller's own tournament. See `movePlayerToGroup` above for
+    // why the kind axis rather than the scope one.
+    expect(rename).toMatch(/where: \{ id: groupId, eventId[,}]/);
+    expect(rename).toMatch(/isCarrier: false/);
     // Unbounded, a name is a free text field on a public endpoint.
     expect(rename).toMatch(/\.slice\(0, 40\)/);
   });
@@ -658,7 +681,9 @@ describe("league attendance answers are scoped like scores", () => {
 
   it("every write is scoped to the session's event", () => {
     expect(src).toMatch(/where: \{ id: stageId, eventId: session\.eventId \}/);
-    expect(src).toMatch(/where: \{ id: groupId, eventId: session\.eventId \}/);
+    // `session.eventId }` or `session.eventId, stageId: null }` — the flight
+    // filter rides alongside the event scoping rather than replacing it.
+    expect(src).toMatch(/where: \{ id: groupId, eventId: session\.eventId[,}]/);
   });
 });
 

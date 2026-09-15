@@ -173,8 +173,10 @@ export async function setFlightCaptain(
 ): Promise<AttendanceResult> {
   const session = await requireStaffSession();
 
+  // A flight, not a match carrier: a carrier has no players, so it can have no
+  // captain either. See `Group.stageId`.
   const group = await prisma.group.findFirst({
-    where: { id: groupId, eventId: session.eventId },
+    where: { id: groupId, eventId: session.eventId, isCarrier: false },
     select: { id: true },
   });
   if (!group) return { ok: false, error: "Flight not found." };
