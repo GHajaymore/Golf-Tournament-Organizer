@@ -66,9 +66,15 @@ export const MARK = runMark("zz-e2e");
  * `â` — U+00E2, a perfectly correct French letter — and a naive mojibake check
  * that greps for a bare `â` reports eight hits on `/entry` and looks exactly
  * like an encoding failure. It is not. Real mojibake from this repo's
- * PowerShell round-trip is the SEQUENCE `â€` (U+00E2 U+20AC), or the `Ã`
- * family; a lone `â` between two ASCII letters is just a word. Check the
- * codepoints on either side before reporting anything.
+ * PowerShell round-trip is U+00E2 followed by U+20AC, or the U+00C3 family;
+ * a lone U+00E2 between two ASCII letters is just a word. Check the codepoints
+ * on either side before reporting anything.
+ *
+ * Written as codepoints rather than as the characters themselves ON PURPOSE.
+ * Spelling the sequence out here would put a literal mojibake string into a
+ * file that is perfectly healthy, and the next sweep looking for one would
+ * report this comment as its first hit — the same trap `readSource` exists to
+ * close, where the prose above a guard satisfies the search for the guard.
  *
  * So a run of this suite now exercises width and encoding at once, and a
  * regression in either shows up as a failing layout or a mojibake string
