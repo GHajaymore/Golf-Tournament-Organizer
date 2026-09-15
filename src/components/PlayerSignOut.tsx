@@ -36,8 +36,26 @@ export function PlayerSignOut({ name }: { name: string }) {
 
       {asking && (
         <div className="dialog-backdrop" onClick={() => setAsking(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="dialog-title">Sign out{name ? ` of ${name}’s account` : ""}?</div>
+          {/* ANNOUNCED AS A DIALOG, WHICH IT WAS NOT.
+              It looked modal and was semantically invisible: a backdrop and a
+              centred box, with no `role` and no `aria-modal`, so a screen
+              reader announced a couple of anonymous divs and gave no signal
+              that the rest of the page had been shut off behind them. Found by
+              sweeping the three dialogs and reading what each actually
+              carried — the app had it backwards, with the two real modals
+              unannounced and the one announced thing (CardConflict) not modal
+              at all. Labelled BY its own title rather than a second copy of
+              the words, so the two cannot drift. */}
+          <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="signout-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="dialog-title" id="signout-dialog-title">
+              Sign out{name ? ` of ${name}’s account` : ""}?
+            </div>
             <div className="dialog-body">
               You&rsquo;ll need your email and password to get back in. Nothing you&rsquo;ve entered is lost —
               scores and messages are saved as you go.

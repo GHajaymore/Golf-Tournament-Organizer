@@ -472,6 +472,15 @@ textarea.input { min-height: 90px; resize: vertical; }
 /* — dialog — */
 .dialog-backdrop {
   position: fixed; inset: 0; display: grid; place-items: center;
+  /* The track may not grow past the backdrop, whatever is in the dialog.
+     `place-items: center` leaves the column sizing to the child's MAX-CONTENT,
+     so one unbreakable word in the title made the track wider than the screen
+     and `min(440px, 100%)` below then resolved 100% against that. Measured at
+     320px with a long tournament name: the launch dialog's right edge landed
+     at 314px locally and 323px on CI — the same box, decided by which font the
+     machine had. `minmax(0, 1fr)` is this repo's own rule for exactly that;
+     see the note on grid children in the design section. */
+  grid-template-columns: minmax(0, 1fr);
   padding: var(--space-4);
   background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
 }
@@ -483,6 +492,13 @@ textarea.input { min-height: 90px; resize: vertical; }
 .dialog-title {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
   font-size: 20px;
+  /* Constraining the track above stops the BOX overflowing; this stops the
+     TEXT overflowing the box. A tournament name is user input and arrives with
+     no promise of a space in it — "Launch “<one long word>”?" would otherwise
+     run out of the dialog it is asking about. `anywhere` rather than
+     `break-word` so the long word also shrinks the min-content width the grid
+     is sizing against, which is the half that actually fixes the layout. */
+  overflow-wrap: anywhere;
 }
 .dialog-body { font-size: 14px; opacity: 0.85; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
