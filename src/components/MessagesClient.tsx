@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useTransition } from "react";
+import { useFormatting } from "./CurrencyProvider";
 import {
   readThread,
   sendMessage,
@@ -26,13 +27,21 @@ import { Icon } from "./Icon";
  * hard-codes a hex; the themes test would fail if it did.
  */
 
-function when(ts: number): string {
+/**
+ * How long ago, and then a date once "how long ago" stops being useful.
+ *
+ * The date took the READER's locale, which is the one answer that is nobody's
+ * decision: the same thread read one way to a secretary on a UK laptop and
+ * another to a member on a US phone. The club's locale comes from the same
+ * context the club's currency does — see CurrencyProvider.
+ */
+function when(ts: number, locale: string): string {
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60) return "now";
   if (s < 3600) return `${Math.floor(s / 60)}m`;
   if (s < 86400) return `${Math.floor(s / 3600)}h`;
   if (s < 604800) return `${Math.floor(s / 86400)}d`;
-  return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(new Date(ts));
 }
 
 const KIND_ICON: Record<string, string> = {
@@ -111,6 +120,8 @@ export function MessagesClient({
   /** This reader has agreed to receive texts. */
   smsOptIn?: boolean;
 }) {
+  // The club's way of writing a date, from the same context its currency comes from.
+  const { locale } = useFormatting();
   const [openId, setOpenId] = useState<string | null>(null);
   const [view, setView] = useState<ThreadView | null>(null);
   const [draft, setDraft] = useState("");
@@ -251,7 +262,7 @@ export function MessagesClient({
               )}
               <div style={{ fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
               <div style={{ fontSize: 10.5, opacity: 0.7, marginTop: 3, textAlign: "right" }}>
-                {when(m.createdAt)}
+                {when(m.createdAt, locale)}
               </div>
             </div>
           ))}
@@ -379,7 +390,7 @@ export function MessagesClient({
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
-              <span className="text-muted" style={{ fontSize: 11 }}>{when(t.lastMessageAt)}</span>
+              <span className="text-muted" style={{ fontSize: 11 }}>{when(t.lastMessageAt, locale)}</span>
               {t.unread > 0 && (
                 <span
                   style={{

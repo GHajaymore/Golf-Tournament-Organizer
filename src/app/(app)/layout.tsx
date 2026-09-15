@@ -6,7 +6,8 @@ import { EventContextBar } from "@/components/EventContextBar";
 import { navForRole } from "@/lib/nav";
 import { requireSession, initialsOf } from "@/lib/page-helpers";
 import { prisma } from "@/lib/db";
-import { brandForEvent, themeForEvent, currencyForEvent } from "@/lib/services/organization";
+import { brandForEvent, themeForEvent, formattingForEvent } from "@/lib/services/organization";
+import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 
 /**
  * Every organizer screen, in one declaration.
@@ -107,10 +108,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // themeCss emits only values it generated itself — see SAFE_CSS_VALUE.
   const themeStyleSheet = themeCss(theme, "#club-theme");
   // Beside the theme, for the same reason: one club decision, a dozen readers.
-  const currency = session.eventId ? await currencyForEvent(session.eventId) : DEFAULT_CURRENCY;
+  const fmt = session.eventId
+    ? await formattingForEvent(session.eventId)
+    : { locale: DEFAULT_LOCALE, currency: DEFAULT_CURRENCY };
 
   return (
-    <CurrencyProvider currency={currency}>
+    <CurrencyProvider currency={fmt.currency} locale={fmt.locale}>
     {/* What kind of outfit this is, beside its currency and its theme — one
         fact about the organization read by a dozen screens that name it. A
         society is not a club, and the console said so in eight places. */}

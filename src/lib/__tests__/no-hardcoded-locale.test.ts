@@ -43,11 +43,26 @@ const OWNERS = ["src/lib/domain/locale.ts", "src/lib/domain/money-format.ts"];
 const NOT_A_FORMAT = ["src/lib/dictation.ts"];
 
 /**
- * The two action timestamps still on the reader's own locale. See the
- * assertion at the foot of this file for why they are listed rather than
- * excluded, and what it would take to close them.
+ * EMPTY, AND THAT IS THE POINT OF KEEPING IT.
+ *
+ * This briefly listed `MessagesClient` and `ScoreEntryClient`, which stamped a
+ * message and a signed card with whatever locale the reader's device was set
+ * to. They were going to stay listed: both sit several layers below a server
+ * component, so passing the club's locale down looked like threading a prop
+ * through every caller and every render test.
+ *
+ * Then it turned out the app already had the answer. `CurrencyProvider` has
+ * carried the club's CURRENCY to every screen through context since it was
+ * written, for exactly this reason — its own header says "the prop somebody
+ * forgets is a screen quietly back in dollars". Teaching it the locale as well
+ * closed both in four lines, because the locale and the currency are one
+ * decision and always were.
+ *
+ * The list stays so the assertion below still has something to compare
+ * against: it is what makes a NEW viewer-locale format fail rather than
+ * quietly become the second exception.
  */
-const VIEWER_TIME = ["src/components/MessagesClient.tsx", "src/components/ScoreEntryClient.tsx"];
+const VIEWER_TIME: string[] = [];
 
 /**
  * Every source file, minus its comments.
@@ -130,26 +145,21 @@ describe("formatting a date or an amount asks the club, not a hardcoded locale",
     ).toEqual([]);
   });
 
-  it("has exactly the two known viewer-locale timestamps, and no more", () => {
+  it("has no viewer-locale formatting left anywhere", () => {
     /**
-     * KNOWN DEBT, PINNED SO IT CANNOT GROW.
+     * NOT A COUNT, A LIST — so the failure names the file.
      *
-     * These two format an ACTION'S TIMESTAMP — when a message was sent, when a
-     * card was entered — rather than a tournament's dates. A timestamp is
-     * arguably the reader's own frame, which is why these were written this
-     * way and why they are not the US-centric defect the rest of this sweep
-     * closes.
+     * The two that used to be here formatted an ACTION'S TIMESTAMP: when a
+     * message was sent, when a card was signed. A timestamp reads like the
+     * reader's own frame, which is why they were written that way and why they
+     * did not look like the US-centric defect the rest of this sweep closes.
+     * They still meant a club's own screens changed shape depending on whose
+     * phone was open, so they are gone.
      *
-     * They are still inconsistent with everything else, and the intent is that
-     * they follow the club too. What stopped it being done in the same pass is
-     * plumbing, not principle: `ScoreEntryClient` sits under `EntryModes`,
-     * several layers below a server component, so it wants a React context
-     * rather than a prop threaded through every caller and every render test.
-     *
-     * Listing them here rather than silently excluding them is the point. A
-     * THIRD file formatting with the viewer's locale fails this assertion, so
-     * the exception cannot quietly become the convention — which is exactly how
-     * the eleven hardcoded "en-US" calls accumulated.
+     * What stops this becoming debt again is that the list is compared rather
+     * than counted: a NEW file formatting with the viewer's locale fails here
+     * by name, instead of quietly becoming the first exception — which is
+     * exactly how the eleven hardcoded "en-US" calls accumulated.
      */
     const offenders = files.filter((f) =>
       /toLocale(?:Date|Time)String\(\s*(undefined\s*[,)]|\))/.test(readSource(f)),

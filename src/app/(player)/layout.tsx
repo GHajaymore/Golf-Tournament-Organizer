@@ -3,7 +3,8 @@ import { requireSession } from "@/lib/page-helpers";
 import { brandForEvent, themeForEvent } from "@/lib/services/organization";
 import { themeCss, playerColorScheme } from "@/lib/themes";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
-import { currencyForEvent } from "@/lib/services/organization";
+import { formattingForEvent } from "@/lib/services/organization";
+import { DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { DEFAULT_CURRENCY } from "@/lib/domain/money-format";
 import { OrgBrand } from "@/components/OrgBrand";
 import { NOINDEX } from "@/lib/site";
@@ -73,10 +74,12 @@ export default async function PlayLayout({ children }: { children: React.ReactNo
    * the same club's organizer screens were correct. One club showing two
    * currencies to its two halves is worse than either being wrong alone.
    */
-  const currency = session.eventId ? await currencyForEvent(session.eventId) : DEFAULT_CURRENCY;
+  const fmt = session.eventId
+    ? await formattingForEvent(session.eventId)
+    : { locale: DEFAULT_LOCALE, currency: DEFAULT_CURRENCY };
 
   return (
-    <CurrencyProvider currency={currency}>
+    <CurrencyProvider currency={fmt.currency} locale={fmt.locale}>
     <div
       id="player-theme"
       style={{

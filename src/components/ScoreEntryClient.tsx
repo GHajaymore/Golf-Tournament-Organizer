@@ -12,6 +12,7 @@ import {
   namesAreDistinct,
   type HoleResult,
 } from "@/lib/domain";
+import { useFormatting } from "@/components/CurrencyProvider";
 import { CoursePicker } from "@/components/CoursePicker";
 import { firstName, distinctLabels, initials } from "@/lib/format";
 import { MATCH_ENTRY_MODES, entryModesFor, type MatchEntryMode } from "@/lib/domain/match-entry";
@@ -302,6 +303,9 @@ export function ScoreEntryClient({
   openCourse?: boolean;
   courseLibrary?: VenueCourse[];
 }) {
+  // Written the club's way, from the same context its currency comes from —
+  // this card was stamped in whatever locale the scorer's phone was set to.
+  const { locale } = useFormatting();
   const [holesById, setHolesById] = useState<Record<string, HoleResult[]>>(() =>
     Object.fromEntries(matches.map((m) => [m.id, m.holes])),
   );
@@ -1113,9 +1117,9 @@ export function ScoreEntryClient({
                     <Icon name="clock-counter-clockwise" style={{ marginRight: 3 }} />
                     {active.enteredBy ? `Entered by ${active.enteredBy}` : "Entered"}
                     {active.scoredAt
-                      ? ` · ${new Date(active.scoredAt).toLocaleDateString(undefined, {
+                      ? ` · ${new Intl.DateTimeFormat(locale, {
                           month: "short", day: "numeric", year: "numeric",
-                        })}`
+                        }).format(new Date(active.scoredAt))}`
                       : ""}
                   </span>
                 )}
