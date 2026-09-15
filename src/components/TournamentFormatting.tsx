@@ -138,6 +138,13 @@ export function TournamentFormatting({
               It is the currency itself, not just the symbol — amounts are held in the smallest
               unit and currencies differ in how many of those there are.
             </p>
+            <p>
+              <b>Nothing is converted.</b> Players pay and settle in whatever currency this
+              tournament is set to; the app never applies an exchange rate. Changing this after
+              amounts have been entered RE-LABELS them rather than converting them — a 1,234.00
+              buy-in set here becomes a 1,234 buy-in in a currency with no minor unit. Set it
+              before you take any money.
+            </p>
           </FieldInfo>
         </label>
         <select

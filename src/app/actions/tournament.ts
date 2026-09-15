@@ -4577,6 +4577,25 @@ export async function createThirdPlaceMatch(stageId: string): Promise<{ ok: bool
  * rather than a shape test — `Intl` formats any three letters happily, so
  * "ABC" would otherwise land in the column looking deliberate.
  *
+ * NOTHING IS CONVERTED, EVER. A tournament's currency is what its players pay
+ * in and settle in; the app applies no exchange rate and holds no rate to
+ * apply — the same line CLAUDE.md draws when it says this app calculates and
+ * records money and never moves it.
+ *
+ * What follows from that, and is the one sharp edge here: amounts are stored
+ * in MINOR UNITS, so changing the currency after money has been entered
+ * re-labels those amounts rather than converting them. 123400 stored is
+ * $1,234.00 and is also ¥123,400, and switching between the two is a
+ * hundredfold change in what the number means with no arithmetic involved.
+ * The control says so in as many words, and says to set it before taking any
+ * money.
+ *
+ * Deliberately NOT guarded against here. Refusing the change once a pot exists
+ * would need this action to know about every surface that records an amount —
+ * pots, prizes, expenses, buy-ins — which is a second definition of "has money"
+ * to keep in step with the real one, and the wrong shape for a setting an
+ * organizer may legitimately be correcting.
+ *
  * NOT GATED BY `assertUnlocked`, unlike the rest of this screen's settings,
  * and that is a decision rather than an oversight. The lock exists because
  * changing the field, the rounds or the format after a tournament has started

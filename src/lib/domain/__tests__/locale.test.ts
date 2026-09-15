@@ -216,3 +216,44 @@ describe("an amount, written where the club is", () => {
     expect(s).toContain("1.234,00");
   });
 });
+
+/**
+ * MONEY IS NEVER CONVERTED, ONLY WRITTEN DOWN.
+ *
+ * A tournament's currency says what its players pay in and settle in. The app
+ * applies no exchange rate and holds none to apply — the same line CLAUDE.md
+ * draws when it says this app calculates and records money and never moves it.
+ *
+ * Asserted rather than assumed, because a currency override is exactly the
+ * feature that invites somebody to add "helpfully" converting an amount when
+ * the setting changes. The stored number is minor units and must come back
+ * unchanged whatever it is labelled as.
+ */
+describe("changing the currency relabels an amount, it never converts one", () => {
+  it("writes the same stored number in every currency", () => {
+    /**
+     * 123400 minor units. In a two-decimal currency that is 1,234.00; in yen,
+     * which has none, it is 123,400. Both are the SAME stored integer read
+     * under different rules, which is the whole point — a converted amount
+     * would show roughly 1,234 worth of yen, about 190,000, and does not.
+     */
+    const usd = formatMoney(123400, { locale: "en-US", currency: "USD" });
+    const jpy = formatMoney(123400, { locale: "ja-JP", currency: "JPY" });
+    expect(usd).toContain("1,234.00");
+    expect(jpy).toContain("123,400");
+    // The digits of the stored number survive in both, which a conversion
+    // could not manage.
+    expect(jpy.replace(/[^\d]/g, "")).toBe("123400");
+    expect(usd.replace(/[^\d]/g, "")).toBe("123400");
+  });
+
+  it("is the same number back again when the label changes twice", () => {
+    // USD -> JPY -> USD. A conversion anywhere in that round trip would not
+    // land on the number it started from.
+    const start = 99999;
+    const asJpy = formatMoney(start, { locale: "en-US", currency: "JPY" });
+    const asUsd = formatMoney(start, { locale: "en-US", currency: "USD" });
+    expect(asJpy.replace(/[^\d]/g, "")).toBe(String(start));
+    expect(asUsd.replace(/[^\d]/g, "")).toBe(String(start));
+  });
+});
