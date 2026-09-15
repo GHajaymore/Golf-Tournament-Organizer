@@ -173,3 +173,90 @@ describe("which formats admit to having no published allowance", () => {
     ).toBe(false);
   });
 });
+
+/**
+ * AND EVERY FORMAT IS ACCOUNTED FOR, which is what makes the two tables above
+ * a sweep rather than a sample.
+ *
+ * FOUND BY MUTATION, 2026-09-15. Reverting Chapman to the pre-WHS flat 50% —
+ * a real defect that shipped, and the one this file was written for — left
+ * `matrix.test.ts` at 595 of 595 PASSING. Its "round handicaps, at every field
+ * size and every allowance" block sweeps how a handicap is RESOLVED (member,
+ * override, frozen) and never what the format recommends, so the format x
+ * allowance cell cannot express a wrong allowance at all. Only this file
+ * caught it.
+ *
+ * That made the hand lists above the single thing standing between a wrong
+ * allowance and a card, and a hand list nobody checks for completeness is the
+ * fault `e2e/layout.spec.ts` exists to avoid: its curated predecessor covered
+ * 14 of 22 routes and the eight it missed had no assertion at all. Measured
+ * here, the same way: FLAT and SPLIT covered ELEVEN of the sixteen formats in
+ * the catalogue, and the five they missed had no allowance assertion anywhere.
+ *
+ * So each of those five is now stated with its reason. Adding a seventeenth
+ * format turns this red until somebody says which list it belongs in — which
+ * is the point, because the alternative is a format that scores cards off an
+ * allowance nobody ever checked.
+ */
+describe("every format in the catalogue has its allowance accounted for", () => {
+  /**
+   * Formats whose allowance is not a golf recommendation to assert.
+   *
+   * Skins and Nassau are BETS, not scoring formats: they are played on top of
+   * whatever the round is, and their 100 means "do not touch the handicap"
+   * rather than a published figure. `Other` is the manual format — the app
+   * holds the round and scores nothing, so an allowance it never applies is
+   * not a claim about golf.
+   */
+  const NOT_AN_ALLOWANCE = ["Skins", "Nassau", "Other (scored by hand)"];
+
+  /** Split-table formats stated in the convention block above rather than SPLIT. */
+  const CONVENTION_SPLIT = ["Scramble", "Texas Scramble"];
+
+  const stated = new Set([
+    ...FLAT.map(([name]) => name),
+    ...SPLIT.map(([name]) => name),
+    ...NOT_AN_ALLOWANCE,
+    ...CONVENTION_SPLIT,
+  ]);
+
+  it("leaves no format unstated", () => {
+    const missing = GOLF_FORMATS.map((f) => f.name).filter((n) => !stated.has(n));
+    expect(
+      missing,
+      "a format with no allowance assertion scores real cards off a number nobody checked",
+    ).toEqual([]);
+  });
+
+  it("states nothing that is not a format", () => {
+    // The other direction, and the reason this is a sweep rather than a tally:
+    // a renamed format would otherwise leave a dead entry propping the count up
+    // while the real format went unswept.
+    const names = new Set(GOLF_FORMATS.map((f) => f.name));
+    const ghosts = [...stated].filter((n) => !names.has(n));
+    expect(ghosts, "these are stated but no longer exist — a rename left them behind").toEqual([]);
+  });
+
+  it("gives the two convention scrambles a real table, not a flat number", () => {
+    /**
+     * They are excused from SPLIT because their table is per side size and
+     * their reason lives in the convention block — but excused is not the same
+     * as unchecked, so the substance is asserted here.
+     *
+     * A scramble is playable 2 to 4 and the descending table differs by size;
+     * a flat percentage of the combined handicaps is the specific bug that
+     * priced one round two ways on two screens.
+     */
+    for (const name of CONVENTION_SPLIT) {
+      const f = findFormat(name);
+      for (const size of [2, 3, 4]) {
+        const table = f.weightsBySideSize?.[size];
+        expect(table, `${name} has no table for a side of ${size}`).toBeTruthy();
+        expect(table!.length, `${name}'s table for ${size} is the wrong length`).toBe(size);
+        // Descending: the best player carries the largest share.
+        const sorted = [...table!].sort((a, b) => b - a);
+        expect(table, `${name}'s table for ${size} is not best-player-first`).toEqual(sorted);
+      }
+    }
+  });
+});
