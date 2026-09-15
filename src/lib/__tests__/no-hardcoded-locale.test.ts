@@ -170,3 +170,66 @@ describe("formatting a date or an amount asks the club, not a hardcoded locale",
     ).toEqual([...VIEWER_TIME].sort());
   });
 });
+
+/**
+ * ONE TOURNAMENT, ONE CURRENCY, END TO END.
+ *
+ * Everything a tournament takes or pays out — buy-ins, pots, prizes, expenses,
+ * the settle-up — is in the one currency the organizer set. Nothing is
+ * converted and no screen inside a tournament shows an amount in a different
+ * money from the screen beside it.
+ *
+ * The way that breaks is not a conversion appearing; it is a SECOND SOURCE.
+ * `currencyForEvent` used to read the club's currency directly and ignore the
+ * tournament's override, so a tournament set to yen showed its pots in the
+ * club's dollars on any screen that happened to call it — two currencies
+ * inside one tournament, with no arithmetic anywhere and nothing looking
+ * wrong.
+ *
+ * So the rule is positional again: asking the database for an organization's
+ * currency is how a second answer gets in, and only the resolver may do it.
+ */
+describe("a tournament's money is all in one currency", () => {
+  /**
+   * The club's own bill, which is genuinely the club's and not the
+   * tournament's.
+   *
+   * `previewSmsBroadcast` quotes what texting the field will cost the CLUB,
+   * against the rate its SMS provider charges it. That is a club operating
+   * cost, so it is priced in the club's currency even when the tournament on
+   * screen is set to something else — and making it follow the tournament
+   * would be the app claiming the club is billed in a currency it is not.
+   *
+   * Listed rather than excluded so the exception stays one, and stays
+   * explained.
+   */
+  const CLUB_OWN_BILL = ["src/app/actions/messaging.ts"];
+
+  /** Only the resolver may ask an organization what currency it is in. */
+  const RESOLVER = ["src/lib/services/organization.ts"];
+
+  it("reads an organization's currency in one place, plus the club's own bill", () => {
+    const asking = files.filter((f) => {
+      const src = readSource(f);
+      // The shape of the query, not the word: `select: { … currency: true … }`
+      // inside an organization lookup is what pulls a second answer out.
+      return /organization[\s\S]{0,120}?currency:\s*true/.test(src) || /prisma\.organization[\s\S]{0,200}?currency:\s*true/.test(src);
+    });
+    expect(
+      asking.sort(),
+      `a second source for a tournament's currency. Ask formattingForEvent() ` +
+        `so the tournament's own override is honoured — otherwise one screen ` +
+        `shows the club's money and the next shows the tournament's.`,
+    ).toEqual([...RESOLVER, ...CLUB_OWN_BILL].sort());
+  });
+
+  it("finds the resolver it is protecting — the sweep's own control", () => {
+    // If `organization.ts` stopped querying a currency at all, the assertion
+    // above would go green for the wrong reason.
+    const src = readSource("src/lib/services/organization.ts");
+    expect(src, "the resolver no longer reads a currency").toMatch(/currency:\s*true/);
+    expect(src, "the resolver no longer honours the tournament's override").toContain(
+      "currencyOverride",
+    );
+  });
+});
