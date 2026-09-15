@@ -5947,10 +5947,16 @@ describe("the lifecycle button names the phase, not the link", () => {
     name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play",
     players: 33, flights: 8, rounds: 4,
   };
-  const bar = async (status: string) => {
+  const bar = async (status: string, resultsIn = 0) => {
     const { LifecycleBar } = await import("@/components/LifecycleBar");
     return render(
-      <LifecycleBar status={status} isAdmin configUnlocked={false} summary={summary} matchesScored={0} />,
+      <LifecycleBar
+        status={status}
+        isAdmin
+        configUnlocked={false}
+        summary={summary}
+        resultsIn={resultsIn}
+      />,
     );
   };
 
@@ -5970,6 +5976,109 @@ describe("the lifecycle button names the phase, not the link", () => {
     // vocabulary an organizer has already learned.
     expect(await bar("registration")).toContain("Mark ready");
     expect(await bar("ready")).toContain("Launch tournament");
+  });
+});
+
+/**
+ * THE SCREEN AJAY CALLED "the most confusing", read off the rendered card.
+ *
+ * Demo Cup on 2026-09-14: `status: "draft"`, 33 in the field, and results in.
+ * The dashboard said "TOURNAMENT STATUS: Draft" with a primary button offering
+ * to start taking entries, and immediately beneath it a second card saying 47
+ * results were in with a second primary button offering to launch. A state the
+ * app allows, then apologises for, then offers two contradictory ways out of.
+ *
+ * These assert the three things that fixes, against the markup rather than
+ * against the functions — the functions have their own tests, and it was a
+ * rendered screen that found this.
+ */
+describe("a draft that is already being played", () => {
+  const summary = {
+    name: "Demo Cup", dates: "May 14–16", course: "Ridgeline", format: "Match Play",
+    players: 33, flights: 8, rounds: 4,
+  };
+  const bar = async (status: string, resultsIn: number, isAdmin = true) => {
+    const { LifecycleBar } = await import("@/components/LifecycleBar");
+    return render(
+      <LifecycleBar
+        status={status}
+        isAdmin={isAdmin}
+        configUnlocked={false}
+        summary={summary}
+        resultsIn={resultsIn}
+      />,
+    );
+  };
+
+  it("does not leave “Draft” standing on its own", async () => {
+    // The chip that started the complaint. The stored status is still shown —
+    // it is the organizer's and this app reports rather than corrects — but it
+    // no longer has the card to itself.
+    const html = await bar("draft", 47);
+    expect(html).toContain("Draft");
+    expect(html, "the observed state is not beside the stored one").toContain("Being played");
+  });
+
+  it("offers launching, not entries, once results are in", async () => {
+    /**
+     * The behaviour change, and the sharpest of the three: a tournament 47
+     * results into being played was being invited to OPEN REGISTRATION,
+     * because the ladder only ever asked what the status was. Launching is the
+     * step that reconciles the disagreement.
+     */
+    const html = await bar("draft", 47);
+    expect(html).toContain("Launch tournament");
+    expect(html, "still offering to take entries mid-play").not.toContain("Start taking entries");
+  });
+
+  it("still offers entries on a draft nobody has played", async () => {
+    // The regression half. The branch above must not swallow the ordinary
+    // case, which is what a draft actually is.
+    const html = await bar("draft", 0);
+    expect(html).toContain("Start taking entries");
+    expect(html).not.toContain("Being played");
+  });
+
+  it("offers launching exactly once", async () => {
+    /**
+     * Two cards each carried a primary Launch button. Counted rather than
+     * merely found, because "contains Launch tournament" was true of the
+     * broken screen too — it was true twice.
+     *
+     * The dialog is not rendered until the button is pressed, so every
+     * occurrence in this markup is a control on the card.
+     */
+    const html = await bar("draft", 47);
+    expect(html.match(/Launch tournament/g) ?? []).toHaveLength(1);
+  });
+
+  it("keeps the warning to the disagreement and its cost", async () => {
+    /**
+     * The banner explained scoring, launching, configuration locking AND
+     * leaderboard visibility in one paragraph, then pointed at a fourth screen
+     * to settle the question it had just raised.
+     *
+     * What it says now is the disagreement and what it costs. What launching
+     * DOES moved to the dialog that launching opens — asserted by absence
+     * here, and by presence in the dialog's own test below.
+     */
+    const html = await bar("draft", 47);
+    expect(html).toContain("47 results are in");
+    expect(html).toContain("already open the board and their card");
+    expect(html, "the card is explaining config locking again").not.toContain(
+      "locks the configuration",
+    );
+    expect(html, "the card is pointing at Tournament details again").not.toContain(
+      "Who can see the leaderboard",
+    );
+  });
+
+  it("says nothing extra to somebody who cannot act on it", async () => {
+    // A non-admin gets the state and the reason, and no button they are not
+    // allowed to press.
+    const html = await bar("draft", 47, false);
+    expect(html).toContain("Being played");
+    expect(html).not.toContain("Launch tournament");
   });
 });
 
