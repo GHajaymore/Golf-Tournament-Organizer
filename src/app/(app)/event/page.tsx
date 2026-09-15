@@ -119,13 +119,6 @@ export default async function EventPage({
   const openCourseId = courses.some((c) => c.id === requestedCourse) ? requestedCourse : null;
 
 
-  // The details step comes from the FLOW this page already loaded for its
-  // rail, so the two cannot disagree about whether step one is finished.
-  const detailStep = flow?.steps.find((s) => s.href === "/event");
-  // The money step's own answer, for the same reason: the flow decides whether
-  // it is finished and a second copy of that test here is how the rail and the
-  // dashboard would come to disagree about it.
-  const moneyStep = flow?.steps.find((s) => s.href === "/prizes");
   /**
    * A match keeps the checklist honest about what it actually has.
    *
@@ -182,8 +175,9 @@ export default async function EventPage({
     ...state,
     branding: clubBrandingState(org),
     orgKind: org?.kind,
-    details: detailStep ? { done: detailStep.done, missing: detailStep.missing } : undefined,
-    money: moneyStep ? { done: moneyStep.done } : undefined,
+    // Every step's verdict from the FLOW this page already loaded for its
+    // rail, so the list under the rail cannot disagree with the rail above it.
+    flow: flow?.steps,
   });
 
   return (

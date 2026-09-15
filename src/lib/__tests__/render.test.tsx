@@ -6417,18 +6417,20 @@ describe("the round-code card is drawn for the round's own holes", () => {
 
 
 describe("the setup rail", () => {
+  /** One round, set up: a day of its own and its fixtures drawn. */
+  const aRound = { label: "Round 1", drawsPairings: true, scheduled: true, cutFed: false, matches: 6 };
   const facts = {
-    confirmed: 0, stages: 0, groups: 0, matches: 0, drawsPairings: true,
+    confirmed: 0, rounds: [] as (typeof aRound)[], groups: 0,
     named: false, dated: false, venued: false, moneyAnswered: false, launched: false,
   };
   const rail = (over: Partial<typeof facts>) =>
     renderToStaticMarkup(
       <SetupFlowRail flow={setupFlow({ ...facts, ...over }, screenName)} href="/stages" />,
     );
-  const done = { named: true, venued: true, stages: 1, confirmed: 2, groups: 1, matches: 1, moneyAnswered: true };
+  const done = { named: true, venued: true, rounds: [aRound], confirmed: 2, groups: 1, moneyAnswered: true };
 
   it("guides while there is anything left to do", () => {
-    const html = rail({ stages: 1 });
+    const html = rail({ rounds: [aRound] });
     expect(html).toContain("Setting up");
     expect(html).toContain("1 of 5 done");
     // The screen being looked at is finished, so it says what still is not —
@@ -6501,7 +6503,7 @@ describe("the setup rail", () => {
   it("offers back and next once the step is finished", () => {
     const html = renderToStaticMarkup(
       <SetupFlowFooter
-        flow={setupFlow({ ...facts, named: true, dated: true, stages: 1 }, screenName)}
+        flow={setupFlow({ ...facts, named: true, dated: true, rounds: [aRound] }, screenName)}
         href="/stages"
       />,
     );
