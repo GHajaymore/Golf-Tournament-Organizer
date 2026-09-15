@@ -377,13 +377,48 @@ cause, and knowing that is worth more than the guesses were:
   this chooser is open, and the 2026-09-12 fix cannot be what is still
   re-rendering it.
 
-So the next person starts with both of the obvious answers crossed off. What is
-left is something ABOVE the chooser in `PlayerCard` changing between
-Playwright resolving the locator and pressing it — an ancestor re-rendering, or
-the layout shifting under a scroll that has already happened. Note the order in
-every log: `not stable` comes FIRST, before `outside of the viewport`, which
-reads as the page still moving when the scroll was attempted rather than the
-element being in the wrong place to begin with.
+**AND THEN IT WAS FOUND, and it is in neither the app nor the test.** The order
+in every log is the clue that pays off: `not stable` comes FIRST, before
+`outside of the viewport`. That is the page still moving when the scroll was
+attempted.
+
+`globals.css` sets `html { scroll-behavior: smooth }`, overridden to `auto`
+only inside `@media (prefers-reduced-motion: reduce)` — and **Playwright does
+not emulate that preference by default**, so every test ran with animated
+scrolling. Playwright scrolls an element into view before clicking, then checks
+the box is stable across two consecutive animation frames. The chooser sits
+~215px below the fold, so every click on it scrolls, and the box was still
+animating when it was measured. Sampled per frame after a `scrollIntoView` at
+320px:
+
+```
+t=0   y=783    t=93  y=669    t=143 y=369
+t=27  y=781    t=110 y=574    t=160 y=303
+t=60  y=755    t=127 y=460    t=176 y=253
+```
+
+114 pixels between two consecutive frames, for about 300ms. With
+`contextOptions: { reducedMotion: "reduce" }` in `playwright.config.ts` the
+same measurement is a single jump — `t=0 y=783`, `t=14 y=40` — and flat after.
+
+That accounts for every part of it: intermittent because it is a race between a
+~300ms animation and a stability check; all three viewports because the
+property is on the document; only that test because it is the only click far
+enough below the fold to need a real scroll; and `detached from the DOM` on the
+retries, which is React re-rendering during the retry window — which is exactly
+why the two suspects above looked so plausible. They were downstream of the
+scroll, not the cause of it.
+
+**The lesson is the method, not the CSS.** Three hypotheses were argued from
+source and all three were wrong. The answer came from instrumenting the gap
+between "the chooser is visible" and "the click lands" and sampling the box
+every frame — the first thing done to this bug that was a measurement rather
+than a guess.
+
+In Playwright 1.62 `reducedMotion` lives on `contextOptions`, NOT among the
+`PlaywrightTestOptions` that sit directly on `use` — `colorScheme` does, which
+makes it easy to write in the wrong place. Put it at the top level and it is a
+type error surfaced by `next build` type-checking the config, not by Playwright.
 
 Still not worth `retries`. The reasoning above about hiding a real regression
 has not changed. The other

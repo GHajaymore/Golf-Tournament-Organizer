@@ -52,6 +52,54 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    /**
+     * THE CAUSE OF THE `offline.spec:245` INTERMITTENT, found 2026-09-15 by
+     * measuring rather than guessing.
+     *
+     * `globals.css` sets `html { scroll-behavior: smooth }`, overridden to
+     * `auto` only inside `@media (prefers-reduced-motion: reduce)`. Playwright
+     * does not emulate that preference by default, so every test ran with
+     * ANIMATED scrolling.
+     *
+     * Playwright scrolls an element into view before clicking it and then
+     * checks the box is stable across two consecutive animation frames. The
+     * card chooser sits about 215px below the fold on a phone, so every click
+     * on it scrolls — and the box was still moving when it was measured.
+     * Sampled every frame after a `scrollIntoView`, at 320px:
+     *
+     *     t=0   y=783    t=93  y=669    t=143 y=369
+     *     t=27  y=781    t=110 y=574    t=160 y=303
+     *     t=60  y=755    t=127 y=460    t=176 y=253
+     *
+     * 114 pixels between two frames at t=110 and t=127. That is exactly
+     * `element is not stable`, and while the animation is in flight the
+     * element really is `outside of the viewport` — the two lines of that
+     * signature, in the order every failing log has them.
+     *
+     * It explains the rest too: intermittent because it is a race between a
+     * ~300ms animation and a stability check, sensitive to machine load; all
+     * three viewports because the property is on the document; and only that
+     * test, because it is the only click on something far enough below the
+     * fold to need a real scroll.
+     *
+     * WHAT THIS TRADES. The suite no longer exercises animated scrolling, and
+     * that is a genuine loss — but it is a loss of nondeterminism, not of
+     * coverage anybody was getting deliberately. Nothing asserts an animation.
+     * It is also a configuration real users have, so the app is still being
+     * tested as somebody actually runs it.
+     *
+     * The app's own reduced-motion CSS does the work: `design-system.css` sets
+     * `scroll-behavior: auto !important` under the same query. Nothing here
+     * reaches into the product to make a test pass.
+     *
+     * Under `contextOptions` rather than at the top level: in Playwright 1.62
+     * `reducedMotion` is a `BrowserContextOptions` property and is NOT one of
+     * the `PlaywrightTestOptions` that sit directly on `use` — `colorScheme`
+     * is, which makes the omission easy to miss. Written at the top level it
+     * is a type error, and the failure arrives from `next build` type-checking
+     * this file rather than from Playwright.
+     */
+    contextOptions: { reducedMotion: "reduce" },
   },
 
   projects: [
