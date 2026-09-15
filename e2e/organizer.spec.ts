@@ -21,7 +21,15 @@ test.use({ storageState: join(process.cwd(), ".e2e", "organizer.json") });
  * assertion below is on a screen that has failed that way or could.
  */
 
-const FIELD = ["Aj Moore", "Marcus Webb", "Priya Nair", "Sang-woo Kim"];
+/**
+ * The field, exactly as `fixture.mjs` seeds it.
+ *
+ * One name is long and carries an accent and a curly apostrophe on purpose —
+ * a player's name lands in the tightest column this app has, and a field of
+ * short ASCII names was letting every width assertion pass without ever being
+ * asked a hard question. See the note beside `names` in the fixture.
+ */
+const FIELD = ["Aj Moore", "Marcus Webb", "Síle Ní Bhraonáin-O’Dwyer", "Sang-woo Kim"];
 
 test("an organizer lands in the console, not the player app", async ({ page }) => {
   await page.goto("/");

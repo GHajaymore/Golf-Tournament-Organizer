@@ -31,6 +31,56 @@ import { runMark } from "../scripts/run-mark.mjs";
  */
 export const MARK = runMark("zz-e2e");
 
+/**
+ * LONG, AND AWKWARD IN THE WAYS REAL ONES ARE.
+ *
+ * These were `GC`, `Bushwood` and `Championship` — eight characters at the
+ * longest, and that shortness was quietly doing work. `layout.spec` asserts
+ * that screens do not scroll sideways, and such an assertion is only ever as
+ * good as the longest string the fixture happens to contain: the suite was
+ * certifying layouts it had never actually stressed.
+ *
+ * Demonstrated by accident on 2026-09-14. Keying the fixture mark per worktree
+ * made every name seven characters longer, and `/roster` went red immediately
+ * — a `width: auto` select sized to its longest option, one of which reads
+ * "only those in <tournament name>". Seven characters. The bug had been there
+ * the whole time and a real event called "Saturday Medal — Men's & Ladies'
+ * Championship" would have found it on day one. The fixture change did not
+ * break that test; it stopped it lying.
+ *
+ * WHICH CHARACTERS, AND WHY THESE ONES. Padding to length would prove almost
+ * nothing — `aaaaaaaaaaaaaaaa` is wide and otherwise harmless. What breaks
+ * things is a name that lands INSIDE another sentence and carries punctuation:
+ *
+ *   —  an EM DASH (U+2014) and
+ *   ’  a CURLY apostrophe (U+2019)
+ *      are the two this repo has already been bitten by, coming back as
+ *      mojibake when a file was round-tripped through PowerShell. A straight
+ *      ASCII apostrophe would test the width and none of the encoding, so
+ *      these are deliberately the curly ones. Every club with a "Men's" or
+ *      "Ladies'" competition carries one.
+ *   &  an ampersand, which is the character an HTML escape gets wrong.
+ *   é  an accent, for the same encoding reason one layer out.
+ *
+ * ONE TRAP, SINCE IT CAUGHT THE PERSON WHO WROTE THIS. "Château" contains
+ * `â` — U+00E2, a perfectly correct French letter — and a naive mojibake check
+ * that greps for a bare `â` reports eight hits on `/entry` and looks exactly
+ * like an encoding failure. It is not. Real mojibake from this repo's
+ * PowerShell round-trip is the SEQUENCE `â€` (U+00E2 U+20AC), or the `Ã`
+ * family; a lone `â` between two ASCII letters is just a word. Check the
+ * codepoints on either side before reporting anything.
+ *
+ * So a run of this suite now exercises width and encoding at once, and a
+ * regression in either shows up as a failing layout or a mojibake string
+ * rather than as nothing at all.
+ *
+ * Invented, and marked, like every other fixture here — no real club, course
+ * or person.
+ */
+const CLUB_NAME = "Blue Ash Men’s & Ladies’ Golf Society";
+const COURSE_NAME = "Château Bushwood — Old Course";
+const EVENT_NAME = "Saturday Medal — Men’s & Ladies’ Championship";
+
 const PARS = [4, 5, 3, 4, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5, 4, 3, 4, 4];
 const SI = [7, 3, 11, 1, 15, 5, 17, 9, 13, 8, 4, 12, 2, 16, 6, 18, 10, 14];
 const YARDS = [380, 510, 165, 420, 395, 405, 150, 410, 525, 400, 385, 175, 430, 540, 395, 160, 415, 405];
@@ -83,12 +133,12 @@ export async function seed() {
   const prisma = new PrismaClient();
   try {
     const org = await prisma.organization.create({
-      data: { name: `${MARK}-GC`, kind: "club", themeAppearance: "auto" },
+      data: { name: `${MARK}-${CLUB_NAME}`, kind: "club", themeAppearance: "auto" },
     });
     const course = await prisma.course.create({
       data: {
         organizationId: org.id,
-        name: `${MARK}-Bushwood`,
+        name: `${MARK}-${COURSE_NAME}`,
         city: "Cincinnati, OH",
         pars: JSON.stringify(PARS),
         yards: JSON.stringify(YARDS),
@@ -98,7 +148,7 @@ export async function seed() {
     });
     const event = await prisma.event.create({
       data: {
-        name: `${MARK}-Championship`,
+        name: `${MARK}-${EVENT_NAME}`,
         organizationId: org.id,
         status: "active",
         shape: "single",
@@ -127,7 +177,22 @@ export async function seed() {
     });
     await prisma.eventCourse.create({ data: { eventId: event.id, courseId: course.id } });
 
-    const names = ["Aj Moore", "Marcus Webb", "Priya Nair", "Sang-woo Kim"];
+    /**
+     * One of these is deliberately long and awkward, for the same reason the
+     * club and event names are — see the note above them.
+     *
+     * A player's name is rendered in the TIGHTEST column in the app: a
+     * leaderboard row, a scorecard header, a tee-sheet group. "Priya Nair" is
+     * ten characters and was never going to stress any of them. The
+     * replacement carries an accent, a curly apostrophe and a hyphen, which is
+     * an entirely ordinary shape for a name and exercises width and encoding
+     * at the same time.
+     *
+     * Invented, like the rest of this fixture. The others stay short on
+     * purpose: a field where EVERY name is long tests the wide case and quietly
+     * stops testing the ordinary one.
+     */
+    const names = ["Aj Moore", "Marcus Webb", "Síle Ní Bhraonáin-O’Dwyer", "Sang-woo Kim"];
     const players = [];
     for (const [i, name] of names.entries()) {
       players.push(
