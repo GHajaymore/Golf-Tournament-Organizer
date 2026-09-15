@@ -5401,7 +5401,11 @@ describe("the create-tournament form is actually wired to the page", () => {
   });
 
   it("and whether 'Who is running this?' is still a question", () => {
-    expect(src).toMatch(/organizationNamed=\{/);
+    // Anchored, and pinned to the value it is actually passed. The bare
+    // `/organizationNamed=\{/` is a substring of any longer prop ending in
+    // the same word, which is how #292's tee-sheet assertion passed against
+    // an attribute React never reads.
+    expect(src).toMatch(/\sorganizationNamed=\{facts\?\.named \?\? false\}/);
   });
 });
 
