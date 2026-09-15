@@ -337,6 +337,27 @@ sit at different JSX positions, so a `conflict`/`recovered` flip unmounts one
 and mounts the other, which would explain "element was detached from the DOM"
 exactly.
 
+**AND THE CHOOSER IS NOT A DIALOG, which everything above this line assumes it
+is.** `CardConflict` is a `<section className="card">` rendered INLINE in
+`PlayerCard`'s page flow. No backdrop, nothing fixed, not centred — the only
+thing making it a dialog is `role="alertdialog"`, which is what
+`page.getByRole("alertdialog")` binds to.
+
+That matters for one symptom in particular. A centred overlay cannot BE
+"outside of the viewport"; an inline card two thirds of the way down a
+scorecard can, and Playwright has to scroll to it before it can click. So the
+middle line of that three-line signature is explained by the shape of the
+thing, not by animation — which is what the paragraphs above reach for.
+
+Its GEOMETRY is now measured, inside `offline.spec` where it is already open,
+and it is clean at 320, 393 and 1280 with a 59-character tournament name. So
+"the chooser is too wide" is off the table as a cause; what remains is that it
+is inline, in a page that re-renders, at two different JSX positions. The other
+two dialogs in the app are measured in `e2e/dialog.spec.ts`, and
+`src/lib/__tests__/dialogs-are-swept.test.ts` pins which of the three is which
+kind — so a later change making this one a proper modal would resolve the
+scroll-to and should be noticed rather than discovered.
+
 ## What gates a merge, and what gates a deploy
 
 `ci.yml` is the only workflow that runs on its own — every push and every PR. It does the
@@ -707,6 +728,42 @@ NARROW. `money-leaves-a-trail` first used the model name `skinsPotEntry`; the
 schema says `SkinsEntry`, so it skipped the two actions writing a player's
 STAKE — the sharpest rows in the file it was aimed at — and reported the app
 cleaner than it was. It checks every model name against `schema.prisma` now.
+
+**THE SAME FAILURE WEARS A SECOND COSTUME: A CHECK THAT CAN PASS WITHOUT THE
+CONTENT EVER ARRIVING.** A sweep with no control reports zero because it is
+looking for the wrong thing; a content check does it by never receiving
+anything to look at. The output is equally calm either way.
+
+The shape to recognise is a UNIFORM, PLAUSIBLE, NON-ERROR STATUS across every
+target. On 2026-09-14 a script fetched six screens to confirm a long fixture
+name rendered, and printed a tidy "no mojibake, no problem" for all six. Every
+one had returned **307**: the cookie was signed with `local-e2e-secret` while
+the dev server on 3100 verifies against the secret in `.env`, so each request
+was redirected to sign-in and each screen was then searched as an empty string.
+It read as "checked six screens" and was "checked nothing". A 500 would have
+been obvious; a redirect is a success and looks like the app working.
+
+So when a script fetches an authenticated screen: sign with
+`node --env-file=.env` against the dev server, `AUTH_SECRET=local-e2e-secret`
+against the e2e one on 3101, and **assert the status is 200 before asserting
+anything about the body**. A check that reports an absence of problems in an
+absence of content is the same bug as a sweep with no control.
+
+**And the mirror: a detector too LOOSE reports a defect that is not there.**
+The same script flagged eight mojibake hits on `/entry`. They were the word
+"Château" — U+00E2 is a correct French letter, and the check grepped for a bare
+one. Real mojibake from the PowerShell round-trip above is U+00E2 followed by
+U+20AC, or the U+00C3 family. Check the codepoints either side before reporting
+anything — and when you write that warning down, spell the sequence as
+CODEPOINTS rather than as the characters, or the file explaining the defect
+becomes the first hit of every future sweep for it. That is the `readSource`
+trap one layer out.
+
+THIS FILE IS THE EXCEPTION AND KNOWS IT: the PowerShell detection command
+above quotes the sequence literally, because a command you cannot paste is not
+a command. So CLAUDE.md is the expected first hit of any mojibake sweep and
+must be excluded from one deliberately rather than investigated. Everywhere
+that is not a runnable command, use the codepoints.
 
 **SWEEP THE CLASS, NOT THE INSTANCE.** Walking screens and fixing what you see
 finds defects at a constant rate for ever; it never converges, because the pool
