@@ -67,6 +67,38 @@ export function revokesCodes(input: Pick<LockoutInput, "wasUsingCodes" | "nowUsi
  * together: a caller that had to compose the message could tell somebody the
  * count without telling them what to do about it.
  */
+/**
+ * The same sentence, shown BEFORE the organizer touches the dropdown.
+ *
+ * The refusal below is correct and arrives too late to be kind: an organizer
+ * picks "Email", saves, and only then learns that forty entrants have no
+ * address and must each be given one. The information is on the server the
+ * whole time — this puts it on the screen while Round Codes are still on, so
+ * the choice is made knowing what it costs.
+ *
+ * DELIBERATELY THE SAME WORDING, produced by the same function rather than a
+ * second copy phrased for a notice. Two sentences about one rule is how a
+ * screen comes to promise something the action refuses — and this file exists
+ * because a rule with two readers had already gone wrong once here, when a
+ * duplicated `wasUsingCodes && !nowUsingCodes` in the caller shadowed the
+ * broken original and left the suite green.
+ *
+ * Returns null when there is nothing to say, so a tournament whose entrants
+ * all have addresses — the ordinary case, and the one a club growing out of
+ * Round Codes is in — sees no warning at all.
+ */
+export function lockoutNotice(input: {
+  usingCodes: boolean;
+  strandedCount: number;
+}): string | null {
+  if (!input.usingCodes) return null;
+  return lockoutRefusal({
+    wasUsingCodes: true,
+    nowUsingCodes: false,
+    strandedCount: input.strandedCount,
+  });
+}
+
 export function lockoutRefusal(input: LockoutInput): string | null {
   if (!revokesCodes(input)) return null;
   if (input.strandedCount <= 0) return null;

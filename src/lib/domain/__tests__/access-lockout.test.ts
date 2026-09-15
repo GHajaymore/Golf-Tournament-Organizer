@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { lockoutRefusal } from "../access-lockout";
+import { lockoutRefusal, lockoutNotice } from "../access-lockout";
 import { readSource } from "../../__tests__/source";
 
 /**
@@ -110,10 +110,98 @@ describe("where it is enforced", () => {
   });
 
   it("counts the stranded entrants from the rows, not from the caller", () => {
-    // A `"use server"` export is a public HTTP endpoint. A count arriving in
-    // the payload would be a number the caller chose.
-    const src = readSource("src", "app", "actions", "settings.ts");
-    expect(src).toMatch(/prisma\.player\.count\(/);
-    expect(src).toMatch(/status: \{ not: "withdrawn" \}/);
+    /**
+     * A `"use server"` export is a public HTTP endpoint. A count arriving in
+     * the payload would be a number the caller chose.
+     *
+     * The query MOVED to `services/round-codes.ts` when the settings screen
+     * started showing the same warning before the change rather than after it.
+     * The intent is unchanged and is asserted in both halves: the action asks
+     * the server for the number, and the server gets it from the rows.
+     */
+    const action = readSource("src", "app", "actions", "settings.ts");
+    expect(action, "the action no longer asks the server for the count").toMatch(
+      /await strandedEntrantCount\(eventId\)/,
+    );
+    expect(action, "a count from the request payload would be the caller's number").not.toMatch(
+      /strandedCount:\s*input\./,
+    );
+
+    const service = readSource("src", "lib", "services", "round-codes.ts");
+    expect(service).toMatch(/prisma\.player\.count\(/);
+    expect(service).toMatch(/status: \{ not: "withdrawn" \}/);
+  });
+
+  it("the screen and the refusal read ONE count", () => {
+    /**
+     * The whole reason the query is a function rather than two copies. The
+     * settings screen warns before the change and the action refuses it after
+     * — and a screen naming a different number from the refusal is worse than
+     * either alone, because the organizer cannot tell which is true.
+     *
+     * This file's own history is the argument: a duplicated
+     * `wasUsingCodes && !nowUsingCodes` in the caller once shadowed the real
+     * rule and left a mutation green.
+     */
+    const page = readSource("src", "app", "(app)", "event", "page.tsx");
+    expect(page, "the screen counts for itself instead of asking").toMatch(
+      /strandedEntrantCount\(session\.eventId\)/,
+    );
+    expect(page).toMatch(/strandedCount=\{strandedCount\}/);
+  });
+
+  it("and ONE wording", () => {
+    // `lockoutNotice` defers to `lockoutRefusal` rather than phrasing its own
+    // sentence, so a screen cannot promise something the action refuses.
+    const src = readSource("src", "lib", "domain", "access-lockout.ts");
+    expect(src).toMatch(/export function lockoutNotice/);
+    expect(src, "the notice writes its own sentence").toMatch(/return lockoutRefusal\(/);
+  });
+});
+
+/**
+ * THE WARNING THAT ARRIVES BEFORE THE CHOICE.
+ *
+ * `lockoutRefusal` is correct and late: an organizer picks "Email", saves, and
+ * only then learns that forty entrants have no address and each needs one. The
+ * count is on the server the whole time, so the cost can be stated while Round
+ * Codes are still on and the choice is still open.
+ */
+describe("what the screen says before the dropdown is touched", () => {
+  it("says nothing when every entrant has an address", () => {
+    // The ordinary case, and the one a club growing out of Round Codes is in.
+    expect(lockoutNotice({ usingCodes: true, strandedCount: 0 })).toBeNull();
+  });
+
+  it("says nothing when codes are already off", () => {
+    // Nothing to withdraw, so nothing to warn about — and a warning here would
+    // sit permanently on every email-sign-in tournament that ever used codes.
+    expect(lockoutNotice({ usingCodes: false, strandedCount: 12 })).toBeNull();
+  });
+
+  it("names the number and the remedy while codes are still on", () => {
+    const notice = lockoutNotice({ usingCodes: true, strandedCount: 12 })!;
+    expect(notice).toContain("12 players");
+    expect(notice, "does not say what to do about it").toMatch(/Registration & field/);
+  });
+
+  it("is the SAME sentence the refusal gives", () => {
+    /**
+     * Not a second wording for the same rule. A screen phrased separately from
+     * the action it describes is how a warning comes to promise something the
+     * refusal does not do — and this file exists because one rule with two
+     * readers had already gone wrong here once.
+     */
+    for (const n of [1, 2, 12, 40]) {
+      expect(lockoutNotice({ usingCodes: true, strandedCount: n })).toBe(
+        lockoutRefusal({ wasUsingCodes: true, nowUsingCodes: false, strandedCount: n }),
+      );
+    }
+  });
+
+  it("gets the singular right, because a club of one reads it too", () => {
+    const one = lockoutNotice({ usingCodes: true, strandedCount: 1 })!;
+    expect(one).toContain("1 player in this tournament has");
+    expect(one).not.toContain("players have");
   });
 });

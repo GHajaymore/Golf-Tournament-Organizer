@@ -42,6 +42,7 @@ import {
   type TournamentSettings,
 } from "@/lib/tournament-settings";
 import { formatAccessCode } from "@/lib/code-format";
+import { lockoutNotice } from "@/lib/domain/access-lockout";
 import { Icon } from "./Icon";
 import { StickySave } from "./StickySave";
 
@@ -55,6 +56,14 @@ interface Props {
   mode: "tournament" | "organization";
   settings: TournamentSettings;
   canEdit: boolean;
+  /**
+   * Entrants still in the field who hold no email address.
+   *
+   * Only meaningful on a tournament — an organization has no field to strand,
+   * and its defaults apply to tournaments that do not exist yet. Zero means
+   * the notice never appears, which is the ordinary case.
+   */
+  strandedCount?: number;
   /** Tournament mode only — one row per round, for showing Round Codes. */
   rounds?: RoundCode[];
   /** Tournament mode only — the public leaderboard token. */
@@ -189,6 +198,7 @@ export function PlaySettings({
   mode,
   settings,
   canEdit,
+  strandedCount = 0,
   rounds = [],
   shareToken,
   tees = [],
@@ -377,6 +387,33 @@ export function PlaySettings({
             disabled={!canEdit || pending}
             onChange={(v) => set("playerAccess", v)}
           />
+
+          {/* WHAT TURNING ROUND CODES OFF WOULD COST, said before the choice
+              rather than after it.
+
+              `saveTournamentSettings` already REFUSES this change, which is
+              the house answer to damage that lands on other people. A refusal
+              is right and it arrives late: an organizer picks "Email", saves,
+              and only then learns that forty entrants have no address and each
+              needs one. The count is on the server the whole time.
+
+              Read off `form`, not `settings`, so it disappears the moment they
+              switch away and comes back if they switch back — the state the
+              sentence describes is the one the dropdown is showing, not the
+              one that was last saved.
+
+              Same sentence as the refusal, from the same function. Two
+              wordings of one rule is how a screen comes to promise something
+              the action refuses. */}
+          {lockoutNotice({ usingCodes: usesAccessCodes(form), strandedCount }) && (
+            <p
+              className="text-muted"
+              style={{ fontSize: 12, margin: "-4px 0 0", lineHeight: 1.55 }}
+            >
+              <Icon name="warning-circle" />{" "}
+              {lockoutNotice({ usingCodes: usesAccessCodes(form), strandedCount })}
+            </p>
+          )}
 
           <div className="field">
             <label>Voice entry</label>
