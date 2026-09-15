@@ -19,6 +19,8 @@ export function CreateFirstTournament({
   organizationNamed = false,
   clubSteps = [],
   orgKind = "",
+  orgCountry = "",
+  orgNoun = "",
   copyable = [],
   organizations = [],
 }: {
@@ -71,6 +73,10 @@ export function CreateFirstTournament({
    * exactly as they will be a moment later.
    */
   orgKind?: string;
+  /** The club's country, which picks the default word for a community. */
+  orgCountry?: string;
+  /** What the outfit calls itself, which beats the country. */
+  orgNoun?: string;
   /**
    * This organizer's own tournaments, NEWEST FIRST, that they may copy.
    *
@@ -98,7 +104,7 @@ export function CreateFirstTournament({
   organizations?: Array<{ id: string; name: string; kind: string; plan: string }>;
 }) {
   /** Every word on this screen that names the outfit comes from here. */
-  const outfit = orgProfile(orgKind);
+  const outfit = orgProfile(orgKind, orgCountry, orgNoun);
   /**
    * Naming the club is answerable on this form; everything else is not.
    *

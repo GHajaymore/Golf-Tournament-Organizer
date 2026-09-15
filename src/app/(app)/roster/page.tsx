@@ -98,7 +98,6 @@ export default async function RosterPage() {
   return (
     <RosterClient
       clubName={org.shortName || org.name}
-      orgKind={org.kind}
       eventName={event?.name ?? ""}
       fieldLocked={fieldLocked}
       fieldSize={fieldSizeOf(entered)}

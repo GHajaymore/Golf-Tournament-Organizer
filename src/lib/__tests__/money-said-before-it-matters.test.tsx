@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MoneyModeLine } from "@/components/MoneyModeLine";
+import { OrgProfileProvider } from "@/components/OrgProfileProvider";
 import { MONEY_MODE_LABEL } from "@/lib/domain/money-mode";
 import { readSource } from "./source";
 
@@ -24,8 +25,18 @@ import { readSource } from "./source";
  * and how it was arrived at, and the screen puts it above the consequences.
  */
 
-const line = (over: Partial<Parameters<typeof MoneyModeLine>[0]> = {}) =>
+/**
+ * Wrapped in the provider, because that is how it renders in the console and
+ * where the outfit's word now comes from. `MoneyModeLine` used to resolve
+ * `orgProfile(orgKind)` itself, which could not see the club's country or the
+ * word the organizer chose — a US league read "society".
+ */
+const line = (
+  over: Partial<Parameters<typeof MoneyModeLine>[0]> = {},
+  kind = "club",
+) =>
   renderToStaticMarkup(
+    <OrgProfileProvider kind={kind}>
     <MoneyModeLine
       eventMode=""
       orgMode=""
@@ -33,7 +44,8 @@ const line = (over: Partial<Parameters<typeof MoneyModeLine>[0]> = {}) =>
       clubName="Ridgeway"
       href="#money-setup"
       {...over}
-    />,
+    />
+    </OrgProfileProvider>,
   );
 
 describe("what the screen says about money before it shows any", () => {

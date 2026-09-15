@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { navForRole } from "../nav";
 import { SETUP_HREF } from "../domain/org-setup";
+import { orgProfile } from "../domain/org-profile";
 
 /**
  * THE SIDEBAR OF A CLUB THAT HAS NOT CREATED A TOURNAMENT YET.
@@ -23,8 +24,8 @@ import { SETUP_HREF } from "../domain/org-setup";
  */
 
 const eventless = () =>
-  navForRole("player", undefined, { orgAdminWithoutEvent: true, orgKind: "community" });
-const withEvent = () => navForRole("admin", undefined, { orgKind: "community" });
+  navForRole("player", undefined, { orgAdminWithoutEvent: true, outfit: orgProfile("community") });
+const withEvent = () => navForRole("admin", undefined, { outfit: orgProfile("community") });
 
 const keysOf = (sections: ReturnType<typeof navForRole>) =>
   sections.flatMap((s) => s.items.map((i) => i.key));

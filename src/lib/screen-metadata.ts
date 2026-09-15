@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { primaryOrganizationFor } from "@/lib/services/organization";
 import { prisma } from "@/lib/db";
 import { screenName } from "@/lib/nav";
-import { isOrgKind } from "@/lib/domain/org-profile";
+import { isOrgKind, orgProfile } from "@/lib/domain/org-profile";
 import { isMatch } from "@/lib/tournament-shape";
 
 /**
@@ -78,7 +78,7 @@ export async function screenMetadataForEvent(href: string): Promise<Metadata> {
   const event = session?.eventId
     ? await prisma.event.findUnique({
         where: { id: session.eventId },
-        select: { shape: true, organization: { select: { kind: true } } },
+        select: { shape: true, organization: { select: { kind: true, country: true, communityNoun: true } } },
       })
     : null;
   /**
@@ -92,10 +92,15 @@ export async function screenMetadataForEvent(href: string): Promise<Metadata> {
    */
   const fallback = session && !event ? await primaryOrganizationFor(session) : null;
   const orgKind = fallback
-    ? (await prisma.organization.findUnique({ where: { id: fallback }, select: { kind: true } }))?.kind
+    ? await prisma.organization.findUnique({ where: { id: fallback }, select: { kind: true, country: true, communityNoun: true } })
     : null;
-  const kind = event?.organization.kind ?? orgKind ?? "";
+  const own = event?.organization ?? orgKind ?? null;
+  const kind = own?.kind ?? "";
   return {
-    title: screenName(href, isMatch(event?.shape), isOrgKind(kind) ? kind : undefined),
+    title: screenName(
+      href,
+      isMatch(event?.shape),
+      isOrgKind(kind) ? orgProfile(kind, own?.country, own?.communityNoun) : undefined,
+    ),
   };
 }

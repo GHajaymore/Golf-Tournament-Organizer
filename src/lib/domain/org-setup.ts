@@ -192,6 +192,10 @@ export interface SetupStep {
  *  to know what a member IS, only whether there are any. */
 export interface OrgSetupFacts {
   kind: string | null | undefined;
+  /** The club's own country, which picks the default word for a community. */
+  country?: string | null;
+  /** What the outfit calls itself, which beats the country. */
+  communityNoun?: string | null;
   /** The organization has been named. */
   named: boolean;
   /** A home course with a scorecard, for an organization that has one. */
@@ -239,7 +243,7 @@ export interface OrgSetupState {
  * removes the most noise.
  */
 export function orgSetupState(facts: OrgSetupFacts): OrgSetupState {
-  const profile = orgProfile(facts.kind);
+  const profile = orgProfile(facts.kind, facts.country, facts.communityNoun);
   // Built without `blocked`, which is decided once at the end against the
   // whole list rather than repeated on every push.
   const steps: Omit<SetupStep, "blocked">[] = [];

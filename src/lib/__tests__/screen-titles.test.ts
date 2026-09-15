@@ -3,6 +3,7 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readSource } from "./source";
 import { allNavItems, navForRole, screenName } from "../nav";
+import { orgProfile } from "../domain/org-profile";
 import { ORG_KINDS } from "../domain/org-profile";
 
 /**
@@ -171,10 +172,10 @@ describe("the names themselves", () => {
      * All three kinds asserted, and asserted to DIFFER, so this cannot pass on
      * `orgProfile` returning one word for everybody.
      */
-    const named = ORG_KINDS.map((kind) => screenName("/organization", false, kind));
+    const named = ORG_KINDS.map((kind) => screenName("/organization", false, orgProfile(kind)));
     expect(new Set(named).size).toBe(ORG_KINDS.length);
-    expect(screenName("/organization", false, "club")).toBe("Club settings");
-    expect(screenName("/organization", false, "community")).toBe("Society settings");
+    expect(screenName("/organization", false, orgProfile("club"))).toBe("Club settings");
+    expect(screenName("/organization", false, orgProfile("community"))).toBe("Society settings");
     // Unasked stays the club wording, which is what every caller saw before.
     expect(screenName("/organization")).toBe("Club settings");
   });
@@ -188,13 +189,13 @@ describe("the names themselves", () => {
     for (const kind of ORG_KINDS) {
       for (const isMatch of [false, true]) {
         const sidebar = new Map(
-          navForRole("admin", undefined, { orgKind: kind, isMatch, isLeague: true, hasKnockout: true })
+          navForRole("admin", undefined, { outfit: orgProfile(kind), isMatch, isLeague: true, hasKnockout: true })
             .flatMap((s) => s.items)
             .map((i) => [i.href, i.label]),
         );
         expect(sidebar.size).toBeGreaterThan(5);
         for (const [href, label] of sidebar) {
-          expect(screenName(href, isMatch, kind), `${href} as ${kind}${isMatch ? " (casual)" : ""}`).toBe(label);
+          expect(screenName(href, isMatch, orgProfile(kind)), `${href} as ${kind}${isMatch ? " (casual)" : ""}`).toBe(label);
         }
       }
     }
@@ -210,7 +211,7 @@ describe("the names themselves", () => {
       const href = `/${dir}`;
       const moves =
         screenName(href, true) !== screenName(href, false) ||
-        ORG_KINDS.some((k) => screenName(href, false, k) !== screenName(href));
+        ORG_KINDS.some((k) => screenName(href, false, orgProfile(k)) !== screenName(href));
       expect(eventAware, href).toBe(moves);
     }
   });

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { sendStaffInviteEmail } from "@/lib/email";
 import { isCurrencyCode } from "@/lib/domain/money-format";
 import { isSupportedLocale } from "@/lib/domain/locale";
+import { isCommunityVoice } from "@/lib/domain/org-profile";
 import { refusalFor } from "@/lib/services/limits";
 import {
   isThemeKey, hexToHsl, isAppearance, DEFAULT_CLUB_THEME, SECONDARY_PRESETS, DEFAULT_APPEARANCE, pairVerdict, type Appearance,
@@ -351,6 +352,46 @@ export async function saveOrganizationLocale(locale: string): Promise<OrgResult>
   // The layout resolves this once and hands it to every screen through
   // CurrencyProvider, so the whole tree has to re-render — the same reason the
   // currency above revalidates the layout rather than a path.
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * What this outfit calls ITSELF.
+ *
+ * The country is only ever a good guess — the same outfit is a society in
+ * Britain and a golf league in the United States — so `orgProfile` reads
+ * `country` for a default. This is the outfit's own answer and it beats the
+ * guess. Ajay's framing: the country as the default, the organizer as the
+ * authority.
+ *
+ * EMPTY IS A REAL ANSWER and must stay settable, which is why this does not
+ * simply reject the blank. "Follow the country" is the state every row was in
+ * before the column existed, and an organizer who picks a word and then
+ * changes their mind has to be able to get back to it. `isCommunityVoice`
+ * refuses anything else, so the column holds a known key or nothing at all.
+ *
+ * Validated the same way as the currency and the locale rather than trusted:
+ * a `"use server"` export is a public HTTP endpoint and TypeScript types are
+ * erased at runtime, so this will be called with whatever the caller likes.
+ */
+export async function saveOrganizationNoun(noun: string): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+
+  const value = (noun ?? "").trim();
+  if (value !== "" && !isCommunityVoice(value)) {
+    return { ok: false, error: "Pick one of the listed words." };
+  }
+
+  await prisma.organization.update({
+    where: { id: org.organizationId },
+    data: { communityNoun: value },
+  });
+  // Same reason as the two above: the layout resolves the profile once and
+  // hands it to eleven components through OrgProfileProvider, so the tree has
+  // to re-render rather than one path.
   revalidatePath("/", "layout");
   return { ok: true };
 }
