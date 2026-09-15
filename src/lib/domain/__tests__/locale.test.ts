@@ -257,3 +257,57 @@ describe("changing the currency relabels an amount, it never converts one", () =
     expect(asUsd.replace(/[^\d]/g, "")).toBe(String(start));
   });
 });
+
+/**
+ * A GROUP TRAVELLING KEEPS ITS OWN MONEY AND ITS OWN DATES.
+ *
+ * The case this whole feature is for, in the words it was described in: an
+ * American society goes on an outing to Japan. They play a Japanese course,
+ * and they still want their buy-ins in dollars and their dates written the
+ * American way — because the people settling up are Americans, wherever the
+ * golf is.
+ *
+ * IT NEEDS NO OVERRIDE, and that is the point of these tests. Locale and
+ * currency follow the ORGANIZATION — the society itself — and nothing in the
+ * resolution chain consults the course, the venue, or where either of them is.
+ * A US society's tournament is in dollars on a Japanese course by default, and
+ * it would take somebody deliberately setting the override to change that.
+ *
+ * Asserted rather than assumed, because "the venue does not decide" is the
+ * kind of rule that is true until a later change helpfully derives a currency
+ * from a course's country. There is no course-scoped currency anywhere in the
+ * app today — checked 2026-09-14 — and this is what would notice one arriving.
+ */
+describe("a group on an outing abroad", () => {
+  /** The society: American, and the only thing with an opinion here. */
+  const US_SOCIETY = { locale: "en-US", currency: "USD" };
+
+  it("keeps its own currency and date format with no override set", () => {
+    const f = formattingFor(US_SOCIETY, { localeOverride: "", currencyOverride: "" });
+    expect(f.currency, "the society settles in its own money").toBe("USD");
+    expect(f.locale, "and writes its own dates").toBe("en-US");
+    expect(formatMoney(123400, f)).toBe("$1,234.00");
+    // Month first, as the members read it.
+    const d = formatDay("2026-05-14", f.locale);
+    expect(d.indexOf("May")).toBeLessThan(d.indexOf("14"));
+  });
+
+  it("takes nothing from the course it happens to be playing", () => {
+    /**
+     * `formattingFor` accepts an organization and an event. There is no third
+     * argument, and that is the guarantee: a course cannot reach this function
+     * to have an opinion about the money, however Japanese it is.
+     */
+    expect(formattingFor.length, "a third source of truth appeared").toBe(2);
+  });
+
+  it("can still choose the other way round, if the group would rather", () => {
+    // The override in the other direction: settling in yen because that is
+    // what everyone is carrying, while still writing dates the American way.
+    const f = formattingFor(US_SOCIETY, { localeOverride: "", currencyOverride: "JPY" });
+    expect(f.currency).toBe("JPY");
+    expect(f.locale).toBe("en-US");
+    // Yen has no minor unit, so a 1,234 buy-in is 1,234 — not 12.34.
+    expect(formatMoney(1234, f)).toContain("1,234");
+  });
+});
