@@ -1,5 +1,5 @@
 import "server-only";
-import { DEFAULT_CURRENCY } from "@/lib/domain/money-format";
+import { formattingFor, type Formatting } from "@/lib/domain/locale";
 import { brandLines, brandMonogram, isBrandDisplay } from "@/lib/brand";
 import { prisma } from "../db";
 import { DEFAULT_PLAN, planFor } from "../plans";
@@ -615,12 +615,37 @@ export async function organizationsFor(email: string) {
  * default rather than throwing — a money screen must not go down because an
  * event was deleted between the render and the read.
  */
-export async function currencyForEvent(eventId: string): Promise<string> {
+/**
+ * HOW THIS TOURNAMENT WRITES ITS DATES AND ITS MONEY.
+ *
+ * Both answers from one query, resolved through `formattingFor` — the
+ * tournament's own overrides, then the club's, then US English and dollars.
+ *
+ * This read the club's currency ALONE and ignored the tournament's override,
+ * which would have made it a second answer to a question that now has one
+ * source. Nine callers read it; a screen reading the club where the tournament
+ * had said otherwise is the whole defect this replaces, one level up.
+ */
+export async function formattingForEvent(eventId: string): Promise<Formatting> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { organization: { select: { currency: true } } },
+    select: {
+      localeOverride: true,
+      currencyOverride: true,
+      organization: { select: { currency: true, locale: true } },
+    },
   });
-  return event?.organization?.currency || DEFAULT_CURRENCY;
+  return formattingFor(event?.organization, event);
+}
+
+/**
+ * Just the currency, for the callers that price something and show no date.
+ *
+ * Delegates rather than querying, so it cannot come to disagree with the
+ * function above about which currency a tournament is in.
+ */
+export async function currencyForEvent(eventId: string): Promise<string> {
+  return (await formattingForEvent(eventId)).currency;
 }
 
 export async function themeForEvent(eventId: string): Promise<ClubTheme> {

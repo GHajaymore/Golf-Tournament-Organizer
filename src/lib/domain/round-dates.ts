@@ -11,6 +11,7 @@
  * generated in March quietly slips to Mondays in November.
  */
 
+import { formatMonth, DEFAULT_LOCALE } from "./locale";
 /** "2026-05-19" — the only shape this module accepts or returns. */
 export type IsoDate = string;
 
@@ -73,14 +74,26 @@ export function weekdayOf(date: IsoDate): string {
   return DAY_NAMES[new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()];
 }
 
-/** "Tue 19 May" — short, and never shows a year the reader already knows. */
-export function shortDate(date: IsoDate): string {
+/**
+ * "Tue 19 May" — short, and never shows a year the reader already knows.
+ *
+ * NOTE THE ORDER, which is day-before-month and always has been. That is worth
+ * saying out loud because `formatDeadline` rendered "Jun 1, 2026" on a screen
+ * an organizer could reach in the same minute: one app, two conventions,
+ * neither of them anybody's choice. The locale decides now.
+ *
+ * The compact hand-built shape stays — a league week sheet has a column this
+ * wide and the year is the one thing every reader already knows — so what the
+ * locale changes here is the MONTH NAME. In English that is no change at all,
+ * which is exactly why the hardcoded "en-US" survived this long; in Japanese
+ * it is the difference between "May" and "5月".
+ */
+export function shortDate(date: IsoDate, locale: string = DEFAULT_LOCALE): string {
   if (!isIsoDate(date)) return "";
   const [y, m, d] = date.split("-").map(Number);
   const t = new Date(Date.UTC(y, m - 1, d, 12));
   const wd = DAY_NAMES[t.getUTCDay()].slice(0, 3);
-  const month = t.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
-  return `${wd} ${d} ${month}`;
+  return `${wd} ${d} ${formatMonth(date, locale)}`;
 }
 
 /**

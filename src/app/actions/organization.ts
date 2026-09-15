@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { sendStaffInviteEmail } from "@/lib/email";
 import { isCurrencyCode } from "@/lib/domain/money-format";
+import { isSupportedLocale } from "@/lib/domain/locale";
 import { refusalFor } from "@/lib/services/limits";
 import {
   isThemeKey, hexToHsl, isAppearance, DEFAULT_CLUB_THEME, SECONDARY_PRESETS, DEFAULT_APPEARANCE, pairVerdict, type Appearance,
@@ -321,6 +322,35 @@ export async function saveOrganizationCurrency(currency: string): Promise<OrgRes
     where: { id: org.organizationId },
     data: { currency: code },
   });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/**
+ * How this club writes a date and a number.
+ *
+ * Beside the currency and validated the same way — through `isSupportedLocale`
+ * rather than a shape test, because `Intl.DateTimeFormat` THROWS on a
+ * malformed tag. An unchecked value would not mis-format a date, it would
+ * break every screen that shows one, for the club that had just set it.
+ */
+export async function saveOrganizationLocale(locale: string): Promise<OrgResult> {
+  const org = await currentOrganization();
+  if (!org) return { ok: false, error: "No organization found for this tournament." };
+  if (!org.canEdit) return { ok: false, error: "Only an organization owner or admin can change this." };
+
+  const tag = (locale ?? "").trim();
+  if (!isSupportedLocale(tag)) {
+    return { ok: false, error: "Pick a region from the list." };
+  }
+
+  await prisma.organization.update({
+    where: { id: org.organizationId },
+    data: { locale: tag },
+  });
+  // The layout resolves this once and hands it to every screen through
+  // CurrencyProvider, so the whole tree has to re-render — the same reason the
+  // currency above revalidates the layout rather than a path.
   revalidatePath("/", "layout");
   return { ok: true };
 }

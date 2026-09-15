@@ -54,7 +54,15 @@ export function CurrencyPicker({ currency }: { currency: string }) {
         <FieldInfo label="the club's currency">
           <p>
             What every amount in this club is written in — prizes, pots, buy-ins and the settle-up.
-            It is one setting for the {org.noun} rather than one per tournament.
+            It is the {org.noun}&rsquo;s default, and almost every tournament should just use it.
+            {/* This read "one setting for the club rather than one per
+                tournament", which stopped being true the day a tournament
+                could override it. A control that describes a rule the app no
+                longer follows is worse than one that says nothing. */}
+          </p>
+          <p>
+            A single tournament can be priced in something else, on Tournament details — for an
+            invitational whose visiting field is paying in their own money.
           </p>
           <p>
             It is the currency ITSELF, not just the symbol. Amounts are held in the smallest unit,

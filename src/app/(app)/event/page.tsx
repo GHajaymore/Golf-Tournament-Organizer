@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { screenMetadata } from "@/lib/screen-metadata";
+import { formattingFor } from "@/lib/domain/locale";
+import { TournamentFormatting } from "@/components/TournamentFormatting";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
@@ -89,10 +91,26 @@ export default async function EventPage({
       where: { id: e.organizationId },
       // `kind` so the branding nudge calls the outfit by its own name — a
       // society is not a club. See ChecklistState.orgKind.
-      select: { defaultCourseId: true, logoUrl: true, themeSetAt: true, kind: true },
+      select: {
+        defaultCourseId: true,
+        logoUrl: true,
+        themeSetAt: true,
+        kind: true,
+        // How this club writes a date and an amount — the default this
+        // tournament may override. See domain/locale.ts.
+        locale: true,
+        currency: true,
+      },
     }),
   ]);
   const homeCourseId = org?.defaultCourseId ?? null;
+
+  /**
+   * How this tournament writes its dates: its own answer, then the club's,
+   * then US English. Resolved once here rather than in each component, so two
+   * halves of one screen cannot disagree about it.
+   */
+  const fmt = formattingFor(org, e);
 
   // Checked against the club's own courses rather than trusted: this arrives
   // off the query string, and opening an editor for a row that is not theirs
@@ -224,6 +242,7 @@ export default async function EventPage({
         // distinguish a tournament being played from one that is over, and
         // used `scored` for it instead — see TournamentJourney's `current`.
         finished={e.status === "completed"}
+        locale={fmt.locale}
         initial={{
           name: e.name, dates: e.dates, format: e.format, course: e.course, city: e.city,
           address: e.address, regDeadline: e.regDeadline, capacity: e.capacity,
@@ -236,6 +255,21 @@ export default async function EventPage({
         // typing a name — the screen never had anything else to pick by.
         courses={courses.map((c) => ({ id: c.id, name: c.name, city: c.city, address: "" }))}
       />
+        {/* HOW THIS ONE WRITES ITS DATES AND ITS MONEY.
+            In the identity section because that is what it is: the same kind
+            of fact as the name and the venue, and the section a reader is
+            already in when they notice a date reads wrong. Almost every
+            tournament leaves both following the club — see the component. */}
+        <div className="card elev-sm" style={{ marginTop: 16 }}>
+          <span className="card-kicker">Dates and money</span>
+          <TournamentFormatting
+            localeOverride={e.localeOverride}
+            currencyOverride={e.currencyOverride}
+            clubLocale={org?.locale ?? ""}
+            clubCurrency={org?.currency ?? ""}
+            canEdit={session.viewRole === "admin"}
+          />
+        </div>
       </SettingsSectionAnchor>
 
       {/* Always available, never a blocker here. A tournament may not need

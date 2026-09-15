@@ -4,6 +4,7 @@ import { overCapacity } from "@/lib/registration";
 import { saveEvent, applyManualCount } from "@/app/actions/tournament";
 import { SIDE_STYLE_OPTIONS } from "@/lib/side-style";
 import { parseDeadlineIso, formatDeadline } from "@/lib/deadline";
+import { formatDayRange, DEFAULT_LOCALE } from "@/lib/domain/locale";
 import { CoursePicker } from "@/components/CoursePicker";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
@@ -35,31 +36,22 @@ interface CourseOption {
   address: string;
 }
 
-const fmtDate = (iso: string): string => {
-  const d = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-};
-
-/** "May 14–16, 2026" (same month), "May 30 – Jun 2, 2026" (crosses month), "Dec 30, 2026 – Jan 2, 2027" (crosses year). */
-const fmtRange = (startIso: string, endIso: string): string => {
-  const start = new Date(`${startIso}T00:00:00`);
-  const end = new Date(`${endIso}T00:00:00`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "";
-  if (startIso === endIso) return fmtDate(startIso);
-  const sameYear = start.getFullYear() === end.getFullYear();
-  const sameMonth = sameYear && start.getMonth() === end.getMonth();
-  if (sameMonth) {
-    const month = start.toLocaleDateString("en-US", { month: "short" });
-    return `${month} ${start.getDate()}–${end.getDate()}, ${end.getFullYear()}`;
-  }
-  if (sameYear) {
-    const startPart = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    const endPart = end.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    return `${startPart} – ${endPart}, ${end.getFullYear()}`;
-  }
-  return `${fmtDate(startIso)} – ${fmtDate(endIso)}`;
-};
+/**
+ * THE DATES THIS SCREEN WRITES, IN THE CLUB'S OWN CONVENTIONS.
+ *
+ * These were four hardcoded `"en-US"` calls and a hand-assembled range, so a
+ * club in Surrey typing 14 and 16 May got "May 14–16, 2026" written into
+ * `Event.dates` — and because that column is free text, the American shape was
+ * then the stored data rather than a rendering of it, on every screen and on
+ * the public board.
+ *
+ * The hand-built range is gone with them. `Intl.formatRange` is the only thing
+ * that knows where each locale puts the dash and which parts it will drop:
+ * English collapses the repeated month, German does not, Japanese leads with
+ * the year. A range assembled by hand is correct in the language it was
+ * written in and nowhere else, which is precisely how this one was American
+ * without anybody deciding it should be.
+ */
 
 export function EventSetupClient({
   initial,
@@ -71,10 +63,21 @@ export function EventSetupClient({
   launched = false,
   scored = false,
   finished = false,
+  locale = DEFAULT_LOCALE,
 }: {
   initial: EventForm;
   playersCount: number;
   courses: CourseOption[];
+  /**
+   * How this club writes a date, resolved by the page from the club and this
+   * tournament's own override. See domain/locale.ts.
+   *
+   * Defaults to US English rather than to the browser's, because the dates
+   * this screen writes go into `Event.dates` — a free-text column read by
+   * every other screen and by the public board. A default that varied by
+   * whoever was typing would make the stored value depend on the laptop.
+   */
+  locale?: string;
   /**
    * Two people playing each other, rather than a tournament.
    *
@@ -164,13 +167,13 @@ export function EventSetupClient({
     setStartDate(v);
     const end = endDate || v;
     if (!endDate) setEndDate(v);
-    if (v) set("dates", fmtRange(v, end));
+    if (v) set("dates", formatDayRange(v, end, locale));
   };
   const onEndDate = (v: string) => {
     setEndDate(v);
     const start = startDate || v;
     if (!startDate) setStartDate(v);
-    if (v) set("dates", fmtRange(start, v));
+    if (v) set("dates", formatDayRange(start, v, locale));
   };
   const onDeadlineDate = (v: string) => {
     setDeadlineDate(v);
@@ -556,7 +559,7 @@ export function EventSetupClient({
             <input className="input" type="date" value={deadlineDate} max={startDate || undefined} onChange={(e) => onDeadlineDate(e.target.value)} />
             {f.regDeadline && (
               <p className="text-muted" style={{ fontSize: 12, margin: "4px 0 0" }}>
-                {formatDeadline(f.regDeadline)}
+                {formatDeadline(f.regDeadline, locale)}
               </p>
             )}
           </div>

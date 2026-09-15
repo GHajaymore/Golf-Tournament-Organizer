@@ -241,9 +241,26 @@ describe("what a format implies", () => {
 
   it("reports side size as a range", () => {
     expect(sideSizeRange("Stroke Play")).toEqual({ min: 1, max: 1 });
+    // Exactly two a side, so an odd field genuinely leaves somebody without a
+    // partner — that is golf, not a gap in the draw.
     expect(sideSizeRange("Four-Ball")).toEqual({ min: 2, max: 2 });
     expect(sideSizeRange("Best Ball")).toEqual({ min: 2, max: 4 });
-    expect(sideSizeRange("Scramble")).toEqual({ min: 4, max: 4 });
+    /**
+     * TWO TO FOUR, which this line asserted as four-to-four until 2026-09-14.
+     *
+     * It was pinning the app's behaviour rather than the game. A scramble is
+     * played two, three or four a side; the format's own `weightsBySideSize`
+     * carried allowances for all three; and the comment on `maxSideSize` in
+     * `formats.ts` said in as many words "a scramble is 2 to 4". Only this
+     * number disagreed, because `sideSizeRange` was returning `sideSize` — the
+     * size the DRAW aims for — as if it were the floor.
+     *
+     * What it cost: `snakeDraw` given fourteen players produced [3,3,4,4] and
+     * `teamProblems` then called two of those sides faulty. The app drew the
+     * field and rejected its own answer. See the-draw-agrees-with-itself.test.ts.
+     */
+    expect(sideSizeRange("Scramble")).toEqual({ min: 2, max: 4 });
+    expect(sideSizeRange("Texas Scramble")).toEqual({ min: 2, max: 4 });
   });
 });
 

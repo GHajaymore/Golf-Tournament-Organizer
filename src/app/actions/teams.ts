@@ -284,8 +284,18 @@ export async function autoDrawTeams(
   });
   if (players.length === 0) return { ok: false, error: "No confirmed players to draw." };
 
-  const { min } = sideSizeRange(stage.format);
-  const sides = snakeDraw(players, min);
+  /**
+   * THE SIZE TO AIM FOR, WHICH IS NOT THE MINIMUM.
+   *
+   * This read `sideSizeRange(stage.format).min`, and was only ever right
+   * because the two were the same number for every format — `sideSizeRange`
+   * returned `min: sideSize`. The moment a format declared a real minimum
+   * below its default, this would have drawn a scramble field into PAIRS.
+   *
+   * `snakeDraw`'s own parameter is named `sideSize`, so passing the floor was
+   * always the wrong quantity; it just had no way to show.
+   */
+  const sides = snakeDraw(players, findFormat(stage.format).sideSize, sideSizeRange(stage.format));
 
   for (let i = 0; i < sides.length; i += 1) {
     const team = await prisma.team.create({

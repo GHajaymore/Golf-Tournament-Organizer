@@ -7,6 +7,7 @@ import { HandicapSetup } from "@/components/HandicapSetup";
 import { integrationSetup } from "@/lib/services/integrations";
 import { ThemePicker } from "@/components/ThemePicker";
 import { CurrencyPicker } from "@/components/CurrencyPicker";
+import { LocalePicker } from "@/components/LocalePicker";
 import { OrganizationAccess } from "@/components/OrganizationAccess";
 import { organizationAccessReport } from "@/lib/services/access";
 import { organizationAccess } from "@/lib/services/org-access";
@@ -187,6 +188,15 @@ export default async function OrganizationPage() {
                 what the card below it is called. */}
             <span className="card-title" style={{ fontSize: 15 }}>Currency</span>
             <CurrencyPicker currency={org.currency} />
+            {/* Beside it, because they are two halves of one answer: the
+                currency was already the club's and the CONVENTIONS it was
+                written in were American, so a club set to euros still read
+                "€1,234.00". Same card rather than a new section — a club
+                setting one and not the other is the state that looked right
+                and was wrong. */}
+            <div style={{ marginTop: 14 }}>
+              <LocalePicker locale={org.locale} />
+            </div>
           </section>
         )}
         <MoneySetup

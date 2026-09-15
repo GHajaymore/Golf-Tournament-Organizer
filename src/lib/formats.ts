@@ -38,8 +38,32 @@ export interface GolfFormat {
   desc: string;
   /** Broad scoring family, for engines/UI hints. */
   family: ScoringFamily;
-  /** Players per side. 1 is an individual format and needs no team. */
+  /**
+   * Players per side, and the size the automatic draw AIMS FOR.
+   *
+   * 1 is an individual format and needs no team. This is the DEFAULT, not the
+   * floor: a scramble is drawn into fours because that is how a charity day is
+   * run, and is still a legal scramble with three.
+   */
   sideSize: number;
+  /**
+   * Lower bound where the format allows a range. Defaults to `sideSize`.
+   *
+   * SEPARATE FROM `sideSize` BECAUSE THE TWO GENUINELY DIFFER, and conflating
+   * them made the app contradict its own draw. `sideSizeRange` returned
+   * `min: sideSize`, so a scramble's minimum was 4 — while `snakeDraw`, given
+   * an ordinary field, produces sides of 3 and 2:
+   *
+   *     14 players -> [3, 3, 4, 4], and `teamProblems` called two of them
+   *                   "has 3 of 4 players"
+   *      5 players -> [3, 2], both reported broken
+   *
+   * The organizer had no remedy: the app had drawn the field itself and then
+   * declared its own answer faulty. And `weightsBySideSize` on both scramble
+   * entries already carried allowances for sides of 2, 3 and 4, so the scoring
+   * engine was ready for exactly the sides the validator rejected.
+   */
+  minSideSize?: number;
   /** Upper bound where the format allows a range — a scramble is 2 to 4. */
   maxSideSize?: number;
   ball: BallFormat;
@@ -292,8 +316,38 @@ export const GOLF_FORMATS: GolfFormat[] = [
     sideSize: 2,
     ball: "single",
     engine: "team-single",
-    allowance: 50,
-    allowanceIsConvention: true,
+    /**
+     * 60% OF THE LOW HANDICAP PLUS 40% OF THE HIGH — the published USGA
+     * recommendation, and the same shape as greensomes below rather than
+     * foursomes' flat 50% of the combined.
+     *
+     * This said `allowance: 50, allowanceIsConvention: true`, which was wrong
+     * twice. The 50% is the figure from the PRE-WHS USGA Handicap System,
+     * superseded when WHS came in; and `allowanceIsConvention` means, in this
+     * file's own words, "local convention rather than a published WHS
+     * recommendation" — so the round screen told an organizer "the common club
+     * convention for this format, not a published standard" about a format
+     * that has one.
+     *
+     * WHAT IT COST, and why it was invisible. A flat 50% of the combined and a
+     * 60/40 split agree exactly when the partners are equal, and diverge with
+     * the gap between them:
+     *
+     *     10 and 20   50% of 30 = 15   ·   60/40 = 6 + 8 = 14     one shot
+     *      5 and 25   50% of 30 = 15   ·   60/40 = 3 + 10 = 13    two shots
+     *     15 and 15   50% of 30 = 15   ·   60/40 = 9 + 6 = 15     agree
+     *
+     * So it was correct on the evenly-matched pairs anybody would check it
+     * with, and wrong precisely on the mismatched ones the allowance exists
+     * for — always in the same direction, handing the weaker pairing shots it
+     * had not earned.
+     *
+     * `allowance: 100` mirrors greensomes: for a format carrying
+     * `weightsBySideSize`, the split is what `sidePlayingHandicap` applies and
+     * this number is never used in the arithmetic.
+     */
+    allowance: 100,
+    weightsBySideSize: { 2: [60, 40] },
     scored: true,
     playable: true,
   },
@@ -317,7 +371,11 @@ export const GOLF_FORMATS: GolfFormat[] = [
     name: "Scramble",
     family: "team",
     desc: "Everyone plays, the team picks the best shot, and everyone plays again from there. The kindest format for mixed ability.",
+    // Drawn into fours, legal from two — which is what the allowance table
+    // below has always said, and what the field note on `minSideSize` says the
+    // app used to contradict.
     sideSize: 4,
+    minSideSize: 2,
     maxSideSize: 4,
     ball: "single",
     engine: "team-single",
@@ -348,7 +406,11 @@ export const GOLF_FORMATS: GolfFormat[] = [
     name: "Texas Scramble",
     family: "team",
     desc: "A scramble with a minimum number of drives that must be used from each player, so nobody is a passenger.",
+    // Same range as a plain scramble, for the same reason — and note the
+    // minimum-drives rule makes a short side MORE likely to be wanted, not
+    // less: a side of two owes four drives each rather than two.
     sideSize: 4,
+    minSideSize: 2,
     maxSideSize: 4,
     ball: "single",
     engine: "team-single",
@@ -669,7 +731,10 @@ export function sharesOneCard(formatName: string): boolean {
  */
 export function sideSizeRange(formatName: string): { min: number; max: number } {
   const f = findFormat(formatName);
-  return { min: f.sideSize, max: f.maxSideSize ?? f.sideSize };
+  // `sideSize` is the draw's TARGET, not the floor — see the field's own note.
+  // This read `min: f.sideSize`, which made a scramble's minimum four and every
+  // side of three the app itself drew a reported fault.
+  return { min: f.minSideSize ?? f.sideSize, max: f.maxSideSize ?? f.sideSize };
 }
 
 /**
