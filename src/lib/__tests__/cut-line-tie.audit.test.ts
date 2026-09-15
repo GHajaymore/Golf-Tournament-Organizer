@@ -37,6 +37,9 @@ async function seedTiedStrokeEvent() {
     data: {
       organizationId: orgId,
       name: `${TAG} ${Date.now()}`,
+      // LAUNCHED: this fixture scores the tournament, and scoring is the play
+      // phase — see phase-gate.ts#playRefusal.
+      status: "live",
       dates: "",
       course: "",
       city: "",
@@ -207,6 +210,9 @@ async function seedTiedMatchEvent(opts: { tiebreakers: string }) {
     data: {
       organizationId: orgId,
       name: `${MTAG} ${Date.now()}`,
+      // LAUNCHED: this fixture scores the tournament, and scoring is the play
+      // phase — see phase-gate.ts#playRefusal.
+      status: "live",
       dates: "",
       course: "",
       city: "",
