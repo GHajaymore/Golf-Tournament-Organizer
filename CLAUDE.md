@@ -784,6 +784,46 @@ the Write or Edit tool, never through a heredoc or `node -e`.** Where a script
 must match text, prefer `indexOf` / `includes` / `split` — none of them need an
 escape, and a sweep built from them cannot be silently disarmed.
 
+**A REBASE CAN REFUSE OVER A FILE THAT HAS NOT CHANGED, and `git diff` shows
+you nothing.** Measured 2026-09-15 in a worktree, during the `Group` migration
+work. `git rebase` refused with:
+
+```
+error: cannot rebase: You have unstaged changes.
+```
+
+naming `prisma/migrations/migration_lock.toml` — a file whose content was
+BYTE-IDENTICAL to HEAD. `git diff` showed **no hunks at all**. `prisma migrate`
+had rewritten it with different line endings, so the working-tree blob and the
+index blob differ while the text does not.
+
+That last part is the whole reason it costs an hour rather than a minute. Every
+instinct says a refusal means there is a change to find, and there is nothing to
+find — so the time goes on looking for a diff that does not exist rather than on
+the line endings.
+
+**Both of the obvious escapes are closed here**, which is worth knowing before
+reaching for either:
+
+- `git stash` is hard rule 5 — the stash stack is shared with the main checkout
+  and every other worktree;
+- `git checkout -- <file>` is the command that on 2026-09-05 took a day's
+  uncommitted work along with the experiment it was meant to undo.
+
+The fix is:
+
+```bash
+git add --renormalize prisma/migrations/migration_lock.toml
+```
+
+It re-stages the file through the repository's EOL rules; when the normalized
+blobs match — which is the whole point, since the content never changed — the
+entry collapses to nothing and the rebase proceeds. Non-destructive, touches no
+other file, and it does not go near the shared stash stack.
+
+Read the shape rather than the filename: **any tool that rewrites a file it
+also owns** can do this. Prisma is simply the one that did.
+
 **A SWEEP THAT FINDS NOTHING MAY BE BROKEN, so give every one a control.**
 This is the same discipline as proving a test can fail, applied to the
 instrument instead of the subject: assert that something you KNOW the sweep
