@@ -96,12 +96,41 @@ de-duplicate a stranger on, and sends a confirmation. If a society ever wants a
 public link that accepts name-only entries, all three of those need an answer
 first.
 
-### ~23 unanchored `toMatch(/<prop>=\{/)` assertions across the test suite
+### ~23 unanchored `toMatch(/<prop>=\{/)` assertions — SWEPT 2026-09-15, there was ONE
 #292 found that `/hasTeeSheet=\{/` matches inside `x-hasTeeSheet={` — an
 attribute React never reads — so the assertion passed against markup that did
 not do the job. The two instances found were anchored; the rest of the suite
 shares the weakness. Not swept, because camelCase makes real collisions narrow
 and a mechanical 20-file change was judged scope expansion at the time.
+
+**The estimate was wrong in the good direction.** Swept: **35** `=\{`
+assertions exist and **34 of them pin a whole VALUE** —
+`staffApproves={!allowsAutoConfirm(settings)}` — which cannot be satisfied by a
+longer prop name, because the collision would have to eat the name *and* the
+expression. Exactly one was a bare presence check (`organizationNamed=\{`), and
+no attribute in the product collides with it. So the suite was already clean
+and the "mechanical 20-file change" never existed to be deferred.
+
+**The HAZARD is real even though the suite is clean, which is why this closed
+with a guard rather than a tick.** Measured across the 175 product `.tsx` files
+with comments stripped: 390 distinct attribute names and **59 real suffix
+collisions** among them. A bare assertion written tomorrow on any of these is
+silently satisfied by its neighbour:
+
+    label <- aria-label      key <- data-flip-key    round <- ground
+    hidden <- aria-hidden    hole <- submitWhole     locked <- configUnlocked
+    selected <- aria-selected   expanded <- aria-expanded   fill <- prefill
+
+`aria-label` is the one to think about: a test meaning to assert a component
+receives a `label` prop passes on any element in the file with an accessible
+name.
+
+`presence-assertions-are-anchored.test.ts` is the sink — it refuses a bare
+`name=\{`, and carries controls on its own extractor, on the classifier, and on
+the collision scan. **One trap it records:** the first version of the collision
+scan did not strip comments and reported `x-hasTeeSheet` as live markup. It is
+not — it exists only inside the comment in `render.test.tsx` documenting this
+bug. The file explaining a defect becomes the first hit of every sweep for it.
 
 ---
 
