@@ -13,11 +13,14 @@
  * Everything created is named for the mark, so cleanup can only remove its own
  * rows: never the demo data, never a real event.
  */
+import { runMark } from "./run-mark.mjs";
 import { PrismaClient } from "@prisma/client";
 import { createHmac, randomBytes } from "node:crypto";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:3100";
-const MARK = "zz-verify-week-view";
+// Per worktree — a fixed mark lets one run's opening delete reach into a
+// concurrent run's rows. See scripts/run-mark.mjs.
+const MARK = runMark("zz-verify-week-view");
 const prisma = new PrismaClient();
 
 const made = {};
