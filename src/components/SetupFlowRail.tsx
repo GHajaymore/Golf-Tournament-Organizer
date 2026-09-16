@@ -23,20 +23,32 @@ export function SetupFlowRail({ flow, href }: { flow: SetupFlow | null; href: st
   if (!flow) return null;
 
   /**
-   * FINISHED, AND STILL INVISIBLE TO EVERYBODY IN IT.
+   * FINISHED, AND NOT YET LAUNCHED.
    *
    * The gap this closes was in the first version of this rail: it guided an
    * organizer through four steps and then vanished, at the exact moment the
    * tournament became real. Nothing said they were finished, and nothing said
-   * the thing that actually matters — until it is launched, nobody in the
-   * field can see their schedule, their card or the leaderboard. The existing
-   * warning about that fires only once a SCORE has been entered, which is the
-   * morning of, and a day too late to be useful.
+   * what launching would do.
+   *
+   * THIS HEADER USED TO SAY "still invisible to everybody in it" — that until
+   * it is launched, nobody in the field can see their schedule, their card or
+   * the leaderboard. That is false, and the comment thirty lines below says so
+   * from a measurement: on 2026-09-11, as a player on a `draft` tournament,
+   * the board rendered, the card rendered, and it offered to certify.
+   * `launchTournament` writes status, launchedAt and configUnlocked and
+   * nothing else; visibility is `leaderboardVisibility`, which is a different
+   * setting on a different screen.
+   *
+   * So the copy was corrected and this paragraph was not — leaving the file
+   * asserting in its header the thing it disproves in its body, which is the
+   * version a reader skimming for context takes away. Same disease as two
+   * screens disagreeing, one layer down: see `LAUNCH_DOES`, which both the
+   * live copy here and the dashboard warning now read so they cannot drift.
    *
    * One card, on the setup screens only, and it clears itself the moment the
    * tournament is launched. It offers the launch rather than performing it:
-   * launching locks configuration and hands out player access, which is an
-   * organizer's decision and not a tidy-up this component may do for them.
+   * launching locks configuration, which is an organizer's decision and not a
+   * tidy-up this component may do for them.
    */
   if (flow.readyToLaunch) {
     return (
