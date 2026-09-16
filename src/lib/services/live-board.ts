@@ -12,6 +12,8 @@ import { resolveCourse } from "../courses";
 import { brandForEvent, themeForEvent } from "./organization";
 import { themeCss, playerColorScheme } from "../themes";
 import { holesPlayed } from "../domain/handicap";
+import { matchIsOver } from "../domain/match";
+import type { HoleResult } from "../domain/types";
 
 /**
  * Everything the public board shows, computed once and shared by the crowd.
@@ -79,6 +81,39 @@ export interface LiveBoardView {
   brand: Awaited<ReturnType<typeof brandForEvent>>;
   themeStyleSheet: string;
   colorScheme: string;
+}
+
+/**
+ * Whether a fixture on this round is OVER — decided, not merely begun.
+ *
+ * `matchSettled` used to be what `allIn` asked, and it is satisfied by a match
+ * with ONE HOLE on it. So the chip on `/live` read "Final" while every pairing
+ * was still on the 2nd tee, to a club's spectators — the widest audience
+ * anything in this app has. The card branch beside it demands `thru >=
+ * holeCount` from every player who is in, so the two halves of one question
+ * were held to completely different standards.
+ *
+ * `matchIsOver` is the strict reading and the distinction is already written
+ * down on both functions. Its own doc block records the PREVIOUS instance of
+ * this exact confusion, in `roundMoneyFor`, which is why the wording there is
+ * so emphatic. A closeout counts, so 5&4 is over with four holes unplayed, and
+ * the empty card — `resolveMatch([])` is complete, because nothing is left to
+ * play — is guarded explicitly, which is what stops a drawn round nobody has
+ * touched announcing Final before the first tee shot.
+ *
+ * `matchSettled` stays right where it is used for PROGRESS: "which round is
+ * the tournament on" wants the loose reading, and this is a claim about a
+ * result.
+ */
+function roundMatchIsOver(m: { holes: string; forfeitedBy?: string | null }): boolean {
+  if (m.forfeitedBy) return true;
+  try {
+    return matchIsOver(JSON.parse(m.holes) as HoleResult[]);
+  } catch {
+    // An unreadable card is not a finished match. Reading it as one would
+    // announce a result off a parse error.
+    return false;
+  }
 }
 
 /**
@@ -183,6 +218,7 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
    * leave the board reading "Live" for a round that ended hours ago.
    */
   const roundMatches = activeStage ? state.matches.filter((m) => m.stageId === activeStage.id) : [];
+
   /**
    * AND THE COMMITTEE'S OWN WORD, which outranks both readings.
    *
@@ -246,7 +282,7 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
   const allIn =
     declaredFinal ||
     (roundMatches.length > 0
-      ? roundMatches.every((m) => matchSettled(m))
+      ? roundMatches.every(roundMatchIsOver)
       : expected.length > 0 &&
         expectedStarted.length === expected.length &&
         expectedStarted.every((r) => r.thru >= holeCount));
