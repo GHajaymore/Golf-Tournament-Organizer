@@ -273,7 +273,7 @@ async function gather(eventId: string): Promise<LiveBoardView | null> {
     cutNote: cutLineNote(state) ?? "",
     // The same expression `(player)/me/board` uses, so the two boards built
     // from one component cannot label the same column differently.
-    unit: state.boardIsStroke ? state.strokeUnit : "match points",
+    unit: state.boardIsStroke ? state.strokeUnitLabel : "match points",
     manualFormat: kind === "manual",
     allIn,
     roundLabel: activeStage?.description?.trim() || activeStage?.type || "",
