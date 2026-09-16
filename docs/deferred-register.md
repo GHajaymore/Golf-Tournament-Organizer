@@ -10,7 +10,7 @@ Every entry says what it is, why it was left, and what has to be answered before
 it can be picked up. **Add to it whenever a change stops short of something**,
 and delete an entry when it is done rather than marking it done — git remembers.
 
-Last reviewed 2026-09-11.
+Last reviewed 2026-09-15.
 
 ---
 
@@ -380,7 +380,7 @@ will not know it happened. It wants:
   defaults — almost certainly leave them alone, the same call `eventCount > 0`
   makes for the club-first gate.
 
-### "Society" is a British word — DEFAULT half BUILT 2026-09-15, OVERRIDE half open
+### "Society" is a British word — BOTH HALVES BUILT 2026-09-15
 **What shipped (#373).** A `community` is a *league* in the United States and a
 *society* everywhere else, resolved from `Organization.country` through
 `orgProfile(kind, country)` and delivered by `OrgProfileProvider`, which was
@@ -389,13 +389,22 @@ strings vary together; a test pins that, and another pins that no country
 flips any behavioural flag on any kind (a society in Boston still fronts the
 minibus).
 
-**What is NOT built: the ORGANIZER AS AUTHORITY half.** The design below says
-"the country as the DEFAULT, the organizer as the AUTHORITY" and only the
-default exists. There is no way to overrule it, so a US club that thinks of
-itself as a society cannot say so. That needs somewhere to store the choice —
-a column — and it was deliberately not started on 2026-09-15 because a second
-session was mid-migration on `Group` and two concurrent migrations is how one
-of them ends up reverted. Pick it up once that has landed.
+**And the ORGANIZER AS AUTHORITY half (#377).** `Organization.communityNoun`
+holds the outfit's own word — society, league or association — and it beats the
+country. Empty means "follow the country", which is what every row already
+meant, so nothing was backfilled.
+
+Building it found that the COUNTRY half had never reached four readers: the
+settings page heading, the sidebar, the browser tab title and the setup
+checklist all resolved from `orgProfile(kind)` alone. The first of those sits
+directly under the control that sets the word, so an organizer could pick
+"league", save, and watch the page not change. Nine of eleven such calls now
+pass all three arguments, and `the-outfit-is-resolved-whole.test.ts` refuses a
+twelfth — the two that remain cannot produce a word anybody reads.
+
+Found by RENDERING, not reading. Same lesson as the five hardcoded "club"
+strings in #373, two of which were `aria-label`s that no assertion on visible
+text could have caught.
 
 **Australia is a decision, not an omission.** The note below says such an
 outfit is "often just a club". Calling a `community` a "club" collides with the
@@ -650,3 +659,58 @@ nothing in the repo can fix it.
   nothing" and the messaging migration are blocked on existing rows, not on
   design — and the blocking question is the same one in each case: what happens
   to the records that predate the rule.
+
+---
+
+## 6. The scoring engine, mutation-tested
+
+Measured 2026-09-15 by breaking each rule and counting what went red. Recorded
+because a clean result is expensive to produce and worthless once forgotten —
+the next person otherwise re-derives it, and CLAUDE.md's own line is that
+learning a class is finished is itself the result worth having.
+
+Every mutation below was **confirmed applied** before the run. That matters
+more than it sounds: three of these silently did not apply the first time,
+because a `node -e` replace written with `\n` matches nothing against a
+CRLF checkout, exits 0, and produces a GREEN run that reads exactly like
+"the test cannot catch this" — the one outcome that makes somebody weaken a
+good test. Mutate through the Edit tool, or print whether the file changed.
+
+| what was broken | tests that failed |
+|---|---|
+| `holesPlayed` — a nine-hole round allocates on an 18-hole base | **64** |
+| `closeoutOf` — dormie counted as closed out (off by one) | **23** |
+| `holeStrokesReceived` — shots go to the easiest holes, not the hardest | **18** |
+| `survivors` — the cut advances the BOTTOM of the field | **18** |
+| `seasonStandings` — ranked on the raw sum, so missing weeks wins the league | 27 |
+| `playSkins` — a tied hole pays the first player instead of carrying | 10 |
+| `courseHandicap` — the WHS slope term dropped | 9 |
+| `stablefordPointsForHole` — off by one, net par scores 1 | 9 |
+| `rankPlayers` — standings comparator inverted | 9 |
+| `seedOrder` — naive 1,2,3,4 draw, so seeds 1 and 2 meet in round one | 8 |
+| `playSkins` — the carry dropped, a carried hole pays 1 | 6 |
+| `indexForHoles` — the nine-hole index conversion ignored | 6 |
+| **`allocatedStrokes` — the handicap allowance ignored entirely** | **1** |
+
+The last row is the one that mattered. Every player off their full course
+handicap in every team format — four-ball, foursomes, greensomes, Chapman,
+both scrambles — failed exactly ONE test in a suite of seven thousand.
+`aggregateTeamCard` is the scoring path for all of them.
+
+`matrix.test.ts` has a block named "round handicaps, at every field size and
+every allowance", which is why nobody looked: it sweeps how a handicap is
+RESOLVED — member, override, frozen, editable — and never what a side plays off
+once the format's allowance is applied. Closed in #381 with nineteen cells,
+one per team format per legal side size.
+
+**The same blind spot, twice in one day.** The allowance TABLE had it too:
+reverting Chapman to its old wrong value left `matrix.test.ts` at 595 of 595
+passing, and only `handicap-allowances.test.ts` caught it. Both gaps sat behind
+a block whose NAME suggested coverage it did not have. When judging whether a
+cell earns its green, read what it asserts rather than what it is called.
+
+**Fixture handicaps must be spread.** Four equal handicaps make a 25/20/15/10
+scramble table and a flat 17.5% agree exactly, so an even fixture cannot tell a
+weighted format from a flat one. That is precisely how Chapman shipped a
+pre-WHS flat 50% for months — right on the evenly-matched pairs anybody checks
+it with, wrong on the mismatched ones the allowance exists for.
