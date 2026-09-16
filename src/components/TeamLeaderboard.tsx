@@ -1,5 +1,6 @@
 import type { TeamStanding } from "@/lib/services/teams";
 import { toParText } from "@/lib/domain";
+import { placesByValue } from "@/lib/domain/flight-places";
 
 /**
  * Standings for a team round.
@@ -17,6 +18,19 @@ export function TeamLeaderboard({
   rows: TeamStanding[];
 }) {
   const started = rows.filter((r) => r.played > 0);
+  /**
+   * ON WHATEVER THIS ROUND IS RANKED BY, which the sort already knows and the
+   * `#` column did not: points for a Stableford round, net strokes otherwise.
+   *
+   * Both branches of that sort end in `name.localeCompare`, so two sides level
+   * on the score were printed 1st and 2nd in alphabetical order — on the
+   * console, on Reports and on the public share link.
+   */
+  const places = placesByValue(
+    rows,
+    (r) => (stableford ? r.points : r.net),
+    (r) => r.played > 0,
+  );
 
   return (
     <>
@@ -58,7 +72,7 @@ export function TeamLeaderboard({
                 {rows.map((r, i) => (
                   <tr key={r.teamId}>
                     <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                      {r.played > 0 ? i + 1 : "—"}
+                      {places[i] ?? "—"}
                     </td>
                     <td>
                       <div style={{ fontWeight: 500 }}>{r.name}</div>

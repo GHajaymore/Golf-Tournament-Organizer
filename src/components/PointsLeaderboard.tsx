@@ -1,4 +1,5 @@
 import type { SkinsBoard, NassauMatchRow, ModStablefordRow } from "@/lib/services/points-standings";
+import { placesByValue } from "@/lib/domain/flight-places";
 
 /**
  * Boards for the formats that read an ordinary card a different way.
@@ -10,6 +11,10 @@ import type { SkinsBoard, NassauMatchRow, ModStablefordRow } from "@/lib/service
 export function SkinsLeaderboard({ board, net }: { board: SkinsBoard; net: boolean }) {
   const { outcome, nameById } = board;
   const played = outcome.holes.length;
+  // Two players on the same number of skins are level — the sort's fallback is
+  // `playerId.localeCompare`, so `i + 1` placed them in cuid order on a table
+  // that decides money. Skins has no tiebreak; the pot divides by skins won.
+  const places = placesByValue(outcome.standings, (s) => s.skins, (s) => s.skins > 0);
 
   return (
     <>
@@ -40,7 +45,7 @@ export function SkinsLeaderboard({ board, net }: { board: SkinsBoard; net: boole
               <tbody>
                 {outcome.standings.map((s, i) => (
                   <tr key={s.playerId}>
-                    <td style={{ fontVariantNumeric: "tabular-nums" }}>{s.skins > 0 ? i + 1 : "—"}</td>
+                    <td style={{ fontVariantNumeric: "tabular-nums" }}>{places[i] ?? "—"}</td>
                     <td style={{ fontWeight: 500 }}>{nameById[s.playerId] ?? "—"}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
                       {s.skins}
@@ -158,6 +163,10 @@ export function NassauLeaderboard({ rows }: { rows: NassauMatchRow[] }) {
 }
 
 export function ModifiedStablefordLeaderboard({ rows }: { rows: ModStablefordRow[] }) {
+  // Level on points is level. The sort falls back to gross and then to
+  // `name.localeCompare`, so `i + 1` printed two players on 38 points as 1st
+  // and 2nd alphabetically.
+  const places = placesByValue(rows, (r) => r.points, (r) => r.played > 0);
   return (
     <>
       <div style={{ marginBottom: 20 }}>
@@ -187,7 +196,7 @@ export function ModifiedStablefordLeaderboard({ rows }: { rows: ModStablefordRow
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={r.playerId}>
-                    <td style={{ fontVariantNumeric: "tabular-nums" }}>{r.played > 0 ? i + 1 : "—"}</td>
+                    <td style={{ fontVariantNumeric: "tabular-nums" }}>{places[i] ?? "—"}</td>
                     <td style={{ fontWeight: 500 }}>{r.name}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{r.handicap}</td>
                     <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{r.played}</td>

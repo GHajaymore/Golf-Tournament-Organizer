@@ -820,6 +820,123 @@ describe("leaderboards for every format", () => {
     expect(html).toContain("Ann");
     expect(html).toContain("-4");
   });
+
+  /**
+   * THE `#` COLUMN IS A PLACE, AND THESE THREE INVENTED IT.
+   *
+   * Each printed `i + 1`, so what separated two rows level on the score was
+   * the sort's last fallback — a cuid on skins, a name on the other two. The
+   * rule lives in `placesByValue` and is asserted in
+   * `places-are-not-invented.test.ts`; these cells exist because a correct
+   * rule proves nothing about whether the component asks it. All three render
+   * on the public share link.
+   *
+   * The assertion is the ROW, not the digit — `toContain("1")` is satisfied by
+   * a handicap, a hole count or a score, so it would pass on any markup at all.
+   */
+  const placeOf = (html: string, name: string): string => {
+    // The FIRST cell of the row carrying this name — the `#` column in all
+    // three tables. Taken off the enclosing `<tr>` rather than by walking back
+    // from the name, because two of the three wrap the name in a `<div>` and
+    // the nearest preceding cell is then the name's own.
+    // The FIRST table only. Skins renders a second one underneath listing who
+    // won each hole, so an unscoped search finds the same player twice — and
+    // would then read a place off the wrong table.
+    const standings = html.split("</table>")[0];
+    const rows = standings.split("<tr").filter((r) => r.includes(name));
+    expect(rows, `no single row for ${name}`).toHaveLength(1);
+    const cells = rows[0].split("<td").slice(1);
+    // Strip the attributes, then any markup, leaving the cell's own text.
+    return (cells[0] ?? "").replace(/^[^>]*>/, "").split("</td")[0].replace(/<[^>]*>/g, "").trim();
+  };
+
+  it("shares a skins place between two players on the same number of skins", () => {
+    /**
+     * Ann wins the 1st, Bob the 2nd, and the 3rd is halved and carries. Two
+     * players on one skin each — and skins has no tiebreak at all, so the
+     * order came from `playerId.localeCompare` on a table that decides money.
+     */
+    const outcome = playSkins(
+      [
+        { playerId: "a", strokes: [3, 5, 4], courseHandicap: 0 },
+        { playerId: "b", strokes: [5, 3, 4], courseHandicap: 0 },
+      ],
+      3,
+    );
+    expect(outcome.standings.map((s) => s.skins), "the fixture has to earn its tie").toEqual([1, 1]);
+
+    const html = render(
+      <SkinsLeaderboard net={false} board={{ outcome, nameById: { a: "Ann", b: "Bob" } }} />,
+    );
+    expect(placeOf(html, "Ann")).toBe("1");
+    expect(placeOf(html, "Bob"), "two players on one skin each were 1st and 2nd").toBe("1");
+  });
+
+  it("shares a modified Stableford place between two players level on points", () => {
+    // Both on 12. The sort falls through points, then gross, then the NAME —
+    // so this pair was placed alphabetically and printed as 1st and 2nd.
+    const html = render(
+      <ModifiedStablefordLeaderboard
+        rows={[
+          { playerId: "p1", name: "Ann", handicap: 10, points: 12, played: 18, gross: 78 },
+          { playerId: "p2", name: "Bob", handicap: 14, points: 12, played: 18, gross: 82 },
+          { playerId: "p3", name: "Cal", handicap: 8, points: 4, played: 18, gross: 84 },
+        ]} />,
+    );
+    expect(placeOf(html, "Ann")).toBe("1");
+    expect(placeOf(html, "Bob"), "two players on 12 points were 1st and 2nd").toBe("1");
+    expect(placeOf(html, "Cal"), "the place after a shared one skips").toBe("3");
+  });
+
+  it("shares a team place between two sides level on net", () => {
+    const html = render(
+      <TeamLeaderboard format="Four-Ball" stableford={false}
+        rows={[
+          { teamId: "t1", name: "Ants", members: ["Ann"], playingHandicap: 7,
+            gross: 72, net: 65, points: 0, played: 18, toPar: -7 },
+          { teamId: "t2", name: "Bees", members: ["Bob"], playingHandicap: 9,
+            gross: 74, net: 65, points: 0, played: 18, toPar: -7 },
+          { teamId: "t3", name: "Cats", members: ["Cal"], playingHandicap: 4,
+            gross: 71, net: 67, points: 0, played: 18, toPar: -5 },
+        ]} />,
+    );
+    expect(placeOf(html, "Ants")).toBe("1");
+    expect(placeOf(html, "Bees"), "two sides on 65 net were 1st and 2nd").toBe("1");
+    expect(placeOf(html, "Cats")).toBe("3");
+  });
+
+  it("ranks a team round on POINTS when it is a Stableford one", () => {
+    /**
+     * The guard against reading the wrong column. These two are level on
+     * points and apart on net, so a reader keyed on net would separate them —
+     * and the board's own sort, which this must agree with, uses points here.
+     */
+    const html = render(
+      <TeamLeaderboard format="Four-Ball" stableford
+        rows={[
+          { teamId: "t1", name: "Ants", members: ["Ann"], playingHandicap: 7,
+            gross: 72, net: 65, points: 38, played: 18, toPar: 0 },
+          { teamId: "t2", name: "Bees", members: ["Bob"], playingHandicap: 9,
+            gross: 80, net: 71, points: 38, played: 18, toPar: 0 },
+        ]} />,
+    );
+    expect(placeOf(html, "Ants")).toBe("1");
+    expect(placeOf(html, "Bees"), "level on points, separated by a number this round ignores").toBe("1");
+  });
+
+  it("still leaves a side that has not returned a card unplaced", () => {
+    const html = render(
+      <TeamLeaderboard format="Scramble" stableford={false}
+        rows={[
+          { teamId: "t1", name: "Ants", members: ["Ann"], playingHandicap: 7,
+            gross: 72, net: 65, points: 0, played: 18, toPar: -7 },
+          { teamId: "t2", name: "Bees", members: [], playingHandicap: 0,
+            gross: 0, net: 0, points: 0, played: 0, toPar: 0 },
+        ]} />,
+    );
+    expect(placeOf(html, "Ants")).toBe("1");
+    expect(placeOf(html, "Bees"), "a side with no card holds no position").toBe("—");
+  });
 });
 
 describe("rounds and format", () => {

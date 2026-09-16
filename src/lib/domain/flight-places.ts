@@ -34,16 +34,70 @@
  * skips, exactly as it does on the board this list came from.
  */
 export function placesWithin<T extends { rank: number }>(rows: readonly T[]): T[] {
+  const places = placesByValue(rows, (r) => r.rank, () => true);
+  return rows.map((row, i) => ({ ...row, rank: places[i] as number }));
+}
+
+/**
+ * THE SAME RULE WHERE THERE IS NO INCOMING RANK — only the score the table is
+ * ranked by.
+ *
+ * `placesWithin` exists because a list that KNEW about ties was handed to a
+ * renumbering that did not. Three boards have the same fault with nothing to
+ * carry through: they are the sole board for their round, they sort by a
+ * score, and they print the row's index as its position. What separates two
+ * rows level on that score is then whatever the sort's last fallback happened
+ * to be — and all three read, measured 2026-09-15:
+ *
+ *     skins                 b.skins - a.skins || a.playerId.localeCompare(...)
+ *     modified Stableford   b.points - a.points || a.gross - b.gross
+ *                                               || a.name.localeCompare(...)
+ *     team                  b.points - a.points || a.name.localeCompare(...)
+ *
+ * So two players on three skins each were printed 1st and 2nd **in cuid
+ * order**, and two sides level on points were placed **alphabetically** — on
+ * the organizer's console, on Reports, and on the public share link anybody
+ * can open. Skins is the sharpest of the three because it decides money: the
+ * pot divides by skins won, so the column contradicted the payout beside it.
+ *
+ * This does not invent a tiebreak. Where a board has one it should apply it
+ * and the rows will not be level here; where it has none, two equal scores
+ * share a place, which is what a results sheet prints.
+ *
+ * Returns one entry per row, in the same order — `null` for a row that holds
+ * no position at all, which every caller already renders as a dash.
+ */
+export function placesByValue<T>(
+  rows: readonly T[],
+  /** The number the list is ranked by — skins, points, net strokes. */
+  valueOf: (row: T) => number,
+  /**
+   * Whether this row holds a position. A side with no card and a player with
+   * no skins are on the sheet without one, and must not take a place off
+   * somebody who earned it — nor share one with each other.
+   */
+  placed: (row: T) => boolean,
+): (number | null)[] {
   let place = 0;
   let seen = 0;
   let previous: number | null = null;
+  let previousPlaced = false;
 
   return rows.map((row) => {
+    if (!placed(row)) {
+      // Not counted, so it cannot push the next placed row down — and it ends
+      // any run, so two unplaced rows never share a place with each other.
+      previous = null;
+      previousPlaced = false;
+      return null;
+    }
     seen += 1;
-    // A rank equal to the one before keeps that row's place; anything else
-    // takes the place its position in the list implies.
-    if (previous === null || row.rank !== previous) place = seen;
-    previous = row.rank;
-    return { ...row, rank: place };
+    const value = valueOf(row);
+    // Equal to the row before keeps that row's place; anything else takes the
+    // place its position in the list implies.
+    if (!previousPlaced || previous === null || value !== previous) place = seen;
+    previous = value;
+    previousPlaced = true;
+    return place;
   });
 }
