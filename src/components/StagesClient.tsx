@@ -18,6 +18,7 @@ import {
 import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices } from "@/lib/formats";
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
+import { roundStanding } from "@/lib/domain/round-standing";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { isTeamFormat } from "@/lib/side-style";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
@@ -1647,6 +1648,7 @@ export function StagesClient({
   chainsRounds = true,
   handicapWarning = null,
   activeStageId = null,
+  roundsWithResults = [],
   singleMatches,
   thirdPlaces,
 }: {
@@ -1669,6 +1671,17 @@ export function StagesClient({
   /** The round actually being played, decided on the server so this screen
    *  and every other one name the same round. */
   activeStageId?: string | null;
+  /**
+   * Ids of the rounds somebody has returned something for — one hole is
+   * enough. See `roundsWithResults`.
+   *
+   * Because `activeStageId` is a single pointer and a tournament does not play
+   * its rounds strictly one at a time: a round robin stays active while its
+   * results are confirmed and the medal round after it is scored meanwhile.
+   * Defaults to empty, so a caller not yet taught chips exactly what it
+   * chipped before.
+   */
+  roundsWithResults?: string[];
   /**
    * Resolved Single Match Stage views, by stage id.
    *
@@ -1794,13 +1807,14 @@ export function StagesClient({
             expanded={openRound === s.id}
             onToggle={() => setOpenRound((cur) => (cur === s.id ? null : s.id))}
             isFirst={i === 0}
-            standing={
-              activeStageId === s.id
-                ? "active"
-                : activeIndex >= 0 && i < activeIndex
-                  ? "played"
-                  : "upcoming"
-            }
+            standing={roundStanding({
+              isActive: activeStageId === s.id,
+              index: i,
+              activeIndex,
+              // Asking the ROUND rather than its index. See `roundStanding`:
+              // this chipped Round 2 "Upcoming" with seven cards in.
+              hasResult: roundsWithResults.includes(s.id),
+            })}
             nextStage={nextStage}
             rrMatchesPerPlayer={rrMatchesPerPlayer}
             scoring={scoring}

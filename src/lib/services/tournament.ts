@@ -336,6 +336,22 @@ export interface EventState {
   groups: DbGroup[];
   stages: DbStage[];
   matches: DbMatch[];
+  /**
+   * ROUNDS SOMEBODY HAS ACTUALLY RETURNED SOMETHING FOR.
+   *
+   * One hole answers it, which is the same line `playRefusal` and the
+   * lifecycle warning already draw — this is "has anybody been out on the
+   * course for this round", not "is it finished".
+   *
+   * Per ROUND, which is the part that was missing. `activeStage` is a single
+   * pointer, so any screen deciding a round's state from its index relative to
+   * that pointer calls everything after it upcoming — including a round the
+   * field has started. Read off the demo on 2026-09-16: Rounds & formats
+   * chipped Round 2 "Upcoming" with seven of thirty-three scorecards in, while
+   * the dashboard called the same round the current one and the leaderboard
+   * was ranking it.
+   */
+  roundsWithResults: Set<string>;
   /** Every Round Robin stage, in play order — a tournament can sequence more than one. */
   rrStages: DbStage[];
   /** Every round the field plays, including medal rounds that have no pairings. */
@@ -1627,6 +1643,37 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     groups,
     stages,
     matches,
+    /**
+     * Built from both tables, because a round's result lives in whichever one
+     * its format writes: a medal round returns `Scorecard` rows, a match round
+     * keeps the result on `Match.holes`, and net match play writes
+     * `MatchScorecard` as well. A set built from cards alone would call a
+     * round-robin night that has been played "upcoming" for ever.
+     *
+     * `/[1-9AaBbHh]/` is the same test `playRefusal` uses for "has anybody
+     * been out on the course" — one hole is enough.
+     */
+    roundsWithResults: new Set<string>([
+      ...scorecards.filter((c) => c.stageId).map((c) => c.stageId as string),
+      ...matchStrokeCards(matchCards, matches).map((c) => c.stageId),
+      ...matches.filter((m) => /[1-9AaBbHh]/.test(m.holes) || m.forfeitedBy).map((m) => m.stageId),
+      /**
+       * A KNOCKOUT'S RESULTS ARE NOT IN EITHER OF THOSE TABLES.
+       *
+       * `BracketWinner` is keyed by slot (`winners-0-1`) rather than by stage,
+       * so a bracket with every semi-final recorded holds no `Match` row and no
+       * card. Left out, the demo's Round 4 stayed "Upcoming" on a bracket whose
+       * final already had two names in it — which is how a rule fixed for one
+       * round type goes on being wrong for another.
+       *
+       * Any winner recorded means the knockout has started. Attributed to every
+       * knockout stage: the key does not name one, and a tournament with two
+       * brackets runs them off the same set of picks.
+       */
+      ...(bracketWinners.length > 0
+        ? stages.filter((s) => isKnockoutRound(s.type)).map((s) => s.id)
+        : []),
+    ]),
     rrStages,
     playRounds,
     activeStage,
