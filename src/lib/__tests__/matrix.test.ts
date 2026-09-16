@@ -12,7 +12,9 @@ import {
   needsTeams,
   resolveScoreInput,
   sideSizeRange,
+  GOLF_FORMATS,
 } from "@/lib/formats";
+import { sideHandicap } from "@/lib/domain/team";
 import { STAGE_TYPES, generatesPairings, isPlayingRound, stageTypeInfo, roundIsStroke, isHeadToHead } from "@/lib/stage-types";
 import {
   LEADERBOARD_VISIBILITY,
@@ -1993,5 +1995,88 @@ describe("a bracket never crowns a champion of a final nobody played", () => {
     const draw = drawBrackets(field(3), "split");
     expect(draw.second.length).toBe(1);
     expect(buildBracket("consolation", draw.second, {}).champion).toBeNull();
+  });
+});
+
+/**
+ * WHAT A SIDE ACTUALLY PLAYS OFF, on every team format and every legal size.
+ *
+ * FOUND BY MUTATION, 2026-09-15, and the number is the argument. Making
+ * `allocatedStrokes` ignore the allowance entirely — every player off their
+ * full course handicap in every team format — failed exactly ONE test in the
+ * whole suite. The same mutation on `courseHandicap`'s slope term fails nine.
+ *
+ * One hand-written unit test stood between a wrong allowance and a real card,
+ * and `aggregateTeamCard` is the scoring path: every four-ball, foursomes,
+ * greensomes, Chapman and scramble card is built on it.
+ *
+ * This file's own "round handicaps" block does not cover it, and reading the
+ * name suggests otherwise — it sweeps how a handicap is RESOLVED (member,
+ * override, frozen, editable) and never what the side plays off once the
+ * format's allowance is applied. Exactly the gap the allowance TABLE had,
+ * closed a few hours earlier in `handicap-allowances.test.ts`.
+ *
+ * ASSERTED AGAINST THE FORMAT'S OWN DECLARATION rather than against a second
+ * copy of the arithmetic: the expected number is computed here from
+ * `allowance` and `weightsBySideSize`, which is what CLAUDE.md means by
+ * asserting the rule rather than the behaviour.
+ */
+describe("what a side plays off, on every team format and size", () => {
+  const TEAM_FORMATS = GOLF_FORMATS.filter((f) => f.sideSize > 1);
+  // Distinct and spread, so a wrong weighting cannot land on the right answer
+  // by accident — four equal handicaps make 25/20/15/10 and a flat 17.5% agree.
+  const HANDICAPS = [4, 11, 19, 28];
+
+  it("has team formats to sweep", () => {
+    // The control. A filter that matched nothing would make every assertion
+    // below vacuous while the block still reported green.
+    expect(TEAM_FORMATS.length, "no team formats found").toBeGreaterThan(4);
+  });
+
+  for (const format of TEAM_FORMATS) {
+    const { min, max } = sideSizeRange(format.name);
+    for (let size = min; size <= max; size += 1) {
+      it(`${format.name}, side of ${size}`, () => {
+        const hcps = HANDICAPS.slice(0, size);
+        const weights = format.weightsBySideSize?.[size];
+        const got = sideHandicap(hcps, format.allowance, weights);
+
+        /**
+         * The expected number, worked from the format's declaration.
+         *
+         * A weighted format applies one percentage per player in ABILITY
+         * order — best first — and a flat one takes a percentage of the
+         * combined handicaps. Both are rounded once at the end, which is how
+         * an allowance is applied in practice and not per player.
+         */
+        const best = [...hcps].sort((a, b) => a - b);
+        const expected = weights
+          ? Math.round(best.reduce((sum, h, i) => sum + (h * (weights[i] ?? 0)) / 100, 0))
+          : Math.round((best.reduce((sum, h) => sum + h, 0) * format.allowance) / 100);
+
+        expect(got, `${format.name} side of ${size} plays off the wrong number`).toBe(expected);
+        expect(Number.isFinite(got)).toBe(true);
+        expect(got, "a side cannot play off a negative allowance").toBeGreaterThanOrEqual(0);
+      });
+    }
+  }
+
+  it("a weighted format does NOT agree with a flat one on mixed handicaps", () => {
+    /**
+     * THE CELL THAT MAKES THE REST MEAN SOMETHING. Every assertion above
+     * passes if `sideHandicap` ignores its weights and applies the flat
+     * allowance — as long as the two happen to agree on the fixture. They
+     * agree exactly when the partners are equal, which is why the handicaps
+     * here are spread.
+     *
+     * Chapman is the format this was found on: 60/40 and a flat 50% of the
+     * combined give the same answer on equal partners and diverge with the
+     * gap between them, which is why a wrong allowance survived in production
+     * until somebody checked a mismatched pair.
+     */
+    const pair = [6, 24];
+    const weighted = sideHandicap(pair, 100, [60, 40]);
+    const flat = sideHandicap(pair, 50);
+    expect(weighted, "the weights are not being applied").not.toBe(flat);
   });
 });
