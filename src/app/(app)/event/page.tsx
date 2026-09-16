@@ -5,6 +5,7 @@ import { TournamentFormatting } from "@/components/TournamentFormatting";
 import { requireScreen, isSetupLocked } from "@/lib/page-helpers";
 import { roundLabelWith } from "@/lib/domain/round-label";
 import { loadEventState, settingsOf } from "@/lib/services/tournament";
+import { strandedEntrantCount } from "@/lib/services/round-codes";
 import { hasKnockoutStage } from "@/lib/stage-types";
 import { enteredCardCount } from "@/lib/services/round-cards";
 import { PlaySettings } from "@/components/PlaySettings";
@@ -66,13 +67,25 @@ export default async function EventPage({
    * for it buys the other eleven their parallelism on every request that is
    * actually served.
    */
-  const [state, flow, eventTees, params, cardsIn, scanPlan] = await Promise.all([
+  const [state, flow, eventTees, params, cardsIn, scanPlan, strandedCount] = await Promise.all([
     loadEventState(session.eventId),
     setupFlowFor(session.eventId),
     teesForEvent(session.eventId),
     searchParams,
     enteredCardCount(session.eventId),
     entitlementForEvent(session.eventId, "cardScan"),
+    /**
+     * Entrants with no email address, so the sign-in control can say what
+     * turning Round Codes off would cost BEFORE the dropdown is touched.
+     *
+     * The same function `saveTournamentSettings` counts with, so the screen
+     * and the refusal cannot name different numbers — which is the fault this
+     * rule already had once, when a duplicated condition in the caller
+     * shadowed the real one.
+     *
+     * In this wave because it needs only the session, like the six above it.
+     */
+    strandedEntrantCount(session.eventId),
   ]);
   if (!state) redirect("/");
   const e = state.event;
@@ -302,6 +315,7 @@ export default async function EventPage({
           mode="tournament"
           settings={settingsOf(e)}
           canEdit={session.viewRole === "admin"}
+          strandedCount={strandedCount}
           shareToken={e.shareToken}
           rounds={state.stages.map((s) => ({
             stageId: s.id,

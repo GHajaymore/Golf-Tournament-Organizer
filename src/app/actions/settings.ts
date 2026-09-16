@@ -6,7 +6,7 @@ import { getSession } from "@/lib/auth";
 import { cleanSettings, usesAccessCodes, type TournamentSettings } from "@/lib/tournament-settings";
 import { lockoutRefusal, revokesCodes } from "@/lib/domain/access-lockout";
 import { generateAccessCode } from "@/lib/codes";
-import { ensureRoundCodes, revokeRoundCodes } from "@/lib/services/round-codes";
+import { ensureRoundCodes, revokeRoundCodes, strandedEntrantCount } from "@/lib/services/round-codes";
 import { organizationAccess } from "@/lib/services/org-access";
 
 /**
@@ -89,7 +89,7 @@ export async function saveTournamentSettings(input: Partial<TournamentSettings>)
    * field — a withdrawn player has no card to be locked out of.
    */
   const strandedCount = revokesCodes({ wasUsingCodes, nowUsingCodes })
-    ? await prisma.player.count({ where: { eventId, email: "", status: { not: "withdrawn" } } })
+    ? await strandedEntrantCount(eventId)
     : 0;
   const refusal = lockoutRefusal({ wasUsingCodes, nowUsingCodes, strandedCount });
   if (refusal) return { ok: false, error: refusal };

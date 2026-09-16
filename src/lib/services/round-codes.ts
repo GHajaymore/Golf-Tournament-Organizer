@@ -85,3 +85,27 @@ export async function ensureRoundCodes(eventId: string): Promise<void> {
 export async function revokeRoundCodes(eventId: string): Promise<void> {
   await prisma.stage.updateMany({ where: { eventId }, data: { accessCode: "" } });
 }
+
+/**
+ * ENTRANTS WHO WOULD BE STRANDED IF THE ROUND CODES WERE WITHDRAWN.
+ *
+ * One definition, two readers, and that is the whole reason it is a function.
+ * `saveTournamentSettings` counts them to REFUSE the change; the settings
+ * screen counts them to say so BEFORE the organizer makes it. Two copies of
+ * this query would drift the moment either grew a condition — and this file's
+ * own history is the argument: a duplicated `wasUsingCodes && !nowUsingCodes`
+ * in the caller once shadowed the real rule and left a mutation green.
+ *
+ * WITHDRAWN ENTRANTS ARE EXCLUDED, deliberately. A withdrawn player has no
+ * card to be locked out of, and counting them would refuse a safe change and
+ * name a number the organizer cannot reconcile with their own field.
+ *
+ * An empty string rather than null: `Player.email` is a non-nullable column
+ * defaulting to "", which is what `entryNeedsEmail` lets through when a
+ * tournament signs players in by code.
+ */
+export async function strandedEntrantCount(eventId: string): Promise<number> {
+  return prisma.player.count({
+    where: { eventId, email: "", status: { not: "withdrawn" } },
+  });
+}
