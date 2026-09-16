@@ -155,10 +155,61 @@ async function main() {
     check("points at the round", t.html, 'href="/stages"');
     check("no editing here", t.html, 'aria-label="Handicap allowance percent"', false);
 
+    /**
+     * THE DASHBOARD'S STATUS CARD IS THE ORGANIZER'S, AND BOTH ROLES OPEN THAT
+     * SCREEN.
+     *
+     * `LifecycleBar` reports where the organizer is in their workflow — draft
+     * or live, configuration locked, and the nudge when the stored status
+     * disagrees with the golf. `isAdmin` gated its button and not its sentence,
+     * so every player on the demo read "the 33 in the field can already open
+     * the board and their card, on a tournament that still calls itself a
+     * draft": a nudge, in the third person, about an admin task they cannot do.
+     *
+     * Here rather than in a unit test because the gate is at the CALL SITE on a
+     * server component, and this is the script that already exists to ask
+     * whether a control is on the screens that need it and off the ones that
+     * do not.
+     *
+     * BOTH DIRECTIONS. Asserting only the player's absence would pass just as
+     * well if the card had been deleted outright.
+     */
+    console.log("\nTournament status — the organizer's card, on a screen both roles open");
+    const playerEmail = `${MARK}-player@example.invalid`;
+    const playerUser = await prisma.user.create({
+      data: {
+        email: playerEmail,
+        name: "Verify Player",
+        password: `${randomBytes(8).toString("hex")}:unusable`,
+      },
+    });
+    made.playerUserId = playerUser.id;
+    await prisma.account.create({
+      data: { eventId: event.id, name: playerUser.name, email: playerEmail, role: "player" },
+    });
+    const playerMac = createHmac("sha256", secret).update(playerUser.id).digest("base64url");
+    const asPlayer = async (path) => {
+      const res = await fetch(BASE + path, {
+        headers: { cookie: `ng_session=${playerUser.id}.${playerMac}` },
+        redirect: "follow",
+      });
+      return { status: res.status, html: await res.text() };
+    };
+
+    const staffDash = await get("/dashboard");
+    const playerDash = await asPlayer("/dashboard");
+    console.log(`  status ${staffDash.status} staff / ${playerDash.status} player`);
+    check("staff see the status card", staffDash.html, "Tournament status");
+    check("the field does not", playerDash.html, "Tournament status", false);
+    // The control on the control: the player's dashboard is still a dashboard.
+    // Without this, deleting the whole page would pass the line above.
+    check("and still get their own dashboard", playerDash.html, "Tournament dashboard");
+
     console.log(`\n${failures === 0 ? "All checks passed." : `${failures} check(s) FAILED.`}`);
   } finally {
     if (made.eventId) await prisma.event.deleteMany({ where: { id: made.eventId } });
     if (made.userId) await prisma.user.deleteMany({ where: { id: made.userId } });
+    if (made.playerUserId) await prisma.user.deleteMany({ where: { id: made.playerUserId } });
     if (made.orgId) await prisma.organization.deleteMany({ where: { id: made.orgId } });
     await prisma.$disconnect();
     console.log("Fixtures removed.");
