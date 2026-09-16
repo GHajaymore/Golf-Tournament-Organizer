@@ -714,7 +714,28 @@ export default async function DashboardPage() {
         />
       )}
 
-      {!matchEvent && (
+      {/* STAFF FURNITURE, AND IT WAS ON EVERY PLAYER'S DASHBOARD.
+          The card is titled "Tournament status" and reports where the
+          ORGANIZER is in their workflow: draft or live, whether configuration
+          is locked, and the nudge when the stored status disagrees with the
+          golf. `isAdmin` already gates the button, the re-open control and the
+          refusal — but not the sentence, so the field read
+
+            "The tournament is being played and the app is calling it a draft.
+             Scoring works either way, so nothing is stuck — but the 33 in the
+             field can already open the board and their card, on a tournament
+             that still calls itself a draft."
+
+          Which is a nudge, addressed to somebody who can act on it, describing
+          the reader to themselves in the third person — thirty-three people
+          told the competition they are playing in is not quite real, about an
+          admin task none of them can do. Read off the demo as a player on
+          2026-09-16.
+
+          `isStaff` rather than `isAdmin`: an assistant runs the event and
+          should see the state. Only an admin can change it, which is what the
+          gates inside the component already say. */}
+      {!matchEvent && isStaff && (
         <LifecycleBar
           status={event.status}
           isAdmin={isAdmin}
