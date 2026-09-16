@@ -4058,6 +4058,98 @@ describe("the board answers 'where am I' first", () => {
 
   });
 
+  /**
+   * THE DASHBOARD PREVIEW HAS ROOM FOR ONE STROKE SCORE, AND IT WAS THE WRONG ONE.
+   *
+   * `compact` drops Thru and Gross for width, which on a GROSS competition left
+   * the single column of numbers showing the score the round is NOT decided on
+   * and hid the one it is. Read off the demo's dashboard on 2026-09-16:
+   *
+   *     1  Walkthrough Player   55        (gross 66)
+   *     2  Diego Alvarez        66        (gross 69)
+   *     3  Sang-woo Kim         65        (gross 70)
+   *     4  Elena Petrova        64        (gross 70)
+   *     5  AJ                   68        (gross 70)
+   *
+   * Nothing false — just a leaderboard whose only score column does not
+   * descend, because the order is gross and the column is net. The other half
+   * of `strokeUnitLabel`, which taught the two player-facing boards to say
+   * which strokes they are ranked by.
+   */
+  describe("the compact board shows the number the round is decided on", () => {
+    /**
+     * NO NUMBER APPEARS IN BOTH SETS. The first draft gave Ellis a net of 66
+     * and Moore a gross of 66, so "the column is not showing gross" could not
+     * be asserted without tripping over a legitimate net — a fixture that
+     * cannot tell the two answers apart, which is the whole thing being tested.
+     */
+    const pair = [
+      row({ id: "p1", rank: 1, name: "A. Moore", gross: 66, net: 55, toPar: -6 }),
+      row({ id: "p2", rank: 2, name: "B. Ellis", gross: 69, net: 58, toPar: -3 }),
+    ];
+    const scores = (html: string) =>
+      (html.split("</table>")[0].match(/<td[^>]*>(\d+)<\/td>/g) ?? []).map((c) =>
+        c.replace(/<[^>]*>/g, ""),
+      );
+
+    it("shows gross on a gross competition", async () => {
+      const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+      const html = render(<LeaderboardTable isStroke compact rankedOn="gross" rows={pair} />);
+      expect(html, "the column has to name itself").toContain(">Gross<");
+      expect(html).not.toContain(">Net<");
+      // The figures, not just the heading: 66 and 69 rather than 55 and 66.
+      expect(scores(html)).toContain("66");
+      expect(scores(html)).toContain("69");
+      expect(scores(html), "the nets").not.toContain("55");
+      expect(scores(html)).not.toContain("58");
+    });
+
+    it("shows net on a net competition — the control", async () => {
+      /**
+       * Which is what `compact` printed before any of this, so this cell is
+       * also the guard against "just show gross": a net competition is decided
+       * on net and the column must follow the round, not a preference.
+       */
+      const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+      const html = render(<LeaderboardTable isStroke compact rankedOn="net" rows={pair} />);
+      expect(html).toContain(">Net<");
+      expect(html).not.toContain(">Gross<");
+      expect(scores(html)).toContain("55");
+      expect(scores(html)).toContain("58");
+      expect(scores(html), "the grosses").not.toContain("66");
+      expect(scores(html)).not.toContain("69");
+    });
+
+    it("defaults to net, so a caller not yet taught is unchanged", async () => {
+      const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+      const html = render(<LeaderboardTable isStroke compact rows={pair} />);
+      expect(html).toContain(">Net<");
+      expect(scores(html)).toContain("55");
+    });
+
+    it("leaves the full table alone — it has room for both", async () => {
+      // The non-compact board carries Gross AND Net and needs no choosing
+      // between them, so `rankedOn` must not start hiding a column there.
+      const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+      const html = render(<LeaderboardTable isStroke rankedOn="gross" rows={pair} />);
+      expect(html).toContain(">Gross<");
+      expect(html).toContain(">Net<");
+      expect(scores(html)).toContain("66");
+      expect(scores(html)).toContain("55");
+    });
+
+    it("says nothing about a Stableford board, which has one number anyway", async () => {
+      const { LeaderboardTable } = await import("@/components/LeaderboardTable");
+      const html = render(
+        <LeaderboardTable isStroke isStableford compact rankedOn="gross"
+          rows={[row({ points: 38, gross: 66, net: 55 })]} />,
+      );
+      expect(html).toContain(">Pts<");
+      expect(html, "a Stableford board has no second stroke score to choose").not.toContain(">Gross<");
+      expect(html).not.toContain(">Net<");
+    });
+  });
+
   it("captions the organizer's board with how much of the card came back", async () => {
     const { LeaderboardTable } = await import("@/components/LeaderboardTable");
     const html = render(
