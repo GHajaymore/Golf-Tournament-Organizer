@@ -119,7 +119,22 @@ export function aggregateTeamCard(
     netTotal += counting.reduce((sum, c) => sum + c.net, 0);
     pointsTotal += counting.reduce((sum, c) => sum + c.points, 0);
     played += 1;
-    parPlayed += (pars[h] ?? 0) * Math.max(1, countBest);
+    /**
+     * PAR FOR THE SCORES THAT COUNTED, not for the ones the format wanted.
+     *
+     * `counting` is `candidates.slice(0, countBest)`, so on a hole where fewer
+     * partners have holed out than the format counts it is SHORTER than
+     * `countBest` — and `grossTotal` above adds exactly those scores. Charging
+     * a full `countBest` pars here made the two disagree: a best-two-of-four
+     * side with one partner's par in read four under on that hole, a whole
+     * par of credit for a score never returned.
+     *
+     * Every best-two side is in that state between the first putt on a hole
+     * and the last, and a pick-up leaves it there for good. The test above
+     * could not see it because all four of its partners hole out, which is the
+     * one shape where the two counts agree whatever this line says.
+     */
+    parPlayed += (pars[h] ?? 0) * counting.length;
   }
 
   return { holes, grossTotal, netTotal, pointsTotal, played, toPar: grossTotal - parPlayed };
