@@ -275,7 +275,16 @@ export function HoleByHoleCard({
                       )}
                     </span>
                     <span style={{ display: "block", fontSize: 11.5, color: "var(--color-neutral-400)", fontVariantNumeric: "tabular-nums" }}>
-                      {played ? `${toParText(toPar)} thru ${played}` : "no score yet"}
+                      {/* A to-par only where there is a par to be under.
+                          `toParOf` sums `s[i] - (pars[i] ?? 0)`, so with no
+                          course card it returns the GROSS — and this line then
+                          read "+16 thru 4" for four bogeys. The holes played
+                          are still a fact and still worth saying. */}
+                      {played
+                        ? pars.length > 0
+                          ? `${toParText(toPar)} thru ${played}`
+                          : `thru ${played}`
+                        : "no score yet"}
                     </span>
                   </span>
 

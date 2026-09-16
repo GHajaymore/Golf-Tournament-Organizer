@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { LeaderboardTable, type StandingRow } from "./LeaderboardTable";
-import { toParText } from "@/lib/domain";
+import { toParCell } from "@/lib/domain/ranked-score";
 import { toCsv } from "@/lib/domain/csv-export";
 import { placesWithin } from "@/lib/domain/flight-places";
 import { Icon } from "./Icon";
@@ -104,6 +104,14 @@ export function ReportsClient({
   const status = (r: StandingRow) =>
     r.tiedAtCut ? "Tied — play-off to decide" : r.advancing ? "Advancing" : "Eliminated";
 
+  /**
+   * A to-par only where there is a par to be under — through the same reader
+   * the boards use, so the spreadsheet and the screen cannot disagree. This
+   * column shipped a gross as a to-par into the copy that outlives the screen
+   * and gets mailed to a committee. See `toParCell`.
+   */
+  const parCell = (r: StandingRow) => toParCell(r);
+
   const fullStandings = () => {
     const header = isStroke
       ? isStableford
@@ -114,7 +122,7 @@ export function ReportsClient({
       isStroke
         ? isStableford
           ? [String(r.rank), r.name, r.flight, String(r.thru), String(r.gross), String(r.points), status(r)]
-          : [String(r.rank), r.name, r.flight, String(r.thru), String(r.gross), String(r.net), toParText(r.toPar), status(r)]
+          : [String(r.rank), r.name, r.flight, String(r.thru), String(r.gross), String(r.net), parCell(r), status(r)]
         : [String(r.rank), r.name, r.flight, String(r.played), String(r.wins), String(r.ties), String(r.losses), r.diff, r.pts, status(r)],
     );
     download(`${eventName}-standings.csv`, [header, ...body]);
