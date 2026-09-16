@@ -924,6 +924,49 @@ describe("leaderboards for every format", () => {
     expect(placeOf(html, "Bees"), "level on points, separated by a number this round ignores").toBe("1");
   });
 
+  /**
+   * THE ENGINE'S NUMBER, ON THE SCREEN — not a row typed out by hand.
+   *
+   * Every other cell in this block builds its `TeamStanding` literally, so it
+   * proves the board prints what it is given and nothing about where the
+   * number came from. This one runs the real chain: `aggregateTeamCard`
+   * produces the card, the row is assembled exactly as `teamStandings` does
+   * (`toPar: card.toPar`), and the assertion is what the cell SAYS.
+   *
+   * The state is a best-two-of-four side with one partner's par in — which is
+   * where `parPlayed` used to charge two pars against one score and the board
+   * read "-4" under a hole somebody had parred. `toParText` maps level to "E",
+   * so this cell fails loudly on the old arithmetic rather than on a number
+   * that merely looks plausible.
+   */
+  it("prints the side's to-par as the engine computed it", async () => {
+    const { aggregateTeamCard } = await import("@/lib/domain/team");
+    const pars = new Array(9).fill(4);
+    const si = Array.from({ length: 9 }, (_, i) => i + 1);
+    const holes = (first: number | null) =>
+      Array.from({ length: 9 }, (_, i) => (i === 0 ? first : null));
+    const card = aggregateTeamCard(
+      [
+        { playerId: "a", courseHandicap: 0, strokes: holes(4) },
+        { playerId: "b", courseHandicap: 0, strokes: holes(null) },
+        { playerId: "c", courseHandicap: 0, strokes: holes(null) },
+        { playerId: "d", courseHandicap: 0, strokes: holes(null) },
+      ],
+      pars, si, 100, 2,
+    );
+    const html = render(
+      <TeamLeaderboard format="Best Ball" stableford={false}
+        rows={[{
+          teamId: "t1", name: "Ants", members: ["Ann", "Bob", "Cal", "Dee"],
+          playingHandicap: 0,
+          gross: card.grossTotal, net: card.netTotal, points: card.pointsTotal,
+          played: card.played, toPar: card.toPar,
+        }]} />,
+    );
+    expect(html, "one par returned should read level, not four under").toContain(">E<");
+    expect(html, "the board must not credit a par nobody returned").not.toContain(">-4<");
+  });
+
   it("still leaves a side that has not returned a card unplaced", () => {
     const html = render(
       <TeamLeaderboard format="Scramble" stableford={false}
