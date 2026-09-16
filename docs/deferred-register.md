@@ -68,6 +68,32 @@ product choice rather than a bug; flagged in case it is not the intent.
 Scope boundaries drawn while shipping something adjacent. Each is a real gap,
 not an oversight.
 
+### Two team-round settings still re-score without asking
+
+#392 extended the card-count confirmation to `setStageHoles` and
+`setStageScoringBasis`, so all three settings on **Rounds & formats** that
+RE-SCORE a round now ask first. Two more do the same thing from the **Teams &
+pairs** screen and were left alone:
+
+    setStageAllowance    the percentage of handicap each side receives, so
+                         every stroke given changes
+    setStageCountBest    how many partners' scores count on each hole — best
+                         one of four to best two is a different competition
+
+Both are already behind `assertUnlocked`, which is not the protection it
+sounds like: it only bites once a tournament is LAUNCHED, and the seeded demo
+has fifty-four results in on one that never was.
+
+**Why not done with the other two.** They return `TeamResult` — `{ok, error}`
+with no confirm path — and the screen surfaces `error` as a refusal rather than
+as a question. Adding `needsConfirm` to a caller that ignores it would be a
+guard that silently does nothing, which is worse than the gap: the organizer
+clicks, nothing happens, and nothing says why. The Teams screen needs the same
+two-button block `StagesClient` now has before the server side is worth
+writing.
+
+Not verifiable on Demo Cup either — it has no team round — so this wants a
+fixture with a four-ball in it, which is the other half of the work.
 ### In-app messaging is keyed on email, everywhere
 Threads, read receipts, authorship and the direct-thread key
 (`direct:<sorted participant emails>`) are all email strings. After #296 a

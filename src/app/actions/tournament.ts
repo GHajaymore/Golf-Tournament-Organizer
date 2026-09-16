@@ -1360,15 +1360,39 @@ export async function setStageCut(stageId: string, enabled: boolean, mode: strin
   await refresh();
 }
 
-export async function setStageScoringBasis(stageId: string, basis: string) {
+/**
+ * WHAT THIS ROUND IS DECIDED ON — which is the competition, not a display
+ * preference.
+ *
+ * Gross, net and Stableford rank the same eighteen numbers into three
+ * different orders, and since the countback was corrected to run on the basis
+ * and nothing else, this also decides every tie. A scratch competition flipped
+ * to net hands the prizes to the high handicappers it was played to exclude,
+ * and back again; nothing is deleted and no screen says a thing.
+ *
+ * Same guard and same shape as `setStageFormat`, for the same reason.
+ */
+export async function setStageScoringBasis(stageId: string, basis: string, force = false) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
   const value = ["gross", "net", "both", "stableford"].includes(basis) ? basis : "gross";
+  if (!force) {
+    const current = await prisma.stage.findFirst({
+      where: { id: stageId, eventId },
+      select: { scoringBasis: true },
+    });
+    // Only when it actually changes — see `setStageHoles`.
+    if (current && current.scoringBasis !== value) {
+      const cards = await enteredCardCount(eventId, stageId);
+      if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
+    }
+  }
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
     data: { scoringBasis: value },
   });
   await refresh();
+  return { ok: true as const };
 }
 
 /**
@@ -1438,14 +1462,47 @@ export async function setStageFormat(stageId: string, format: string, force = fa
   return { ok: true as const };
 }
 
-export async function setStageHoles(stageId: string, holes: number) {
+/**
+ * HOW MANY HOLES THIS ROUND IS, WHICH RE-SCORES IT AS SURELY AS THE FORMAT DOES.
+ *
+ * `setStageFormat` above refuses on a round with cards in and says why; this
+ * sat directly underneath it and wrote straight through. Eighteen to nine is
+ * not a smaller version of the same round:
+ *
+ *   - every to-par, net and countback is measured against a different
+ *     denominator, and `holesOwed` decides whether a card reads "F";
+ *   - `rankStrokeIndex` RE-RANKS the stroke index to the nine actually played,
+ *     so the handicap shots land on different holes than the ones they were
+ *     given on.
+ *
+ * Nothing is deleted either way, which is what makes it quiet: the strokes all
+ * stay where they are and the results computed from them change underneath.
+ * See `enteredCardCount`, whose own header calls that out and names this as
+ * the kind of thing that must ask first.
+ */
+export async function setStageHoles(stageId: string, holes: number, force = false) {
   const eventId = await requireStaffEvent();
   await assertUnlocked(eventId);
+  const value = holesPlayed(holes);
+  if (!force) {
+    const current = await prisma.stage.findFirst({
+      where: { id: stageId, eventId },
+      select: { holes: true },
+    });
+    // Only when it actually CHANGES. Re-saving the same number re-scores
+    // nothing, and a confirmation on a no-op teaches an organizer to click
+    // through the one that matters.
+    if (current && holesPlayed(current.holes) !== value) {
+      const cards = await enteredCardCount(eventId, stageId);
+      if (cards > 0) return { ok: false as const, needsConfirm: true as const, cards };
+    }
+  }
   await prisma.stage.updateMany({
     where: { id: stageId, eventId },
-    data: { holes: holesPlayed(holes) },
+    data: { holes: value },
   });
   await refresh();
+  return { ok: true as const };
 }
 
 /* ── Per-round handicaps ──────────────────────────────────────────────────
