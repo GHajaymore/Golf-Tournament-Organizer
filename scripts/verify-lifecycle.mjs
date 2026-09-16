@@ -74,8 +74,24 @@ async function get(url, init) {
     try {
       return await fetch(url, init);
     } catch (e) {
-      if (attempt >= 3) throw e;
-      await new Promise((r) => setTimeout(r, 1500));
+      /**
+       * PATIENT ON PURPOSE, and the budget is set by the DEV server rather
+       * than by CI.
+       *
+       * In CI this runs against `next start` on a production build: routes are
+       * already compiled, nothing restarts, and this loop never runs at all.
+       * Locally it runs against `next dev`, which compiles each route on first
+       * request and restarts itself near its heap limit — and this walk is
+       * eight tournaments across two roles, which is several hundred requests
+       * and reliably trips it more than once.
+       *
+       * Three attempts at 1.5s was not enough for that: a restart plus a cold
+       * recompile of a heavy screen outlasts 4.5 seconds, and the script then
+       * died on a healthy app. Backs off up to about half a minute, which is
+       * still nothing against the walk itself.
+       */
+      if (attempt >= 6) throw e;
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
     }
   }
 }
