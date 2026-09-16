@@ -3970,6 +3970,94 @@ describe("the board answers 'where am I' first", () => {
     expect(level, "level par is a score, not a blank").toContain("E");
   });
 
+  /**
+   * THE WHOLE CLASS, NOT THE ONE THAT WAS REPORTED.
+   *
+   * The cell above was written on 2026-09-09 for the organizer's table. Four
+   * other readers ask the same question and three of them already answered it;
+   * the two that did not were the ones a PLAYER and a SPECTATOR read.
+   *
+   *   LeaderboardTable     r.parKnown !== false     already correct
+   *   computeHighlights    lead.parKnown            already correct
+   *   ScorecardTable       pars.length > 0          already correct
+   *   PlayerCard           knownCourse              already correct
+   *   rankedScore          — nothing —              Board tab, Today, /live
+   *   ReportsClient CSV    — nothing —              the copy that gets mailed
+   *   HoleByHoleCard       — nothing —              the scoring screen
+   *
+   * Reachable, measured against real rows rather than argued: an event with no
+   * course card gives `gross=72 toPar=72 parKnown=false thru=18`, and
+   * `me/card/page.tsx` passes `pars={known ? ... : []}` on purpose.
+   */
+  describe("a to-par is only printed where there is a par to be under", () => {
+    const noPar = row({ name: "A. Moore", gross: 71, net: 71, toPar: 71, parKnown: false });
+
+    it("the player's own board says nothing rather than the gross", async () => {
+      const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+      const html = render(
+        <PlayerLeaderboard isStroke rows={[noPar]} holes={18} youId="p1" unit="strokes" />,
+      );
+      expect(html, "the gross wearing a plus sign").not.toContain("+71");
+      // Twice: the "You" summary at the top reads through the same function.
+      expect(html.split("–").length - 1, "both the row and the You line").toBeGreaterThanOrEqual(2);
+    });
+
+    it("but still prints a real to-par, including level par", async () => {
+      /**
+       * THE CONTROL. A rule written as "suppress it when it is falsy" would
+       * swallow level par, and the round that looks most like nothing is the
+       * one somebody shot exactly to par.
+       */
+      const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+      const level = render(
+        <PlayerLeaderboard isStroke rows={[row({ toPar: 0, parKnown: true })]} holes={18} unit="strokes" />,
+      );
+      expect(level, "level par is a score, not a blank").toContain("E");
+
+      const under = render(
+        <PlayerLeaderboard isStroke rows={[row({ toPar: -4, parKnown: true })]} holes={18} unit="strokes" />,
+      );
+      expect(under).toContain("-4");
+    });
+
+    it("a Stableford board is untouched — points need no par of their own", async () => {
+      const { PlayerLeaderboard } = await import("@/components/PlayerLeaderboard");
+      const html = render(
+        <PlayerLeaderboard isStroke isStableford rows={[row({ points: 38, parKnown: false })]}
+          holes={18} unit="Stableford points" />,
+      );
+      expect(html, "points were suppressed by a rule about par").toContain("38");
+    });
+
+    it("the scoring screen says how far round, without a to-par it cannot compute", async () => {
+      const { HoleByHoleCard } = await import("@/components/HoleByHoleCard");
+      // TWO, because one player takes the `solo` branch — a different pad with
+      // no running total on it at all, so a single-player fixture would assert
+      // the absence of a line that was never going to be there.
+      const players = [{ id: "p1", name: "A. Moore" }, { id: "p2", name: "B. Ellis" }];
+      const cards = {
+        p1: [5, 5, 5, 5, ...new Array(14).fill(null)] as (number | null)[],
+        p2: new Array(18).fill(null) as (number | null)[],
+      };
+
+      const noCard = render(
+        <HoleByHoleCard holes={18} pars={[]} yards={[]} strokeIndex={[]} players={players}
+          cards={cards} onSet={() => {}} />,
+      );
+      expect(noCard, "four fives read as sixteen over nothing").not.toContain("+20");
+      expect(noCard, "how far round is still a fact").toContain("thru 4");
+
+      // The control: given a card, the to-par comes back.
+      const withCard = render(
+        <HoleByHoleCard holes={18} pars={new Array(18).fill(4)} yards={new Array(18).fill(400)}
+          strokeIndex={Array.from({ length: 18 }, (_, i) => i + 1)} players={players}
+          cards={cards} onSet={() => {}} />,
+      );
+      expect(withCard, "four fives on par fours is four over").toContain("+4");
+    });
+
+  });
+
   it("captions the organizer's board with how much of the card came back", async () => {
     const { LeaderboardTable } = await import("@/components/LeaderboardTable");
     const html = render(

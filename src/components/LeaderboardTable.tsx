@@ -1,4 +1,4 @@
-import { toParText } from "@/lib/domain";
+import { toParCell } from "@/lib/domain/ranked-score";
 import { FlipTableBody } from "./FlipList";
 
 export interface StandingRow {
@@ -244,12 +244,10 @@ export function LeaderboardTable({
                 <td style={{ textAlign: "right", fontWeight: 600, color: "var(--color-accent-200)", ...num }}>
                   {/* Stableford points are counted off the card and do not
                       need a par of their own here, so only the to-par branch
-                      asks. See `parKnown`. */}
-                  {r.thru > 0 && (isStableford || r.parKnown !== false)
-                    ? isStableford
-                      ? r.points
-                      : toParText(r.toPar)
-                    : "—"}
+                      asks — which `toParCell` now does for every table that
+                      prints one. This was the first reader taught to refuse a
+                      gross dressed as a to-par and for a while the only one. */}
+                  {r.thru <= 0 ? "—" : isStableford ? r.points : toParCell(r)}
                 </td>
               </tr>
             ))}
