@@ -108,6 +108,44 @@ describe("aggregate team card (four-ball / best ball)", () => {
     expect(card.toPar).toBe(9 - 8); // two players' worth of par
   });
 
+  /**
+   * A HOLE WHERE FEWER PARTNERS FINISHED THAN THE FORMAT COUNTS.
+   *
+   * The test above has all four holing out, which is the only shape
+   * `countBest > 1` had ever been given. It is also the shape that cannot
+   * express this: gross and par both cover two scores, so they agree whatever
+   * the code does.
+   *
+   * Mid-round they do not. `grossTotal` sums whatever actually counted and
+   * `parPlayed` charged a full `countBest` pars regardless, so a best-two-of-
+   * four side where one partner had holed out for a par read FOUR UNDER on a
+   * hole somebody had parred — one whole par of credit for a score that was
+   * never returned.
+   *
+   * Not a rare state: it is every best-two side between the first putt on a
+   * hole and the last, on a format the round settings offer (`Stage.countBest`
+   * — "plenty of club and society days count the best two or three of four").
+   * It is also what a pick-up leaves behind permanently.
+   *
+   * The rule is the one the doc comment already states — "a hole where only
+   * some partners hole out still has a team score" — so the hole counts, and
+   * par must be charged for the scores that counted rather than for the ones
+   * the format would have liked.
+   */
+  it("charges par for the scores that counted, not for the ones it wanted", () => {
+    const team = [
+      member("a", [4, null, null, null, null, null, null, null, null], 0),
+      member("b", [null, null, null, null, null, null, null, null, null], 0),
+      member("c", [null, null, null, null, null, null, null, null, null], 0),
+      member("d", [null, null, null, null, null, null, null, null, null], 0),
+    ];
+    const card = aggregateTeamCard(team, PARS_9, SI_9, 100, 2);
+    // One par-4 returned, and it was a par.
+    expect(card.holes[0].gross).toBe(4);
+    expect(card.grossTotal).toBe(4);
+    expect(card.toPar).toBe(0);
+  });
+
   it("awards Stableford points off the counting score", () => {
     // Net birdie on a par 4 is 3 points under standard Stableford.
     const a = member("a", [3, null, null, null, null, null, null, null, null], 0);
