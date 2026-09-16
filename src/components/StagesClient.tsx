@@ -642,23 +642,6 @@ function StageCard({
     | { kind: "basis"; basis: string; cards: number }
     | null
   >(null);
-  const confirmRescore = () => {
-    const p = rescore;
-    if (!p) return;
-    setRescore(null);
-    startTransition(async () => {
-      if (p.kind === "holes") await setStageHoles(stage.id, p.holes, true);
-      else await setStageScoringBasis(stage.id, p.basis, true);
-    });
-  };
-  const cancelRescore = () => {
-    // Put the control back to what is actually stored, or it keeps showing a
-    // value the round does not have — the same trap the format warning names.
-    const p = rescore;
-    setRescore(null);
-    if (p?.kind === "holes") setHoles(stage.holes);
-    else if (p?.kind === "basis") setBasis(stage.scoringBasis);
-  };
   /**
    * What deleting this round would take with it.
    *
@@ -678,6 +661,24 @@ function StageCard({
    * be missing exactly on the control nobody thought about.
    */
   const saveStatus = useSaveStatus(pending);
+
+  const confirmRescore = () => {
+    const p = rescore;
+    if (!p) return;
+    setRescore(null);
+    startTransition(async () => {
+      if (p.kind === "holes") await setStageHoles(stage.id, p.holes, true);
+      else await setStageScoringBasis(stage.id, p.basis, true);
+    });
+  };
+  const cancelRescore = () => {
+    // Put the control back to what is actually stored, or it keeps showing a
+    // value the round does not have — the same trap the format warning names.
+    const p = rescore;
+    setRescore(null);
+    if (p?.kind === "holes") setHoles(stage.holes);
+    else if (p?.kind === "basis") setBasis(stage.scoringBasis);
+  };
 
   const commitFormat = (v: string) => {
     setFormat(v);
