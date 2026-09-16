@@ -29,7 +29,27 @@ export interface ContactGaps {
   lines: string[];
 }
 
-export function contactGaps(field: FieldContact[], phoneRequired: boolean): ContactGaps {
+export function contactGaps(
+  field: FieldContact[],
+  phoneRequired: boolean,
+  /**
+   * Whether an email address is the ONLY way into this tournament.
+   *
+   * `entryNeedsEmail` — which is `!usesAccessCodes` — and the caller already
+   * had it. Without it this line asserted "access is email-based" about every
+   * tournament, and was simply WRONG on the ones that sign players in by Round
+   * Code: those players can sign in perfectly well, which is the whole of what
+   * #296 made possible.
+   *
+   * Measured on the seeded Demo Cup on 2026-09-15, which has
+   * `playerAccess: "code"` and 31 entrants with no address. The screen told its
+   * organizer that 31 players "can't sign in until one's added". They could.
+   *
+   * Defaults to true, so a caller written before this argument existed keeps
+   * the wording it had — and the ONE caller supplies it.
+   */
+  emailIsTheWayIn = true,
+): ContactGaps {
   const missingEmail = field.filter((p) => !(p.email ?? "").trim()).length;
   // Counted with the same reading the rule enforces, so the banner and the
   // refusal can never disagree about what counts as a number.
@@ -38,9 +58,23 @@ export function contactGaps(field: FieldContact[], phoneRequired: boolean): Cont
   const lines: string[] = [];
 
   if (missingEmail > 0) {
+    const who = `${plural(missingEmail, "player")} ${missingEmail === 1 ? "has" : "have"}`;
     lines.push(
-      `${plural(missingEmail, "player")} ${missingEmail === 1 ? "has" : "have"} no email on file — access is ` +
-        `email-based, so they can’t sign in until one’s added below.`,
+      emailIsTheWayIn
+        ? `${who} no email on file — access is email-based, so they can’t sign in until one’s added below.`
+        : /**
+           * CODES ARE ON, so an address is not how they get in and saying it is
+           * would be false. What it still decides is whether they can be
+           * REACHED: `messageableField` selects on `email: { not: "" }`, so a
+           * player without one is absent from every announcement and every
+           * message — they can play the whole tournament and hear nothing.
+           *
+           * Worth saying plainly rather than dropping the line. The organizer
+           * of a society that entered its field by name is exactly the person
+           * who will later wonder why half the field missed the tee times.
+           */
+          `${who} no email on file. They sign in with the Round Code, so nothing is blocked — but ` +
+          `announcements and messages go by email, so those players won’t receive any.`,
     );
   }
 

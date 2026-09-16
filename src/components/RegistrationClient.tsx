@@ -178,7 +178,12 @@ export function RegistrationClient({
   // Both halves of the same rule, reported together — see contactGaps for why
   // the phone line is conditional, and why it says outright that the existing
   // entries are not a mistake.
-  const gaps = contactGaps([...confirmed, ...waitlist], phoneRequired);
+  // `needsEmail` is `entryNeedsEmail`, which this component already had and did
+  // not pass on — so the email line asserted "access is email-based" about a
+  // tournament signing players in by Round Code, where it is false. The field
+  // input one screen down already says the opposite: "optional — they sign in
+  // with the Round Code".
+  const gaps = contactGaps([...confirmed, ...waitlist], phoneRequired, needsEmail);
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
