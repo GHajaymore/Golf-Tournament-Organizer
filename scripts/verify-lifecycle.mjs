@@ -178,6 +178,45 @@ async function build(label, steps) {
       },
     });
   }
+
+  /**
+   * A SECOND STAGE, AND A STRUCTURAL ONE — neither of which this walk had.
+   *
+   * Two gaps in one, because the cheapest fixture that closes either closes
+   * both, and they are the ordinary club-championship shape: a medal round to
+   * qualify, then a knockout.
+   *
+   * ONE stage was all `build` ever made, so every screen has been walked
+   * against a tournament with exactly one round. "Which round are we on" is a
+   * question that cannot be got wrong with one — `roundNumber` counts across
+   * the list, `boardStage` and `activeStage` pick one out of it, and a list of
+   * length one makes every implementation of those agree.
+   *
+   * And `STAGE_TYPES` has four. This built "Stroke Play Round" and "Round
+   * Robin"; `Single Match Stage` and `Bracket Stage` are the two
+   * `STRUCTURAL_STAGE_TYPES`, and they exist as a separate category precisely
+   * because screens must treat them differently — `isStructural`,
+   * `hasKnockoutStage` and `WEEKLY_ROUND_TYPES` are each a place a screen can
+   * forget. A type nothing has ever rendered is a type no screen has been
+   * checked against.
+   *
+   * `description` is set to the mark because `StagesClient` renders it
+   * verbatim for every type except Round Robin, whose text it derives. That is
+   * what the control at the bottom of the walk reads: a stage that failed to
+   * build cannot fake a string that is only on the row.
+   */
+  if (steps.secondStage && stage) {
+    await prisma.stage.create({
+      data: {
+        eventId: event.id,
+        position: 1,
+        type: steps.secondStage,
+        format: "Match Play",
+        description: `${MARK} knockout`,
+        holes: 18, scoringBasis: "gross", handicapAllowance: 100,
+      },
+    });
+  }
   const flight = steps.flights
     ? (await prisma.group.create({ data: { eventId: event.id, name: "A", position: 0 } })).id
     : null;
@@ -371,6 +410,30 @@ const STAGES = [
    */
   ["field-of-one", { rounds: true, card: true, players: 1, flights: true, cards: true, status: "live" }],
   /**
+   * TWO STAGES, THE SECOND OF THEM STRUCTURAL.
+   *
+   * A medal round to qualify and a knockout to finish, which is what a club
+   * championship is. Every other stage in this list builds exactly ONE round,
+   * so "which round are we on" has never been asked of a screen in a state
+   * where it can be answered wrongly: `roundNumber` counts across the list,
+   * `boardStage` and `activeStage` pick one out of it, and a list of length
+   * one makes every implementation of those agree with every other.
+   *
+   * It also renders the only two `STAGE_TYPES` nothing had built. `Bracket
+   * Stage` and `Single Match Stage` are `STRUCTURAL_STAGE_TYPES`, a category
+   * that exists because screens must treat them differently — `isStructural`,
+   * `hasKnockoutStage` and `WEEKLY_ROUND_TYPES` are each a place a screen can
+   * forget one.
+   *
+   * Scored and flighted, so the qualifying round has standings for the draw to
+   * seed from: a bracket with nobody in it is a different and much weaker test
+   * than a bracket with a field.
+   */
+  ["two-rounds", {
+    rounds: true, card: true, players: 4, flights: true, cards: true,
+    status: "live", secondStage: "Bracket Stage",
+  }],
+  /**
    * TEAM ROUNDS, in their two structural shapes.
    *
    * Four-Ball is a side of TWO aggregating separate balls; Scramble is a side
@@ -471,6 +534,30 @@ async function main() {
           if (!shown.includes(`${MARK} Side`)) {
             bad.push("no side ever rendered on /teams — the team round was not built");
           }
+        }
+      }
+
+      /**
+       * AND A SECOND STAGE HAS TO BE ON THE ROUNDS SCREEN.
+       *
+       * Same shape as the control above it. `/stages` is a 200 with a heading
+       * whether a tournament has one round or two, so a second stage that
+       * failed to build would walk clean past every other check while the
+       * screen quietly showed one round — and the whole point of this stage is
+       * that there are two.
+       *
+       * The description is the tell rather than the type: `StagesClient`
+       * renders `stage.description` verbatim for every type except Round
+       * Robin, so this string can only be on the page if the row is in the
+       * database. A type name would also match the stage PICKER, which lists
+       * every type whether or not one has been added.
+       */
+      if (steps.secondStage) {
+        const rounds = await get(`${BASE}/stages`, { headers: { cookie: staff }, redirect: "manual" });
+        if (rounds.status !== 200) {
+          bad.push(`/stages answered ${rounds.status} as staff, so the second stage was never checked`);
+        } else if (!(await rounds.text()).includes(`${MARK} knockout`)) {
+          bad.push("the second stage never rendered on /stages — it was not built");
         }
       }
 
