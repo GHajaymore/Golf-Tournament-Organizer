@@ -129,6 +129,22 @@ async function build(label, steps) {
       capacity: 0,
       shareToken: share,
       registrationToken: registration,
+      /**
+       * OR THE PUBLIC BOARD IS NEVER ACTUALLY WALKED.
+       *
+       * `/live/[token]` calls `notFound()` unless this is "public" — the token
+       * is the credential and this setting is the door. The default is
+       * "participants", so with it left alone every stage answered 404, the
+       * walk skipped it (a non-200 is the console turning somebody away on
+       * purpose) and this reported clean having rendered the spectator board
+       * exactly zero times.
+       *
+       * Caught by asking what the two public links actually ANSWER rather than
+       * trusting a clean run — the "absence of problems in an absence of
+       * content" failure CLAUDE.md describes, in a check written the same hour
+       * as that warning was reread.
+       */
+      leaderboardVisibility: "public",
       // All three or none: `fromEvent` returns null unless pars, yards AND
       // stroke index all parse, and a round with no card is a different test.
       ...(steps.card
@@ -340,6 +356,26 @@ async function main() {
       await walk(player, [...HREFS, ...PLAYER_ROUTES], "as player ");
       // No cookie at all: these answer to a token and to nobody in particular.
       await walk("", publicPaths, "public ");
+
+      /**
+       * AND THEY HAVE TO HAVE ANSWERED, or the walk skipped them.
+       *
+       * `walk` inspects a 200 and passes over anything else, because a
+       * redirect is the console turning somebody away on purpose. That makes
+       * "every public page was fine" and "no public page was ever rendered"
+       * the same output — and the first version of this was the second one:
+       * `leaderboardVisibility` defaults to "participants", `/live` answered
+       * 404 at every stage, and the spectator board was walked zero times.
+       *
+       * So require a 200 from each. If a later change closes one of these
+       * doors, this says so instead of quietly covering nothing.
+       */
+      for (const path of publicPaths) {
+        const res = await get(`${BASE}${path}`, { redirect: "manual" });
+        if (res.status !== 200) {
+          bad.push(`public ${path.split("/")[1]} answered ${res.status} — nothing was checked`);
+        }
+      }
 
       /**
        * AND THE PLAYER HAS TO ACTUALLY BE ONE.
