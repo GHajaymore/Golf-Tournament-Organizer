@@ -325,13 +325,38 @@ export function roundMoneyFinality(input: {
   // with none, which would settle a stroke round nobody had started.
   const matchesDone = stageMatches.length > 0 && matchesOver === stageMatches.length;
 
+  /**
+   * A ROUND WITH FIXTURES IS DECIDED BY ITS FIXTURES, never by its cards.
+   *
+   * `holesReturned` asks "has the field returned its scores", which is the
+   * right question for a medal round and the wrong one for a draw. A match is
+   * over when it is won — 5&4 leaves four holes unplayed — so counting holes
+   * cannot tell a finished round from one with a pairing still on the course.
+   *
+   * It became reachable the day `roundStrokes` started reading
+   * `MatchScorecard` as well: five finished matches between them cover all
+   * eighteen holes, so a round with the sixth still out reported every hole in
+   * and settled. `match-cards.audit.test.ts` caught exactly that — "one match
+   * still out holds the pot open" — and it is the hazard
+   * `docs/scoring-input-model.md` was written about, arriving from the
+   * opposite direction to the one it predicted: not a complete match refused
+   * for a short card, but an incomplete ROUND paid out on somebody else's.
+   *
+   * Enforced here rather than by asking callers for the right card list, for
+   * the reason the money section of CLAUDE.md gives: `moneyFor` and
+   * `roundMoneyFor` both read this, so a third caller written later cannot get
+   * it wrong by forgetting. Same shape as `standingRows` returning `[]` on its
+   * first line for a manual format.
+   */
+  const cardsCanSettle = stageMatches.length === 0;
+
   return {
     holesReturned,
     matchesDone,
     matchesTotal: stageMatches.length,
     matchesOver,
     final: roundMoneyIsFinal({
-      holesReturned,
+      holesReturned: cardsCanSettle ? holesReturned : 0,
       holeCount,
       roundComplete: matchesDone || input.eventCompleted,
     }),
@@ -1517,7 +1542,28 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
   const nameOf = new Map((state?.confirmed ?? []).map((p) => [p.id, p.name]));
 
   const stages = (state?.stages ?? []).filter((s) => isPlayingRound(s.type));
-  const cards = await prisma.scorecard.findMany({ where: { eventId }, select: { stageId: true, strokes: true } });
+  /**
+   * WHICHEVER TABLE THIS ROUND'S CARDS ARE IN — the same reader `moneyFor`
+   * and the derived pots ask, and for the same reason.
+   *
+   * This was `prisma.scorecard.findMany`, which is only the STROKE table. A
+   * four-ball's scores are in `TeamScorecard`, so `roundMoneyFinality` counted
+   * ZERO holes returned on a round every side had finished, and the round
+   * never read as final.
+   *
+   * Nothing leaked — `gameNets` refuses a provisional round at the sink. The
+   * symptom was SILENCE, which is the same shape the match-play version of
+   * this had: an unfinished round is exactly when a player is shown their
+   * exposure instead of a result, so `/me/money` reported "0 of 18 holes in"
+   * and a stake under a completed four-ball, until somebody closed the whole
+   * tournament.
+   *
+   * The fourth instance of one defect. `roundStrokes` was written on
+   * 2026-09-09 to be the single reader so the next one could not inherit it;
+   * this caller was simply never converted. See
+   * `derived-pot-cards.audit.test.ts` for the first three.
+   */
+  const cards = await roundStrokes(eventId);
   // Match play returns no scorecards, so a round of it would never look
   // finished on holes alone and its pots would never be reported. A match
   // round is done when every match in it is settled — the same reading
