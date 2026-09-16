@@ -88,8 +88,18 @@ async function build(label, steps) {
       organizationId: org.id,
       name: `${MARK}-${label}-ev`,
       status: steps.status ?? "draft",
-      shape: "series",
-      format: "stroke",
+      /**
+       * The SHAPE, because it is not decoration — `matchEvent` gates whole
+       * blocks of the dashboard, renames the sidebar sections and swaps the
+       * round card for a casual-round panel. A sweep that only ever built one
+       * shape has walked half the app.
+       *
+       * `match` is the quick round: two people, one round, created from its
+       * own screen in a step. It is the free tier whole product, so it is the
+       * shape MOST people will ever see.
+       */
+      shape: steps.shape ?? "series",
+      format: steps.shape === "match" ? "match" : "stroke",
       formationRule: "balanced",
       dates: "",
       course: "",
@@ -113,9 +123,16 @@ async function build(label, steps) {
 
   let stage = null;
   if (steps.rounds) {
+    // A quick round is stored as a Round Robin of two, which is what the app
+    // own "New match" screen creates — see `tournament-shape.ts` on why being
+    // a match is recorded rather than inferred from a two-player field.
+    const match = steps.shape === "match";
     stage = await prisma.stage.create({
       data: {
-        eventId: event.id, position: 0, type: "Stroke Play Round", format: "Stroke Play",
+        eventId: event.id,
+        position: 0,
+        type: match ? "Round Robin" : "Stroke Play Round",
+        format: match ? "Match Play" : "Stroke Play",
         holes: 18, scoringBasis: "gross", handicapAllowance: 100,
       },
     });
@@ -151,6 +168,33 @@ async function build(label, steps) {
     }
   }
 
+  /**
+   * A quick round RESULT lives on the match, not on a card.
+   *
+   * Without the fixture the screens see a drawn match nobody has played,
+   * which is a real state and the only one a match-shaped sweep would
+   * otherwise reach. Fourteen holes won by A is 5&4 — decided, with four
+   * holes never played, which is also the shape that exercises "the card is
+   * short but the result is complete".
+   */
+  if (steps.shape === "match" && stage && players.length >= 2) {
+    await prisma.match.create({
+      data: {
+        eventId: event.id,
+        stageId: stage.id,
+        groupId: flight ?? "",
+        round: 1,
+        playerAId: players[0].id,
+        playerBId: players[1].id,
+        holes: JSON.stringify(
+          steps.cards
+            ? [...new Array(14).fill("A"), null, null, null, null]
+            : new Array(18).fill(null),
+        ),
+      },
+    });
+  }
+
   const user = await prisma.user.create({
     data: {
       email: `${MARK}-${label}@example.invalid`,
@@ -172,6 +216,17 @@ const STAGES = [
   ["flighted", { rounds: true, card: true, players: 3, flights: true }],
   ["scored", { rounds: true, card: true, players: 3, flights: true, cards: true }],
   ["completed", { rounds: true, card: true, players: 3, flights: true, cards: true, status: "completed" }],
+  /**
+   * THE QUICK ROUND, which is a different SHAPE and not a small tournament.
+   *
+   * `matchEvent` gates whole blocks of the dashboard, renames the sidebar
+   * sections — "Playing" rather than "Manage" — and swaps the round card for
+   * a casual-round panel. A sweep that only ever built one shape has walked
+   * half the app, and this is the half the free tier lives in, so it is the
+   * shape most people will ever see.
+   */
+  ["match-fresh", { shape: "match", rounds: true, card: true, players: 2, flights: true, status: "live" }],
+  ["match-played", { shape: "match", rounds: true, card: true, players: 2, flights: true, cards: true, status: "live" }],
 ];
 
 const JUNK = ["NaN", "undefined", "Infinity", "[object Object]"];
@@ -197,6 +252,29 @@ async function main() {
         const text = html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]*>/g, " ");
         for (const k of JUNK) if (text.includes(k)) bad.push(`${h} -> ${k}`);
       }
+      /**
+       * THE SHAPE HAS TO HAVE TAKEN EFFECT, or these are the same walk twice.
+       *
+       * A match-shaped event and a series-shaped one render different
+       * dashboards: `matchEvent` calls the round "The match", names the
+       * sidebar section "Playing" rather than "Manage", and drops the
+       * organizer status card entirely. If a fixture failed to become a match
+       * — a wrong `shape`, a missing stage — every screen would still return
+       * 200 and this walk would report clean while covering nothing new.
+       *
+       * Measured rather than assumed: series renders "Tournament status" and
+       * not "The match"; match renders "The match" and not "Tournament status".
+       */
+      const dash = await get(`${BASE}/dashboard`, { headers: { cookie }, redirect: "manual" });
+      if (dash.status === 200) {
+        const shown = (await dash.text()).replace(/<[^>]*>/g, " ").replace(/s+/g, " ");
+        const wantMatch = steps.shape === "match";
+        const isMatch = shown.includes("The match");
+        if (isMatch !== wantMatch) {
+          bad.push(`shape did not take: /dashboard ${isMatch ? "is" : "is not"} a match, expected ${wantMatch ? "match" : "series"}`);
+        }
+      }
+
       failures += bad.length;
       console.log(`  ${bad.length === 0 ? "ok  " : "FAIL"}  ${label.padEnd(12)} ${bad.join("   ")}`);
     }
