@@ -1,4 +1,3 @@
-import { toParText } from "@/lib/domain";
 import { toParCell } from "@/lib/domain/ranked-score";
 import { FlipTableBody } from "./FlipList";
 
