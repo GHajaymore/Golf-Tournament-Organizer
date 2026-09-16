@@ -276,13 +276,18 @@ Two tells separate this from a real regression: every failure names ONE screen (
 component's screens) across every project, and the smoke pass on the dev server renders the same
 route 200 — a build-local fault cannot reproduce against a different build.
 
-**THREE COMPONENTS NOW, WHICH IS THE POINT.** `GroupingControls`, `ContestsClient`, and on
-2026-09-16 `TeamsClient` — that last one in CI, on the `Build and smoke` job of a `main` run for
-a merge that touched none of the three. They share nothing but being client components.
+**FOUR COMPONENTS NOW, WHICH IS THE POINT.** `GroupingControls`, `ContestsClient`, and on
+2026-09-16 both `TeamsClient` and `OrganizationClient`. They share nothing but being client
+components.
 
-So the odds that any given occurrence is YOUR component are low and falling. Read the component
-name in the error as noise rather than as a lead: what settles it is whether the same route
-renders 200 against a different build, not what changed in the file it names.
+**The fourth settles it: it went red on a COMMENT-ONLY pull request.** Not a line of behaviour
+changed anywhere in the repository, and `e2e/layout.spec.ts` still reported
+`/organization has 0 h1s: []` — the shape this entry warns announces itself as your bug. There
+is no version of that failure which is the author's fault.
+
+So read the component name in the error as noise rather than as a lead: what settles it is
+whether the same route renders 200 against a different build, not what changed in the file it
+names.
 
 It also does not always take the run down in the same place. That one failed the SMOKE pass
 rather than an e2e assertion — `/grouping` had gone 500 on the route walk the same night, and
