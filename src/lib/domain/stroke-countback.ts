@@ -163,3 +163,65 @@ export function rankByCountback<T extends CountbackCard>(
 
   return out;
 }
+
+/** What a stroke competition may be decided on. */
+export type RankingBasis = "stableford" | "gross" | "net";
+
+/** The three numbers a stroke row carries; one of them is the competition. */
+export interface BasisScore {
+  gross: number;
+  net: number;
+  points: number;
+}
+
+/**
+ * THE ONE NUMBER THIS COMPETITION IS DECIDED BY — and nothing else.
+ *
+ * The file above says it twice: the countback runs "on the same basis the
+ * competition was played on", because "a net comp separated on gross would
+ * hand the prize to the low handicapper the countback exists to stop". Both
+ * were fixed inside the countback. The SORT that feeds it was not.
+ *
+ * It compared `x.gross - y.gross || x.net - y.net` on a gross competition and
+ * `x.net - y.net || x.gross - y.gross` on a net one. So two players level on
+ * the score the competition is actually decided by were separated by the score
+ * it is NOT decided by — silently, before the countback was ever consulted,
+ * and by a rule no club publishes and no screen names.
+ *
+ * MEASURED on the seeded Demo Cup, 2026-09-15, a GROSS competition:
+ *
+ *     rank 3  gross 70  net 64  Elena Petrova
+ *     rank 4  gross 70  net 65  Sang-woo Kim
+ *     rank 5  gross 70  net 68  AJ
+ *
+ * Three players level on gross, given three different places off their net
+ * scores — in a scratch competition, where handicap is the thing the format
+ * exists to exclude. The player's own Rules tab meanwhile told all three:
+ * "Countback: last 9 holes, then last 6, then last 3, then the final hole. A
+ * tie that survives shares the place." Neither half of that sentence had
+ * happened.
+ *
+ * The same fault runs the other way on a net competition, where it is the
+ * worse of the two: a tie on net broken by gross hands the place to the lower
+ * handicapper, which is exactly the outcome the paragraph at the top of this
+ * file describes and refuses.
+ */
+export function scoreOnBasis(s: BasisScore, basis: RankingBasis): number {
+  return basis === "stableford" ? s.points : basis === "gross" ? s.gross : s.net;
+}
+
+/**
+ * Negative when `x` finishes ahead. Zero means LEVEL, and level belongs to the
+ * countback — never to a second score the competition does not use.
+ */
+export function compareOnBasis(x: BasisScore, y: BasisScore, basis: RankingBasis): number {
+  // Points run the other way: most wins.
+  return basis === "stableford"
+    ? scoreOnBasis(y, basis) - scoreOnBasis(x, basis)
+    : scoreOnBasis(x, basis) - scoreOnBasis(y, basis);
+}
+
+/** Whether two rows are level on the score, and so owed a countback. */
+export function levelOnBasis(x: BasisScore, y: BasisScore, basis: RankingBasis): boolean {
+  return compareOnBasis(x, y, basis) === 0;
+}

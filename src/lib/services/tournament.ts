@@ -13,7 +13,12 @@ import {
   holeStrokesReceived, stablefordPointsForHole, modifiedStablefordForHole, allocationHoles, playingHandicapFrom } from "../domain";
 import { aggregateStroke, emptyAgg, isRanked, netOf, type StrokeCard } from "../domain/stroke-agg";
 import { matchStrokeCards, withoutSupersededStrokeCards } from "../domain/match-cards";
-import { countbackCompare } from "../domain/stroke-countback";
+import {
+  countbackCompare,
+  compareOnBasis,
+  levelOnBasis,
+  type RankingBasis,
+} from "../domain/stroke-countback";
 import { reviewQueue, type ReviewQueue } from "../domain/review-queue";
 import { resultsIn } from "../domain/lifecycle-state";
 import { resolveCourse } from "../courses";
@@ -1249,6 +1254,16 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   const stableford = strokeUnit === "Stableford points" || strokeUnit === "modified Stableford points";
   const grossBasis = strokeUnitStage?.scoringBasis === "gross";
   /**
+   * The one thing this competition is decided by, named once.
+   *
+   * Everything that orders, ties or separates a stroke row reads this — the
+   * sort, the shared-rank pass and the countback's per-hole basis — so none of
+   * them can come to disagree about which number is the competition. They did:
+   * the countback was corrected to the basis and the sort feeding it kept a
+   * cross-basis secondary. See `scoreOnBasis`.
+   */
+  const rankingBasis: RankingBasis = stableford ? "stableford" : grossBasis ? "gross" : "net";
+  /**
    * The card a countback reads, and how long it is.
    *
    * The LAST stroke round, because "the last nine" means the closing nine of
@@ -1278,7 +1293,12 @@ export async function loadEventState(eventId: string): Promise<EventState | null
        * player who blobbed the 17th and 18th is behind on net strokes and level
        * on points, which is the whole point of the format.
        */
-      holes: (stableford ? card?.points : grossBasis ? card?.gross : card?.net) ?? [],
+      holes:
+        (rankingBasis === "stableford"
+          ? card?.points
+          : rankingBasis === "gross"
+            ? card?.gross
+            : card?.net) ?? [],
     };
   };
   // Points run the other way: most wins. See countbackCompare's `higherWins`.
@@ -1330,11 +1350,7 @@ export async function loadEventState(eventId: string): Promise<EventState | null
        * read off the LAST round's card, which is what "the last nine" means to
        * a committee.
        */
-      const byScore = stableford
-        ? y.points - x.points
-        : grossBasis
-          ? x.gross - y.gross || x.net - y.net
-          : x.net - y.net || x.gross - y.gross;
+      const byScore = compareOnBasis(x, y, rankingBasis);
       if (byScore !== 0) return byScore;
       return cbCompare(cbCard(x.player.id), cbCard(y.player.id));
     })
@@ -1364,12 +1380,12 @@ export async function loadEventState(eventId: string): Promise<EventState | null
       continue;
     }
     const prev = i > 0 ? strokeStandings[i - 1] : null;
-    const sameScore =
-      prev !== null &&
-      prev.ranked &&
-      (stableford
-        ? prev.points === s.points
-        : prev.gross === s.gross && prev.net === s.net);
+    // Level on the basis this competition is decided by, through the same
+    // reader the sort uses. It was `prev.gross === s.gross && prev.net ===
+    // s.net` — BOTH, so on a gross competition two players level on gross and
+    // apart on net were declared not tied and the countback never ran. See
+    // `scoreOnBasis`.
+    const sameScore = prev !== null && prev.ranked && levelOnBasis(prev, s, rankingBasis);
     // The same comparison the sort used, through the same helper — these two
     // reading the countback differently is exactly what produced a rank the
     // order did not support.
