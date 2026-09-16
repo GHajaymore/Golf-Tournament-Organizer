@@ -263,11 +263,27 @@ the existing "this is the only Organizer on this event" — the organizer cannot
 see who this would strand, the damage lands on other people, and the remedy is
 cheap and obvious once named.
 
-`src/lib/domain/access-lockout.ts` is that rule, written and **wired to nothing**
-as of 2026-09-11. It is narrow on purpose: it fires only when codes are actually
-being switched off AND somebody would be stranded, so a tournament whose entrants
-all have addresses switches freely, which is the ordinary case. What is left is
-calling it from `saveTournamentSettings` and saying so on the screen.
+**DONE 2026-09-15.** `src/lib/domain/access-lockout.ts` holds the rule, and both
+halves are now wired. Worth recording that this entry said "written and **wired
+to nothing**" while the first half had in fact already landed — a register is
+only as good as its last reading, and a claim about the code is worth checking
+against the code before acting on it.
+
+- `saveTournamentSettings` REFUSES the change, before anything is written. A
+  test asserts the refusal precedes both `event.update` and `revokeRoundCodes`,
+  because refusing afterwards would leave the damage done and report that it
+  had not been.
+- the settings screen now says the same sentence under the sign-in control
+  while codes are still on, so the cost is known before the choice rather than
+  after it. `lockoutNotice` defers to `lockoutRefusal` rather than phrasing its
+  own, and `strandedEntrantCount` is one function rather than the same query
+  written twice — this rule had exactly that fault once, when a duplicated
+  condition in the caller shadowed the real one and left a mutation green.
+
+Still narrow on purpose: it fires only when codes are actually being switched
+off AND somebody would be stranded, so a tournament whose entrants all have
+addresses switches freely — the ordinary case, and the one a club growing out
+of Round Codes is in.
 
 ### Duplicate rows created before de-duplication was fixed are not cleaned up
 The entry CSV importer de-duplicated on email alone and, for address-less rows,
