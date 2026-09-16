@@ -19,6 +19,7 @@ import { setStageCourse } from "@/app/actions/courses";
 import { GOLF_FORMATS, DEFAULT_INPUT, declaredInput, inputChoices } from "@/lib/formats";
 import { MATCH_ENTRY_MODES } from "@/lib/domain/match-entry";
 import { roundStanding } from "@/lib/domain/round-standing";
+import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
 import { SaveState, useSaveStatus } from "./SaveState";
 import { isTeamFormat } from "@/lib/side-style";
 import { roundShapeMismatch } from "@/lib/domain/round-shape";
@@ -991,43 +992,19 @@ function StageCard({
               "re-score 37 cards" is a different question from "change the
               format", and only the server can answer the first. */}
           {formatCards && (
-            <div
-              style={{
-                marginTop: 8,
-                padding: "8px 10px",
-                border: "1px solid var(--color-accent)",
-                borderRadius: 8,
-                fontSize: 12.5,
-                lineHeight: 1.55,
+            <RescoreWarning
+              cards={formatCards.cards}
+              consequence={RESCORE_CONSEQUENCE.format}
+              keepLabel={stage.format}
+              pending={pending}
+              onConfirm={confirmFormat}
+              onCancel={() => {
+                // Put the dropdown back to what is actually stored, or it
+                // keeps showing a format the round does not have.
+                setFormat(stage.format);
+                setFormatCards(null);
               }}
-            >
-              <b>
-                <Icon name="warning" /> This round already has {formatCards.cards} card
-                {formatCards.cards === 1 ? "" : "s"} entered.
-              </b>
-              <div className="text-muted" style={{ marginTop: 4 }}>
-                Changing the format re-scores every one of them. No stroke is altered — the
-                same numbers are simply counted a different way, so the results change and
-                nothing on screen looks any different afterwards.
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                <button type="button" className="btn btn-secondary" disabled={pending} onClick={confirmFormat}>
-                  Change it anyway
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => {
-                    // Put the dropdown back to what is actually stored, or it
-                    // keeps showing a format the round does not have.
-                    setFormat(stage.format);
-                    setFormatCards(null);
-                  }}
-                >
-                  Keep {stage.format}
-                </button>
-              </div>
-            </div>
+            />
           )}
 
           {/* THE OTHER TWO SETTINGS THAT RE-SCORE THE ROUND.
@@ -1038,36 +1015,21 @@ function StageCard({
               it". Nothing is deleted by any of them, which is exactly why it
               is quiet — the strokes stay and the results move underneath. */}
           {rescore && (
-            <div
-              style={{
-                marginTop: 8,
-                padding: "8px 10px",
-                border: "1px solid var(--color-accent)",
-                borderRadius: 8,
-                fontSize: 12.5,
-                lineHeight: 1.55,
-              }}
-            >
-              <b>
-                <Icon name="warning" /> This round already has {rescore.cards} card
-                {rescore.cards === 1 ? "" : "s"} entered.
-              </b>
-              <div className="text-muted" style={{ marginTop: 4 }}>
-                {rescore.kind === "holes"
-                  ? "Changing how many holes it is re-scores every one of them against a different round — the stroke index is re-ranked to the holes actually played, so handicap shots move to different holes than the ones they were given on."
-                  : "Changing what it is scored on re-scores every one of them. Gross, net and Stableford rank the same numbers into three different orders, and this also decides every tie."}
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                <button type="button" className="btn btn-secondary" disabled={pending} onClick={confirmRescore}>
-                  Change it anyway
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={cancelRescore}>
-                  {rescore.kind === "holes"
-                    ? `Keep ${stage.holes} holes`
-                    : `Keep ${BASIS_OPTIONS.find((o) => o.key === stage.scoringBasis)?.label ?? stage.scoringBasis}`}
-                </button>
-              </div>
-            </div>
+            <RescoreWarning
+              cards={rescore.cards}
+              consequence={
+                rescore.kind === "holes" ? RESCORE_CONSEQUENCE.holes : RESCORE_CONSEQUENCE.basis
+              }
+              keepLabel={
+                rescore.kind === "holes"
+                  ? `${stage.holes} holes`
+                  : BASIS_OPTIONS.find((o) => o.key === stage.scoringBasis)?.label ??
+                    stage.scoringBasis
+              }
+              pending={pending}
+              onConfirm={confirmRescore}
+              onCancel={cancelRescore}
+            />
           )}
 
           {/* THE ROUND'S TYPE AND ITS FORMAT, DISAGREEING — said beside the
