@@ -4791,6 +4791,87 @@ describe("side bets", () => {
         expect(html).toContain(">Net<");
         expect(html).not.toContain("no money on");
       });
+
+      /**
+       * THE WORKING HAS TO ACTUALLY ADD UP.
+       *
+       * `potFor` divides by the skins actually WON — deliberately; a week
+       * settles on its own and carries nothing forward — but the card said
+       * only "70.00 over 18 skins, 2 of them unclaimed", which invites
+       * 70 ÷ 18 = 3.89 a skin and a 27.22 payout for a seven-skin winner. The
+       * table beside it said 30.62.
+       *
+       * Read off the demo's Prizes screen on 2026-09-15. Nothing was wrong
+       * with the money; the one line that makes it add up was missing, on a
+       * card whose whole purpose is to show the working.
+       */
+      it("says what the unclaimed skins did, because the reader can do the other sum", async () => {
+        const html = await skins({
+          buyInCents: 1000,
+          stakeNote: "",
+          result: {
+            potCents: 7000,
+            claimedSkins: 16,
+            unclaimedSkins: 2,
+            carryCents: 0,
+            provisional: false,
+            shares: [
+              { playerId: "p1", skins: 7, wonCents: 3062, stakeCents: 1000, netCents: 2062 },
+              { playerId: "p2", skins: 9, wonCents: 3938, stakeCents: 1000, netCents: 2938 },
+            ],
+          },
+        });
+        // The sum the reader would otherwise be left to make.
+        expect(html, "the count the pot actually divides by").toContain("16 skins actually won");
+        expect(html).toContain("widen every winner");
+        // And the figures it has to agree with: 7000 / 16 * 7 = 3062.
+        expect(html, "the payout the sentence now explains").toContain("30.62");
+      });
+
+      it("says nothing extra when every skin was won", async () => {
+        // THE CONTROL. With nothing unclaimed the sentence explains nothing and
+        // would be noise on the commonest case.
+        const html = await skins({
+          buyInCents: 500,
+          stakeNote: "",
+          result: {
+            potCents: 1000, claimedSkins: 3, unclaimedSkins: 0, carryCents: 0, provisional: false,
+            shares: [
+              { playerId: "p1", skins: 3, wonCents: 1000, stakeCents: 500, netCents: 500 },
+              { playerId: "p2", skins: 0, wonCents: 0, stakeCents: 500, netCents: -500 },
+            ],
+          },
+        });
+        expect(html).not.toContain("actually won");
+        expect(html).not.toContain("widen every winner");
+      });
+
+      it("explains a day nobody won a hole, instead of a table of zeroes", async () => {
+        /**
+         * The branch that replaced an unreachable one. The old paragraph asked
+         * `carryCents > 0` and told the organizer to "carry it into next week
+         * by entering it as the carry there" — `carryCents` has exactly one
+         * producer and it is the literal `0`, so it could never render, and the
+         * instruction in it described a feature that does not exist.
+         *
+         * Every hole halved IS reachable, and `potFor` then splits by equal
+         * weights so everyone takes their stake back.
+         */
+        const html = await skins({
+          buyInCents: 500,
+          stakeNote: "",
+          result: {
+            potCents: 1000, claimedSkins: 0, unclaimedSkins: 18, carryCents: 0, provisional: false,
+            shares: [
+              { playerId: "p1", skins: 0, wonCents: 500, stakeCents: 500, netCents: 0 },
+              { playerId: "p2", skins: 0, wonCents: 500, stakeCents: 500, netCents: 0 },
+            ],
+          },
+        });
+        expect(html).toContain("No hole was won outright");
+        expect(html).toContain("takes back exactly what they put in");
+        expect(html, "an instruction for a feature that is not there").not.toContain("Carry it into next week");
+      });
     });
   });
 
