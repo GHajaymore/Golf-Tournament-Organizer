@@ -14,7 +14,7 @@ import {
   sideSizeRange,
   GOLF_FORMATS,
 } from "@/lib/formats";
-import { sideHandicap } from "@/lib/domain/team";
+import { sideHandicap, aggregateTeamCard } from "@/lib/domain/team";
 import { STAGE_TYPES, generatesPairings, isPlayingRound, stageTypeInfo, roundIsStroke, isHeadToHead } from "@/lib/stage-types";
 import {
   LEADERBOARD_VISIBILITY,
@@ -2078,5 +2078,80 @@ describe("what a side plays off, on every team format and size", () => {
     const weighted = sideHandicap(pair, 100, [60, 40]);
     const flat = sideHandicap(pair, 50);
     expect(weighted, "the weights are not being applied").not.toBe(flat);
+  });
+});
+
+/**
+ * A SIDE'S TO-PAR, AT EVERY STAGE OF A HOLE BEING PLAYED.
+ *
+ * The block above sweeps what a side plays OFF. This sweeps what its card then
+ * SAYS, and the axis is the one nothing had ever varied: how many partners
+ * have actually holed out, against how many the format counts.
+ *
+ * `aggregateTeamCard` adds `candidates.slice(0, countBest)` to the gross — so
+ * however many are in — and charged `par * countBest` regardless. Where the
+ * two differ the side is credited a whole par per missing score: a
+ * best-two-of-four with one partner's par in read FOUR UNDER on a hole
+ * somebody had parred, and that number reaches `/leaderboard`, `/reports` and
+ * the public board through `teamStandings`.
+ *
+ * It survived because `team.test.ts`'s own best-two cell has all four partners
+ * holing out, which is the one column of this table where gross and par cover
+ * the same number of scores and agree whatever the code does. Every other
+ * column is a state a real side is in while the round is being played, and a
+ * pick-up leaves one there for good.
+ *
+ * ASSERTED AGAINST THE RULE, not against a second copy of the arithmetic:
+ * to-par is gross minus par over the scores that COUNTED, and the count is
+ * `min(holed out, countBest)` because that is what the slice can return.
+ */
+describe("a side's to-par counts the scores it actually has", () => {
+  const PAR = 4;
+  const HOLES = 9;
+  const pars = new Array(HOLES).fill(PAR);
+  const si = Array.from({ length: HOLES }, (_, i) => i + 1);
+
+  // Scratch, so the allowance cannot move a number this block is not about —
+  // `sideHandicap` above is where the allowance is swept.
+  const member = (id: string, first: number | null) => ({
+    playerId: id,
+    courseHandicap: 0,
+    strokes: Array.from({ length: HOLES }, (_, i) => (i === 0 ? first : null)),
+  });
+
+  for (let countBest = 1; countBest <= 4; countBest += 1) {
+    for (let holedOut = 1; holedOut <= 4; holedOut += 1) {
+      it(`best ${countBest} of 4, ${holedOut} partner(s) in`, () => {
+        const team = ["a", "b", "c", "d"].map((id, i) =>
+          // Everybody who is in made par, so a miscount shows up as a whole
+          // par of credit rather than as a plausible-looking small number.
+          member(id, i < holedOut ? PAR : null),
+        );
+        const card = aggregateTeamCard(team, pars, si, 100, countBest);
+
+        const counted = Math.min(holedOut, countBest);
+        expect(card.grossTotal, "gross is not the scores that counted").toBe(PAR * counted);
+        expect(
+          card.toPar,
+          `${counted} par(s) returned should be level, not ${card.toPar}`,
+        ).toBe(0);
+        expect(card.played, "the hole was played").toBe(1);
+      });
+    }
+  }
+
+  it("a side that is genuinely OVER par still reads over", () => {
+    /**
+     * THE CELL THAT MAKES THE REST MEAN SOMETHING.
+     *
+     * Every assertion above is satisfied by a `toPar` hardcoded to zero, and
+     * the fix it guards is a change to how par is counted — so a sweep of
+     * level-par fixtures alone could not tell the right rule from no rule at
+     * all. One bogey, one partner in, counting the best two: one score, one
+     * par charged, one over.
+     */
+    const team = ["a", "b", "c", "d"].map((id, i) => member(id, i === 0 ? PAR + 1 : null));
+    const card = aggregateTeamCard(team, pars, si, 100, 2);
+    expect(card.toPar).toBe(1);
   });
 });
