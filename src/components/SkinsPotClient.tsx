@@ -387,6 +387,28 @@ export function SkinsPotClient({
                 <b style={{ color: "var(--color-text)" }}>{money(r.potCents)}</b> over{" "}
                 {r.claimedSkins + r.unclaimedSkins} skins
                 {r.unclaimedSkins > 0 ? `, ${r.unclaimedSkins} of them unclaimed` : ""}.
+                {/* WHAT THE UNCLAIMED ONES DO, because the reader can do the
+                    other sum and get a different answer.
+
+                    `potCents` divides by the skins actually WON — see
+                    `skins-pot.ts`, which is deliberate: the week goes out in
+                    full and carries nothing forward. The sentence above stops
+                    at "70.00 over 18 skins, 2 of them unclaimed", which invites
+                    70 ÷ 18 = 3.89 a skin and a 27.22 payout for a seven-skin
+                    winner. The table beside it says 30.62.
+
+                    Read off the demo on 2026-09-15. Nothing was wrong with the
+                    money; the working shown was missing the one line that makes
+                    it add up, on a card whose whole purpose is to show the
+                    working. */}
+                {r.unclaimedSkins > 0 && r.claimedSkins > 0 ? (
+                  <>
+                    {" "}
+                    A hole nobody won outright carries into the next one, so the pot divides by the{" "}
+                    {r.claimedSkins} skins actually won — the unclaimed ones widen every winner&rsquo;s
+                    share rather than being held back.
+                  </>
+                ) : null}
               </>
             )}
           </p>
@@ -446,11 +468,23 @@ export function SkinsPotClient({
             </table>
           </div>
 
-          {r.carryCents > 0 && (
+          {/* THE MONEY NOBODY WON, WHICH IS ONLY EVER ONE CASE.
+              This asked `r.carryCents > 0` and told the organizer to "carry it
+              into next week by entering it as the carry there". `carryCents`
+              has exactly one producer and it is the literal `0` — a week
+              settles on its own and carries nothing forward, which is the whole
+              point of dividing by the skins won — so the paragraph could never
+              render and the instruction in it described a feature that is not
+              there.
+
+              What IS reachable is a day where no hole was won outright at all.
+              `potCents` then divides by equal weights, so every player gets
+              their stake back, and saying so is the difference between a table
+              of zeroes that looks broken and one that is obviously right. */}
+          {r.claimedSkins === 0 && r.potCents > 0 && (
             <p className="text-muted" style={{ fontSize: 12, margin: "10px 0 0", lineHeight: 1.5 }}>
-              <b style={{ color: "var(--color-text)" }}>{money(r.carryCents)}</b> unclaimed
-              {r.claimedSkins === 0 ? " — no hole was won outright" : ""}. Carry it into next week by
-              entering it as the carry there.
+              No hole was won outright, so there is nothing to divide — everyone takes back exactly
+              what they put in.
             </p>
           )}
         </div>
