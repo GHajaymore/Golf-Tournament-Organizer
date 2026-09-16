@@ -134,12 +134,41 @@ export function LeaderboardTable({
   isStableford = false,
   rows,
   compact = false,
+  rankedOn = "net",
   emptyNote = "Nothing to rank here yet.",
 }: {
   isStroke: boolean;
   isStableford?: boolean;
   rows: StandingRow[];
   compact?: boolean;
+  /**
+   * WHICH OF THE TWO STROKE SCORES THIS ROUND IS DECIDED ON.
+   *
+   * The full table shows Gross AND Net and needs no help. The `compact`
+   * dashboard preview drops Thru and Gross for width — which on a GROSS
+   * competition left the one column of numbers showing the score the round is
+   * NOT decided on, and hid the one it is. Read off the demo on 2026-09-16,
+   * where the dashboard's preview ran
+   *
+   *     1  Walkthrough Player   55
+   *     2  Diego Alvarez        66
+   *     3  Sang-woo Kim         65
+   *     4  Elena Petrova        64
+   *     5  AJ                   68
+   *
+   * — a leaderboard whose only score column does not descend, because the
+   * order is gross and the column is net. Nothing is false; the column just
+   * cannot explain the ranking it sits beside, and the organizer's glance is
+   * the whole job of that card.
+   *
+   * The other half of `strokeUnitLabel`, which taught the two player-facing
+   * boards to say "Ranked by gross strokes" rather than "Ranked by strokes".
+   *
+   * Defaults to "net", which is exactly what compact printed before, so a
+   * caller not yet taught is unchanged. Meaningless for a Stableford board,
+   * which has no second number to choose between.
+   */
+  rankedOn?: "gross" | "net";
   /**
    * What to say instead of a table when there are no rows.
    *
@@ -211,7 +240,11 @@ export function LeaderboardTable({
               {showFlight && <th>Flight</th>}
               {!compact && <th style={{ textAlign: "center" }}>Thru</th>}
               {!compact && <th style={{ textAlign: "right" }}>Gross</th>}
-              {!isStableford && <th style={{ textAlign: "right" }}>Net</th>}
+              {/* THE NUMBER THIS ROUND IS DECIDED ON, where there is only room
+                  for one of them. See `rankedOn`. */}
+              {!isStableford && (
+                <th style={{ textAlign: "right" }}>{compact && rankedOn === "gross" ? "Gross" : "Net"}</th>
+              )}
               <th style={{ textAlign: "right" }}>{isStableford ? "Pts" : "To par"}</th>
             </tr>
           </thead>
@@ -240,7 +273,11 @@ export function LeaderboardTable({
                 {showFlight && <td className="text-muted">{r.flight}</td>}
                 {!compact && <td style={{ textAlign: "center", ...num }}>{r.thru > 0 ? r.thru : "—"}</td>}
                 {!compact && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.gross : "—"}</td>}
-                {!isStableford && <td style={{ textAlign: "right", ...num }}>{r.thru > 0 ? r.net : "—"}</td>}
+                {!isStableford && (
+                  <td style={{ textAlign: "right", ...num }}>
+                    {r.thru > 0 ? (compact && rankedOn === "gross" ? r.gross : r.net) : "—"}
+                  </td>
+                )}
                 <td style={{ textAlign: "right", fontWeight: 600, color: "var(--color-accent-200)", ...num }}>
                   {/* Stableford points are counted off the card and do not
                       need a par of their own here, so only the to-par branch

@@ -879,6 +879,10 @@ export default async function DashboardPage() {
                   isStableford={state.boardStage?.scoringBasis === "stableford"}
                   rows={rows}
                   compact
+                  /* Compact has room for ONE of the two stroke scores, and it
+                     must be the one the round is decided on. Same round these
+                     rows came from, like the props either side. */
+                  rankedOn={state.boardStage?.scoringBasis === "gross" ? "gross" : "net"}
                   /* `standingRows` is per PLAYER, and a team round's result
                      belongs to the SIDE — so this card had five column names
                      and no rows under them on a four-ball that had finished.
