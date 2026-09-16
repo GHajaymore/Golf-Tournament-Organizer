@@ -337,6 +337,57 @@ describe("the club theme cannot inject CSS", () => {
     expect(layout).toMatch(/const themeStyleSheet = themeCss\(/);
   });
 
+  /**
+   * ALL THREE SHELLS, NOT THE ONE THAT WAS REVIEWED.
+   *
+   * A club's theme is rendered through `dangerouslySetInnerHTML` in three
+   * places, and this file pinned the console's. The other two are the PLAYER
+   * shell and the public spectator board — the second of which needs no login
+   * at all, so an injection there is served to anybody with the link.
+   *
+   * Both are in fact safe today: each goes through `themeCss`, and `themeCss`
+   * filters every declaration through `SAFE_CSS_VALUE`. Nothing is being fixed
+   * here. What is being closed is that the test said so about one of the three,
+   * which is the shape this codebase keeps finding — a rule checked where it
+   * was reported and nowhere else.
+   *
+   * Checked by SOURCE rather than by rendering, and through `readSource`, which
+   * strips comments: the paragraph above names `themeCss` and would otherwise
+   * satisfy the assertion on its own.
+   */
+  const playerShell = readSource("src", "app", "(player)", "layout.tsx");
+  const publicBoard = readSource("src", "app", "live", "[token]", "page.tsx");
+  const boardService = readSource("src", "lib", "services", "live-board.ts");
+
+  it("holds for the player shell too", () => {
+    expect(playerShell).toMatch(/dangerouslySetInnerHTML=\{\{ __html: themeCss\(/);
+  });
+
+  it("and for the public board, whose stylesheet is built one layer away", () => {
+    // The page renders a value the SERVICE built, so both halves need saying:
+    // a page reading `board.themeStyleSheet` proves nothing on its own.
+    expect(publicBoard).toMatch(/dangerouslySetInnerHTML=\{\{ __html: board\.themeStyleSheet \}\}/);
+    expect(boardService).toMatch(/themeStyleSheet: themeCss\(/);
+  });
+
+  it("and no shell builds a stylesheet any other way", () => {
+    /**
+     * The absence half, which is the direction that catches a NEW route.
+     * `dangerouslySetInnerHTML` is used for four things in this app — the
+     * theme, the icon sprite, the landing CSS and the JSON-LD block — and a
+     * fifth reached by interpolating anything a club typed is the bug this
+     * whole section exists to stop.
+     */
+    for (const [name, src] of [
+      ["player shell", playerShell],
+      ["public board", publicBoard],
+      ["console layout", layout],
+    ] as const) {
+      const injections = src.match(/dangerouslySetInnerHTML/g) ?? [];
+      expect(injections.length, `${name} grew a second __html`).toBe(1);
+    }
+  });
+
   it("validates both colours and the appearance on save", () => {
     const org = stripComments(
       readFileSync(join(ACTIONS_DIR, "organization.ts"), "utf8"),
