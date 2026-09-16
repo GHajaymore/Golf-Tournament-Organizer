@@ -19,6 +19,7 @@ import { todayIso } from "@/lib/deadline";
 import { availabilityFor } from "@/lib/services/availability";
 import { parseTeeSheet, groupForPlayer, type TeeSheet } from "@/lib/domain/tee-sheet";
 import { currentRoundCut } from "@/lib/domain/cut";
+import { bracketScreenName } from "@/lib/domain/bracket-name";
 import { navForRole, screenName } from "@/lib/nav";
 import { hasKnockoutStage, isPlayingRound, isWeeklyRound } from "@/lib/stage-types";
 import { launchRefusal, finishRefusal } from "@/lib/domain/phase-gate";
@@ -959,7 +960,7 @@ export default async function DashboardPage() {
                 </div>
               </div>
               <Link className="btn btn-ghost" href="/bracket" style={{ alignSelf: "flex-start", marginTop: 6 }}>
-                Open bracket manager <Icon name="arrow-right" />
+                Open the {bracketScreenName(!isStaff).toLowerCase()} <Icon name="arrow-right" />
               </Link>
             </div>
             )}
