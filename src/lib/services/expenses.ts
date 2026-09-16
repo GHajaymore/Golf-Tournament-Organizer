@@ -325,13 +325,38 @@ export function roundMoneyFinality(input: {
   // with none, which would settle a stroke round nobody had started.
   const matchesDone = stageMatches.length > 0 && matchesOver === stageMatches.length;
 
+  /**
+   * A ROUND WITH FIXTURES IS DECIDED BY ITS FIXTURES, never by its cards.
+   *
+   * `holesReturned` asks "has the field returned its scores", which is the
+   * right question for a medal round and the wrong one for a draw. A match is
+   * over when it is won — 5&4 leaves four holes unplayed — so counting holes
+   * cannot tell a finished round from one with a pairing still on the course.
+   *
+   * It became reachable the day `roundStrokes` started reading
+   * `MatchScorecard` as well: five finished matches between them cover all
+   * eighteen holes, so a round with the sixth still out reported every hole in
+   * and settled. `match-cards.audit.test.ts` caught exactly that — "one match
+   * still out holds the pot open" — and it is the hazard
+   * `docs/scoring-input-model.md` was written about, arriving from the
+   * opposite direction to the one it predicted: not a complete match refused
+   * for a short card, but an incomplete ROUND paid out on somebody else's.
+   *
+   * Enforced here rather than by asking callers for the right card list, for
+   * the reason the money section of CLAUDE.md gives: `moneyFor` and
+   * `roundMoneyFor` both read this, so a third caller written later cannot get
+   * it wrong by forgetting. Same shape as `standingRows` returning `[]` on its
+   * first line for a manual format.
+   */
+  const cardsCanSettle = stageMatches.length === 0;
+
   return {
     holesReturned,
     matchesDone,
     matchesTotal: stageMatches.length,
     matchesOver,
     final: roundMoneyIsFinal({
-      holesReturned,
+      holesReturned: cardsCanSettle ? holesReturned : 0,
       holeCount,
       roundComplete: matchesDone || input.eventCompleted,
     }),

@@ -45,6 +45,82 @@ const startedMatch = (stageId: string) => ({
   holes: JSON.stringify(["A", ...Array.from({ length: 17 }, () => null)]),
 });
 
+/**
+ * A ROUND WITH FIXTURES IS DECIDED BY ITS FIXTURES, never by its cards.
+ *
+ * Every cell below this file's original defect passes `cards: []`, because
+ * when it was written a match round HAD no cards — the result lived on
+ * `Match.holes` and nothing else. That is no longer true: match play can be
+ * scored on full gross cards, `roundStrokes` reads `MatchScorecard`, and both
+ * money readers now hand those rows to this function.
+ *
+ * So the instrument that was reading ZERO forever can now read EIGHTEEN early.
+ * Five finished matches between them cover every hole of the course, and a
+ * round with the sixth pairing still on the 12th reported every hole in and
+ * settled. Caught by `match-cards.audit.test.ts` — "one match still out holds
+ * the pot open" — which is the same hazard `docs/scoring-input-model.md`
+ * predicted, arriving from the opposite direction: not a complete match
+ * refused for a short card, but an incomplete ROUND paid out on somebody
+ * else's card.
+ *
+ * `holesReturned` asks "has the field returned its scores". That is the right
+ * question for a medal round and a meaningless one for a draw, because a match
+ * is over when it is WON — 5&4 leaves four holes unplayed — so no count of
+ * holes can tell a finished round from one still being played.
+ */
+describe("a match round that DOES have cards", () => {
+  it("is NOT settled by the cards while a match is still out", () => {
+    const r = roundMoneyFinality({
+      stageId: "s1",
+      holeCount: HOLES_18,
+      // Eighteen holes of card, which is exactly what five finished matches
+      // leave behind — and not a word about the sixth.
+      cards: [card("s1", full), card("s1", full)],
+      matches: [wonMatch("s1"), wonMatch("s1"), startedMatch("s1")],
+      eventCompleted: false,
+    });
+    expect(r.matchesOver, "two of the three are over").toBe(2);
+    expect(r.matchesTotal).toBe(3);
+    expect(r.final, "a full card cannot finish a round with a match still out").toBe(false);
+  });
+
+  it("is still FINAL once every match is over", () => {
+    /**
+     * THE CELL THAT KEEPS THE RULE FROM BEING "NEVER". Refusing the cards is
+     * only correct if the fixtures can still settle the round — otherwise a
+     * match round carrying cards would never pay at all, which is the defect
+     * this whole file was written for, reintroduced by its own fix.
+     */
+    const r = roundMoneyFinality({
+      stageId: "s1",
+      holeCount: HOLES_18,
+      cards: [card("s1", full), card("s1", full)],
+      matches: [wonMatch("s1"), wonMatch("s1")],
+      eventCompleted: false,
+    });
+    expect(r.final, "every match over is what finishes a match round").toBe(true);
+  });
+
+  it("leaves a round with NO fixtures settling on its cards, exactly as before", () => {
+    /**
+     * The control, and the direction that matters most: this rule must reach
+     * only rounds that have a draw. A medal round and a four-ball have no
+     * `Match` rows at all, and their cards are the ONLY measure they have — so
+     * a rule that refused the cards everywhere would stop every stroke round
+     * in the app from ever settling.
+     */
+    const r = roundMoneyFinality({
+      stageId: "s1",
+      holeCount: HOLES_18,
+      cards: [card("s1", full)],
+      matches: [],
+      eventCompleted: false,
+    });
+    expect(r.holesReturned).toBe(18);
+    expect(r.final, "a stroke round is finished when its cards are in").toBe(true);
+  });
+});
+
 describe("a match round with no cards at all", () => {
   it("is FINAL once every match is over", () => {
     /**
