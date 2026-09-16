@@ -440,6 +440,26 @@ export interface EventState {
    * it rather than assume.
    */
   strokeUnit: StandingsUnit;
+  /**
+   * THE SAME UNIT, SAID SO A READER KNOWS WHICH COMPETITION THIS IS.
+   *
+   * `strokeUnit` is "strokes" for a gross round and "strokes" for a net one,
+   * and that is correct where it is used — `carryUnitsCompatible` asks whether
+   * two rounds may be added together, and gross strokes and net strokes are
+   * the same unit, so they may. Changing it would silently split a board.
+   *
+   * It is wrong on a SCREEN. Both boards print "Ranked by {unit}" over a table
+   * that shows a net column and a to-par column, and the reader is left to
+   * guess which of the two numbers put the players in that order. On Demo Cup
+   * — a gross competition — the board reads "Ranked by strokes" with nets
+   * running 55, 66, 65, 64, 68 down the page, which looks like a mistake and
+   * is not one.
+   *
+   * It matters more since the countback was corrected to run on the basis and
+   * nothing else: the rule that now settles a tie is stated nowhere on the
+   * screen the tie appears on. Display only; nothing branches on it.
+   */
+  strokeUnitLabel: string;
   strokeRounds: DbStage[];
   /**
    * Playing handicap for a player on a given round, allowance and hole count
@@ -1623,6 +1643,9 @@ export async function loadEventState(eventId: string): Promise<EventState | null
     nextUnplayedRound,
     strokeStandings,
     strokeUnit,
+    // Only "strokes" is ambiguous; points name themselves. See strokeUnitLabel.
+    strokeUnitLabel:
+      strokeUnit === "strokes" ? `${grossBasis ? "gross" : "net"} strokes` : strokeUnit,
     strokeRounds,
     strokeHandicapFor: handicapFor,
     /**

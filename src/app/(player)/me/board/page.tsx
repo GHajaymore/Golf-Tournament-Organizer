@@ -106,7 +106,7 @@ export default async function PlayBoardPage() {
         youId={me?.id ?? ""}
         // What the column actually measures, from the same place the board
         // totals it — the state now says, rather than the screen assuming.
-        unit={state.boardIsStroke ? state.strokeUnit : "match points"}
+        unit={state.boardIsStroke ? state.strokeUnitLabel : "match points"}
         // Why the cut line falls where it does. The player on the wrong side
         // of it is the one person who most needs that sentence, and it was
         // rendered only on the organizer's console.

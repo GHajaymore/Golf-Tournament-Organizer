@@ -209,6 +209,35 @@ describe("a gross competition", () => {
   });
 });
 
+describe("and the board says which competition it is", () => {
+  /**
+   * `strokeUnit` is "strokes" for both, which is correct where it is used —
+   * `carryUnitsCompatible` asks whether two rounds may be summed, and gross
+   * strokes and net strokes are the same unit, so they may.
+   *
+   * It is wrong on a SCREEN. Both boards print "Ranked by {unit}" over a table
+   * carrying a net column and a to-par column, and the reader is left to guess
+   * which of the two put the players in that order. On Demo Cup — gross — the
+   * nets run 55, 66, 65, 64, 68 down the page, which looks like a mistake and
+   * is not one. It matters more now the countback runs on the basis and
+   * nothing else: the rule that settles a tie is stated nowhere on the screen
+   * the tie appears on.
+   */
+  it("names the basis on a gross competition", async () => {
+    const { eventId } = await seed("gross");
+    const state = await loadEventState(eventId);
+    expect(state!.strokeUnitLabel).toBe("gross strokes");
+    expect(state!.strokeUnit, "the carry key is untouched — it decides what may be summed").toBe("strokes");
+  });
+
+  it("names the basis on a net competition", async () => {
+    const { eventId } = await seed("net");
+    const state = await loadEventState(eventId);
+    expect(state!.strokeUnitLabel).toBe("net strokes");
+    expect(state!.strokeUnit).toBe("strokes");
+  });
+});
+
 describe("a net competition", () => {
   it("separates them, because net is what it is decided on", async () => {
     /**
