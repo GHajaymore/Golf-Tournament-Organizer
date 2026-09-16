@@ -213,6 +213,21 @@ async function build(label, steps) {
         type: steps.secondStage,
         format: "Match Play",
         description: `${MARK} knockout`,
+        /**
+         * A Single Match Stage without one is a stage that cannot say who is
+         * playing. The rule is the PAIRING RULE, not the pair — see
+         * `single-match.ts`: a pairing written down when the stage was created
+         * goes stale the moment an upstream score is corrected, which would
+         * put two players in a final the results no longer support.
+         *
+         * `DEFAULT_SINGLE_MATCH_RULE` is seeds 1 and 2, which is what the app
+         * itself creates, so this is the state a club is actually in rather
+         * than one invented for the fixture. Empty on every other stage type,
+         * exactly as the schema says.
+         */
+        ...(steps.secondStage === "Single Match Stage"
+          ? { singleMatchRule: JSON.stringify({ kind: "seeds", a: 1, b: 2 }) }
+          : {}),
         holes: 18, scoringBasis: "gross", handicapAllowance: 100,
       },
     });
@@ -432,6 +447,27 @@ const STAGES = [
   ["two-rounds", {
     rounds: true, card: true, players: 4, flights: true, cards: true,
     status: "live", secondStage: "Bracket Stage",
+  }],
+  /**
+   * THE OTHER STRUCTURAL TYPE, because the stage above only closed one of two.
+   *
+   * `STRUCTURAL_STAGE_TYPES` is `["Single Match Stage", "Bracket Stage"]`.
+   * `two-rounds` builds the bracket, and the note on it is about structural
+   * stages in general — which left the play-off in exactly the state that note
+   * describes: a type nothing in the repository has ever rendered.
+   *
+   * They are not interchangeable. A bracket is `seededFromQualifiers` and
+   * draws a whole ladder; a single match is ONE fixture whose two players are
+   * named by a stored RULE rather than by the draw — `generatesPairings` is
+   * false and `singleMatchRule` is a column no other stage type uses. A screen
+   * written against the bracket has no reason to handle either.
+   *
+   * Seeds 1 and 2, which is `DEFAULT_SINGLE_MATCH_RULE` and what the app
+   * creates for itself, so this is a state a club is really in.
+   */
+  ["play-off", {
+    rounds: true, card: true, players: 4, flights: true, cards: true,
+    status: "live", secondStage: "Single Match Stage",
   }],
   /**
    * TEAM ROUNDS, in their two structural shapes.
