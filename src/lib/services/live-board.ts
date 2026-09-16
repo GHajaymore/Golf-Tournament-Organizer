@@ -2,7 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { prisma } from "../db";
 import { COURSE_REF, cardForStage } from "./course-resolution";
-import { loadEventState, matchSettled, standingRows, cutLineNote, settingsOf } from "./tournament";
+import { loadEventState, standingRows, cutLineNote, settingsOf } from "./tournament";
 import { resolveAttendance, tracksPerRound, type AttendanceMode } from "../domain/attendance";
 import type { StandingRow } from "@/components/LeaderboardTable";
 import { boardKind } from "../formats";
