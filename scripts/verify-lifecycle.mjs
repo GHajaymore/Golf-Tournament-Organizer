@@ -168,7 +168,12 @@ async function build(label, steps) {
         eventId: event.id,
         position: 0,
         type: match ? "Round Robin" : "Stroke Play Round",
-        format: match ? "Match Play" : "Stroke Play",
+        // A TEAM format when one is asked for. These are not one engine with a
+        // label on it: sides are two or four, some share a ball and some
+        // aggregate two, and the allowance differs per format — see #381, where
+        // Chapman shipped a pre-WHS flat 50% for months because every fixture
+        // checking it used evenly-matched pairs.
+        format: steps.teamFormat ?? (match ? "Match Play" : "Stroke Play"),
         holes: 18, scoringBasis: "gross", handicapAllowance: 100,
       },
     });
@@ -193,7 +198,7 @@ async function build(label, steps) {
       },
     }));
   }
-  if (steps.cards && stage) {
+  if (steps.cards && stage && !steps.teamFormat) {
     for (const p of players) {
       await prisma.scorecard.create({
         data: {
@@ -201,6 +206,47 @@ async function build(label, steps) {
           strokes: JSON.stringify(new Array(18).fill(4)),
         },
       });
+    }
+  }
+
+  /**
+   * SIDES, for a team round — which is a whole side of the product with no
+   * screen coverage at all.
+   *
+   * The seeded demo has none: `/teams` there says "No team rounds yet", so
+   * `smoke-routes.mjs` has never rendered a single one. Nine formats qualify,
+   * and they are structurally two things — a side of TWO that aggregates
+   * separate balls, and a side of FOUR that shares one. Both are here; the
+   * other seven were walked once and came back clean, and carrying all nine on
+   * every push would cost more than it is worth.
+   *
+   * A team round's scores live in `TeamScorecard`, a different table from
+   * `Scorecard` — which is exactly the difference a screen written against a
+   * medal round does not know about.
+   *
+   * Handicaps are spread ACROSS and WITHIN the sides on purpose. An even side
+   * cannot tell a weighted allowance from a flat one, which is how Chapman
+   * shipped a pre-WHS flat 50% for months.
+   */
+  if (steps.teamFormat && stage) {
+    const sideSize = steps.sideSize ?? 2;
+    for (let s = 0; s * sideSize < players.length; s += 1) {
+      const members = players.slice(s * sideSize, (s + 1) * sideSize);
+      if (members.length < sideSize) break;
+      const team = await prisma.team.create({
+        data: { eventId: event.id, stageId: stage.id, name: `${MARK} Side ${s + 1}`, seed: s + 1 },
+      });
+      for (const [i, p] of members.entries()) {
+        await prisma.teamMember.create({ data: { teamId: team.id, playerId: p.id, position: i } });
+        if (steps.cards) {
+          await prisma.teamScorecard.create({
+            data: {
+              eventId: event.id, stageId: stage.id, teamId: team.id, playerId: p.id,
+              strokes: JSON.stringify(new Array(18).fill(4 + i)),
+            },
+          });
+        }
+      }
     }
   }
 
@@ -325,6 +371,19 @@ const STAGES = [
    */
   ["field-of-one", { rounds: true, card: true, players: 1, flights: true, cards: true, status: "live" }],
   /**
+   * TEAM ROUNDS, in their two structural shapes.
+   *
+   * Four-Ball is a side of TWO aggregating separate balls; Scramble is a side
+   * of FOUR sharing one. The other seven team formats — Best Ball, Shamble,
+   * Foursomes, Alternate Shot, Chapman / Pinehurst, Greensomes, Texas
+   * Scramble — were walked once across every screen and came back clean, and
+   * carrying all nine on every push would cost more than it is worth.
+   *
+   * Four sides, so a board has something to rank rather than one row.
+   */
+  ["team-pairs", { rounds: true, card: true, players: 4, flights: true, cards: true, status: "live", teamFormat: "Four-Ball", sideSize: 2 }],
+  ["team-fours", { rounds: true, card: true, players: 8, flights: true, cards: true, status: "live", teamFormat: "Scramble", sideSize: 4 }],
+  /**
    * THE QUICK ROUND, which is a different SHAPE and not a small tournament.
    *
    * `matchEvent` gates whole blocks of the dashboard, renames the sidebar
@@ -393,6 +452,25 @@ async function main() {
         const res = await get(`${BASE}${path}`, { redirect: "manual" });
         if (res.status !== 200) {
           bad.push(`public ${path.split("/")[1]} answered ${res.status} — nothing was checked`);
+        }
+      }
+
+      /**
+       * AND A TEAM STAGE HAS TO HAVE BUILT SIDES.
+       *
+       * `/teams` renders "No team rounds yet" for a round that is not one, and
+       * that page is a 200 with a heading — so a team stage whose sides failed
+       * to build walks clean past every check above while rendering the empty
+       * state. Same shape as the public board answering 404: the output cannot
+       * tell covered from skipped.
+       */
+      if (steps.teamFormat) {
+        const teams = await get(`${BASE}/teams`, { headers: { cookie: staff }, redirect: "manual" });
+        if (teams.status === 200) {
+          const shown = await teams.text();
+          if (!shown.includes(`${MARK} Side`)) {
+            bad.push("no side ever rendered on /teams — the team round was not built");
+          }
         }
       }
 
