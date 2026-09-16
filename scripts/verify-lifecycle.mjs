@@ -206,8 +206,49 @@ async function build(label, steps) {
   await prisma.account.create({
     data: { eventId: event.id, name: user.name, email: user.email, role: "admin" },
   });
-  return `ng_session=${sign(user.id)}; ng_active_event=${sign(event.id)}`;
+
+  /**
+   * A PLAYER'S LOGIN, resolved the way the app resolves one: by EMAIL against
+   * the Player rows.
+   *
+   * The player shell is a different set of screens reached down a different
+   * path, and on the early stages there is no Player row to match at all —
+   * which is the same shape as the `/entry` 500 this script was written for.
+   * Two of the defects found the day it was written were role-specific and
+   * both were on screens BOTH roles open, which is where a role gate gets
+   * forgotten.
+   *
+   * Takes the first player's address when the stage has a field, so they are
+   * somebody IN it; otherwise an address matching nobody, which is the state
+   * an early-stage player screen is least likely to have been written against.
+   */
+  const playerEmail = players[0]?.email ?? `${MARK}-${label}-nobody@example.invalid`;
+  const playerUser = await prisma.user.create({
+    data: {
+      email: playerEmail,
+      name: "Lifecycle Player",
+      password: `${randomBytes(8).toString("hex")}:unusable`,
+    },
+  });
+  made.users.push(playerUser.id);
+  await prisma.account.create({
+    data: { eventId: event.id, name: playerUser.name, email: playerEmail, role: "player" },
+  });
+
+  return {
+    staff: `ng_session=${sign(user.id)}; ng_active_event=${sign(event.id)}`,
+    player: `ng_session=${sign(playerUser.id)}; ng_active_event=${sign(event.id)}`,
+  };
 }
+
+/**
+ * The player's own shell, which is not in the sidebar's staff list.
+ *
+ * `nav.ts` filters what a player is OFFERED; these are the screens that answer
+ * when they go there. The console routes they may open are already in HREFS
+ * and get walked as them too.
+ */
+const PLAYER_ROUTES = ["/me", "/me/board", "/me/card", "/me/money", "/me/rules", "/me/messages"];
 
 const STAGES = [
   ["named-only", {}],
@@ -237,21 +278,51 @@ async function main() {
     await prisma.organization.deleteMany({ where: { name: { startsWith: MARK } } });
 
     console.log(`Verifying against ${BASE}`);
-    console.log(`${HREFS.length} screens x ${STAGES.length} stages\n`);
+    console.log(`${HREFS.length} screens x ${STAGES.length} stages, as staff and as a player\n`);
 
     for (const [label, steps] of STAGES) {
-      const cookie = await build(label, steps);
+      const { staff, player } = await build(label, steps);
       const bad = [];
-      for (const h of HREFS) {
-        const res = await get(`${BASE}${h}`, { headers: { cookie }, redirect: "manual" });
-        if (res.status >= 500) { bad.push(`${h} -> ${res.status}`); continue; }
-        // A redirect is the console turning somebody away on purpose.
-        if (res.status !== 200) continue;
-        const html = await res.text();
-        if (!/<h1[^>]*>/.test(html)) bad.push(`${h} -> no h1`);
-        const text = html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]*>/g, " ");
-        for (const k of JUNK) if (text.includes(k)) bad.push(`${h} -> ${k}`);
+
+      /**
+       * BOTH ROLES. A player sees a different set of screens down a different
+       * path, and the screens they share with staff are where a role gate gets
+       * forgotten — both role defects found the day this was written were on
+       * shared screens.
+       */
+      const walk = async (cookie, routes, who) => {
+        for (const h of routes) {
+          const res = await get(`${BASE}${h}`, { headers: { cookie }, redirect: "manual" });
+          if (res.status >= 500) { bad.push(`${who}${h} -> ${res.status}`); continue; }
+          // A redirect is the console turning somebody away on purpose.
+          if (res.status !== 200) continue;
+          const html = await res.text();
+          if (!/<h1[^>]*>/.test(html)) bad.push(`${who}${h} -> no h1`);
+          const text = html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]*>/g, " ");
+          for (const k of JUNK) if (text.includes(k)) bad.push(`${who}${h} -> ${k}`);
+        }
+      };
+      await walk(staff, HREFS, "");
+      await walk(player, [...HREFS, ...PLAYER_ROUTES], "as player ");
+
+      /**
+       * AND THE PLAYER HAS TO ACTUALLY BE ONE.
+       *
+       * If the role did not take — a wrong `role`, a session resolving to the
+       * admin — the second walk would repeat the first, every screen would
+       * return 200, and this would report clean while covering nothing new.
+       * Same quiet failure the shape control below exists for.
+       *
+       * The organizer's status card is the tell: it is `isStaff` gated, so a
+       * real player never sees it and staff on a series event always do.
+       */
+      if (steps.shape !== "match") {
+        const asPlayer = await get(`${BASE}/dashboard`, { headers: { cookie: player }, redirect: "manual" });
+        if (asPlayer.status === 200 && (await asPlayer.text()).includes("Tournament status")) {
+          bad.push("role did not take: the player sees the organizer's status card");
+        }
       }
+      const cookie = staff;
       /**
        * THE SHAPE HAS TO HAVE TAKEN EFFECT, or these are the same walk twice.
        *
@@ -267,7 +338,7 @@ async function main() {
        */
       const dash = await get(`${BASE}/dashboard`, { headers: { cookie }, redirect: "manual" });
       if (dash.status === 200) {
-        const shown = (await dash.text()).replace(/<[^>]*>/g, " ").replace(/s+/g, " ");
+        const shown = (await dash.text()).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
         const wantMatch = steps.shape === "match";
         const isMatch = shown.includes("The match");
         if (isMatch !== wantMatch) {
