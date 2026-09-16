@@ -64,3 +64,56 @@ describe("what the field is missing", () => {
     expect(contactGaps([p(""), p("")], true).lines[0]).toMatch(/^2 players have/);
   });
 });
+
+/**
+ * WHAT IT SAYS WHEN AN ADDRESS IS NOT THE WAY IN.
+ *
+ * This line asserted "access is email-based" about every tournament, and was
+ * false on the ones that sign players in by Round Code — which is the whole of
+ * what #296 made possible, and what the society and charity templates ship.
+ *
+ * MEASURED ON THE SEEDED DEMO, 2026-09-15. Demo Cup has `playerAccess: "code"`
+ * and 31 entrants with no address, and its Registration screen told the
+ * organizer those 31 "can't sign in until one's added". They could: the Round
+ * Code is how they get in, and `createPlaySession` never reads an address.
+ *
+ * Found by rendering the screen against real rows, not by reading the source.
+ */
+describe("when the Round Code is the way in", () => {
+  const field = [{ email: "" }, { email: "" }, { email: "someone@example.invalid" }];
+
+  it("does not claim they cannot sign in", () => {
+    const line = contactGaps(field, false, false).lines[0];
+    expect(line, "still says access is email-based").not.toMatch(/email-based/);
+    expect(line, "still says they cannot sign in").not.toMatch(/can.t sign in/);
+  });
+
+  it("says what a missing address DOES cost", () => {
+    /**
+     * Not silence. `messageableField` selects on `email: { not: "" }`, so a
+     * player without one is absent from every announcement and every message —
+     * they can play the whole tournament and hear nothing. The organizer of a
+     * society that entered its field by name is exactly the person who will
+     * later wonder why half the field missed the tee times.
+     */
+    const line = contactGaps(field, false, false).lines[0];
+    expect(line).toMatch(/Round Code/);
+    expect(line).toMatch(/announcements and messages/i);
+    expect(line).toContain("2 players");
+  });
+
+  it("still says the plain thing when email IS the way in", () => {
+    // The control on the pair: if both branches read the same, neither is
+    // being chosen and this file asserts nothing about the distinction.
+    const codeOff = contactGaps(field, false, true).lines[0];
+    const codeOn = contactGaps(field, false, false).lines[0];
+    expect(codeOff).toMatch(/email-based/);
+    expect(codeOff).not.toBe(codeOn);
+  });
+
+  it("says nothing at all when every entrant has an address", () => {
+    // The ordinary case, either way round.
+    expect(contactGaps([{ email: "a@example.invalid" }], false, false).lines).toEqual([]);
+    expect(contactGaps([{ email: "a@example.invalid" }], false, true).lines).toEqual([]);
+  });
+});
