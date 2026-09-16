@@ -2730,6 +2730,70 @@ describe("saying where a tournament is played, from score entry", () => {
     expect(html).toContain('role="combobox"');
   });
 
+  /**
+   * A TOURNAMENT WITH NO ROUNDS — WHICH IS EVERY TOURNAMENT FOR TEN MINUTES.
+   *
+   * `rounds[roundIdx] ?? rounds[0]` is undefined on an empty list and the
+   * screen read `round.stroke.stageId` off it, so Score entry returned 500 on
+   * a freshly created tournament. It is in the sidebar from the moment one
+   * exists.
+   *
+   * The smoke pass cannot see this: it walks the seeded demo, which has
+   * rounds. Found by walking the nav on an event with nothing in it.
+   */
+  describe("before the tournament has a single round", () => {
+    const noRounds = async (screen: Record<string, unknown> = {}) => {
+      const { EntryModes } = await import("@/components/EntryModes");
+      return render(
+        <EntryModes
+          rounds={[]}
+          activeIndex={0}
+          players={[{ id: "p1", name: "Alex Vaughn", handicap: 8 }]}
+          isStaff
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          {...(screen as any)}
+        />,
+      );
+    };
+
+    it("renders at all", async () => {
+      // The whole defect: this threw. Everything below is about what it says.
+      await expect(noRounds()).resolves.toBeTypeOf("string");
+    });
+
+    it("says what is missing and where to fix it", async () => {
+      const html = await noRounds();
+      expect(html).toContain("No rounds yet");
+      // Names the screen that adds one, and links to it — an empty state that
+      // does not say what to do next is a dead end with better manners.
+      expect(html).toContain('href="/stages"');
+      expect(html).toContain("Rounds &amp; formats");
+    });
+
+    it("keeps the screen's own heading", async () => {
+      /**
+       * This component owns the kicker and h1 — the page renders its own only
+       * on the team-entry path — so an early return without them left
+       * `/entry` with no h1, which `e2e/layout.spec.ts` asserts against on
+       * every route. The first draft of the fix did exactly that, and the
+       * suite was green: the layout spec runs on a fixture that HAS rounds.
+       */
+      const html = await noRounds();
+      expect(html).toContain("<h1");
+      expect(html).toContain("Score entry");
+      expect(html.match(/<h1/g) ?? [], "exactly one h1, as every route must have").toHaveLength(1);
+    });
+
+    it("calls the section Playing on a casual round, as it does when populated", async () => {
+      // The kicker follows the sidebar section, and a casual round's is
+      // "Playing" — nobody who has just walked off the 1st is managing
+      // anything. The empty state must not quietly say Manage instead.
+      const html = await noRounds({ casual: true });
+      expect(html).toContain("Playing");
+      expect(html).not.toContain(">Manage<");
+    });
+  });
+
   it("stops offering it the moment the round has one", async () => {
     /**
      * The delegation rule, still holding where it was right. A match-play
