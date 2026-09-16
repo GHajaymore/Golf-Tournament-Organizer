@@ -458,6 +458,36 @@ In Playwright 1.62 `reducedMotion` lives on `contextOptions`, NOT among the
 makes it easy to write in the wrong place. Put it at the top level and it is a
 type error surfaced by `next build` type-checking the config, not by Playwright.
 
+**AND IT HAS A SECOND SIGNATURE, WHICH IS NOT THE ONE ABOVE.** Everything from
+`offline.spec.ts:245` down to here describes a click that cannot LAND on a
+chooser that is on screen. On 2026-09-16 the same test failed on `phone` with the
+chooser never appearing at all:
+
+```
+Error: expect(locator).toBeVisible() failed
+  Locator: getByRole('alertdialog')
+  Timeout: 20000ms
+  Error: element(s) not found
+  at e2e/offline.spec.ts:259
+```
+
+Read the difference rather than filing it as the same thing: `not stable` /
+`outside of the viewport` / `detached` is the scroll race the `reducedMotion`
+fix addresses, and this is twenty seconds of nothing. The `reducedMotion` fix
+cannot help a dialog that was never rendered.
+
+What it is NOT: a broken chooser. `offline.spec.ts:218` — "a card changed while
+you were offline asks instead of overwriting" — opens the same chooser four
+tests earlier and PASSED in the same run. So the mechanism works and this
+specific test's setup did not produce a conflict that time.
+
+Confirmed intermittent the usual way: green on a re-run of the same commit, on a
+branch whose only change was a CI SCRIPT — no app code at all, which is as close
+to proof as this gets that it is not the author's change. Worth watching for
+whether it is the shared e2e fixture being raced (see
+`e2e-fixture-collides-across-worktrees`), because "the conflict never got set
+up" is exactly what a wiped fixture looks like from here.
+
 Still not worth `retries`. The reasoning above about hiding a real regression
 has not changed. The other
 two dialogs in the app are measured in `e2e/dialog.spec.ts`, and
