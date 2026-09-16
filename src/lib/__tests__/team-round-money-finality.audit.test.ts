@@ -52,7 +52,6 @@ interface Round {
   email: string;
 }
 
-const orgIds: string[] = [];
 
 /**
  * A finished round of `format`, with both players' cards written to whichever
@@ -67,7 +66,6 @@ async function finishedRound(
     data: { name: `${TAG}-${label}`, kind: "club" },
     select: { id: true },
   });
-  orgIds.push(org.id);
 
   const event = await prisma.event.create({
     data: {
@@ -136,10 +134,18 @@ async function roundRow(r: Round) {
   return row!;
 }
 
+/**
+ * COLLECTED BY THE MARK, not by ids held in a variable.
+ *
+ * `audit-guards.test.ts` enforces this and caught the first version of this
+ * file, which tracked org ids in an array. The reason is the one that matters
+ * here: a run that DIES before its teardown — killed, or failing in
+ * `beforeAll` — takes the variable with it and leaves a club in the
+ * development database forever. Deleting by the mark collects those too, so
+ * the next run cleans up after the last one.
+ */
 afterAll(async () => {
-  for (const id of orgIds) {
-    await prisma.organization.delete({ where: { id } }).catch(() => {});
-  }
+  await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   await prisma.$disconnect();
 });
