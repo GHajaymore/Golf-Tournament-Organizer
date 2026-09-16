@@ -11,6 +11,7 @@ import { VoiceAsk } from "./VoiceAsk";
 import { entryModeFor } from "@/lib/formats";
 import type { VoiceContext } from "@/lib/domain/voice-query";
 import type { VenueCourse } from "./VenuePrompt";
+import { screenName } from "@/lib/nav";
 import { Icon } from "./Icon";
 
 export interface EntryRound {
@@ -158,6 +159,47 @@ export function EntryModes({
   const [clearing, setClearing] = useState(false);
   const [roundIdx, setRoundIdx] = useState(activeIndex);
   const round = rounds[roundIdx] ?? rounds[0];
+
+  /**
+   * A TOURNAMENT WITH NO ROUNDS YET, WHICH IS EVERY TOURNAMENT FOR ITS FIRST
+   * TEN MINUTES.
+   *
+   * `rounds[roundIdx] ?? rounds[0]` is `undefined` on an empty list, and this
+   * screen then read `round.stroke.stageId` and threw — a 500 on Score entry,
+   * which is in the sidebar from the moment a tournament is created. Found on
+   * 2026-09-16 by walking the nav on a freshly made event; the smoke pass
+   * cannot see it, because it walks the seeded demo and the demo has rounds.
+   *
+   * The component already half knew: `naturalMode` a few lines down asks
+   * `!round` before using it. Everything after that line did not, which is the
+   * shape a guard takes when it is added for one reader — so this refuses
+   * once, at the top, where a branch written later cannot forget it.
+   *
+   * A HEADER OVER NOTHING IS NOT AN EMPTY STATE, and neither is a crash. Said
+   * in the same words `/teams` uses for the same situation, pointing at the
+   * screen that fixes it.
+   */
+  if (rounds.length === 0) {
+    return (
+      <>
+        {/* THE HEADER STAYS. This component owns the screen's kicker and h1 —
+            the page only renders its own on the team-entry path — so returning
+            the card alone left `/entry` with no h1 at all, which
+            `e2e/layout.spec.ts` asserts against on every route. Caught by
+            walking the screen again rather than by the suite: the layout spec
+            runs on a fixture that HAS rounds. */}
+        <div className="page-kicker">{casual ? "Playing" : "Manage"}</div>
+        <h1 className="page-title">Score entry</h1>
+        <div className="card elev-sm" style={{ marginTop: 16 }}>
+          <span className="card-title" style={{ fontSize: 15 }}>No rounds yet</span>
+          <p className="text-muted" style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.6 }}>
+            Scores are entered against a round, so there is nothing to enter here until this
+            tournament has one. Add the first on <a href="/stages">{screenName("/stages")}</a>.
+          </p>
+        </div>
+      </>
+    );
+  }
 
   // Per round, not once for the screen.
   //
