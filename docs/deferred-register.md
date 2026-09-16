@@ -10,7 +10,7 @@ Every entry says what it is, why it was left, and what has to be answered before
 it can be picked up. **Add to it whenever a change stops short of something**,
 and delete an entry when it is done rather than marking it done — git remembers.
 
-Last reviewed 2026-09-15.
+Last reviewed 2026-09-16.
 
 ---
 
@@ -60,6 +60,50 @@ in #296 buys the paid plan, not the free one.
 `scoreEntryWindow: "after"` and `leaderboardVisibility: "public"` together mean
 the clubhouse screen shows nothing until cards are submitted whole. Judged a
 product choice rather than a bug; flagged in case it is not the intent.
+
+### "Cards in" and "matches complete" count rounds that have only STARTED
+`boardProgress` measures **begun**, and three readers describe it as finished:
+
+| reader | what it says |
+| --- | --- |
+| the dashboard | "12 of 24 **matches complete**" / "7 of 33 **scorecards in**" |
+| `snapshotStanding` | "This round is **all in**, but the tournament has not been closed yet." |
+| `bracketFeederProgress` | how much of the qualifying round is "done", which gates showing the draw |
+
+All three read `roundProgress` (`services/tournament.ts`), whose two branches
+are consistent with each other and loose — `hasAnyHole(c.strokes)` on the stroke
+side, `matchSettled(m)` on the match side, and one hole satisfies either. So a
+round robin where every pairing has played the 1st reads "6 of 6 matches
+complete", and a medal round where everyone has teed off reads "33 of 33
+scorecards in" under the note "This round is all in".
+
+**Why this is a decision and not a bug.** It has no internal contradiction,
+unlike the three defects fixed on 2026-09-16 (#408, #409, #410), which each had
+one: `allIn`'s two branches disagreed with each other, `aggregateTeamCard`
+charged par against a different number of scores than it added to the gross, and
+`roundMoneyFor` asked a table the round did not use. Here the measure is
+coherent — it is the LABELS that promise more than it delivers.
+
+Two honest fixes, and they are not equivalent:
+
+- **Make the measure strict.** "Cards in" comes to mean returned and "matches
+  complete" comes to mean decided, which is what the words promise and what an
+  organizer counting returns on a Sunday afternoon actually wants. Changes
+  numbers on the dashboard, on Reports and in the player's note, and tightens
+  when a bracket's draw appears.
+- **Make the labels honest.** "12 of 24 matches under way", "7 of 33 cards
+  started". No behaviour change at all.
+
+**What has to be answered:** does a club reading "cards in" want the count of
+people who have HANDED ONE IN, or the count who are OUT THERE?
+
+Two notes for whoever picks this up. `resultsIn` (`domain/lifecycle-state.ts`)
+uses the same loose test **correctly** and must not be changed with it — its
+question is "has anybody played yet" and its own comment argues the point at
+length. And there is no strict helper to reach for on the stroke side:
+`isReturnedCard` is also `some(s => s > 0)`, so a strict version needs the
+non-null hole count against the round's `holeCount`, which `roundProgress` does
+not currently have in scope.
 
 ---
 
