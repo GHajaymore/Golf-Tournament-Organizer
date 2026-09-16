@@ -6269,6 +6269,10 @@ describe("what a player has riding on the round", () => {
               final: true,
               holesReturned: 18,
               holeCount: 18,
+              // A stroke round has no fixtures, so the screen measures it in
+              // holes — see RoundMoneyRow.
+              matchesTotal: 0,
+              matchesOver: 0,
               yourCents: 1500,
               standing: [{ playerId: "ann", name: "Ann", netCents: 1500 }],
             },

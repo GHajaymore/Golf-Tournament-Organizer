@@ -251,6 +251,93 @@ export interface GameLine {
   cents: number;
 }
 
+/**
+ * IS THIS ROUND'S MONEY KNOWABLE YET — one definition, both readers.
+ *
+ * There were two, and they disagreed. The round card above the ledger asked
+ * "every card in, or every match OVER, or the organizer closed it"; the derived
+ * pots asked only "every card in, or the organizer closed it". So on a
+ * match-play round scored as win-and-loss rather than gross cards — which
+ * returns no card rows at all — the round card said the round was finished
+ * while the pot under it waited for the whole tournament to be marked complete.
+ *
+ * Found on the seeded Demo Cup 2026-09-15 by reading `/me/money` as a player:
+ * Round 1 is a Round Robin with 47 of 48 matches played and NO cards, so
+ * `holesReturned` was 0 for it and the screen said "0/18 holes in".
+ *
+ * The comment that used to sit on the pots' copy defended the omission because
+ * `matchSettled` is satisfied by a match with ONE hole on it and is far too
+ * loose to release money. That is true, and it is an argument against
+ * `matchSettled` rather than against asking the question: `matchIsOver` is the
+ * strict reading, it lives beside `resolveMatch`, and the round card had
+ * already adopted it. The pots' copy was left behind.
+ *
+ * Both measures, because a round can finish either way and asking only one is
+ * how this went wrong: holes returned across every card table, every match
+ * decided, or the organizer closing the tournament.
+ */
+export interface RoundFinality {
+  final: boolean;
+  /** Holes with a score on them, across the pot's entrants. */
+  holesReturned: number;
+  /** True when this round has fixtures and every one of them is over. */
+  matchesDone: boolean;
+  /** Fixtures in this round, and how many are over — zero on a stroke round. */
+  matchesTotal: number;
+  matchesOver: number;
+}
+
+export function roundMoneyFinality(input: {
+  stageId: string;
+  holeCount: number;
+  cards: ReadonlyArray<{ stageId: string; strokes: string }>;
+  matches: ReadonlyArray<{ stageId: string; holes: string; forfeitedBy?: string | null }>;
+  eventCompleted: boolean;
+}): RoundFinality {
+  const { stageId, holeCount } = input;
+
+  const forStage = input.cards.filter((c) => c.stageId === stageId);
+  let holesReturned = 0;
+  for (let h = 0; h < holeCount; h += 1) {
+    const played = forStage.some((c) => {
+      try {
+        return (JSON.parse(c.strokes) as (number | null)[])[h] != null;
+      } catch {
+        return false;
+      }
+    });
+    if (played) holesReturned += 1;
+  }
+
+  const stageMatches = input.matches.filter((m) => m.stageId === stageId);
+  const isOver = (m: { holes: string; forfeitedBy?: string | null }): boolean => {
+    if (m.forfeitedBy) return true;
+    try {
+      return matchIsOver(JSON.parse(m.holes) as HoleResultArr);
+    } catch {
+      // An unreadable card is not a finished match. Reading it as one would
+      // end the round on a parse error.
+      return false;
+    }
+  };
+  const matchesOver = stageMatches.filter(isOver).length;
+  // Fixtures must EXIST: "every match is over" is vacuously true of a round
+  // with none, which would settle a stroke round nobody had started.
+  const matchesDone = stageMatches.length > 0 && matchesOver === stageMatches.length;
+
+  return {
+    holesReturned,
+    matchesDone,
+    matchesTotal: stageMatches.length,
+    matchesOver,
+    final: roundMoneyIsFinal({
+      holesReturned,
+      holeCount,
+      roundComplete: matchesDone || input.eventCompleted,
+    }),
+  };
+}
+
 async function gameNets(
   eventId: string,
   onlyStageId?: string,
@@ -415,6 +502,19 @@ async function gameNets(
        */
       const cards = await roundStrokes(eventId);
       /**
+       * The fixtures, for the other half of "is this round finished".
+       *
+       * A match-play round scored as win-and-loss returns NO card rows, so
+       * asking the cards alone reported 0 holes in on a round whose every
+       * match was over — and the pot under it waited for the tournament to be
+       * closed. `roundMoneyFinality` reads both, the same way the round card
+       * above the ledger does.
+       */
+      const finalityMatches = await prisma.match.findMany({
+        where: { eventId },
+        select: { stageId: true, holes: true, forfeitedBy: true },
+      });
+      /**
        * Every course this tournament may be played on, read once.
        *
        * A league rotates venues, and `Stage.courseId` is what the venue
@@ -464,23 +564,13 @@ async function gameNets(
       const roundIsFinal = (stageId: string, holeCount: number): boolean => {
         const cached = finalByStage.get(stageId);
         if (cached !== undefined) return cached;
-        const forStage = cards.filter((c) => c.stageId === stageId);
-        let holesReturned = 0;
-        for (let h = 0; h < holeCount; h += 1) {
-          const played = forStage.some((c) => {
-            try {
-              return (JSON.parse(c.strokes) as (number | null)[])[h] != null;
-            } catch {
-              return false;
-            }
-          });
-          if (played) holesReturned += 1;
-        }
-        const answer = roundMoneyIsFinal({
-          holesReturned,
+        const answer = roundMoneyFinality({
+          stageId,
           holeCount,
-          roundComplete: state.event.status === "completed",
-        });
+          cards,
+          matches: finalityMatches,
+          eventCompleted: state.event.status === "completed",
+        }).final;
         finalByStage.set(stageId, answer);
         return answer;
       };
@@ -1260,6 +1350,15 @@ export interface RoundMoneyRow {
   /** Holes returned against holes to play, for the "still playing" line. */
   holesReturned: number;
   holeCount: number;
+  /**
+   * The same progress measured in FIXTURES, for a round that is played as
+   * matches. A win-and-loss round returns no cards, so `holesReturned` is
+   * zero however much of it has been played — and "0/18 holes in" reads as
+   * nobody having teed off. Zero when the round has no fixtures, which is how
+   * the reader knows which of the two to print.
+   */
+  matchesTotal: number;
+  matchesOver: number;
   /** The signed-in player's net for this round, in cents. */
   yourCents: number;
   /** Everyone's, biggest winner first — the round's own payout sheet. */
@@ -1440,62 +1539,16 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
 
   for (const stage of stages) {
     const holeCount = holesPlayed(stage.holes);
-    // How much of the round is in. A hole counts as returned once anybody has
-    // posted it — the pot is decided by the field, not by one card.
-    const forStage = cards.filter((c) => c.stageId === stage.id);
-    let holesReturned = 0;
-    for (let h = 0; h < holeCount; h += 1) {
-      const played = forStage.some((c) => {
-        try {
-          const arr = JSON.parse(c.strokes) as (number | null)[];
-          return arr[h] != null;
-        } catch {
-          return false;
-        }
-      });
-      if (played) holesReturned += 1;
-    }
-
-    const stageMatches = matches.filter((m) => m.stageId === stage.id);
     /**
-     * Every match OVER, not every match started.
-     *
-     * This read `matchSettled`, which is satisfied by a match with one hole on
-     * it. So a match round flipped to final the moment each pairing had a
-     * single hole entered, and the exposure block below — gated on `!final` —
-     * stopped running. A player halfway through their match was shown no
-     * stake and no standing: the money screen went silent rather than wrong,
-     * which is worse for being unreportable. Nothing leaked, because every pot
-     * family refuses a provisional result on its own, so an empty screen was
-     * the whole symptom.
-     *
-     * `matchIsOver` is the strict reading and lives in domain/match.ts beside
-     * `resolveMatch`, which already knows what finishing a match means —
-     * including a closeout, so 5&4 is over with four holes unplayed. It is not
-     * a tightening of `matchSettled`: that function has four readers outside
-     * the money path (`currentRoundIndex`, round progress) for which "has
-     * anybody started scoring this" is the correct question, and changing it
-     * would move a tournament's idea of which round it is on.
+     * The SAME reader the derived pots use, because this used to be a second
+     * copy of it and the two had drifted. See `roundMoneyFinality`.
      */
-    const matchesDone =
-      stageMatches.length > 0 &&
-      stageMatches.every((m) => {
-        if (m.forfeitedBy) return true;
-        try {
-          return matchIsOver(JSON.parse(m.holes) as HoleResultArr);
-        } catch {
-          // An unreadable card is not a finished match. Reading it as one
-          // would end the round on a parse error.
-          return false;
-        }
-      });
-
-    const final = roundMoneyIsFinal({
-      holesReturned,
+    const { final, holesReturned, matchesTotal, matchesOver } = roundMoneyFinality({
+      stageId: stage.id,
       holeCount,
-      // Either measure can finish a round: every card in, every match
-      // decided, or the organizer closing the tournament.
-      roundComplete: matchesDone || state?.event.status === "completed",
+      cards,
+      matches,
+      eventCompleted: state?.event.status === "completed",
     });
 
     // Nothing is computed for a round in progress. Not hidden after the fact —
@@ -1519,6 +1572,8 @@ export async function roundMoneyFor(eventId: string, email: string): Promise<Rou
       final,
       holesReturned,
       holeCount,
+      matchesTotal,
+      matchesOver,
       yourCents: me ? nets.find((n) => n.playerId === me.id)?.netCents ?? 0 : 0,
       standing: nets
         .filter((n) => n.netCents !== 0)
