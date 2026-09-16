@@ -68,25 +68,44 @@ you have just DELETED, which is the direction that ends with "already fixed" wri
 that is not.
 
 **`npm run smoke` is NOT the whole of CI's "Smoke-test every route" step.** That step boots the
-server once and then runs FOUR scripts against it, of which `npm run smoke` is the first:
+server once and then runs FIVE scripts against it, of which `npm run smoke` is the first:
 
 ```
 node scripts/smoke-routes.mjs        # what `npm run smoke` runs, and all it runs
 node scripts/verify-round-controls.mjs
 node scripts/verify-drafting.mjs
 node scripts/verify-week-view.mjs
+node scripts/verify-lifecycle.mjs
 ```
 
-The last three assert CONTENT — that a control is on the screens that need it and off the ones
-that do not, that the locked drafting panel still says what to do instead, that the movement
-column says somebody climbed exactly when they did. They pin user-facing STRINGS verbatim, so
-rewording a sentence turns one of them red while all 39 routes still return 200. On 2026-09-07 a
-four-word copy fix — "below" to "above" on the locked drafting panel — passed tsc, 4558 unit
-tests, lint, build, `npm run smoke` and Playwright, and went red in CI on `verify-drafting.mjs`.
+Three of the other four assert CONTENT — that a control is on the screens that need it and off
+the ones that do not, that the locked drafting panel still says what to do instead, that the
+movement column says somebody climbed exactly when they did. They pin user-facing STRINGS
+verbatim, so rewording a sentence turns one of them red while all 39 routes still return 200. On
+2026-09-07 a four-word copy fix — "below" to "above" on the locked drafting panel — passed tsc,
+4558 unit tests, lint, build, `npm run smoke` and Playwright, and went red in CI on
+`verify-drafting.mjs`.
 
-So a green `npm run smoke` says every route renders, and says nothing about the other three.
-Run them too — against the same server, in that order — whenever you change copy or move a
-control.
+**`verify-lifecycle.mjs` asserts a different thing, and it is the gap `smoke-routes` cannot
+see.** The smoke pass walks the SEEDED DEMO — a fully populated tournament with rounds, a field,
+flights, cards, a bracket and money — so every screen in the app has been rendered in that state
+and in almost no other. A club is not in that state. This walks every sidebar screen at each
+stage one actually passes through: named-only, one round, a field, flights, cards, finished.
+
+It was written because `/entry` returned **500** on a tournament with no rounds —
+`rounds[roundIdx] ?? rounds[0]` is undefined on an empty list and the screen read
+`round.stroke.stageId` off it. Score entry is in the sidebar from the moment a tournament
+exists, so that is the state every club is in for their first ten minutes. The smoke pass, 7,338
+unit tests and Playwright all missed it, because all three run against a fixture that has
+rounds.
+
+It also requires an `<h1>` on every screen at every stage, which `e2e/layout.spec.ts` demands on
+every route and only ever checks on the populated case — the first fix for that 500 removed the
+heading and the whole suite stayed green.
+
+So a green `npm run smoke` says every route renders for the demo, and says nothing about the
+other four. Run them too — against the same server, in that order — whenever you change copy,
+move a control, or touch a screen that reads a list which can be empty.
 
 The command above runs the DEFAULT config, which excludes `*.audit.test.ts` — those need a real
 database and live in `vitest.audit.config.ts`. Anything whose behaviour is only provable against

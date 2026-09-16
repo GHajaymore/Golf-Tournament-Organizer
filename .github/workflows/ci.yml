@@ -216,6 +216,17 @@ jobs:
             node scripts/verify-week-view.mjs
             STATUS=$?
           fi
+          # And this walks every sidebar screen at every stage a tournament
+          # passes through — named-only, one round, a field, flights, cards,
+          # finished. The smoke pass above walks the SEEDED DEMO, which is a
+          # fully populated tournament, so every screen in the app has been
+          # seen in that state and almost no other. /entry returned 500 on a
+          # tournament with no rounds — the state every club is in for their
+          # first ten minutes — and nothing here could see it.
+          if [ "$STATUS" -eq 0 ]; then
+            node scripts/verify-lifecycle.mjs
+            STATUS=$?
+          fi
           kill "$SERVER_PID" 2>/dev/null || true
           exit $STATUS
 
