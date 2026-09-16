@@ -276,6 +276,20 @@ Two tells separate this from a real regression: every failure names ONE screen (
 component's screens) across every project, and the smoke pass on the dev server renders the same
 route 200 — a build-local fault cannot reproduce against a different build.
 
+**THREE COMPONENTS NOW, WHICH IS THE POINT.** `GroupingControls`, `ContestsClient`, and on
+2026-09-16 `TeamsClient` — that last one in CI, on the `Build and smoke` job of a `main` run for
+a merge that touched none of the three. They share nothing but being client components.
+
+So the odds that any given occurrence is YOUR component are low and falling. Read the component
+name in the error as noise rather than as a lead: what settles it is whether the same route
+renders 200 against a different build, not what changed in the file it names.
+
+It also does not always take the run down in the same place. That one failed the SMOKE pass
+rather than an e2e assertion — `/grouping` had gone 500 on the route walk the same night, and
+`/teams` did here — which is the same fault reported by a different instrument. `Build and smoke`
+red reads much more like "you broke a page" than a heading assertion does, so check for
+`Client Manifest` in the log before believing the route.
+
 **And a THIRD, which is a click that never lands.** `offline.spec.ts:245` — "taking their
 card clears the queue without sending anything" — times out on the desktop project trying to
 press the card chooser's button:
