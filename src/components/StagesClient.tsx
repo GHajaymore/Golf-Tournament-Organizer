@@ -629,6 +629,37 @@ function StageCard({
    */
   const [formatCards, setFormatCards] = useState<{ format: string; cards: number } | null>(null);
   /**
+   * The other two settings that RE-SCORE a round rather than edit it.
+   *
+   * One piece of state for both, because only one of these controls can be
+   * waiting on an answer at a time and two independent flags would let a
+   * second warning open under the first. The format keeps its own above: its
+   * warning has to put the dropdown back to the stored value on decline, which
+   * these two also do but through different setters.
+   */
+  const [rescore, setRescore] = useState<
+    | { kind: "holes"; holes: number; cards: number }
+    | { kind: "basis"; basis: string; cards: number }
+    | null
+  >(null);
+  const confirmRescore = () => {
+    const p = rescore;
+    if (!p) return;
+    setRescore(null);
+    startTransition(async () => {
+      if (p.kind === "holes") await setStageHoles(stage.id, p.holes, true);
+      else await setStageScoringBasis(stage.id, p.basis, true);
+    });
+  };
+  const cancelRescore = () => {
+    // Put the control back to what is actually stored, or it keeps showing a
+    // value the round does not have — the same trap the format warning names.
+    const p = rescore;
+    setRescore(null);
+    if (p?.kind === "holes") setHoles(stage.holes);
+    else if (p?.kind === "basis") setBasis(stage.scoringBasis);
+  };
+  /**
    * What deleting this round would take with it.
    *
    * Null until the server refuses. Deleting a round deletes its matches, its
@@ -674,7 +705,13 @@ function StageCard({
 
   const commitHoles = (v: number) => {
     setHoles(v);
-    startTransition(() => setStageHoles(stage.id, v));
+    // Refuses on a round that already holds cards, exactly as the format does
+    // — eighteen to nine re-ranks the stroke index onto the nine played and
+    // measures every card against a different denominator.
+    startTransition(async () => {
+      const res = await setStageHoles(stage.id, v);
+      if (res?.needsConfirm) setRescore({ kind: "holes", holes: v, cards: res.cards ?? 0 });
+    });
   };
   // Venue and nine travel together: the action takes both, and a round that
   // changes course usually needs its nine restated for the new card.
@@ -685,7 +722,12 @@ function StageCard({
   };
   const commitBasis = (next: string) => {
     setBasis(next);
-    startTransition(() => setStageScoringBasis(stage.id, next));
+    // Gross, net and Stableford rank the same numbers three different ways,
+    // and the countback now runs on whichever this says. See the action.
+    startTransition(async () => {
+      const res = await setStageScoringBasis(stage.id, next);
+      if (res?.needsConfirm) setRescore({ kind: "basis", basis: next, cards: res.cards ?? 0 });
+    });
   };
   const commitScoreInput = (next: string) => {
     setScoreInput(next);
@@ -981,6 +1023,46 @@ function StageCard({
                   }}
                 >
                   Keep {stage.format}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* THE OTHER TWO SETTINGS THAT RE-SCORE THE ROUND.
+              The format warning above was the only one of the three, and the
+              two controls beside it wrote straight through. See
+              `enteredCardCount`, whose header already names this whole class:
+              "asked before anything that RE-SCORES a round rather than edits
+              it". Nothing is deleted by any of them, which is exactly why it
+              is quiet — the strokes stay and the results move underneath. */}
+          {rescore && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: "8px 10px",
+                border: "1px solid var(--color-accent)",
+                borderRadius: 8,
+                fontSize: 12.5,
+                lineHeight: 1.55,
+              }}
+            >
+              <b>
+                <Icon name="warning" /> This round already has {rescore.cards} card
+                {rescore.cards === 1 ? "" : "s"} entered.
+              </b>
+              <div className="text-muted" style={{ marginTop: 4 }}>
+                {rescore.kind === "holes"
+                  ? "Changing how many holes it is re-scores every one of them against a different round — the stroke index is re-ranked to the holes actually played, so handicap shots move to different holes than the ones they were given on."
+                  : "Changing what it is scored on re-scores every one of them. Gross, net and Stableford rank the same numbers into three different orders, and this also decides every tie."}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <button type="button" className="btn btn-secondary" disabled={pending} onClick={confirmRescore}>
+                  Change it anyway
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={cancelRescore}>
+                  {rescore.kind === "holes"
+                    ? `Keep ${stage.holes} holes`
+                    : `Keep ${BASIS_OPTIONS.find((o) => o.key === stage.scoringBasis)?.label ?? stage.scoringBasis}`}
                 </button>
               </div>
             </div>
