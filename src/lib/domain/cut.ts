@@ -379,3 +379,51 @@ export function cutSettledOnCountback(
   const highestOut = Math.max(...out.map((r) => r.points));
   return lowestThrough === highestOut;
 }
+
+/**
+ * WHERE A SINGLE CUT LINE MAY BE DRAWN — AND WHEN IT MAY NOT BE DRAWN AT ALL.
+ *
+ * One horizontal rule across a board makes a claim about every row at once:
+ * everything above it is through, everything below it is out. That claim is
+ * only available when the advancing set is a contiguous PREFIX of the rows in
+ * the order they are displayed in.
+ *
+ * It is not always. A bracket takes its field from the ranking that qualified
+ * it — the match-points chain of an earlier round — while the board beside it
+ * ranks whatever round the field is playing NOW. The two orders have no
+ * relation, so the qualifiers land scattered through the list.
+ *
+ * MEASURED on the seeded Demo Cup, 2026-09-15, off `/me/board` and therefore
+ * off the public share link too. Thirty-three rows, ranked on the medal round
+ * in progress; FOUR players advancing, at positions 2, 7, 8 and 17. The reader
+ * took the LAST of those and drew its line under row 17, so:
+ *
+ *   - thirteen players were shown above the line who are not through, and
+ *   - the leader of the round — top of the board, four shots clear — sat
+ *     above the line without being one of the four.
+ *
+ * Nothing distinguished them, because the line was the only thing on that
+ * screen saying anything about qualification at all.
+ *
+ * This is the same disease `qualificationBubble` already refuses to print a
+ * sentence about ("Walkthrough Player is -12 shots outside qualification"), and
+ * the cure is the same: say nothing positional when the positions do not carry
+ * the meaning. Which round should seed a bracket is a product question and sits
+ * in `docs/deferred-register.md`; whether to draw this line is not.
+ *
+ * Returns the index of the last advancing row when the line is honest, and
+ * `null` when it is not — including when everybody advances, where there is no
+ * line to draw. A caller with `null` should mark the advancing rows one at a
+ * time, as the console's table, the qualification panel and Reports all do.
+ */
+export function cutLineIndex(rows: ReadonlyArray<{ advancing: boolean }>): number | null {
+  let last = -1;
+  for (let i = 0; i < rows.length; i += 1) if (rows[i].advancing) last = i;
+  // Nobody through, or everybody through: no line separates anything.
+  if (last < 0 || last >= rows.length - 1) return null;
+  // Every row above it must be through, or the line speaks for rows it cannot
+  // speak for. `last` is the final advancing row by construction, so checking
+  // the prefix is the whole test.
+  for (let i = 0; i < last; i += 1) if (!rows[i].advancing) return null;
+  return last;
+}

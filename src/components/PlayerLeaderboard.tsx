@@ -1,4 +1,5 @@
 import { rankedScore } from "@/lib/domain/ranked-score";
+import { cutLineIndex } from "@/lib/domain/cut";
 import { FlipList } from "./FlipList";
 import type { StandingRow } from "./LeaderboardTable";
 
@@ -116,11 +117,16 @@ export function PlayerLeaderboard({
   // Where the cut falls, if there is one. Rendered as a labelled rule between
   // rows rather than a colour on them: a tinted row means "advancing" only if
   // you already know that, whereas a line that says so cannot be misread.
-  const lastAdvancing = rows.reduce(
-    (last, r, i) => (r.advancing ? i : last),
-    -1,
-  );
-  const showCut = lastAdvancing >= 0 && lastAdvancing < rows.length - 1;
+  //
+  // WHEN THERE IS ONE. This took the LAST advancing row and drew under it,
+  // which assumes the advancing set is a prefix of the board — and on a
+  // tournament whose bracket was qualified on an earlier round's ranking it is
+  // not. See `cutLineIndex`, which measured that case on the demo: four
+  // players through, the rule drawn under row seventeen. Where the line cannot
+  // be drawn honestly the rows say it one at a time instead.
+  const lastAdvancing = cutLineIndex(rows);
+  const showCut = lastAdvancing !== null;
+  const markEachRow = !showCut && rows.some((r) => r.advancing) && rows.some((r) => !r.advancing);
 
   const you = youId ? rows.find((r) => r.id === youId) : undefined;
   const yourScore = you ? rankedScore(you, { isStroke, isStableford }).text : "";
@@ -276,6 +282,20 @@ export function PlayerLeaderboard({
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
+                {/* WHO IS THROUGH, WHEN A LINE CANNOT SAY IT.
+                    Only on a board whose advancing set is scattered rather
+                    than a prefix — see `cutLineIndex`. On every ordinary cut
+                    the rule above still does the work and this is absent, so
+                    nothing gains a badge it does not need. Same word the
+                    console's table and Reports already use. */}
+                {markEachRow && r.advancing && (
+                  <span
+                    className="tag tag-accent"
+                    style={{ fontSize: 10.5, marginTop: 4, display: "inline-block" }}
+                  >
+                    Advancing
+                  </span>
+                )}
               </span>
 
               <span
