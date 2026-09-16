@@ -306,6 +306,25 @@ const STAGES = [
   ["scored", { rounds: true, card: true, players: 3, flights: true, cards: true }],
   ["completed", { rounds: true, card: true, players: 3, flights: true, cards: true, status: "completed" }],
   /**
+   * A FIELD OF ONE, because CLAUDE.md says to start there and this walk did not.
+   *
+   * "Field sizes start at ONE. A one-player tournament, a two-player round
+   * robin and a three-player knockout are where the off-by-ones live, and the
+   * suite went no lower than a comfortable eight for a year."
+   *
+   * `matrix.test.ts` sweeps the ENGINES down to one. This sweeps the SCREENS,
+   * and used three at every stage — which is exactly the comfortable number
+   * that note is about. Flighted and scored, so the board has a single row in
+   * it and the flight has a single member: "no flight of one" is an invariant
+   * the draw enforces, and a screen reading a one-row board is where the
+   * `rows[0]` and `length - 1` mistakes live.
+   *
+   * Clean when added, at one, two and three players, flighted and not. One
+   * stage rather than six: the sweep pays for itself on every push and the
+   * sharpest of the six is enough to keep the class shut.
+   */
+  ["field-of-one", { rounds: true, card: true, players: 1, flights: true, cards: true, status: "live" }],
+  /**
    * THE QUICK ROUND, which is a different SHAPE and not a small tournament.
    *
    * `matchEvent` gates whole blocks of the dashboard, renames the sidebar
