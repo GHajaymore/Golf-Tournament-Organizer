@@ -226,7 +226,20 @@ export function RoundMoney({ view }: { view: RoundMoneyView }) {
               Still being played:{" "}
               {view.rounds
                 .filter((r) => !r.final)
-                .map((r) => `${r.label} (${r.holesReturned}/${r.holeCount} holes in)`)
+                /**
+                 * MEASURED IN WHATEVER THIS ROUND IS ACTUALLY PLAYED IN.
+                 *
+                 * This always said holes, and a match-play round scored as
+                 * win-and-loss returns no cards — so a Round Robin with 47 of
+                 * its 48 matches over was described to its field as "0/18
+                 * holes in". Zero was the right number for the wrong
+                 * instrument, and it reads as "nobody has teed off".
+                 */
+                .map((r) =>
+                  r.matchesTotal > 0
+                    ? `${r.label} (${r.matchesOver}/${r.matchesTotal} matches done)`
+                    : `${r.label} (${r.holesReturned}/${r.holeCount} holes in)`,
+                )
                 .join(", ")}
               . Their pots are added here once they finish.
             </p>
