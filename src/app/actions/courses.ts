@@ -43,6 +43,8 @@ export interface CourseResult {
    *  force once they have been told what it costs. */
   needsConfirm?: boolean;
   cards?: number;
+  /** The tournaments those cards belong to, so the question names them. */
+  events?: string[];
   courseId?: string;
 }
 
@@ -118,8 +120,42 @@ function strokeIndexProblem(values: number[], holes = 18): string | null {
   return null;
 }
 
+/**
+ * The events whose scores are worked out from this course's card.
+ *
+ * An event counts when it points at the course, has no card of its own to
+ * fall back on, and something has actually been scored — an empty event
+ * has no history to protect and should simply follow the corrected card.
+ */
+async function playedEventsOn(
+  courseId: string,
+  organizationId: string,
+): Promise<Array<{ id: string; name: string; cards: number }>> {
+  const events = await prisma.event.findMany({
+    where: { courseId, organizationId, customPars: "" },
+    select: { id: true, name: true },
+  });
+  const out: Array<{ id: string; name: string; cards: number }> = [];
+  for (const e of events) {
+    const cards = await enteredCardCount(e.id);
+    if (cards > 0) out.push({ ...e, cards });
+  }
+  return out;
+}
+
 export interface ClubCourseInput {
   id?: string;
+  /**
+   * What to do about rounds already scored against this card.
+   *
+   * "ask" (the default) refuses with `needsConfirm` and the counts, so the
+   * organizer decides rather than discovering it afterwards.
+   * "keep-history" copies the OLD card onto every played event that has
+   * none of its own, so their results stand and the venue moves on.
+   * "rescore" applies the new card everywhere, which is what saving has
+   * always done.
+   */
+  played?: "ask" | "keep-history" | "rescore";
   name: string;
   city?: string;
   pars: number[];
@@ -188,6 +224,63 @@ export async function saveClubCourse(input: ClubCourseInput): Promise<CourseResu
   if (input.id) {
     const existing = await prisma.course.findFirst({ where: { id: input.id, organizationId } });
     if (!existing) return { ok: false, error: "Course not found." };
+
+    /**
+     * A CARD IS HISTORY THE MOMENT SOMETHING HAS BEEN SCORED ON IT.
+     *
+     * `resolveCourse` prefers the linked course over an event's own card,
+     * so correcting a stroke index or a par here rewrites every round ever
+     * played on this venue. Measured on 2026-09-17: a completed medal read
+     * "level par", the club corrected the 1st from a 4 to a 5, and the same
+     * finished tournament read "-1".
+     *
+     * `deleteClubCourse` already states the rule — "correcting a member's
+     * index today must not rewrite a tournament played last season. A venue
+     * is a live record; the card a round was scored against is history" —
+     * and snapshots the card onto the events that would lose it. Deleting
+     * did that silently because there is only one sane answer. Editing has
+     * two, so it asks.
+     *
+     * ONLY THE SCORING HALF COUNTS. A rename, a city, or a yardage cannot
+     * change a result — `cardRefusal` says yardage is never scored off — so
+     * those save without a question, as they always did.
+     */
+    const scoringChanged =
+      existing.pars !== data.pars || existing.strokeIndex !== data.strokeIndex;
+    const mode = input.played ?? "ask";
+
+    if (scoringChanged) {
+      const scoredOn = await playedEventsOn(input.id, organizationId);
+      if (scoredOn.length > 0 && mode === "ask") {
+        return {
+          ok: false,
+          needsConfirm: true,
+          cards: scoredOn.reduce((n, e) => n + e.cards, 0),
+          events: scoredOn.map((e) => e.name),
+        };
+      }
+      if (scoredOn.length > 0 && mode === "keep-history") {
+        /**
+         * The OLD card onto the played events, and the link cut with it —
+         * `resolveCourse` reads `courseRef` FIRST, so a snapshot left
+         * beside a live reference would change nothing at all.
+         *
+         * Only events with no card of their own: a deliberate custom card
+         * outranks the club's, and overwriting it would be this function
+         * deciding it knows better. Same words as the delete path.
+         */
+        await prisma.event.updateMany({
+          where: { id: { in: scoredOn.map((e) => e.id) }, customPars: "" },
+          data: {
+            customPars: existing.pars,
+            customYards: existing.yards,
+            customStrokeIndex: existing.strokeIndex,
+            courseId: null,
+          },
+        });
+      }
+    }
+
     await prisma.course.update({ where: { id: input.id }, data });
     await refresh();
     return { ok: true, courseId: input.id };
