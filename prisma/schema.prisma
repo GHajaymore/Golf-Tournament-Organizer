@@ -1783,8 +1783,37 @@ model Team {
   members    TeamMember[]
   scorecards TeamScorecard[]
 
+  /**
+   * The club team this side plays FOR, in a league that has two levels.
+   *
+   * A `Team` here is the side that PLAYS a round — two in a four-ball, four in
+   * a scramble — and `sideSizeRange` caps every format at four. An interclub
+   * league is a level above that: twelve club teams with a roster of ten or
+   * more, each NOMINATING six pairs a week, and the pairs may differ week to
+   * week.
+   *
+   * So a club team is a `Team` with no stage — it plays no single round and
+   * holds the whole roster — and each week's pair is a `Team` on that week's
+   * stage pointing back at it. A team-versus-team MEETING is then derived
+   * rather than stored: the matches in one round whose two sides share a pair
+   * of parents ARE that meeting. That is what keeps a six-match tie from
+   * needing a model of its own, and keeps every existing format untouched.
+   *
+   * Null for every side that is not in such a league, which is all of them
+   * today.
+   *
+   * SetNull rather than Cascade, and the distinction is load-bearing: deleting
+   * a club team must not delete the weekly pairs, because those pairs hold the
+   * matches and the scorecards of rounds that were actually played. Cascading
+   * would erase a season to tidy up a name.
+   */
+  parentTeamId String?
+  parent       Team?   @relation("TeamParent", fields: [parentTeamId], references: [id], onDelete: SetNull)
+  sides        Team[]  @relation("TeamParent")
+
   @@index([eventId])
   @@index([stageId])
+  @@index([parentTeamId])
 }
 
 model TeamMember {
