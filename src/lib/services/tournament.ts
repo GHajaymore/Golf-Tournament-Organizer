@@ -39,6 +39,7 @@ import {
   parseBracketDraw,
   roundRobinMatchCount,
   resolveMatch,
+  storedMatchIsOver,
   courseHandicapMap,
   type Player,
   type Match as DomainMatch,
@@ -435,7 +436,23 @@ export interface EventState {
    * tournament counted the wrong things and named them wrongly too. `unit`
    * says which, so a screen never works it out from the format again.
    */
-  boardProgress: { done: number; total: number; pct: number; unit: "cards" | "matches" };
+  /**
+   * The round on the board, in three counts rather than one.
+   *
+   * `done` is kept as an alias of `certified` while readers are moved over.
+   * See `roundProgress` for why "in" is not one of these words.
+   */
+  boardProgress: {
+    /** Somebody is out on the course. */
+    started: number;
+    /** The card has been RETURNED — certified, or approved since. */
+    certified: number;
+    /** The committee has accepted it. Only now is it a result. */
+    approved: number;
+    total: number;
+    pct: number;
+    unit: "cards" | "matches";
+  };
   /**
    * The first round the field has not started, in play order — or null once
    * every round has something on it.
@@ -1064,15 +1081,72 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * against its own fixtures, because a round robin's size is the draw rather
    * than the entry list.
    */
+  /**
+   * THREE COUNTS, BECAUSE "IN" AND "APPROVED" ARE DIFFERENT FACTS.
+   *
+   * This returned one number, `done`, measured as `hasAnyHole` — literally
+   * "somebody typed a digit" — and three readers then described it as
+   * finished: the dashboard's "scorecards in" and "matches complete",
+   * `snapshotStanding`'s "This round is all in", and the bracket feeder.
+   *
+   * The schema has said otherwise all along. `Scorecard.status` models Rule
+   * 3.3b in four states, and its own comments are explicit about what they
+   * mean:
+   *
+   *     entered    written down. Not yet claimed to be right by anyone.
+   *     certified  the marker and player say the scores are correct.
+   *                "This is the card being returned."
+   *     approved   the committee has accepted it.
+   *                "Only now is it a result."
+   *     disputed   someone has said it is wrong.
+   *
+   * None of that was read here, so a DISPUTED card counted toward "cards in"
+   * exactly as an approved one did. That is not a labelling problem; it is
+   * the counter answering a different question from the one the schema
+   * carefully defines, and `card-approval.ts` already refuses to rubber-stamp
+   * the very rows this was silently counting as done.
+   *
+   * THE RULES' OWN WORDS, rather than an invented middle term. "Cards in"
+   * sounds precise and is not: it is the question this counter was getting
+   * wrong. `certified` and `approved` are the two things a club actually
+   * distinguishes, they are what the column already stores, and they are what
+   * `card-approval.ts` refuses to collapse when it declines to rubber-stamp a
+   * blanket approval.
+   *
+   *     started    somebody is out on the course
+   *     certified  the card has been RETURNED
+   *     approved   the committee has accepted it — now it is a result
+   *
+   * Approved implies certified, because a committee cannot accept a card that
+   * was never handed in; `certified` is therefore the count of cards returned
+   * whatever has happened to them since.
+   *
+   * MATCHES GET THE SAME THREE so a screen can show either unit without
+   * knowing which it has — started is a hole played, certified is the match
+   * DECIDED (`matchIsOver`, not `matchSettled`, which one hole satisfies), and
+   * approved is `scoreStatus: "confirmed"`, the same committee step under a
+   * different column name.
+   *
+   * `done` is kept as an alias of `certified` so every existing reader keeps
+   * compiling while they are moved over one at a time.
+   */
   const roundProgress = (s: DbStage) => {
     if (roundIsStroke(s.type, s.format)) {
+      const own = scorecards.filter((c) => c.stageId === s.id);
       return {
-        done: scorecards.filter((c) => c.stageId === s.id && hasAnyHole(c.strokes)).length,
-        total: confirmed.length,
+        started: own.filter((c) => hasAnyHole(c.strokes)).length,
+        certified: own.filter((c) => c.status === "certified" || c.status === "approved").length,
+        approved: own.filter((c) => c.status === "approved").length,
+          total: confirmed.length,
       };
     }
     const own = matches.filter((m) => m.stageId === s.id);
-    return { done: own.filter((m) => matchSettled(m)).length, total: own.length };
+    return {
+      started: own.filter((m) => matchSettled(m)).length,
+      certified: own.filter((m) => storedMatchIsOver(m)).length,
+      approved: own.filter((m) => m.scoreStatus === "confirmed").length,
+      total: own.length,
+    };
   };
 
   const bracketIdx = stages.findIndex((s) => isKnockoutRound(s.type));
@@ -1080,8 +1154,22 @@ export async function loadEventState(eventId: string): Promise<EventState | null
   let feederDone = 0;
   let feederTotal = 0;
   for (const f of feeders) {
+    /**
+     * STARTED, because the bracket is asking a different question.
+     *
+     * `bracketVisibility` wants to know whether the thing that DECIDES the
+     * draw has got far enough to mean something — "has the field been out",
+     * not "have the cards come in". Those are different questions and this is
+     * the one it has always asked.
+     *
+     * Using `certified` here would hold the draw at "Provisional" for ever on
+     * one player who picks up on the 17th and never returns a full card: the
+     * qualifier could not reach 1, and `feederProgress >= 1` is what makes the
+     * draw read "Set". A screen that never goes firm is a worse answer than a
+     * screen that goes firm slightly early.
+     */
     const p = roundProgress(f);
-    feederDone += p.done;
+    feederDone += p.started;
     feederTotal += p.total;
   }
   // Null still means "nothing feeds it", which the rule reads as "show the
@@ -1102,11 +1190,21 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * again from the format. "7/33 scorecards in" and "12/24 matches complete"
    * are the same fact about two kinds of round.
    */
-  const bp = boardStage ? roundProgress(boardStage) : { done: 0, total: 0 };
+  const bp = boardStage
+    ? roundProgress(boardStage)
+    : { started: 0, certified: 0, approved: 0, total: 0 };
   const boardProgress = {
-    done: bp.done,
+    started: bp.started,
+    certified: bp.certified,
+    approved: bp.approved,
     total: bp.total,
-    pct: bp.total > 0 ? Math.round((bp.done / bp.total) * 100) : 0,
+    /**
+     * The bar measures CERTIFIED, which is what the number beside it says.
+     *
+     * It measured "somebody typed a digit" and was labelled "in", so a round
+     * where every player had written one hole down read 100%.
+     */
+    pct: bp.total > 0 ? Math.round((bp.certified / bp.total) * 100) : 0,
     unit: (boardStage && !boardIsStroke ? "matches" : "cards") as "cards" | "matches",
   };
 
@@ -1131,7 +1229,19 @@ export async function loadEventState(eventId: string): Promise<EventState | null
    * to the round on the board, which is the one somebody reopening a finished
    * sheet wants.
    */
-  const nextUnplayedRound = playRounds.find((s) => roundProgress(s).done === 0) ?? null;
+  /**
+   * STARTED, not certified — the distinction the three counts exist for.
+   *
+   * "Nothing on it" means nobody has written anything down. A round where
+   * cards are entered but not yet certified HAS something on it: those players
+   * are out on the course, and offering their round as the next one to draw
+   * would hand an organizer a sheet for a round already being played.
+   *
+   * This read `done`, which until 2026-09-17 was `hasAnyHole` and is now
+   * `certified`. Both answers are wrong for this question in opposite
+   * directions, which is why the alias was a bad idea and is gone.
+   */
+  const nextUnplayedRound = playRounds.find((s) => roundProgress(s).started === 0) ?? null;
 
   const stageById = new Map(stages.map((s) => [s.id, s]));
   /** For `matchHandicapFor`, which needs a match's round before it can price it. */

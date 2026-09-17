@@ -405,7 +405,7 @@ export async function meFor(state: EventState, email: string): Promise<Me> {
           // the note on the field.
           note: snapshotStanding({
             status: state.event.status,
-            done: state.boardProgress.done,
+            done: state.boardProgress.certified,
             total: state.boardProgress.total,
             unit: state.boardProgress.unit,
           }).note,

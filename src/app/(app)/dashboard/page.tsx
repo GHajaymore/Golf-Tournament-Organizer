@@ -836,21 +836,21 @@ export default async function DashboardPage() {
           {matchEvent ? (
             <StatCard
               label="Match"
-              value={state.boardProgress.done > 0 ? "Finished" : "Not finished"}
+              value={state.boardProgress.certified > 0 ? "Finished" : "Not finished"}
               sub="hole by hole"
               icon="ph ph-check-circle"
             />
           ) : state.boardProgress.unit === "cards" ? (
             <StatCard
               label="Cards in"
-              value={`${state.boardProgress.done}/${state.boardProgress.total}`}
+              value={`${state.boardProgress.certified}/${state.boardProgress.total}`}
               sub={`${state.boardProgress.pct}% submitted`}
               icon="ph ph-cards"
             />
           ) : (
             <StatCard
               label="Matches complete"
-              value={`${state.boardProgress.done}/${state.boardProgress.total}`}
+              value={`${state.boardProgress.certified}/${state.boardProgress.total}`}
               sub={`${state.boardProgress.pct}% of round robin`}
               icon="ph ph-check-circle"
             />
@@ -951,10 +951,26 @@ export default async function DashboardPage() {
               <div style={{ marginTop: 12, height: 8, borderRadius: 6, background: "var(--color-neutral-800)", overflow: "hidden" }}>
                 <div style={{ height: "100%", background: "var(--color-accent)", width: `${state.boardProgress.pct}%` }} />
               </div>
+              {/* CERTIFIED, AND THE ONES STILL OUT THERE.
+                  This read `done` — which was `hasAnyHole`, "somebody typed a
+                  digit" — under the words "scorecards in", so a round where
+                  every player had written one hole down said 33/33 in. It now
+                  counts cards RETURNED, in the sense Rule 3.3b and
+                  `Scorecard.status` both mean by it.
+                  The second line is the number that count no longer carries.
+                  An organizer wants both: how many are in, and how many are
+                  still on the course. Shown only while they differ, because
+                  "21 still out" under "33 of 33 certified" is noise. */}
               <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
-                {state.boardProgress.done}/{state.boardProgress.total}{" "}
-                {state.boardProgress.unit === "cards" ? "scorecards in" : "matches complete"}
+                {state.boardProgress.certified}/{state.boardProgress.total}{" "}
+                {state.boardProgress.unit === "cards" ? "scorecards certified" : "matches complete"}
               </div>
+              {state.boardProgress.started > state.boardProgress.certified && (
+                <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                  {state.boardProgress.started - state.boardProgress.certified}{" "}
+                  {state.boardProgress.unit === "cards" ? "still out on the course" : "still being played"}
+                </div>
+              )}
             </div>
 
             {showBracketTile && (

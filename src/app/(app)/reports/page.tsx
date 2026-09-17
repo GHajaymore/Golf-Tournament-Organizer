@@ -80,7 +80,7 @@ export default async function ReportsPage() {
    */
   const standing = snapshotStanding({
     status: event.status,
-    done: state.boardProgress.done,
+    done: state.boardProgress.certified,
     total: state.boardProgress.total,
     unit: state.boardProgress.unit,
   });
@@ -106,7 +106,7 @@ export default async function ReportsPage() {
     // wrong about a side the same way "Final" is wrong about the day.
     snapshotTitle = snapshotStanding({
       status: event.status,
-      done: state.boardProgress.done,
+      done: state.boardProgress.certified,
       total: state.boardProgress.total,
       unit: state.boardProgress.unit,
       noun: "team standings",
@@ -229,7 +229,7 @@ export default async function ReportsPage() {
             count and what it is counting. */}
         <StatCard
           label={state.boardProgress.unit === "cards" ? "Cards in" : "Matches complete"}
-          value={`${state.boardProgress.done}/${state.boardProgress.total}`}
+          value={`${state.boardProgress.certified}/${state.boardProgress.total}`}
           icon="ph ph-check-circle"
         />
         <StatCard label="Flights" value={state.groups.length} icon="ph ph-squares-four" />

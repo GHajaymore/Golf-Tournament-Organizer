@@ -12,8 +12,7 @@ import { resolveCourse } from "../courses";
 import { brandForEvent, themeForEvent } from "./organization";
 import { themeCss, playerColorScheme } from "../themes";
 import { holesPlayed } from "../domain/handicap";
-import { matchIsOver } from "../domain/match";
-import type { HoleResult } from "../domain/types";
+import { storedMatchIsOver } from "../domain/match";
 
 /**
  * Everything the public board shows, computed once and shared by the crowd.
@@ -105,16 +104,7 @@ export interface LiveBoardView {
  * the tournament on" wants the loose reading, and this is a claim about a
  * result.
  */
-function roundMatchIsOver(m: { holes: string; forfeitedBy?: string | null }): boolean {
-  if (m.forfeitedBy) return true;
-  try {
-    return matchIsOver(JSON.parse(m.holes) as HoleResult[]);
-  } catch {
-    // An unreadable card is not a finished match. Reading it as one would
-    // announce a result off a parse error.
-    return false;
-  }
-}
+const roundMatchIsOver = storedMatchIsOver;
 
 /**
  * Mark the rows a weekly league says are not playing this round.
