@@ -120,11 +120,50 @@ describe("who holds which role", () => {
     expect(await effectiveAccess(at("owner"), foreignEventId)).toBeNull();
   });
 
-  it("gives a plain club member nothing", async () => {
-    // "member" exists for roster purposes. If it ever started conferring
-    // access, every club member would silently become an organizer.
-    expect(await effectiveAccess(at("clubmember"), eventId)).toBeNull();
-    expect(await effectiveAccess(at("clubmember"), siblingEventId)).toBeNull();
+  it("gives a plain club member the PLAYER role on their club's events", async () => {
+    /**
+     * THIS CELL USED TO ASSERT `null`, AND ITS REASON IS STILL RIGHT.
+     *
+     * It read: "member exists for roster purposes. If it ever started
+     * conferring access, every club member would silently become an
+     * organizer." The fear is exact and the guard against it is kept below —
+     * what changed is the product, not the rule.
+     *
+     * Ajay, 2026-09-17: "every member of the org should see all tournaments or
+     * events". A member could previously reach a tournament only if an
+     * organizer had added them to it by hand, so there was no way to see what
+     * your own club was running, and no way to enter it. That is the one thing
+     * every club system has and this app did not.
+     *
+     * Membership grants `player` — which carries no write at all, because
+     * writes are gated on being IN THE FIELD rather than on the role:
+     * `assertOwnCard` resolves `myPlayerIds` and refuses everything outside
+     * it, and a member who is not entered has no Player row. See
+     * `a-member-can-watch-not-play.audit.test.ts`, which drives that end.
+     */
+    const a = await effectiveAccess(at("clubmember"), eventId);
+    expect(a?.role, "a member can watch their club").toBe("player");
+    expect(a?.source).toBe("organization");
+    // Including events they were never named on at all.
+    expect((await effectiveAccess(at("clubmember"), siblingEventId))?.role).toBe("player");
+  });
+
+  it("and never a staff one, which is what that cell was always guarding", async () => {
+    /**
+     * The half of the original assertion that must survive. "Every club member
+     * silently becomes an organizer" is still the failure to fear, and it is
+     * now the thing asserted rather than a side effect of granting nothing.
+     */
+    for (const eid of [eventId, siblingEventId]) {
+      const a = await effectiveAccess(at("clubmember"), eid);
+      expect(a?.role, "membership is not administration").not.toBe("admin");
+      expect(a?.role).not.toBe("assistant");
+    }
+  });
+
+  it("still gives them nothing on ANOTHER club's events", async () => {
+    // The tenancy boundary, which club-wide visibility must not widen.
+    expect(await effectiveAccess(at("clubmember"), foreignEventId)).toBeNull();
   });
 
   it("gives someone with no grant at all nothing", async () => {

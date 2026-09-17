@@ -1,0 +1,156 @@
+import "server-only";
+import { prisma } from "../db";
+import { accessibleEvents } from "./access";
+import { registrationStatus } from "../registration";
+import { venueOf } from "./registration";
+
+/**
+ * EVERY TOURNAMENT A MEMBER'S CLUB IS RUNNING, AND WHERE THEY STAND IN IT.
+ *
+ * The screen this feeds is the one thing a club system has that this app did
+ * not: sign in, see what your club is running, put your name down. Golf Genius
+ * and ForeTees both open on it. Here a member could reach a tournament only if
+ * an organizer had added them to it by hand — so the answer to "what's on next
+ * month?" was to ask somebody.
+ *
+ * THE STATUS IS THE CONSOLE'S OWN. `registrationStatus` is what the organizer's
+ * registration screen shows, and it already folds together the four things that
+ * close a door — the tournament finished, the organizer closed it by hand, the
+ * deadline passed, the field is full — into one label with a sentence
+ * explaining it. Deriving a second opinion here is how a member reads "Open"
+ * on a tournament the console calls full.
+ *
+ * ENTERED IS ANSWERED PER MEMBER, by email against the Player rows, which is
+ * the same resolution `myPlayerIds` uses for the card guards. A member who is
+ * in the field gets their standing in it; one who is not gets the way in.
+ */
+
+export interface ClubEventRow {
+  eventId: string;
+  name: string;
+  /** The organizer's own words for when it is played. May be empty. */
+  dates: string;
+  /** "Royal Ashdown, Forest Row" — course and town, as the entry form shows it. */
+  venue: string;
+  /** The league or society this belongs to, when it belongs to one. */
+  seriesName: string;
+  /** draft | registration | ready | live | completed. */
+  eventStatus: string;
+  /** "Open", "Closed", "Full" — the same word the console uses. */
+  statusLabel: string;
+  /** One sentence saying why, for the ones that are shut. */
+  statusDetail: string;
+  /** Whether this member could put their name down right now. */
+  canEnter: boolean;
+  /** Whether they already have. */
+  entered: boolean;
+  /** Where the sign-up form lives, when there is one to offer. */
+  registrationHref: string;
+  /**
+   * Whether there is anything to LOOK at yet.
+   *
+   * A closed tournament is not a dead end — it is the one a member most wants
+   * to open, because it has a result on it. A draft nobody has touched is,
+   * and offering a board with nothing on it teaches a member that the link
+   * does not work.
+   */
+  canView: boolean;
+  /** "Results" once it is over, "Leaderboard" while it is being played. */
+  viewLabel: string;
+}
+
+export async function clubEventsFor(email: string): Promise<ClubEventRow[]> {
+  const reachable = await accessibleEvents(email);
+  if (reachable.length === 0) return [];
+
+  const ids = reachable.map((r) => r.eventId);
+  const events = await prisma.event.findMany({
+    where: { id: { in: ids } },
+    include: { series: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  /**
+   * Counted in ONE query rather than per event.
+   *
+   * A club with forty tournaments on the books would otherwise issue forty
+   * counts to render one list, and this screen is the first thing a member
+   * opens.
+   */
+  const confirmedCounts = await prisma.player.groupBy({
+    by: ["eventId"],
+    where: { eventId: { in: ids }, status: "confirmed" },
+    _count: { _all: true },
+  });
+  const confirmedBy = new Map(confirmedCounts.map((c) => [c.eventId, c._count._all]));
+
+  const mine = await prisma.player.findMany({
+    where: { eventId: { in: ids }, email: { equals: email, mode: "insensitive" } },
+    select: { eventId: true },
+  });
+  const enteredIn = new Set(mine.map((p) => p.eventId));
+
+  /**
+   * WHETHER THERE IS ANYTHING BEHIND THE LINK, COUNTED RATHER THAN ASSUMED.
+   *
+   * This asked `status` — "ready, live or completed" — and the seeded Demo Cup
+   * disproves it on the first screen it renders: `status: "draft"`, fifty-four
+   * results in. CLAUDE.md says the same thing in as many words, that clubs run
+   * tournaments in draft and a gate keyed on launching would lock players out
+   * of rounds they are in the middle of.
+   *
+   * So the question is asked of the ROWS. A tournament with a card or a
+   * fixture on it has a board worth opening whatever its status column says;
+   * one with neither does not, and sending a member to an empty table teaches
+   * them the link is broken rather than that the tournament has not started.
+   *
+   * Two grouped queries rather than two per event, for the same reason the
+   * confirmed counts above are grouped.
+   */
+  const [cardEvents, matchEvents] = await Promise.all([
+    prisma.scorecard.groupBy({ by: ["eventId"], where: { eventId: { in: ids } }, _count: { _all: true } }),
+    prisma.match.groupBy({ by: ["eventId"], where: { eventId: { in: ids } }, _count: { _all: true } }),
+  ]);
+  const hasResults = new Set([
+    ...cardEvents.map((c) => c.eventId),
+    ...matchEvents.map((m) => m.eventId),
+  ]);
+
+  return events.map((event) => {
+    const status = registrationStatus({
+      eventStatus: event.status,
+      deadline: event.regDeadline,
+      capacity: event.capacity,
+      confirmedCount: confirmedBy.get(event.id) ?? 0,
+      override: event.registrationOverride,
+    });
+
+    const entered = enteredIn.has(event.id);
+    /**
+     * `registrationOpen` is the organizer's master switch and is separate from
+     * the four reasons above: a club that has not opened entries at all has no
+     * form to send anybody to, however healthy the deadline looks.
+     */
+    const canEnter = !entered && status.acceptingEntries && event.registrationOpen;
+
+    return {
+      eventId: event.id,
+      name: event.name,
+      dates: event.dates,
+      venue: venueOf(event.course, event.city),
+      seriesName: event.series?.name ?? "",
+      eventStatus: event.status,
+      statusLabel: status.label,
+      statusDetail: status.detail,
+      canEnter,
+      entered,
+      registrationHref: canEnter ? `/register/${event.registrationToken}` : "",
+      /**
+       * Worth opening if there is something on it, or if the club has said it
+       * is under way. Counted, not assumed — see the note above `hasResults`.
+       */
+      canView: hasResults.has(event.id) || ["ready", "live", "completed"].includes(event.status),
+      viewLabel: event.status === "completed" ? "Results" : "Leaderboard",
+    };
+  });
+}

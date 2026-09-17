@@ -17,6 +17,22 @@ import type { Role } from "../roles";
 
 const RANK: Record<Role, number> = { player: 0, assistant: 1, admin: 2 };
 
+/**
+ * Who belongs to the ORGANIZATION without belonging to the CLUB.
+ *
+ * `OrganizationMember.role` defaults to "member" and has meant owner, admin or
+ * member until now. A charity day needs a fourth kind of person: somebody
+ * entered in one event who is not a member of anything — a sponsor, a
+ * non-golfing guest, a table at the quiz night. They get a row so the club can
+ * find them, and they must not thereby see the men's league.
+ *
+ * Listed rather than inferred, so the question is asked of a NAME rather than
+ * of a rank. A role nobody has thought about — a typo, a value a later feature
+ * adds — reads as a member and sees the club, which is the failure that shows
+ * up immediately rather than the one that quietly leaks a calendar.
+ */
+export const ORG_GUEST_ROLES = ["guest"] as const;
+
 export type RoleSource = "event" | "organization";
 
 export interface EffectiveAccess {
@@ -61,6 +77,23 @@ export async function effectiveAccess(email: string, eventId: string): Promise<E
     });
     if (membership && orgRoleGrantsAdmin(membership.role)) {
       fromOrg = { role: "admin", source: "organization", accountId: "", name: user.name || email };
+    } else if (membership && !(ORG_GUEST_ROLES as readonly string[]).includes(membership.role)) {
+      /**
+       * A PLAIN MEMBER, AND THIS MUST AGREE WITH `accessibleEvents`.
+       *
+       * These are two functions answering one question — "may this person open
+       * this tournament" — from opposite ends: one lists, one checks. When
+       * club-wide visibility was added to the list alone, the club's events
+       * appeared on a member's screen and then refused to open, because
+       * `enterTournament` asks THIS one and it returned null. A list of doors
+       * that are all locked is worse than no list.
+       *
+       * So the same rule, spelled the same way: membership grants `player`,
+       * guests are excluded, and an explicit Account still wins on rank below.
+       * If one of these two ever changes, the other has to change with it —
+       * `a-member-can-watch-not-play.audit.test.ts` drives both.
+       */
+      fromOrg = { role: "player", source: "organization", accountId: "", name: user.name || email };
     }
   }
 
@@ -236,6 +269,65 @@ export async function accessibleEvents(email: string): Promise<AccessibleEvent[]
         // Org-derived admin only upgrades; never demote an explicit event role.
         if (!existing || RANK[existing.role] < RANK.admin) {
           byEvent.set(e.id, { eventId: e.id, role: "admin", source: "organization" });
+        }
+      }
+    }
+
+    /**
+     * AND A PLAIN MEMBER REACHES THEIR OWN CLUB'S TOURNAMENTS — BUT A GUEST
+     * DOES NOT.
+     *
+     * The exception is the charity day, and it is a real one. A club running
+     * one enters people who are not golfers and not members: sponsors, a
+     * quiz-night table, somebody's employer. They belong to that ONE event and
+     * the club has every reason not to show them the men's league, the
+     * committee's calendar, or the membership of every other tournament it
+     * runs.
+     *
+     * So club-wide visibility follows MEMBERSHIP, not mere presence in the
+     * organization. A guest keeps whatever `Account` rows they were given, so
+     * they still reach the event they were invited to and nothing else — which
+     * is the behaviour everyone had before this block existed.
+     *
+     * "Upgrade them to a member" is one field: `role` from `guest` to
+     * `member`, and the whole club opens. That is the reversible direction,
+     * which is the one to build.
+     *
+     *
+     * `OrganizationMember.role` defaults to "member", and the query above asks
+     * only for owners and admins — so somebody who belongs to the club could
+     * open NOTHING unless an organizer had added them to a specific tournament
+     * by hand. A member browsing what their club is running, and entering
+     * themselves, was not possible at all.
+     *
+     * That is the shape every club system has: you sign in, you see your
+     * club's events with their status, you put your name down. Golf Genius and
+     * ForeTees both work that way, and it is what Ajay asked for on
+     * 2026-09-17.
+     *
+     * THE ROLE IS `player`, AND THAT IS SAFE BECAUSE WRITES ARE GATED ON THE
+     * FIELD, NOT ON THE ROLE. `assertOwnCard` resolves `ownPlayerIds(eventId,
+     * email)` and refuses anything outside it; a member who is not entered has
+     * no `Player` row, so that set is empty and every card write is refused.
+     * The same shape guards the rest — `assertEventPlayer` insists the player
+     * is in THIS tournament. Being able to watch is not being able to play,
+     * and the app already drew that line where it belongs.
+     *
+     * It never upgrades: `RANK` keeps an explicit Account role, so a member who
+     * is also this event's assistant stays an assistant.
+     */
+    const memberOrgs = await prisma.organizationMember.findMany({
+      where: { userId: user.id, role: { notIn: [...ORG_GUEST_ROLES] } },
+      select: { organizationId: true },
+    });
+    if (memberOrgs.length) {
+      const clubEvents = await prisma.event.findMany({
+        where: { organizationId: { in: memberOrgs.map((m) => m.organizationId) } },
+        select: { id: true },
+      });
+      for (const e of clubEvents) {
+        if (!byEvent.has(e.id)) {
+          byEvent.set(e.id, { eventId: e.id, role: "player", source: "organization" });
         }
       }
     }

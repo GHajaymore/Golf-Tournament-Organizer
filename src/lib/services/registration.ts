@@ -43,7 +43,7 @@ export interface PublicRegistrationView {
   brand: EventBrand | null;
 }
 
-function venueOf(course: string, city: string): string {
+export function venueOf(course: string, city: string): string {
   return [course, city].map((s) => s.trim()).filter(Boolean).join(", ");
 }
 

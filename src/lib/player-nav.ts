@@ -98,9 +98,24 @@ export const PLAYER_MESSAGES: PlayerScreen = {
   icon: "ph ph-chat-circle-dots",
 };
 
+/**
+ * The club's calendar — what is on, and how to enter it.
+ *
+ * NOT A TAB, for the reason stated above the money one: the shell is four
+ * screens a person needs while they are on a golf course, and this is not one
+ * of them. It is reached from Today, which is where somebody stands when they
+ * are wondering what is on next month rather than what they scored on the 4th.
+ */
+export const PLAYER_EVENTS: PlayerScreen = {
+  href: "/me/events",
+  label: "Events",
+  icon: "ph ph-calendar-dots",
+};
+
 /** Every player screen, tab or not — the lookup `screenName` walks. */
 export const ALL_PLAYER_SCREENS: readonly PlayerScreen[] = [
   ...PLAYER_TABS,
   PLAYER_MONEY_TAB,
   PLAYER_MESSAGES,
+  PLAYER_EVENTS,
 ];
