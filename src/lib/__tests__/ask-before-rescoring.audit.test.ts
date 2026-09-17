@@ -15,6 +15,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {}
 
 import { createSession, setActiveEvent } from "@/lib/auth";
 import { setStageHoles, setStageScoringBasis } from "@/app/actions/tournament";
+import { setStageAllowance, setStageAllowanceWeights, setStageCountBest } from "@/app/actions/teams";
 import { enteredCardCount } from "../services/round-cards";
 
 /**
@@ -89,8 +90,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
-  await prisma.$disconnect();
+  try {
+    await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
+    // The organizer logins `asOrganizer` makes belong to no organization, so
+    // the cascade above never reached them.
+    await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } });
+  } finally {
+    await prisma.$disconnect();
+  }
 });
 
 describe("what the guard counts", () => {
@@ -171,17 +178,18 @@ describe("what the guard counts", () => {
   });
 });
 
+/** A staff session on this event, so the real action runs its real guards. */
+async function asOrganizer(eventId: string) {
+  const email = `${TAG.toLowerCase()}-org-${Date.now()}-${Math.random()}@example.invalid`;
+  const user = await prisma.user.create({ data: { email, name: `${TAG} Org`, password: "x" } });
+  await prisma.account.create({ data: { eventId, email, name: `${TAG} Org`, role: "admin" } });
+  jar.clear();
+  await createSession(user.id);
+  // createSession clears the active-event cookie, so this comes second.
+  await setActiveEvent(eventId);
+}
+
 describe("and the actions actually ask it", () => {
-  /** A staff session on this event, so the real action runs its real guards. */
-  async function asOrganizer(eventId: string) {
-    const email = `${TAG.toLowerCase()}-org-${Date.now()}-${Math.random()}@example.invalid`;
-    const user = await prisma.user.create({ data: { email, name: `${TAG} Org`, password: "x" } });
-    await prisma.account.create({ data: { eventId, email, name: `${TAG} Org`, role: "admin" } });
-    jar.clear();
-    await createSession(user.id);
-    // createSession clears the active-event cookie, so this comes second.
-    await setActiveEvent(eventId);
-  }
 
   const holesOf = async (id: string) =>
     (await prisma.stage.findUnique({ where: { id }, select: { holes: true } }))!.holes;
@@ -259,5 +267,100 @@ describe("and the actions actually ask it", () => {
     const res = await setStageScoringBasis(stage.id, "gross");
     expect(res.ok).toBe(true);
     expect(res.needsConfirm).toBeUndefined();
+  });
+});
+
+describe("and a team round's pricing asks too", () => {
+  /**
+   * THE THREE SETTINGS A TEAM ROUND ADDS. The allowance, the split and how
+   * many scores count all change what every side's card is worth without a
+   * stroke moving — the same class as the three above, set from the same
+   * screen, and until now written straight through.
+   *
+   * A four-ball for the allowance and the count, a greensomes for the split,
+   * each with ONE side card on it, which is all `enteredCardCount` needs.
+   */
+  async function teamRound(format: "Four-Ball" | "Greensomes", played: boolean) {
+    const { eventId, player } = await seed();
+    const stage = await prisma.stage.create({
+      data: { eventId, position: 1, type: "Round Robin", format, holes: 18, scoringBasis: "net" },
+    });
+    if (played) {
+      const side = await prisma.team.create({
+        data: { eventId, stageId: stage.id, name: `${TAG} side`, seed: 1 },
+      });
+      await prisma.teamScorecard.create({
+        data: {
+          eventId,
+          stageId: stage.id,
+          teamId: side.id,
+          playerId: player.id,
+          strokes: JSON.stringify([4, ...new Array(17).fill(null)]),
+        },
+      });
+    }
+    await asOrganizer(eventId);
+    return stage.id;
+  }
+
+  const stageOf = async (id: string) =>
+    (await prisma.stage.findUnique({
+      where: { id },
+      select: { handicapAllowance: true, countBest: true, allowanceWeights: true },
+    }))!;
+
+  it("changes all three freely on a team round nobody has played", async () => {
+    // THE CONTROL: nothing below means anything if these refuse too.
+    const fourBall = await teamRound("Four-Ball", false);
+    expect(await setStageAllowance(fourBall, 75)).toEqual({ ok: true });
+    expect(await setStageCountBest(fourBall, 2)).toEqual({ ok: true });
+    expect(await stageOf(fourBall)).toMatchObject({ handicapAllowance: 75, countBest: 2 });
+
+    const greensomes = await teamRound("Greensomes", false);
+    expect(await setStageAllowanceWeights(greensomes, [50, 50])).toEqual({ ok: true });
+    expect((await stageOf(greensomes)).allowanceWeights).toEqual([50, 50]);
+  });
+
+  it("refuses the allowance under a card, without writing, and goes ahead when told", async () => {
+    const id = await teamRound("Four-Ball", true);
+    expect(await setStageAllowance(id, 75)).toEqual({ ok: false, needsConfirm: true, cards: 1 });
+    expect((await stageOf(id)).handicapAllowance, "refused and wrote anyway").toBe(0);
+    expect(await setStageAllowance(id, 75, true)).toEqual({ ok: true });
+    expect((await stageOf(id)).handicapAllowance).toBe(75);
+  });
+
+  it("does not ask when the allowance in force does not change", async () => {
+    // Four-ball recommends 90%: typing 90 over the default is not a change,
+    // and neither is "back to the recommendation" from an explicit 90.
+    const id = await teamRound("Four-Ball", true);
+    expect(await setStageAllowance(id, 90)).toEqual({ ok: true });
+    expect(await setStageAllowance(id, 0)).toEqual({ ok: true });
+  });
+
+  it("refuses how many scores count under a card, and not a re-save", async () => {
+    const id = await teamRound("Four-Ball", true);
+    expect(await setStageCountBest(id, 2)).toEqual({ ok: false, needsConfirm: true, cards: 1 });
+    expect((await stageOf(id)).countBest).toBe(0);
+    // Best one is what a stored zero already means.
+    expect(await setStageCountBest(id, 1)).toEqual({ ok: true });
+    expect(await setStageCountBest(id, 2, true)).toEqual({ ok: true });
+    expect((await stageOf(id)).countBest).toBe(2);
+  });
+
+  it("refuses the split under a card, and not a clear that changes nothing", async () => {
+    const id = await teamRound("Greensomes", true);
+    expect(await setStageAllowanceWeights(id, [50, 50])).toEqual({
+      ok: false,
+      needsConfirm: true,
+      cards: 1,
+    });
+    expect((await stageOf(id)).allowanceWeights).toEqual([]);
+    // Nothing stored, so clearing it is not a change.
+    expect(await setStageAllowanceWeights(id, [])).toEqual({ ok: true });
+
+    expect(await setStageAllowanceWeights(id, [50, 50], true)).toEqual({ ok: true });
+    // …but clearing a stored split IS one.
+    expect(await setStageAllowanceWeights(id, [])).toEqual({ ok: false, needsConfirm: true, cards: 1 });
+    expect((await stageOf(id)).allowanceWeights).toEqual([50, 50]);
   });
 });

@@ -1,7 +1,13 @@
 "use client";
 import { useState } from "react";
 import { TEAM_ENTRY_MODES, type TeamEntryMode } from "@/lib/domain/team-entry";
-import { setStageAllowance, setStageAllowanceWeights, setStageCountBest } from "@/app/actions/teams";
+import {
+  setStageAllowance,
+  setStageAllowanceWeights,
+  setStageCountBest,
+  type TeamResult,
+} from "@/app/actions/teams";
+import { RescoreWarning, RESCORE_CONSEQUENCE } from "./RescoreWarning";
 import { setStageScoreInput } from "@/app/actions/tournament";
 import FieldInfo from "@/components/FieldInfo";
 import { Icon } from "./Icon";
@@ -52,8 +58,72 @@ export interface RoundScoringInfo {
   fixedReason: string;
 }
 
+type RescoreKind = "allowance" | "split" | "countBest";
+
+/** A save the server has asked about: which control, how many cards, and how to go ahead. */
+interface Rescore {
+  kind: RescoreKind;
+  cards: number;
+  call: (force: boolean) => Promise<TeamResult>;
+  close: () => void;
+}
+
 export function RoundTeamScoring({ stageId, info }: { stageId: string; info: RoundScoringInfo }) {
-  const { pending, error, run } = useAction();
+  const { pending, error, setError, run, startTransition } = useAction();
+  const [rescore, setRescore] = useState<Rescore | null>(null);
+
+  /**
+   * Save a pricing setting, asking first if it would re-score cards.
+   *
+   * Its own body rather than `run`, for the reason `useAction` gives about
+   * `TeamsClient`: `needsConfirm` is the server asking a question, neither a
+   * success nor a refusal. The editor closes only once the value is actually
+   * saved — it used to close on the click, so a refused save threw away what
+   * was typed.
+   */
+  const save = (kind: RescoreKind, call: (force: boolean) => Promise<TeamResult>, close: () => void) =>
+    startTransition(async () => {
+      setError("");
+      setRescore(null);
+      const res = await call(false);
+      if (res.needsConfirm) {
+        setRescore({ kind, cards: res.cards ?? 0, call, close });
+        return;
+      }
+      if (!res.ok) {
+        setError(res.error ?? "Couldn't save that.");
+        return;
+      }
+      close();
+    });
+
+  const confirmRescore = () => {
+    const r = rescore;
+    if (!r) return;
+    run(
+      () => r.call(true),
+      () => {
+        setRescore(null);
+        r.close();
+      },
+    );
+  };
+
+  const warning = (kind: RescoreKind, keepLabel: string) =>
+    rescore?.kind === kind ? (
+      <RescoreWarning
+        cards={rescore.cards}
+        consequence={RESCORE_CONSEQUENCE[kind]}
+        keepLabel={keepLabel}
+        pending={pending}
+        onConfirm={confirmRescore}
+        onCancel={() => {
+          rescore.close();
+          setRescore(null);
+        }}
+      />
+    ) : null;
+
   const [editingAllowance, setEditingAllowance] = useState(false);
   const [allowance, setAllowance] = useState("");
   const [editingShares, setEditingShares] = useState(false);
@@ -152,8 +222,11 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
             disabled={pending}
             onClick={() => {
               const n = parseInt(allowance, 10);
-              run(() => setStageAllowance(stageId, Number.isFinite(n) ? n : -1));
-              setEditingAllowance(false);
+              save(
+                "allowance",
+                (force) => setStageAllowance(stageId, Number.isFinite(n) ? n : -1, force),
+                () => setEditingAllowance(false),
+              );
             }}
           >
             Save
@@ -164,8 +237,11 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
               className="btn btn-secondary"
               disabled={pending}
               onClick={() => {
-                run(() => setStageAllowance(stageId, 0));
-                setEditingAllowance(false);
+                save(
+                  "allowance",
+                  (force) => setStageAllowance(stageId, 0, force),
+                  () => setEditingAllowance(false),
+                );
               }}
             >
               Back to {info.recommendedAllowance}%
@@ -173,6 +249,7 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
           )}
         </div>
       )}
+      {warning("allowance", `${info.allowance}%`)}
 
       {/* Only formats scored by a per-player split get this. A flat percentage
           cannot express greensomes' 60/40, and offering the control to a
@@ -231,8 +308,16 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
             disabled={pending}
             onClick={() => {
               const nums = shares.map((s) => parseInt(s, 10));
-              run(() => setStageAllowanceWeights(stageId, nums.map((n) => (Number.isFinite(n) ? n : -1))));
-              setEditingShares(false);
+              save(
+                "split",
+                (force) =>
+                  setStageAllowanceWeights(
+                    stageId,
+                    nums.map((n) => (Number.isFinite(n) ? n : -1)),
+                    force,
+                  ),
+                () => setEditingShares(false),
+              );
             }}
           >
             Save
@@ -243,8 +328,11 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
               className="btn btn-secondary"
               disabled={pending}
               onClick={() => {
-                run(() => setStageAllowanceWeights(stageId, []));
-                setEditingShares(false);
+                save(
+                  "split",
+                  (force) => setStageAllowanceWeights(stageId, [], force),
+                  () => setEditingShares(false),
+                );
               }}
             >
               Back to {info.recommendedShares?.join(" / ")}
@@ -252,6 +340,7 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
           )}
         </div>
       )}
+      {warning("split", info.shares?.join(" / ") ?? "")}
 
       {/* Only where separate balls are aggregated. A scramble already plays a
           single ball, so the question doesn't arise. */}
@@ -311,8 +400,11 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
             disabled={pending}
             onClick={() => {
               const n = parseInt(countBest, 10);
-              run(() => setStageCountBest(stageId, Number.isFinite(n) ? n : 0));
-              setEditingCount(false);
+              save(
+                "countBest",
+                (force) => setStageCountBest(stageId, Number.isFinite(n) ? n : 0, force),
+                () => setEditingCount(false),
+              );
             }}
           >
             Save
@@ -323,8 +415,11 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
               className="btn btn-secondary"
               disabled={pending}
               onClick={() => {
-                run(() => setStageCountBest(stageId, 0));
-                setEditingCount(false);
+                save(
+                  "countBest",
+                  (force) => setStageCountBest(stageId, 0, force),
+                  () => setEditingCount(false),
+                );
               }}
             >
               Back to best 1
@@ -332,6 +427,7 @@ export function RoundTeamScoring({ stageId, info }: { stageId: string; info: Rou
           )}
         </div>
       )}
+      {warning("countBest", `best ${info.countBest ?? 1} of ${info.maxSide}`)}
 
       {error && (
         <p className="form-error">

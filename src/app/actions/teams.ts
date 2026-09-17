@@ -4,15 +4,43 @@ import { boardChanged } from "@/lib/services/board-refresh";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { sideSizeRange, needsTeams, findFormat } from "@/lib/formats";
-import { snakeDraw } from "@/lib/services/teams";
+import { effectiveAllowance, effectiveCountBest, snakeDraw } from "@/lib/services/teams";
 import { roundRobinSchedule } from "@/lib/domain";
 import { holesPlayed } from "@/lib/domain/handicap";
 import { assertUnlocked } from "@/lib/services/action-shared";
+import { enteredCardCount } from "@/lib/services/round-cards";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 
 export interface TeamResult {
   ok: boolean;
   error?: string;
+  /**
+   * Refused because the change would RE-SCORE a round that already has cards,
+   * and nobody has said yes yet. `cards` is how many — the question the
+   * organizer is actually answering. See `RescoreWarning`.
+   */
+  needsConfirm?: boolean;
+  cards?: number;
+}
+
+/**
+ * Ask before a pricing change re-scores a played round.
+ *
+ * The allowance, the split and how many balls count all change what every
+ * card already entered is WORTH without touching a stroke — the same class as
+ * a round's format, holes and basis, which `tournament.ts` already asks about.
+ * Only when the value actually changes: a confirmation on a re-save teaches an
+ * organizer to click through the one that matters.
+ */
+async function rescoreRefusal(
+  eventId: string,
+  stageId: string,
+  changed: boolean,
+  force: boolean,
+): Promise<TeamResult | null> {
+  if (force || !changed) return null;
+  const cards = await enteredCardCount(eventId, stageId);
+  return cards > 0 ? { ok: false, needsConfirm: true, cards } : null;
 }
 
 /**
@@ -366,16 +394,36 @@ export async function autoDrawTeams(
  * Capped at 100 because an allowance above full handicap isn't a committee
  * decision, it's a typo, and it would hand out strokes nobody has.
  */
-export async function setStageAllowance(stageId: string, percent: number): Promise<TeamResult> {
+export async function setStageAllowance(
+  stageId: string,
+  percent: number,
+  force = false,
+): Promise<TeamResult> {
   const eventId = await requireStaff();
   await assertUnlocked(eventId, "change teams");
   await stageInEvent(eventId, stageId);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
     return { ok: false, error: "Enter an allowance between 0 and 100 percent." };
   }
+  const current = await prisma.stage.findUnique({
+    where: { id: stageId },
+    select: { format: true, handicapAllowance: true },
+  });
+  const next = Math.round(percent);
+  // Compared as the allowance IN FORCE, so "back to the recommended 90%" on a
+  // round already playing 90% is not a change.
+  const refusal = await rescoreRefusal(
+    eventId,
+    stageId,
+    !!current &&
+      effectiveAllowance(current.format, current.handicapAllowance) !==
+        effectiveAllowance(current.format, next),
+    force,
+  );
+  if (refusal) return refusal;
   await prisma.stage.update({
     where: { id: stageId },
-    data: { handicapAllowance: Math.round(percent) },
+    data: { handicapAllowance: next },
   });
   await refresh();
   return { ok: true };
@@ -390,7 +438,11 @@ export async function setStageAllowance(stageId: string, percent: number): Promi
  *
  * Zero clears the setting and returns the round to counting one.
  */
-export async function setStageCountBest(stageId: string, count: number): Promise<TeamResult> {
+export async function setStageCountBest(
+  stageId: string,
+  count: number,
+  force = false,
+): Promise<TeamResult> {
   const eventId = await requireStaff();
   await assertUnlocked(eventId, "change teams");
   await stageInEvent(eventId, stageId);
@@ -399,7 +451,10 @@ export async function setStageCountBest(stageId: string, count: number): Promise
     return { ok: false, error: "Enter how many scores count, or 0 to use the format's default." };
   }
 
-  const stage = await prisma.stage.findUnique({ where: { id: stageId }, select: { format: true } });
+  const stage = await prisma.stage.findUnique({
+    where: { id: stageId },
+    select: { format: true, countBest: true },
+  });
   const max = sideSizeRange(stage?.format ?? "").max;
   if (count > max) {
     return {
@@ -407,6 +462,16 @@ export async function setStageCountBest(stageId: string, count: number): Promise
       error: `${stage?.format} plays at most ${max} a side, so no more than ${max} scores can count.`,
     };
   }
+
+  const refusal = await rescoreRefusal(
+    eventId,
+    stageId,
+    !!stage &&
+      effectiveCountBest(stage.format, stage.countBest) !==
+        effectiveCountBest(stage.format, Math.round(count)),
+    force,
+  );
+  if (refusal) return refusal;
 
   await prisma.stage.update({
     where: { id: stageId },
@@ -434,12 +499,27 @@ export async function setStageCountBest(stageId: string, count: number): Promise
 export async function setStageAllowanceWeights(
   stageId: string,
   weights: number[],
+  force = false,
 ): Promise<TeamResult> {
   const eventId = await requireStaff();
   await assertUnlocked(eventId, "change teams");
   await stageInEvent(eventId, stageId);
 
+  const stored = await prisma.stage.findUnique({
+    where: { id: stageId },
+    select: { allowanceWeights: true },
+  });
+  const same = (a: number[], b: number[]) =>
+    a.length === b.length && a.every((v, i) => v === b[i]);
+
   if (weights.length === 0) {
+    const refusal = await rescoreRefusal(
+      eventId,
+      stageId,
+      (stored?.allowanceWeights.length ?? 0) > 0,
+      force,
+    );
+    if (refusal) return refusal;
     await prisma.stage.update({ where: { id: stageId }, data: { allowanceWeights: [] } });
     await refresh();
     return { ok: true };
@@ -461,9 +541,18 @@ export async function setStageAllowanceWeights(
     };
   }
 
+  const wanted = weights.map((w) => Math.round(w));
+  const refusal = await rescoreRefusal(
+    eventId,
+    stageId,
+    !same(stored?.allowanceWeights ?? [], wanted),
+    force,
+  );
+  if (refusal) return refusal;
+
   await prisma.stage.update({
     where: { id: stageId },
-    data: { allowanceWeights: weights.map((w) => Math.round(w)) },
+    data: { allowanceWeights: wanted },
   });
   await refresh();
   return { ok: true };
