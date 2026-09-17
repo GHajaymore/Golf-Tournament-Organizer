@@ -27,6 +27,10 @@ export default async function globalSetup() {
 
   writeFileSync(join(dir, "organizer.json"), JSON.stringify(stateFor(data.organizer), null, 2));
   writeFileSync(join(dir, "player.json"), JSON.stringify(stateFor(data.player), null, 2));
+  // The same two roles on the interclub league, which is a different event in
+  // the same club: the league secretary and one club's member.
+  writeFileSync(join(dir, "league-organizer.json"), JSON.stringify(stateFor(data.league.organizer), null, 2));
+  writeFileSync(join(dir, "league-member.json"), JSON.stringify(stateFor(data.league.member), null, 2));
   // Facts the tests assert against, written out rather than duplicated as
   // constants in each spec — a fixture that changes shape should break the
   // tests loudly, not silently disagree with them.
