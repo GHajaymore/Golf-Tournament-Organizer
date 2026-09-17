@@ -492,6 +492,43 @@ export function ScoreEntryClient({
    *  send the scorer looking for the wrong problem. */
   const [saveNote, setSaveNote] = useState("");
 
+  /**
+   * WHERE THIS MATCH WAS PLAYED, which is a score edit wearing a dropdown.
+   *
+   * The venue decides par and stroke index, so it decides the result. Both
+   * call sites used to be `void setMatchCourse(...)`: a refusal — somebody
+   * else's match, a course outside the club's library, an event where the
+   * organizer enters the scores — threw the answer away, and the select went
+   * on showing a venue the server had rejected. The screen then disagreed
+   * with the card underneath it and said nothing.
+   *
+   * So it reports like every other write here, and puts the dropdown back.
+   */
+  const saveVenue = (
+    matchId: string,
+    courseId: string | null,
+    nine: string,
+    undo: () => void,
+  ) => {
+    setSaveState("saving");
+    setSaveNote("");
+    startTransition(async () => {
+      try {
+        const res = await setMatchCourse(matchId, courseId, nine);
+        if (!res.ok) {
+          undo();
+          setSaveState("failed");
+          setSaveNote(res.error ?? "Couldn't change where this match was played.");
+          return;
+        }
+        setSaveState("saved");
+      } catch {
+        undo();
+        setSaveState("failed");
+      }
+    });
+  };
+
   /** Run a write and report how it went. */
   const save = (run: () => Promise<unknown>) => {
     setSaveState("saving");
@@ -1304,13 +1341,14 @@ export function ScoreEntryClient({
                       : undefined
                   }
                   onChange={(id) => {
-                    setCourseByMatch((prev) => ({ ...prev, [active.id]: id }));
-                    startTransition(() =>
-                      void setMatchCourse(
-                        active.id,
-                        id || null,
-                        totalHoles === 9 ? nineByMatch[active.id] ?? "front" : "full",
-                      ),
+                    const was = courseByMatch[active.id] ?? "";
+                    const matchId = active.id;
+                    setCourseByMatch((prev) => ({ ...prev, [matchId]: id }));
+                    saveVenue(
+                      matchId,
+                      id || null,
+                      totalHoles === 9 ? nineByMatch[matchId] ?? "front" : "full",
+                      () => setCourseByMatch((prev) => ({ ...prev, [matchId]: was })),
                     );
                   }}
                 />
@@ -1328,9 +1366,11 @@ export function ScoreEntryClient({
                   value={nineByMatch[active.id] ?? ""}
                   onChange={(e) => {
                     const nine = e.target.value;
-                    setNineByMatch((prev) => ({ ...prev, [active.id]: nine }));
-                    startTransition(() =>
-                      void setMatchCourse(active.id, courseByMatch[active.id] || null, nine),
+                    const was = nineByMatch[active.id] ?? "";
+                    const matchId = active.id;
+                    setNineByMatch((prev) => ({ ...prev, [matchId]: nine }));
+                    saveVenue(matchId, courseByMatch[matchId] || null, nine, () =>
+                      setNineByMatch((prev) => ({ ...prev, [matchId]: was })),
                     );
                   }}
                 >

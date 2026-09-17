@@ -97,6 +97,8 @@ export const RESCORE_CONSEQUENCE = {
     "Changing the allowance re-scores every one of them. Each side receives a different number of strokes, so net scores and results move while no stroke on a card changes.",
   split:
     "Changing the split re-scores every one of them. The side's handicap is worked out from different shares of its players', so its strokes — and its result — change.",
+  venue:
+    "Changing where it was played re-scores every one of them against a different card. Par decides every to-par, and the new stroke index moves handicap shots onto different holes.",
   countBest:
     "Changing how many scores count re-scores every one of them. Best one of four and best two of four are different competitions played off the same cards.",
 } as const;
