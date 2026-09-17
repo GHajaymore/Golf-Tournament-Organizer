@@ -31,7 +31,7 @@ async function cleanup() {
 const read = () =>
   prisma.event.findUniqueOrThrow({
     where: { id: session.eventId },
-    select: { leaguePoints: true, leagueMatchBonus: true, leaguePairs: true },
+    select: { leaguePoints: true, leagueMatchBonus: true, leaguePairs: true, leaguePlayoffClubs: true },
   });
 
 beforeAll(async () => {
@@ -68,51 +68,53 @@ afterAll(async () => {
 describe("league settings", () => {
   it("stores what the organizer chose, and logs the change against the old values", async () => {
     session.role = "admin";
-    const result = await setLeagueSettings({ points: "holes-and-match", matchBonus: 3, pairs: 6 });
+    const result = await setLeagueSettings({ points: "holes-and-match", matchBonus: 3, pairs: 6, playoffs: 4 });
     expect(result).toEqual({ ok: true });
-    expect(await read()).toEqual({ leaguePoints: "holes-and-match", leagueMatchBonus: 3, leaguePairs: 6 });
+    expect(await read()).toEqual({ leaguePoints: "holes-and-match", leagueMatchBonus: 3, leaguePairs: 6, leaguePlayoffClubs: 4 });
 
     const log = await prisma.auditLog.findFirst({
       where: { eventId: session.eventId, action: "league-settings" },
       select: { detail: true },
     });
     // Both halves: what it was (the defaults) and what it became.
-    expect(log?.detail).toBe("League scoring off (bonus 2, pairs 0) -> holes-and-match (bonus 3, pairs 6)");
+    expect(log?.detail).toBe("League scoring off (bonus 2, pairs 0, play-offs 0) -> holes-and-match (bonus 3, pairs 6, play-offs 4)");
   });
 
   it("refuses an assistant, and leaves the league as it was", async () => {
     session.role = "assistant";
     try {
-      await expect(setLeagueSettings({ points: "nassau", matchBonus: 0, pairs: 8 })).rejects.toThrow(
+      await expect(setLeagueSettings({ points: "nassau", matchBonus: 0, pairs: 8, playoffs: 0 })).rejects.toThrow(
         "Organizer access required",
       );
     } finally {
       session.role = "admin";
     }
-    expect(await read()).toEqual({ leaguePoints: "holes-and-match", leagueMatchBonus: 3, leaguePairs: 6 });
+    expect(await read()).toEqual({ leaguePoints: "holes-and-match", leagueMatchBonus: 3, leaguePairs: 6, leaguePlayoffClubs: 4 });
   });
 
   it.each([
-    ["an unknown system", { points: "stableford", matchBonus: 2, pairs: 6 }],
-    ["a fractional bonus", { points: "match", matchBonus: 1.5, pairs: 6 }],
-    ["a negative bonus", { points: "match", matchBonus: -1, pairs: 6 }],
-    ["a bonus as text", { points: "match", matchBonus: "2", pairs: 6 }],
-    ["an empty pairs box", { points: "match", matchBonus: 2, pairs: Number.NaN }],
-    ["too many pairs", { points: "match", matchBonus: 2, pairs: 25 }],
+    ["an unknown system", { points: "stableford", matchBonus: 2, pairs: 6, playoffs: 0 }],
+    ["a fractional bonus", { points: "match", matchBonus: 1.5, pairs: 6, playoffs: 0 }],
+    ["a negative bonus", { points: "match", matchBonus: -1, pairs: 6, playoffs: 0 }],
+    ["a bonus as text", { points: "match", matchBonus: "2", pairs: 6, playoffs: 0 }],
+    ["an empty pairs box", { points: "match", matchBonus: 2, pairs: Number.NaN, playoffs: 0 }],
+    ["too many pairs", { points: "match", matchBonus: 2, pairs: 25, playoffs: 0 }],
+    ["a play-off of six", { points: "match", matchBonus: 2, pairs: 6, playoffs: 6 }],
+    ["play-offs as text", { points: "match", matchBonus: 2, pairs: 6, playoffs: "4" }],
   ])("refuses %s without writing", async (_, input) => {
     const result = await setLeagueSettings(input);
     expect(result.ok).toBe(false);
-    expect(await read()).toEqual({ leaguePoints: "holes-and-match", leagueMatchBonus: 3, leaguePairs: 6 });
+    expect(await read()).toEqual({ leaguePoints: "holes-and-match", leagueMatchBonus: 3, leaguePairs: 6, leaguePlayoffClubs: 4 });
   });
 
   it("switches the league off with an empty system, and says so in the log", async () => {
-    expect(await setLeagueSettings({ points: "", matchBonus: 3, pairs: 6 })).toEqual({ ok: true });
+    expect(await setLeagueSettings({ points: "", matchBonus: 3, pairs: 6, playoffs: 0 })).toEqual({ ok: true });
     expect((await read()).leaguePoints).toBe("");
     const last = await prisma.auditLog.findFirst({
       where: { eventId: session.eventId, action: "league-settings" },
       orderBy: { createdAt: "desc" },
       select: { detail: true },
     });
-    expect(last?.detail).toBe("League scoring holes-and-match (bonus 3, pairs 6) -> off (bonus 3, pairs 6)");
+    expect(last?.detail).toBe("League scoring holes-and-match (bonus 3, pairs 6, play-offs 4) -> off (bonus 3, pairs 6, play-offs 0)");
   });
 });

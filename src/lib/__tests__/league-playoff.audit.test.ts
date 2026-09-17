@@ -1,0 +1,281 @@
+import "dotenv/config";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { PrismaClient } from "@prisma/client";
+import { randomBytes } from "node:crypto";
+
+/**
+ * A WHOLE LEAGUE SEASON, PLAY-OFFS INCLUDED, AGAINST REAL ROWS.
+ *
+ * Four clubs, four team rounds, a top-four play-off: weeks one and two are
+ * the season, week three the semi-finals, week four the final. Every step
+ * goes through the actions a captain and an organizer use — nominate, draw,
+ * and the cards the scorers would enter.
+ *
+ * Built so a wrong answer looks different. Club 0 shoots 4s, club 1 5s,
+ * club 2 6s, club 3 7s, so the season order is fixed; then the semi-final
+ * has an UPSET (club 3 beats the top seed) and a LEVEL meeting (clubs 1 and
+ * 2 both shoot 5s), so "who goes through" cannot be answered by the table.
+ *
+ *   npx vitest run --config vitest.audit.config.ts
+ */
+
+const prisma = new PrismaClient();
+const TAG = "zz-league-playoff";
+
+const session = {
+  email: `${TAG}@example.invalid`,
+  name: `${TAG} organizer`,
+  eventId: "",
+  role: "admin",
+  viewRole: "admin",
+};
+vi.mock("@/lib/auth", () => ({ getSession: async () => session, setActiveEvent: async () => {} }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
+vi.mock("@/lib/services/board-refresh", () => ({ boardChanged: () => {} }));
+
+const { drawLeagueWeek, nominatePair } = await import("@/app/actions/league");
+const { leagueTable, leaguePlayoffs, leagueSeason } = await import("@/lib/services/league");
+
+const club: string[] = [];
+const roster: string[][] = [];
+const week: string[] = [];
+
+async function cleanup() {
+  await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } });
+  await prisma.organization.deleteMany({ where: { name: { startsWith: TAG } } });
+}
+
+const flat = (s: number) => JSON.stringify(new Array(18).fill(s));
+
+async function nominate(w: number, clubs: number[]) {
+  for (const c of clubs) {
+    expect(await nominatePair(week[w], club[c], roster[c]), `week ${w} club ${c}`).toEqual({ ok: true });
+  }
+}
+
+/** Enter every card in a round, each club's players shooting `score(club)` on every hole. */
+async function score(w: number, strokes: (clubIndex: number) => number) {
+  const matches = await prisma.match.findMany({
+    where: { eventId: session.eventId, stageId: week[w] },
+    select: { teamAId: true, teamBId: true },
+  });
+  for (const m of matches) {
+    for (const teamId of [m.teamAId, m.teamBId]) {
+      const side = await prisma.team.findUniqueOrThrow({
+        where: { id: teamId! },
+        select: { clubGroupId: true, members: { select: { playerId: true } } },
+      });
+      for (const { playerId } of side.members) {
+        await prisma.teamScorecard.create({
+          data: {
+            eventId: session.eventId,
+            stageId: week[w],
+            teamId: teamId!,
+            playerId,
+            strokes: flat(strokes(club.indexOf(side.clubGroupId!))),
+          },
+        });
+      }
+    }
+  }
+}
+
+const strength = (c: number) => 4 + c;
+
+/** The clubs meeting in a round, as sorted "i-j" labels. */
+async function meetingsOf(w: number) {
+  const matches = await prisma.match.findMany({
+    where: { eventId: session.eventId, stageId: week[w] },
+    select: { teamAId: true, teamBId: true },
+  });
+  const clubOfTeam = async (id: string) =>
+    club.indexOf(
+      (await prisma.team.findUniqueOrThrow({ where: { id }, select: { clubGroupId: true } })).clubGroupId!,
+    );
+  const labels: string[] = [];
+  for (const m of matches) {
+    const pair = [await clubOfTeam(m.teamAId!), await clubOfTeam(m.teamBId!)].sort();
+    labels.push(pair.join("-"));
+  }
+  return labels.sort();
+}
+
+beforeAll(async () => {
+  await cleanup();
+  const org = await prisma.organization.create({
+    data: { name: `${TAG} club`, kind: "club" },
+    select: { id: true },
+  });
+  const event = await prisma.event.create({
+    data: {
+      organizationId: org.id,
+      name: `${TAG} league`,
+      status: "live",
+      shape: "series",
+      format: "stroke",
+      formationRule: "balanced",
+      leaguePoints: "holes",
+      leaguePlayoffClubs: 4,
+      dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
+      shareToken: randomBytes(12).toString("hex"),
+      registrationToken: randomBytes(8).toString("hex"),
+      customPars: JSON.stringify(new Array(18).fill(4)),
+      customYards: JSON.stringify(new Array(18).fill(400)),
+      customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+    },
+    select: { id: true },
+  });
+  session.eventId = event.id;
+
+  for (let c = 0; c < 4; c += 1) {
+    const g = await prisma.group.create({
+      data: { eventId: event.id, name: `${TAG} club ${c}`, position: c },
+      select: { id: true },
+    });
+    club.push(g.id);
+    const players: string[] = [];
+    for (let i = 0; i < 2; i += 1) {
+      const p = await prisma.player.create({
+        data: {
+          eventId: event.id,
+          name: `${TAG} c${c}p${i}`,
+          email: `${TAG}-c${c}p${i}@example.invalid`,
+          handicap: 0,
+          seed: 1,
+          status: "confirmed",
+          groupId: g.id,
+        },
+        select: { id: true },
+      });
+      players.push(p.id);
+    }
+    roster.push(players);
+  }
+
+  for (let w = 0; w < 4; w += 1) {
+    const s = await prisma.stage.create({
+      data: {
+        eventId: event.id,
+        position: w,
+        type: "Round Robin",
+        format: "Four-Ball",
+        holes: 18,
+        scoringBasis: "gross",
+        handicapAllowance: 100,
+      },
+      select: { id: true },
+    });
+    week.push(s.id);
+  }
+}, 120_000);
+
+afterAll(async () => {
+  try {
+    await cleanup();
+  } finally {
+    await prisma.$disconnect();
+  }
+});
+
+describe("a season with play-offs", () => {
+  it("splits four team rounds into two season weeks and two play-off rounds", async () => {
+    expect(await leagueSeason(session.eventId)).toEqual({
+      season: [week[0], week[1]],
+      playoffs: [week[2], week[3]],
+      size: 4,
+    });
+  });
+
+  it("lists every club, and a provisional bracket, before anybody has nominated", async () => {
+    const table = await leagueTable(session.eventId, "holes");
+    expect(table.map((r) => club.indexOf(r.clubId))).toEqual([0, 1, 2, 3]);
+    const bracket = await leaguePlayoffs(session.eventId, "holes");
+    expect(bracket?.rounds[0].meetings.map((m) => m && `${club.indexOf(m.clubA)}v${club.indexOf(m.clubB)}`)).toEqual(
+      ["0v3", "1v2"],
+    );
+  });
+
+  it("plays the season on the rotation", async () => {
+    await nominate(0, [0, 1, 2, 3]);
+    expect(await drawLeagueWeek(week[0])).toMatchObject({ ok: true, matches: 2, playoff: null });
+    expect(await meetingsOf(0)).toEqual(["0-3", "1-2"]);
+    await score(0, strength);
+
+    await nominate(1, [0, 1, 2, 3]);
+    expect(await drawLeagueWeek(week[1])).toMatchObject({ ok: true, matches: 2, playoff: null });
+    expect(await meetingsOf(1)).toEqual(["0-2", "1-3"]);
+  });
+
+  it("will not draw the semi-finals while a season meeting is still out", async () => {
+    await nominate(2, [0, 1, 2, 3]);
+    const res = await drawLeagueWeek(week[2]);
+    expect(res.ok).toBe(false);
+    expect(!res.ok && res.error).toMatch(/is not finished yet/);
+    expect(await prisma.match.count({ where: { stageId: week[2] } })).toBe(0);
+  });
+
+  it("seeds the semi-finals from the finished season, 1 v 4 and 2 v 3", async () => {
+    await score(1, strength);
+
+    // Holes won only: clubs 0 and 1 won every hole of both meetings.
+    const table = await leagueTable(session.eventId, "holes");
+    expect(table.map((r) => [club.indexOf(r.clubId), r.points, r.won])).toEqual([
+      [0, 36, 2],
+      [1, 36, 2],
+      [2, 0, 0],
+      [3, 0, 0],
+    ]);
+
+    expect(await drawLeagueWeek(week[2])).toMatchObject({ ok: true, matches: 2, playoff: "Semi-finals" });
+    expect(await meetingsOf(2)).toEqual(["0-3", "1-2"]);
+  });
+
+  it("will not draw the final until both semi-finals have a result", async () => {
+    await nominate(3, [0, 1, 2, 3]);
+    const res = await drawLeagueWeek(week[3]);
+    expect(res.ok).toBe(false);
+    expect(await prisma.match.count({ where: { stageId: week[3] } })).toBe(0);
+  });
+
+  it("sends the upset winner and the higher seed of a level meeting through", async () => {
+    // Club 3 shoots 3s and beats the top seed; clubs 1 and 2 both shoot 5s.
+    await score(2, (c) => (c === 3 ? 3 : c === 0 ? 4 : 5));
+
+    const bracket = await leaguePlayoffs(session.eventId, "holes");
+    expect(bracket?.rounds.map((r) => r.name)).toEqual(["Semi-finals", "Final"]);
+    const final = bracket!.rounds[1].meetings[0];
+    expect(final && [club.indexOf(final.clubA), final.seedA, club.indexOf(final.clubB), final.seedB]).toEqual([
+      3, 4, 1, 2,
+    ]);
+    expect(bracket!.champion).toBeNull();
+
+    expect(await drawLeagueWeek(week[3])).toMatchObject({ ok: true, matches: 1, playoff: "Final" });
+    expect(await meetingsOf(3)).toEqual(["1-3"]);
+  });
+
+  it("leaves the season table alone — a semi-final is not a season week", async () => {
+    const table = await leagueTable(session.eventId, "holes");
+    const three = table.find((r) => r.clubId === club[3]);
+    // Club 3 won eighteen holes in the semi-final; none of them count here.
+    expect(three).toMatchObject({ points: 0, played: 2, won: 0 });
+  });
+
+  it("crowns the winner of the final", async () => {
+    await score(3, (c) => (c === 1 ? 4 : 6));
+    const bracket = await leaguePlayoffs(session.eventId, "holes");
+    expect(bracket?.champion).toBe(club[1]);
+  });
+
+  it("has no play-offs, and counts every round, when the league has none", async () => {
+    await prisma.event.update({ where: { id: session.eventId }, data: { leaguePlayoffClubs: 0 } });
+    try {
+      expect(await leaguePlayoffs(session.eventId, "holes")).toBeNull();
+      const three = (await leagueTable(session.eventId, "holes")).find((r) => r.clubId === club[3]);
+      // Now both play-off rounds count: eighteen holes from the semi-final,
+      // none from the final, and two more meetings.
+      expect(three).toMatchObject({ points: 18, played: 4 });
+    } finally {
+      await prisma.event.update({ where: { id: session.eventId }, data: { leaguePlayoffClubs: 4 } });
+    }
+  });
+});

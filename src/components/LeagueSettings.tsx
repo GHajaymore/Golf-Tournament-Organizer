@@ -8,6 +8,12 @@ import {
   LEAGUE_POINTS_SYSTEMS,
   type LeaguePointsSystem,
 } from "@/lib/domain/league-meeting";
+import {
+  isLeaguePlayoffSize,
+  LEAGUE_PLAYOFF_LABEL,
+  LEAGUE_PLAYOFF_SIZES,
+  type LeaguePlayoffSize,
+} from "@/lib/domain/league-playoff";
 
 /**
  * THE LEAGUE'S RULES, WHERE THE LEAGUE IS.
@@ -24,17 +30,22 @@ export function LeagueSettings({
   points,
   matchBonus,
   pairs,
+  playoffs,
   canEdit,
 }: {
   /** Empty when the tournament is not a league. */
   points: LeaguePointsSystem | "";
   matchBonus: number;
   pairs: number;
+  playoffs: number;
   canEdit: boolean;
 }) {
   const [system, setSystem] = useState<LeaguePointsSystem | "">(points);
   const [bonus, setBonus] = useState(String(matchBonus));
   const [count, setCount] = useState(String(pairs));
+  const [playoffSize, setPlayoffSize] = useState<LeaguePlayoffSize>(
+    isLeaguePlayoffSize(playoffs) ? playoffs : 0,
+  );
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -52,6 +63,7 @@ export function LeagueSettings({
         // quietly becoming zero.
         matchBonus: bonus.trim() === "" ? Number.NaN : Number(bonus),
         pairs: count.trim() === "" ? Number.NaN : Number(count),
+        playoffs: playoffSize,
       });
       if (result.ok) setSaved(true);
       else setError(result.error);
@@ -150,6 +162,36 @@ export function LeagueSettings({
           >
             Used to flag a club that is short on the night. Changing the scoring
             re-scores every week already played.
+          </p>
+        </div>
+      )}
+
+      {system !== "" && (
+        <div className="field">
+          <label htmlFor="league-playoffs">Play-offs</label>
+          <select
+            id="league-playoffs"
+            className="input"
+            value={playoffSize}
+            disabled={!canEdit || pending}
+            onChange={(e) => {
+              setPlayoffSize(Number(e.target.value) as LeaguePlayoffSize);
+              touched();
+            }}
+          >
+            {LEAGUE_PLAYOFF_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {LEAGUE_PLAYOFF_LABEL[n]}
+              </option>
+            ))}
+          </select>
+          <p
+            className="text-muted"
+            style={{ fontSize: 12, margin: "4px 0 0", lineHeight: 1.55 }}
+          >
+            {playoffSize === 0
+              ? "The season table is the final word."
+              : `The last ${Math.log2(playoffSize) === 1 ? "team round is the final" : `${Math.log2(playoffSize)} team rounds are the play-offs`}, and the table counts only the weeks before. Seeds go by points, then meetings won, then name; a level play-off meeting goes to the higher seed.`}
           </p>
         </div>
       )}

@@ -132,7 +132,7 @@ describe("drawing a league week", () => {
     const res = await drawLeagueWeek(week[0]);
     // Circle method on [c0, c1, c2, c3], week one: c0 v c3 and c1 v c2.
     // c3 has one pair, so c0's second pair has nobody.
-    expect(res).toEqual({ ok: true, matches: 3, byeClub: null, unmatched: 1 });
+    expect(res).toEqual({ ok: true, matches: 3, byeClub: null, playoff: null, unmatched: 1 });
 
     const ms = await matchesIn(week[0]);
     const drawn = ms.map((m) => [m.teamAId, m.teamBId]);
@@ -166,7 +166,7 @@ describe("drawing a league week", () => {
   it("draws the second team round as week two, not week one again", async () => {
     const res = await drawLeagueWeek(week[1]);
     // Week two: c0 v c2 and c3 v c1 — c3's one pair leaves c1's second out.
-    expect(res).toEqual({ ok: true, matches: 3, byeClub: null, unmatched: 1 });
+    expect(res).toEqual({ ok: true, matches: 3, byeClub: null, playoff: null, unmatched: 1 });
     const drawn = (await matchesIn(week[1]))
       .map((m) => `${clubOf(1, m.teamAId!)}v${clubOf(1, m.teamBId!)}`)
       .sort();
@@ -221,14 +221,31 @@ describe("drawing a league week", () => {
   });
 
   it("refuses a round that is not in this tournament", async () => {
-    const other = await prisma.stage.findFirst({
-      where: { eventId: { not: session.eventId } },
+    // Its own second tournament: CI's database holds nothing else to borrow.
+    const org = await prisma.organization.findFirstOrThrow({
+      where: { name: { startsWith: TAG } },
       select: { id: true },
     });
-    // The dev database always holds the seeded demo; no other round means
-    // this cell would be checking nothing, so it says so.
-    expect(other, "no round outside this tournament to try").toBeTruthy();
-    expect(await drawLeagueWeek(other!.id)).toEqual({ ok: false, error: "Round not found." });
+    const foreign = await prisma.event.create({
+      data: {
+        organizationId: org.id,
+        name: `${TAG} another club's league`,
+        status: "live",
+        shape: "series",
+        format: "stroke",
+        formationRule: "balanced",
+        leaguePoints: "match",
+        dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
+        shareToken: randomBytes(12).toString("hex"),
+        registrationToken: randomBytes(8).toString("hex"),
+      },
+      select: { id: true },
+    });
+    const other = await prisma.stage.create({
+      data: { eventId: foreign.id, position: 0, type: "Round Robin", format: "Four-Ball", holes: 18 },
+      select: { id: true },
+    });
+    expect(await drawLeagueWeek(other.id)).toEqual({ ok: false, error: "Round not found." });
   });
 
   it("the generic draw and auto-draw refuse a league, and leave the week alone", async () => {

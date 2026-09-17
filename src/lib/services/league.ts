@@ -11,6 +11,15 @@ import {
   type PairingResult,
 } from "../domain/league-meeting";
 import type { HoleResult } from "../domain/types";
+import { matchIsOver } from "../domain/match";
+import { needsTeams } from "../formats";
+import {
+  playoffBracket,
+  playoffChampion,
+  seedOrder,
+  splitSeason,
+  type MeetingOutcome,
+} from "../domain/league-playoff";
 
 /**
  * A WEEK OF AN INTERCLUB LEAGUE, READ OFF THE ROWS.
@@ -74,6 +83,12 @@ export interface LeagueMeeting {
    */
   expectedPairings: number;
   short: boolean;
+  /**
+   * Every pairing has a decided result, read with `matchIsOver` so an
+   * unplayed card is not a finished one. A play-off meeting only sends a club
+   * through once this is true.
+   */
+  complete: boolean;
 }
 
 export async function leagueMeetings(
@@ -184,6 +199,7 @@ export async function leagueMeetings(
       // something deliberate, and refusing it would be the app arguing with a
       // club about its own league.
       short: expectedPairings > 0 && own.length < expectedPairings,
+      complete: own.length > 0 && own.every((p) => matchIsOver(p.holes)),
     };
   });
 }
@@ -194,6 +210,84 @@ export interface LeagueTableRow {
   points: number;
   /** Meetings this club has actually played, for "after six weeks". */
   played: number;
+  /** Meetings won outright and finished — the first tiebreak for seeding. */
+  won: number;
+}
+
+/**
+ * The tournament's team rounds, split into the season and the play-offs.
+ *
+ * One reader for the split, so the table, the draw and the bracket cannot
+ * disagree about which week is the semi-final.
+ */
+export async function leagueSeason(eventId: string): Promise<{
+  season: string[];
+  playoffs: string[];
+  size: number;
+}> {
+  const [event, stages] = await Promise.all([
+    prisma.event.findUnique({ where: { id: eventId }, select: { leaguePlayoffClubs: true } }),
+    prisma.stage.findMany({
+      where: { eventId },
+      select: { id: true, format: true },
+      orderBy: { position: "asc" },
+    }),
+  ]);
+  const size = event?.leaguePlayoffClubs ?? 0;
+  const teamRounds = stages.filter((s) => needsTeams(s.format)).map((s) => s.id);
+  const { season, playoffs } = splitSeason(teamRounds, size);
+  return { season, playoffs, size: playoffs.length > 0 ? size : 0 };
+}
+
+export interface LeaguePlayoffs {
+  rounds: {
+    stageId: string;
+    name: string;
+    meetings: ({ seedA: number; seedB: number; clubA: string; clubB: string } | null)[];
+  }[];
+  /** Club id to name, for everything above. */
+  names: Record<string, string>;
+  champion: string | null;
+}
+
+/**
+ * THE PLAY-OFF BRACKET, as far as the results allow.
+ *
+ * Seeded from the season table by `seedOrder` — points, meetings won, then
+ * name — and advanced by `meetingWinner`, which reads the play-off meetings
+ * that were actually played. Null when the league has no play-offs.
+ */
+export async function leaguePlayoffs(
+  eventId: string,
+  system: LeaguePointsSystem,
+  matchBonus?: number,
+): Promise<LeaguePlayoffs | null> {
+  const { playoffs, size } = await leagueSeason(eventId);
+  if (size === 0) return null;
+
+  const table = await leagueTable(eventId, system, matchBonus);
+  const seeded = seedOrder(table).map((r) => r.clubId);
+  const outcomes: MeetingOutcome[][] = [];
+  for (const stageId of playoffs) {
+    const played = await leagueMeetings(eventId, stageId, system, matchBonus);
+    outcomes.push(
+      played.map((m) => ({
+        clubA: m.clubAId,
+        clubB: m.clubBId,
+        pointsA: m.pointsA,
+        pointsB: m.pointsB,
+        complete: m.complete,
+      })),
+    );
+  }
+
+  const bracket = playoffBracket(seeded, size, outcomes);
+  if (bracket.length === 0) return null;
+  return {
+    rounds: bracket.map((r, i) => ({ stageId: playoffs[i], name: r.name, meetings: r.meetings })),
+    names: Object.fromEntries(table.map((r) => [r.clubId, r.name])),
+    champion: playoffChampion(bracket, outcomes.at(-1) ?? []),
+  };
 }
 
 /**
@@ -215,47 +309,60 @@ export async function leagueTable(
   matchBonus?: number,
 ): Promise<LeagueTableRow[]> {
   /**
-   * The clubs are the flights that actually field a side. An ordinary
-   * tournament's flights are not clubs, and listing them would turn every
-   * member-guest into a league of four.
+   * THE CLUBS ARE THE FLIGHTS — every one, including a club that has not
+   * nominated a pair yet. The same list the team sheets and the draw use.
+   *
+   * This used to be "flights that field a side", to keep an ordinary
+   * tournament's flights from reading as a league of four. The league is a
+   * switch now (`Event.leaguePoints`) and the screen only asks when it is on,
+   * so that filter only emptied the table — and with it the play-off seeding —
+   * until the first pairs were in.
    */
   const clubs = await prisma.group.findMany({
-    where: { eventId, isCarrier: false, sides: { some: {} } },
+    where: { eventId, stageId: null, isCarrier: false },
     select: { id: true, name: true },
     orderBy: { position: "asc" },
   });
   if (clubs.length === 0) return [];
 
-  const stages = await prisma.stage.findMany({
-    where: { eventId },
-    select: { id: true },
-    orderBy: { position: "asc" },
-  });
+  /**
+   * THE SEASON ONLY. A play-off meeting decides who goes through, not where
+   * a club finished — counting it would let the semi-final reorder the very
+   * table that seeded it.
+   */
+  const { season } = await leagueSeason(eventId);
 
   const points = new Map(clubs.map((c) => [c.id, 0]));
   const played = new Map(clubs.map((c) => [c.id, 0]));
+  const won = new Map(clubs.map((c) => [c.id, 0]));
+  const add = (m: Map<string, number>, id: string, n: number) => m.set(id, (m.get(id) ?? 0) + n);
 
-  for (const s of stages) {
-    for (const m of await leagueMeetings(eventId, s.id, system, matchBonus)) {
-      points.set(m.clubAId, (points.get(m.clubAId) ?? 0) + m.pointsA);
-      points.set(m.clubBId, (points.get(m.clubBId) ?? 0) + m.pointsB);
-      played.set(m.clubAId, (played.get(m.clubAId) ?? 0) + 1);
-      played.set(m.clubBId, (played.get(m.clubBId) ?? 0) + 1);
+  for (const stageId of season) {
+    for (const m of await leagueMeetings(eventId, stageId, system, matchBonus)) {
+      add(points, m.clubAId, m.pointsA);
+      add(points, m.clubBId, m.pointsB);
+      add(played, m.clubAId, 1);
+      add(played, m.clubBId, 1);
+      // Won outright, and only once it is over — the first tiebreak.
+      if (m.complete && m.pointsA > m.pointsB) add(won, m.clubAId, 1);
+      if (m.complete && m.pointsB > m.pointsA) add(won, m.clubBId, 1);
     }
   }
 
-  return clubs
-    .map((c) => ({
+  /**
+   * Most points first, in the SAME order the play-offs are seeded in, so the
+   * row above a club is the club seeded above it. A tie on points still shows
+   * as a shared place — `placesByValue` works that out on the points alone,
+   * the same way every other board does — and the Won column says why one
+   * of two level clubs is listed first.
+   */
+  return seedOrder(
+    clubs.map((c) => ({
       clubId: c.id,
       name: c.name,
       points: points.get(c.id) ?? 0,
       played: played.get(c.id) ?? 0,
-    }))
-    /**
-     * Most points first, and a tie stays a tie — the places are worked out by
-     * the reader, the same way every other board in this app does it since
-     * `placesByValue`. A league table full of halves produces genuine ties,
-     * which is why a real one shows T12 twice.
-     */
-    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
+      won: won.get(c.id) ?? 0,
+    })),
+  );
 }

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { flightsIn, nominationsFor } from "@/lib/services/league-nomination";
-import { leagueMeetings, leagueTable } from "@/lib/services/league";
+import { leagueMeetings, leaguePlayoffs, leagueTable } from "@/lib/services/league";
 import {
   isLeaguePointsSystem,
   LEAGUE_POINTS_LABEL,
@@ -11,6 +11,7 @@ import { LeagueMeetings } from "@/components/LeagueMeetings";
 import { LeagueTable } from "@/components/LeagueTable";
 import { LeagueSettings } from "@/components/LeagueSettings";
 import { LeagueDraw } from "@/components/LeagueDraw";
+import { LeaguePlayoffs } from "@/components/LeaguePlayoffs";
 
 /**
  * AN INTERCLUB LEAGUE, ON THE SCREEN THAT ALREADY OWNS SIDES.
@@ -39,7 +40,12 @@ export async function LeagueSection({
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { leaguePoints: true, leagueMatchBonus: true, leaguePairs: true },
+    select: {
+      leaguePoints: true,
+      leagueMatchBonus: true,
+      leaguePairs: true,
+      leaguePlayoffClubs: true,
+    },
   });
 
   const matchBonus = event?.leagueMatchBonus ?? 2;
@@ -66,6 +72,7 @@ export async function LeagueSection({
           points=""
           matchBonus={matchBonus}
           pairs={pairs}
+          playoffs={event?.leaguePlayoffClubs ?? 0}
           canEdit={canEdit}
         />
       </section>
@@ -73,11 +80,12 @@ export async function LeagueSection({
   }
   const system: LeaguePointsSystem = event.leaguePoints;
 
-  const [meetings, table, nominations, drawn] = await Promise.all([
+  const [meetings, table, nominations, drawn, playoffs] = await Promise.all([
     leagueMeetings(eventId, stageId, system, matchBonus),
     leagueTable(eventId, system, matchBonus),
     Promise.all(clubs.map((c) => nominationsFor(eventId, stageId, c.id))),
     prisma.match.count({ where: { eventId, stageId } }),
+    leaguePlayoffs(eventId, system, matchBonus),
   ]);
 
   return (
@@ -93,6 +101,7 @@ export async function LeagueSection({
         points={system}
         matchBonus={matchBonus}
         pairs={pairs}
+        playoffs={event?.leaguePlayoffClubs ?? 0}
         canEdit={canEdit}
       />
 
@@ -117,8 +126,17 @@ export async function LeagueSection({
         matchBonus={matchBonus}
       />
 
-      <h3 style={{ fontSize: 15, margin: "28px 0 10px" }}>League table</h3>
+      <h3 style={{ fontSize: 15, margin: "28px 0 10px" }}>
+        {playoffs ? "Season table" : "League table"}
+      </h3>
       <LeagueTable rows={table} pointsLabel="Points" />
+
+      {playoffs && (
+        <>
+          <h3 style={{ fontSize: 15, margin: "28px 0 10px" }}>Play-offs</h3>
+          <LeaguePlayoffs playoffs={playoffs} />
+        </>
+      )}
     </section>
   );
 }

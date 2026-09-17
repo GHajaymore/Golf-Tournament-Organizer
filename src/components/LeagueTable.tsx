@@ -36,9 +36,9 @@ export function LeagueTable({
       <div className="card elev-sm">
         <span className="card-title">No clubs yet</span>
         <p className="text-muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-          A league needs its clubs before it can have a table. Add them on the
-          Teams screen — a club has no round of its own, it holds the roster
-          that the weekly pairs are nominated from.
+          A league needs its clubs before it can have a table. Each club is a
+          flight — add them in flights setup, with each club&rsquo;s roster as
+          its players, and the weekly pairs are nominated from there.
         </p>
       </div>
     );
@@ -46,13 +46,14 @@ export function LeagueTable({
 
   return (
     <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 340 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 300 }}>
         <thead>
           <tr>
-            <th style={{ textAlign: "left", width: 54 }}>Pos.</th>
+            <th style={{ textAlign: "left", width: 44 }}>Pos.</th>
             <th style={{ textAlign: "left" }}>Team</th>
-            <th style={{ textAlign: "right", width: 64 }}>Played</th>
-            <th style={{ textAlign: "right", width: 92 }}>{pointsLabel}</th>
+            <th style={{ textAlign: "right", width: 56 }}>Played</th>
+            <th style={{ textAlign: "right", width: 44 }}>Won</th>
+            <th style={{ textAlign: "right", width: 68 }}>{pointsLabel}</th>
           </tr>
         </thead>
         <tbody>
@@ -62,6 +63,9 @@ export function LeagueTable({
               <td style={{ fontWeight: 500 }}>{r.name}</td>
               <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                 {r.played}
+              </td>
+              <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                {r.won}
               </td>
               {/* Two decimals, because halves are the normal case: a halved
                   four-ball is worth half a point to each side, and a league

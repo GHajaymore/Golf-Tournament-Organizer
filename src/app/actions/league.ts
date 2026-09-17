@@ -6,10 +6,12 @@ import { getSession } from "@/lib/auth";
 import { logAudit } from "@/lib/services/action-shared";
 import { isLeaguePointsSystem } from "@/lib/domain/league-meeting";
 import { drawMeeting, leagueWeekMeetings } from "@/lib/domain/league-draw";
+import { isLeaguePlayoffSize } from "@/lib/domain/league-playoff";
 import { matchCarrierGroup } from "@/lib/services/match-carrier";
 import { boardChanged } from "@/lib/services/board-refresh";
 import { needsTeams } from "@/lib/formats";
 import { holesPlayed } from "@/lib/domain/handicap";
+import { leagueMeetings, leaguePlayoffs, leagueSeason } from "@/lib/services/league";
 
 /**
  * Organizer or assistant, on the active tournament.
@@ -244,6 +246,7 @@ export async function setLeagueSettings(input: {
   points: unknown;
   matchBonus: unknown;
   pairs: unknown;
+  playoffs: unknown;
 }): Promise<LeagueResult> {
   const session = await getSession();
   if (!session) throw new Error("Not authenticated");
@@ -264,21 +267,31 @@ export async function setLeagueSettings(input: {
     return { ok: false, error: `Pairs per club is a whole number from 0 to ${MAX_LEAGUE_PAIRS}.` };
   }
 
+  const playoffs = input.playoffs;
+  if (!isLeaguePlayoffSize(playoffs)) {
+    return { ok: false, error: "Play-offs are for 2, 4 or 8 clubs, or none." };
+  }
+
   const before = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { leaguePoints: true, leagueMatchBonus: true, leaguePairs: true },
+    select: { leaguePoints: true, leagueMatchBonus: true, leaguePairs: true, leaguePlayoffClubs: true },
   });
   if (!before) return { ok: false, error: "Tournament not found." };
 
   await prisma.event.update({
     where: { id: eventId },
-    data: { leaguePoints: points, leagueMatchBonus: bonus, leaguePairs: pairs },
+    data: {
+      leaguePoints: points,
+      leagueMatchBonus: bonus,
+      leaguePairs: pairs,
+      leaguePlayoffClubs: playoffs,
+    },
   });
   await logAudit(
     eventId,
     "league-settings",
-    `League scoring ${before.leaguePoints || "off"} (bonus ${before.leagueMatchBonus}, pairs ${before.leaguePairs})` +
-      ` -> ${points || "off"} (bonus ${bonus}, pairs ${pairs})`,
+    `League scoring ${before.leaguePoints || "off"} (bonus ${before.leagueMatchBonus}, pairs ${before.leaguePairs}, play-offs ${before.leaguePlayoffClubs})` +
+      ` -> ${points || "off"} (bonus ${bonus}, pairs ${pairs}, play-offs ${playoffs})`,
   );
   revalidatePath("/teams");
   return { ok: true };
@@ -291,6 +304,8 @@ export type LeagueDrawResult =
       matches: number;
       /** The club sitting out this week, when the league is odd. */
       byeClub: string | null;
+      /** The play-off round this was, or null for a season week. */
+      playoff: string | null;
       /** Pairs left without an opponent because the other club put up fewer. */
       unmatched: number;
     }
@@ -326,14 +341,7 @@ export async function drawLeagueWeek(stageId: string, replace = false): Promise<
     };
   }
 
-  const teamRounds = (
-    await prisma.stage.findMany({
-      where: { eventId },
-      select: { id: true, format: true },
-      orderBy: { position: "asc" },
-    })
-  ).filter((s) => needsTeams(s.format));
-  const week = teamRounds.findIndex((s) => s.id === stageId);
+  const { season, playoffs } = await leagueSeason(eventId);
 
   const clubs = await prisma.group.findMany({
     where: { eventId, stageId: null, isCarrier: false },
@@ -352,10 +360,59 @@ export async function drawLeagueWeek(stageId: string, replace = false): Promise<
   const pairsOf = (clubId: string) =>
     pairs.filter((p) => p.clubGroupId === clubId).map((p) => p.id);
 
-  const { meetings, bye } = leagueWeekMeetings(
-    clubs.map((c) => c.id),
-    week,
-  );
+  const playoffRound = playoffs.indexOf(stageId);
+  let meetings: [string, string][];
+  let bye: string | null = null;
+  let roundName: string | null = null;
+
+  if (playoffRound < 0) {
+    ({ meetings, bye } = leagueWeekMeetings(
+      clubs.map((c) => c.id),
+      season.indexOf(stageId),
+    ));
+  } else {
+    /**
+     * A PLAY-OFF WEEK: the meetings come from the bracket, and the bracket
+     * only knows them once everything before has a result. Drawing the
+     * semi-finals off a season with a week still out would seed them off a
+     * table that can still change.
+     */
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { leaguePoints: true, leagueMatchBonus: true },
+    });
+    const system = isLeaguePointsSystem(event?.leaguePoints) ? event.leaguePoints : "match";
+    const bonus = event?.leagueMatchBonus;
+
+    const before = playoffRound === 0 ? season : [playoffs[playoffRound - 1]];
+    for (const earlier of before) {
+      const open = (await leagueMeetings(eventId, earlier, system, bonus)).filter((m) => !m.complete);
+      if (open.length > 0) {
+        return {
+          ok: false,
+          error: `${open[0].clubAName} v ${open[0].clubBName} is not finished yet. The play-offs are drawn once every meeting before them has a result.`,
+        };
+      }
+    }
+
+    const bracket = await leaguePlayoffs(eventId, system, bonus);
+    if (!bracket) {
+      return {
+        ok: false,
+        error: "The league has fewer clubs than play-off places. Change the play-offs in League settings.",
+      };
+    }
+    const round = bracket.rounds[playoffRound];
+    if (!round || round.meetings.some((m) => m === null)) {
+      return {
+        ok: false,
+        error: "The meetings for this play-off round are not known yet.",
+      };
+    }
+    roundName = round.name;
+    meetings = round.meetings.map((m): [string, string] => [m!.clubA, m!.clubB]);
+  }
+
   const draws = meetings.map(([a, b]) => drawMeeting(pairsOf(a), pairsOf(b)));
   const total = draws.reduce((n, d) => n + d.matches.length, 0);
   if (total === 0) {
@@ -418,6 +475,7 @@ export async function drawLeagueWeek(stageId: string, replace = false): Promise<
     ok: true,
     matches: total,
     byeClub: clubs.find((c) => c.id === bye)?.name ?? null,
+    playoff: roundName,
     unmatched: draws.reduce((n, d) => n + d.unmatched.length, 0),
   };
 }
