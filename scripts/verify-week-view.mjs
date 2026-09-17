@@ -183,10 +183,117 @@ async function main() {
     // 4 x 18 = 72 would be One's total if it had been ranked anyway.
     assert("does not total the cards it was given", !/>72</.test(w3.html));
 
+    /**
+     * THE CLUB LEAGUE, AS A MEMBER SEES IT.
+     *
+     * An interclub league is a different competition from the player
+     * standings above, and it lived only on Teams — a staff screen — so a
+     * member could not see their club's meeting or the table at all. This
+     * signs in as a PLAYER, which is the whole point: the section has to be
+     * there for them, and the staff controls must not be.
+     */
+    console.log("\nThe club league — what a member sees on /week");
+    const league = await prisma.event.create({
+      data: {
+        organizationId: org.id,
+        name: `${MARK}-club-league`,
+        status: "live", shape: "series", format: "stroke", formationRule: "balanced",
+        dates: "", course: "", city: "", address: "", regDeadline: "", capacity: 0,
+        leaguePoints: "holes-and-match", leagueMatchBonus: 2, leaguePairs: 1,
+        customPars: flat(4),
+        customYards: JSON.stringify(new Array(18).fill(400)),
+        customStrokeIndex: JSON.stringify(Array.from({ length: 18 }, (_, i) => i + 1)),
+        shareToken: randomBytes(12).toString("hex"),
+        registrationToken: randomBytes(8).toString("hex"),
+      },
+    });
+    made.leagueId = league.id;
+    const lweek = await prisma.stage.create({
+      data: {
+        eventId: league.id, position: 0,
+        type: "Round Robin", format: "Four-Ball", holes: 18,
+        scoringBasis: "gross", handicapAllowance: 100,
+      },
+    });
+    const carrier = await prisma.group.create({
+      data: { eventId: league.id, stageId: lweek.id, isCarrier: true, name: "fixtures", position: 9 },
+    });
+
+    // Two clubs, one pair each. Alpha shoots 4s and Bravo 5s, so Alpha wins
+    // every hole: eighteen holes and the two-point bonus.
+    const sides = [];
+    let memberEmail = "";
+    for (const [i, clubName] of ["Alpha GC", "Bravo GC"].entries()) {
+      const club = await prisma.group.create({
+        data: { eventId: league.id, name: clubName, position: i },
+      });
+      const side = await prisma.team.create({
+        data: { eventId: league.id, stageId: lweek.id, clubGroupId: club.id, name: `${clubName} pair`, seed: 1 },
+      });
+      for (let k = 0; k < 2; k += 1) {
+        const email = `${MARK}-lp${i}${k}@example.invalid`;
+        if (!memberEmail) memberEmail = email;
+        const pl = await prisma.player.create({
+          data: {
+            eventId: league.id, name: `${clubName} ${k + 1}`, email,
+            handicap: 0, seed: 1, status: "confirmed", groupId: club.id,
+          },
+        });
+        await prisma.teamMember.create({ data: { teamId: side.id, playerId: pl.id, position: k } });
+        await prisma.teamScorecard.create({
+          data: {
+            eventId: league.id, stageId: lweek.id, teamId: side.id, playerId: pl.id,
+            strokes: flat(i === 0 ? 4 : 5),
+          },
+        });
+      }
+      sides.push(side.id);
+    }
+    await prisma.match.create({
+      data: {
+        eventId: league.id, stageId: lweek.id, groupId: carrier.id, round: 1,
+        playerAId: "", playerBId: "",
+        teamAId: sides[0], teamBId: sides[1],
+        holes: JSON.stringify(new Array(18).fill(null)),
+      },
+    });
+
+    // A MEMBER, not an organizer: a player account on the league event.
+    const member = await prisma.user.create({
+      data: { email: memberEmail, name: "Alpha One", password: `${randomBytes(8).toString("hex")}:unusable` },
+    });
+    made.memberId = member.id;
+    await prisma.account.create({
+      data: { eventId: league.id, name: member.name, email: memberEmail, role: "player" },
+    });
+    const sign = (v) => `${v}.${createHmac("sha256", secret).update(v).digest("base64url")}`;
+    const asMember = `ng_session=${sign(member.id)}; ng_active_event=${sign(league.id)}`;
+    const lw = await fetch(`${BASE}/week?round=${lweek.id}`, {
+      headers: { cookie: asMember },
+      redirect: "follow",
+    });
+    const lhtml = stripComments(await lw.text());
+    console.log(`  status ${lw.status}`);
+    if (lw.status !== 200) failures += 1;
+
+    check("the league section", lhtml, "Clubs and meetings");
+    check("this week's meeting", lhtml, "Alpha GC v Bravo GC");
+    check("the league table", lhtml, "League table");
+    // 18 holes won plus the 2-point bonus, and the loser on nothing.
+    check("the meeting's points", lhtml, "20.00");
+    check("what ordered the table", lhtml, "Ranked on points");
+
+    // Read-only: nominating, drawing and the settings belong to staff.
+    check("no team sheet for a member", lhtml, "Nominate pair", false);
+    check("no draw button for a member", lhtml, "Draw this week", false);
+    check("no league settings for a member", lhtml, "League settings", false);
+
     console.log(`\n${failures === 0 ? "All checks passed." : `${failures} check(s) FAILED.`}`);
   } finally {
     if (made.eventId) await prisma.event.deleteMany({ where: { id: made.eventId } });
+    if (made.leagueId) await prisma.event.deleteMany({ where: { id: made.leagueId } });
     if (made.userId) await prisma.user.deleteMany({ where: { id: made.userId } });
+    if (made.memberId) await prisma.user.deleteMany({ where: { id: made.memberId } });
     if (made.orgId) await prisma.organization.deleteMany({ where: { id: made.orgId } });
     await prisma.$disconnect();
     console.log("Fixtures removed.");
